@@ -28,6 +28,8 @@ public enum StageId {
     ALP_RD_DOUBLE_STAGE((byte) 0x0E),
     ALP_RD_FLOAT_STAGE((byte) 0x0F),
     FPC_STAGE((byte) 0x10),
+    CHIMP_DOUBLE_STAGE((byte) 0x11),
+    CHIMP_FLOAT_STAGE((byte) 0x12),
 
     // Terminal stages - write final encoded payload
     BIT_PACK((byte) 0xA1),
@@ -38,7 +40,8 @@ public enum StageId {
     ALP_FLOAT((byte) 0xA7),
     ALP_RD_DOUBLE((byte) 0xA8),
     ALP_RD_FLOAT((byte) 0xA9),
-    LZ4((byte) 0xA5);
+    LZ4((byte) 0xA5),
+    GORILLA_FLOAT_PAYLOAD((byte) 0xAA);
 
     public final byte id;
 
@@ -61,6 +64,8 @@ public enum StageId {
             case (byte) 0x0E -> ALP_RD_DOUBLE_STAGE;
             case (byte) 0x0F -> ALP_RD_FLOAT_STAGE;
             case (byte) 0x10 -> FPC_STAGE;
+            case (byte) 0x11 -> CHIMP_DOUBLE_STAGE;
+            case (byte) 0x12 -> CHIMP_FLOAT_STAGE;
             case (byte) 0xA1 -> BIT_PACK;
             case (byte) 0xA2 -> ZSTD;
             case (byte) 0xA3 -> GORILLA_PAYLOAD;
@@ -70,6 +75,7 @@ public enum StageId {
             case (byte) 0xA8 -> ALP_RD_DOUBLE;
             case (byte) 0xA9 -> ALP_RD_FLOAT;
             case (byte) 0xA5 -> LZ4;
+            case (byte) 0xAA -> GORILLA_FLOAT_PAYLOAD;
             default -> throw new IllegalArgumentException("Unknown stage ID: 0x" + Integer.toHexString(id & 0xFF));
         };
     }

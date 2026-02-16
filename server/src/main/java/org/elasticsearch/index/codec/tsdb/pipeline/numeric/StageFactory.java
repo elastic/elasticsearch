@@ -30,11 +30,17 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdFloatTran
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.BitPackCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaDeltaCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleTransformDecodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleTransformEncodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatTransformDecodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcTransformDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GorillaDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GorillaEncodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GorillaFloatDecodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GorillaFloatEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.Lz4DecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.Lz4EncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;
@@ -75,6 +81,8 @@ public final class StageFactory {
                 ? new AlpRdFloatTransformEncodeStage(blockSize, maxError)
                 : new AlpRdFloatTransformEncodeStage(blockSize);
             case StageSpec.FpcStage(int ts) -> ts > 0 ? new FpcTransformEncodeStage(blockSize, ts) : new FpcTransformEncodeStage(blockSize);
+            case StageSpec.ChimpDoubleStage(int gs) -> new ChimpDoubleTransformEncodeStage(blockSize, gs);
+            case StageSpec.ChimpFloatStage(int gs) -> new ChimpFloatTransformEncodeStage(blockSize, gs);
             default -> throw new IllegalArgumentException("Not a transform stage: " + spec);
         };
     }
@@ -94,6 +102,8 @@ public final class StageFactory {
             case StageSpec.AlpFloatStage alpFloatStage -> new AlpFloatTransformDecodeStage();
             case StageSpec.AlpRdFloatStage alpRdFloatStage -> new AlpRdFloatTransformDecodeStage();
             case StageSpec.FpcStage(int ts) -> ts > 0 ? new FpcTransformDecodeStage(ts) : new FpcTransformDecodeStage();
+            case StageSpec.ChimpDoubleStage chimpDoubleStage -> new ChimpDoubleTransformDecodeStage();
+            case StageSpec.ChimpFloatStage chimpFloatStage -> new ChimpFloatTransformDecodeStage();
             default -> throw new IllegalArgumentException("Not a transform stage: " + spec);
         };
     }
@@ -104,6 +114,7 @@ public final class StageFactory {
             case StageSpec.Zstd() -> new ZstdEncodeStage(blockSize, ZstdEncodeStage.DEFAULT_COMPRESSION_LEVEL);
             case StageSpec.Lz4(boolean highCompression) -> new Lz4EncodeStage(blockSize, highCompression);
             case StageSpec.Gorilla() -> new GorillaEncodeStage();
+            case StageSpec.GorillaFloat() -> new GorillaFloatEncodeStage();
             case StageSpec.RlePayload() -> RlePayloadCodecStage.INSTANCE;
             case StageSpec.AlpDouble(double maxError) -> maxError > 0
                 ? new AlpDoubleEncodeStage(blockSize, maxError)
@@ -127,6 +138,7 @@ public final class StageFactory {
             case StageSpec.Zstd() -> new ZstdDecodeStage(blockSize);
             case StageSpec.Lz4 lz4 -> new Lz4DecodeStage(blockSize);
             case StageSpec.Gorilla() -> new GorillaDecodeStage();
+            case StageSpec.GorillaFloat() -> new GorillaFloatDecodeStage();
             case StageSpec.RlePayload() -> RlePayloadCodecStage.INSTANCE;
             case StageSpec.AlpDouble alpDouble -> new AlpDoubleDecodeStage(blockSize);
             case StageSpec.AlpRdDouble alpRdDouble -> new AlpRdDoubleDecodeStage(blockSize);
@@ -154,10 +166,13 @@ public final class StageFactory {
             case ALP_FLOAT_STAGE -> new StageSpec.AlpFloatStage();
             case ALP_RD_FLOAT_STAGE -> new StageSpec.AlpRdFloatStage();
             case FPC_STAGE -> new StageSpec.FpcStage();
+            case CHIMP_DOUBLE_STAGE -> new StageSpec.ChimpDoubleStage();
+            case CHIMP_FLOAT_STAGE -> new StageSpec.ChimpFloatStage();
             case BIT_PACK -> new StageSpec.BitPack();
             case ZSTD -> new StageSpec.Zstd();
             case LZ4 -> new StageSpec.Lz4();
             case GORILLA_PAYLOAD -> new StageSpec.Gorilla();
+            case GORILLA_FLOAT_PAYLOAD -> new StageSpec.GorillaFloat();
             case RLE_PAYLOAD -> new StageSpec.RlePayload();
             case ALP_DOUBLE -> new StageSpec.AlpDouble();
             case ALP_RD_DOUBLE -> new StageSpec.AlpRdDouble();

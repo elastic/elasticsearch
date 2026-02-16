@@ -260,6 +260,16 @@ public final class PipelineConfig {
             return this;
         }
 
+        public DoubleBuilder chimpDoubleStage() {
+            specs.add(new StageSpec.ChimpDoubleStage());
+            return this;
+        }
+
+        public DoubleBuilder chimpDoubleStage(int groupSize) {
+            specs.add(new StageSpec.ChimpDoubleStage(groupSize));
+            return this;
+        }
+
         // Terminal payload stages (from LongBuilder)
         public PipelineConfig bitPack() {
             specs.add(new StageSpec.BitPack());
@@ -381,6 +391,16 @@ public final class PipelineConfig {
             return this;
         }
 
+        public FloatBuilder chimpFloatStage() {
+            specs.add(new StageSpec.ChimpFloatStage());
+            return this;
+        }
+
+        public FloatBuilder chimpFloatStage(int groupSize) {
+            specs.add(new StageSpec.ChimpFloatStage(groupSize));
+            return this;
+        }
+
         public PipelineConfig bitPack() {
             specs.add(new StageSpec.BitPack());
             return new PipelineConfig(DataType.FLOAT, blockSize, specs);
@@ -403,6 +423,11 @@ public final class PipelineConfig {
 
         public PipelineConfig rlePayload() {
             specs.add(new StageSpec.RlePayload());
+            return new PipelineConfig(DataType.FLOAT, blockSize, specs);
+        }
+
+        public PipelineConfig gorilla() {
+            specs.add(new StageSpec.GorillaFloat());
             return new PipelineConfig(DataType.FLOAT, blockSize, specs);
         }
 

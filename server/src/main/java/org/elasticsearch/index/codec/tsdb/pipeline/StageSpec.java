@@ -130,6 +130,28 @@ public sealed interface StageSpec {
         }
     }
 
+    record ChimpDoubleStage(int groupSize) implements StageSpec {
+        public ChimpDoubleStage() {
+            this(16);
+        }
+
+        @Override
+        public StageId stageId() {
+            return StageId.CHIMP_DOUBLE_STAGE;
+        }
+    }
+
+    record ChimpFloatStage(int groupSize) implements StageSpec {
+        public ChimpFloatStage() {
+            this(16);
+        }
+
+        @Override
+        public StageId stageId() {
+            return StageId.CHIMP_FLOAT_STAGE;
+        }
+    }
+
     // Payload stages
     record BitPack() implements StageSpec {
         @Override
@@ -189,6 +211,13 @@ public sealed interface StageSpec {
         @Override
         public StageId stageId() {
             return StageId.ALP_RD_DOUBLE;
+        }
+    }
+
+    record GorillaFloat() implements StageSpec {
+        @Override
+        public StageId stageId() {
+            return StageId.GORILLA_FLOAT_PAYLOAD;
         }
     }
 

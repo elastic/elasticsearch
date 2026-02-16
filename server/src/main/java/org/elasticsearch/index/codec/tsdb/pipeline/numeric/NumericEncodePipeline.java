@@ -24,6 +24,8 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdFloatTran
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.BitPackCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaDeltaCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleTransformEncodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;
@@ -124,6 +126,7 @@ public final class NumericEncodePipeline {
             || spec instanceof StageSpec.Zstd
             || spec instanceof StageSpec.Lz4
             || spec instanceof StageSpec.Gorilla
+            || spec instanceof StageSpec.GorillaFloat
             || spec instanceof StageSpec.RlePayload
             || spec instanceof StageSpec.AlpDouble
             || spec instanceof StageSpec.AlpRdDouble
@@ -198,6 +201,18 @@ public final class NumericEncodePipeline {
                     context.valueCount(),
                     context
                 );
+                case CHIMP_DOUBLE_STAGE -> ChimpDoubleTransformEncodeStage.encodeStatic(
+                    (ChimpDoubleTransformEncodeStage) stages[pos],
+                    values,
+                    context.valueCount(),
+                    context
+                );
+                case CHIMP_FLOAT_STAGE -> ChimpFloatTransformEncodeStage.encodeStatic(
+                    (ChimpFloatTransformEncodeStage) stages[pos],
+                    values,
+                    context.valueCount(),
+                    context
+                );
                 default -> throw new IllegalStateException("Unexpected stage: " + stageIds[pos]);
             };
             context.setValueCount(newCount);
@@ -234,6 +249,7 @@ public final class NumericEncodePipeline {
     private static boolean isDoubleOnly(final StageSpec s) {
         return s instanceof StageSpec.AlpDoubleStage
             || s instanceof StageSpec.AlpRdDoubleStage
+            || s instanceof StageSpec.ChimpDoubleStage
             || s instanceof StageSpec.AlpDouble
             || s instanceof StageSpec.AlpRdDouble;
     }
@@ -241,6 +257,8 @@ public final class NumericEncodePipeline {
     private static boolean isFloatOnly(final StageSpec s) {
         return s instanceof StageSpec.AlpFloatStage
             || s instanceof StageSpec.AlpRdFloatStage
+            || s instanceof StageSpec.ChimpFloatStage
+            || s instanceof StageSpec.GorillaFloat
             || s instanceof StageSpec.AlpFloat
             || s instanceof StageSpec.AlpRdFloat;
     }

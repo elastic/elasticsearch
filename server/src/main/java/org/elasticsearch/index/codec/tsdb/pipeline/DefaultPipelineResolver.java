@@ -25,7 +25,6 @@ public final class DefaultPipelineResolver implements PipelineResolver {
     private static final int LOGSDB_BLOCK_SIZE = 128;
 
     private static final double QUANTIZE_STORAGE = 1e-6;
-    private static final double QUANTIZE_BALANCED = 1e-12;
 
     @Override
     public PipelineConfig resolve(final String fieldName, final FieldContext context) {
@@ -47,21 +46,18 @@ public final class DefaultPipelineResolver implements PipelineResolver {
     @Nullable
     private PipelineConfig resolveFromStaticRules(final String fieldName, final FieldContext context) {
         if (context.indexMode() == IndexMode.TIME_SERIES) {
-            return resolveForTimeSeries(fieldName, context);
+            return resolveForTimeSeries(context);
         }
 
         if (context.indexMode() == IndexMode.LOGSDB) {
-            return resolveForLogsDb(fieldName, context);
+            return resolveForLogsDb(context);
         }
 
         return null;
     }
 
     @Nullable
-    private PipelineConfig resolveForTimeSeries(final String fieldName, final FieldContext context) {
-        if ("@timestamp".equals(fieldName)) {
-            return resolveTimestamp(TSDB_BLOCK_SIZE);
-        }
+    private PipelineConfig resolveForTimeSeries(final FieldContext context) {
         final MetricType metricType = extractMetricType(context.fieldType());
         final String typeName = context.fieldType().typeName();
         if (metricType == MetricType.GAUGE) {
@@ -69,6 +65,9 @@ public final class DefaultPipelineResolver implements PipelineResolver {
         }
         if (metricType == MetricType.COUNTER) {
             return resolveCounter(typeName, context.hint());
+        }
+        if (isDateType(typeName)) {
+            return resolveDate(TSDB_BLOCK_SIZE);
         }
         return null;
     }
@@ -79,7 +78,7 @@ public final class DefaultPipelineResolver implements PipelineResolver {
             return resolveDoubleGauge(hint);
         }
         if ("float".equals(typeName)) {
-            return resolveFloatGauge();
+            return resolveFloatGauge(hint);
         }
         return null;
     }
@@ -89,12 +88,18 @@ public final class DefaultPipelineResolver implements PipelineResolver {
             return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).xor().patchedPFor().bitPack();
         }
         if (hint == OptimizeFor.BALANCED) {
-            return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).alpDoubleStage(QUANTIZE_BALANCED).offset().gcd().bitPack();
+            return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).chimpDoubleStage().offset().gcd().bitPack();
         }
         return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).alpDoubleStage(QUANTIZE_STORAGE).offset().gcd().bitPack();
     }
 
-    private static PipelineConfig resolveFloatGauge() {
+    private static PipelineConfig resolveFloatGauge(final OptimizeFor hint) {
+        if (hint == OptimizeFor.SPEED) {
+            return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).xor().patchedPFor().bitPack();
+        }
+        if (hint == OptimizeFor.BALANCED) {
+            return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).chimpFloatStage().offset().gcd().bitPack();
+        }
         return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).alpFloatStage().offset().gcd().bitPack();
     }
 
@@ -104,7 +109,7 @@ public final class DefaultPipelineResolver implements PipelineResolver {
             return resolveDoubleCounter(hint);
         }
         if ("float".equals(typeName)) {
-            return resolveFloatCounter();
+            return resolveFloatCounter(hint);
         }
         return null;
     }
@@ -116,21 +121,24 @@ public final class DefaultPipelineResolver implements PipelineResolver {
         return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).fpcStage().offset().gcd().bitPack();
     }
 
-    private static PipelineConfig resolveFloatCounter() {
+    private static PipelineConfig resolveFloatCounter(final OptimizeFor hint) {
+        if (hint == OptimizeFor.STORAGE) {
+            return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).gorilla();
+        }
         return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).fpcStage().offset().gcd().bitPack();
     }
 
     @Nullable
-    private PipelineConfig resolveForLogsDb(final String fieldName, final FieldContext context) {
-        if ("@timestamp".equals(fieldName)) {
-            return resolveTimestamp(LOGSDB_BLOCK_SIZE);
-        }
+    private PipelineConfig resolveForLogsDb(final FieldContext context) {
         final String typeName = context.fieldType().typeName();
         if ("double".equals(typeName)) {
             return resolveLogsDbDouble();
         }
         if ("float".equals(typeName)) {
             return resolveLogsDbFloat();
+        }
+        if (isDateType(typeName)) {
+            return resolveDate(LOGSDB_BLOCK_SIZE);
         }
         return null;
     }
@@ -143,8 +151,12 @@ public final class DefaultPipelineResolver implements PipelineResolver {
         return PipelineConfig.forFloats(LOGSDB_BLOCK_SIZE).alpFloatStage().offset().gcd().bitPack();
     }
 
-    private static PipelineConfig resolveTimestamp(int blockSize) {
-        return PipelineConfig.forLongs(blockSize).deltaDelta().offset().gcd().bitPack();
+    private static PipelineConfig resolveDate(int blockSize) {
+        return PipelineConfig.forLongs(blockSize).delta().rle().offset().gcd().bitPack();
+    }
+
+    private static boolean isDateType(final String typeName) {
+        return "date".equals(typeName) || "date_nanos".equals(typeName);
     }
 
     @Nullable

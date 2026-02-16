@@ -103,9 +103,7 @@ public class GeoShapeScriptMapperTests extends MapperScriptTestCase<GeometryFiel
         assertBinaryDocValue(
             fields.get(2),
             centroidCalculator,
-            List.of(
-                new org.elasticsearch.geometry.GeometryCollection<>(List.of(new Point(-1, 1), new Point(-2, 2)))
-            ),
+            List.of(new org.elasticsearch.geometry.GeometryCollection<>(List.of(new Point(-1, 1), new Point(-2, 2)))),
             fields.get(0),
             fields.get(1)
         );

@@ -55,9 +55,7 @@ public final class GeoShapeScriptDocValues extends GeoShapeValues {
         final List<IndexableField> fields = indexer.getIndexableFields(geometry);
         final CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(geometry);
-        geoShapeValue.reset(
-            GeometryDocValueWriter.write(fields, CoordinateEncoder.GEO, centroidCalculator, List.of(geometry))
-        );
+        geoShapeValue.reset(GeometryDocValueWriter.write(fields, CoordinateEncoder.GEO, centroidCalculator, List.of(geometry)));
         return geoShapeValue;
     }
 }

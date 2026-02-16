@@ -49,11 +49,8 @@ public class GeometryConnectivityReader {
      * If a single geometry was stored, returns a list of one element.
      * If the result is a single geometry, callers can use {@link #readGeometry} instead.
      */
-    public static List<Geometry> readGeometries(
-        ByteArrayStreamInput input,
-        VertexLookupTable vertexTable,
-        CoordinateEncoder encoder
-    ) throws IOException {
+    public static List<Geometry> readGeometries(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
+        throws IOException {
         int numGeometries = input.readVInt();
         List<Geometry> geometries = new ArrayList<>(numGeometries);
         for (int i = 0; i < numGeometries; i++) {
@@ -66,11 +63,8 @@ public class GeometryConnectivityReader {
      * Convenience method that reads the connectivity and returns a single geometry.
      * If multiple geometries were stored, wraps them in a {@link GeometryCollection}.
      */
-    public static Geometry readGeometry(
-        ByteArrayStreamInput input,
-        VertexLookupTable vertexTable,
-        CoordinateEncoder encoder
-    ) throws IOException {
+    public static Geometry readGeometry(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
+        throws IOException {
         List<Geometry> geometries = readGeometries(input, vertexTable, encoder);
         if (geometries.size() == 1) {
             return geometries.get(0);
@@ -78,11 +72,8 @@ public class GeometryConnectivityReader {
         return new GeometryCollection<>(geometries);
     }
 
-    private static Geometry readSingleGeometry(
-        ByteArrayStreamInput input,
-        VertexLookupTable vertexTable,
-        CoordinateEncoder encoder
-    ) throws IOException {
+    private static Geometry readSingleGeometry(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
+        throws IOException {
         byte type = input.readByte();
         return switch (type) {
             case TYPE_POINT -> readPoint(input, vertexTable, encoder);
@@ -102,8 +93,7 @@ public class GeometryConnectivityReader {
         return new Point(encoder.decodeX(vertexTable.getX(ordinal)), encoder.decodeY(vertexTable.getY(ordinal)));
     }
 
-    private static Line readLine(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder)
-        throws IOException {
+    private static Line readLine(ByteArrayStreamInput input, VertexLookupTable vertexTable, CoordinateEncoder encoder) throws IOException {
         int numVertices = input.readVInt();
         double[] x = new double[numVertices];
         double[] y = new double[numVertices];

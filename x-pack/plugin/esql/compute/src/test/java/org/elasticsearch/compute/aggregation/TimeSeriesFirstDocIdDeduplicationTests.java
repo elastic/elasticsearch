@@ -274,7 +274,7 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
-        String hash = "blockHash=BytesRefLongBlockHash{keys=[BytesRefKey[channel=0], LongKey[channel=1]], entries=0, size=%size%}".replace(
+        String hash = "blockHash=BytesRefLongBlockHash{keys=[tsid[channel=0], timestamp[channel=1]], entries=0, size=%size%}".replace(
             "%size%",
             byteRefBlockHashSize()
         );

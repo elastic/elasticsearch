@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -424,6 +425,7 @@ public class PushTopNToSourceTests extends ESTestCase {
             new EsqlFlags(true),
             configuration,
             FoldContext.small(),
+            newLimitedBreaker(ByteSizeValue.ofMb(1)),
             SearchStats.EMPTY
         );
         var pushTopNToSource = new PushTopNToSource();

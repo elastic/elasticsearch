@@ -7,8 +7,6 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.tests.util.RamUsageTester;
 import org.apache.lucene.util.BytesRef;
@@ -106,7 +104,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-@Repeat(iterations = 10)
 public class TopNOperatorTests extends OperatorTestCase {
     private final int pageSize = randomPageSize();
     // versions taken from org.elasticsearch.xpack.versionfield.VersionTests
@@ -156,7 +153,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<TopNOperator.SortOrder> sortOrders = List.of(new TopNOperator.SortOrder(0, true, false));
         SharedMinCompetitive.Supplier minCompetitive = randomBoolean()
             ? null
-            : new SharedMinCompetitive.Supplier(blockFactory().breaker(), elementTypes, encoders, sortOrders);
+            : new SharedMinCompetitive.Supplier(blockFactory().breaker(), keyConfigs(elementTypes, encoders, sortOrders));
         return new TopNOperator.TopNOperatorFactory(
             4,
             elementTypes,
@@ -1523,7 +1520,7 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<TopNOperator.SortOrder> sortOrders = uniqueOrders.stream().toList();
         NaiveTopNComparator comparator = new NaiveTopNComparator(sortOrders);
         SharedMinCompetitive.Supplier minCompetitiveSupplier = randomBoolean()
-            ? new SharedMinCompetitive.Supplier(blockFactory().breaker(), elementTypes, encoders, sortOrders)
+            ? new SharedMinCompetitive.Supplier(blockFactory().breaker(), keyConfigs(elementTypes, encoders, sortOrders))
             : null;
         SharedMinCompetitive minCompetitive = minCompetitiveSupplier == null ? null : minCompetitiveSupplier.get();
 
@@ -1612,7 +1609,6 @@ public class TopNOperatorTests extends OperatorTestCase {
                                 logger.info("checking key {}", s);
                                 TopNOperator.SortOrder sort = sortOrders.get(s);
                                 Object actual = BlockUtils.toJavaObject(min.getBlock(s), 0);
-                                System.err.println("adsf " + minCompetitiveRow.get(sort.channel()));
                                 Object expected = reduceKey(minCompetitiveRow.get(sort.channel()), sort.asc());
                                 assertThat(actual, equalTo(expected));
                             }
@@ -1640,6 +1636,23 @@ public class TopNOperatorTests extends OperatorTestCase {
         } finally {
             Releasables.close(minCompetitive);
         }
+    }
+
+    private List<SharedMinCompetitive.KeyConfig> keyConfigs(
+        List<ElementType> elementTypes,
+        List<TopNEncoder> encoders,
+        List<TopNOperator.SortOrder> sortOrders
+    ) {
+        return sortOrders.stream()
+            .map(
+                so -> new SharedMinCompetitive.KeyConfig(
+                    elementTypes.get(so.channel()),
+                    encoders.get(so.channel()),
+                    so.asc(),
+                    so.nullsFirst()
+                )
+            )
+            .toList();
     }
 
     public void testIPSortingSingleValue() throws UnknownHostException {

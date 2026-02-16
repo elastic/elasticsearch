@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.lucene;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
@@ -27,6 +26,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.query.MinCompetitiveQuery;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -36,7 +36,6 @@ import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
-import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -78,7 +77,6 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.sameInstance;
 
-@Repeat(iterations = 100)
 public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
 
@@ -242,14 +240,16 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> testCase.queryAndExtra();
         int maxPageSize = between(10, Math.max(10, numDocs));
         int taskConcurrency = randomIntBetween(1, 4);
-        SharedMinCompetitive.Supplier minCompetitive = randomBoolean()
-            ? null
-            : new SharedMinCompetitive.Supplier(
+        MinCompetitiveQuery.Factory minCompetitive;
+        if (randomBoolean()) {
+            minCompetitive = null;
+        } else {
+            SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
                 blockFactory().breaker(),
-                List.of(ElementType.LONG),
-                List.of(TopNEncoder.DEFAULT_SORTABLE),
-                List.of(new TopNOperator.SortOrder(0, false, false))
+                List.of(new SharedMinCompetitive.KeyConfig(ElementType.LONG, TopNEncoder.DEFAULT_SORTABLE, false, false))
             );
+            minCompetitive = new MinCompetitiveQuery.Factory(supplier, (context, min) -> Queries.ALL_DOCS_INSTANCE);
+        }
         return new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
@@ -564,4 +564,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             }
         }
     }
+
+    // NOCOMMIT test using MinCompetitiveQuery
+    // NOCOMMIT unit tests for MinCompetitiveQuery
 }

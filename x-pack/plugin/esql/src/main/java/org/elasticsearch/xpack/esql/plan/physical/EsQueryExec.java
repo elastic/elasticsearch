@@ -224,8 +224,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             limit,
             sorts,
             estimatedRowSize,
-            queryBuilderAndTags,
-            minCompetitive
+            queryBuilderAndTags
         );
     }
 

@@ -908,7 +908,14 @@ public class CsvTests extends ESTestCase {
             var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
             var flags = new EsqlFlags(true);
             var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-                new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, flags, configuration, foldCtx, searchStats)
+                new LocalPhysicalOptimizerContext(
+                    PlannerSettings.DEFAULTS,
+                    flags,
+                    configuration,
+                    foldCtx,
+                    newLimitedBreaker(ByteSizeValue.ofMb(1)),
+                    searchStats
+                )
             );
 
             var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer, null);

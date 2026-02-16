@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.IndexMode;
@@ -415,7 +416,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             }
         };
         var analyzer = makeAnalyzer("mapping-default.json");
-        var plannerOptimizer = new TestPlannerOptimizer(config, analyzer, logicalOptimizer);
+        var plannerOptimizer = new TestPlannerOptimizer(config, analyzer, logicalOptimizer, newLimitedBreaker(ByteSizeValue.ofMb(1)));
         var plan = plannerOptimizer.plan("""
             from test
             | stats c = count(hire_date) where emp_no < 10042
@@ -1731,7 +1732,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             | stats count(*) where %s by keyword
             """, testCase.esqlQuery());
         var analyzer = makeAnalyzer("mapping-default.json");
-        var plannerOptimizer = new TestPlannerOptimizer(config, analyzer);
+        var plannerOptimizer = new TestPlannerOptimizer(config, analyzer, newLimitedBreaker(ByteSizeValue.ofMb(1)));
         var plan = plannerOptimizer.plan(query, IS_SV_STATS, makeAnalyzer("mapping-all-types.json"));
 
         var limit = as(plan, LimitExec.class);
@@ -2230,7 +2231,11 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
 
     public void testToDateNanosPushDown() {
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
-        plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithUnionTypedFields));
+        plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(
+            EsqlTestUtils.TEST_CFG,
+            makeAnalyzer(indexWithUnionTypedFields),
+            newLimitedBreaker(ByteSizeValue.ofMb(1))
+        );
         var stats = EsqlTestUtils.statsForExistingField("date_and_date_nanos", "date_and_date_nanos_and_long");
         String query = """
             from index*
@@ -2304,6 +2309,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
             flags,
             config,
             FoldContext.small(),
+            newLimitedBreaker(ByteSizeValue.ofMb(1)),
             SearchStats.EMPTY
         );
         LocalPhysicalPlanOptimizer localPhysicalPlanOptimizer = new LocalPhysicalPlanOptimizer(context) {
@@ -2464,6 +2470,8 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
         assertThat(sorts.size(), equalTo(1));
         assertThat(sorts.getFirst().field().name(), equalTo("last_name"));
     }
+
+    // NOCOMMIT unit test for CreateSideChannels
 
     private boolean isMultiTypeEsField(Expression e) {
         return e instanceof FieldAttribute fa && fa.field() instanceof MultiTypeEsField;

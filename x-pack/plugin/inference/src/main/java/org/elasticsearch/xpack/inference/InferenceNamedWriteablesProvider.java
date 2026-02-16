@@ -945,6 +945,13 @@ public class InferenceNamedWriteablesProvider {
             )
         );
         namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                VoyageAIEmbeddingServiceSettings.NAME,
+                VoyageAIEmbeddingServiceSettings::new
+            )
+        );
+        namedWriteables.add(
             new NamedWriteableRegistry.Entry(TaskSettings.class, VoyageAIEmbeddingsTaskSettings.NAME, VoyageAIEmbeddingsTaskSettings::new)
         );
         namedWriteables.add(

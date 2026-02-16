@@ -7,48 +7,57 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai.request;
 
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.InferenceStringGroup.toStringList;
 import static org.elasticsearch.inference.InputType.invalidInputTypeMessage;
 
 public record VoyageAIEmbeddingsRequestEntity(
-    List<String> input,
+    List<InferenceStringGroup> input,
     InputType inputType,
-    VoyageAIEmbeddingsServiceSettings serviceSettings,
-    VoyageAIEmbeddingsTaskSettings taskSettings
+    VoyageAIEmbeddingsModel model
 ) implements ToXContentObject {
 
-    // Accepted input_type values
     private static final String INPUT_TYPE_DOCUMENT_VALUE = "document";
     private static final String INPUT_TYPE_QUERY_VALUE = "query";
 
-    // Field names for request body
     public static final String INPUT_FIELD = "input";
+    private static final String INPUTS_FIELD = "inputs";
     public static final String MODEL_FIELD = "model";
     public static final String INPUT_TYPE_FIELD = "input_type";
     public static final String TRUNCATION_FIELD = "truncation";
     public static final String OUTPUT_DIMENSION_FIELD = "output_dimension";
-    public static final String OUTPUT_DTYPE_FIELD = "output_dtype";
+    static final String OUTPUT_DTYPE_FIELD = "output_dtype";
+    private static final String CONTENT_FIELD = "content";
+    private static final String TYPE_FIELD = "type";
+    private static final String TEXT_TYPE = "text";
+    private static final String TEXT_VALUE_FIELD = "text";
+    private static final String IMAGE_BASE64_TYPE = "image_base64";
+    private static final String IMAGE_BASE64_VALUE_FIELD = "image_base64";
 
     public VoyageAIEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
-        Objects.requireNonNull(taskSettings);
-        Objects.requireNonNull(serviceSettings);
+        Objects.requireNonNull(model);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(INPUT_FIELD, input);
+
+        var serviceSettings = model.getServiceSettings();
+        var taskSettings = model.getTaskSettings();
+
+        writeInputs(builder, serviceSettings.isMultimodal());
         builder.field(MODEL_FIELD, serviceSettings.modelId());
+
         // prefer the root level inputType over task settings input type
         if (InputType.isSpecified(inputType)) {
             builder.field(INPUT_TYPE_FIELD, convertInputTypeToString(inputType));
@@ -64,6 +73,31 @@ public record VoyageAIEmbeddingsRequestEntity(
         builder.field(OUTPUT_DTYPE_FIELD, serviceSettings.embeddingType().toRequestString());
         builder.endObject();
         return builder;
+    }
+
+    private void writeInputs(XContentBuilder builder, boolean isMultimodal) throws IOException {
+        if (isMultimodal) {
+            builder.startArray(INPUTS_FIELD);
+            for (var inferenceStringGroup : input) {
+                var inferenceString = inferenceStringGroup.value();
+                builder.startObject();
+                builder.startArray(CONTENT_FIELD);
+                builder.startObject();
+                if (inferenceString.isText()) {
+                    builder.field(TYPE_FIELD, TEXT_TYPE);
+                    builder.field(TEXT_VALUE_FIELD, inferenceString.value());
+                } else if (inferenceString.isImage()) {
+                    builder.field(TYPE_FIELD, IMAGE_BASE64_TYPE);
+                    builder.field(IMAGE_BASE64_VALUE_FIELD, inferenceString.value());
+                }
+                builder.endObject();
+                builder.endArray();
+                builder.endObject();
+            }
+            builder.endArray();
+        } else {
+            builder.field(INPUT_FIELD, toStringList(input));
+        }
     }
 
     public static String convertInputTypeToString(InputType inputType) {

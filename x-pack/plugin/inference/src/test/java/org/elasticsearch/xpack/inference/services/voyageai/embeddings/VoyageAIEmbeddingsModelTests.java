@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.hamcrest.MatcherAssert;
@@ -91,7 +92,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             ),
             taskSettings,
             chunkingSettings,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            TaskType.TEXT_EMBEDDING
         );
     }
 
@@ -118,7 +120,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             ),
             taskSettings,
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            TaskType.TEXT_EMBEDDING
         );
     }
 
@@ -138,7 +141,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             new VoyageAIEmbeddingsServiceSettings(model, null, embeddingType, SimilarityMeasure.DOT_PRODUCT, dimensions, tokenLimit, false),
             taskSettings,
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            TaskType.TEXT_EMBEDDING
         );
     }
 
@@ -166,7 +170,8 @@ public class VoyageAIEmbeddingsModelTests extends ESTestCase {
             ),
             taskSettings,
             null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            TaskType.TEXT_EMBEDDING
         );
     }
 }

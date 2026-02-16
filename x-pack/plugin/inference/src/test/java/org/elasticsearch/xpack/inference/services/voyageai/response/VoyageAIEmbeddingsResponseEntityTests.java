@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.voyageai.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
@@ -49,7 +50,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -95,7 +96,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -138,7 +139,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -176,7 +177,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -214,7 +215,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -251,7 +252,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -288,7 +289,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -325,7 +326,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -362,7 +363,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             """;
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );
@@ -417,7 +418,7 @@ public class VoyageAIEmbeddingsResponseEntityTests extends ESTestCase {
             }""";
 
         VoyageAIEmbeddingsRequest request = new VoyageAIEmbeddingsRequest(
-            List.of("abc", "def"),
+            List.of(new InferenceStringGroup("abc"), new InferenceStringGroup("def")),
             InputTypeTests.randomSearchAndIngestWithNull(),
             createModel("url", "api_key", null, "voyage-3-large")
         );

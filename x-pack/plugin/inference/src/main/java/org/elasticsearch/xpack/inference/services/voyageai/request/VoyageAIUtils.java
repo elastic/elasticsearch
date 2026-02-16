@@ -14,6 +14,7 @@ public class VoyageAIUtils {
     public static final String HOST = "api.voyageai.com";
     public static final String VERSION_1 = "v1";
     public static final String EMBEDDINGS_PATH = "embeddings";
+    public static final String MULTIMODAL_EMBEDDINGS_PATH = "multimodalembeddings";
     public static final String RERANK_PATH = "rerank";
     public static final String REQUEST_SOURCE_HEADER = "Request-Source";
     public static final String ELASTIC_REQUEST_SOURCE = "unspecified:elasticsearch";

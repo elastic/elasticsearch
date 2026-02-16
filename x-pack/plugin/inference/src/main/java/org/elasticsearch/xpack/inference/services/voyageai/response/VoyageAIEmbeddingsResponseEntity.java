@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.voyageai.response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -19,6 +20,8 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingBitResults;
+import org.elasticsearch.xpack.core.inference.results.GenericDenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
@@ -161,7 +164,9 @@ public class VoyageAIEmbeddingsResponseEntity {
      */
     public static InferenceServiceResults fromResponse(OutboundRequest outboundRequest, HttpResult response) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        var embeddingType = ((VoyageAIEmbeddingsRequest) outboundRequest).getServiceSettings().embeddingType();
+        VoyageAIEmbeddingsRequest embeddingsRequest = (VoyageAIEmbeddingsRequest) outboundRequest;
+        VoyageAIEmbeddingType embeddingType = embeddingsRequest.getEmbeddingType();
+        TaskType taskType = embeddingsRequest.getTaskType();
 
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             switch (embeddingType) {
@@ -171,6 +176,10 @@ public class VoyageAIEmbeddingsResponseEntity {
                     List<DenseEmbeddingFloatResults.Embedding> embeddingList = embeddingResult.entries.stream()
                         .map(EmbeddingFloatResultEntry::toInferenceFloatEmbedding)
                         .toList();
+
+                    if (taskType == TaskType.EMBEDDING) {
+                        return new GenericDenseEmbeddingFloatResults(embeddingList);
+                    }
                     return new DenseEmbeddingFloatResults(embeddingList);
                 }
                 case INT8 -> {
@@ -185,6 +194,10 @@ public class VoyageAIEmbeddingsResponseEntity {
                     List<DenseEmbeddingByteResults.Embedding> embeddingList = embeddingResult.entries.stream()
                         .map(EmbeddingInt8ResultEntry::toInferenceByteEmbedding)
                         .toList();
+
+                    if (taskType == TaskType.EMBEDDING) {
+                        return new GenericDenseEmbeddingBitResults(embeddingList);
+                    }
                     return new DenseEmbeddingBitResults(embeddingList);
                 }
                 default -> throw new IllegalArgumentException(

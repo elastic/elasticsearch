@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cosh;
@@ -335,6 +336,12 @@ public class PromqlFunctionRegistry {
             Asinh::new,
             "Calculates the inverse hyperbolic sine of all elements in the input vector.",
             "asinh(some_metric)"
+        ),
+        valueTransformationFunction(
+            "atanh",
+            Atanh::new,
+            "Calculates the inverse hyperbolic tangent of all elements in the input vector.",
+            "atanh(some_metric)"
         ),
         valueTransformationFunction(
             "sinh",
@@ -754,9 +761,6 @@ public class PromqlFunctionRegistry {
         "scalar",
         "sort",
         "sort_desc",
-
-        // Trigonometric functions
-        "atanh",
 
         // Time functions
         "day_of_month",

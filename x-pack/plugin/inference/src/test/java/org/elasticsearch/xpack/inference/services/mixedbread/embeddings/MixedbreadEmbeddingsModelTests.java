@@ -33,6 +33,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             null,
             TestUtils.PROMPT_INITIAL_VALUE,
             TestUtils.NORMALIZED_INITIAL_VALUE,
+            null,
             null
         );
 
@@ -48,6 +49,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             null,
             TestUtils.PROMPT_INITIAL_VALUE,
             TestUtils.NORMALIZED_INITIAL_VALUE,
+            null,
             null
         );
         assertThat(model.getServiceSettings().uri().toString(), is(TestUtils.CUSTOM_URL));
@@ -62,6 +64,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             DIMENSIONS,
             TestUtils.PROMPT_INITIAL_VALUE,
             TestUtils.NORMALIZED_INITIAL_VALUE,
+            null,
             null
         );
         var overriddenModel = MixedbreadEmbeddingsModel.of(model, Map.of());
@@ -77,6 +80,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             DIMENSIONS,
             TestUtils.PROMPT_INITIAL_VALUE,
             TestUtils.NORMALIZED_INITIAL_VALUE,
+            null,
             null
         );
         var overriddenModel = MixedbreadEmbeddingsModel.of(model, null);
@@ -92,6 +96,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             DIMENSIONS,
             TestUtils.PROMPT_INITIAL_VALUE,
             TestUtils.NORMALIZED_INITIAL_VALUE,
+            null,
             null
         );
         var overriddenModel = MixedbreadEmbeddingsModel.of(
@@ -110,6 +115,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             DIMENSIONS,
             TestUtils.PROMPT_INITIAL_VALUE,
             null,
+            null,
             null
         );
         var overriddenModel = MixedbreadEmbeddingsModel.of(
@@ -123,6 +129,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             MAX_INPUT_TOKENS,
             DIMENSIONS,
             TestUtils.PROMPT_OVERRIDDEN_VALUE,
+            null,
             null,
             null
         );
@@ -138,6 +145,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             DIMENSIONS,
             null,
             TestUtils.NORMALIZED_INITIAL_VALUE,
+            null,
             null
         );
         var overriddenModel = MixedbreadEmbeddingsModel.of(
@@ -152,6 +160,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             DIMENSIONS,
             null,
             TestUtils.NORMALIZED_OVERRIDDEN_VALUE,
+            null,
             null
         );
         assertThat(overriddenModel, is(expectedModel));
@@ -165,6 +174,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
         @Nullable Integer dimensions,
         @Nullable String prompt,
         @Nullable Boolean normalized,
+        @Nullable SimilarityMeasure similarity,
         @Nullable ChunkingSettings chunkingSettings
     ) {
         return new MixedbreadEmbeddingsModel(
@@ -173,7 +183,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
                 modelId,
                 url,
                 dimensions,
-                SimilarityMeasure.DOT_PRODUCT,
+                similarity,
                 maxInputTokens,
                 null,
                 TestUtils.DIMENSIONS_SET_BY_USER_TRUE

@@ -67,6 +67,7 @@ public class MixedbreadEmbeddingsRequestTests extends ESTestCase {
             null,
             prompt,
             normalized,
+            null,
             null
         );
         return new MixedbreadEmbeddingsRequest(

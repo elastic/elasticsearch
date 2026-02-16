@@ -18,7 +18,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -212,7 +211,17 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
         }).enableUpdateModelTests(new UpdateModelConfiguration() {
             @Override
             protected MixedbreadEmbeddingsModel createEmbeddingModel(SimilarityMeasure similarityMeasure) {
-                return createInternalEmbeddingModel(similarityMeasure);
+                return MixedbreadEmbeddingsModelTests.createModel(
+                    TestUtils.CUSTOM_URL,
+                    TestUtils.API_KEY,
+                    TestUtils.MODEL_ID,
+                    MAX_INPUT_TOKENS_VALUE,
+                    TestUtils.DIMENSIONS,
+                    null,
+                    TestUtils.NORMALIZED_OVERRIDDEN_VALUE,
+                    similarityMeasure,
+                    null
+                );
             }
         }).build();
     }
@@ -240,24 +249,6 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
             case RERANK -> assertRerankModel(model, modelIncludesSecrets);
             default -> fail("unexpected task type [" + taskType + "]");
         }
-    }
-
-    private static MixedbreadEmbeddingsModel createInternalEmbeddingModel(@Nullable SimilarityMeasure similarityMeasure) {
-        return new MixedbreadEmbeddingsModel(
-            INFERENCE_ID_VALUE,
-            new MixedbreadEmbeddingsServiceSettings(
-                INFERENCE_ID_VALUE,
-                TestUtils.CUSTOM_URL,
-                DIMENSIONS_VALUE,
-                similarityMeasure,
-                MAX_INPUT_TOKENS_VALUE,
-                new RateLimitSettings(10_000),
-                TestUtils.DIMENSIONS_SET_BY_USER_TRUE
-            ),
-            MixedbreadEmbeddingsTaskSettings.EMPTY_SETTINGS,
-            createRandomChunkingSettings(),
-            new DefaultSecretSettings(new SecureString(TestUtils.API_KEY.toCharArray()))
-        );
     }
 
     private static MixedbreadModel assertCommonModelFields(Model model, boolean modelIncludesSecrets) {
@@ -777,6 +768,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
             getUrl(webServer),
             TestUtils.API_KEY,
             TestUtils.MODEL_ID,
+            null,
             null,
             null,
             null,

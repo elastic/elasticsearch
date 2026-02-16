@@ -164,7 +164,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
      * @param maxInputTokens the maximum number of input tokens, can be null
      * @param rateLimitSettings the rate limit settings for the service, can be null
      */
-    public MixedbreadEmbeddingsServiceSettings(
+    MixedbreadEmbeddingsServiceSettings(
         String modelId,
         @Nullable String url,
         @Nullable Integer dimensions,

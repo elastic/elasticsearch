@@ -140,32 +140,20 @@ public class CloneStepTests extends ESTestCase {
     public void testStepCompletedWhenCloneExistsAndMarkedInMetadata() {
         String cloneIndexName = getDLMCloneIndexName(indexName);
         Map<String, String> customMetadata = Map.of(DLM_INDEX_FOR_FORCE_MERGE_KEY, cloneIndexName);
-        ProjectState projectState = projectStateBuilder()
-            .withClone()
-            .withCustomMetadata(customMetadata)
-            .withRouting()
-            .build();
+        ProjectState projectState = projectStateBuilder().withClone().withCustomMetadata(customMetadata).withRouting().build();
         assertTrue(cloneStep.stepCompleted(index, projectState));
     }
 
     public void testStepNotCompletedWhenShardsNotActive() {
         String cloneIndexName = getDLMCloneIndexName(indexName);
         Map<String, String> customMetadata = Map.of(DLM_INDEX_FOR_FORCE_MERGE_KEY, cloneIndexName);
-        ProjectState projectState = projectStateBuilder()
-            .withClone()
-            .withCustomMetadata(customMetadata)
-            .withRouting(false)
-            .build();
+        ProjectState projectState = projectStateBuilder().withClone().withCustomMetadata(customMetadata).withRouting(false).build();
         assertFalse(cloneStep.stepCompleted(index, projectState));
     }
 
     public void testStepCompletedWhenOriginalIndexMarkedWithZeroReplicas() {
         Map<String, String> customMetadata = Map.of(DLM_INDEX_FOR_FORCE_MERGE_KEY, indexName);
-        ProjectState projectState = projectStateBuilder()
-            .withReplicas(0)
-            .withCustomMetadata(customMetadata)
-            .withRouting()
-            .build();
+        ProjectState projectState = projectStateBuilder().withReplicas(0).withCustomMetadata(customMetadata).withRouting().build();
         assertTrue(cloneStep.stepCompleted(index, projectState));
     }
 
@@ -343,10 +331,7 @@ public class CloneStepTests extends ESTestCase {
         long currentTime = Clock.systemUTC().millis();
         long creationTime = currentTime - TimeValue.timeValueHours(2).millis(); // 2 hours ago
 
-        ProjectState projectState = projectStateBuilder()
-            .withClone()
-            .withCloneCreationTime(creationTime)
-            .build();
+        ProjectState projectState = projectStateBuilder().withClone().withCloneCreationTime(creationTime).build();
 
         DlmStepContext stepContext = createStepContext(projectState);
         cloneStep.execute(stepContext);
@@ -363,10 +348,7 @@ public class CloneStepTests extends ESTestCase {
         long currentTime = Clock.systemUTC().millis();
         long creationTime = currentTime - TimeValue.timeValueHours(15).millis(); // 15 hours ago
 
-        ProjectState projectState = projectStateBuilder()
-            .withClone()
-            .withCloneCreationTime(creationTime)
-            .build();
+        ProjectState projectState = projectStateBuilder().withClone().withCloneCreationTime(creationTime).build();
 
         DlmStepContext stepContext = createStepContext(projectState);
         cloneStep.execute(stepContext);
@@ -557,7 +539,6 @@ public class CloneStepTests extends ESTestCase {
         return new DlmStepContext(index, projectState, deduplicator, errorStore, randomIntBetween(1, 10), client);
     }
 
-
     /**
      * Helper method to create a stuck clone scenario where:
      * - A clone index exists with the specified age in hours
@@ -571,10 +552,7 @@ public class CloneStepTests extends ESTestCase {
         long creationTime = currentTime - TimeValue.timeValueHours(hoursAgo).millis();
 
         String cloneIndexName = getDLMCloneIndexName(indexName);
-        ProjectState projectState = projectStateBuilder()
-            .withClone()
-            .withCloneCreationTime(creationTime)
-            .build();
+        ProjectState projectState = projectStateBuilder().withClone().withCloneCreationTime(creationTime).build();
 
         // Pre-populate the deduplicator to simulate a stuck in-progress request
         ResizeRequest cloneRequest = formCloneRequest(indexName, cloneIndexName);

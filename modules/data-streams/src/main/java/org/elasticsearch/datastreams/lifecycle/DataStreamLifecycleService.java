@@ -1719,9 +1719,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         private final String originalIndex;
         private final String indexToBeForceMerged;
 
-        MarkIndexForDlmForceMergeTask(
-            ActionListener<AcknowledgedResponse> listener,
-            MarkIndexForDLMForceMergeAction.Request request) {
+        MarkIndexForDlmForceMergeTask(ActionListener<AcknowledgedResponse> listener, MarkIndexForDLMForceMergeAction.Request request) {
             super(TimeValue.THIRTY_SECONDS, listener);
             this.listener = listener;
             this.projectId = request.getProjectId();
@@ -1743,9 +1741,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     indexToBeForceMerged,
                     originalIndex
                 );
-                logger.debug(
-                    errorMessage
-                );
+                logger.debug(errorMessage);
                 throw new IndexNotFoundException(errorMessage);
             }
 
@@ -1814,16 +1810,10 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * @param request the request
      * @param listener the listener to be notified on success or failure of the cluster state update.
      */
-    public void markIndexForDlmForceMerge(
-        MarkIndexForDLMForceMergeAction.Request request,
-        ActionListener<AcknowledgedResponse> listener
-    ) {
+    public void markIndexForDlmForceMerge(MarkIndexForDLMForceMergeAction.Request request, ActionListener<AcknowledgedResponse> listener) {
         markIndexForDlmForceMergeQueue.submitTask(
             Strings.format("DLM marking index [%s] to be force merged for DLM", request.getIndexToBeForceMerged()),
-            new MarkIndexForDlmForceMergeTask(
-                listener,
-                request
-            ),
+            new MarkIndexForDlmForceMergeTask(listener, request),
             null
         );
     }

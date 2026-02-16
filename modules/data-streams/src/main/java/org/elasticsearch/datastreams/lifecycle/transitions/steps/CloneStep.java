@@ -37,7 +37,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -86,18 +85,12 @@ public class CloneStep implements DlmStep {
                 indexName
             );
             // mark the index to be force merged directly
-            markIndexToBeForceMerged(
-                indexName,
-                indexName,
-                stepContext,
-                ActionListener.wrap(
-                    resp -> {
-                        logger.info("DLM successfully marked index [{}] to be force merged", indexName);
-                    },
-                    err -> {
-                        logger.error(() -> Strings.format("DLM failed to mark index [%s] to be force merged", indexName), err);
-                        stepContext.errorStore().recordError(stepContext.projectId(), indexName, err);
-                    }));
+            markIndexToBeForceMerged(indexName, indexName, stepContext, ActionListener.wrap(resp -> {
+                logger.info("DLM successfully marked index [{}] to be force merged", indexName);
+            }, err -> {
+                logger.error(() -> Strings.format("DLM failed to mark index [%s] to be force merged", indexName), err);
+                stepContext.errorStore().recordError(stepContext.projectId(), indexName, err);
+            }));
             return;
         }
 
@@ -114,8 +107,10 @@ public class CloneStep implements DlmStep {
             ActionListener.wrap(
                 resp -> logger.info("DLM successfully initiated clone of index [{}] to index [{}]", indexName, cloneIndex),
                 err -> {
-                    logger.error(() ->
-                        Strings.format("DLM failed to initiate clone of index [%s] to index [%s]", indexName, cloneIndex), err);
+                    logger.error(
+                        () -> Strings.format("DLM failed to initiate clone of index [%s] to index [%s]", indexName, cloneIndex),
+                        err
+                    );
                     stepContext.errorStore().recordError(stepContext.projectId(), indexName, err);
                 }
             ),
@@ -225,7 +220,8 @@ public class CloneStep implements DlmStep {
                 onFailure(
                     new ElasticsearchException(
                         Strings.format("DLM failed to acknowledge clone of index [%s] to index [%s]", originalIndex, cloneIndex)
-                    ));
+                    )
+                );
                 return;
             }
             logger.debug("DLM successfully cloned index [{}] to index [{}]", originalIndex, cloneIndex);
@@ -314,20 +310,21 @@ public class CloneStep implements DlmStep {
         );
         stepContext.client()
             .projectClient(stepContext.projectId())
-            .execute(MarkIndexForDLMForceMergeAction.TYPE, request, ActionListener.wrap(resp ->
-                {
-                    if (resp.isAcknowledged()) {
-                        listener.onResponse(null);
-                    } else {
-                        listener.onFailure(
-                            new ElasticsearchException(
-                                Strings.format(
-                                    "DLM failed to acknowledge marking index [%s] to be force merged for source index [%s]",
-                                    request.getIndexToBeForceMerged(),
-                                    request.getOriginalIndex()
-                                )));
-                    }},
-                listener::onFailure));
+            .execute(MarkIndexForDLMForceMergeAction.TYPE, request, ActionListener.wrap(resp -> {
+                if (resp.isAcknowledged()) {
+                    listener.onResponse(null);
+                } else {
+                    listener.onFailure(
+                        new ElasticsearchException(
+                            Strings.format(
+                                "DLM failed to acknowledge marking index [%s] to be force merged for source index [%s]",
+                                request.getIndexToBeForceMerged(),
+                                request.getOriginalIndex()
+                            )
+                        )
+                    );
+                }
+            }, listener::onFailure));
     }
 
     private static void deleteCloneIndexIfExists(DlmStepContext stepContext, ActionListener<Void> listener) {
@@ -451,11 +448,7 @@ public class CloneStep implements DlmStep {
      * @return the creation time in milliseconds, or null if it cannot be determined
      */
     @Nullable
-    protected static Long getCloneIndexCreationTime(
-        String cloneIndex,
-        IndexMetadata cloneIndexMetadata,
-        ProjectMetadata projectMetadata
-    ) {
+    protected static Long getCloneIndexCreationTime(String cloneIndex, IndexMetadata cloneIndexMetadata, ProjectMetadata projectMetadata) {
         return Optional.ofNullable(projectMetadata.getIndicesLookup())
             .map(indicesLookup -> indicesLookup.get(cloneIndex))
             .map(IndexAbstraction::getParentDataStream)

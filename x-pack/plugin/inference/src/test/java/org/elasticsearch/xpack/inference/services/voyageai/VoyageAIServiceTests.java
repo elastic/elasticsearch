@@ -1737,7 +1737,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                 {
                         "service": "voyageai",
                         "name": "Voyage AI",
-                        "task_types": ["text_embedding", "rerank"],
+                        "task_types": ["text_embedding", "rerank", "embedding"],
                         "configurations": {
                             "model_id": {
                                 "description": "The name of the model to use for the inference task.",
@@ -1746,7 +1746,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                                 "sensitive": false,
                                 "updatable": false,
                                 "type": "str",
-                                "supported_task_types": ["text_embedding", "rerank"]
+                                "supported_task_types": ["text_embedding", "rerank", "embedding"]
                             },
                             "api_key": {
                                 "description": "API Key for the provider you're connecting to.",
@@ -1755,7 +1755,7 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                                 "sensitive": true,
                                 "updatable": true,
                                 "type": "str",
-                                "supported_task_types": ["text_embedding", "rerank"]
+                                "supported_task_types": ["text_embedding", "rerank", "embedding"]
                             },
                             "rate_limit.requests_per_minute": {
                                 "description": "Minimize the number of rate limit errors.",
@@ -1764,7 +1764,35 @@ public class VoyageAIServiceTests extends InferenceServiceTestCase {
                                 "sensitive": false,
                                 "updatable": false,
                                 "type": "int",
-                                "supported_task_types": ["text_embedding", "rerank"]
+                                "supported_task_types": ["text_embedding", "rerank", "embedding"]
+                            },
+                            "dimensions": {
+                                "description": "The number of dimensions the resulting embeddings should have.",
+                                "label": "Dimensions",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "int",
+                                "supported_task_types": ["text_embedding", "embedding"]
+                            },
+                            "embedding_type": {
+                                "default_value": "float",
+                                "description": "The type of embedding to return. One of [float, int8, byte, bit, binary]. int8 and byte are equivalent and are encoded as bytes with signed int8 precision. bit and binary are equivalent.",
+                                "label": "Embedding type",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "embedding"]
+                            },
+                            "similarity": {
+                                "description": "The similarity measure. One of [cosine, dot_product, l2_norm]. The default similarity is dot_product.",
+                                "label": "Similarity",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding", "embedding"]
                             }
                         }
                     }

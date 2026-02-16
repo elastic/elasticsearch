@@ -7,16 +7,19 @@
 
 package org.elasticsearch.xpack.inference.services.voyageai;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -29,8 +32,10 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -43,9 +48,10 @@ import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.action.VoyageAIActionCreator;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.BaseVoyageAIEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelCreator;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.rerank.VoyageAIRerankModelCreator;
 
 import java.util.EnumSet;
@@ -53,47 +59,55 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.InferenceStringGroup.containsNonTextEntry;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.EMBEDDING_TYPE;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsupportedUnifiedCompletionOperation;
+import static org.elasticsearch.xpack.inference.services.voyageai.embeddings.BaseVoyageAIEmbeddingsServiceSettings.updateEmbeddingDetails;
 
 public class VoyageAIService extends SenderService implements RerankingInferenceService {
     public static final String NAME = "voyageai";
 
     private static final String SERVICE_NAME = "Voyage AI";
-    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
+        TaskType.TEXT_EMBEDDING,
+        TaskType.RERANK,
+        TaskType.EMBEDDING
+    );
+    private static final VoyageAIEmbeddingsModelCreator EMBEDDINGS_MODEL_CREATOR = new VoyageAIEmbeddingsModelCreator();
     private static final Map<TaskType, ModelCreator<? extends VoyageAIModel>> MODEL_CREATORS = Map.of(
         TaskType.TEXT_EMBEDDING,
-        new VoyageAIEmbeddingsModelCreator(),
+        EMBEDDINGS_MODEL_CREATOR,
+        TaskType.EMBEDDING,
+        EMBEDDINGS_MODEL_CREATOR,
         TaskType.RERANK,
         new VoyageAIRerankModelCreator()
     );
     private static final Integer DEFAULT_BATCH_SIZE = 7;
-    private static final Map<String, Integer> MODEL_BATCH_SIZES = Map.of(
-        "voyage-multimodal-3",
-        7,
-        "voyage-3-large",
-        7,
-        "voyage-code-3",
-        7,
-        "voyage-3",
-        10,
-        "voyage-3-lite",
-        30,
-        "voyage-finance-2",
-        7,
-        "voyage-law-2",
-        7,
-        "voyage-code-2",
-        7,
-        "voyage-2",
-        72,
-        "voyage-02",
-        72
+    private static final Map<String, Integer> MODEL_BATCH_SIZES = Map.ofEntries(
+        Map.entry("voyage-multimodal-3", 7),
+        Map.entry("voyage-multimodal-3.5", 7),
+        Map.entry("voyage-3-large", 7),
+        Map.entry("voyage-code-3", 7),
+        Map.entry("voyage-3", 10),
+        Map.entry("voyage-3.5", 10),
+        Map.entry("voyage-3-lite", 30),
+        Map.entry("voyage-3.5-lite", 30),
+        Map.entry("voyage-finance-2", 7),
+        Map.entry("voyage-law-2", 7),
+        Map.entry("voyage-code-2", 7),
+        Map.entry("voyage-2", 72),
+        Map.entry("voyage-02", 72),
+        Map.entry("voyage-4-large", 7),
+        Map.entry("voyage-4", 10),
+        Map.entry("voyage-4-lite", 30)
     );
 
     private static final Map<String, Integer> RERANKERS_INPUT_SIZE = Map.of(
@@ -145,7 +159,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
             Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
             ChunkingSettings chunkingSettings = null;
-            if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+            if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.EMBEDDING.equals(taskType)) {
                 chunkingSettings = ChunkingSettingsBuilder.fromMap(
                     removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS)
                 );
@@ -222,7 +236,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
         Map<String, Object> secretSettingsMap = removeFromMapOrThrowIfNull(secrets, ModelSecrets.SECRET_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+        if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.EMBEDDING.equals(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
@@ -253,7 +267,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
         Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
 
         ChunkingSettings chunkingSettings = null;
-        if (TaskType.TEXT_EMBEDDING.equals(taskType)) {
+        if (TaskType.TEXT_EMBEDDING.equals(taskType) || TaskType.EMBEDDING.equals(taskType)) {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
@@ -334,6 +348,27 @@ public class VoyageAIService extends SenderService implements RerankingInference
         }
     }
 
+    @Override
+    protected void doEmbeddingInfer(
+        Model model,
+        EmbeddingRequest request,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        if (model instanceof VoyageAIEmbeddingsModel voyageAIModel) {
+            if (model.getServiceSettings().isMultimodal() == false && containsNonTextEntry(request.inputs())) {
+                listener.onFailure(new ElasticsearchStatusException("Non-text input provided for text-only model", RestStatus.BAD_REQUEST));
+            } else {
+                var actionCreator = new VoyageAIActionCreator(getSender(), getServiceComponents());
+
+                ExecutableAction action = voyageAIModel.accept(actionCreator, request.taskSettings());
+                action.execute(new EmbeddingsInput(request::inputs, request.inputType()), timeout, listener);
+            }
+        } else {
+            listener.onFailure(createInvalidModelException(model));
+        }
+    }
+
     private static int getBatchSize(VoyageAIModel model) {
         return MODEL_BATCH_SIZES.getOrDefault(model.getServiceSettings().modelId(), DEFAULT_BATCH_SIZE);
     }
@@ -344,20 +379,12 @@ public class VoyageAIService extends SenderService implements RerankingInference
             var serviceSettings = embeddingsModel.getServiceSettings();
             var similarityFromModel = serviceSettings.similarity();
             var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
-            var maxInputTokens = serviceSettings.maxInputTokens();
-            var dimensionSetByUser = serviceSettings.dimensionsSetByUser();
 
-            var updatedServiceSettings = new VoyageAIEmbeddingsServiceSettings(
-                new VoyageAIServiceSettings(
-                    serviceSettings.getCommonSettings().modelId(),
-                    serviceSettings.getCommonSettings().rateLimitSettings()
-                ),
-                serviceSettings.getEmbeddingType(),
-                similarityToUse,
-                embeddingSize,
-                maxInputTokens,
-                dimensionSetByUser
-            );
+            var updatedServiceSettings = updateEmbeddingDetails(serviceSettings, embeddingSize, similarityToUse);
+
+            if (updatedServiceSettings.equals(serviceSettings)) {
+                return model;
+            }
 
             return new VoyageAIEmbeddingsModel(embeddingsModel, updatedServiceSettings);
         } else {
@@ -404,6 +431,53 @@ public class VoyageAIService extends SenderService implements RerankingInference
                     )
                         .setLabel("Model ID")
                         .setRequired(true)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    DIMENSIONS,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING)).setDescription(
+                        "The number of dimensions the resulting embeddings should have."
+                    )
+                        .setLabel("Dimensions")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.INTEGER)
+                        .build()
+                );
+
+                configurationMap.put(
+                    EMBEDDING_TYPE,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING)).setDescription(
+                        Strings.format(
+                            "The type of embedding to return. One of %s. int8 and byte are equivalent and are encoded as "
+                                + "bytes with signed int8 precision. bit and binary are equivalent.",
+                            EnumSet.allOf(VoyageAIEmbeddingType.class)
+                        )
+                    )
+                        .setLabel("Embedding type")
+                        .setDefaultValue("float")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(false)
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    SIMILARITY,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.EMBEDDING)).setDescription(
+                        Strings.format(
+                            "The similarity measure. One of %s. The default similarity is dot_product.",
+                            EnumSet.allOf(SimilarityMeasure.class)
+                        )
+                    )
+                        .setLabel("Similarity")
+                        .setRequired(false)
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.STRING)

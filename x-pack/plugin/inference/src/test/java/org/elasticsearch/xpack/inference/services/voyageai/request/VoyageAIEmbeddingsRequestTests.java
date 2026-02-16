@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.voyageai.request;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -323,6 +324,7 @@ public class VoyageAIEmbeddingsRequestTests extends ESTestCase {
     }
 
     public static VoyageAIEmbeddingsRequest createRequest(List<String> input, InputType inputType, VoyageAIEmbeddingsModel model) {
-        return new VoyageAIEmbeddingsRequest(input, inputType, model);
+        var inferenceStringGroups = input.stream().map(InferenceStringGroup::new).toList();
+        return new VoyageAIEmbeddingsRequest(inferenceStringGroups, inputType, model);
     }
 }

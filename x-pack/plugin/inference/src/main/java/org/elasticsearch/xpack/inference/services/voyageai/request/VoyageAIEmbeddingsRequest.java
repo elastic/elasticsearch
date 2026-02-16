@@ -10,11 +10,14 @@ package org.elasticsearch.xpack.inference.services.voyageai.request;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.BaseVoyageAIEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -23,11 +26,11 @@ import java.util.Objects;
 
 public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
 
-    private final List<String> input;
+    private final List<InferenceStringGroup> input;
     private final InputType inputType;
     private final VoyageAIEmbeddingsModel embeddingsModel;
 
-    public VoyageAIEmbeddingsRequest(List<String> input, InputType inputType, VoyageAIEmbeddingsModel embeddingsModel) {
+    public VoyageAIEmbeddingsRequest(List<InferenceStringGroup> input, InputType inputType, VoyageAIEmbeddingsModel embeddingsModel) {
         this.embeddingsModel = Objects.requireNonNull(embeddingsModel);
         this.input = Objects.requireNonNull(input);
         this.inputType = inputType;
@@ -38,15 +41,7 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
         HttpPost httpPost = new HttpPost(embeddingsModel.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(
-                new VoyageAIEmbeddingsRequestEntity(
-                    input,
-                    inputType,
-                    embeddingsModel.getServiceSettings(),
-                    embeddingsModel.getTaskSettings(),
-                    embeddingsModel.getServiceSettings().modelId()
-                )
-            ).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new VoyageAIEmbeddingsRequestEntity(input, inputType, embeddingsModel)).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 
@@ -75,7 +70,15 @@ public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
         return null;
     }
 
-    public VoyageAIEmbeddingsServiceSettings getServiceSettings() {
+    public BaseVoyageAIEmbeddingsServiceSettings getServiceSettings() {
         return embeddingsModel.getServiceSettings();
+    }
+
+    public VoyageAIEmbeddingType getEmbeddingType() {
+        return embeddingsModel.getServiceSettings().getEmbeddingType();
+    }
+
+    public TaskType getTaskType() {
+        return embeddingsModel.getTaskType();
     }
 }

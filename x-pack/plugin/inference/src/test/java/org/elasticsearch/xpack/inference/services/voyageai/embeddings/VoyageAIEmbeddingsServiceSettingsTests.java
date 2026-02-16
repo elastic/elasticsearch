@@ -263,7 +263,9 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
                 """
                     {"model_id":"model","""
                     + """
-                        "rate_limit":{"requests_per_minute":3},"similarity":"cosine","dimensions":5,"max_input_tokens":10,"embedding_type":"float"}"""
+                        "rate_limit":{"requests_per_minute":3},"similarity":"cosine","dimensions":5,"max_input_tokens":10,"""
+                    + """
+                        "embedding_type":"float","dimensions_set_by_user":false}"""
             )
         );
     }
@@ -288,7 +290,9 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
                 """
                     {"model_id":"model","""
                     + """
-                        "rate_limit":{"requests_per_minute":3},"similarity":"cosine","dimensions":5,"max_input_tokens":10,"embedding_type":"float"}"""
+                        "rate_limit":{"requests_per_minute":3},"similarity":"cosine","dimensions":5,"max_input_tokens":10,"""
+                    + """
+                        "embedding_type":"float","dimensions_set_by_user":true}"""
             )
         );
     }
@@ -313,10 +317,7 @@ public class VoyageAIEmbeddingsServiceSettingsTests extends AbstractWireSerializ
         var dimensionsSetByUser = instance.dimensionsSetByUser();
         switch (randomInt(5)) {
             case 0 -> commonSettings = randomValueOtherThan(commonSettings, VoyageAIServiceSettingsTests::createRandom);
-            case 1 -> embeddingType = randomValueOtherThan(
-                embeddingType,
-                () -> randomFrom(randomFrom(VoyageAIEmbeddingType.values()), null)
-            );
+            case 1 -> embeddingType = randomValueOtherThan(embeddingType, () -> randomFrom(VoyageAIEmbeddingType.values()));
             case 2 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
             case 3 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
             case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));

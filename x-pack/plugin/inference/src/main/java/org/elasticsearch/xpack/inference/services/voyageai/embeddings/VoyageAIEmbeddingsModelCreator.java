@@ -33,7 +33,16 @@ public class VoyageAIEmbeddingsModelCreator implements ModelCreator<VoyageAIEmbe
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        return new VoyageAIEmbeddingsModel(inferenceId, service, serviceSettings, taskSettings, chunkingSettings, secretSettings, context);
+        return new VoyageAIEmbeddingsModel(
+            inferenceId,
+            service,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            context,
+            taskType
+        );
     }
 
     @Override

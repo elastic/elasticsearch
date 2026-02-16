@@ -39,6 +39,7 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSer
             randomAlphaOfLength(10),
             randomAlphaOfLengthOrNull(10),
             randomNonNegativeIntOrNull(),
+            randomAlphaOfLengthOrNull(10),
             randomFrom(randomSimilarityMeasure(), null),
             randomFrom(randomIntBetween(128, 256), null),
             randomFrom(new RateLimitSettings[] { null, RateLimitSettingsTests.createRandom() }),
@@ -51,6 +52,7 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSer
             TestUtils.MODEL_ID,
             TestUtils.CUSTOM_URL,
             TestUtils.DIMENSIONS,
+            TestUtils.ENCODING_VALUE,
             SimilarityMeasure.COSINE,
             MAX_INPUT_TOKENS,
             RATE_LIMIT,
@@ -64,6 +66,7 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSer
                     "requests_per_minute": 2
                 },
                 "dimensions": 3,
+                "encoding_format": "float",
                 "similarity": "cosine",
                 "max_input_tokens": 3,
                 "dimensions_set_by_user": true
@@ -75,6 +78,7 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSer
         var serviceSettings = new MixedbreadEmbeddingsServiceSettings(
             TestUtils.MODEL_ID,
             (URI) null,
+            null,
             null,
             null,
             null,
@@ -114,6 +118,7 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSer
         var modelId = instance.modelId();
         var uri = instance.uri();
         var dimensions = instance.dimensions();
+        var encodingFormat = instance.encodingFormat();
         var maxInputTokens = instance.maxInputTokens();
         var similarity = instance.similarity();
         var rateLimitSettings = instance.rateLimitSettings();
@@ -133,6 +138,7 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSer
             modelId,
             TestUtils.CUSTOM_URL,
             TestUtils.DIMENSIONS,
+            TestUtils.ENCODING_VALUE,
             SimilarityMeasure.COSINE,
             MAX_INPUT_TOKENS,
             rateLimitSettings,

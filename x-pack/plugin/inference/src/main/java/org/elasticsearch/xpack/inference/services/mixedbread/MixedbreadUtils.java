@@ -39,6 +39,7 @@ public final class MixedbreadUtils {
     public static final String RERANK_ERROR_PREFIX = "Mixedbread rerank";
     public static final String EMBEDDINGS_REQUEST_TYPE = "mixedbread text embedding";
     public static final String RERANK_REQUEST_TYPE = "mixedbread rerank";
+    public static final String ENCODING_FORMAT_FIELD = "encoding_format";
 
     /**
      * TransportVersion indicating when Mixedbread features were added.

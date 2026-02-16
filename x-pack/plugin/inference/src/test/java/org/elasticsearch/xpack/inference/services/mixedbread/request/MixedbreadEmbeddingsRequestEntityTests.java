@@ -28,6 +28,7 @@ public class MixedbreadEmbeddingsRequestEntityTests extends ESTestCase {
             TestUtils.DIMENSIONS,
             TestUtils.PROMPT_INITIAL_VALUE,
             TestUtils.NORMALIZED,
+            TestUtils.ENCODING_VALUE,
             TestUtils.DIMENSIONS_SET_BY_USER_TRUE
         );
 
@@ -37,7 +38,8 @@ public class MixedbreadEmbeddingsRequestEntityTests extends ESTestCase {
                 "model": "model_id_value",
                 "dimensions": 3,
                 "prompt": "prompt_initial_value",
-                "normalized": false
+                "normalized": false,
+                "encoding_format": "float"
             }
             """));
     }
@@ -46,6 +48,7 @@ public class MixedbreadEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new MixedbreadEmbeddingsRequestEntity(
             List.of("abc"),
             TestUtils.MODEL_ID,
+            null,
             null,
             null,
             null,
@@ -67,6 +70,7 @@ public class MixedbreadEmbeddingsRequestEntityTests extends ESTestCase {
             null,
             null,
             null,
+            null,
             TestUtils.DIMENSIONS_SET_BY_USER_TRUE
         );
 
@@ -82,6 +86,7 @@ public class MixedbreadEmbeddingsRequestEntityTests extends ESTestCase {
         var entity = new MixedbreadEmbeddingsRequestEntity(
             List.of("abc", "def"),
             TestUtils.MODEL_ID,
+            null,
             null,
             null,
             null,

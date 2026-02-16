@@ -237,6 +237,7 @@ public class MixedbreadService extends SenderService implements RerankingInferen
                 serviceSettings.modelId(),
                 serviceSettings.uri(),
                 embeddingSize,
+                serviceSettings.encodingFormat(),
                 similarityToUse,
                 serviceSettings.maxInputTokens(),
                 serviceSettings.rateLimitSettings(),

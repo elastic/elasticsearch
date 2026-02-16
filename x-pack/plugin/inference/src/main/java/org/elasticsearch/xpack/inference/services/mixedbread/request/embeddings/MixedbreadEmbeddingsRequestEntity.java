@@ -24,6 +24,7 @@ import java.util.Objects;
  * @param dimensions specifies the dimensionality of the generated embedding vector
  * @param prompt used by the model for embedding generation
  * @param normalized specifies whether to normalize the embeddings
+ * @param encodingFormat specifies the encoding format of the embeddings
  */
 public record MixedbreadEmbeddingsRequestEntity(
     List<String> input,
@@ -31,6 +32,7 @@ public record MixedbreadEmbeddingsRequestEntity(
     @Nullable Integer dimensions,
     @Nullable String prompt,
     @Nullable Boolean normalized,
+    @Nullable String encodingFormat,
     Boolean dimensionsSetByUser
 ) implements ToXContentObject {
     public MixedbreadEmbeddingsRequestEntity {
@@ -53,6 +55,9 @@ public record MixedbreadEmbeddingsRequestEntity(
         }
         if (normalized != null) {
             builder.field(MixedbreadUtils.NORMALIZED_FIELD, normalized);
+        }
+        if (encodingFormat != null) {
+            builder.field(MixedbreadUtils.ENCODING_FORMAT_FIELD, encodingFormat);
         }
         builder.endObject();
         return builder;

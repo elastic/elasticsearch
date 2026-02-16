@@ -58,6 +58,7 @@ public class MixedbreadEmbeddingsRequest implements Request {
                     model.getServiceSettings().dimensions(),
                     model.getTaskSettings().getPrompt(),
                     model.getTaskSettings().getNormalized(),
+                    model.getServiceSettings().encodingFormat(),
                     model.getServiceSettings().dimensionsSetByUser()
                 )
             ).getBytes(StandardCharsets.UTF_8)

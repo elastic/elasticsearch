@@ -19,6 +19,7 @@ public final class TestUtils {
 
     public static final int DIMENSIONS = 3;
     public static final Boolean NORMALIZED = Boolean.FALSE;
+    public static final String ENCODING_VALUE = "float";
 
     public static final String PROMPT_INITIAL_VALUE = "prompt_initial_value";
     public static final Boolean NORMALIZED_INITIAL_VALUE = Boolean.FALSE;

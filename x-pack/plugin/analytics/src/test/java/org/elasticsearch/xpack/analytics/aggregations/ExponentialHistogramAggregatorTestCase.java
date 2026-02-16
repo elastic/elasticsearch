@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations;
+package org.elasticsearch.xpack.analytics.aggregations;
 
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -15,7 +15,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramTestUtils;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.ExponentialHistogramFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
 
 import java.io.IOException;

@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.metrics;
+package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.DoubleArray;
@@ -15,24 +15,24 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
-import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSource;
+import org.elasticsearch.xpack.analytics.aggregations.support.ExponentialHistogramValuesSource;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 
 import java.io.IOException;
 import java.util.Map;
 
-public final class ExponentialHistogramMaxAggregator extends NumericMetricsAggregator.SingleValue {
+public final class ExponentialHistogramMinAggregator extends NumericMetricsAggregator.SingleValue {
 
     private final ExponentialHistogramValuesSource.ExponentialHistogram valuesSource;
     private final DocValueFormat format;
 
-    private DoubleArray maxs;
+    private DoubleArray mins;
 
-    public ExponentialHistogramMaxAggregator(
+    public ExponentialHistogramMinAggregator(
         String name,
         ValuesSourceConfig config,
         AggregationContext context,
@@ -42,8 +42,8 @@ public final class ExponentialHistogramMaxAggregator extends NumericMetricsAggre
         super(name, context, parent, metadata);
         assert config.hasValues();
         this.valuesSource = (ExponentialHistogramValuesSource.ExponentialHistogram) config.getValuesSource();
-        maxs = bigArrays().newDoubleArray(1, false);
-        maxs.fill(0, maxs.size(), Double.NEGATIVE_INFINITY);
+        mins = bigArrays().newDoubleArray(1, false);
+        mins.fill(0, mins.size(), Double.POSITIVE_INFINITY);
         this.format = config.format();
     }
 
@@ -59,15 +59,15 @@ public final class ExponentialHistogramMaxAggregator extends NumericMetricsAggre
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= maxs.size()) {
-                    long from = maxs.size();
-                    maxs = bigArrays().grow(maxs, bucket + 1);
-                    maxs.fill(from, maxs.size(), Double.NEGATIVE_INFINITY);
+                if (bucket >= mins.size()) {
+                    long from = mins.size();
+                    mins = bigArrays().grow(mins, bucket + 1);
+                    mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
                 }
 
                 if (values.advanceExact(doc)) {
-                    double max = Math.max(maxs.get(bucket), values.maxValue());
-                    maxs.set(bucket, max);
+                    double min = Math.min(mins.get(bucket), values.minValue());
+                    mins.set(bucket, min);
                 }
 
             }
@@ -76,28 +76,28 @@ public final class ExponentialHistogramMaxAggregator extends NumericMetricsAggre
 
     @Override
     public double metric(long owningBucketOrd) {
-        if (owningBucketOrd >= maxs.size()) {
-            return Double.NEGATIVE_INFINITY;
+        if (owningBucketOrd >= mins.size()) {
+            return Double.POSITIVE_INFINITY;
         }
-        return maxs.get(owningBucketOrd);
+        return mins.get(owningBucketOrd);
     }
 
     @Override
     public InternalAggregation buildAggregation(long bucket) {
-        if (bucket >= maxs.size()) {
+        if (bucket >= mins.size()) {
             return buildEmptyAggregation();
         }
-        return new Max(name, maxs.get(bucket), format, metadata());
+        return new Min(name, mins.get(bucket), format, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return Max.createEmptyMax(name, format, metadata());
+        return Min.createEmptyMin(name, format, metadata());
     }
 
     @Override
     public void doClose() {
-        Releasables.close(maxs);
+        Releasables.close(mins);
     }
 
 }

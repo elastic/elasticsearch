@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.metrics;
+package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -28,9 +28,9 @@ import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.ExponentialHistogramFieldMapper;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.ExponentialHistogramAggregatorTestCase;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSourceType;
+import org.elasticsearch.xpack.analytics.aggregations.ExponentialHistogramAggregatorTestCase;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
+import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -65,7 +65,7 @@ public class ExponentialHistogramPercentileRanksAggregatorTests extends Exponent
             CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
-            ExponentialHistogramValuesSourceType.EXPONENTIAL_HISTOGRAM
+            AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM
         );
     }
 

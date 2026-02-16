@@ -22,8 +22,7 @@ import org.elasticsearch.xpack.analytics.boxplot.BoxplotAggregationBuilder;
 import org.elasticsearch.xpack.analytics.boxplot.InternalBoxplot;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.cumulativecardinality.InternalSimpleLongValue;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.ExponentialHistogramFieldMapper;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.ExponentialHistogramAggregatorsRegistrar;
+import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms;
@@ -165,14 +164,14 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
             AnalyticsAggregatorFactory::registerHistoBackedMinggregator,
             AnalyticsAggregatorFactory::registerHistoBackedMaxggregator,
             AnalyticsAggregatorFactory::registerHistoBackedRangeAggregator,
-            ExponentialHistogramAggregatorsRegistrar::registerValueCountAggregator,
-            ExponentialHistogramAggregatorsRegistrar::registerSumAggregator,
-            ExponentialHistogramAggregatorsRegistrar::registerAvgAggregator,
-            ExponentialHistogramAggregatorsRegistrar::registerHistogramAggregator,
-            ExponentialHistogramAggregatorsRegistrar::registerMinAggregator,
-            ExponentialHistogramAggregatorsRegistrar::registerMaxAggregator,
-            ExponentialHistogramAggregatorsRegistrar::registerPercentilesAggregator,
-            ExponentialHistogramAggregatorsRegistrar::registerPercentileRanksAggregator
+            AnalyticsAggregatorFactory::registerExponentialHistogramValueCountAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramSumAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramAvgAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramHistogramAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramMinAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramMaxAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramPercentilesAggregator,
+            AnalyticsAggregatorFactory::registerExponentialHistogramPercentileRanksAggregator
         );
     }
 

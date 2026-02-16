@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.support;
+package org.elasticsearch.xpack.analytics.aggregations.support;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Rounding;
@@ -12,8 +12,7 @@ import org.elasticsearch.index.fielddata.DocValueBits;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.ExponentialHistogramFieldMapper;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.fielddata.IndexExponentialHistogramFieldData;
+import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapper;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 
 import java.io.IOException;

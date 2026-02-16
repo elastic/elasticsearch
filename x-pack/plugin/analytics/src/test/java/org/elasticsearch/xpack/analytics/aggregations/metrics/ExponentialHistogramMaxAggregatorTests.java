@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.metrics;
+package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -17,14 +17,14 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
-import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.ExponentialHistogramFieldMapper;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.ExponentialHistogramAggregatorTestCase;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSourceType;
+import org.elasticsearch.xpack.analytics.aggregations.ExponentialHistogramAggregatorTestCase;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
+import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -34,36 +34,41 @@ import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExponentialHistogramValueCountAggregatorTests extends ExponentialHistogramAggregatorTestCase {
+public class ExponentialHistogramMaxAggregatorTests extends ExponentialHistogramAggregatorTestCase {
 
     private static final String FIELD_NAME = "my_histogram";
 
     public void testMatchesNumericDocValues() throws IOException {
 
         List<ExponentialHistogram> histograms = createRandomHistograms(randomIntBetween(1, 1000));
+        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.valueCount() > 0);
 
-        long expectedCount = histograms.stream().mapToLong(ExponentialHistogram::valueCount).sum();
+        double expectedMax = histograms.stream()
+            .mapToDouble(ExponentialHistogram::max)
+            .filter(val -> Double.isNaN(val) == false)
+            .max()
+            .orElse(Double.NEGATIVE_INFINITY);
 
-        testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), valueCount -> {
-            assertThat(valueCount.getValue(), equalTo(expectedCount));
-            assertThat(AggregationInspectionHelper.hasValue(valueCount), equalTo(expectedCount > 0));
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), max -> {
+            assertThat(max.value(), equalTo(expectedMax));
+            assertThat(AggregationInspectionHelper.hasValue(max), equalTo(anyNonEmpty));
         });
     }
 
     public void testNoDocs() throws IOException {
         testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
-        }, valueCount -> {
-            assertThat(valueCount.getValue(), equalTo(0L));
-            assertThat(AggregationInspectionHelper.hasValue(valueCount), equalTo(false));
+        }, max -> {
+            assertThat(max.value(), equalTo(Double.NEGATIVE_INFINITY));
+            assertThat(AggregationInspectionHelper.hasValue(max), equalTo(false));
         });
     }
 
     public void testNoMatchingField() throws IOException {
         List<ExponentialHistogram> histograms = createRandomHistograms(10);
-        testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, "wrong_field", histo)), sum -> {
-            assertThat(sum.getValue(), equalTo(0L));
-            assertThat(AggregationInspectionHelper.hasValue(sum), equalTo(false));
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, "wrong_field", histo)), max -> {
+            assertThat(max.value(), equalTo(Double.NEGATIVE_INFINITY));
+            assertThat(AggregationInspectionHelper.hasValue(max), equalTo(false));
         });
     }
 
@@ -72,10 +77,13 @@ public class ExponentialHistogramValueCountAggregatorTests extends ExponentialHi
             .map(histo -> Map.entry(histo, randomBoolean()))
             .toList();
 
-        long filteredCount = histogramsWithFilter.stream()
+        boolean anyMatch = histogramsWithFilter.stream().filter(entry -> entry.getKey().valueCount() > 0).anyMatch(Map.Entry::getValue);
+        double filteredMax = histogramsWithFilter.stream()
             .filter(Map.Entry::getValue)
-            .mapToLong(entry -> entry.getKey().valueCount())
-            .sum();
+            .filter(entry -> entry.getKey().valueCount() > 0)
+            .mapToDouble(entry -> entry.getKey().max())
+            .max()
+            .orElse(Double.NEGATIVE_INFINITY);
 
         testCase(
             new TermQuery(new Term("match", "yes")),
@@ -87,14 +95,14 @@ public class ExponentialHistogramValueCountAggregatorTests extends ExponentialHi
                     new StringField("match", entry.getValue() ? "yes" : "no", Field.Store.NO)
                 )
             ),
-            sum -> {
-                assertThat(sum.getValue(), equalTo(filteredCount));
-                assertThat(AggregationInspectionHelper.hasValue(sum), equalTo(filteredCount > 0));
+            max -> {
+                assertThat(max.value(), equalTo(filteredMax));
+                assertThat(AggregationInspectionHelper.hasValue(max), equalTo(anyMatch));
             }
         );
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalValueCount> verify)
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Max> verify)
         throws IOException {
         var fieldType = new ExponentialHistogramFieldMapper.ExponentialHistogramFieldType(FIELD_NAME, Collections.emptyMap(), null);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);
@@ -103,20 +111,16 @@ public class ExponentialHistogramValueCountAggregatorTests extends ExponentialHi
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new ValueCountAggregationBuilder("value_count_agg").field(fieldName);
+        return new MaxAggregationBuilder("max_agg").field(fieldName);
     }
 
     @Override
     protected List<ValuesSourceType> getSupportedValuesSourceTypes() {
         return List.of(
             CoreValuesSourceType.NUMERIC,
-            CoreValuesSourceType.KEYWORD,
-            CoreValuesSourceType.GEOPOINT,
-            CoreValuesSourceType.RANGE,
-            CoreValuesSourceType.BOOLEAN,
             CoreValuesSourceType.DATE,
-            CoreValuesSourceType.IP,
-            ExponentialHistogramValuesSourceType.EXPONENTIAL_HISTOGRAM
+            CoreValuesSourceType.BOOLEAN,
+            AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM
         );
     }
 }

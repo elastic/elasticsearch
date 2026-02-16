@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.metrics;
+package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -14,8 +14,7 @@ import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.xpack.analytics.aggregations.metrics.AbstractTDigestOrExponentialPercentilesAggregator;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSource;
+import org.elasticsearch.xpack.analytics.aggregations.support.ExponentialHistogramValuesSource;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 
 import java.io.IOException;

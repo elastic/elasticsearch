@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.metrics;
+package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -17,14 +17,14 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.Min;
-import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Sum;
+import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.ExponentialHistogramFieldMapper;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.ExponentialHistogramAggregatorTestCase;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSourceType;
+import org.elasticsearch.xpack.analytics.aggregations.ExponentialHistogramAggregatorTestCase;
+import org.elasticsearch.xpack.analytics.aggregations.support.AnalyticsValuesSourceType;
+import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapper;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,43 +32,40 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 
-public class ExponentialHistogramMinAggregatorTests extends ExponentialHistogramAggregatorTestCase {
+public class ExponentialHistogramSumAggregatorTests extends ExponentialHistogramAggregatorTestCase {
 
     private static final String FIELD_NAME = "my_histogram";
 
     public void testMatchesNumericDocValues() throws IOException {
 
         List<ExponentialHistogram> histograms = createRandomHistograms(randomIntBetween(1, 1000));
-        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.valueCount() > 0);
+        boolean anyNonEmpty = histograms.stream().anyMatch(histo -> histo.sum() != 0);
 
-        double expectedMin = histograms.stream()
-            .mapToDouble(ExponentialHistogram::min)
-            .filter(val -> Double.isNaN(val) == false)
-            .min()
-            .orElse(Double.POSITIVE_INFINITY);
+        double expectedSum = histograms.stream().mapToDouble(ExponentialHistogram::sum).sum();
 
-        testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), min -> {
-            assertThat(min.value(), equalTo(expectedMin));
-            assertThat(AggregationInspectionHelper.hasValue(min), equalTo(anyNonEmpty));
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, FIELD_NAME, histo)), sum -> {
+            assertThat(sum.value(), closeTo(expectedSum, 0.0001d));
+            assertThat(AggregationInspectionHelper.hasValue(sum), equalTo(anyNonEmpty));
         });
     }
 
     public void testNoDocs() throws IOException {
         testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
-        }, min -> {
-            assertThat(min.value(), equalTo(Double.POSITIVE_INFINITY));
-            assertThat(AggregationInspectionHelper.hasValue(min), equalTo(false));
+        }, sum -> {
+            assertThat(sum.value(), equalTo(0.0d));
+            assertThat(AggregationInspectionHelper.hasValue(sum), equalTo(false));
         });
     }
 
     public void testNoMatchingField() throws IOException {
         List<ExponentialHistogram> histograms = createRandomHistograms(10);
-        testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, "wrong_field", histo)), min -> {
-            assertThat(min.value(), equalTo(Double.POSITIVE_INFINITY));
-            assertThat(AggregationInspectionHelper.hasValue(min), equalTo(false));
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> histograms.forEach(histo -> addHistogramDoc(iw, "wrong_field", histo)), sum -> {
+            assertThat(sum.value(), equalTo(0.0d));
+            assertThat(AggregationInspectionHelper.hasValue(sum), equalTo(false));
         });
     }
 
@@ -77,13 +74,8 @@ public class ExponentialHistogramMinAggregatorTests extends ExponentialHistogram
             .map(histo -> Map.entry(histo, randomBoolean()))
             .toList();
 
-        boolean anyMatch = histogramsWithFilter.stream().filter(entry -> entry.getKey().valueCount() > 0).anyMatch(Map.Entry::getValue);
-        double filteredMin = histogramsWithFilter.stream()
-            .filter(Map.Entry::getValue)
-            .filter(entry -> entry.getKey().valueCount() > 0)
-            .mapToDouble(entry -> entry.getKey().min())
-            .min()
-            .orElse(Double.POSITIVE_INFINITY);
+        boolean anyMatch = histogramsWithFilter.stream().filter(entry -> entry.getKey().sum() != 0).anyMatch(Map.Entry::getValue);
+        double filteredSum = histogramsWithFilter.stream().filter(Map.Entry::getValue).mapToDouble(entry -> entry.getKey().sum()).sum();
 
         testCase(
             new TermQuery(new Term("match", "yes")),
@@ -95,14 +87,14 @@ public class ExponentialHistogramMinAggregatorTests extends ExponentialHistogram
                     new StringField("match", entry.getValue() ? "yes" : "no", Field.Store.NO)
                 )
             ),
-            min -> {
-                assertThat(min.value(), equalTo(filteredMin));
-                assertThat(AggregationInspectionHelper.hasValue(min), equalTo(anyMatch));
+            sum -> {
+                assertThat(sum.value(), closeTo(filteredSum, 0.0001d));
+                assertThat(AggregationInspectionHelper.hasValue(sum), equalTo(anyMatch));
             }
         );
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Min> verify)
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Sum> verify)
         throws IOException {
         var fieldType = new ExponentialHistogramFieldMapper.ExponentialHistogramFieldType(FIELD_NAME, Collections.emptyMap(), null);
         AggregationBuilder aggregationBuilder = createAggBuilderForTypeTest(fieldType, FIELD_NAME);
@@ -111,7 +103,7 @@ public class ExponentialHistogramMinAggregatorTests extends ExponentialHistogram
 
     @Override
     protected AggregationBuilder createAggBuilderForTypeTest(MappedFieldType fieldType, String fieldName) {
-        return new MinAggregationBuilder("min_agg").field(fieldName);
+        return new SumAggregationBuilder("sum_agg").field(fieldName);
     }
 
     @Override
@@ -120,7 +112,7 @@ public class ExponentialHistogramMinAggregatorTests extends ExponentialHistogram
             CoreValuesSourceType.NUMERIC,
             CoreValuesSourceType.DATE,
             CoreValuesSourceType.BOOLEAN,
-            ExponentialHistogramValuesSourceType.EXPONENTIAL_HISTOGRAM
+            AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM
         );
     }
 }

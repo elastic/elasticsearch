@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.bucket.histogram;
+package org.elasticsearch.xpack.analytics.aggregations.bucket.histogram;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -23,8 +23,8 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.aggregations.bucket.histogram.HistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.support.AggregationInspectionHelper;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.ExponentialHistogramFieldMapper;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.ExponentialHistogramAggregatorTestCase;
+import org.elasticsearch.xpack.analytics.aggregations.ExponentialHistogramAggregatorTestCase;
+import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;

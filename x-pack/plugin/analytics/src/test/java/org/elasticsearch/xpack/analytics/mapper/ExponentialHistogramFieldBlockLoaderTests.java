@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.analytics.exponentialhistogram;
+package org.elasticsearch.xpack.analytics.mapper;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Types;

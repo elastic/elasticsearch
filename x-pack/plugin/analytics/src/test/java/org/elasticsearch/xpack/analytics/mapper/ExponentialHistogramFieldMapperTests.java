@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.analytics.exponentialhistogram;
+package org.elasticsearch.xpack.analytics.mapper;
 
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
@@ -42,11 +42,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.ExponentialHistogramAggregatorTestCase;
-import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
-import org.elasticsearch.xpack.analytics.mapper.HistogramParser;
-import org.elasticsearch.xpack.analytics.mapper.IndexWithCount;
-import org.elasticsearch.xpack.analytics.mapper.ParsedHistogramConverter;
+import org.elasticsearch.xpack.analytics.aggregations.ExponentialHistogramAggregatorTestCase;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;

@@ -5,11 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.analytics.exponentialhistogram.fielddata;
+package org.elasticsearch.xpack.analytics.aggregations.support;
 
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSourceType;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.LeafExponentialHistogramFieldData;
 
 /**
@@ -30,6 +29,6 @@ public abstract class IndexExponentialHistogramFieldData implements IndexFieldDa
 
     @Override
     public ValuesSourceType getValuesSourceType() {
-        return ExponentialHistogramValuesSourceType.EXPONENTIAL_HISTOGRAM;
+        return AnalyticsValuesSourceType.EXPONENTIAL_HISTOGRAM;
     }
 }

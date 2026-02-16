@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.bucket.histogram;
+package org.elasticsearch.xpack.analytics.aggregations.bucket.histogram;
 
 import org.elasticsearch.exponentialhistogram.BucketIterator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
@@ -21,7 +21,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.AbstractHistogramA
 import org.elasticsearch.search.aggregations.bucket.histogram.DoubleBounds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.support.ExponentialHistogramValuesSource;
+import org.elasticsearch.xpack.analytics.aggregations.support.ExponentialHistogramValuesSource;
 import org.elasticsearch.xpack.core.exponentialhistogram.fielddata.ExponentialHistogramValuesReader;
 
 import java.io.IOException;

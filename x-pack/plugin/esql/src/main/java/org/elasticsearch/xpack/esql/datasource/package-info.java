@@ -14,30 +14,43 @@
  *
  * <ol>
  *   <li><b>Resolution</b> - {@code PreAnalyzer} calls
- *       {@link org.elasticsearch.xpack.esql.datasource.DataSource#resolve} to discover schema
+ *       {@link org.elasticsearch.xpack.esql.datasource.spi.DataSource#resolve} to discover schema
  *       and create the data source's logical plan node</li>
  *   <li><b>Logical Optimization</b> -
- *       {@link org.elasticsearch.xpack.esql.datasource.DataSource#applyOptimizationRules DataSource.applyOptimizationRules()}
- *       collects {@link org.elasticsearch.xpack.esql.datasource.DataSource#optimizationRules() rules}
+ *       {@link org.elasticsearch.xpack.esql.datasource.spi.DataSource#applyOptimizationRules DataSource.applyOptimizationRules()}
+ *       collects {@link org.elasticsearch.xpack.esql.datasource.spi.DataSource#optimizationRules() rules}
  *       from all registered data sources and runs them as a separate pass after the main optimizer</li>
  *   <li><b>Physical Planning</b> - {@code Mapper} calls
- *       {@link org.elasticsearch.xpack.esql.datasource.DataSource#createPhysicalPlan}</li>
+ *       {@link org.elasticsearch.xpack.esql.datasource.spi.DataSource#createPhysicalPlan}</li>
  *   <li><b>Work Distribution</b> - Physical planner calls
- *       {@link org.elasticsearch.xpack.esql.datasource.DataSource#planPartitions}</li>
+ *       {@link org.elasticsearch.xpack.esql.datasource.spi.DataSource#planPartitions}</li>
  *   <li><b>Execution</b> - {@code LocalExecutionPlanner} calls
- *       {@link org.elasticsearch.xpack.esql.datasource.DataSource#createSourceOperator}</li>
+ *       {@link org.elasticsearch.xpack.esql.datasource.spi.DataSource#createSourceOperator}</li>
  * </ol>
  *
  * <h2>Core Abstractions</h2>
  *
  * <ul>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSource} - Main SPI interface (includes
- *       {@link org.elasticsearch.xpack.esql.datasource.DataSource#capabilities() capabilities()})</li>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSourcePlan} - Abstract base class for data source plan leaves (extends LeafPlan)</li>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSourcePartition} - Interface for units of work in distributed execution</li>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSourceDescriptor} - Parsed data source reference</li>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSourceCapabilities} - Execution mode flag
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSource} - Main SPI interface (includes
+ *       {@link org.elasticsearch.xpack.esql.datasource.spi.DataSource#capabilities() capabilities()})</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSourcePlan} - Abstract base class for data source plan leaves (extends LeafPlan)</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSourcePartition} - Interface for units of work in distributed execution</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSourceDescriptor} - Parsed data source reference</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSourceCapabilities} - Execution mode flag
  *       (returned by {@code DataSource.capabilities()})</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.UnresolvedDataSourceRelation} - Unresolved plan
+ *       leaf created by parser, resolved into DataSourcePlan</li>
+ * </ul>
+ *
+ * <h2>Plugin Discovery</h2>
+ *
+ * <ul>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSourcePlugin} - Extension point:
+ *       {@code dataSources(Settings)} returns {@code Map<String, DataSourceFactory>}</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSourceFactory} - Factory for creating
+ *       DataSource instances from configuration</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSourceRegistry} - Collects DataSourcePlugin
+ *       factories, provides lookup by type</li>
  * </ul>
  *
  * <h2>Helpers</h2>
@@ -46,34 +59,34 @@
  * implement the core abstractions directly.
  *
  * <ul>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSourcePushdownRule} - Convenience base for
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.CloseableIterator} - Generic closeable iterator
+ *       (Iterator + Closeable), used by FormatReader and other streaming APIs</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSourcePushdownRule} - Convenience base for
  *       optimization rules that push operations into data source plan leaves</li>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSource#applyOptimizationRules
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSource#applyOptimizationRules
  *       DataSource.applyOptimizationRules()} - Collects and runs data source-provided optimization rules</li>
  * </ul>
  *
  * <h2>Sub-Packages</h2>
  *
  * <ul>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.partitioning partitioning} - Split-based
- *       partitioning: {@link org.elasticsearch.xpack.esql.datasource.partitioning.SplitPartitioner},
- *       {@link org.elasticsearch.xpack.esql.datasource.partitioning.DataSourceSplit},
- *       {@link org.elasticsearch.xpack.esql.datasource.partitioning.NodeAffinity},
- *       {@link org.elasticsearch.xpack.esql.datasource.partitioning.DistributionHints}</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi spi} - Core SPI contracts
+ *       (DataSource, DataSourcePlan, DataSourcePartition, etc.)</li>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse lakehouse} - Storage + format
- *       separation for data lake sources (Iceberg, Delta Lake, Parquet)</li>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.sql sql} - SQL translation base classes
- *       (PostgreSQL, MySQL, Oracle)</li>
+ *       separation for data lake sources (Iceberg, Delta Lake, Parquet).
+ *       SPI contracts in {@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi lakehouse/spi}
+ *       (including {@link org.elasticsearch.xpack.esql.datasource.spi.partitioning partitioning}),
+ *       helpers (registries, operators, glob) at package root.</li>
  * </ul>
  *
  * <h2>Design Principles</h2>
  *
- * <p><b>DataSource-specific plan nodes:</b> Each data source defines its own {@link org.elasticsearch.xpack.esql.datasource.DataSourcePlan}
+ * <p><b>DataSource-specific plan nodes:</b> Each data source defines its own {@link org.elasticsearch.xpack.esql.datasource.spi.DataSourcePlan}
  * implementation that extends {@link org.elasticsearch.xpack.esql.plan.logical.LeafPlan}. This allows data sources to store
  * type-safe data source-specific state (e.g., Iceberg manifests, SQL fragments) without opaque state objects.
  *
  * <p><b>No enumerated pushdown types:</b> Instead of declaring "I support filter pushdown",
- * data sources provide their own {@link org.elasticsearch.xpack.esql.datasource.DataSource#optimizationRules() optimization rules}
+ * data sources provide their own {@link org.elasticsearch.xpack.esql.datasource.spi.DataSource#optimizationRules() optimization rules}
  * that pattern-match on standard ES|QL plan nodes and fold operations into the data source plan leaf.
  * This allows data sources to make nuanced, case-by-case decisions without coupling the SPI
  * to specific optimization types.
@@ -83,13 +96,11 @@
  * <p>Sub-packages provide abstract base classes for common patterns:
  *
  * <ul>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.LakehouseDataSource} -
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi.LakehouseDataSource} -
  *       For Iceberg, Delta Lake, Hudi, raw Parquet (composes
- *       {@link org.elasticsearch.xpack.esql.datasource.partitioning.SplitPartitioner},
- *       {@link org.elasticsearch.xpack.esql.datasource.lakehouse.StorageProvider}
- *       + {@link org.elasticsearch.xpack.esql.datasource.lakehouse.FormatReader})</li>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.sql.SqlDataSource} -
- *       For PostgreSQL, MySQL, Oracle, etc.</li>
+ *       {@link org.elasticsearch.xpack.esql.datasource.spi.partitioning.SplitPartitioner},
+ *       {@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi.StorageProvider}
+ *       + {@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi.FormatReader})</li>
  * </ul>
  *
  * <h2>Lakehouse SPI</h2>
@@ -98,12 +109,12 @@
  * production-ready abstractions for data lake access:
  *
  * <ul>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.StorageProvider} /
- *       {@link org.elasticsearch.xpack.esql.datasource.lakehouse.StorageObject} — storage access</li>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.FormatReader} — format reading</li>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.TableCatalog} — catalog integration</li>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.FilterPushdownSupport} — filter pushdown</li>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.SourceMetadata} — schema and statistics</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi.StorageProvider} /
+ *       {@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi.StorageObject} — storage access</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi.FormatReader} — format reading</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi.TableCatalog} — catalog integration</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi.FilterPushdownSupport} — filter pushdown</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi.SourceMetadata} — schema and statistics</li>
  * </ul>
  *
  * <h2>Example Usage</h2>

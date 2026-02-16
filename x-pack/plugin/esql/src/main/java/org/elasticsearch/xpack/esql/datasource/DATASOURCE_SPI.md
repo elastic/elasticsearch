@@ -2,6 +2,112 @@
 
 This document describes how ES|QL integrates with external data sources through the DataSource SPI.
 
+## Implementation Plan
+
+We have two parallel packages:
+- **`datasource/`** (singular, this package) — generic `DataSource` SPI with full lifecycle hooks (resolve, optimize, plan, partition, execute), lakehouse base classes, and partitioning infrastructure
+- **`datasources/`** (plural, PR #141678) — lakehouse-focused implementation with async operators, registries, glob expansion, plugin discovery, and pipeline wiring
+
+**Goal**: Make `datasource/` self-sufficient, wire it into the ESQL pipeline, then delete `datasources/`.
+
+### Class Mapping: `datasource/` ↔ `datasources/` + plan nodes
+
+How classes in `datasource/` (this package) correspond to classes in `datasources/` (PR #141678)
+and the existing plan nodes.
+
+**Plan nodes** — these are the least obvious mappings:
+
+| `datasource/` (this package) | `datasources/` / plan nodes | Notes |
+|------|------|-------|
+| [UnresolvedDataSourceRelation](UnresolvedDataSourceRelation.java) | `plan/logical/UnresolvedExternalRelation` | Same role: unresolved leaf from parser |
+| [DataSourcePlan](spi/DataSourcePlan.java) | `plan/logical/ExternalRelation` | Abstract base vs concrete node with opaque maps |
+| [LakehousePlan](lakehouse/spi/LakehousePlan.java) | `plan/logical/ExternalRelation` | Typed fields (expression, formatName, nativeFilter, limit) replace ExternalRelation's opaque `Map<String, Object>` config/metadata |
+| [DataSourceExec](spi/DataSourceExec.java) | `plan/physical/ExternalSourceExec` | Generic physical wrapper; ExternalSourceExec also had opaque maps |
+
+**Core SPI** — new abstractions with no `datasources/` equivalent:
+
+| `datasource/` (this package) | Replaces | Notes |
+|------|------|-------|
+| [DataSource](spi/DataSource.java) | *(new)* | Central lifecycle interface — `datasources/` had no unified data source concept |
+| [DataSourceCapabilities](spi/DataSourceCapabilities.java) | *(new)* | Distributed vs coordinator-only execution mode |
+| [DataSourcePartition](spi/DataSourcePartition.java) | *(new)* | Work distribution unit — `datasources/` was coordinator-only |
+| [DataSourceDescriptor](spi/DataSourceDescriptor.java) | `ExternalSourceResolution` (partial) | Parsed FROM clause; replaces resolution record |
+| [DataSourceOptimizer](spi/DataSourceOptimizer.java) | `FilterPushdownRegistry` | Data source-owned rules replace framework-level filter registry |
+| [DataSourcePushdownRule](spi/DataSourcePushdownRule.java) | *(new)* | Convenience base for pushdown rules |
+| [DataSourceFactory](spi/DataSourceFactory.java) | *(new)* | Per-type factory — `datasources/` plugin was monolithic |
+| Partitioning sub-package (5 types) | *(new)* | Split→partition pipeline for distributed execution |
+
+**Plugin discovery:**
+
+| `datasource/` (this package) | `datasources/` | Notes |
+|------|------|-------|
+| [DataSourcePlugin](spi/DataSourcePlugin.java) | `spi/DataSourcePlugin` | Split: universal plugin returns `Map<String, DataSourceFactory>` |
+| [StoragePlugin](lakehouse/spi/StoragePlugin.java) | `spi/DataSourcePlugin.storageProviders()` | Extracted from monolithic plugin |
+| [FormatPlugin](lakehouse/spi/FormatPlugin.java) | `spi/DataSourcePlugin.formatReaders()` | Extracted from monolithic plugin |
+| [CatalogPlugin](lakehouse/spi/CatalogPlugin.java) | `spi/DataSourcePlugin.tableCatalogs()` | Extracted from monolithic plugin |
+| [DataSourceRegistry](DataSourceRegistry.java) | `DataSourceModule` | Universal factory registry vs module-level wiring |
+| [LakehouseRegistry](lakehouse/LakehouseRegistry.java) | `DataSourceModule` (partial) | Lakehouse-specific plugin discovery |
+
+**Mirrored lakehouse SPI** — same types, moved from `datasources/spi/` to `datasource/lakehouse/spi/`:
+
+| `datasource/lakehouse/spi/` | `datasources/spi/` |
+|------|------|
+| StorageProvider | StorageProvider |
+| StorageObject | StorageObject |
+| StoragePath | StoragePath |
+| FormatReader | FormatReader |
+| FormatReaderFactory | FormatReaderFactory |
+| StorageProviderFactory | StorageProviderFactory |
+| SourceMetadata | SourceMetadata |
+| SimpleSourceMetadata | SimpleSourceMetadata |
+| SourceStatistics | SourceStatistics |
+| FilterPushdownSupport | FilterPushdownSupport |
+| TableCatalog, TableCatalogFactory | TableCatalog, TableCatalogFactory |
+| SourceOperatorFactoryProvider | SourceOperatorFactoryProvider |
+| SourceOperatorContext | SourceOperatorContext |
+
+Also mirrored: StorageEntry, StorageIterator, FileSet (`datasources/` → `datasource/lakehouse/spi/`), CloseableIterator (`datasources/` → `datasource/spi/`).
+
+**Mirrored lakehouse internals** — same types, moved from `datasources/` to `datasource/lakehouse/`:
+
+| `datasource/lakehouse/` | `datasources/` |
+|------|------|
+| StorageProviderRegistry | StorageProviderRegistry |
+| FormatReaderRegistry | FormatReaderRegistry |
+| StorageManager | StorageManager |
+| AsyncExternalSourceOperator | AsyncExternalSourceOperator |
+| AsyncExternalSourceBuffer | AsyncExternalSourceBuffer |
+| AsyncExternalSourceOperatorFactory | AsyncExternalSourceOperatorFactory |
+| ExternalSourceOperatorFactory | ExternalSourceOperatorFactory |
+| GlobExpander | GlobExpander |
+| GlobMatcher | GlobMatcher |
+
+**`datasources/` types replaced by DataSource lifecycle** — deleted in Phase 3:
+
+| `datasources/` type | Replaced by |
+|------|------|
+| `ExternalSourceResolver` | `DataSource.resolve()` (async) |
+| `ExternalSourceResolution` | `DataSourceDescriptor` + `ActionListener<DataSourcePlan>` |
+| `ExternalSourceMetadata` | `SourceMetadata` (already in lakehouse SPI) |
+| `FilterPushdownRegistry` | `DataSource.optimizationRules()` |
+| `OperatorFactoryRegistry` | `DataSource.createSourceOperator()` |
+
+| Phase | Goal | Scope |
+|-------|------|-------|
+| **Phase 1: Build + Absorb** | `datasource/` becomes self-sufficient | ~13 new files, 0 pipeline changes |
+| **Phase 2: Wire** | ESQL pipeline uses `datasource/` at every stage | ~12 pipeline files modified |
+| **Phase 3: Kill** | Delete `datasources/` (plural) | ~33 files deleted |
+
+**Key design decisions:**
+1. Plugin interfaces follow ES `Map<String, Factory>` pattern — one interface per capability
+2. `DataSourcePlugin` (universal) lives in `datasource/spi/`; `StoragePlugin`/`FormatPlugin`/`CatalogPlugin` (lakehouse) live in `datasource/lakehouse/spi/`
+3. Replace PR #141678's plan nodes with generic `DataSourcePlan` → `DataSourceExec`; add `UnresolvedDataSourceRelation`
+4. Pipeline talks to `DataSource` at every stage — no framework-level registries for filter pushdown or operator creation
+
+**Current status:** Phase 1 complete. Phases 2 and 3 are next.
+
+---
+
 ## Data Source Syntax
 
 The syntax is `where:what`:
@@ -83,25 +189,37 @@ These are the types that define the DataSource SPI contract. Every data source m
 
 | Type | Description |
 |------|-------------|
-| [DataSource](DataSource.java) | Main SPI interface with all lifecycle hooks (including `capabilities()`) |
-| [DataSourcePlan](DataSourcePlan.java) | Abstract base class for data source plan leaves (extends LeafPlan) |
-| [DataSourceDescriptor](DataSourceDescriptor.java) | Parsed data source reference (type, configuration, settings, expression) |
-| [DataSourcePartition](DataSourcePartition.java) | Interface for units of work in distributed execution |
-| [DataSourceCapabilities](DataSourceCapabilities.java) | Execution mode flag (distributed vs coordinator-only), returned by `DataSource.capabilities()` |
-| [DataSourceExec](DataSourceExec.java) | Physical plan node for all data sources (wraps DataSourcePlan) |
+| [DataSource](spi/DataSource.java) | Main SPI interface with all lifecycle hooks (including `capabilities()`) |
+| [DataSourcePlan](spi/DataSourcePlan.java) | Abstract base class for data source plan leaves (extends LeafPlan) |
+| [DataSourceDescriptor](spi/DataSourceDescriptor.java) | Parsed data source reference (type, configuration, settings, expression) |
+| [DataSourcePartition](spi/DataSourcePartition.java) | Interface for units of work in distributed execution |
+| [DataSourceCapabilities](spi/DataSourceCapabilities.java) | Execution mode flag (distributed vs coordinator-only), returned by `DataSource.capabilities()` |
+| [DataSourceExec](spi/DataSourceExec.java) | Physical plan node for all data sources (wraps DataSourcePlan) |
+| [UnresolvedDataSourceRelation](UnresolvedDataSourceRelation.java) | Unresolved plan leaf created by parser, resolved into DataSourcePlan |
 
-### Partitioning (`datasource/partitioning/`)
+### Plugin Discovery
+
+Types for discovering and creating data source instances at startup.
+Follows the standard Elasticsearch plugin pattern (`Map<String, Factory>`).
+
+| Type | Description |
+|------|-------------|
+| [DataSourcePlugin](spi/DataSourcePlugin.java) | Extension point: `dataSources(Settings)` returns `Map<String, DataSourceFactory>` |
+| [DataSourceFactory](spi/DataSourceFactory.java) | Factory for creating DataSource instances from configuration |
+| [DataSourceRegistry](DataSourceRegistry.java) | Collects DataSourcePlugin factories, provides lookup by type |
+
+### Partitioning (`datasource/spi/partitioning/`)
 
 Types for the split → partition pipeline. Used by distributed data sources that discover
 fine-grained units of work (files, key ranges, shards) and group them into balanced partitions.
 
 | Type | Description |
 |------|-------------|
-| [SplitPartitioner](partitioning/SplitPartitioner.java) | Reusable discover → group → wrap helper for split-based partitioning (composed by data sources) |
-| [DataSourceSplit](partitioning/DataSourceSplit.java) | Interface for discovered units of work with optional size/affinity |
-| [NodeAffinity](partitioning/NodeAffinity.java) | Value type for hard (`require`) vs soft (`prefer`) node affinity |
-| [DistributionHints](partitioning/DistributionHints.java) | Hints for partitioning (target parallelism, available nodes) |
-| [SizeAwareBinPacking](partitioning/SizeAwareBinPacking.java) | Static utility for FFD bin-packing of splits (used by `SplitPartitioner`) |
+| [SplitPartitioner](spi/partitioning/SplitPartitioner.java) | Reusable discover → group → wrap helper for split-based partitioning (composed by data sources) |
+| [DataSourceSplit](spi/partitioning/DataSourceSplit.java) | Interface for discovered units of work with optional size/affinity |
+| [NodeAffinity](spi/partitioning/NodeAffinity.java) | Value type for hard (`require`) vs soft (`prefer`) node affinity |
+| [DistributionHints](spi/partitioning/DistributionHints.java) | Hints for partitioning (target parallelism, available nodes) |
+| [SizeAwareBinPacking](spi/partitioning/SizeAwareBinPacking.java) | Static utility for FFD bin-packing of splits (used by `SplitPartitioner`) |
 
 ### Helpers
 
@@ -110,18 +228,19 @@ the core abstractions directly.
 
 | Type | Description |
 |------|-------------|
-| [DataSourcePushdownRule](DataSourcePushdownRule.java) | Convenience base for optimization rules that push operations into plan leaves |
-| [DataSourceOptimizer](DataSourceOptimizer.java) | Collects and runs data source-provided optimization rules |
+| [DataSourcePushdownRule](spi/DataSourcePushdownRule.java) | Convenience base for optimization rules that push operations into plan leaves |
+| [DataSourceOptimizer](spi/DataSourceOptimizer.java) | Collects and runs data source-provided optimization rules |
+| [CloseableIterator](spi/CloseableIterator.java) | Generic closeable iterator (Iterator + Closeable) |
 
-### Base Classes: Lakehouse
+### Lakehouse Data Source
 
-Reusable building blocks for lakehouse data sources. Data sources can extend these or implement the
-core abstractions directly.
+Concrete, registry-driven data source for file-based storage. No subclassing needed —
+all variation is handled by registered `StoragePlugin`, `FormatPlugin`, and `CatalogPlugin` implementations.
 
 | Type | Description |
 |------|-------------|
-| [LakehouseDataSource](lakehouse/LakehouseDataSource.java) | Base for lakehouse data sources (composes [`SplitPartitioner`](partitioning/SplitPartitioner.java)`<FileTask>`, storage + format SPI types) |
-| [LakehousePlan](lakehouse/LakehousePlan.java) | Abstract plan class with filter/limit support |
+| [LakehouseDataSource](lakehouse/spi/LakehouseDataSource.java) | Concrete lakehouse data source (composes [`SplitPartitioner`](spi/partitioning/SplitPartitioner.java)`<FileTask>`, looks up storage/format from [`LakehouseRegistry`](lakehouse/LakehouseRegistry.java)) |
+| [LakehousePlan](lakehouse/spi/LakehousePlan.java) | Concrete plan node with expression, formatName, nativeFilter, limit |
 
 ### Lakehouse SPI
 
@@ -132,63 +251,90 @@ and filter pushdown. Used by `LakehouseDataSource` and available for direct use 
 
 | Type | Description |
 |------|-------------|
-| [StoragePath](lakehouse/StoragePath.java) | URI-like path for addressing objects in storage systems (scheme://host[:port]/path) with glob support |
-| [StorageProvider](lakehouse/StorageProvider.java) | SPI for accessing files in a storage system (S3, GCS, HDFS); lists by prefix with recursive option |
-| [StorageObject](lakehouse/StorageObject.java) | Read handle for a single object (sync + async) |
-| [StorageEntry](lakehouse/StorageEntry.java) | Metadata record from directory listing (path, length, lastModified) |
-| [StorageIterator](lakehouse/StorageIterator.java) | Storage-specific iterator over entries (extends CloseableIterator) |
-| [StorageProviderFactory](lakehouse/StorageProviderFactory.java) | Factory for creating StorageProvider instances |
+| [StoragePath](lakehouse/spi/StoragePath.java) | URI-like path for addressing objects in storage systems (scheme://host[:port]/path) with glob support |
+| [StorageProvider](lakehouse/spi/StorageProvider.java) | SPI for accessing files in a storage system (S3, GCS, HDFS); lists by prefix with recursive option |
+| [StorageObject](lakehouse/spi/StorageObject.java) | Read handle for a single object (sync + async) |
+| [StorageEntry](lakehouse/spi/StorageEntry.java) | Metadata record from directory listing (path, length, lastModified) |
+| [StorageIterator](lakehouse/spi/StorageIterator.java) | Storage-specific iterator over entries (extends CloseableIterator) |
+| [StorageProviderFactory](lakehouse/spi/StorageProviderFactory.java) | Factory for creating StorageProvider instances |
 
 **Format reading:**
 
 | Type | Description |
 |------|-------------|
-| [FormatReader](lakehouse/FormatReader.java) | SPI for reading file formats (Parquet, ORC, CSV, Avro) with SchemaResolution strategy |
-| [FormatReaderFactory](lakehouse/FormatReaderFactory.java) | Factory for creating FormatReader instances |
-| [CloseableIterator](lakehouse/CloseableIterator.java) | Generic closeable iterator for streaming data pages |
+| [FormatReader](lakehouse/spi/FormatReader.java) | SPI for reading file formats (Parquet, ORC, CSV, Avro) with SchemaResolution strategy |
+| [FormatReaderFactory](lakehouse/spi/FormatReaderFactory.java) | Factory for creating FormatReader instances |
 
 **Metadata:**
 
 | Type | Description |
 |------|-------------|
-| [SourceMetadata](lakehouse/SourceMetadata.java) | Unified metadata output from schema discovery (schema, location, statistics, source-specific metadata) |
-| [SimpleSourceMetadata](lakehouse/SimpleSourceMetadata.java) | Immutable SourceMetadata implementation with builder |
-| [SourceStatistics](lakehouse/SourceStatistics.java) | Row count, size, and per-column statistics |
-| [FileSet](lakehouse/FileSet.java) | Resolved set of files from glob/path with sentinel states (UNRESOLVED, EMPTY) |
+| [SourceMetadata](lakehouse/spi/SourceMetadata.java) | Unified metadata output from schema discovery (schema, location, statistics, source-specific metadata) |
+| [SimpleSourceMetadata](lakehouse/spi/SimpleSourceMetadata.java) | Immutable SourceMetadata implementation with builder |
+| [SourceStatistics](lakehouse/spi/SourceStatistics.java) | Row count, size, and per-column statistics |
+| [FileSet](lakehouse/spi/FileSet.java) | Resolved set of files from glob/path with sentinel states (UNRESOLVED, EMPTY) |
 
 **Filter pushdown:**
 
 | Type | Description |
 |------|-------------|
-| [FilterPushdownSupport](lakehouse/FilterPushdownSupport.java) | Push filter expressions to the data source |
+| [FilterPushdownSupport](lakehouse/spi/FilterPushdownSupport.java) | Push filter expressions to the data source |
 
 **Table catalog:**
 
 | Type | Description |
 |------|-------------|
-| [TableCatalog](lakehouse/TableCatalog.java) | Integration with table formats (Iceberg, Delta Lake, Hudi) |
-| [TableCatalogFactory](lakehouse/TableCatalogFactory.java) | Factory for creating TableCatalog instances |
+| [TableCatalog](lakehouse/spi/TableCatalog.java) | Integration with table formats (Iceberg, Delta Lake, Hudi) |
+| [TableCatalogFactory](lakehouse/spi/TableCatalogFactory.java) | Factory for creating TableCatalog instances |
 
 **Operator creation:**
 
 | Type | Description |
 |------|-------------|
-| [SourceOperatorFactoryProvider](lakehouse/SourceOperatorFactoryProvider.java) | Extension point for custom source operator creation |
-| [SourceOperatorContext](lakehouse/SourceOperatorContext.java) | Context record for operator factory creation |
+| [SourceOperatorFactoryProvider](lakehouse/spi/SourceOperatorFactoryProvider.java) | Extension point for custom source operator creation |
+| [SourceOperatorContext](lakehouse/spi/SourceOperatorContext.java) | Context record for operator factory creation |
 
-### Base Classes: SQL
+### Lakehouse Plugin Discovery
 
-| Type | Description |
-|------|-------------|
-| [SqlDataSource](sql/SqlDataSource.java) | Base for PostgreSQL, MySQL, Oracle data sources |
-| [SqlPlan](sql/SqlPlan.java) | Abstract plan class with filter/limit/orderBy/aggregation support |
-
-### Examples
+Plugin interfaces for lakehouse infrastructure. Discovered by `LakehouseRegistry` at startup.
 
 | Type | Description |
 |------|-------------|
-| [JdbcDataSource](sql/JdbcDataSource.java) | SQL example: reads from a database via JDBC |
-| [JdbcPlan](sql/JdbcPlan.java) | Plan node holding table name and built SQL |
+| [StoragePlugin](lakehouse/spi/StoragePlugin.java) | Extension point: `storageProviders(Settings)` returns `Map<String, StorageProviderFactory>` keyed by URI scheme |
+| [FormatPlugin](lakehouse/spi/FormatPlugin.java) | Extension point: `formatReaders(Settings)` returns `Map<String, FormatReaderFactory>` keyed by format name |
+| [CatalogPlugin](lakehouse/spi/CatalogPlugin.java) | Extension point: `tableCatalogs(Settings)` returns `Map<String, TableCatalogFactory>` keyed by catalog type |
+| [LakehouseRegistry](lakehouse/LakehouseRegistry.java) | Discovers StoragePlugin/FormatPlugin/CatalogPlugin, populates registries |
+
+### Lakehouse Registries
+
+Internal registries for scheme-based provider lookup and format-based reader lookup.
+
+| Type | Description |
+|------|-------------|
+| [StorageProviderRegistry](lakehouse/StorageProviderRegistry.java) | Scheme-keyed lookup for StorageProvider instances |
+| [FormatReaderRegistry](lakehouse/FormatReaderRegistry.java) | Name-keyed and extension-keyed lookup for FormatReader instances |
+| [StorageManager](lakehouse/StorageManager.java) | Facade over StorageProviderRegistry for creating StorageObject from paths |
+
+### Lakehouse Async Operators
+
+Async execution infrastructure for reading from external storage. Provides backpressure
+via buffer and dual-mode (sync wrapper / native async) operation.
+
+| Type | Description |
+|------|-------------|
+| [AsyncExternalSourceOperatorFactory](lakehouse/AsyncExternalSourceOperatorFactory.java) | Dual-mode factory: auto-selects sync wrapper vs native async based on FormatReader capabilities |
+| [AsyncExternalSourceOperator](lakehouse/AsyncExternalSourceOperator.java) | SourceOperator that polls from AsyncExternalSourceBuffer |
+| [AsyncExternalSourceBuffer](lakehouse/AsyncExternalSourceBuffer.java) | Thread-safe ConcurrentLinkedQueue-based buffer with backpressure |
+| [ExternalSourceOperatorFactory](lakehouse/ExternalSourceOperatorFactory.java) | Synchronous factory for simple format readers |
+
+### Lakehouse Glob Expansion
+
+Internal utilities for expanding glob patterns into resolved file sets.
+
+| Type | Description |
+|------|-------------|
+| [GlobExpander](lakehouse/GlobExpander.java) | Expands glob patterns and comma-separated path lists into FileSet instances |
+| [GlobMatcher](lakehouse/GlobMatcher.java) | Converts glob patterns to Java regex and matches relative paths |
 
 ### Core SPI: Component Composition
 
@@ -198,9 +344,9 @@ How core SPI concepts are used in each query phase:
   Phase              DataSource method                   Key concepts
   ═════              ════════════════                   ════════════
 
-  RESOLVE            DataSource.resolve()
-                     DataSourceDescriptor ─────────────────────► DataSourcePlan
-                     (FROM clause: type + config + expression)        (schema + source info)
+  RESOLVE            DataSource.resolve(descriptor, context, listener)
+                     DataSourceDescriptor ──────────────► ActionListener<DataSourcePlan>
+                     (FROM clause: type + config + expression)   (async callback with schema)
 
   OPTIMIZE           DataSource.optimizationRules()
                      DataSourcePushdownRule ──► pushDown(plan) ──────► DataSourcePlan'
@@ -226,18 +372,20 @@ skip PARTITION (single `CoordinatorPartition` is used instead).
 
 ## Design Principles
 
-**Minimal core SPI:** The core [`DataSourcePlan`](DataSourcePlan.java) abstract class only contains what's universal:
+**Minimal core SPI:** The core [`DataSourcePlan`](spi/DataSourcePlan.java) abstract class only contains what's universal:
 - `dataSource()` - identity
 - `location()` - for error messages
 - `output()` - schema
 
-**Operation-specific state in base classes:** Operation handling is defined in base class abstract plans:
-- [`LakehousePlan`](lakehouse/LakehousePlan.java) - filter + limit
-- [`SqlPlan`](sql/SqlPlan.java) - full SQL pushdown
+**Concrete lakehouse plan:** [`LakehousePlan`](lakehouse/spi/LakehousePlan.java) adds lakehouse-specific state:
+- `expression` — file path/pattern
+- `formatName` — for FormatReader lookup at execution time
+- `nativeFilter` — opaque filter from FilterPushdownSupport
+- `limit` — pushed limit
 
 **Opaque expressions:** The expression after `:` is interpreted entirely by the data source. ES|QL passes it through without parsing or validation.
 
-**Storage/Format separation:** Data lake data sources compose [`StorageProvider`](lakehouse/StorageProvider.java) (file access) with [`FormatReader`](lakehouse/FormatReader.java) (file reading) from the [`lakehouse`](lakehouse/) package. This allows any storage (S3, GCS, HDFS) to be combined with any format (Parquet, ORC, CSV). Optionally, a [`TableCatalog`](lakehouse/TableCatalog.java) provides catalog integration for table-based sources.
+**Storage/Format separation:** Data lake data sources compose [`StorageProvider`](lakehouse/spi/StorageProvider.java) (file access) with [`FormatReader`](lakehouse/spi/FormatReader.java) (file reading) from the [`lakehouse`](lakehouse/) package. This allows any storage (S3, GCS, HDFS) to be combined with any format (Parquet, ORC, CSV). Optionally, a [`TableCatalog`](lakehouse/spi/TableCatalog.java) provides catalog integration for table-based sources.
 
 ---
 
@@ -260,98 +408,102 @@ skip PARTITION (single `CoordinatorPartition` is used instead).
 
 **What happens:** PreAnalyzer encounters an external source reference and needs schema.
 
-**DataSource method:** [`DataSource.resolve()`](DataSource.java#L111) returns a [`DataSourcePlan`](DataSourcePlan.java)
+**DataSource method:** [`DataSource.resolve()`](spi/DataSource.java) — async via `ActionListener<DataSourcePlan>`
 
-**Input:** [`DataSourceDescriptor`](DataSourceDescriptor.java) containing:
+**Input:** [`DataSourceDescriptor`](spi/DataSourceDescriptor.java) containing:
 - `type()` - data source type (e.g., "s3", "postgres")
 - `configuration()` - connection/auth config (opaque to ES)
 - `settings()` - ES-controlled settings
 - `expression()` - what to resolve (table, pattern, query)
 
+**Async contract:** Resolution involves I/O (reading schema from remote storage, connecting to a
+database, querying a catalog). Implementations run blocking I/O on the executor from
+`ResolutionContext.executor()`, then call `listener.onResponse()` or `listener.onFailure()`.
+
 **Flow:**
 1. PreAnalyzer sees `FROM s3_logs:"logs/*.parquet"` (or `s3_logs:logs` for shorthand)
 2. Looks up registered data source `s3_logs`, gets type/configuration/settings
-3. Creates [`DataSourceDescriptor`](DataSourceDescriptor.java) with expression `logs/*.parquet` (parser strips quotes)
-4. Looks up data source by type, calls [`dataSource.resolve()`](DataSource.java#L111)
-5. Data source interprets expression, reads schema, returns plan node
+3. Creates [`DataSourceDescriptor`](spi/DataSourceDescriptor.java) with expression `logs/*.parquet` (parser strips quotes)
+4. Looks up data source by type, calls `dataSource.resolve(descriptor, context, listener)`
+5. Data source runs I/O on `context.executor()`, calls `listener.onResponse(plan)` with resolved schema
 
-**Data lake resolution:** [`LakehouseDataSource.resolve()`](lakehouse/LakehouseDataSource.java) provides a default:
-1. If `getTableCatalog()` returns a catalog that `canHandle(expression)`:
-   - `catalog.metadata(expression, config)` — resolve schema from catalog
-2. Otherwise (raw file fallback):
-   - `storage.newObject(StoragePath.of(expression))` — open the file
-   - `format.metadata(object)` — read schema from file metadata
-3. `createPlan(...)` — build data source-specific plan node
+**Lakehouse resolution:** [`LakehouseDataSource.resolve()`](lakehouse/spi/LakehouseDataSource.java) wraps sync I/O on the executor:
+1. Looks up `StorageProvider` from `LakehouseRegistry` by URI scheme (from expression)
+2. Looks up `FormatReader` from `LakehouseRegistry` by format config or file extension
+3. `storage.newObject(StoragePath.of(expression))` — open the file
+4. `format.metadata(object)` — read schema from file metadata
+5. Creates concrete `LakehousePlan` with schema + format name
+6. `listener.onResponse(plan)` or `listener.onFailure(e)`
 
 ### Phase 2: Logical Optimization (DataSourceOptimizer)
 
 **What happens:** DataSource-provided rules push operations into data source plan leaves.
 
-**DataSource method:** [`DataSource.optimizationRules()`](DataSource.java) returns `List<Rule<?, LogicalPlan>>`
+**DataSource method:** [`DataSource.optimizationRules()`](spi/DataSource.java) returns `List<Rule<?, LogicalPlan>>`
 
 **How it works:**
-[`DataSource.applyOptimizationRules()`](DataSource.java) runs as a **separate pass** after the main `LogicalPlanOptimizer`:
-1. Collects [`optimizationRules()`](DataSource.java) from all registered data sources
+[`DataSource.applyOptimizationRules()`](spi/DataSource.java) runs as a **separate pass** after the main `LogicalPlanOptimizer`:
+1. Collects [`optimizationRules()`](spi/DataSource.java) from all registered data sources
 2. Runs the collected rules as a single batch (`Limiter.ONCE`)
 3. Each rule pattern-matches on plan nodes it handles and skips nodes from other data sources
 
-**Rule pattern:** Each rule pattern-matches on a standard ES|QL plan node (e.g., `Filter`, `Limit`) whose child is the data source's plan leaf. If the operation is translatable, the rule folds it into the leaf and removes the parent node. If not, the plan stays unchanged and ES|QL evaluates the operation. The [`DataSourcePushdownRule`](DataSourcePushdownRule.java) helper class handles the common guard logic (child type check + data source identity check) so rules only need to implement `pushDown()`.
+**Rule pattern:** Each rule pattern-matches on a standard ES|QL plan node (e.g., `Filter`, `Limit`) whose child is the data source's plan leaf. If the operation is translatable, the rule folds it into the leaf and removes the parent node. If not, the plan stays unchanged and ES|QL evaluates the operation. The [`DataSourcePushdownRule`](spi/DataSourcePushdownRule.java) helper class handles the common guard logic (child type check + data source identity check) so rules only need to implement `pushDown()`.
 
-**Base class rules:**
-- [`LakehouseDataSource`](lakehouse/LakehouseDataSource.java): No rules by default (opt-in via `pushFilterRule()`, `pushLimitRule()`)
-- [`SqlDataSource`](sql/SqlDataSource.java): `PushFilterToSql`, `PushLimitToSql`, `PushOrderByToSql`, `PushAggregateToSql`, `BuildSql`
+**Lakehouse rules:**
+- [`LakehouseDataSource`](lakehouse/spi/LakehouseDataSource.java): Built-in limit pushdown (`PushLimitToLakehouse`); filter pushdown via `FilterPushdownSupport` planned for future
 
 ### Phase 3: Physical Planning (Mapper)
 
-**DataSource method:** [`DataSource.createPhysicalPlan()`](DataSource.java)
+**DataSource method:** [`DataSource.createPhysicalPlan()`](spi/DataSource.java)
 
 **What happens:** The `Mapper` converts the data source's logical plan node into a physical plan node.
 
 **Default implementation:** `DataSource` provides a default `createPhysicalPlan()` that creates a
-[`DataSourceExec`](DataSourceExec.java) wrapping the fully-optimized `DataSourcePlan`. This is shared by
-all data source types — the data source-specific state (filters, SQL, file lists) lives inside the
+[`DataSourceExec`](spi/DataSourceExec.java) wrapping the fully-optimized `DataSourcePlan`. This is shared by
+all data source types — the data source-specific state (filters, file lists, etc.) lives inside the
 `DataSourcePlan`, so no data source-specific physical plan node is needed.
 
 Data sources can override `createPhysicalPlan()` if they need custom physical planning behavior.
 
 ### Phase 4: Work Distribution (distributed data sources only)
 
-**DataSource method:** [`DataSource.planPartitions()`](DataSource.java#L171)
+**DataSource method:** [`DataSource.planPartitions()`](spi/DataSource.java#L171)
 
-Only called if [`capabilities().distributed()`](DataSourceCapabilities.java#L39) is true.
+Only called if [`capabilities().distributed()`](spi/DataSourceCapabilities.java#L39) is true.
 
 **Three-phase pattern (discover → group → wrap):**
 Cross-engine research (Spark, Trino, Flink) reveals a universal pipeline for work distribution.
 Discovery is source-specific (files, shards, scan tasks), but grouping is reusable.
-[`SplitPartitioner`](partitioning/SplitPartitioner.java) encapsulates this pipeline: data sources provide
+[`SplitPartitioner`](spi/partitioning/SplitPartitioner.java) encapsulates this pipeline: data sources provide
 discover, group, and wrap functions via its constructor.
-The default grouping delegates to [`SizeAwareBinPacking`](partitioning/SizeAwareBinPacking.java)
+The default grouping delegates to [`SizeAwareBinPacking`](spi/partitioning/SizeAwareBinPacking.java)
 (FFD algorithm with count-based round-robin fallback), so data sources only need
-to provide discovery and wrapping. Splits implement [`DataSourceSplit`](partitioning/DataSourceSplit.java)
-to provide optional size estimates and [`NodeAffinity`](partitioning/NodeAffinity.java).
+to provide discovery and wrapping. Splits implement [`DataSourceSplit`](spi/partitioning/DataSourceSplit.java)
+to provide optional size estimates and [`NodeAffinity`](spi/partitioning/NodeAffinity.java).
 
 **Node affinity** distinguishes two access patterns:
-- **Required** ([`NodeAffinity.require`](partitioning/NodeAffinity.java)) — data only exists on one node (local filesystem, node-local resources). Always enforced; required-affinity splits from different nodes are never mixed.
-- **Preferred** ([`NodeAffinity.prefer`](partitioning/NodeAffinity.java)) — data is faster to read locally but accessible from anywhere (HDFS replicas, S3 with warm cache). Honored when [`DistributionHints.preferDataLocality()`](partitioning/DistributionHints.java) is true; ignored otherwise.
+- **Required** ([`NodeAffinity.require`](spi/partitioning/NodeAffinity.java)) — data only exists on one node (local filesystem, node-local resources). Always enforced; required-affinity splits from different nodes are never mixed.
+- **Preferred** ([`NodeAffinity.prefer`](spi/partitioning/NodeAffinity.java)) — data is faster to read locally but accessible from anywhere (HDFS replicas, S3 with warm cache). Honored when [`DistributionHints.preferDataLocality()`](spi/partitioning/DistributionHints.java) is true; ignored otherwise.
 
 ### Phase 5: Execution (LocalExecutionPlanner)
 
-**DataSource method:** [`DataSource.createSourceOperator()`](DataSource.java#L190)
+**DataSource method:** [`DataSource.createSourceOperator()`](spi/DataSource.java#L190)
 
 ---
 
 ## Lakehouse Architecture: Storage + Format Separation
 
-The [`LakehouseDataSource`](lakehouse/LakehouseDataSource.java) is built on a pluggable architecture using types from
-the [`lakehouse`](lakehouse/) package that separates storage access from format reading:
+The [`LakehouseDataSource`](lakehouse/spi/LakehouseDataSource.java) is a concrete, registry-driven data source
+that composes pluggable components from the [`LakehouseRegistry`](lakehouse/LakehouseRegistry.java).
+No subclassing needed — all variation is handled by registered plugins:
 
 | Component | Responsibility | Examples |
 |-----------|---------------|----------|
-| [StorageProvider](lakehouse/StorageProvider.java) | Access files in storage | S3, GCS, HDFS, local FS |
-| [FormatReader](lakehouse/FormatReader.java) | Read file formats | Parquet, ORC, CSV, Avro |
-| [StorageObject](lakehouse/StorageObject.java) | Read handle for a single object | Sync + async I/O |
-| [TableCatalog](lakehouse/TableCatalog.java) | (Optional) Table catalog integration | Iceberg, Delta Lake, Hudi |
-| [FilterPushdownSupport](lakehouse/FilterPushdownSupport.java) | (Optional) Filter pushdown | Partition pruning, row-group filtering |
+| [StorageProvider](lakehouse/spi/StorageProvider.java) | Access files in storage | S3, GCS, HDFS, local FS |
+| [FormatReader](lakehouse/spi/FormatReader.java) | Read file formats | Parquet, ORC, CSV, Avro |
+| [StorageObject](lakehouse/spi/StorageObject.java) | Read handle for a single object | Sync + async I/O |
+| [TableCatalog](lakehouse/spi/TableCatalog.java) | (Optional) Table catalog integration | Iceberg, Delta Lake, Hudi |
+| [FilterPushdownSupport](lakehouse/spi/FilterPushdownSupport.java) | (Optional) Filter pushdown | Partition pruning, row-group filtering |
 
 ### Lakehouse: Component Composition
 
@@ -361,10 +513,12 @@ How lakehouse SPI concepts are used in each query phase:
   Phase              Components used                    Data flow
   ═════              ═══════════════                    ═════════
 
-  RESOLVE            TableCatalog (if available)
-                       catalog.canHandle() ──► catalog.metadata() ─────► SourceMetadata
-                     StorageProvider + FormatReader (fallback)              (schema + stats)
-                       storage.newObject() ──► format.metadata() ──────► SourceMetadata
+  RESOLVE            (async on ResolutionContext.executor())
+                     LakehouseRegistry lookup:
+                       StorageProvider by URI scheme ◄── StorageProviderRegistry
+                       FormatReader by config/extension ◄── FormatReaderRegistry
+                     storage.newObject() ──► format.metadata() ──────► SourceMetadata
+                     ──► LakehousePlan(schema, formatName) ──► listener.onResponse(plan)
 
   OPTIMIZE           FilterPushdownSupport (opt-in)
                        fps.pushFilters(expressions) ───────────────────► pushed + remainder
@@ -389,193 +543,48 @@ Any storage can be paired with any format:
 
 | Use Case | Storage | Format | Notes |
 |----------|---------|--------|-------|
-| Raw Parquet on S3 | S3 | Parquet | Direct file access |
-| Iceberg tables | S3/GCS/HDFS | Parquet/ORC | Override `resolve()` for catalog |
-| Delta Lake | S3/Azure Blob | Parquet | Override `resolve()` for catalog |
-| Local CSV | Local FS | CSV | Development/testing |
-| ORC on HDFS | HDFS | ORC | Hadoop ecosystem |
+| Raw Parquet on S3 | S3 | Parquet | StoragePlugin("s3") + FormatPlugin("parquet") |
+| Iceberg tables | S3/GCS/HDFS | Parquet/ORC | + CatalogPlugin("iceberg") (future) |
+| Delta Lake | S3/Azure Blob | Parquet | + CatalogPlugin("delta") (future) |
+| Local CSV | Local FS | CSV | StoragePlugin("file") + FormatPlugin("csv") |
+| ORC on HDFS | HDFS | ORC | StoragePlugin("hdfs") + FormatPlugin("orc") |
 
 ### How Storage + Format Are Used in Each Phase
 
 | Phase | Component | What Happens |
 |-------|-----------|-------------|
-| **Resolution** | TableCatalog or StorageProvider + FormatReader | Catalog resolves schema, or `storage.newObject()` + `format.metadata()` infers schema |
-| **Optimization** | FilterPushdownSupport | `fps.pushFilters()` determines which filters can be pushed to the source |
+| **Resolution** | StorageProviderRegistry + FormatReaderRegistry | Registry looks up StorageProvider by scheme, FormatReader by name/extension; `format.metadata()` infers schema |
+| **Optimization** | LakehouseDataSource | Built-in limit pushdown rule; filter pushdown via FilterPushdownSupport (future) |
 | **Partitioning** | StorageProvider + `SplitPartitioner` | `storage.listObjects()` lists files as `FileTask`s, partitioner bin-packs by size |
-| **Execution** | StorageProvider + FormatReader | `storage.newObject()` opens files, `format.read()` produces Pages |
+| **Execution** | StorageProvider + FormatReader | Looks up from registry by scheme/format name; `format.read()` produces Pages |
 
-All phases have default implementations in the base class. Subclasses override when needed
-(e.g., Iceberg overrides `resolve()` and `getFileTasks()` to use its catalog).
+All phases are implemented in the concrete `LakehouseDataSource` class using registry lookups.
+No subclassing needed — all variation through StoragePlugin/FormatPlugin/CatalogPlugin.
 
 ### Resolution Flow
 
-**With catalog (Iceberg, Delta Lake) — via `getTableCatalog()`:**
-1. `catalog.canHandle(expression)` — check if catalog manages this source
-2. `catalog.metadata(expression, config)` — resolve `SourceMetadata` from catalog
-3. `createPlan(...)` — build plan node with catalog-provided schema
+Resolution runs asynchronously on the `ResolutionContext.executor()` thread.
 
-**Without catalog (raw files) — fallback:**
-1. `storage.newObject(StoragePath.of(expression))` — open the file
-2. `format.metadata(object)` — read `SourceMetadata` from file metadata
-3. `createPlan(...)` — build plan node with file-inferred schema
+1. Look up `StorageProvider` from `StorageProviderRegistry` by URI scheme + per-data-source config
+2. Look up `FormatReader` from `FormatReaderRegistry` by explicit `"format"` config or file extension
+3. `storage.newObject(StoragePath.of(expression))` — open the file
+4. `format.metadata(object)` — read `SourceMetadata` from file metadata
+5. Create `LakehousePlan` with schema, expression, and format name
+6. `listener.onResponse(plan)`
 
-### Optimization Rules (Opt-In)
+### Optimization Rules
 
-The base class provides **no optimization rules by default**. Not all lakehouse formats
-support filter or limit pushdown. Subclasses opt in by overriding `optimizationRules()`:
-
-```java
-@Override
-public List<Rule<?, LogicalPlan>> optimizationRules() {
-    return List.of(pushFilterRule(), pushLimitRule());
-}
-```
-
-- `pushFilterRule()` — uses `FilterPushdownSupport` from `getFilterPushdownSupport()`
-  to determine which filters can be pushed. Handles full, partial, and no pushdown.
-- `pushLimitRule()` — pushes limit into the plan node.
-
-Subclasses using these rules must also implement `applyFilter()` and/or `applyLimit()`,
-and override `getFilterPushdownSupport()` for filter pushdown.
-
-### Filter Pushdown
-
-Filter pushdown uses the [`FilterPushdownSupport`](lakehouse/FilterPushdownSupport.java) interface,
-which provides a clean separation between ES|QL's filter expressions and source-native filters:
-
-1. `pushFilterRule()` calls `getFilterPushdownSupport().pushFilters(filters)`
-2. The implementation examines each expression and returns a `PushdownResult`:
-   - `pushedFilter` — opaque source-native filter (null if nothing pushed)
-   - `remainder` — expressions that couldn't be pushed (empty if all pushed)
-3. The rule calls `applyFilter(plan, pushedFilter)` to store the pushed filter in the plan
-4. Any remainder stays in the ES|QL `Filter` node for evaluation
-
-This replaces the previous `FilterTranslation` approach with a more flexible model inspired by
-Lucene's `translatable()` pattern and Spark's `SupportsPushDownFilters`.
+`LakehouseDataSource` provides a built-in limit pushdown rule that stores the limit
+in `LakehousePlan.withLimit()`. Filter pushdown via [`FilterPushdownSupport`](lakehouse/spi/FilterPushdownSupport.java)
+is planned for future integration with FormatReader capabilities.
 
 ### Partitioning Flow
 
 Default `planPartitions()` implementation (discover → group → wrap via `SplitPartitioner`):
 1. **discover:** calls `storage.listObjects(prefix, recursive)`, wraps each `StorageEntry` as a `FileTask`
-2. **group:** size-aware bin-packing via `SizeAwareBinPacking` — respects [`NodeAffinity`](partitioning/NodeAffinity.java) (required splits grouped strictly by node, preferred splits grouped by node when `preferDataLocality` is true), FFD bin-packing when file sizes are available, count-based round-robin fallback
+2. **group:** size-aware bin-packing via `SizeAwareBinPacking` — respects [`NodeAffinity`](spi/partitioning/NodeAffinity.java) (required splits grouped strictly by node, preferred splits grouped by node when `preferDataLocality` is true), FFD bin-packing when file sizes are available, count-based round-robin fallback
 3. **wrap:** creates `DataSourcePartition` with aggregated size estimates
 
-Subclasses with catalogs override `getFileTasks()` to use catalog file manifests
-(which provide partition pruning and richer metadata like row counts).
+When a `TableCatalog` is integrated (future), discovery can use catalog file manifests
+instead of `storage.listObjects()`, providing partition pruning and richer metadata like row counts.
 
----
-
-## Example: JDBC Database
-
-> Full implementation: [JdbcDataSource](sql/JdbcDataSource.java) + [JdbcPlan](sql/JdbcPlan.java)
-
-```sql
--- Simple table reference
-FROM my_db:users | WHERE age > 21 | SORT name | LIMIT 100
-
--- Native SQL query
-FROM my_db:query("SELECT * FROM users WHERE active = true") | STATS avg(salary) BY dept
-```
-
-Where `my_db` is registered as:
-```json
-{
-  "type": "jdbc",
-  "configuration": {
-    "url": "jdbc:mysql://db.example.com:3306/mydb",
-    "username": "...",
-    "password": "..."
-  },
-  "settings": {}
-}
-```
-
-### SQL: Component Composition
-
-How SQL SPI concepts are used in each query phase:
-
-```
-  Phase              Components used                    Data flow
-  ═════              ═══════════════                    ═════════
-
-  RESOLVE            SqlDataSource (database driver)
-                       connect + read schema ──────────────────────────► SqlPlan
-                                                                         (table + columns)
-
-  OPTIMIZE           PushFilterToSql ──► translateFilter() ────────────► SqlPlan.filter
-                     PushLimitToSql ───────────────────────────────────► SqlPlan.limit
-                     PushOrderByToSql ──► translateOrderBy() ──────────► SqlPlan.orderBy
-                     PushAggregateToSql ──► translateAggregates() ─────► SqlPlan.aggregation
-                     BuildSql ──► buildSql(plan) ──────────────────────► SqlPlan.builtSql
-                                                                         (complete SQL string)
-
-  EXECUTE            SqlDataSource (coordinator-only)
-                       execute(builtSql) ──────────────────────────────► Pages
-                       (single query, no partitioning)                   (results)
-```
-
-Each optimization rule removes one ES|QL plan node and accumulates the operation into `SqlPlan`.
-The final `BuildSql` rule translates all accumulated state into a single SQL string. There is no
-PARTITION phase — SQL data sources are coordinator-only.
-
-### Key classes
-
-- [JdbcPlan](sql/JdbcPlan.java) — extends `SqlPlan`. Holds table name (or subquery), built SQL, filter, limit, orderBy, and aggregation. The `builtSql` field is populated by the `BuildSql` rule after all operations are translated.
-
-- [JdbcDataSource](sql/JdbcDataSource.java) — extends `SqlDataSource`. Resolves table names or native SQL queries via JDBC, translates ES|QL operations to SQL, and executes on the coordinator. JDBC calls are stubbed with comments showing the real implementation.
-
-### Query Flow (table reference)
-
-| Phase | What Happens | Method |
-|-------|--------------|--------|
-| **Parse** | `FROM my_db:users \| WHERE age > 21 \| SORT name \| LIMIT 100` | |
-| **Resolve** | Connect via JDBC, read `users` table schema | [`resolve()`](sql/JdbcDataSource.java) |
-| **Optimize** | Push filter `age > 21` → SQL WHERE clause | [`translateFilter()`](sql/JdbcDataSource.java) |
-| **Optimize** | Push ORDER BY `name` → SQL ORDER BY clause | [`translateOrderBy()`](sql/JdbcDataSource.java) |
-| **Optimize** | Push limit 100 → SQL LIMIT clause | `PushLimitToSql` rule |
-| **Optimize** | Build SQL: `SELECT name, age FROM users WHERE age > 21 ORDER BY name LIMIT 100` | `BuildSql` rule |
-| **Execute** | Coordinator runs single JDBC query | [`createSourceOperator()`](sql/JdbcDataSource.java) |
-
-### Query Flow (native SQL)
-
-| Phase | What Happens | Method |
-|-------|--------------|--------|
-| **Parse** | `FROM my_db:query("SELECT * FROM users WHERE active = true") \| STATS avg(salary) BY dept` | |
-| **Resolve** | Detect SQL query, wrap as subquery `(SELECT ...) AS _subq`, read schema | [`resolve()`](sql/JdbcDataSource.java) |
-| **Optimize** | Push aggregation → SQL `SELECT dept, AVG(salary) FROM (...) GROUP BY dept` | [`translateAggregates()`](sql/JdbcDataSource.java) |
-| **Execute** | Coordinator runs single JDBC query | |
-
----
-
-## Key Differences: Lakehouse vs SQL
-
-| Aspect | [LakehouseDataSource](lakehouse/LakehouseDataSource.java) | [SqlDataSource](sql/SqlDataSource.java) |
-|--------|---------|------------|
-| **Type examples** | iceberg, delta, hudi, parquet | postgres, mysql, oracle |
-| **Architecture** | Composes StorageProvider + FormatReader | Monolithic SQL translation |
-| **Expression** | File pattern, catalog path | Table name, SQL query |
-| **Plan base class** | [`LakehousePlan`](lakehouse/LakehousePlan.java) | [`SqlPlan`](sql/SqlPlan.java) |
-| **Operations** | Filter, limit | Filter, limit, ORDER BY, aggregation |
-| **Execution** | Distributed across data nodes | Coordinator only |
-| **Partitioning** | By files | Single partition |
-| **Example** | Cluster Logs ([design](EXAMPLE_DATASOURCES.md#2-cluster-logs-logs)) | [JdbcDataSource](sql/JdbcDataSource.java) |
-
----
-
-## Built-In Example Data Sources
-
-Two data sources that run entirely within the cluster, demonstrating the full SPI without external dependencies.
-See [EXAMPLE_DATASOURCES.md](EXAMPLE_DATASOURCES.md) for detailed design.
-
-```
-DataSource (interface) — capabilities()
-├── LakehouseDataSource — distributed(), composes partitioning.SplitPartitioner
-│   └── [logs data source]
-└── SqlDataSource — coordinatorOnly()
-    └── JdbcDataSource (example JDBC implementation)
-```
-
-| Data Source | Base Class | Capabilities | Purpose |
-|-------------|-----------|-------------|---------|
-| `cluster` (nodes/indices/shards) | (implements DataSource) | `coordinatorOnly()` | Queryable cluster metadata |
-| `logs` (ES JSON log files) | `LakehouseDataSource` | `distributed()` (via `LakehouseDataSource`) | Queryable cluster-wide log files |

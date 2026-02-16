@@ -1,0 +1,72 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.datasource.spi;
+
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
+
+import java.util.List;
+
+/**
+ * Base class for data source-specific logical plan leaf nodes.
+ *
+ * <p>Each data source defines its own subclass storing whatever state it needs
+ * (filters, SQL fragments, file lists, etc.) as type-safe fields. Extending
+ * {@link LeafPlan} is enforced at compile time through this class hierarchy.
+ *
+ * <h2>Lifecycle</h2>
+ *
+ * <ol>
+ *   <li><b>Creation:</b> {@link DataSource#resolve} creates the initial node with schema</li>
+ *   <li><b>Optimization:</b> DataSource-provided {@link DataSource#optimizationRules() rules}
+ *       fold operations (Filter, Limit, etc.) into this node via immutable copy methods</li>
+ *   <li><b>Physical Planning:</b> {@code Mapper} calls {@link DataSource#createPhysicalPlan}</li>
+ * </ol>
+ *
+ * <h2>Class Hierarchy</h2>
+ *
+ * <pre>
+ * LeafPlan
+ *   └── DataSourcePlan                    (this class)
+ *         └── LakehousePlan              (concrete: expression, format, nativeFilter, limit)
+ * </pre>
+ *
+ * @see DataSource
+ * @see org.elasticsearch.xpack.esql.datasource.lakehouse.spi.LakehousePlan
+ */
+public abstract class DataSourcePlan extends LeafPlan {
+
+    protected DataSourcePlan(Source source) {
+        super(source);
+    }
+
+    /**
+     * The data source that owns this plan node.
+     *
+     * @return the owning data source instance
+     */
+    public abstract DataSource dataSource();
+
+    /**
+     * The source location (URI/path) for error messages and identification.
+     *
+     * @return the source location string
+     */
+    public abstract String location();
+
+    /**
+     * The output columns (projected schema).
+     *
+     * <p>This is declared abstract here as a reminder — it's already abstract in
+     * {@link org.elasticsearch.xpack.esql.plan.logical.LogicalPlan}, but data source
+     * subclasses must provide it.
+     */
+    @Override
+    public abstract List<Attribute> output();
+}

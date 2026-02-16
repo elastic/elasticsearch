@@ -8,7 +8,8 @@
 package org.elasticsearch.xpack.esql.datasource;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasource.partitioning.NodeAffinity;
+import org.elasticsearch.xpack.esql.datasource.spi.DataSourcePartition;
+import org.elasticsearch.xpack.esql.datasource.spi.partitioning.NodeAffinity;
 
 import java.util.OptionalLong;
 

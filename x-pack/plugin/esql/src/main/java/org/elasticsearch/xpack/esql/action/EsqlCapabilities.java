@@ -1897,6 +1897,11 @@ public class EsqlCapabilities {
         ASINH_FUNCTION,
 
         /**
+         * Support for the ATANH function.
+         */
+        ATANH_FUNCTION,
+
+        /**
          * Initial support for simple binary comparisons in PromQL.
          * Only top-level comparisons are supported where the right-hand side is a scalar.
          */
@@ -1918,6 +1923,11 @@ public class EsqlCapabilities {
          * E.g., avg(sum by (cluster) (rate(foo[5m])))
          */
         PROMQL_NESTED_AGGREGATES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Support post-processing STATS commands after PROMQL source commands.
+         */
+        PROMQL_POST_PROCESSING_STATS,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1947,6 +1957,11 @@ public class EsqlCapabilities {
          * parameters like the other functions.
          */
         TOP_SNIPPETS_FUNCTION_STRING_CONFIG,
+
+        /**
+         * Does {@code TOP_SNIPPETS} process all field values?
+         */
+        TOP_SNIPPETS_MV,
 
         /**
          * Fix for multi-value constant propagation after GROUP BY.

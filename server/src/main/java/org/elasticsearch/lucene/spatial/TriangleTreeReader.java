@@ -168,8 +168,7 @@ class TriangleTreeReader {
     /**
      * Visit the legacy triangle tree where coordinates are stored as VLong deltas from parent maxX/maxY.
      */
-    public static void visitLegacy(ByteArrayStreamInput input, TriangleTreeVisitor visitor, int thisMaxX, int thisMaxY)
-        throws IOException {
+    public static void visitLegacy(ByteArrayStreamInput input, TriangleTreeVisitor visitor, int thisMaxX, int thisMaxY) throws IOException {
         visitLegacy(input, visitor, true, thisMaxX, thisMaxY, true);
     }
 

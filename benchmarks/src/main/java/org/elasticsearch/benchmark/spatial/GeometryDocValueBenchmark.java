@@ -97,8 +97,13 @@ public class GeometryDocValueBenchmark {
             System.out.println("  Triangles:    " + tessellatedFields.size());
             System.out.println("  Legacy bytes: " + legacyBytes.length);
             System.out.println("  V2 bytes:     " + v2Bytes.length);
-            System.out.println("  Delta:        " + (v2Bytes.length - legacyBytes.length) + " bytes ("
-                + String.format("%.1f%%", 100.0 * (v2Bytes.length - legacyBytes.length) / legacyBytes.length) + ")");
+            System.out.println(
+                "  Delta:        "
+                    + (v2Bytes.length - legacyBytes.length)
+                    + " bytes ("
+                    + String.format("%.1f%%", 100.0 * (v2Bytes.length - legacyBytes.length) / legacyBytes.length)
+                    + ")"
+            );
         }
     }
 
@@ -179,9 +184,7 @@ public class GeometryDocValueBenchmark {
     private static Geometry createGeometry(String type) {
         return switch (type) {
             case "point" -> new Point(5.0, 10.0);
-            case "simplePoly" -> new Polygon(
-                new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 })
-            );
+            case "simplePoly" -> new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 }));
             case "complexPoly" -> createStarPolygon(500);
             case "multiPoint" -> createMultiPoint(100);
             default -> throw new IllegalArgumentException("Unknown geometry type: " + type);

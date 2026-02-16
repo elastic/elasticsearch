@@ -143,9 +143,7 @@ public class SpatialRelatesUtils {
             throw new IllegalArgumentException(ShapeType.CIRCLE + " geometry is not supported");
         }
         centroidCalculator.add(geometry);
-        reader.reset(
-            GeometryDocValueWriter.write(shapeIndexer.indexShape(geometry), encoder, centroidCalculator, List.of(geometry))
-        );
+        reader.reset(GeometryDocValueWriter.write(shapeIndexer.indexShape(geometry), encoder, centroidCalculator, List.of(geometry)));
         return reader;
     }
 

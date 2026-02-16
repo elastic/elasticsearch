@@ -23,9 +23,9 @@ import org.elasticsearch.script.GeometryFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.io.IOException;
-import java.util.List;
 import java.io.UncheckedIOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 
 public class GeoShapeScriptFieldGeoShapeQuery extends AbstractGeoShapeScriptFieldQuery {

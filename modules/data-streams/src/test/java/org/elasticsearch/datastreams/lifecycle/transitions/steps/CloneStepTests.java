@@ -23,6 +23,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -51,6 +52,7 @@ import org.junit.Before;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
@@ -126,38 +128,49 @@ public class CloneStepTests extends ESTestCase {
     }
 
     public void testStepNotCompletedWhenNoCloneIndexExists() {
-        ProjectState projectState = createProjectState(indexName, 1, null);
+        ProjectState projectState = projectStateBuilder().build();
         assertFalse(cloneStep.stepCompleted(index, projectState));
     }
 
     public void testStepNotCompletedWhenCloneNotMarkedInMetadata() {
-        String cloneIndexName = getDLMCloneIndexName(indexName);
-        ProjectState projectState = createProjectStateWithClone(indexName, cloneIndexName, null);
+        ProjectState projectState = projectStateBuilder().withClone().build();
         assertFalse(cloneStep.stepCompleted(index, projectState));
     }
 
     public void testStepCompletedWhenCloneExistsAndMarkedInMetadata() {
         String cloneIndexName = getDLMCloneIndexName(indexName);
         Map<String, String> customMetadata = Map.of(DLM_INDEX_FOR_FORCE_MERGE_KEY, cloneIndexName);
-        ProjectState projectState = createProjectStateWithCloneAndRouting(indexName, cloneIndexName, customMetadata, true);
+        ProjectState projectState = projectStateBuilder()
+            .withClone()
+            .withCustomMetadata(customMetadata)
+            .withRouting()
+            .build();
         assertTrue(cloneStep.stepCompleted(index, projectState));
     }
 
     public void testStepNotCompletedWhenShardsNotActive() {
         String cloneIndexName = getDLMCloneIndexName(indexName);
         Map<String, String> customMetadata = Map.of(DLM_INDEX_FOR_FORCE_MERGE_KEY, cloneIndexName);
-        ProjectState projectState = createProjectStateWithCloneAndRouting(indexName, cloneIndexName, customMetadata, false);
+        ProjectState projectState = projectStateBuilder()
+            .withClone()
+            .withCustomMetadata(customMetadata)
+            .withRouting(false)
+            .build();
         assertFalse(cloneStep.stepCompleted(index, projectState));
     }
 
     public void testStepCompletedWhenOriginalIndexMarkedWithZeroReplicas() {
         Map<String, String> customMetadata = Map.of(DLM_INDEX_FOR_FORCE_MERGE_KEY, indexName);
-        ProjectState projectState = createProjectStateWithRouting(indexName, 0, customMetadata, true);
+        ProjectState projectState = projectStateBuilder()
+            .withReplicas(0)
+            .withCustomMetadata(customMetadata)
+            .withRouting()
+            .build();
         assertTrue(cloneStep.stepCompleted(index, projectState));
     }
 
     public void testExecuteSkipsCloneWhenIndexHasZeroReplicas() {
-        ProjectState projectState = createProjectState(indexName, 0, null);
+        ProjectState projectState = projectStateBuilder().withReplicas(0).build();
         DlmStepContext stepContext = createStepContext(projectState);
 
         cloneStep.execute(stepContext);
@@ -165,7 +178,7 @@ public class CloneStepTests extends ESTestCase {
         assertThat(capturedResizeRequest.get(), is(nullValue()));
 
         assertThat(capturedMarkRequest.get(), is(notNullValue()));
-        assertThat(capturedMarkRequest.get().getSourceIndex(), equalTo(indexName));
+        assertThat(capturedMarkRequest.get().getOriginalIndex(), equalTo(indexName));
         assertThat(capturedMarkRequest.get().getIndexToBeForceMerged(), equalTo(indexName));
         assertThat(capturedMarkRequest.get().getProjectId(), equalTo(projectId));
     }
@@ -184,7 +197,7 @@ public class CloneStepTests extends ESTestCase {
     }
 
     public void testExecuteCreatesCloneWithCorrectSettings() {
-        ProjectState projectState = createProjectState(indexName, 1, null);
+        ProjectState projectState = projectStateBuilder().build();
         DlmStepContext stepContext = createStepContext(projectState);
 
         cloneStep.execute(stepContext);
@@ -196,7 +209,7 @@ public class CloneStepTests extends ESTestCase {
     }
 
     public void testExecuteWithSuccessfulCloneResponse() {
-        ProjectState projectState = createProjectState(indexName, 1, null);
+        ProjectState projectState = projectStateBuilder().build();
         DlmStepContext stepContext = createStepContext(projectState);
 
         cloneStep.execute(stepContext);
@@ -208,13 +221,13 @@ public class CloneStepTests extends ESTestCase {
         capturedCloneListener.get().onResponse(response);
 
         assertThat(capturedMarkRequest.get(), is(notNullValue()));
-        assertThat(capturedMarkRequest.get().getSourceIndex(), equalTo(indexName));
+        assertThat(capturedMarkRequest.get().getOriginalIndex(), equalTo(indexName));
         assertThat(capturedMarkRequest.get().getIndexToBeForceMerged(), equalTo(cloneIndexName));
         assertThat(capturedMarkRequest.get().getProjectId(), equalTo(projectId));
     }
 
     public void testExecuteWithFailedCloneResponse() {
-        ProjectState projectState = createProjectState(indexName, 1, null);
+        ProjectState projectState = projectStateBuilder().build();
         DlmStepContext stepContext = createStepContext(projectState);
 
         cloneStep.execute(stepContext);
@@ -330,8 +343,10 @@ public class CloneStepTests extends ESTestCase {
         long currentTime = Clock.systemUTC().millis();
         long creationTime = currentTime - TimeValue.timeValueHours(2).millis(); // 2 hours ago
 
-        String cloneIndexName = getDLMCloneIndexName(indexName);
-        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
+        ProjectState projectState = projectStateBuilder()
+            .withClone()
+            .withCloneCreationTime(creationTime)
+            .build();
 
         DlmStepContext stepContext = createStepContext(projectState);
         cloneStep.execute(stepContext);
@@ -348,8 +363,10 @@ public class CloneStepTests extends ESTestCase {
         long currentTime = Clock.systemUTC().millis();
         long creationTime = currentTime - TimeValue.timeValueHours(15).millis(); // 15 hours ago
 
-        String cloneIndexName = getDLMCloneIndexName(indexName);
-        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
+        ProjectState projectState = projectStateBuilder()
+            .withClone()
+            .withCloneCreationTime(creationTime)
+            .build();
 
         DlmStepContext stepContext = createStepContext(projectState);
         cloneStep.execute(stepContext);
@@ -378,7 +395,7 @@ public class CloneStepTests extends ESTestCase {
         deduplicator.clear();
 
         // Second run: now without the clone index
-        ProjectState projectStateWithoutClone = createProjectState(indexName, 1, null);
+        ProjectState projectStateWithoutClone = projectStateBuilder().build();
         DlmStepContext stepContext2 = createStepContext(projectStateWithoutClone);
         cloneStep.execute(stepContext2);
 
@@ -387,195 +404,159 @@ public class CloneStepTests extends ESTestCase {
         assertThat(capturedResizeRequest.get().getSourceIndex(), equalTo(indexName));
     }
 
-    private ProjectState createProjectState(String indexName, int numberOfReplicas, Map<String, String> customMetadata) {
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-                    .build()
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(numberOfReplicas);
+    public void testCloneFailureWithGenericExceptionRecordsError() {
+        ProjectState projectState = projectStateBuilder().build();
+        DlmStepContext stepContext = createStepContext(projectState);
 
-        if (customMetadata != null) {
-            indexMetadataBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
-        }
+        cloneStep.execute(stepContext);
 
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId).put(indexMetadataBuilder.build(), false);
+        // Simulate clone failure with a generic exception
+        assertThat(capturedCloneListener.get(), is(notNullValue()));
+        ElasticsearchException cloneFailure = new ElasticsearchException("clone operation failed");
+        capturedCloneListener.get().onFailure(cloneFailure);
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
-
-        return clusterState.projectState(projectId);
+        // Error should be recorded
+        assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
+        assertThat(Objects.requireNonNull(errorStore.getError(projectId, indexName)).error(), containsString("clone operation failed"));
     }
 
-    private ProjectState createProjectStateWithClone(String originalIndexName, String cloneIndexName, Map<String, String> customMetadata) {
-        IndexMetadata.Builder originalIndexBuilder = IndexMetadata.builder(originalIndexName)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-                    .build()
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(1);
+    public void testStuckCloneCleanupFailureRecordsError() {
+        ProjectState projectState = setupStuckCloneScenario(13);
+        DlmStepContext stepContext = createStepContext(projectState);
 
-        if (customMetadata != null) {
-            originalIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
-        }
+        cloneStep.execute(stepContext);
 
-        IndexMetadata cloneIndexMetadata = IndexMetadata.builder(cloneIndexName)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
+        // Simulate failed cleanup of stuck clone
+        assertThat(capturedDeleteListener.get(), is(notNullValue()));
+        ElasticsearchException cleanupFailure = new ElasticsearchException("cleanup failed");
+        capturedDeleteListener.get().onFailure(cleanupFailure);
 
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
-            .put(originalIndexBuilder.build(), false)
-            .put(cloneIndexMetadata, false);
-
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
-
-        return clusterState.projectState(projectId);
+        // Error should be recorded
+        assertThat(errorStore.getError(projectId, indexName), is(notNullValue()));
+        assertThat(Objects.requireNonNull(errorStore.getError(projectId, indexName)).error(), containsString("cleanup failed"));
     }
 
-    private ProjectState createProjectStateWithCloneAndRouting(
-        String originalIndexName,
-        String cloneIndexName,
-        Map<String, String> customMetadata,
-        boolean allShardsActive
-    ) {
-        IndexMetadata.Builder originalIndexBuilder = IndexMetadata.builder(originalIndexName)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-                    .build()
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(1);
+    /**
+     * Builder for creating ProjectState with various configurations for testing.
+     */
+    private class ProjectStateBuilder {
+        private int numberOfReplicas = 1;
+        private Map<String, String> customMetadata = null;
+        private String cloneIndexName = null;
+        private Long cloneCreationTime = null;
+        private boolean withRouting = false;
+        private boolean allShardsActive = true;
 
-        if (customMetadata != null) {
-            originalIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
+        ProjectStateBuilder withReplicas(int numberOfReplicas) {
+            this.numberOfReplicas = numberOfReplicas;
+            return this;
         }
 
-        IndexMetadata originalIndexMetadata = originalIndexBuilder.build();
+        ProjectStateBuilder withCustomMetadata(Map<String, String> customMetadata) {
+            this.customMetadata = customMetadata;
+            return this;
+        }
 
-        IndexMetadata cloneIndexMetadata = IndexMetadata.builder(cloneIndexName)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
+        ProjectStateBuilder withClone() {
+            this.cloneIndexName = getDLMCloneIndexName(indexName);
+            return this;
+        }
 
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
-            .put(originalIndexMetadata, false)
-            .put(cloneIndexMetadata, false);
+        ProjectStateBuilder withClone(String cloneName) {
+            this.cloneIndexName = cloneName;
+            return this;
+        }
 
-        // Routing should reflect the index that will be force merged (the clone)
-        Index cloneIndex = cloneIndexMetadata.getIndex();
-        ShardRouting primaryShard = TestShardRouting.newShardRouting(
-            new ShardId(cloneIndex, 0),
-            "node1",
-            true,
-            allShardsActive ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING
-        );
+        ProjectStateBuilder withCloneCreationTime(long creationTimeMillis) {
+            this.cloneCreationTime = creationTimeMillis;
+            return this;
+        }
 
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(cloneIndex).addShard(primaryShard);
+        ProjectStateBuilder withRouting() {
+            this.withRouting = true;
+            return this;
+        }
 
-        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTableBuilder).build();
+        ProjectStateBuilder withRouting(boolean allShardsActive) {
+            this.withRouting = true;
+            this.allShardsActive = allShardsActive;
+            return this;
+        }
 
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(projectMetadataBuilder)
-            .putRoutingTable(projectId, routingTable)
-            .build();
+        ProjectState build() {
+            // Build original index metadata
+            IndexMetadata.Builder originalIndexBuilder = IndexMetadata.builder(indexName)
+                .settings(
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                        .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
+                        .build()
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(numberOfReplicas);
 
-        return clusterState.projectState(projectId);
+            if (customMetadata != null) {
+                originalIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
+            }
+
+            IndexMetadata originalIndexMetadata = originalIndexBuilder.build();
+            ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId).put(originalIndexMetadata, false);
+
+            // Build clone index metadata if requested
+            IndexMetadata cloneIndexMetadata = null;
+            if (cloneIndexName != null) {
+                IndexMetadata.Builder cloneBuilder = IndexMetadata.builder(cloneIndexName)
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0);
+
+                if (cloneCreationTime != null) {
+                    cloneBuilder.creationDate(cloneCreationTime);
+                }
+
+                cloneIndexMetadata = cloneBuilder.build();
+                projectMetadataBuilder.put(cloneIndexMetadata, false);
+
+                DataStream dataStream = DataStream.builder(
+                    "test-datastream-" + indexName,
+                    java.util.List.of(cloneIndexMetadata.getIndex(), originalIndexMetadata.getIndex())
+                ).setGeneration(2).build();
+                projectMetadataBuilder.put(dataStream);
+            }
+
+            // Build routing table if requested
+            RoutingTable routingTable = null;
+            if (withRouting) {
+                // Route to the clone if it exists, otherwise to the original
+                Index indexToRoute = cloneIndexMetadata != null ? cloneIndexMetadata.getIndex() : originalIndexMetadata.getIndex();
+                ShardRouting primaryShard = TestShardRouting.newShardRouting(
+                    new ShardId(indexToRoute, 0),
+                    "node1",
+                    true,
+                    allShardsActive ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING
+                );
+                IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(indexToRoute).addShard(primaryShard);
+                routingTable = RoutingTable.builder().add(indexRoutingTableBuilder).build();
+            }
+
+            // Build final ProjectState
+            ClusterState.Builder clusterStateBuilder = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder);
+            if (routingTable != null) {
+                clusterStateBuilder.putRoutingTable(projectId, routingTable);
+            }
+
+            return clusterStateBuilder.build().projectState(projectId);
+        }
     }
 
-    private ProjectState createProjectStateWithRouting(
-        String indexName,
-        int numberOfReplicas,
-        Map<String, String> customMetadata,
-        boolean allShardsActive
-    ) {
-        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-                    .build()
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(numberOfReplicas);
-
-        if (customMetadata != null) {
-            indexMetadataBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
-        }
-
-        IndexMetadata indexMetadata = indexMetadataBuilder.build();
-        Index idx = indexMetadata.getIndex();
-
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId).put(indexMetadata, false);
-
-        // Create routing table with shard status
-        ShardRouting primaryShard = TestShardRouting.newShardRouting(
-            new ShardId(idx, 0),
-            "node1",
-            true,
-            allShardsActive ? ShardRoutingState.STARTED : ShardRoutingState.INITIALIZING
-        );
-
-        IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(idx).addShard(primaryShard);
-
-        RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTableBuilder).build();
-
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(projectMetadataBuilder)
-            .putRoutingTable(projectId, routingTable)
-            .build();
-
-        return clusterState.projectState(projectId);
+    private ProjectStateBuilder projectStateBuilder() {
+        return new ProjectStateBuilder();
     }
 
     private DlmStepContext createStepContext(ProjectState projectState) {
         return new DlmStepContext(index, projectState, deduplicator, errorStore, randomIntBetween(1, 10), client);
     }
 
-    private ProjectState createProjectStateWithCloneAndCreationTime(
-        String originalIndexName,
-        String cloneIndexName,
-        Map<String, String> customMetadata,
-        long creationTimeMillis
-    ) {
-        IndexMetadata.Builder originalIndexBuilder = IndexMetadata.builder(originalIndexName)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
-                    .build()
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(1);
-
-        if (customMetadata != null) {
-            originalIndexBuilder.putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata);
-        }
-
-        IndexMetadata cloneIndexMetadata = IndexMetadata.builder(cloneIndexName)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build())
-            .creationDate(creationTimeMillis)
-            .numberOfShards(1)
-            .numberOfReplicas(0)
-            .build();
-
-        ProjectMetadata.Builder projectMetadataBuilder = ProjectMetadata.builder(projectId)
-            .put(originalIndexBuilder.build(), false)
-            .put(cloneIndexMetadata, false);
-
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).putProjectMetadata(projectMetadataBuilder).build();
-
-        return clusterState.projectState(projectId);
-    }
 
     /**
      * Helper method to create a stuck clone scenario where:
@@ -590,7 +571,10 @@ public class CloneStepTests extends ESTestCase {
         long creationTime = currentTime - TimeValue.timeValueHours(hoursAgo).millis();
 
         String cloneIndexName = getDLMCloneIndexName(indexName);
-        ProjectState projectState = createProjectStateWithCloneAndCreationTime(indexName, cloneIndexName, null, creationTime);
+        ProjectState projectState = projectStateBuilder()
+            .withClone()
+            .withCloneCreationTime(creationTime)
+            .build();
 
         // Pre-populate the deduplicator to simulate a stuck in-progress request
         ResizeRequest cloneRequest = formCloneRequest(indexName, cloneIndexName);

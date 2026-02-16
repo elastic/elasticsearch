@@ -36,9 +36,11 @@ import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.AckedBatchedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
@@ -73,6 +75,7 @@ import org.elasticsearch.datastreams.lifecycle.health.DataStreamLifecycleHealthI
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
+import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -104,6 +107,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.APIBlock.WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.DownsampleTaskStatus.STARTED;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_DOWNSAMPLE_STATUS;
 import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_INDEX_METADATA_KEY;
+import static org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction.DLM_INDEX_FOR_FORCE_MERGE_KEY;
 
 /**
  * This service will implement the needed actions (e.g. rollover, retention) to manage the data streams with a data stream lifecycle
@@ -181,6 +185,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private final SetOnce<SchedulerEngine> scheduler = new SetOnce<>();
     private final MasterServiceTaskQueue<UpdateForceMergeCompleteTask> forceMergeClusterStateUpdateTaskQueue;
     private final MasterServiceTaskQueue<DeleteSourceAndAddDownsampleToDS> swapSourceWithDownsampleIndexQueue;
+    private final MasterServiceTaskQueue<MarkIndexForDlmForceMergeTask> markIndexForDlmForceMergeQueue;
     private volatile ByteSizeValue targetMergePolicyFloorSegment;
     private volatile int targetMergePolicyFactor;
     /**
@@ -248,6 +253,11 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             "data-stream-lifecycle-swap-source-with-downsample",
             Priority.URGENT, // urgent priority as this deletes indices
             new DeleteSourceAndAddDownsampleIndexExecutor(allocationService)
+        );
+        this.markIndexForDlmForceMergeQueue = clusterService.createTaskQueue(
+            "dlm-mark-index-for-force-merge",
+            Priority.LOW,
+            new MarkIndexForDLMForceMergeExecutor()
         );
         this.dslHealthInfoPublisher = dataStreamLifecycleHealthInfoPublisher;
         this.actions = actions;
@@ -1697,6 +1707,125 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         public void onFailure(Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    /**
+     * Task to update the cluster state with the force merge marker for DLM Tiers.
+     * Public for testing.
+     */
+    public static class MarkIndexForDlmForceMergeTask extends AckedBatchedClusterStateUpdateTask implements ClusterStateTaskListener {
+        private final ActionListener<AcknowledgedResponse> listener;
+        private final ProjectId projectId;
+        private final String originalIndex;
+        private final String indexToBeForceMerged;
+
+        MarkIndexForDlmForceMergeTask(
+            ActionListener<AcknowledgedResponse> listener,
+            MarkIndexForDLMForceMergeAction.Request request) {
+            super(TimeValue.THIRTY_SECONDS, listener);
+            this.listener = listener;
+            this.projectId = request.getProjectId();
+            this.originalIndex = request.getOriginalIndex();
+            this.indexToBeForceMerged = request.getIndexToBeForceMerged();
+        }
+
+        ClusterState execute(ClusterState currentState) {
+            ProjectMetadata projectMetadata = currentState.metadata().getProject(this.projectId);
+            if (projectMetadata == null) {
+                return currentState;
+            }
+            IndexMetadata originalIndexMetadata = projectMetadata.index(originalIndex);
+            IndexMetadata cloneIndexMetadata = projectMetadata.index(indexToBeForceMerged);
+            if (originalIndexMetadata == null) {
+                // If the source index doesn't exist, we can't mark it for force merge. Return the unchanged cluster state.
+                String errorMessage = Strings.format(
+                    "DLM attempted to mark clone index [%s] for force merge for original index [%s] but index no longer exists",
+                    indexToBeForceMerged,
+                    originalIndex
+                );
+                logger.debug(
+                    errorMessage
+                );
+                throw new IndexNotFoundException(errorMessage);
+            }
+
+            if (cloneIndexMetadata == null) {
+                // If the clone index doesn't exist, this is an unexpected error - the clone should have been created before this task
+                String errorMessage = Strings.format(
+                    "clone index [%s] doesn't exist but was expected to exist when marking index [%s] for DLM force merge",
+                    indexToBeForceMerged,
+                    originalIndex
+                );
+                logger.debug(errorMessage);
+                throw new IllegalStateException(errorMessage);
+            }
+
+            Map<String, String> existingCustomMetadata = originalIndexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
+            Map<String, String> customMetadata = new HashMap<>();
+            if (existingCustomMetadata != null) {
+                if (indexToBeForceMerged.equals(existingCustomMetadata.get(DLM_INDEX_FOR_FORCE_MERGE_KEY))) {
+                    // Index is already marked for force merge, no update needed
+                    return currentState;
+                }
+                customMetadata.putAll(existingCustomMetadata);
+            }
+            customMetadata.put(DLM_INDEX_FOR_FORCE_MERGE_KEY, indexToBeForceMerged);
+
+            IndexMetadata updatedOriginalIndexMetadata = new IndexMetadata.Builder(originalIndexMetadata).putCustom(
+                LIFECYCLE_CUSTOM_INDEX_METADATA_KEY,
+                customMetadata
+            ).build();
+
+            final ProjectMetadata.Builder updatedProject = ProjectMetadata.builder(currentState.metadata().getProject(projectId))
+                .put(updatedOriginalIndexMetadata, true);
+            return ClusterState.builder(currentState).putProjectMetadata(updatedProject).build();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
+     * MarkIndexForDLMForceMergeExecutor for the MarkIndexForDlmForceMergeTask.
+     * Public for testing.
+     */
+    public static class MarkIndexForDLMForceMergeExecutor implements ClusterStateTaskExecutor<MarkIndexForDlmForceMergeTask> {
+        @Override
+        public ClusterState execute(BatchExecutionContext<MarkIndexForDlmForceMergeTask> batchExecutionContext) {
+            var state = batchExecutionContext.initialState();
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                try {
+                    state = taskContext.getTask().execute(state);
+                    taskContext.success(() -> taskContext.getTask().listener.onResponse(AcknowledgedResponse.TRUE));
+                } catch (Exception e) {
+                    taskContext.onFailure(e);
+                }
+            }
+            return state;
+        }
+    }
+
+    /**
+     * Marks the given index to be force merged for DLM by updating the cluster state with the name of the index to be force merged in the
+     * custom metadata of the source index. This method returns immediately, but the update to the cluster state happens asynchronously and
+     * the listener is notified on success or failure of the cluster state update.
+     * @param request the request
+     * @param listener the listener to be notified on success or failure of the cluster state update.
+     */
+    public void markIndexForDlmForceMerge(
+        MarkIndexForDLMForceMergeAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
+        markIndexForDlmForceMergeQueue.submitTask(
+            Strings.format("DLM marking index [%s] to be force merged for DLM", request.getIndexToBeForceMerged()),
+            new MarkIndexForDlmForceMergeTask(
+                listener,
+                request
+            ),
+            null
+        );
     }
 
     /**

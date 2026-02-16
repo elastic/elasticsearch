@@ -7,10 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.datastreams.lifecycle.transitions.steps;
+package org.elasticsearch.datastreams.lifecycle;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
@@ -29,7 +29,6 @@ import static org.elasticsearch.datastreams.DataStreamsPlugin.LIFECYCLE_CUSTOM_I
 import static org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction.DLM_INDEX_FOR_FORCE_MERGE_KEY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -37,17 +36,44 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
 
-    private void assertValidationError(
-        MarkIndexForDLMForceMergeAction.Request request,
-        int expectedErrorCount,
-        String expectedErrorMessage
-    ) {
-        ActionRequestValidationException exception = request.validate();
-        assertThat(exception, is(notNullValue()));
-        assertThat(exception.validationErrors(), hasSize(expectedErrorCount));
-        if (expectedErrorMessage != null) {
-            assertThat(exception.validationErrors().get(0), containsString(expectedErrorMessage));
-        }
+    /**
+     * Helper method to create IndexMetadata with standard settings for tests
+     */
+    private IndexMetadata createIndexMetadata(String indexName) {
+        return IndexMetadata.builder(indexName)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(10))
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .build();
+    }
+
+    /**
+     * Helper method to create IndexMetadata with custom metadata
+     */
+    private IndexMetadata createIndexMetadata(String indexName, Map<String, String> customMetadata) {
+        return IndexMetadata.builder(indexName)
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(10))
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(1)
+            .putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, customMetadata)
+            .build();
+    }
+
+    /**
+     * Helper method to create ClusterState with source and target indices
+     */
+    private ClusterState createClusterState(ProjectId projectId, IndexMetadata sourceIndex, IndexMetadata targetIndex) {
+        return ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(sourceIndex, false).put(targetIndex, false))
+            .build();
     }
 
     public void testRequestValidation() {
@@ -64,42 +90,39 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
         assertThat(validRequest.validate(), is(nullValue()));
 
         // Null project ID
-        assertValidationError(
-            new MarkIndexForDLMForceMergeAction.Request(null, sourceIndex, targetIndex),
-            1,
-            "project id must not be null"
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MarkIndexForDLMForceMergeAction.Request(null, sourceIndex, targetIndex)
         );
+        assertThat(e1.getMessage(), containsString("projectId must not be null or empty"));
 
         // Null source index
-        assertValidationError(
-            new MarkIndexForDLMForceMergeAction.Request(projectId, null, targetIndex),
-            1,
-            "source index must not be null or empty"
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MarkIndexForDLMForceMergeAction.Request(projectId, null, targetIndex)
         );
+        assertThat(e2.getMessage(), containsString("originalIndex must not be null or empty"));
 
         // Empty source index
-        assertValidationError(
-            new MarkIndexForDLMForceMergeAction.Request(projectId, "", targetIndex),
-            1,
-            "source index must not be null or empty"
+        IllegalArgumentException e3 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MarkIndexForDLMForceMergeAction.Request(projectId, "", targetIndex)
         );
+        assertThat(e3.getMessage(), containsString("originalIndex must not be null or empty"));
 
         // Null target index
-        assertValidationError(
-            new MarkIndexForDLMForceMergeAction.Request(projectId, sourceIndex, null),
-            1,
-            "index to be force merged must not be null or empty"
+        IllegalArgumentException e4 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MarkIndexForDLMForceMergeAction.Request(projectId, sourceIndex, null)
         );
+        assertThat(e4.getMessage(), containsString("indexToBeForceMerged must not be null or empty"));
 
         // Empty target index
-        assertValidationError(
-            new MarkIndexForDLMForceMergeAction.Request(projectId, sourceIndex, ""),
-            1,
-            "index to be force merged must not be null or empty"
+        IllegalArgumentException e5 = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MarkIndexForDLMForceMergeAction.Request(projectId, sourceIndex, "")
         );
-
-        // Multiple validation errors
-        assertValidationError(new MarkIndexForDLMForceMergeAction.Request(null, null, null), 3, null);
+        assertThat(e5.getMessage(), containsString("indexToBeForceMerged must not be null or empty"));
     }
 
     public void testUpdateTaskWithMissingIndex() {
@@ -113,17 +136,13 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
             .build();
 
         AtomicReference<AcknowledgedResponse> responseRef = new AtomicReference<>();
-        MarkIndexForDLMForceMergeAction.UpdateTask task = new MarkIndexForDLMForceMergeAction.UpdateTask(
+        DataStreamLifecycleService.MarkIndexForDlmForceMergeTask task = new DataStreamLifecycleService.MarkIndexForDlmForceMergeTask(
             ActionListener.wrap(responseRef::set, e -> fail("Should not fail when index is missing")),
-            projectId,
-            sourceIndex,
-            targetIndex
+            new MarkIndexForDLMForceMergeAction.Request(projectId, sourceIndex, targetIndex)
         );
 
-        ClusterState resultState = task.execute(initialState);
-
-        // When index doesn't exist, cluster state should remain unchanged
-        assertThat(resultState, sameInstance(initialState));
+        // When source index doesn't exist, an IndexNotFoundException should be thrown
+        expectThrows(org.elasticsearch.index.IndexNotFoundException.class, () -> task.execute(initialState));
     }
 
     public void testUpdateTaskWithExistingIndex() {
@@ -132,26 +151,14 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
         String sourceIndex = "test-index";
         String targetIndex = "clone-index";
 
-        IndexMetadata indexMetadata = IndexMetadata.builder(sourceIndex)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(10))
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .build();
-
-        ClusterState initialState = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata, false))
-            .build();
+        IndexMetadata indexMetadata = createIndexMetadata(sourceIndex);
+        IndexMetadata cloneIndexMetadata = createIndexMetadata(targetIndex);
+        ClusterState initialState = createClusterState(projectId, indexMetadata, cloneIndexMetadata);
 
         AtomicReference<AcknowledgedResponse> responseRef = new AtomicReference<>();
-        MarkIndexForDLMForceMergeAction.UpdateTask task = new MarkIndexForDLMForceMergeAction.UpdateTask(
+        DataStreamLifecycleService.MarkIndexForDlmForceMergeTask task = new DataStreamLifecycleService.MarkIndexForDlmForceMergeTask(
             ActionListener.wrap(responseRef::set, e -> fail("Should not fail: " + e.getMessage())),
-            projectId,
-            sourceIndex,
-            targetIndex
+            new MarkIndexForDLMForceMergeAction.Request(projectId, sourceIndex, targetIndex)
         );
 
         ClusterState resultState = task.execute(initialState);
@@ -174,27 +181,14 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
         existingCustomMetadata.put("other_key", "other_value");
         existingCustomMetadata.put("another_key", "another_value");
 
-        IndexMetadata indexMetadata = IndexMetadata.builder(sourceIndex)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(10))
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, existingCustomMetadata)
-            .build();
-
-        ClusterState initialState = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata, false))
-            .build();
+        IndexMetadata indexMetadata = createIndexMetadata(sourceIndex, existingCustomMetadata);
+        IndexMetadata cloneIndexMetadata = createIndexMetadata(targetIndex);
+        ClusterState initialState = createClusterState(projectId, indexMetadata, cloneIndexMetadata);
 
         AtomicReference<AcknowledgedResponse> responseRef = new AtomicReference<>();
-        MarkIndexForDLMForceMergeAction.UpdateTask task = new MarkIndexForDLMForceMergeAction.UpdateTask(
+        DataStreamLifecycleService.MarkIndexForDlmForceMergeTask task = new DataStreamLifecycleService.MarkIndexForDlmForceMergeTask(
             ActionListener.wrap(responseRef::set, e -> fail("Should not fail: " + e.getMessage())),
-            projectId,
-            sourceIndex,
-            targetIndex
+            new MarkIndexForDLMForceMergeAction.Request(projectId, sourceIndex, targetIndex)
         );
 
         ClusterState resultState = task.execute(initialState);
@@ -220,27 +214,14 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
         existingCustomMetadata.put(DLM_INDEX_FOR_FORCE_MERGE_KEY, targetIndex);
         existingCustomMetadata.put("other_key", "other_value");
 
-        IndexMetadata indexMetadata = IndexMetadata.builder(sourceIndex)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(10))
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, existingCustomMetadata)
-            .build();
-
-        ClusterState initialState = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata, false))
-            .build();
+        IndexMetadata indexMetadata = createIndexMetadata(sourceIndex, existingCustomMetadata);
+        IndexMetadata cloneIndexMetadata = createIndexMetadata(targetIndex);
+        ClusterState initialState = createClusterState(projectId, indexMetadata, cloneIndexMetadata);
 
         AtomicReference<AcknowledgedResponse> responseRef = new AtomicReference<>();
-        MarkIndexForDLMForceMergeAction.UpdateTask task = new MarkIndexForDLMForceMergeAction.UpdateTask(
+        DataStreamLifecycleService.MarkIndexForDlmForceMergeTask task = new DataStreamLifecycleService.MarkIndexForDlmForceMergeTask(
             ActionListener.wrap(responseRef::set, e -> fail("Should not fail: " + e.getMessage())),
-            projectId,
-            sourceIndex,
-            targetIndex
+            new MarkIndexForDLMForceMergeAction.Request(projectId, sourceIndex, targetIndex)
         );
 
         ClusterState resultState = task.execute(initialState);
@@ -260,27 +241,14 @@ public class MarkIndexForDLMForceMergeActionTests extends ESTestCase {
         existingCustomMetadata.put(DLM_INDEX_FOR_FORCE_MERGE_KEY, oldTargetIndex);
         existingCustomMetadata.put("other_key", "other_value");
 
-        IndexMetadata indexMetadata = IndexMetadata.builder(sourceIndex)
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-                    .put(IndexMetadata.SETTING_INDEX_UUID, randomAlphaOfLength(10))
-            )
-            .numberOfShards(1)
-            .numberOfReplicas(1)
-            .putCustom(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY, existingCustomMetadata)
-            .build();
-
-        ClusterState initialState = ClusterState.builder(ClusterName.DEFAULT)
-            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadata, false))
-            .build();
+        IndexMetadata indexMetadata = createIndexMetadata(sourceIndex, existingCustomMetadata);
+        IndexMetadata newCloneIndexMetadata = createIndexMetadata(newTargetIndex);
+        ClusterState initialState = createClusterState(projectId, indexMetadata, newCloneIndexMetadata);
 
         AtomicReference<AcknowledgedResponse> responseRef = new AtomicReference<>();
-        MarkIndexForDLMForceMergeAction.UpdateTask task = new MarkIndexForDLMForceMergeAction.UpdateTask(
+        DataStreamLifecycleService.MarkIndexForDlmForceMergeTask task = new DataStreamLifecycleService.MarkIndexForDlmForceMergeTask(
             ActionListener.wrap(responseRef::set, e -> fail("Should not fail: " + e.getMessage())),
-            projectId,
-            sourceIndex,
-            newTargetIndex
+            new MarkIndexForDLMForceMergeAction.Request(projectId, sourceIndex, newTargetIndex)
         );
 
         ClusterState resultState = task.execute(initialState);

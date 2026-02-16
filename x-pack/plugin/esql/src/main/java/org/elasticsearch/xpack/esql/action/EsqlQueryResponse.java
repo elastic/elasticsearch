@@ -469,6 +469,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         return esqlResponse;
     }
 
+    // NOCOMMIT SideChannel status
     public record Profile(List<DriverProfile> drivers, List<PlanProfile> plans, TransportVersion minimumVersion) implements Writeable {
 
         public static Profile readFrom(StreamInput in) throws IOException {

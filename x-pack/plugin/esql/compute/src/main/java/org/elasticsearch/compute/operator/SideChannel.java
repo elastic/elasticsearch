@@ -7,9 +7,11 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.xcontent.ToXContentObject;
 
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -111,4 +113,7 @@ public abstract class SideChannel extends AbstractRefCounted implements Releasab
     protected abstract void closeSideChannel();
 
     // TODO status? it's concurrent.
+    public interface Status extends ToXContentObject, VersionedNamedWriteable {
+
+    }
 }

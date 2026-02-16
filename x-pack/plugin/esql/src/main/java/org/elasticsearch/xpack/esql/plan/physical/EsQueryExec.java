@@ -400,6 +400,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         if (order.getFirst().child() instanceof FieldAttribute fa) {
             return exec -> exec.withMinCompetitive(new MinCompetitiveSetup(minCompetitive, fa.qualifiedName()));
         }
+        // NOCOMMIT only accept long typed attributes.
+        // NOCOMMIT what happens if the topn offers attributes from a join or something?
         return null;
     }
 

@@ -1,0 +1,1 @@
+FROM employees | EVAL x = 1 | LIMIT 1

@@ -363,6 +363,18 @@
               }
             }
           }
+        },
+        "sequence_num": {
+          "type": "integer"
+        },
+        "capabilities": {
+          "type": "keyword"
+        },
+        "identifying_attributes": {
+          "type": "object"
+        },
+        "non_identifying_attributes": {
+          "type": "object"
         }
       }
     }

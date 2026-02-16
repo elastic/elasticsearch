@@ -65,12 +65,19 @@ public final class FileSet {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        FileSet fileSet = (FileSet) o;
-        return Objects.equals(files, fileSet.files) && Objects.equals(originalPattern, fileSet.originalPattern);
+        FileSet other = (FileSet) o;
+        // Sentinels use identity comparison only (this != o already checked above)
+        if (this == UNRESOLVED || this == EMPTY || other == UNRESOLVED || other == EMPTY) {
+            return false;
+        }
+        return Objects.equals(files, other.files) && Objects.equals(originalPattern, other.originalPattern);
     }
 
     @Override
     public int hashCode() {
+        if (this == UNRESOLVED || this == EMPTY) {
+            return System.identityHashCode(this);
+        }
         return Objects.hash(files, originalPattern);
     }
 

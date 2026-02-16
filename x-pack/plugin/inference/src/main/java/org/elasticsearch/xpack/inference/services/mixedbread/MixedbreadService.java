@@ -162,25 +162,6 @@ public class MixedbreadService extends SenderService implements RerankingInferen
         }
     }
 
-    private MixedbreadModel parsePersistedConfigWithSecrets(
-        String inferenceEntityId,
-        TaskType taskType,
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings
-    ) {
-        return createModel(
-            inferenceEntityId,
-            taskType,
-            serviceSettings,
-            taskSettings,
-            chunkingSettings,
-            secretSettings,
-            ConfigurationParseContext.PERSISTENT
-        );
-    }
-
     /**
      * Creates an {@link MixedbreadModel} based on the provided parameters.
      *
@@ -230,13 +211,14 @@ public class MixedbreadService extends SenderService implements RerankingInferen
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return parsePersistedConfigWithSecrets(
+        return createModel(
             inferenceEntityId,
             taskType,
             serviceSettingsMap,
             taskSettingsMap,
             chunkingSettings,
-            secretSettingsMap
+            secretSettingsMap,
+            ConfigurationParseContext.PERSISTENT
         );
     }
 
@@ -288,7 +270,15 @@ public class MixedbreadService extends SenderService implements RerankingInferen
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return parsePersistedConfigWithSecrets(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, null);
+        return createModel(
+            inferenceEntityId,
+            taskType,
+            serviceSettingsMap,
+            taskSettingsMap,
+            chunkingSettings,
+            null,
+            ConfigurationParseContext.PERSISTENT
+        );
     }
 
     @Override

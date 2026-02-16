@@ -71,7 +71,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
         "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
-        "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
         "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
         "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
@@ -80,6 +79,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
         "illegal data type \\[datetime\\]", // https://github.com/elastic/elasticsearch/issues/142137
         "Expected to replace a single StubRelation in the plan, but none found", // https://github.com/elastic/elasticsearch/issues/142219
+        "blocks is empty", // https://github.com/elastic/elasticsearch/issues/142473
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -136,6 +136,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ".*found value \\[[^]]+] type \\[(counter_long|counter_double|counter_integer"
             + "|aggregate_metric_double|dense_vector|tdigest|histogram|exponential_histogram|date_range)].*",
         Pattern.DOTALL
+    );
+    /**
+     * Matches FIRST(...) or LAST(...) function calls and captures both arguments.
+     * Used to detect when the same field is passed as both the search and sort parameters.
+     * See https://github.com/elastic/elasticsearch/issues/142180
+     */
+    private static final Pattern FIRST_LAST_CALL_PATTERN = Pattern.compile(
+        "(?i)\\b(?:first|last)\\s*\\(\\s*([^,()]+?)\\s*,\\s*([^,()]+?)\\s*\\)"
     );
     private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
 
@@ -271,6 +279,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             if (isUnmappedFieldError(outputValidation.errorMessage()) || isScalarTypeMismatchError(outputValidation.errorMessage())) {
                 return outputValidation;
             }
+            if (isFirstLastSameFieldError(outputValidation.errorMessage(), result.query())) {
+                return outputValidation;
+            }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
         }
         return outputValidation;
@@ -283,6 +294,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             }
         }
         if (isUnmappedFieldError(query.exception().getMessage()) || isScalarTypeMismatchError(query.exception().getMessage())) {
+            return;
+        }
+        if (isFirstLastSameFieldError(query.exception().getMessage(), query.query())) {
             return;
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
@@ -346,6 +360,24 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private static boolean isScalarTypeMismatchError(String errorMessage) {
         String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
         return SCALAR_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks).matches();
+    }
+
+    /**
+     * Checks if the error is an {@code ArrayIndexOutOfBoundsException} caused by calling FIRST or LAST
+     * with the same field as both the search and sort parameters (e.g. {@code FIRST(timestamp, timestamp)}).
+     * See <a href="https://github.com/elastic/elasticsearch/issues/142180">#142180</a>
+     */
+    private static boolean isFirstLastSameFieldError(String errorMessage, String query) {
+        if (errorMessage.contains("out of bounds for length") == false) {
+            return false;
+        }
+        Matcher matcher = FIRST_LAST_CALL_PATTERN.matcher(query);
+        while (matcher.find()) {
+            if (matcher.group(1).equals(matcher.group(2))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

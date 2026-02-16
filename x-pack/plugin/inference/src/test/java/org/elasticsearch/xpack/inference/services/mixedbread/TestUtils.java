@@ -7,6 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.mixedbread;
 
+import org.elasticsearch.inference.SimilarityMeasure;
+
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthOrNull;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.test.ESTestCase.randomNonNegativeIntOrNull;
+import static org.elasticsearch.test.ESTestCase.randomOptionalBoolean;
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
+
 public final class TestUtils {
     public static final String DEFAULT_EMBEDDINGS_URL = "https://api.mixedbread.com/v1/embeddings";
     public static final String DEFAULT_RERANK_URL = "https://api.mixedbread.com/v1/reranking";
@@ -27,4 +38,12 @@ public final class TestUtils {
     public static final Boolean NORMALIZED_OVERRIDDEN_VALUE = Boolean.TRUE;
 
     public static final Boolean DIMENSIONS_SET_BY_USER_TRUE = Boolean.TRUE;
+
+    public static final String MODEL_ID_RANDOM = randomAlphaOfLength(10);
+    public static final String API_KEY_RANDOM = randomAlphaOfLength(10);
+    public static final String PROMPT_RANDOM = randomAlphaOfLengthOrNull(10);
+    public static final Integer MAX_INPUT_TOKENS_RANDOM = randomFrom(randomIntBetween(128, 256), null);
+    public static final Integer DIMENSIONS_RANDOM = randomNonNegativeIntOrNull();
+    public static final boolean BOOLEAN_RANDOM = randomBoolean();
+    public static final SimilarityMeasure SIMILARITY_RANDOM = randomFrom(randomSimilarityMeasure(), null);
 }

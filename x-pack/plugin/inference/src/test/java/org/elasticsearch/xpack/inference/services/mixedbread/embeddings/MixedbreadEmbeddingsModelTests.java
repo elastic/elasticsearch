@@ -27,13 +27,13 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
     public void testConstructor_usesDefaultUrlWhenNull() {
         var model = createModel(
             null,
-            TestUtils.API_KEY,
-            TestUtils.MODEL_ID,
-            null,
-            null,
-            TestUtils.PROMPT_INITIAL_VALUE,
-            TestUtils.NORMALIZED_INITIAL_VALUE,
-            null,
+            TestUtils.API_KEY_RANDOM,
+            TestUtils.MODEL_ID_RANDOM,
+            TestUtils.MAX_INPUT_TOKENS_RANDOM,
+            TestUtils.DIMENSIONS_RANDOM,
+            TestUtils.PROMPT_RANDOM,
+            TestUtils.BOOLEAN_RANDOM,
+            TestUtils.SIMILARITY_RANDOM,
             null
         );
 
@@ -43,13 +43,13 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
     public void testConstructor_usesUrlWhenSpecified() {
         var model = createModel(
             TestUtils.CUSTOM_URL,
-            TestUtils.API_KEY,
-            TestUtils.MODEL_ID,
-            null,
-            null,
-            TestUtils.PROMPT_INITIAL_VALUE,
-            TestUtils.NORMALIZED_INITIAL_VALUE,
-            null,
+            TestUtils.API_KEY_RANDOM,
+            TestUtils.MODEL_ID_RANDOM,
+            TestUtils.MAX_INPUT_TOKENS_RANDOM,
+            TestUtils.DIMENSIONS_RANDOM,
+            TestUtils.PROMPT_RANDOM,
+            TestUtils.BOOLEAN_RANDOM,
+            TestUtils.SIMILARITY_RANDOM,
             null
         );
         assertThat(model.getServiceSettings().uri().toString(), is(TestUtils.CUSTOM_URL));
@@ -169,13 +169,13 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
     public static MixedbreadEmbeddingsModel createModel(
         @Nullable String url,
         String apiKey,
-        @Nullable String modelId,
+        String modelId,
         @Nullable Integer maxInputTokens,
         @Nullable Integer dimensions,
         @Nullable String prompt,
         @Nullable Boolean normalized,
         @Nullable SimilarityMeasure similarity,
-        @Nullable ChunkingSettings chunkingSettings
+        ChunkingSettings chunkingSettings
     ) {
         return new MixedbreadEmbeddingsModel(
             "inferenceEntityId",

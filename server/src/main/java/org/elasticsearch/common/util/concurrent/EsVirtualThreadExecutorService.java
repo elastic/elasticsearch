@@ -19,6 +19,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
+import java.util.Arrays;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -63,6 +64,43 @@ import static org.elasticsearch.core.Strings.format;
 public class EsVirtualThreadExecutorService extends AbstractExecutorService implements EsExecutorService {
     private static final Logger logger = LogManager.getLogger(EsVirtualThreadExecutorService.class);
     private static final VarHandle STATE_HANDLE;
+
+    /**
+     * Executor names registered at pool creation time, used to resolve executor names from virtual thread names.
+     * Updated at startup via {@link #registerVirtualExecutorName}, read on the hot path via {@link #executorName(Thread)}.
+     */
+    private static volatile String[] knownExecutorNames = new String[0];
+
+    private static synchronized void registerVirtualExecutorName(String executorName) {
+        String[] current = knownExecutorNames;
+        for (String name : current) {
+            if (name.equals(executorName)) return;
+        }
+        String[] updated = Arrays.copyOf(current, current.length + 1);
+        updated[current.length] = executorName;
+        knownExecutorNames = updated;
+    }
+
+    /**
+     * Resolves the executor name for a virtual thread by matching its name against known executor names.
+     * The thread name format is {@code elasticsearch[nodeName][executorName]N} where N is a numeric counter.
+     * For each known name, we check whether {@code [} appears at the expected position and the name matches via
+     * {@link String#regionMatches}, avoiding any string allocation.
+     */
+    static String executorName(Thread thread) {
+        String threadName = thread.getName();
+        int end = threadName.lastIndexOf(']');
+        if (end < 0) return null;
+        for (String known : knownExecutorNames) {
+            int bracketPos = end - 1 - known.length();
+            if (bracketPos >= 0
+                && threadName.charAt(bracketPos) == '['
+                && threadName.regionMatches(bracketPos + 1, known, 0, known.length())) {
+                return known;
+            }
+        }
+        return null;
+    }
 
     static {
         try {
@@ -123,6 +161,7 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         String[] split = name.split("/", 2);
         String nodeName = split.length == 2 ? split[0] : "";
         String executorName = split.length == 2 ? split[1] : split[0];
+        registerVirtualExecutorName(executorName);
         String prefix = nodeName.isEmpty()
             ? "elasticsearch[" + executorName + "]"
             : "elasticsearch[" + nodeName + "][" + executorName + "]";

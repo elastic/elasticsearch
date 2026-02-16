@@ -347,7 +347,13 @@ public class EsExecutors {
     }
 
     public static String executorName(Thread thread) {
-        return EsThread.executorName(thread);
+        if (thread instanceof EsThread esThread) {
+            return esThread.executorName;
+        }
+        if (thread.isVirtual()) {
+            return EsVirtualThreadExecutorService.executorName(thread);
+        }
+        return null;
     }
 
     public static ThreadFactory daemonThreadFactory(Settings settings, String executorName) {
@@ -406,13 +412,6 @@ public class EsExecutors {
 
         public boolean isSystem() {
             return isSystem;
-        }
-
-        private static String executorName(Thread thread) {
-            if (thread instanceof EsThread esThread) {
-                return esThread.executorName;
-            }
-            return null;
         }
     }
 

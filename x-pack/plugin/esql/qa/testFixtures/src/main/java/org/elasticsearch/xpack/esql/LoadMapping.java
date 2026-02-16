@@ -37,8 +37,9 @@ import static org.junit.Assert.assertNotNull;
 
 public class LoadMapping {
     public static Map<String, EsField> loadMapping(String name) {
-        InputStream stream = LoadMapping.class.getResourceAsStream("/" + name);
-        assertNotNull("Could not find mapping resource:" + name, stream);
+        var path = "/index/mappings/" + name;
+        InputStream stream = LoadMapping.class.getResourceAsStream(path);
+        assertNotNull("Could not find mapping resource:" + path, stream);
         return loadMapping(stream);
     }
 

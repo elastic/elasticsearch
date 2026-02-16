@@ -1897,6 +1897,11 @@ public class EsqlCapabilities {
         ASINH_FUNCTION,
 
         /**
+         * Support for the ATANH function.
+         */
+        ATANH_FUNCTION,
+
+        /**
          * Initial support for simple binary comparisons in PromQL.
          * Only top-level comparisons are supported where the right-hand side is a scalar.
          */

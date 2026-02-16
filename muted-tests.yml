@@ -434,9 +434,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorTests
   method: testOrderByCardinality
   issue: https://github.com/elastic/elasticsearch/issues/142484
-- class: org.elasticsearch.blobcache.shared.SharedBytesTests
-  method: testMmapResourcesReleasedOnClose
-  issue: https://github.com/elastic/elasticsearch/issues/142488
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
   method: testBulkScalarVsVectorized {p0=768 p1=2 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/142490
@@ -452,6 +449,9 @@ tests:
 - class: org.elasticsearch.search.query.VectorIT
   method: testFilteredQueryStrategy
   issue: https://github.com/elastic/elasticsearch/issues/142511
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/suggested_type}
+  issue: https://github.com/elastic/elasticsearch/issues/142525
 
 # Examples:
 #

@@ -8,24 +8,22 @@
 package org.elasticsearch.xpack.inference.services.voyageai.request;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
+import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.CoreMatchers.is;
 
 public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
-
     public void testXContent_WritesAllFields_ServiceSettingsDefined() throws IOException {
         var model = VoyageAIEmbeddingsModelTests.createModel(
             "https://www.abc.com",
@@ -46,7 +44,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
+        MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"],"model":"model","input_type":"query","output_dimension":2048,"output_dtype":"float"}"""));
     }
 
@@ -58,7 +56,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
             512,
             2048,
             "model",
-            VoyageAIEmbeddingType.INT8
+            org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType.INT8
         );
 
         var entity = new VoyageAIEmbeddingsRequestEntity(
@@ -71,7 +69,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
+        MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"],"model":"model","input_type":"document","output_dimension":2048,"output_dtype":"int8"}"""));
     }
 
@@ -83,7 +81,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
             512,
             2048,
             "model",
-            VoyageAIEmbeddingType.BINARY
+            org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType.BINARY
         );
 
         var entity = new VoyageAIEmbeddingsRequestEntity(
@@ -96,11 +94,11 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
+        MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"],"model":"model","input_type":"query","output_dimension":2048,"output_dtype":"binary"}"""));
     }
 
-    public void testXContent_FallsBackToTaskSettingsInputType_WhenRootInputTypeIsNull() throws IOException {
+    public void testXContent_WritesAllFields_WhenTheyAreDefined() throws IOException {
         var model = VoyageAIEmbeddingsModelTests.createModel(
             "https://www.abc.com",
             "api_key",
@@ -120,7 +118,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
+        MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"],"model":"model","input_type":"document","output_dtype":"float"}"""));
     }
 
@@ -144,7 +142,7 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
+        MatcherAssert.assertThat(xContentResult, is("""
             {"input":["abc"],"model":"model","output_dtype":"float"}"""));
     }
 }

@@ -49,7 +49,7 @@ public class VoyageAIEmbeddingsServiceSettings extends BaseVoyageAIEmbeddingsSer
 
     public VoyageAIEmbeddingsServiceSettings(
         VoyageAIServiceSettings commonSettings,
-        VoyageAIEmbeddingType embeddingType,
+        @Nullable VoyageAIEmbeddingType embeddingType,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,

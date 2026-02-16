@@ -9,14 +9,12 @@ package org.elasticsearch.xpack.inference.services.voyageai.request;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
-import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.BaseVoyageAIEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingType;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
@@ -26,9 +24,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIRequestUtils.decorateWithHeaders;
-
-public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
+public class VoyageAIEmbeddingsRequest extends VoyageAIRequest {
 
     private final List<InferenceStringGroup> input;
     private final InputType inputType;
@@ -41,7 +37,7 @@ public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest 
     }
 
     @Override
-    public void createHttpRequest(ActionListener<HttpRequest> listener) {
+    public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(embeddingsModel.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
@@ -51,7 +47,7 @@ public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest 
 
         decorateWithHeaders(httpPost, embeddingsModel);
 
-        listener.onResponse(new HttpRequest(httpPost, getInferenceEntityId()));
+        return new HttpRequest(httpPost, getInferenceEntityId());
     }
 
     @Override
@@ -60,17 +56,12 @@ public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest 
     }
 
     @Override
-    public TaskType getTaskType() {
-        return embeddingsModel.getTaskType();
-    }
-
-    @Override
     public URI getURI() {
         return embeddingsModel.uri();
     }
 
     @Override
-    public OutboundRequest truncate() {
+    public Request truncate() {
         return this;
     }
 
@@ -85,5 +76,9 @@ public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest 
 
     public VoyageAIEmbeddingType getEmbeddingType() {
         return embeddingsModel.getServiceSettings().getEmbeddingType();
+    }
+
+    public TaskType getTaskType() {
+        return embeddingsModel.getTaskType();
     }
 }

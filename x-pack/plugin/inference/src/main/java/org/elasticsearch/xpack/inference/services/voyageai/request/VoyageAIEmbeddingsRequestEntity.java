@@ -26,15 +26,14 @@ public record VoyageAIEmbeddingsRequestEntity(
     VoyageAIEmbeddingsModel model
 ) implements ToXContentObject {
 
-    private static final String INPUT_TYPE_DOCUMENT_VALUE = "document";
-    private static final String INPUT_TYPE_QUERY_VALUE = "query";
-
-    public static final String INPUT_FIELD = "input";
+    private static final String DOCUMENT = "document";
+    private static final String QUERY = "query";
+    private static final String INPUT_FIELD = "input";
     private static final String INPUTS_FIELD = "inputs";
-    public static final String MODEL_FIELD = "model";
+    private static final String MODEL_FIELD = "model";
     public static final String INPUT_TYPE_FIELD = "input_type";
     public static final String TRUNCATION_FIELD = "truncation";
-    public static final String OUTPUT_DIMENSION_FIELD = "output_dimension";
+    public static final String OUTPUT_DIMENSION = "output_dimension";
     static final String OUTPUT_DTYPE_FIELD = "output_dtype";
     private static final String CONTENT_FIELD = "content";
     private static final String TYPE_FIELD = "type";
@@ -60,17 +59,23 @@ public record VoyageAIEmbeddingsRequestEntity(
 
         // prefer the root level inputType over task settings input type
         if (InputType.isSpecified(inputType)) {
-            builder.field(INPUT_TYPE_FIELD, convertInputTypeToString(inputType));
-        } else if (InputType.isSpecified(taskSettings.inputType())) {
-            builder.field(INPUT_TYPE_FIELD, convertInputTypeToString(taskSettings.inputType()));
+            builder.field(INPUT_TYPE_FIELD, convertToString(inputType));
+        } else if (InputType.isSpecified(taskSettings.getInputType())) {
+            builder.field(INPUT_TYPE_FIELD, convertToString(taskSettings.getInputType()));
         }
-        if (taskSettings.truncation() != null) {
-            builder.field(TRUNCATION_FIELD, taskSettings.truncation());
+
+        if (taskSettings.getTruncation() != null) {
+            builder.field(TRUNCATION_FIELD, taskSettings.getTruncation());
         }
+
         if (serviceSettings.dimensions() != null) {
-            builder.field(OUTPUT_DIMENSION_FIELD, serviceSettings.dimensions());
+            builder.field(OUTPUT_DIMENSION, serviceSettings.dimensions());
         }
-        builder.field(OUTPUT_DTYPE_FIELD, serviceSettings.embeddingType().toRequestString());
+
+        if (serviceSettings.getEmbeddingType() != null) {
+            builder.field(OUTPUT_DTYPE_FIELD, serviceSettings.getEmbeddingType().toRequestString());
+        }
+
         builder.endObject();
         return builder;
     }
@@ -100,11 +105,11 @@ public record VoyageAIEmbeddingsRequestEntity(
         }
     }
 
-    public static String convertInputTypeToString(InputType inputType) {
+    public static String convertToString(InputType inputType) {
         return switch (inputType) {
             case null -> null;
-            case INGEST, INTERNAL_INGEST -> INPUT_TYPE_DOCUMENT_VALUE;
-            case SEARCH, INTERNAL_SEARCH -> INPUT_TYPE_QUERY_VALUE;
+            case INGEST, INTERNAL_INGEST -> DOCUMENT;
+            case SEARCH, INTERNAL_SEARCH -> QUERY;
             default -> {
                 assert false : invalidInputTypeMessage(inputType);
                 yield null;

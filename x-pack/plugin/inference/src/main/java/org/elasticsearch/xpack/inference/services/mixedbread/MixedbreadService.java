@@ -235,7 +235,6 @@ public class MixedbreadService extends SenderService implements RerankingInferen
             }
             var updatedServiceSettings = new MixedbreadEmbeddingsServiceSettings(
                 serviceSettings.modelId(),
-                serviceSettings.uri(),
                 embeddingSize,
                 serviceSettings.encodingFormat(),
                 similarityToUse,

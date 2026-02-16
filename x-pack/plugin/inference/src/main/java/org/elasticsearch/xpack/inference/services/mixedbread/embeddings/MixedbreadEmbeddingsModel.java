@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.mixedbread.embeddings;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -14,19 +15,28 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadModel;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadService;
+import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadUtils;
 import org.elasticsearch.xpack.inference.services.mixedbread.action.MixedbreadActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.Map;
+import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 
 /**
  * Represents a Mixedbread embeddings model for inference.
  * This class extends the {@link MixedbreadModel} and provides specific configurations and settings for embeddings tasks.
  */
 public class MixedbreadEmbeddingsModel extends MixedbreadModel {
+    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
+        .setHost(MixedbreadUtils.HOST)
+        .setPathSegments(MixedbreadUtils.VERSION_1, MixedbreadUtils.EMBEDDINGS_PATH);
+
     /**
      * Creates a new {@link MixedbreadEmbeddingsModel} with updated task settings if they differ from the existing ones.
      *
@@ -65,7 +75,8 @@ public class MixedbreadEmbeddingsModel extends MixedbreadModel {
             MixedbreadEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             MixedbreadEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets),
+            null
         );
     }
 
@@ -84,9 +95,10 @@ public class MixedbreadEmbeddingsModel extends MixedbreadModel {
         MixedbreadEmbeddingsServiceSettings serviceSettings,
         MixedbreadEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable DefaultSecretSettings secretSettings
+        @Nullable DefaultSecretSettings secretSettings,
+        @Nullable String uri
     ) {
-        this(
+        super(
             new ModelConfigurations(
                 inferenceId,
                 TaskType.TEXT_EMBEDDING,
@@ -95,7 +107,8 @@ public class MixedbreadEmbeddingsModel extends MixedbreadModel {
                 taskSettings,
                 chunkingSettings
             ),
-            new ModelSecrets(secretSettings)
+            new ModelSecrets(secretSettings),
+            Objects.requireNonNullElse(ServiceUtils.createOptionalUri(uri), buildUri("Mixedbread", DEFAULT_URI_BUILDER::build))
         );
     }
 
@@ -106,7 +119,7 @@ public class MixedbreadEmbeddingsModel extends MixedbreadModel {
      * @param modelSecrets the secret settings for the model
      */
     public MixedbreadEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
-        super(modelConfigurations, modelSecrets);
+        super(modelConfigurations, modelSecrets, buildUri("Mixedbread", DEFAULT_URI_BUILDER::build));
     }
 
     @Override

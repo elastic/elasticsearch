@@ -73,7 +73,7 @@ public class MixedbreadEmbeddingsRequest implements Request {
 
     @Override
     public URI getURI() {
-        return model.getServiceSettings().uri();
+        return model.uri();
     }
 
     @Override

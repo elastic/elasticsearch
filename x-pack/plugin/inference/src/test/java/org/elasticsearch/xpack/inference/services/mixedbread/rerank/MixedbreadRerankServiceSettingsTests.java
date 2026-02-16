@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.elasticsearch.xpack.inference.services.settings.RateLimitSettings.REQUESTS_PER_MINUTE_FIELD;
 
 public class MixedbreadRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<MixedbreadRerankServiceSettings> {
@@ -36,15 +35,14 @@ public class MixedbreadRerankServiceSettingsTests extends AbstractBWCWireSeriali
     }
 
     public static MixedbreadRerankServiceSettings createRandom(@Nullable RateLimitSettings rateLimitSettings) {
-        return new MixedbreadRerankServiceSettings(randomAlphaOfLength(10), TestUtils.CUSTOM_URL, rateLimitSettings);
+        return new MixedbreadRerankServiceSettings(randomAlphaOfLength(10), rateLimitSettings);
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new MixedbreadRerankServiceSettings(TestUtils.MODEL_ID, TestUtils.CUSTOM_URL, RATE_LIMIT);
+        var serviceSettings = new MixedbreadRerankServiceSettings(TestUtils.MODEL_ID, RATE_LIMIT);
         assertThat(getXContentResult(serviceSettings), equalToIgnoringWhitespaceInJsonString("""
             {
                 "model_id":"model_id_value",
-                "url":"https://custom.url.com/v1/task",
                 "rate_limit": {
                     "requests_per_minute": 2
                 }
@@ -53,11 +51,10 @@ public class MixedbreadRerankServiceSettingsTests extends AbstractBWCWireSeriali
     }
 
     public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit() throws IOException {
-        var serviceSettings = new MixedbreadRerankServiceSettings(TestUtils.MODEL_ID, TestUtils.CUSTOM_URL, null);
+        var serviceSettings = new MixedbreadRerankServiceSettings(TestUtils.MODEL_ID, null);
         assertThat(getXContentResult(serviceSettings), equalToIgnoringWhitespaceInJsonString("""
             {
                 "model_id":"model_id_value",
-                "url":"https://custom.url.com/v1/task",
                 "rate_limit": {
                     "requests_per_minute": 100
                 }
@@ -84,16 +81,14 @@ public class MixedbreadRerankServiceSettingsTests extends AbstractBWCWireSeriali
     @Override
     protected MixedbreadRerankServiceSettings mutateInstance(MixedbreadRerankServiceSettings instance) throws IOException {
         var modelId = instance.modelId();
-        var uri = instance.uri();
         var rateLimitSettings = instance.rateLimitSettings();
 
         switch (between(0, 2)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
-            case 1 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(15)));
             case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
-        return new MixedbreadRerankServiceSettings(modelId, uri, rateLimitSettings);
+        return new MixedbreadRerankServiceSettings(modelId, rateLimitSettings);
     }
 
     public static Map<String, Object> getServiceSettingsMap(String model, @Nullable String url, @Nullable Integer requestsPerMinute) {

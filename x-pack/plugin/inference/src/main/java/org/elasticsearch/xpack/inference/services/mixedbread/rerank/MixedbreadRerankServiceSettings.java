@@ -21,8 +21,6 @@ import java.net.URISyntaxException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
-
 /**
  * Represents the settings for a Mixedbread rerank service.
  * This class encapsulates the model ID, URI, and rate limit settings for the Mixedbread rerank service.
@@ -46,7 +44,6 @@ public class MixedbreadRerankServiceSettings extends MixedbreadServiceSettings {
             context,
             commonServiceSettings -> new MixedbreadRerankServiceSettings(
                 commonServiceSettings.model(),
-                commonServiceSettings.uri(),
                 commonServiceSettings.rateLimitSettings()
             )
         );
@@ -56,23 +53,10 @@ public class MixedbreadRerankServiceSettings extends MixedbreadServiceSettings {
      * Constructs a new instance of {@link MixedbreadRerankServiceSettings} with the specified model ID, URI, and rate limit settings.
      *
      * @param modelId the model identifier
-     * @param uri the URI of the service
      * @param rateLimitSettings the rate limit settings for the service, if null the default will be used
      */
-    public MixedbreadRerankServiceSettings(String modelId, @Nullable URI uri, @Nullable RateLimitSettings rateLimitSettings) {
-        super(modelId, uri, rateLimitSettings);
-    }
-
-    /**
-     * Constructs a new instance of {@link MixedbreadRerankServiceSettings} with the specified model identifier and URL.
-     * The rate limit settings will be set to the default value.
-     *
-     * @param modelId the model identifier
-     * @param url the URL of the service
-     * @param rateLimitSettings the rate limit settings for the service, can be null
-     */
-    public MixedbreadRerankServiceSettings(String modelId, @Nullable String url, @Nullable RateLimitSettings rateLimitSettings) {
-        this(modelId, createOptionalUri(url), rateLimitSettings);
+    public MixedbreadRerankServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+        super(modelId, rateLimitSettings);
     }
 
     public MixedbreadRerankServiceSettings(StreamInput in) throws IOException {
@@ -94,13 +78,11 @@ public class MixedbreadRerankServiceSettings extends MixedbreadServiceSettings {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         MixedbreadRerankServiceSettings that = (MixedbreadRerankServiceSettings) o;
-        return Objects.equals(modelId, that.modelId)
-            && Objects.equals(uri, that.uri)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+        return Objects.equals(modelId, that.modelId) && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, rateLimitSettings);
+        return Objects.hash(modelId, rateLimitSettings);
     }
 }

@@ -22,12 +22,12 @@ import static org.hamcrest.Matchers.sameInstance;
 public class MixedbreadRerankModelTests extends ESTestCase {
     public void testConstructor_usesDefaultUrlWhenNull() {
         var model = createModel(TestUtils.MODEL_ID, TestUtils.API_KEY, null, null, null);
-        assertThat(model.getServiceSettings().uri().toString(), is(TestUtils.DEFAULT_RERANK_URL));
+        assertThat(model.uri().toString(), is(TestUtils.DEFAULT_RERANK_URL));
     }
 
     public void testConstructor_usesUrlWhenSpecified() {
         var model = createModel(TestUtils.MODEL_ID, TestUtils.API_KEY, null, null, TestUtils.CUSTOM_URL);
-        assertThat(model.getServiceSettings().uri().toString(), is(TestUtils.CUSTOM_URL));
+        assertThat(model.uri().toString(), is(TestUtils.CUSTOM_URL));
     }
 
     public void testOf_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty() {
@@ -76,9 +76,10 @@ public class MixedbreadRerankModelTests extends ESTestCase {
     ) {
         return new MixedbreadRerankModel(
             model,
-            new MixedbreadRerankServiceSettings(model, uri, null),
+            new MixedbreadRerankServiceSettings(model, null),
             new MixedbreadRerankTaskSettings(topN, returnDocuments),
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            uri
         );
     }
 }

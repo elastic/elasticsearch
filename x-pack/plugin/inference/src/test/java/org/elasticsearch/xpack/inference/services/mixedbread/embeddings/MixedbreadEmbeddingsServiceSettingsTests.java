@@ -23,12 +23,10 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.HashMap;
 
 import static org.elasticsearch.xpack.inference.MatchersUtils.equalToIgnoringWhitespaceInJsonString;
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 
 public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<MixedbreadEmbeddingsServiceSettings> {
     private static final RateLimitSettings RATE_LIMIT = new RateLimitSettings(2);
@@ -74,10 +72,9 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSer
             """));
     }
 
-    public void testToXContent_DoesNotWriteOptionalValues_DefaultUri_DefaultRateLimit() throws IOException {
+    public void testToXContent_DoesNotWriteOptionalValues_DefaultRateLimit() throws IOException {
         var serviceSettings = new MixedbreadEmbeddingsServiceSettings(
             TestUtils.MODEL_ID,
-            (URI) null,
             null,
             null,
             null,
@@ -88,7 +85,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSer
         assertThat(getXContentResult(serviceSettings), equalToIgnoringWhitespaceInJsonString("""
             {
                 "model_id":"model_id_value",
-                "url": "https://api.mixedbread.com/v1/embeddings",
                 "rate_limit": {
                     "requests_per_minute": 100
                 },
@@ -116,21 +112,19 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSer
     @Override
     protected MixedbreadEmbeddingsServiceSettings mutateInstance(MixedbreadEmbeddingsServiceSettings instance) throws IOException {
         var modelId = instance.modelId();
-        var uri = instance.uri();
         var dimensions = instance.dimensions();
         var encodingFormat = instance.encodingFormat();
         var maxInputTokens = instance.maxInputTokens();
         var similarity = instance.similarity();
         var rateLimitSettings = instance.rateLimitSettings();
         var dimensionsSetByUser = instance.dimensionsSetByUser();
-        switch (randomInt(6)) {
+        switch (randomInt(5)) {
             case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(10));
-            case 1 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(10)));
-            case 2 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
-            case 3 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
-            case 4 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
-            case 5 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
-            case 6 -> dimensionsSetByUser = dimensionsSetByUser == false;
+            case 1 -> dimensions = randomValueOtherThan(dimensions, ESTestCase::randomNonNegativeIntOrNull);
+            case 2 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 4 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            case 5 -> dimensionsSetByUser = dimensionsSetByUser == false;
             default -> throw new AssertionError("Illegal randomisation branch");
         }
 

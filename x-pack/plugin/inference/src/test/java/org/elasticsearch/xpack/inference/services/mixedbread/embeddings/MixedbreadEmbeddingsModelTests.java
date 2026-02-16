@@ -37,7 +37,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             null
         );
 
-        assertThat(model.getServiceSettings().uri().toString(), is(TestUtils.DEFAULT_EMBEDDINGS_URL));
+        assertThat(model.uri().toString(), is(TestUtils.DEFAULT_EMBEDDINGS_URL));
     }
 
     public void testConstructor_usesUrlWhenSpecified() {
@@ -52,7 +52,7 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             TestUtils.SIMILARITY_RANDOM,
             null
         );
-        assertThat(model.getServiceSettings().uri().toString(), is(TestUtils.CUSTOM_URL));
+        assertThat(model.uri().toString(), is(TestUtils.CUSTOM_URL));
     }
 
     public void testOf_DoesNotOverrideAndModelRemainsEqual_WhenSettingsAreEmpty() {
@@ -191,7 +191,8 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             ),
             new MixedbreadEmbeddingsTaskSettings(prompt, normalized),
             chunkingSettings,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            url
         );
     }
 }

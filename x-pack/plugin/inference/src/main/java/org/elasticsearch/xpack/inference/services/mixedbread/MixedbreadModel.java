@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.mixedbread.action.MixedbreadActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.net.URI;
 import java.util.Map;
 import java.util.Objects;
 
@@ -24,6 +25,7 @@ import java.util.Objects;
  * This class extends {@link RateLimitGroupingModel} and provides common functionality for Mixedbread models.
  */
 public abstract class MixedbreadModel extends RateLimitGroupingModel {
+    private final URI uri;
 
     /**
      * Constructs a {@link MixedbreadModel} with specified model configurations and secrets.
@@ -31,8 +33,9 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
      * @param configurations the model configurations
      * @param secrets the secret settings for the model
      */
-    public MixedbreadModel(ModelConfigurations configurations, ModelSecrets secrets) {
+    public MixedbreadModel(ModelConfigurations configurations, ModelSecrets secrets, URI uri) {
         super(configurations, secrets);
+        this.uri = uri;
     }
 
     /**
@@ -43,6 +46,7 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
      */
     protected MixedbreadModel(MixedbreadModel model, TaskSettings taskSettings) {
         super(model, taskSettings);
+        uri = model.uri();
     }
 
     /**
@@ -53,6 +57,11 @@ public abstract class MixedbreadModel extends RateLimitGroupingModel {
      */
     protected MixedbreadModel(MixedbreadModel model, ServiceSettings serviceSettings) {
         super(model, serviceSettings);
+        uri = model.uri();
+    }
+
+    public URI uri() {
+        return uri;
     }
 
     /**

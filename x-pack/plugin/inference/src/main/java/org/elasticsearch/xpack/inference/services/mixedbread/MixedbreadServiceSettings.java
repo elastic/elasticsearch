@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 
@@ -43,7 +42,6 @@ public abstract class MixedbreadServiceSettings extends FilteredXContentObject i
     static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(100);
 
     protected final String modelId;
-    protected final URI uri;
     protected final RateLimitSettings rateLimitSettings;
 
     /**
@@ -54,13 +52,11 @@ public abstract class MixedbreadServiceSettings extends FilteredXContentObject i
      */
     protected MixedbreadServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
-        this.uri = ServiceUtils.createUri(in.readString());
         this.rateLimitSettings = new RateLimitSettings(in);
     }
 
-    protected MixedbreadServiceSettings(String modelId, @Nullable URI uri, @Nullable RateLimitSettings rateLimitSettings) {
+    protected MixedbreadServiceSettings(String modelId, @Nullable RateLimitSettings rateLimitSettings) {
         this.modelId = Objects.requireNonNull(modelId);
-        this.uri = buildUri(uri, MixedbreadService.NAME, this::buildDefaultUri);
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
@@ -83,15 +79,6 @@ public abstract class MixedbreadServiceSettings extends FilteredXContentObject i
     }
 
     /**
-     * Returns the URI of the Mixedbread service.
-     *
-     * @return the URI of the service
-     */
-    public URI uri() {
-        return this.uri;
-    }
-
-    /**
      * Returns the rate limit settings for the Mixedbread service.
      *
      * @return the rate limit settings
@@ -103,7 +90,6 @@ public abstract class MixedbreadServiceSettings extends FilteredXContentObject i
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
-        out.writeString(uri.toString());
         rateLimitSettings.writeTo(out);
     }
 
@@ -118,7 +104,6 @@ public abstract class MixedbreadServiceSettings extends FilteredXContentObject i
     @Override
     protected XContentBuilder toXContentFragmentOfExposedFields(XContentBuilder builder, Params params) throws IOException {
         builder.field(MODEL_ID, modelId);
-        builder.field(URL, uri.toString());
         rateLimitSettings.toXContent(builder, params);
         return builder;
     }

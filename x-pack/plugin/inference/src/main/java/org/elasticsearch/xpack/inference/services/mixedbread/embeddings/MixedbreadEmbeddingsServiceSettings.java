@@ -36,7 +36,6 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
@@ -105,7 +104,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
 
         return new MixedbreadEmbeddingsServiceSettings(
             commonServiceSettings.model(),
-            commonServiceSettings.uri(),
             dimensions,
             encodingFormat,
             similarity,
@@ -202,7 +200,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
      * Constructs a new instance of {@link MixedbreadEmbeddingsServiceSettings} with the specified parameters.
      *
      * @param modelId the model identifier
-     * @param uri the URI of the Mixedbread service
      * @param dimensions the number of dimensions for the embeddings, can be null
      * @param encodingFormat specifies the encoding format of the embeddings, can be null
      * @param similarity the similarity measure to use, can be null
@@ -211,7 +208,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
      */
     public MixedbreadEmbeddingsServiceSettings(
         String modelId,
-        @Nullable URI uri,
         @Nullable Integer dimensions,
         @Nullable String encodingFormat,
         @Nullable SimilarityMeasure similarity,
@@ -219,7 +215,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         @Nullable RateLimitSettings rateLimitSettings,
         Boolean dimensionsSetByUser
     ) {
-        super(modelId, uri, rateLimitSettings);
+        super(modelId, rateLimitSettings);
         this.dimensions = dimensions;
         this.encodingFormat = encodingFormat;
         this.similarity = similarity;
@@ -247,16 +243,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         @Nullable RateLimitSettings rateLimitSettings,
         Boolean dimensionsSetByUser
     ) {
-        this(
-            modelId,
-            createOptionalUri(url),
-            dimensions,
-            encodingFormat,
-            similarity,
-            maxInputTokens,
-            rateLimitSettings,
-            dimensionsSetByUser
-        );
+        this(modelId, dimensions, encodingFormat, similarity, maxInputTokens, rateLimitSettings, dimensionsSetByUser);
     }
 
     @Override
@@ -351,7 +338,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         if (o == null || getClass() != o.getClass()) return false;
         MixedbreadEmbeddingsServiceSettings that = (MixedbreadEmbeddingsServiceSettings) o;
         return Objects.equals(modelId, that.modelId)
-            && Objects.equals(uri, that.uri)
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(encodingFormat, that.encodingFormat)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
@@ -362,7 +348,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, uri, dimensions, encodingFormat, maxInputTokens, similarity, rateLimitSettings, dimensionsSetByUser);
+        return Objects.hash(modelId, dimensions, encodingFormat, maxInputTokens, similarity, rateLimitSettings, dimensionsSetByUser);
     }
 
 }

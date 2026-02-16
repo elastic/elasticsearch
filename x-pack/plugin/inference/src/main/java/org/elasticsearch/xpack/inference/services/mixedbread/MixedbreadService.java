@@ -400,11 +400,8 @@ public class MixedbreadService extends SenderService implements RerankingInferen
                 configurationMap.put(
                     SIMILARITY,
                     new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
-                            Strings.format(
-                                "The similarity measure. One of %s",
-                                EnumSet.allOf(SimilarityMeasure.class)
-                            )
-                        )
+                        Strings.format("The similarity measure. One of %s", EnumSet.allOf(SimilarityMeasure.class))
+                    )
                         .setLabel("Similarity")
                         .setRequired(false)
                         .setSensitive(false)
@@ -416,10 +413,8 @@ public class MixedbreadService extends SenderService implements RerankingInferen
                 configurationMap.put(
                     MAX_INPUT_TOKENS,
                     new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING)).setDescription(
-                            Strings.format(
-                                "The maximum number of input tokens for embeddings"
-                            )
-                        )
+                        Strings.format("The maximum number of input tokens for embeddings")
+                    )
                         .setLabel("Max Input Tokens")
                         .setRequired(false)
                         .setSensitive(false)

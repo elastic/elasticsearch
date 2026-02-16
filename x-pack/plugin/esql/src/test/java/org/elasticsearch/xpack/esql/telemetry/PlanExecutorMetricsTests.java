@@ -516,7 +516,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             var request = new EsqlQueryRequest();
             request.query("SET project_routing=\"test\"; FROM test | KEEP foo");
             request.allowPartialResults(false);
-            EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, r) -> fail("should not reach execution phase");
+            EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, r) -> fail(
+                "should not reach execution phase"
+            );
 
             executeEsql(planExecutor, request, runPhase, new ActionListener<>() {
                 @Override

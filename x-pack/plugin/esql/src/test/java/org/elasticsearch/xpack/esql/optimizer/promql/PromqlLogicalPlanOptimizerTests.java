@@ -226,6 +226,26 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
     }
 
+    public void testImplicitRangeSelectorUsesScrapeIntervalWhenStepIsSmaller() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=15s rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+    }
+
+    public void testImplicitRangeSelectorRoundsWindowToStepMultiple() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=40s scrape_interval=41s rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofSeconds(80)));
+    }
+
     public void testStartEndStep() {
         String testQuery = """
             PROMQL index=k8s start=$now-1h end=$now step=5m (

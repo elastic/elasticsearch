@@ -78,6 +78,7 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(promql.start().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z").toEpochMilli()));
         assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T01:00:00Z").toEpochMilli()));
         assertThat(promql.step().value(), equalTo(Duration.ofMinutes(1)));
+        assertThat(promql.scrapeInterval().value(), equalTo(Duration.ofMinutes(1)));
         assertThat(promql.isRangeQuery(), equalTo(true));
         assertThat(promql.isInstantQuery(), equalTo(false));
     }
@@ -99,6 +100,7 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(promql.start().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z").toEpochMilli()));
         assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T01:00:00Z").toEpochMilli()));
         assertThat(promql.step().value(), equalTo(Duration.ofMinutes(1)));
+        assertThat(promql.scrapeInterval().value(), equalTo(Duration.ofMinutes(1)));
         assertThat(promql.isRangeQuery(), equalTo(true));
         assertThat(promql.isInstantQuery(), equalTo(false));
     }
@@ -108,6 +110,7 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(promql.start().value(), nullValue());
         assertThat(promql.end().value(), nullValue());
         assertThat(promql.step().value(), equalTo(Duration.ofSeconds(1)));
+        assertThat(promql.scrapeInterval().value(), equalTo(Duration.ofMinutes(1)));
         assertThat(promql.isRangeQuery(), equalTo(true));
         assertThat(promql.isInstantQuery(), equalTo(false));
     }
@@ -117,8 +120,15 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(promql.start().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z").toEpochMilli()));
         assertThat(promql.end().value(), equalTo(Instant.parse("2025-10-31T00:00:00Z").toEpochMilli()));
         assertThat(promql.step().value(), nullValue());
+        assertThat(promql.scrapeInterval().value(), equalTo(Duration.ofMinutes(1)));
         assertThat(promql.isInstantQuery(), equalTo(true));
         assertThat(promql.isRangeQuery(), equalTo(false));
+    }
+
+    public void testValidRangeQueryWithScrapeInterval() {
+        PromqlCommand promql = parse("PROMQL index=test step=10s scrape_interval=45s (avg(foo))");
+        assertThat(promql.step().value(), equalTo(Duration.ofSeconds(10)));
+        assertThat(promql.scrapeInterval().value(), equalTo(Duration.ofSeconds(45)));
     }
 
     public void testValidRangeQueryInvalidQuotedIdentifierValue() {
@@ -141,21 +151,25 @@ public class PromqlParserTests extends ESTestCase {
 
     public void testZeroStep() {
         ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=0 (avg(foo))"));
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "1:1: invalid parameter \"step\": zero or negative query resolution step widths are not accepted. "
-                    + "Try a positive integer"
-            )
-        );
+        assertThat(e.getMessage(), containsString("Parameter [step] must be a positive duration, found [0]"));
     }
 
     public void testNegativeStep() {
         ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=\"-1\" (avg(foo))"));
-        assertThat(
-            e.getMessage(),
-            containsString("invalid parameter \"step\": zero or negative query resolution step widths are not accepted")
+        assertThat(e.getMessage(), containsString("Parameter [step] must be a positive duration, found [-1]"));
+    }
+
+    public void testZeroScrapeInterval() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parse("PROMQL index=test step=1m scrape_interval=0 (avg(foo))"));
+        assertThat(e.getMessage(), containsString("Parameter [scrape_interval] must be a positive duration, found [0]"));
+    }
+
+    public void testNegativeScrapeInterval() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> parse("PROMQL index=test step=1m scrape_interval=\"-1\" (avg(foo))")
         );
+        assertThat(e.getMessage(), containsString("Parameter [scrape_interval] must be a positive duration, found [-1]"));
     }
 
     public void testEndBeforeStart() {

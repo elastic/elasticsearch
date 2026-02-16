@@ -223,7 +223,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         if (functionCall.child() instanceof RangeSelector rangeSelector) {
             window = rangeSelector.range();
             if (isImplicitRangePlaceholder(window)) {
-                window = ctx.promqlCommand().step();
+                window = resolveImplicitRangeWindow(window.source(), ctx.promqlCommand());
             }
         }
 
@@ -267,8 +267,34 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
     private static boolean isImplicitRangePlaceholder(Expression range) {
         return range.foldable()
-               && range.fold(FoldContext.small()) instanceof Duration duration
-               && duration.equals(PromqlLogicalPlanBuilder.IMPLICIT_RANGE_PLACEHOLDER);
+            && range.fold(FoldContext.small()) instanceof Duration duration
+            && duration.equals(PromqlLogicalPlanBuilder.IMPLICIT_RANGE_PLACEHOLDER);
+    }
+
+    /**
+     * Resolves the implicit range placeholder to a concrete duration based on step and scrape interval.
+     * The implicit window is calculated as the smallest multiple of {@code step} where {@code window >= scrape_interval}.
+     */
+    private static Literal resolveImplicitRangeWindow(Source source, PromqlCommand promqlCommand) {
+        Duration step = foldDuration(promqlCommand.step(), "step");
+        Duration scrapeInterval = foldDuration(promqlCommand.scrapeInterval(), "scrape_interval");
+        long stepMillis = step.toMillis();
+        long scrapeMillis = scrapeInterval.toMillis();
+        long multiplier = scrapeMillis / stepMillis;
+        if (scrapeMillis % stepMillis != 0) {
+            multiplier++;
+        }
+        if (multiplier < 1) {
+            multiplier = 1;
+        }
+        return Literal.timeDuration(source, step.multipliedBy(multiplier));
+    }
+
+    private static Duration foldDuration(Expression expression, String paramName) {
+        if (expression != null && expression.foldable() && expression.fold(FoldContext.small()) instanceof Duration duration) {
+            return duration;
+        }
+        throw new QlIllegalArgumentException("Expected [{}] to be a duration literal, got [{}]", paramName, expression);
     }
 
     /**

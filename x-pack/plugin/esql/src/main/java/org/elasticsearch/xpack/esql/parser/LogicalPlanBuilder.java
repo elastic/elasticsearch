@@ -122,8 +122,9 @@ import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private static final String TIME = "time", START = "start", END = "end", STEP = "step", INDEX = "index";
-    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, INDEX);
+    private static final String TIME = "time", START = "start", END = "end", STEP = "step", SCRAPE_INTERVAL = "scrape_interval", INDEX =
+        "index";
+    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, SCRAPE_INTERVAL, INDEX);
 
     /**
      * Maximum number of commands allowed per query
@@ -1296,6 +1297,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             params.startLiteral(),
             params.endLiteral(),
             params.stepLiteral(),
+            params.scrapeIntervalLiteral(),
             valueColumnName,
             new UnresolvedTimestamp(source)
         );
@@ -1318,6 +1320,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Instant start = null;
         Instant end = null;
         Duration step = null;
+        Duration scrapeInterval = Duration.ofMinutes(1);
         IndexPattern indexPattern = new IndexPattern(source, "*");
 
         Set<String> paramsSeen = new HashSet<>();
@@ -1332,13 +1335,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 case TIME -> time = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
                 case START -> start = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
                 case END -> end = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
-                case STEP -> {
-                    try {
-                        step = Duration.ofSeconds(Integer.parseInt(parseParamValueString(paramCtx.value)));
-                    } catch (NumberFormatException ignore) {
-                        step = PromqlParserUtils.parseDuration(valueSource, parseParamValueString(paramCtx.value));
-                    }
-                }
+                case STEP -> step = parsePositivePromqlDuration(source, STEP, valueSource, paramCtx.value);
+                case SCRAPE_INTERVAL -> scrapeInterval = parsePositivePromqlDuration(source, SCRAPE_INTERVAL, valueSource, paramCtx.value);
                 case INDEX -> indexPattern = parseIndexPattern(paramCtx.value);
                 default -> {
                     String message = "Unknown parameter [{}]";
@@ -1386,19 +1384,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             }
             if (step == null) {
                 throw new ParsingException(source, "Parameter [{}] must be specified for a range query", STEP);
-            } else if (step.isPositive() == false) {
-                throw new ParsingException(
-                    source,
-                    "invalid parameter \"step\": zero or negative query resolution step widths are not accepted. "
-                        + "Try a positive integer",
-                    step
-                );
             }
         } else {
             start = Instant.now();
             end = start;
         }
-        return new PromqlParams(source, start, end, step, indexPattern);
+        return new PromqlParams(source, start, end, step, scrapeInterval, indexPattern);
+    }
+
+    private Duration parsePositivePromqlDuration(
+        Source querySource,
+        String paramName,
+        Source valueSource,
+        EsqlBaseParser.PromqlParamValueContext ctx
+    ) {
+        Duration duration;
+        String value = parseParamValueString(ctx);
+        try {
+            duration = Duration.ofSeconds(Integer.parseInt(value));
+        } catch (NumberFormatException ignore) {
+            duration = PromqlParserUtils.parseDuration(valueSource, value);
+        }
+        if (duration.isPositive() == false) {
+            throw new ParsingException(querySource, "Parameter [{}] must be a positive duration, found [{}]", paramName, value);
+        }
+        return duration;
     }
 
     private String parseParamName(EsqlBaseParser.PromqlParamNameContext ctx) {
@@ -1472,6 +1482,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      * <ul>
      *     <li>time for instant queries</li>
      *     <li>start, end, step for range queries</li>
+     *     <li>scrape_interval for implicit range selector windows</li>
      * </ul>
      * These can be specified in the {@linkplain PromqlCommand PROMQL command} like so:
      * <pre>
@@ -1485,7 +1496,14 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      *
      * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#expression-queries">PromQL API documentation</a>
      */
-    public record PromqlParams(Source source, Instant start, Instant end, Duration step, IndexPattern indexPattern) {
+    public record PromqlParams(
+        Source source,
+        Instant start,
+        Instant end,
+        Duration step,
+        Duration scrapeInterval,
+        IndexPattern indexPattern
+    ) {
 
         public Literal startLiteral() {
             if (start == null) {
@@ -1506,6 +1524,16 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 return Literal.NULL;
             }
             return Literal.timeDuration(source, step);
+        }
+
+        /**
+         * Returns the scrape interval as a duration literal.
+         */
+        public Literal scrapeIntervalLiteral() {
+            if (scrapeInterval == null) {
+                return Literal.NULL;
+            }
+            return Literal.timeDuration(source, scrapeInterval);
         }
     }
 }

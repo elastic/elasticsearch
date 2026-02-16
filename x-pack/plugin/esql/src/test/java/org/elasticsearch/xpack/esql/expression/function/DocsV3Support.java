@@ -1742,7 +1742,15 @@ public abstract class DocsV3Support {
     protected Map<String, String> loadExampleFile(String csvSpec) throws IOException {
         Map<String, String> taggedExamples = new HashMap<>();
         String csvFile = csvSpec.endsWith(".csv-spec") ? csvSpec : csvSpec + ".csv-spec";
+
+        // Try CsvTestsDataLoader first (for core ESQL examples)
         InputStream specInputStream = CsvTestsDataLoader.class.getResourceAsStream("/" + csvFile);
+
+        // Fall back to thread context classloader (for external module examples)
+        if (specInputStream == null) {
+            specInputStream = Thread.currentThread().getContextClassLoader().getResourceAsStream(csvFile);
+        }
+
         if (specInputStream == null) {
             throw new IllegalArgumentException("Failed to find examples file [" + csvFile + "]");
         }

@@ -14,27 +14,27 @@ import org.elasticsearch.compute.operator.DriverContext;
  * Aggregator state for a single double.
  * This class is generated. Edit {@code X-State.java.st} instead.
  */
-final class DoubleState implements AggregatorState {
+public final class DoubleState implements AggregatorState {
     private double value;
     private boolean seen;
 
-    DoubleState(double init) {
+    public DoubleState(double init) {
         this.value = init;
     }
 
-    double doubleValue() {
+    public double doubleValue() {
         return value;
     }
 
-    void doubleValue(double value) {
+    public void doubleValue(double value) {
         this.value = value;
     }
 
-    boolean seen() {
+    public boolean seen() {
         return seen;
     }
 
-    void seen(boolean seen) {
+    public void seen(boolean seen) {
         this.seen = seen;
     }
 

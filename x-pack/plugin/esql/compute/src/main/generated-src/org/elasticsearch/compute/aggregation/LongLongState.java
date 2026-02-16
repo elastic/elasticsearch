@@ -20,37 +20,37 @@ import org.elasticsearch.core.Releasables;
  * Aggregator state for a single {@code long} and a single {@code long}.
  * This class is generated. Edit {@code X-2State.java.st} instead.
  */
-final class LongLongState implements AggregatorState {
+public final class LongLongState implements AggregatorState {
     private long v1;
     private long v2;
     private boolean seen;
 
-    LongLongState(long v1, long v2) {
+    public LongLongState(long v1, long v2) {
         this.v1 = v1;
         this.v2 = v2;
     }
 
-    long v1() {
+    public long v1() {
         return v1;
     }
 
-    void v1(long v1) {
+    public void v1(long v1) {
         this.v1 = v1;
     }
 
-    long v2() {
+    public long v2() {
         return v2;
     }
 
-    void v2(long v2) {
+    public void v2(long v2) {
         this.v2 = v2;
     }
 
-    boolean seen() {
+    public boolean seen() {
         return seen;
     }
 
-    void seen(boolean seen) {
+    public void seen(boolean seen) {
         this.seen = seen;
     }
 

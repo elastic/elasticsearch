@@ -30,33 +30,33 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-ArrayState.java.st} instead.
  * </p>
  */
-final class IntArrayState extends AbstractArrayState implements GroupingAggregatorState {
+public final class IntArrayState extends AbstractArrayState implements GroupingAggregatorState {
     private final int init;
 
     private IntArray values;
 
-    IntArrayState(BigArrays bigArrays, int init) {
+    public IntArrayState(BigArrays bigArrays, int init) {
         super(bigArrays);
         this.values = bigArrays.newIntArray(1, false);
         this.values.set(0, init);
         this.init = init;
     }
 
-    int get(int groupId) {
+    public int get(int groupId) {
         return values.get(groupId);
     }
 
-    int getOrDefault(int groupId) {
+    public int getOrDefault(int groupId) {
         return groupId < values.size() ? values.get(groupId) : init;
     }
 
-    void set(int groupId, int value) {
+    public void set(int groupId, int value) {
         ensureCapacity(groupId);
         values.set(groupId, value);
         trackGroupId(groupId);
     }
 
-    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
+    public Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {

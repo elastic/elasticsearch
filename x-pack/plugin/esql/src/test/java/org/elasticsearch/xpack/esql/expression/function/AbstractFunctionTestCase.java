@@ -104,6 +104,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     protected TestCaseSupplier.TestCase testCase;
 
     /**
+     * Register an external function for testing purposes.
+     * <p>
+     * This allows external function tests (e.g., from plugins using {@code @RuntimeEvaluator})
+     * to generate documentation using the same infrastructure as built-in functions.
+     * Call this method in a {@code @BeforeClass} method before tests run.
+     * </p>
+     *
+     * @param def the function definition to register
+     */
+    protected static void registerTestFunction(FunctionDefinition def) {
+        functionRegistry.registerForTesting(def);
+    }
+
+    /**
      * Converts typed test suppliers to parameterized test parameters.
      * <p>
      *     Use {@code parameterSuppliersFromTypedDataWithDefaultChecks()} instead if possible, as it automatically add default checks.

@@ -18,6 +18,7 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 esplugin {
   name = 'x-pack-esql'
@@ -40,6 +41,7 @@ dependencies {
   implementation project(xpackModule('kql'))
   implementation project('compute')
   implementation project('compute:ann')
+  implementation project('compute:runtime')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
   implementation project(':libs:exponential-histogram')

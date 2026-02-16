@@ -369,6 +369,10 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle subqueries",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.capabilityName())
             );
+            assumeFalseLogging(
+                "runtime functions not available in CSV tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.RUNTIME_FUNCTIONS.capabilityName())
+            );
             assumeFalse(
                 "CSV tests cannot currently handle views with branching",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.capabilityName())

@@ -14,27 +14,27 @@ import org.elasticsearch.compute.operator.DriverContext;
  * Aggregator state for a single boolean.
  * This class is generated. Edit {@code X-State.java.st} instead.
  */
-final class BooleanState implements AggregatorState {
+public final class BooleanState implements AggregatorState {
     private boolean value;
     private boolean seen;
 
-    BooleanState(boolean init) {
+    public BooleanState(boolean init) {
         this.value = init;
     }
 
-    boolean booleanValue() {
+    public boolean booleanValue() {
         return value;
     }
 
-    void booleanValue(boolean value) {
+    public void booleanValue(boolean value) {
         this.value = value;
     }
 
-    boolean seen() {
+    public boolean seen() {
         return seen;
     }
 
-    void seen(boolean seen) {
+    public void seen(boolean seen) {
         this.seen = seen;
     }
 

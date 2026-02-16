@@ -43,7 +43,7 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-FallibleArrayState.java.st} instead.
  * </p>
  */
-final class $Type$FallibleArrayState extends AbstractFallibleArrayState implements GroupingAggregatorState {
+public final class $Type$FallibleArrayState extends AbstractFallibleArrayState implements GroupingAggregatorState {
     private final $type$ init;
 
 $if(boolean)$
@@ -54,7 +54,7 @@ $else$
     private $Type$Array values;
 $endif$
 
-    $Type$FallibleArrayState(BigArrays bigArrays, $type$ init) {
+    public $Type$FallibleArrayState(BigArrays bigArrays, $type$ init) {
         super(bigArrays);
 $if(boolean)$
         this.values = new BitArray(1, bigArrays);
@@ -66,11 +66,11 @@ $endif$
         this.init = init;
     }
 
-    $type$ get(int groupId) {
+    public $type$ get(int groupId) {
         return values.get(groupId);
     }
 
-    $type$ getOrDefault(int groupId) {
+    public $type$ getOrDefault(int groupId) {
 $if(boolean)$
         return groupId < size ? values.get(groupId) : init;
 $else$
@@ -78,21 +78,21 @@ $else$
 $endif$
     }
 
-    void set(int groupId, $type$ value) {
+    public void set(int groupId, $type$ value) {
         ensureCapacity(groupId);
         values.set(groupId, value);
         trackGroupId(groupId);
     }
 
 $if(long)$
-    void increment(int groupId, long value) {
+    public void increment(int groupId, long value) {
         ensureCapacity(groupId);
         values.increment(groupId, value);
         trackGroupId(groupId);
     }
 $endif$
 
-    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
+    public Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds() && false == anyFailure()) {
             try (var builder = driverContext.blockFactory().new$Type$VectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOver
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
@@ -246,7 +247,8 @@ public class ApproximationSupportTests extends ESTestCase {
         Rate.class,
         StddevOverTime.class,
         SumOverTime.class,
-        VarianceOverTime.class
+        VarianceOverTime.class,
+        Scalar.class
     );
 
     private static List<Class<?>> getClassesInPackage(String packageName) throws Exception {

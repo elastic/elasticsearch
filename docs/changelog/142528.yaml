@@ -1,4 +1,4 @@
-area: "ES|QL, Geo"
+area: "ES|QL"
 issues: []
 pr: 142528
 summary: Extract centroid from doc values for ST_CENTROID_AGG over `geo_shape` and

@@ -85,7 +85,7 @@ public abstract class SearchContext implements Releasable {
     }
     private InnerHitsContext innerHitsContext;
 
-    private Query rewriteQuery;
+    protected Query rewriteQuery;
 
     protected SearchContext() {}
 

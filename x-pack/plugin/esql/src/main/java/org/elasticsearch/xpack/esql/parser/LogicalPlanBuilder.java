@@ -182,6 +182,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public QuerySetting visitSetCommand(EsqlBaseParser.SetCommandContext ctx) {
         var field = visitSetField(ctx.setField());
+        context.telemetry().setting(field.name());
         return new QuerySetting(source(ctx), field);
     }
 
@@ -466,6 +467,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // Only the first STATS command in a TS query is treated as the time-series aggregation
         return input -> {
             if (input.anyMatch(p -> p instanceof Aggregate) == false
+                && input.anyMatch(p -> p instanceof PromqlCommand) == false
                 && input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES)) {
                 return new TimeSeriesAggregate(
                     source(ctx),

@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
-import org.elasticsearch.xpack.esql.approximation.ApproximationSettings;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -85,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
@@ -164,7 +164,7 @@ public class EsqlSession {
     private final InferenceService inferenceService;
     private final RemoteClusterService remoteClusterService;
     private final BlockFactory blockFactory;
-    private final ByteSizeValue intermediateLocalRelationMaxSize;
+    private final PlannerSettings plannerSettings;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
 
@@ -188,6 +188,7 @@ public class EsqlSession {
         PlanTelemetry planTelemetry,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ProjectMetadata projectMetadata,
+        PlannerSettings plannerSettings,
         TransportActionServices services
     ) {
         this.sessionId = sessionId;
@@ -207,7 +208,7 @@ public class EsqlSession {
         this.preMapper = new PreMapper(services);
         this.remoteClusterService = services.transportService().getRemoteClusterService();
         this.blockFactory = services.blockFactoryProvider().blockFactory();
-        this.intermediateLocalRelationMaxSize = services.plannerSettings().intermediateLocalRelationMaxSize();
+        this.plannerSettings = plannerSettings;
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
         this.projectMetadata = projectMetadata;
@@ -251,7 +252,6 @@ public class EsqlSession {
         ZoneId timeZone = request.timeZone() == null
             ? statement.setting(QuerySettings.TIME_ZONE)
             : statement.settingOrDefault(QuerySettings.TIME_ZONE, request.timeZone());
-        ApproximationSettings approximationSettings = statement.setting(QuerySettings.APPROXIMATION);
 
         Configuration configuration = new Configuration(
             timeZone,
@@ -332,7 +332,6 @@ public class EsqlSession {
                                 foldContext,
                                 minimumVersion,
                                 planTimeProfile,
-                                logicalPlanOptimizer,
                                 l
                             )
                         )
@@ -369,7 +368,6 @@ public class EsqlSession {
         FoldContext foldContext,
         TransportVersion minimumVersion,
         PlanTimeProfile planTimeProfile,
-        LogicalPlanOptimizer logicalPlanOptimizer,
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
@@ -402,11 +400,11 @@ public class EsqlSession {
                 optimizedPlan,
                 configuration,
                 foldContext,
+                minimumVersion,
                 planRunner,
                 executionInfo,
                 request,
                 statement,
-                logicalPlanOptimizer,
                 physicalPlanOptimizer,
                 planTimeProfile,
                 listener
@@ -418,11 +416,11 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
+        TransportVersion minimumVersion,
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
         EsqlStatement statement,
-        LogicalPlanOptimizer logicalPlanOptimizer,
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
@@ -454,17 +452,11 @@ public class EsqlSession {
                 optimizedPlan,
                 statement.setting(QuerySettings.APPROXIMATION),
                 executionInfo,
-                logicalPlanOptimizer,
-                p -> logicalPlanToPhysicalPlan(
-                    // TODO: don't run the full optimizer twice, because it may break things.
-                    optimizedPlan(p, logicalPlanOptimizer, planTimeProfile),
-                    request,
-                    physicalPlanOptimizer,
-                    planTimeProfile
-                ),
+                p -> logicalPlanToPhysicalPlan(p, request, physicalPlanOptimizer, planTimeProfile),
                 runner,
                 configuration,
                 foldContext,
+                minimumVersion,
                 planTimeProfile
             ).approximate(listener);
         } else {
@@ -578,8 +570,11 @@ public class EsqlSession {
         List<Page> pages = result.pages();
         checkPagesBelowSize(
             pages,
-            intermediateLocalRelationMaxSize,
-            actual -> "sub-plan execution results too large [" + ByteSizeValue.ofBytes(actual) + "] > " + intermediateLocalRelationMaxSize
+            plannerSettings.intermediateLocalRelationMaxSize(),
+            actual -> "sub-plan execution results too large ["
+                + ByteSizeValue.ofBytes(actual)
+                + "] > "
+                + plannerSettings.intermediateLocalRelationMaxSize()
         );
         List<Attribute> schema = result.schema();
 

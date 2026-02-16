@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.entitlement.initialization.DynamicInstrumentationUtils.Descriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Description;
@@ -39,12 +40,11 @@ public class DynamicInstrumentationTests extends ESTestCase {
                         new Descriptor(
                             "sun/net/www/protocol/http/HttpURLConnection",
                             "openConnectionCheckRedirects",
-                            List.of("java/net/URLConnection"),
-                            null
+                            List.of("java/net/URLConnection")
                         )
                     ),
                     // removed in JDK 26
-                    is(new Descriptor("java/net/MulticastSocket", "send", List.of("java/net/DatagramPacket", "B"), null))
+                    is(new Descriptor("java/net/MulticastSocket", "send", List.of("java/net/DatagramPacket", "B")))
                 )
             )
         );
@@ -54,7 +54,7 @@ public class DynamicInstrumentationTests extends ESTestCase {
         return new TypeSafeMatcher<>() {
             @Override
             protected boolean matchesSafely(Descriptor item) {
-                return item.methodDescriptor() != null;
+                return Strings.isNotEmpty(item.className()) && Strings.isNotEmpty(item.methodName());
             }
 
             @Override

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb;
 
-import org.apache.lucene.codecs.Codec;
+import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
@@ -30,12 +30,14 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
+import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
 import org.elasticsearch.index.codec.bloomfilter.LazyFilterTermsEnum;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdFieldsProducer.SyntheticIdTermsEnum;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -479,7 +481,11 @@ public class TSDBSyntheticIdPostingsFormatTests extends ESTestCase {
             directory.setCheckIndexOnClose(false);
 
             final var indexWriterConfig = newIndexWriterConfig();
-            indexWriterConfig.setCodec(Codec.forName(ES93TSDBDefaultCompressionLucene103Codec.class.getSimpleName()));
+            indexWriterConfig.setCodec(
+                new ES93TSDBDefaultCompressionLucene103Codec(
+                    new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+                )
+            );
             // Configure the index writer for time-series indices
             indexWriterConfig.setMergePolicy(indexSettings.getMergePolicy(true));
             indexWriterConfig.setSoftDeletesField(Lucene.SOFT_DELETES_FIELD);

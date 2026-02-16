@@ -19,6 +19,7 @@ import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -63,6 +64,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 null,
                 null,
                 false,
+                IndexVersion.current(),
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
@@ -98,6 +100,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 null,
                 null,
                 false,
+                IndexVersion.current(),
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
@@ -129,6 +132,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 null,
                 null,
                 false,
+                IndexVersion.current(),
                 Collections.emptyMap()
             );
 
@@ -169,6 +173,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 null,
                 null,
                 false,
+                IndexVersion.current(),
                 Collections.emptyMap()
             );
 
@@ -235,6 +240,7 @@ public class GeoShapeBoundsAggregatorTests extends AggregatorTestCase {
                 null,
                 null,
                 false,
+                IndexVersion.current(),
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {

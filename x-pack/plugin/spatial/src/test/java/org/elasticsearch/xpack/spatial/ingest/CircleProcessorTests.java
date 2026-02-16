@@ -208,6 +208,7 @@ public class CircleProcessorTests extends ESTestCase {
             null,
             null,
             false,
+            IndexVersion.current(),
             Collections.emptyMap()
         );
 

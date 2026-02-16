@@ -9,7 +9,7 @@ mapped_pages:
 
 The `synonym_graph` token filter allows to easily handle [synonyms](docs-content://solutions/search/full-text/search-with-synonyms.md), including multi-word synonyms correctly during the analysis process.
 
-In order to properly handle multi-word synonyms this token filter creates a [graph token stream](docs-content://manage-data/data-store/text-analysis/token-graphs.md) during processing. For more information, refer to [Synonym token filter](reference/text-analysis/analysis-synonym-tokenfilter.md).
+In order to properly handle multi-word synonyms this token filter creates a [graph token stream](docs-content://manage-data/data-store/text-analysis/token-graphs.md) during processing. For more information, refer to [Synonym token filter](/reference/text-analysis/analysis-synonym-tokenfilter.md).
 
 ::::{note}
 :name: synonym-graph-index-note

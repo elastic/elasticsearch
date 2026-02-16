@@ -1,0 +1,5 @@
+area: Reindex
+issues: []
+pr: 142482
+summary: Fix `ShutdownPrepareService` string formatting
+type: bug

@@ -18,8 +18,6 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * A base class for custom log4j logger messages. Carries additional fields which will populate JSON fields in logs.
@@ -54,11 +52,13 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
     }
 
     public ESLogMessage field(String key, Object value) {
-        super.with(key, value);
+        if (value != null) {
+            super.with(key, value);
+        }
         return this;
     }
 
-    public ESLogMessage withFields(Map<String, Object> prepareMap) {
+    public ESLogMessage withFields(Map<String, ?> prepareMap) {
         prepareMap.forEach(this::field);
         return this;
     }
@@ -84,20 +84,6 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> {
             StringBuilders.escapeJson(sb, start);
             sb.append(Chars.DQUOTE);
         }
-    }
-
-    public static String inQuotes(String s) {
-        if (s == null) return inQuotes("");
-        return "\"" + s + "\"";
-    }
-
-    public static String inQuotes(Object s) {
-        if (s == null) return inQuotes("");
-        return inQuotes(s.toString());
-    }
-
-    public static String asJsonArray(Stream<String> stream) {
-        return "[" + stream.map(ESLogMessage::inQuotes).collect(Collectors.joining(", ")) + "]";
     }
 
     public Object[] getArguments() {

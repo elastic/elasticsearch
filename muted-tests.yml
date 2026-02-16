@@ -401,9 +401,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
   method: testInstantVectorExpected
   issue: https://github.com/elastic/elasticsearch/issues/142420
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
-  issue: https://github.com/elastic/elasticsearch/issues/142422
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFieldDataStats
   issue: https://github.com/elastic/elasticsearch/issues/142424
@@ -437,9 +434,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorTests
   method: testOrderByCardinality
   issue: https://github.com/elastic/elasticsearch/issues/142484
-- class: org.elasticsearch.blobcache.shared.SharedBytesTests
-  method: testMmapResourcesReleasedOnClose
-  issue: https://github.com/elastic/elasticsearch/issues/142488
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
   method: testBulkScalarVsVectorized {p0=768 p1=2 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/142490
@@ -449,6 +443,21 @@ tests:
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
   method: testBulkScalarVsVectorized {p0=384 p1=1 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/142492
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:match-function.TestMatchWithReplace}
+  issue: https://github.com/elastic/elasticsearch/issues/142501
+- class: org.elasticsearch.search.query.VectorIT
+  method: testFilteredQueryStrategy
+  issue: https://github.com/elastic/elasticsearch/issues/142511
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/suggested_type}
+  issue: https://github.com/elastic/elasticsearch/issues/142525
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/TS Command grouping on text field}
+  issue: https://github.com/elastic/elasticsearch/issues/142544
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:subquery.SubqueryInFromWithRerankInSubquery}
+  issue: https://github.com/elastic/elasticsearch/issues/142552
 
 # Examples:
 #

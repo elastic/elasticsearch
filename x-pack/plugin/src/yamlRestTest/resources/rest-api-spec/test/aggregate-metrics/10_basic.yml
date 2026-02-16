@@ -1,10 +1,11 @@
+setup:
+  - requires:
+      test_runner_features: [ allowed_warnings ]
 ---
 "Test exists query on aggregate metric field":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  aggregate_metric_test
         body:
@@ -57,11 +58,9 @@
 
 ---
 "Test term query on aggregate metric field":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  test
         body:
@@ -133,11 +132,9 @@
 
 ---
 "Test range query on aggregate metric field":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  test
         body:
@@ -210,11 +207,9 @@
 
 ---
 "Sort":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  test
         body:
@@ -293,10 +288,9 @@
 
 ---
 "Test fields api":
-  - requires:
-      cluster_features: "gte_v8.4.0"
-      reason: "Breaking change introduced in 8.4.0"
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  test
         body:
@@ -353,11 +347,11 @@
 ---
 "deprecated use of multi-fields":
   - requires:
-      cluster_features: ["gte_v8.14.0"]
-      reason: "deprecation added in 8.14"
       test_runner_features: warnings
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       warnings:
         - "Adding multifields to [aggregate_metric_double] mappers has no effect and will be forbidden in future"
       indices.create:
@@ -367,3 +361,19 @@
             properties:
               aggregated: { "type": "aggregate_metric_double", "metrics": ["max"], "default_metric": "max", "fields": {"keyword": {"type": "keyword"}} }
 
+---
+"deprecated use of default metric":
+  - requires:
+      test_runner_features: warnings
+  - do:
+      warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              metric:
+                type: aggregate_metric_double
+                metrics: [ min, max, sum, value_count ]
+                default_metric: max

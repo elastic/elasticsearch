@@ -102,6 +102,7 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.ConstantShardContextIndexedByShardId;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlan;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -140,8 +141,6 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadPageFromCsv;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
-import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadViewQuery;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PLANNER_SETTINGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
@@ -193,7 +192,7 @@ import static org.mockito.Mockito.mock;
  *         a real index are only guaranteed to emit a warning if the document would match all filters <strong>except</strong>
  *         it has a multivalue field.</li>
  *     <li>Sorting: This class emits values in the order they appear in the {@code .csv} files that power it. A real
- *         index emits documents a fair random order. Multi-shard and multi-node tests doubly so.</li>
+ *         index emits documents a fairly random order. Multi-shard and multi-node tests doubly so.</li>
  * </ul>
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -373,6 +372,10 @@ public class CsvTests extends ESTestCase {
             assumeFalse(
                 "CSV tests cannot currently handle views with branching",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.capabilityName())
+            );
+            assumeFalseLogging(
+                "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
+                testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
             );
 
             if (Build.current().isSnapshot()) {
@@ -642,19 +645,13 @@ public class CsvTests extends ESTestCase {
     }
 
     private void loadView(InMemoryViewService viewService, CsvTestsDataLoader.ViewConfig viewConfig) {
-        try {
-            ProjectId projectId = ProjectId.fromId("dummy");
-            String viewQuery = loadViewQuery(viewConfig.viewName(), viewConfig.viewFileName(), LOGGER);
-            PutViewAction.Request request = new PutViewAction.Request(
-                TimeValue.ONE_MINUTE,
-                TimeValue.ONE_MINUTE,
-                new View(viewConfig.viewName(), viewQuery)
-            );
-            viewService.putView(projectId, request, ActionListener.noop());
-        } catch (IOException e) {
-            logger.error("Failed to load view '" + viewConfig + "': " + e.getMessage());
-            throw new RuntimeException(e);
-        }
+        ProjectId projectId = ProjectId.fromId("dummy");
+        PutViewAction.Request request = new PutViewAction.Request(
+            TimeValue.ONE_MINUTE,
+            TimeValue.ONE_MINUTE,
+            new View(viewConfig.name(), viewConfig.loadQuery())
+        );
+        viewService.putView(projectId, request, ActionListener.noop());
     }
 
     private LogicalPlan parseView(String query, String viewName) {
@@ -755,12 +752,14 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
+            new PreAnalyzer(),
             functionRegistry,
             mapper,
             TEST_VERIFIER,
             new PlanTelemetry(functionRegistry),
             null,
             null,
+            PlannerSettings.DEFAULTS,
             EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(foldCtx, testDatasets);
@@ -894,7 +893,8 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
-            physicalOperationProviders
+            physicalOperationProviders,
+            null  // OperatorFactoryRegistry - not needed for CSV tests
         );
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
@@ -904,7 +904,7 @@ public class CsvTests extends ESTestCase {
         LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(
             "final",
             foldCtx,
-            TEST_PLANNER_SETTINGS,
+            PlannerSettings.DEFAULTS,
             new OutputExec(coordinatorPlan, collectedPages::add),
             EmptyIndexedByShardId.instance()
         );
@@ -914,7 +914,7 @@ public class CsvTests extends ESTestCase {
             var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
             var flags = new EsqlFlags(true);
             var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-                new LocalPhysicalOptimizerContext(TEST_PLANNER_SETTINGS, flags, configuration, foldCtx, searchStats)
+                new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, flags, configuration, foldCtx, searchStats)
             );
 
             var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer, null);
@@ -930,7 +930,7 @@ public class CsvTests extends ESTestCase {
             LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(
                 "data",
                 foldCtx,
-                EsqlTestUtils.TEST_PLANNER_SETTINGS,
+                PlannerSettings.DEFAULTS,
                 csvDataNodePhysicalPlan,
                 ConstantShardContextIndexedByShardId.INSTANCE
             );

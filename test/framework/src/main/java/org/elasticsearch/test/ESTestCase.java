@@ -40,6 +40,7 @@ import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
@@ -64,6 +65,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.TemplateDecoratorRule;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -163,6 +165,7 @@ import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -527,6 +530,9 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     @ClassRule
     public static final TestEntitlementsRule TEST_ENTITLEMENTS = new TestEntitlementsRule();
+
+    @ClassRule
+    public static final TestRule TEMPLATE_DECORATOR_RULE = TemplateDecoratorRule.initDefault();
 
     // setup mock filesystems for this test run. we change PathUtils
     // so that all accesses are plumbed thru any mock wrappers
@@ -3150,5 +3156,24 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static ProjectMetadata emptyProject() {
         return ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+    }
+
+    /**
+     * Insert random garbage {@link BytesRef}
+     */
+    public static BytesRef embedInRandomBytes(BytesRef bytesRef) {
+        var offset = randomIntBetween(0, 10);
+        var extraLength = randomIntBetween(offset == 0 ? 1 : 0, 10);
+        var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
+
+        for (int i = 0; i < offset; i++) {
+            newBytesArray[i] = randomByte();
+        }
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
+        for (int i = offset + bytesRef.length; i < newBytesArray.length; i++) {
+            newBytesArray[i] = randomByte();
+        }
+
+        return new BytesRef(newBytesArray, offset, bytesRef.length);
     }
 }

@@ -84,20 +84,22 @@ public final class SortFieldValidation {
                                 // If floating point exists, convert everything to DOUBLE
                                 fieldIdsWithMixedNumericSorts.add(i);
                             }
-                        } else if (isNumericType(firstTypes[i]) && isNumericType(curType)) {
-                            // Mixing numeric types (FLOAT/LONG/DOUBLE) - convert to DOUBLE
-                            fieldIdsWithMixedNumericSorts.add(i);
-                        } else {
-                            throw new IllegalArgumentException(
-                                "Can't sort on field ["
-                                    + curSortFields[i].getField()
-                                    + "]; the field has incompatible sort types: ["
-                                    + firstTypes[i]
-                                    + "] and ["
-                                    + curType
-                                    + "] across shards!"
-                            );
-                        }
+                        } else if (isNumericType(firstTypes[i])
+                            && isNumericType(curType)
+                            && involvesFloatingPoint(firstTypes[i], curType)) {
+                                // Only convert to DOUBLE when the mix involves FLOAT or DOUBLE (never pure INT/LONG).
+                                fieldIdsWithMixedNumericSorts.add(i);
+                            } else {
+                                throw new IllegalArgumentException(
+                                    "Can't sort on field ["
+                                        + curSortFields[i].getField()
+                                        + "]; the field has incompatible sort types: ["
+                                        + firstTypes[i]
+                                        + "] and ["
+                                        + curType
+                                        + "] across shards!"
+                                );
+                            }
                     }
                 }
             }
@@ -105,6 +107,12 @@ public final class SortFieldValidation {
         // Remove fields from INT/LONG mixing if they also need DOUBLE conversion
         fieldIdsWithMixedIntAndLongSorts.removeAll(fieldIdsWithMixedNumericSorts);
         if (fieldIdsWithMixedIntAndLongSorts.isEmpty() == false) {
+            // Ensure INT/LONG-only fields are rewritten to LONG, never to DOUBLE
+            for (int fieldIdx : fieldIdsWithMixedIntAndLongSorts) {
+                SortField.Type type = firstTypes[fieldIdx];
+                assert type == SortField.Type.INT || type == SortField.Type.LONG
+                    : "INT/LONG mix must be rewritten to LONG, not DOUBLE; field " + fieldIdx + " had type " + type;
+            }
             sort = rewriteSortAndResultsToLong(sort, results, fieldIdsWithMixedIntAndLongSorts);
         }
         if (fieldIdsWithMixedNumericSorts.isEmpty() == false) {
@@ -116,6 +124,14 @@ public final class SortFieldValidation {
     private static boolean mixIntAndLong(SortField.Type firstType, SortField.Type currentType) {
         return (firstType == SortField.Type.INT && currentType == SortField.Type.LONG)
             || (firstType == SortField.Type.LONG && currentType == SortField.Type.INT);
+    }
+
+    /**
+     * True when at least one type is FLOAT or DOUBLE. Used to ensure we only add to the
+     * DOUBLE-rewrite set when the mix involves floating point, never for pure INT/LONG.
+     */
+    private static boolean involvesFloatingPoint(SortField.Type a, SortField.Type b) {
+        return (a == SortField.Type.FLOAT || a == SortField.Type.DOUBLE) || (b == SortField.Type.FLOAT || b == SortField.Type.DOUBLE);
     }
 
     /**
@@ -184,10 +200,7 @@ public final class SortFieldValidation {
     }
 
     private static boolean isNumericType(SortField.Type type) {
-        return type == SortField.Type.INT
-            || type == SortField.Type.LONG
-            || type == SortField.Type.FLOAT
-            || type == SortField.Type.DOUBLE;
+        return type == SortField.Type.INT || type == SortField.Type.LONG || type == SortField.Type.FLOAT || type == SortField.Type.DOUBLE;
     }
 
     private static SortField.Type getType(SortField sortField) {

@@ -19,9 +19,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.search.sort.SortFieldValidation;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -181,7 +181,13 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             do {
                 position = tracker[shardIndex]++;
             } while (topDocsForShard.scoreDocs[position] != scoreDoc);
-            hits[i] = aggregations.get(shardIndex).searchHits.getAt(position);
+            SearchHit hit = aggregations.get(shardIndex).searchHits.getAt(position);
+            if (scoreDoc instanceof FieldDoc fieldDoc && fieldDoc.fields != null && fieldDoc.fields.length > 0) {
+                DocValueFormat[] formats = new DocValueFormat[fieldDoc.fields.length];
+                Arrays.fill(formats, DocValueFormat.RAW);
+                hit.sortValues(fieldDoc.fields, formats);
+            }
+            hits[i] = hit;
             assert hits[i].isPooled() == false;
         }
         return SearchHits.unpooled(hits, reducedTopDocs.totalHits, maxScore);

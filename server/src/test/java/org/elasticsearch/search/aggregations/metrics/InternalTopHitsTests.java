@@ -63,6 +63,7 @@ import static java.util.stream.Collectors.toList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotNull;
 import static org.mockito.Mockito.mock;
 
@@ -298,12 +299,15 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         // Each shard has size=1, so merged result should have at least 1 hit (the top one)
         assertThat("Should have at least one merged result", reduced.getHits().getHits().length, greaterThanOrEqualTo(1));
 
-        // Test INT/LONG mixing - should convert to LONG and merge successfully
+        // Test INT/LONG mixing - should convert to LONG (not DOUBLE) and merge successfully
         InternalTopHits intShard = createTopHitsWithSortType("test", SortField.Type.INT, 1, 0);
         InternalTopHits longShard2 = createTopHitsWithSortType("test", SortField.Type.LONG, 2L, 1);
         InternalTopHits reduced2 = (InternalTopHits) InternalAggregationTestCase.reduce(List.of(intShard, longShard2), reduceContext);
         assertNotNull("Reduced result should not be null", reduced2);
         assertThat("Should have at least one merged result", reduced2.getHits().getHits().length, greaterThanOrEqualTo(1));
+        // Ensure INT/LONG mix was rewritten to LONG, not DOUBLE
+        Object sortValue = reduced2.getHits().getHits()[0].getSortValues()[0];
+        assertThat("Sort value after INT/LONG reduce should be Long, not Double", sortValue, instanceOf(Long.class));
 
         // Test incompatible types - should throw IllegalArgumentException with clear error message
         InternalTopHits stringShard = createTopHitsWithSortType("test", SortField.Type.STRING, new BytesRef("a"), 0);

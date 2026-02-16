@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
@@ -77,6 +78,8 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
             } finally {
                 scalar.teardown();
                 vectorized.teardown();
+                IOUtils.rm(scalar.tempDir);
+                IOUtils.rm(vectorized.tempDir);
             }
         }
     }
@@ -111,6 +114,8 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
             } finally {
                 scalar.teardown();
                 vectorized.teardown();
+                IOUtils.rm(scalar.tempDir);
+                IOUtils.rm(vectorized.tempDir);
             }
         }
     }

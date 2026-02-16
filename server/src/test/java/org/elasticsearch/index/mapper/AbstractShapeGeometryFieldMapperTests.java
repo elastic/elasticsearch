@@ -131,7 +131,7 @@ public class AbstractShapeGeometryFieldMapperTests extends ESTestCase {
             try (var iw = new IndexWriter(directory, new IndexWriterConfig(null /* analyzer */))) {
                 for (Geometry geometry : geometries) {
                     var shape = new BinaryShapeDocValuesField("field", encoder);
-                    shape.add(indexerFactory.apply("field").indexShape(geometry), geometry);
+                    shape.add(indexerFactory.apply("field").indexShape(geometry), geometry, geometry);
                     var doc = new Document();
                     doc.add(shape);
                     iw.addDocument(doc);

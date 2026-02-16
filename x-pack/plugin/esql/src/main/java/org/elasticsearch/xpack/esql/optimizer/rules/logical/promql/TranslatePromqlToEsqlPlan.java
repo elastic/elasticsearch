@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -41,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionReg
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -217,9 +219,13 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     private TranslationResult translateFunctionCall(PromqlFunctionCall functionCall, LogicalPlan currentPlan, TranslationContext ctx) {
         TranslationResult childResult = translateNode(functionCall.child(), currentPlan, ctx);
 
-        Expression window = (functionCall.child() instanceof RangeSelector rangeSelector)
-            ? rangeSelector.range()
-            : AggregateFunction.NO_WINDOW;
+        Expression window = AggregateFunction.NO_WINDOW;
+        if (functionCall.child() instanceof RangeSelector rangeSelector) {
+            window = rangeSelector.range();
+            if (isImplicitRangePlaceholder(window)) {
+                window = ctx.promqlCommand().step();
+            }
+        }
 
         PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
             ctx.promqlCommand().timestamp(),
@@ -257,6 +263,12 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         }
 
         return new TranslationResult(childResult.plan(), function);
+    }
+
+    private static boolean isImplicitRangePlaceholder(Expression range) {
+        return range.foldable()
+               && range.fold(FoldContext.small()) instanceof Duration duration
+               && duration.equals(PromqlLogicalPlanBuilder.IMPLICIT_RANGE_PLACEHOLDER);
     }
 
     /**

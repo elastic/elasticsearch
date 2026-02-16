@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -213,6 +214,16 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // Verify window is 10 minutes
         var sum = tsAggregate.aggregates().getFirst().collect(Sum.class).getFirst();
         assertThat(sum.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+    }
+
+    public void testImplicitRangeSelectorUsesStepWindow() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=5m rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
     }
 
     public void testStartEndStep() {

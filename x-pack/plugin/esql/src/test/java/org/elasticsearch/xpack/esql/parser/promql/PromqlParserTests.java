@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser.promql;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
+import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryArithmetic;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
@@ -347,8 +349,15 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("expected type instant_vector in call to function [avg], got range_vector"));
     }
 
-    public void testRangeVectorExpected() {
-        ParsingException e = assertThrows(ParsingException.class, () -> parser.parseQuery("PROMQL index=test step=5m rate(foo)"));
+    public void testRangeVectorExpectedSupportsInstantSelector() {
+        PromqlCommand promql = parse("PROMQL index=test step=5m rate(foo)");
+        WithinSeriesAggregate rate = as(promql.promqlPlan(), WithinSeriesAggregate.class);
+        RangeSelector range = as(rate.child(), RangeSelector.class);
+        assertThat(range.range().fold(FoldContext.small()), equalTo(Duration.ofMillis(-1)));
+    }
+
+    public void testRangeVectorExpectedStillRejectsNonSelectorInstantVectors() {
+        ParsingException e = assertThrows(ParsingException.class, () -> parser.parseQuery("PROMQL index=test step=5m rate(avg(foo))"));
         assertThat(e.getMessage(), containsString("expected type range_vector in call to function [rate], got instant_vector"));
     }
 

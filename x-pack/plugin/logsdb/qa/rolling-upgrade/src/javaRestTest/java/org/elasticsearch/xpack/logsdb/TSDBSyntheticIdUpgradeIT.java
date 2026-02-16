@@ -32,7 +32,7 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
     private static final int DOC_COUNT = 10;
 
     public void testRollingUpgrade() throws IOException {
-        int numNodes = cluster.getNumNodes();
+        int numNodes = getCluster().getNumNodes();
 
         if (oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID)) {
             // Should be able to create synthetic id index throughout the rolling upgrade

@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.EnumSet;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -36,8 +38,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 
 /**
@@ -69,12 +71,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         var commonServiceSettings = extractMixedbreadCommonServiceSettings(map, context, validationException);
 
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var encodingFormat = extractOptionalString(
-            map,
-            MixedbreadUtils.ENCODING_FORMAT_FIELD,
-            ModelConfigurations.SERVICE_SETTINGS,
-            validationException
-        );
+        var encodingFormat = parseEmbeddingType(map, context, validationException).toRequestString();
 
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var maxInputTokens = extractOptionalPositiveInteger(
@@ -116,6 +113,69 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
             commonServiceSettings.rateLimitSettings(),
             dimensionsSetByUser
         );
+    }
+
+    private static MixedbreadEmbeddingType parseEmbeddingType(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
+        return switch (context) {
+            case REQUEST -> Objects.requireNonNullElse(
+                extractOptionalEnum(
+                    map,
+                    ServiceFields.EMBEDDING_TYPE,
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    MixedbreadEmbeddingType::fromString,
+                    EnumSet.allOf(MixedbreadEmbeddingType.class),
+                    validationException
+                ),
+                MixedbreadEmbeddingType.FLOAT
+            );
+            case PERSISTENT -> {
+                var embeddingType = ServiceUtils.extractOptionalString(
+                    map,
+                    ServiceFields.EMBEDDING_TYPE,
+                    ModelConfigurations.SERVICE_SETTINGS,
+                    validationException
+                );
+                yield fromMixedbreadOrDenseVectorEnumValues(embeddingType, validationException);
+            }
+
+        };
+    }
+
+    /**
+     * Parse either and convert to a MixedbreadEmbeddingType
+     */
+    private static MixedbreadEmbeddingType fromMixedbreadOrDenseVectorEnumValues(
+        String enumString,
+        ValidationException validationException
+    ) {
+        if (enumString == null) {
+            return MixedbreadEmbeddingType.FLOAT;
+        }
+
+        try {
+            return MixedbreadEmbeddingType.fromString(enumString);
+        } catch (IllegalArgumentException ae) {
+            try {
+                return MixedbreadEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.fromString(enumString));
+            } catch (IllegalArgumentException iae) {
+                var validValuesAsStrings = MixedbreadEmbeddingType.SUPPORTED_ELEMENT_TYPES.stream()
+                    .map(value -> value.toString().toLowerCase(Locale.ROOT))
+                    .toArray(String[]::new);
+                validationException.addValidationError(
+                    ServiceUtils.invalidValue(
+                        ServiceFields.EMBEDDING_TYPE,
+                        ModelConfigurations.SERVICE_SETTINGS,
+                        enumString,
+                        validValuesAsStrings
+                    )
+                );
+                return null;
+            }
+        }
     }
 
     /**

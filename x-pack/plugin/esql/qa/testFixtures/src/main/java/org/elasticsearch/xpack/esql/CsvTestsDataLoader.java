@@ -921,7 +921,7 @@ public class CsvTestsDataLoader {
         } catch (ResponseException e) {
             int code = e.getResponse().getStatusLine().getStatusCode();
             // Different versions of Elasticsearch return different codes when views are not supported
-            if (code == 400 || code == 500 || code == 405) {
+            if (code == 410 || code == 400 || code == 500 || code == 405) {
                 return false;
             }
             throw e;
@@ -936,7 +936,7 @@ public class CsvTestsDataLoader {
             logger.info("View delete error: {}", e.getMessage());
             int code = e.getResponse().getStatusLine().getStatusCode();
             // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500
-            if (code != 404 && code != 400 && code != 500) {
+            if (code != 404 && code != 400 && code != 410 && code != 500) {
                 throw e;
             }
         }

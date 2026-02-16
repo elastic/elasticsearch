@@ -455,6 +455,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/TS Command grouping on text field}
   issue: https://github.com/elastic/elasticsearch/issues/142544
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:subquery.SubqueryInFromWithRerankInSubquery}
+  issue: https://github.com/elastic/elasticsearch/issues/142552
 
 # Examples:
 #

@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -31,10 +32,9 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
     private static final int DOC_COUNT = 10;
 
     public void testRollingUpgrade() throws IOException {
-        IndexVersion oldClusterIndexVersion = getClusterIndexVersion();
         int numNodes = cluster.getNumNodes();
 
-        if (hasSupportForSyntheticId(oldClusterIndexVersion)) {
+        if (oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID)) {
             // Should be able to create synthetic id index throughout the rolling upgrade
             for (int i = 0; i < numNodes; i++) {
                 assertWriteIndex(indexName(i));
@@ -48,7 +48,8 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
                 assertIndexRead(indexName(j));
             }
         } else {
-            // Cluster support synthetic id index after all nodes have been upgraded, not before
+            // Cluster supports synthetic id index after all nodes have been upgraded, not before
+            IndexVersion oldClusterIndexVersion = getClusterIndexVersion();
             for (int i = 0; i < numNodes; i++) {
                 assertNoWriteIndex(indexName(i), oldClusterIndexVersion);
                 upgradeNode(i);
@@ -162,10 +163,6 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
             }
             """;
         return createIndex(indexName, settings, mapping);
-    }
-
-    private static boolean hasSupportForSyntheticId(IndexVersion indexVersion) {
-        return indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
     }
 
     private static String indexName(int i) {

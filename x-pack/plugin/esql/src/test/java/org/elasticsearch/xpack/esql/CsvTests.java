@@ -373,6 +373,10 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle views with branching",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.capabilityName())
             );
+            assumeFalseLogging(
+                "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
+                testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(
@@ -748,6 +752,7 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
+            new PreAnalyzer(),
             functionRegistry,
             mapper,
             TEST_VERIFIER,
@@ -888,7 +893,8 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
-            physicalOperationProviders
+            physicalOperationProviders,
+            null  // OperatorFactoryRegistry - not needed for CSV tests
         );
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());

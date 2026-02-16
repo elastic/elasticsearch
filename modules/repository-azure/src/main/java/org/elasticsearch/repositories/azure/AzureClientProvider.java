@@ -51,6 +51,7 @@ import org.elasticsearch.transport.netty4.NettyAllocator;
 import java.net.URL;
 import java.time.Duration;
 import java.util.Optional;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
@@ -257,8 +258,15 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     protected void doStop() {
         closed = true;
         connectionProvider.dispose();
-        eventLoopGroup.shutdownGracefully();
-        Schedulers.setFactory(STOPPED_FACTORY);
+        try {
+            eventLoopGroup.shutdownGracefully().get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            logger.warn("Interrupted while shutting down the event loop group", e);
+        } catch (ExecutionException e) {
+            logger.warn("Error shutting down the event loop group", e);
+        }
+        Schedulers.resetFactory();
     }
 
     @Override
@@ -418,24 +426,4 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         void requestCompleted(OperationPurpose purpose, HttpMethod method, URL url, RequestMetrics metrics);
     }
-
-    /**
-     * A factory that doesn't allow the creation of any more Schedulers
-     */
-    private static final Schedulers.Factory STOPPED_FACTORY = new Schedulers.Factory() {
-        @Override
-        public Scheduler newBoundedElastic(int threadCap, int queuedTaskCap, ThreadFactory threadFactory, int ttlSeconds) {
-            throw new AlreadyClosedException("AzureClientProvider is already closed");
-        }
-
-        @Override
-        public Scheduler newParallel(int parallelism, ThreadFactory threadFactory) {
-            throw new AlreadyClosedException("AzureClientProvider is already closed");
-        }
-
-        @Override
-        public Scheduler newSingle(ThreadFactory threadFactory) {
-            throw new AlreadyClosedException("AzureClientProvider is already closed");
-        }
-    };
 }

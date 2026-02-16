@@ -175,7 +175,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
             threads[i] = new Thread(() -> {
                 try {
                     barrier.await();
-                    Sort sort = switch(randomInt(2)) {
+                    Sort sort = switch (randomInt(2)) {
                         case 0 -> Sort.RELEVANCE;
                         case 1 -> new Sort(SortField.FIELD_DOC, SortField.FIELD_SCORE);
                         case 2 -> new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));

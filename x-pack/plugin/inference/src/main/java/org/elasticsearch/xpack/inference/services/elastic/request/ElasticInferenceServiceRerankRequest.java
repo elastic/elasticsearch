@@ -15,6 +15,7 @@ import org.apache.http.message.BasicHeader;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.elasticsearch.xpack.inference.telemetry.TraceContextHandler;
@@ -38,9 +39,10 @@ public class ElasticInferenceServiceRerankRequest extends ElasticInferenceServic
         Integer topN,
         ElasticInferenceServiceRerankModel model,
         TraceContext traceContext,
-        ElasticInferenceServiceRequestMetadata metadata
+        ElasticInferenceServiceRequestMetadata metadata,
+        CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
-        super(metadata);
+        super(metadata, authApplier);
         this.query = query;
         this.documents = documents;
         this.topN = topN;

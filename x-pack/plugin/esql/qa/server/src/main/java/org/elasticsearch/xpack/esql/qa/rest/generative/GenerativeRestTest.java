@@ -9,13 +9,18 @@ package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
+import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.LookupIdx;
+import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
+import org.elasticsearch.xpack.esql.generator.QueryExecuted;
+import org.elasticsearch.xpack.esql.generator.QueryExecutor;
+import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
-import org.elasticsearch.xpack.esql.qa.rest.generative.command.CommandGenerator;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.Rule;
@@ -25,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -32,8 +38,12 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET_MAP;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_POLICIES;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.availableDatasetsForEs;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_NAME;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_ORIGINAL_TYPES;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_TYPE;
+import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
 
-public abstract class GenerativeRestTest extends ESRestTestCase {
+public abstract class GenerativeRestTest extends ESRestTestCase implements QueryExecutor {
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
@@ -47,25 +57,87 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         "cannot sort on .*",
         "argument of \\[count.*\\] must",
         "Cannot use field \\[.*\\] with unsupported type \\[.*\\]",
-        "Unbounded sort not supported yet",
+        "Unbounded SORT not supported yet",
         "The field names are too complex to process", // field_caps problem
         "must be \\[any type except counter types\\]", // TODO refine the generation of count()
+        "INLINE STATS cannot be used after an explicit or implicit LIMIT command",
+        "sub-plan execution results too large",  // INLINE STATS limitations
 
         // Awaiting fixes for query failure
         "Unknown column \\[<all-fields-projected>\\]", // https://github.com/elastic/elasticsearch/issues/121741,
-        "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/125866
+        // https://github.com/elastic/elasticsearch/issues/125866
+        "Plan \\[ProjectExec\\[\\[<no-fields>.* optimized incorrectly due to missing references",
         "The incoming YAML document exceeds the limit:", // still to investigate, but it seems to be specific to the test framework
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
-        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/131509
+        "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
+        "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
+        "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
+        "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
+        "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
+        "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
+        "unsupported logical plan node \\[Join\\]", // https://github.com/elastic/elasticsearch/issues/141978
+        "Unsupported right plan for lookup join \\[Eval\\]", // https://github.com/elastic/elasticsearch/issues/141870
+        "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
+        "illegal data type \\[datetime\\]", // https://github.com/elastic/elasticsearch/issues/142137
+        "Expected to replace a single StubRelation in the plan, but none found", // https://github.com/elastic/elasticsearch/issues/142219
 
         // Awaiting fixes for correctness
-        "Expecting at most \\[.*\\] columns, got \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/129561
+        "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
+
+        // TS-command tests (acceptable errors)
+        "time-series.*the first aggregation.*is not allowed",
+        "count_star .* can't be used with TS command",
+        "time_series aggregate.* can only be used with the TS command",
+        "implicit time-series aggregation function",
+        "INLINE STATS .* can only be used after STATS when used with TS command",
+        "cannot group by a metric field .* in a time-series aggregation",
+        "@timestamp field of type date or date_nanos",
+        "which was either not present in the source index, or has been dropped or renamed",
+        "second argument of .* must be \\[date_nanos or datetime\\], found value \\[@timestamp\\] type \\[.*\\]",
+        "expected named expression for grouping; got ",
+        "Time-series aggregations require direct use of @timestamp which was not found. If @timestamp was renamed in EVAL, "
+            + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/issues/140607
+
+        // Ts-command errors awaiting fixes
+        "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
     );
 
     public static final Set<Pattern> ALLOWED_ERROR_PATTERNS = ALLOWED_ERRORS.stream()
         .map(x -> ".*" + x + ".*")
         .map(x -> Pattern.compile(x, Pattern.DOTALL))
         .collect(Collectors.toSet());
+
+    /**
+     * Matches "Unknown column [X]" errors, optionally followed by ", did you mean [Y]?".
+     * This error is expected when an unmapped field is used after a schema-fixing command (KEEP, DROP, STATS)
+     * that included a different unmapped field but not this one, making the second one legitimately unknown.
+     * We only allow this error when the unknown column is an unmapped field name, and if a suggestion is present,
+     * the suggested column must also be an unmapped field name.
+     */
+    private static final Pattern UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN = Pattern.compile(
+        ".*Unknown column \\[([^]]+)], did you mean \\[([^]]+)]\\?.*",
+        Pattern.DOTALL
+    );
+    private static final Pattern UNKNOWN_COLUMN_PATTERN = Pattern.compile(".*Unknown column \\[([^]]+)].*", Pattern.DOTALL);
+    /**
+     * Matches "first argument of [X] is [null] so second argument must also be [null] but was [Y]" errors.
+     * This happens when an unmapped field (which resolves to DataType.NULL) is used in a binary operation
+     * with a non-null typed field. See https://github.com/elastic/elasticsearch/issues/142115
+     */
+    private static final Pattern NULL_TYPE_MISMATCH_PATTERN = Pattern.compile(
+        ".*first argument of \\[([^]]+)] is \\[null] so second argument must also be \\[null] but was \\[.*].*",
+        Pattern.DOTALL
+    );
+    /**
+     * Matches type mismatch errors where a function argument has one of the special types that most scalar functions reject.
+     * For example: "must be [any type except counter types, dense_vector, ...], found value [...] type [counter_long]"
+     */
+    private static final Pattern SCALAR_TYPE_MISMATCH_PATTERN = Pattern.compile(
+        ".*found value \\[[^]]+] type \\[(counter_long|counter_double|counter_integer"
+            + "|aggregate_metric_double|dense_vector|tdigest|histogram|exponential_histogram|date_range)].*",
+        Pattern.DOTALL
+    );
+    private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
 
     @Before
     public void setup() throws IOException {
@@ -75,6 +147,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
     }
 
     protected abstract boolean supportsSourceFieldMapping();
+
+    protected boolean requiresTimeSeries() {
+        return false;
+    }
 
     @AfterClass
     public static void wipeTestData() throws IOException {
@@ -101,9 +177,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
                     previousCommands.add(current);
                     final String command = current.commandString();
 
-                    final EsqlQueryGenerator.QueryExecuted result = previousResult == null
-                        ? execute(command, 0, profileLogger)
-                        : execute(previousResult.query() + command, previousResult.depth(), profileLogger);
+                    final QueryExecuted result = previousResult == null
+                        ? execute(command, 0)
+                        : execute(previousResult.query() + command, previousResult.depth());
                     previousResult = result;
 
                     final boolean hasException = result.exception() != null;
@@ -130,25 +206,53 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
                 }
 
                 @Override
-                public List<EsqlQueryGenerator.Column> currentSchema() {
+                public List<Column> currentSchema() {
                     return currentSchema;
                 }
 
+                @Override
+                public void clearCommandHistory() {
+                    previousCommands = new ArrayList<>();
+                    previousResult = null;
+                }
+
                 boolean continueExecuting;
-                List<EsqlQueryGenerator.Column> currentSchema;
-                final List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
-                EsqlQueryGenerator.QueryExecuted previousResult;
+                List<Column> currentSchema;
+                List<CommandGenerator.CommandDescription> previousCommands = new ArrayList<>();
+                QueryExecuted previousResult;
             };
-            EsqlQueryGenerator.generatePipeline(MAX_DEPTH, EsqlQueryGenerator.sourceCommand(), mappingInfo, exec);
+            try {
+                EsqlQueryGenerator.generatePipeline(MAX_DEPTH, sourceCommand(), mappingInfo, exec, requiresTimeSeries(), this);
+            } catch (Exception e) {
+                // query failures are AssertionErrors, if we get here it's an unexpected exception in the query generation
+                boolean knownError = false;
+                for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+                    if (isAllowedError(e.getMessage(), allowedError)) {
+                        knownError = true;
+                        break;
+                    }
+                }
+                if (knownError == false) {
+                    StringBuilder message = new StringBuilder();
+                    message.append("Generative tests, error generating new command \n");
+                    message.append("Previous query: \n");
+                    message.append(exec.previousResult.query());
+                    fail(e, message.toString());
+                }
+            }
         }
+    }
+
+    protected CommandGenerator sourceCommand() {
+        return EsqlQueryGenerator.sourceCommand();
     }
 
     private static CommandGenerator.ValidationResult checkResults(
         List<CommandGenerator.CommandDescription> previousCommands,
         CommandGenerator commandGenerator,
         CommandGenerator.CommandDescription commandDescription,
-        EsqlQueryGenerator.QueryExecuted previousResult,
-        EsqlQueryGenerator.QueryExecuted result
+        QueryExecuted previousResult,
+        QueryExecuted result
     ) {
         CommandGenerator.ValidationResult outputValidation = commandGenerator.validateOutput(
             previousCommands,
@@ -160,68 +264,154 @@ public abstract class GenerativeRestTest extends ESRestTestCase {
         );
         if (outputValidation.success() == false) {
             for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-                if (allowedError.matcher(outputValidation.errorMessage()).matches()) {
+                if (isAllowedError(outputValidation.errorMessage(), allowedError)) {
                     return outputValidation;
                 }
+            }
+            if (isUnmappedFieldError(outputValidation.errorMessage()) || isScalarTypeMismatchError(outputValidation.errorMessage())) {
+                return outputValidation;
             }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
         }
         return outputValidation;
     }
 
-    private void checkException(EsqlQueryGenerator.QueryExecuted query) {
+    private void checkException(QueryExecuted query) {
         for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-            if (allowedError.matcher(query.exception().getMessage()).matches()) {
+            if (isAllowedError(query.exception().getMessage(), allowedError)) {
                 return;
             }
+        }
+        if (isUnmappedFieldError(query.exception().getMessage()) || isScalarTypeMismatchError(query.exception().getMessage())) {
+            return;
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
     }
 
+    /**
+     * Long lines in exceptions can be split across several lines. When a newline is inserted, the end of the current line and the beginning
+     * of the new line are marked with a backslash {@code \}; the new line will also have whitespace before the backslash for aligning.
+     */
+    private static final Pattern ERROR_MESSAGE_LINE_BREAK = Pattern.compile("\\\\\n\\s*\\\\");
+
+    private static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        return allowedPattern.matcher(errorWithoutLineBreaks).matches();
+    }
+
+    /**
+     * Checks if the error is a known unmapped field error. This covers:
+     * <ul>
+     *   <li>"Unknown column [X], did you mean [Y]?" - both X and Y must be unmapped field names</li>
+     *   <li>"Unknown column [X]" (no suggestion) - X must be an unmapped field name</li>
+     *   <li>"first argument of [X] is [null] so second argument must also be [null] but was [Y]" -
+     *       the expression X must contain an unmapped field name (https://github.com/elastic/elasticsearch/issues/142115)</li>
+     *   <li>"Rule execution limit [100] reached" - can happen with complex plans involving "nullify" unmapped fields</li>
+     * </ul>
+     */
+    private static boolean isUnmappedFieldError(String errorMessage) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        // Try the more specific pattern first (with suggestion)
+        Matcher matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String unknownColumn = matcher.group(1);
+            String suggestedColumn = matcher.group(2);
+            return UNMAPPED_NAMES.contains(unknownColumn) && UNMAPPED_NAMES.contains(suggestedColumn);
+        }
+        // Try the simpler pattern (no suggestion)
+        matcher = UNKNOWN_COLUMN_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String unknownColumn = matcher.group(1);
+            return UNMAPPED_NAMES.contains(unknownColumn);
+        }
+        // NULL type mismatch in binary operations involving unmapped fields
+        matcher = NULL_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String expression = matcher.group(1);
+            return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
+        }
+
+        // https://github.com/elastic/elasticsearch/issues/142390
+        if (errorWithoutLineBreaks.contains("Rule execution limit [100] reached")) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Checks if the error is a type mismatch where a function received a field of a special type that most scalar
+     * functions don't support (counter types, aggregate_metric_double, dense_vector, tdigest, histogram, etc.).
+     * These errors are acceptable since the generative tests may compose function calls with fields of these types.
+     */
+    private static boolean isScalarTypeMismatchError(String errorMessage) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        return SCALAR_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks).matches();
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
-    public static EsqlQueryGenerator.QueryExecuted execute(String command, int depth, @Nullable ProfileLogger profileLogger) {
+    public QueryExecuted execute(String query, int depth) {
         try {
             Map<String, Object> json = RestEsqlTestCase.runEsql(
-                new RestEsqlTestCase.RequestObjectBuilder().query(command).build(),
+                new RestEsqlTestCase.RequestObjectBuilder().query(query).build(),
                 new AssertWarnings.AllowedRegexes(List.of(Pattern.compile(".*"))),// we don't care about warnings
                 profileLogger,
                 RestEsqlTestCase.Mode.SYNC
             );
-            List<EsqlQueryGenerator.Column> outputSchema = outputSchema(json);
+            List<Column> outputSchema = outputSchema(json);
             List<List<Object>> values = (List<List<Object>>) json.get("values");
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, outputSchema, values, null);
+            return new QueryExecuted(query, depth, outputSchema, values, null);
         } catch (Exception e) {
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, null, e);
+            return new QueryExecuted(query, depth, null, null, e);
         } catch (AssertionError ae) {
             // this is for ensureNoWarnings()
-            return new EsqlQueryGenerator.QueryExecuted(command, depth, null, null, new RuntimeException(ae.getMessage()));
+            return new QueryExecuted(query, depth, null, null, new RuntimeException(ae.getMessage()));
         }
 
     }
 
     @SuppressWarnings("unchecked")
-    private static List<EsqlQueryGenerator.Column> outputSchema(Map<String, Object> a) {
-        List<Map<String, String>> cols = (List<Map<String, String>>) a.get("columns");
+    private static List<Column> outputSchema(Map<String, Object> a) {
+        List<Map<String, ?>> cols = (List<Map<String, ?>>) a.get("columns");
         if (cols == null) {
             return null;
         }
-        return cols.stream().map(x -> new EsqlQueryGenerator.Column(x.get("name"), x.get("type"))).collect(Collectors.toList());
+        return cols.stream()
+            .map(x -> new Column((String) x.get(COLUMN_NAME), (String) x.get(COLUMN_TYPE), originalTypes(x)))
+            .collect(Collectors.toList());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static List<String> originalTypes(Map<String, ?> x) {
+        List<String> originalTypes = (List<String>) x.get(COLUMN_ORIGINAL_TYPES);
+        if (originalTypes == null) {
+            return List.of();
+        }
+        return originalTypes;
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false).stream()
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false, false, false, false)
+            .stream()
             .filter(x -> x.requiresInferenceEndpoint() == false)
             .map(x -> x.indexName())
             .toList();
     }
 
-    public record LookupIdx(String idxName, String key, String keyType) {}
-
     private List<LookupIdx> lookupIndices() {
         List<LookupIdx> result = new ArrayList<>();
         // we don't have key info from the dataset loader, let's hardcode it for now
-        result.add(new LookupIdx("languages_lookup", "language_code", "integer"));
-        result.add(new LookupIdx("message_types_lookup", "message", "keyword"));
+        result.add(new LookupIdx("languages_lookup", List.of(new LookupIdxColumn("language_code", "integer"))));
+        result.add(new LookupIdx("message_types_lookup", List.of(new LookupIdxColumn("message", "keyword"))));
+        List<LookupIdxColumn> multiColumnJoinableLookupKeys = List.of(
+            new LookupIdxColumn("id_int", "integer"),
+            new LookupIdxColumn("name_str", "keyword"),
+            new LookupIdxColumn("is_active_bool", "boolean"),
+            new LookupIdxColumn("ip_addr", "ip"),
+            new LookupIdxColumn("other1", "keyword"),
+            new LookupIdxColumn("other2", "integer")
+        );
+        result.add(new LookupIdx("multi_column_joinable_lookup", multiColumnJoinableLookupKeys));
         return result;
     }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.googlevertexai.action;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.ChatCompletionInput;
 import org.elasticsearch.xpack.inference.external.http.sender.GenericRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
@@ -18,13 +17,10 @@ import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRerankRequestManager;
-import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiResponseHandler;
-import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiUnifiedChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.googlevertexai.completion.GoogleVertexAiChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUnifiedChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.completion.GoogleVertexAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
-import org.elasticsearch.xpack.inference.services.googlevertexai.response.GoogleVertexAiCompletionResponseEntity;
 
 import java.util.Map;
 import java.util.Objects;
@@ -37,13 +33,6 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
     private final Sender sender;
 
     private final ServiceComponents serviceComponents;
-
-    static final ResponseHandler CHAT_COMPLETION_HANDLER = new GoogleVertexAiResponseHandler(
-        "Google VertexAI completion",
-        GoogleVertexAiCompletionResponseEntity::fromResponse,
-        GoogleVertexAiUnifiedChatCompletionResponseHandler.GoogleVertexAiErrorResponse::fromResponse,
-        true
-    );
 
     static final String USER_ROLE = "user";
 
@@ -73,16 +62,20 @@ public class GoogleVertexAiActionCreator implements GoogleVertexAiActionVisitor 
 
     @Override
     public ExecutableAction create(GoogleVertexAiChatCompletionModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = GoogleVertexAiChatCompletionModel.of(model, taskSettings);
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(COMPLETION_ERROR_PREFIX);
+        GenericRequestManager<ChatCompletionInput> manager = createRequestManager(overriddenModel);
 
-        var manager = new GenericRequestManager<>(
+        return new SingleInputSenderExecutableAction(sender, manager, failedToSendRequestErrorMessage, COMPLETION_ERROR_PREFIX);
+    }
+
+    private GenericRequestManager<ChatCompletionInput> createRequestManager(GoogleVertexAiChatCompletionModel model) {
+        return new GenericRequestManager<>(
             serviceComponents.threadPool(),
             model,
-            CHAT_COMPLETION_HANDLER,
+            model.getServiceSettings().provider().getCompletionResponseHandler(),
             inputs -> new GoogleVertexAiUnifiedChatCompletionRequest(new UnifiedChatInput(inputs, USER_ROLE), model),
             ChatCompletionInput.class
         );
-
-        return new SingleInputSenderExecutableAction(sender, manager, failedToSendRequestErrorMessage, COMPLETION_ERROR_PREFIX);
     }
 }

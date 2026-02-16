@@ -2,7 +2,8 @@
 
 ## `LAST_OVER_TIME` [esql-last_over_time]
 ```{applies_to}
-stack: unavailable
+stack: preview 9.2.0
+serverless: preview
 ```
 
 **Syntax**

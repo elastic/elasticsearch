@@ -13,12 +13,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Foldables;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DataTypeConverter;
+import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
@@ -181,7 +183,8 @@ public class RoundTo extends EsqlScalarFunction {
         ExpressionEvaluator.Factory field = toEvaluator.apply(field());
         field = Cast.cast(source(), field().dataType(), dataType, field);
         List<Object> points = Iterators.toList(Iterators.map(points().iterator(), p -> Foldables.valueOf(toEvaluator.foldCtx(), p)));
-        return build.build(source(), field, points);
+        List<Object> sortedPoints = sortedRoundingPoints(points, dataType); // provide sorted points to the evaluator
+        return build.build(source(), field, sortedPoints);
     }
 
     interface Build {
@@ -195,4 +198,27 @@ public class RoundTo extends EsqlScalarFunction {
         Map.entry(LONG, RoundToLong.BUILD),
         Map.entry(DOUBLE, RoundToDouble.BUILD)
     );
+
+    public static List<Object> sortedRoundingPoints(List<Object> points, DataType dataType) {
+        List<Number> pointsTobeSorted = points.stream().filter(Objects::nonNull).map(p -> (Number) p).toList();
+
+        return switch (dataType) {
+            case INTEGER -> pointsTobeSorted.stream()
+                .mapToInt(Number::intValue)
+                .sorted()
+                .boxed()
+                .collect(java.util.stream.Collectors.toList());
+            case DOUBLE -> pointsTobeSorted.stream()
+                .mapToDouble(Number::doubleValue)
+                .sorted()
+                .boxed()
+                .collect(java.util.stream.Collectors.toList());
+            case LONG, DATETIME, DATE_NANOS -> pointsTobeSorted.stream()
+                .mapToLong(DataTypeConverter::safeToLong)
+                .sorted()
+                .boxed()
+                .collect(java.util.stream.Collectors.toList());
+            default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
+        };
+    }
 }

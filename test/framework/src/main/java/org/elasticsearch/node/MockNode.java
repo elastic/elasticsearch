@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkModule;
@@ -25,7 +26,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.entitlement.bootstrap.TestEntitlementBootstrap;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.ExecutorSelector;
@@ -45,20 +46,26 @@ import org.elasticsearch.search.MockSearchService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockHttpTransport;
+import org.elasticsearch.test.tasks.MockTaskManager;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.test.transport.StubbableTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
 
+import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -74,6 +81,21 @@ import java.util.function.LongSupplier;
 public class MockNode extends Node {
 
     private static class MockServiceProvider extends NodeServiceProvider {
+        @Override
+        TaskManager newTaskManager(
+            PluginsService pluginsService,
+            Settings settings,
+            ThreadPool threadPool,
+            Set<String> taskHeaders,
+            Tracer tracer,
+            String nodeId
+        ) {
+            if (pluginsService.filterPlugins(MockTransportService.TestPlugin.class).findAny().isEmpty()) {
+                return super.newTaskManager(pluginsService, settings, threadPool, taskHeaders, tracer, nodeId);
+            }
+            return MockTaskManager.create(settings, threadPool, taskHeaders, tracer, nodeId);
+        }
+
         @Override
         BigArrays newBigArrays(
             PluginsService pluginsService,
@@ -171,8 +193,10 @@ public class MockNode extends Node {
             Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
             ClusterSettings clusterSettings,
             TaskManager taskManager,
-            Tracer tracer,
-            String nodeId
+            TelemetryProvider telemetryProvider,
+            String nodeId,
+            LinkedProjectConfigService linkedProjectConfigService,
+            ProjectResolver projectResolver
         ) {
 
             // we use the MockTransportService.TestPlugin class as a marker to create a network
@@ -189,19 +213,23 @@ public class MockNode extends Node {
                     localNodeFactory,
                     clusterSettings,
                     taskManager,
-                    tracer,
-                    nodeId
+                    telemetryProvider,
+                    nodeId,
+                    linkedProjectConfigService,
+                    projectResolver
                 );
             } else {
                 return new MockTransportService(
                     settings,
-                    transport,
+                    new StubbableTransport(transport),
                     threadPool,
                     interceptor,
                     localNodeFactory,
                     clusterSettings,
-                    taskManager.getTaskHeaders(),
-                    nodeId
+                    taskManager,
+                    linkedProjectConfigService,
+                    telemetryProvider,
+                    projectResolver
                 );
             }
         }
@@ -210,15 +238,24 @@ public class MockNode extends Node {
         protected ClusterInfoService newClusterInfoService(
             PluginsService pluginsService,
             Settings settings,
+            WriteLoadConstraintSettings writeLoadConstraintSettings,
             ClusterService clusterService,
             ThreadPool threadPool,
             NodeClient client
         ) {
             if (pluginsService.filterPlugins(MockInternalClusterInfoService.TestPlugin.class).findAny().isEmpty()) {
-                return super.newClusterInfoService(pluginsService, settings, clusterService, threadPool, client);
+                return super.newClusterInfoService(
+                    pluginsService,
+                    settings,
+                    writeLoadConstraintSettings,
+                    clusterService,
+                    threadPool,
+                    client
+                );
             } else {
                 final MockInternalClusterInfoService service = new MockInternalClusterInfoService(
                     settings,
+                    writeLoadConstraintSettings,
                     clusterService,
                     threadPool,
                     client
@@ -240,31 +277,37 @@ public class MockNode extends Node {
 
     private final Collection<Class<? extends Plugin>> classpathPlugins;
 
+    // handle for temporarily entitled node paths for this node; these will be removed on close.
+    private final Closeable entitledNodePaths;
+
     public MockNode(final Settings settings, final Collection<Class<? extends Plugin>> classpathPlugins) {
-        this(settings, classpathPlugins, true);
+        this(settings, classpathPlugins, true, () -> {});
     }
 
     public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitledNodePaths
     ) {
-        this(settings, classpathPlugins, null, forbidPrivateIndexSettings);
+        this(settings, classpathPlugins, null, forbidPrivateIndexSettings, entitledNodePaths);
     }
 
     public MockNode(
         final Settings settings,
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final Path configPath,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitledNodePaths
     ) {
-        this(prepareEnvironment(settings, configPath), classpathPlugins, forbidPrivateIndexSettings);
+        this(prepareEnvironment(settings, configPath), classpathPlugins, forbidPrivateIndexSettings, entitledNodePaths);
     }
 
     private MockNode(
         final Environment environment,
         final Collection<Class<? extends Plugin>> classpathPlugins,
-        final boolean forbidPrivateIndexSettings
+        final boolean forbidPrivateIndexSettings,
+        final Closeable entitledNodePaths
     ) {
         super(NodeConstruction.prepareConstruction(environment, null, new MockServiceProvider() {
 
@@ -275,10 +318,10 @@ public class MockNode extends Node {
         }, forbidPrivateIndexSettings));
 
         this.classpathPlugins = classpathPlugins;
+        this.entitledNodePaths = entitledNodePaths;
     }
 
     private static Environment prepareEnvironment(final Settings settings, final Path configPath) {
-        TestEntitlementBootstrap.registerNodeBaseDirs(settings, configPath);
         return InternalSettingsPreparer.prepareEnvironment(
             Settings.builder().put(TransportSettings.PORT.getKey(), ESTestCase.getPortRange()).put(settings).build(),
             Collections.emptyMap(),
@@ -292,8 +335,7 @@ public class MockNode extends Node {
         try {
             return super.awaitClose(timeout, timeUnit);
         } finally {
-            // wipePendingDataDirectories requires entitlement delegation to work due to this using FileSystemUtils ES-10920
-            // TestEntitlementBootstrap.unregisterNodeBaseDirs(settings(), getEnvironment().configDir());
+            IOUtils.closeWhileHandlingException(entitledNodePaths);
         }
     }
 

@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
@@ -177,18 +176,6 @@ public class ResolvedIndices {
             ? Index.EMPTY_ARRAY
             : indexNameExpressionResolver.concreteIndices(projectMetadata, localIndices, startTimeInMillis);
 
-        // prevent using selectors with remote cluster patterns
-        for (final var indicesPerRemoteClusterAlias : remoteClusterIndices.entrySet()) {
-            final String[] indices = indicesPerRemoteClusterAlias.getValue().indices();
-            if (indices != null) {
-                for (final String index : indices) {
-                    if (IndexNameExpressionResolver.hasSelectorSuffix(index)) {
-                        throw new InvalidIndexNameException(index, "Selectors are not yet supported on remote cluster patterns");
-                    }
-                }
-            }
-        }
-
         return new ResolvedIndices(
             remoteClusterIndices,
             localIndices,
@@ -251,6 +238,44 @@ public class ResolvedIndices {
             resolveLocalIndexMetadata(concreteLocalIndices, projectMetadata, false),
             searchContextId
         );
+    }
+
+    /**
+     * Create a new {@link ResolvedIndices} instance from a Map of Projects to {@link ResolvedIndexExpressions}. This is intended to be
+     * used for Cross-Project Search (CPS).
+     *
+     * @param localIndices this value is set as-is in the resulting ResolvedIndices.
+     * @param localIndexMetadata this value is set as-is in the resulting ResolvedIndices.
+     * @param remoteExpressions the map of project names to {@link ResolvedIndexExpressions}. This map is used to create the
+     *                          {@link ResolvedIndices#getRemoteClusterIndices()} for the resulting ResolvedIndices. Each project keyed
+     *                          in the map is guaranteed to have at least one index for the index expression provided by the user.
+     *                          The resulting {@link ResolvedIndices#getRemoteClusterIndices()} will map to the original index expression
+     *                          provided by the user. For example, if the user requested "logs" and "project-1" resolved that to "logs-1",
+     *                          then the result will map "project-1" to "logs". We rely on the remote search request to expand "logs" back
+     *                          to "logs-1".
+     * @param indicesOptions this value is set as-is in the resulting ResolvedIndices.
+     */
+    public static ResolvedIndices resolveWithIndexExpressions(
+        OriginalIndices localIndices,
+        Map<Index, IndexMetadata> localIndexMetadata,
+        Map<String, ResolvedIndexExpressions> remoteExpressions,
+        IndicesOptions indicesOptions
+    ) {
+        Map<String, OriginalIndices> remoteIndices = remoteExpressions.entrySet().stream().collect(HashMap::new, (map, entry) -> {
+            var indices = entry.getValue().expressions().stream().filter(expression -> {
+                var resolvedExpressions = expression.localExpressions();
+                var successfulResolution = resolvedExpressions
+                    .localIndexResolutionResult() == ResolvedIndexExpression.LocalIndexResolutionResult.SUCCESS;
+                // if the expression is a wildcard, it will be successful even if there are no indices, so filter for no indices
+                var hasResolvedIndices = resolvedExpressions.indices().isEmpty() == false;
+                return successfulResolution && hasResolvedIndices;
+            }).map(ResolvedIndexExpression::original).toArray(String[]::new);
+            if (indices.length > 0) {
+                map.put(entry.getKey(), new OriginalIndices(indices, indicesOptions));
+            }
+        }, Map::putAll);
+
+        return new ResolvedIndices(remoteIndices, localIndices, localIndexMetadata);
     }
 
     private static Map<Index, IndexMetadata> resolveLocalIndexMetadata(

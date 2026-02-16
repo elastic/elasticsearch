@@ -10,9 +10,9 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -326,7 +326,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         XFieldComparatorSource comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         Nested nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
+        assertEquals(Queries.ALL_DOCS_INSTANCE, nested.getInnerQuery());
 
         sortBuilder = new ScriptSortBuilder(mockScript(MOCK_SCRIPT_NAME), ScriptSortType.NUMBER).setNestedSort(
             new NestedSortBuilder("path")
@@ -346,7 +346,7 @@ public class ScriptSortBuilderTests extends AbstractSortTestCase<ScriptSortBuild
         comparatorSource = (XFieldComparatorSource) sortField.getComparatorSource();
         nested = comparatorSource.nested();
         assertNotNull(nested);
-        assertEquals(new MatchAllDocsQuery(), nested.getInnerQuery());
+        assertEquals(Queries.ALL_DOCS_INSTANCE, nested.getInnerQuery());
     }
 
     /**

@@ -72,6 +72,7 @@ PUT circles/_doc/1?pipeline=polygonize_circles
 
 GET circles/_doc/1
 ```
+% TEST[continued]
 
 The response from the above index request:
 
@@ -88,6 +89,7 @@ The response from the above index request:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term": 1/"_primary_term" : $body._primary_term/]
 
 
 ## Example: Circle defined in GeoJSON [_example_circle_defined_in_geojson]
@@ -106,6 +108,7 @@ PUT circles/_doc/2?pipeline=polygonize_circles
 
 GET circles/_doc/2
 ```
+% TEST[continued]
 
 The response from the above index request:
 
@@ -134,6 +137,7 @@ The response from the above index request:
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term": 1/"_primary_term" : $body._primary_term/]
 
 
 ## Notes on Accuracy [circle-processor-notes]

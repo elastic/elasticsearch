@@ -52,7 +52,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -68,6 +67,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.ordinal;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
 /**
  * The {@code IN} operator.
@@ -140,6 +140,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -157,6 +160,9 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -236,7 +242,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
             return left == right;
         }
-        if (DataType.isSpatial(left) && DataType.isSpatial(right)) {
+        if (DataType.isSpatialOrGrid(left) && DataType.isSpatialOrGrid(right)) {
             return left == right;
         }
         return DataType.areCompatible(left, right);
@@ -320,6 +326,18 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             return new InMillisNanosEvaluator.Factory(source(), lhs, factories);
         }
         var commonType = commonType();
+
+        // if you reached this point, it means that the types were not compatible, which should have been caught by the type resolution
+        // verification step, so this should never happen in practice. We are throwing an exception in this case to get more information
+        // about the failure, if it does happen.
+        // see also https://github.com/elastic/elasticsearch/issues/141267
+        if (commonType == null) {
+            throw new EsqlIllegalArgumentException(
+                "Cannot compare incompatible types in IN expression: value type ["
+                    + value.dataType().typeName()
+                    + "] is not compatible with list types"
+            );
+        }
         if (commonType.isNumeric()) {
             lhs = Cast.cast(source(), value.dataType(), commonType, toEvaluator.apply(value));
             factories = list.stream()
@@ -339,7 +357,11 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         if (commonType == INTEGER) {
             return new InIntEvaluator.Factory(source(), lhs, factories);
         }
-        if (commonType == LONG || commonType == DATETIME || commonType == DATE_NANOS || commonType == UNSIGNED_LONG) {
+        if (commonType == LONG
+            || commonType == DATETIME
+            || commonType == DATE_NANOS
+            || commonType == UNSIGNED_LONG
+            || DataType.isGeoGrid(commonType)) {
             return new InLongEvaluator.Factory(source(), lhs, factories);
         }
         if (commonType == KEYWORD
@@ -362,7 +384,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
             if (e.dataType() == NULL && value.dataType() != NULL) {
                 continue;
             }
-            if (DataType.isSpatial(commonType)) {
+            if (DataType.isSpatialOrGrid(commonType)) {
                 if (e.dataType() == commonType) {
                     continue;
                 } else {
@@ -491,7 +513,7 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
                         queries.add(query);
                     }
                 } else {
-                    terms.add(valueOf(FoldContext.small() /* TODO remove me */, rhs));
+                    terms.add(literalValueOf(rhs));
                 }
             }
         }

@@ -25,8 +25,8 @@ import org.elasticsearch.xpack.security.authz.RBACEngine;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 
 public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
     private static final Logger logger = LogManager.getLogger(DlsFlsLicenseRequestInterceptor.class);
@@ -46,13 +46,13 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
         AuthorizationInfo authorizationInfo
     ) {
         if (requestInfo.getRequest() instanceof IndicesRequest && false == TransportActionProxy.isProxyAction(requestInfo.getAction())) {
-            final Role role = RBACEngine.maybeGetRBACEngineRole(threadContext.getTransient(AUTHORIZATION_INFO_KEY));
+            final Role role = RBACEngine.maybeGetRBACEngineRole(AUTHORIZATION_INFO_VALUE.get(threadContext));
             // Checking whether role has FLS or DLS first before checking indicesAccessControl for efficiency because indicesAccessControl
             // can contain a long list of indices
             // But if role is null, it means a custom authorization engine is in use and we have to directly go check indicesAccessControl
             if (role == null || role.hasFieldOrDocumentLevelSecurity()) {
                 logger.trace("Role has DLS or FLS. Checking for whether the request touches any indices that have DLS or FLS configured");
-                final IndicesAccessControl indicesAccessControl = threadContext.getTransient(INDICES_PERMISSIONS_KEY);
+                final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
                 if (indicesAccessControl != null) {
                     final XPackLicenseState frozenLicenseState = licenseState.copyCurrentLicenseState();
                     if (logger.isDebugEnabled()) {

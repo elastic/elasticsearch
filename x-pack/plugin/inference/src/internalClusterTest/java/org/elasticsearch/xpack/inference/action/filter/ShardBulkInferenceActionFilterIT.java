@@ -83,15 +83,18 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     @Before
     public void setup() throws Exception {
         modelRegistry = internalCluster().getCurrentMasterNodeInstance(ModelRegistry.class);
-        DenseVectorFieldMapper.ElementType elementType = randomFrom(DenseVectorFieldMapper.ElementType.values());
+        DenseVectorFieldMapper.ElementType elementType = randomValueOtherThan(
+            DenseVectorFieldMapper.ElementType.BFLOAT16,
+            () -> randomFrom(DenseVectorFieldMapper.ElementType.values())
+        );
         // dot product means that we need normalized vectors; it's not worth doing that in this test
         SimilarityMeasure similarity = randomValueOtherThan(
             SimilarityMeasure.DOT_PRODUCT,
             () -> randomFrom(DenseVectorFieldMapperTestUtils.getSupportedSimilarities(elementType))
         );
         int dimensions = DenseVectorFieldMapperTestUtils.randomCompatibleDimensions(elementType, 100);
-        Utils.storeSparseModel(modelRegistry);
-        Utils.storeDenseModel(modelRegistry, dimensions, similarity, elementType);
+        Utils.storeSparseModel("sparse-endpoint", modelRegistry);
+        Utils.storeDenseModel("dense-endpoint", modelRegistry, dimensions, similarity, elementType);
     }
 
     @Override
@@ -122,27 +125,20 @@ public class ShardBulkInferenceActionFilterIT extends ESIntegTestCase {
     }
 
     public void testBulkOperations() throws Exception {
-        prepareCreate(INDEX_NAME).setMapping(
-            String.format(
-                Locale.ROOT,
-                """
-                    {
-                        "properties": {
-                            "sparse_field": {
-                                "type": "semantic_text",
-                                "inference_id": "%s"
-                            },
-                            "dense_field": {
-                                "type": "semantic_text",
-                                "inference_id": "%s"
-                            }
-                        }
+        prepareCreate(INDEX_NAME).setMapping(String.format(Locale.ROOT, """
+            {
+                "properties": {
+                    "sparse_field": {
+                        "type": "semantic_text",
+                        "inference_id": "%s"
+                    },
+                    "dense_field": {
+                        "type": "semantic_text",
+                        "inference_id": "%s"
                     }
-                    """,
-                TestSparseInferenceServiceExtension.TestInferenceService.NAME,
-                TestDenseInferenceServiceExtension.TestInferenceService.NAME
-            )
-        ).get();
+                }
+            }
+            """, "sparse-endpoint", "dense-endpoint")).get();
         assertRandomBulkOperations(INDEX_NAME, isIndexRequest -> {
             Map<String, Object> map = new HashMap<>();
             map.put("sparse_field", isIndexRequest && rarely() ? null : randomSemanticTextInput());

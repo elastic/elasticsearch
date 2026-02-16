@@ -8,8 +8,13 @@
 package org.elasticsearch.xpack.esql.stats;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute.FieldName;
+
+import java.util.Map;
 
 /**
  * Interface for determining information about fields in the index.
@@ -41,12 +46,29 @@ public interface SearchStats {
     boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value);
 
     /**
+     * Do all fields with the matching name support this loader config?
+     */
+    boolean supportsLoaderConfig(FieldName name, BlockLoaderFunctionConfig config, MappedFieldType.FieldExtractPreference preference);
+
+    /**
      * Returns the value for a field if it's a constant (eg. a constant_keyword with only one value for the involved indices).
      * NULL if the field is not a constant.
      */
-    default String constantValue(FieldAttribute.FieldName name) {
+    default String constantValue(FieldName name) {
         return null;
     }
+
+    /**
+     * Returns the mapped field type for the given field name, or null if the field is not found.
+     */
+    default MappedFieldType fieldType(FieldName name) {
+        return null;
+    }
+
+    /**
+     * Returns the target shards and their index metadata.
+     */
+    Map<ShardId, IndexMetadata> targetShards();
 
     /**
      * When there are no search stats available, for example when there are no search contexts, we have static results.
@@ -70,6 +92,15 @@ public interface SearchStats {
 
         @Override
         public boolean hasExactSubfield(FieldName field) {
+            return false;
+        }
+
+        @Override
+        public boolean supportsLoaderConfig(
+            FieldName name,
+            BlockLoaderFunctionConfig config,
+            MappedFieldType.FieldExtractPreference preference
+        ) {
             return false;
         }
 
@@ -106,6 +137,86 @@ public interface SearchStats {
         @Override
         public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
             return false;
+        }
+
+        @Override
+        public Map<ShardId, IndexMetadata> targetShards() {
+            return Map.of();
+        }
+    }
+
+    /**
+     * A default implementat that throws {@link UnsupportedOperationException} on all methods. Implemetors can override only the methods
+     * they <i>know</i> would be called.
+     */
+    abstract class UnsupportedSearchStats implements SearchStats {
+        @Override
+        public boolean exists(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isIndexed(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean hasDocValues(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean hasExactSubfield(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean supportsLoaderConfig(
+            FieldName name,
+            BlockLoaderFunctionConfig config,
+            MappedFieldType.FieldExtractPreference preference
+        ) {
+            return false;
+        }
+
+        @Override
+        public long count() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public long count(FieldName field, BytesRef value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object min(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Object max(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean isSingleValue(FieldName field) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public boolean canUseEqualityOnSyntheticSourceDelegate(FieldName name, String value) {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public Map<ShardId, IndexMetadata> targetShards() {
+            throw new UnsupportedOperationException();
         }
     }
 }

@@ -1,9 +1,12 @@
 * [`MV_APPEND`](../../functions-operators/mv-functions.md#esql-mv_append)
 * [`MV_AVG`](../../functions-operators/mv-functions.md#esql-mv_avg)
 * [`MV_CONCAT`](../../functions-operators/mv-functions.md#esql-mv_concat)
+* [`MV_CONTAINS`](../../functions-operators/mv-functions.md#esql-mv_contains) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`MV_COUNT`](../../functions-operators/mv-functions.md#esql-mv_count)
 * [`MV_DEDUPE`](../../functions-operators/mv-functions.md#esql-mv_dedupe)
 * [`MV_FIRST`](../../functions-operators/mv-functions.md#esql-mv_first)
+* [`MV_INTERSECTION`](../../functions-operators/mv-functions.md#esql-mv_intersection) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
+* [`MV_INTERSECTS`](../../functions-operators/mv-functions.md#esql-mv_intersects) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`MV_LAST`](../../functions-operators/mv-functions.md#esql-mv_last)
 * [`MV_MAX`](../../functions-operators/mv-functions.md#esql-mv_max)
 * [`MV_MEDIAN`](../../functions-operators/mv-functions.md#esql-mv_median)
@@ -14,4 +17,5 @@
 * [`MV_SORT`](../../functions-operators/mv-functions.md#esql-mv_sort)
 * [`MV_SLICE`](../../functions-operators/mv-functions.md#esql-mv_slice)
 * [`MV_SUM`](../../functions-operators/mv-functions.md#esql-mv_sum)
+* [`MV_UNION`](../../functions-operators/mv-functions.md#esql-mv_union) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`MV_ZIP`](../../functions-operators/mv-functions.md#esql-mv_zip)

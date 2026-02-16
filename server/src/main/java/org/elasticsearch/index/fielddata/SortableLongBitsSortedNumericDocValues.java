@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.ScorerAware;
@@ -17,11 +16,11 @@ import org.elasticsearch.common.lucene.ScorerAware;
 import java.io.IOException;
 
 /**
- * {@link SortedNumericDocValues} instance that wraps a {@link SortedNumericDoubleValues}
+ * {@link SortedNumericLongValues} instance that wraps a {@link SortedNumericDoubleValues}
  * and converts the doubles to sortable long bits using
  * {@link NumericUtils#doubleToSortableLong(double)}.
  */
-final class SortableLongBitsSortedNumericDocValues extends AbstractSortedNumericDocValues implements ScorerAware {
+final class SortableLongBitsSortedNumericDocValues extends SortedNumericLongValues implements ScorerAware {
 
     private final SortedNumericDoubleValues values;
 

@@ -22,6 +22,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Arrays;
@@ -52,7 +53,8 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
         ClusterService clusterService,
         BigArrays bigArrays,
         RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        RepositoriesMetrics repositoriesMetrics,
+        SnapshotMetrics snapshotMetrics
     ) {
         return Collections.singletonMap(
             GoogleCloudStorageRepository.TYPE,
@@ -64,7 +66,8 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
                 clusterService,
                 bigArrays,
                 recoverySettings,
-                new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics)
+                new GcsRepositoryStatsCollector(clusterService.threadPool(), metadata, repositoriesMetrics),
+                snapshotMetrics
             )
         );
     }
@@ -90,7 +93,8 @@ public class GoogleCloudStoragePlugin extends Plugin implements RepositoryPlugin
             GoogleCloudStorageClientSettings.TOKEN_URI_SETTING,
             GoogleCloudStorageClientSettings.PROXY_TYPE_SETTING,
             GoogleCloudStorageClientSettings.PROXY_HOST_SETTING,
-            GoogleCloudStorageClientSettings.PROXY_PORT_SETTING
+            GoogleCloudStorageClientSettings.PROXY_PORT_SETTING,
+            GoogleCloudStorageClientSettings.MAX_RETRIES_SETTING
         );
     }
 

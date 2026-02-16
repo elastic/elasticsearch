@@ -22,5 +22,8 @@ stack: preview 9.0.0, ga 9.1.0
 :::{include} ../types/kql.md
 :::
 
+:::{include} ../functionNamedParams/kql.md
+:::
+
 :::{include} ../examples/kql.md
 :::

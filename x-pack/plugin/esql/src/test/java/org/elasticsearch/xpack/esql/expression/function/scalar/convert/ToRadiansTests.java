@@ -68,7 +68,7 @@ public class ToRadiansTests extends AbstractScalarFunctionTestCase {
             List.of()
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static String evaluatorName(String inner, String next) {

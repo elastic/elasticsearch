@@ -21,13 +21,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.rescore.QueryRescorer.QueryRescoreContext;
 import org.elasticsearch.test.ESTestCase;
@@ -160,15 +160,13 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
-                    name,
-                    createDefaultIndexAnalyzers(),
-                    SourceFieldMapper.isSynthetic(idxSettings)
-                );
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
                 return builder.build(MapperBuilderContext.root(false, false)).fieldType();
             }
         };
@@ -227,15 +225,13 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
-                    name,
-                    createDefaultIndexAnalyzers(),
-                    SourceFieldMapper.isSynthetic(idxSettings)
-                );
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
                 return builder.build(MapperBuilderContext.root(false, false)).fieldType();
             }
         };
@@ -350,6 +346,45 @@ public class QueryRescorerBuilderTests extends ESTestCase {
             {
                 "window_size" : 20,
                 "query" : { "rescore_query" : { "match_all" : { } } }\s
+            }
+            """;
+        try (XContentParser parser = createParser(rescoreElement)) {
+            RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage);
+        }
+
+        rescoreElement = """
+            {
+                "window_size" : 20,
+                "script" : { "script" : {"source": "Math.log(_score * 2)"}},\s
+                "query" : { "rescore_query" : { "match_all" : { } } }\s
+            }
+            """;
+        try (XContentParser parser = createParser(rescoreElement)) {
+            Exception e = expectThrows(
+                ParsingException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
+            assertEquals(e.getMessage(), "Can't have more than one rescore type in a [rescore] object");
+        }
+
+        rescoreElement = """
+            {
+                "window_size" : 20,
+                "script" : { "script" : {}}
+            }
+            """;
+        try (XContentParser parser = createParser(rescoreElement)) {
+            Exception e = expectThrows(
+                XContentParseException.class,
+                () -> RescorerBuilder.parseFromXContent(parser, searchUsage::trackRescorerUsage)
+            );
+            assertThat(e.getMessage(), containsString("failed to parse field [script]"));
+        }
+
+        rescoreElement = """
+            {
+                "window_size" : 20,
+                "script" : { "script" : {"source": "Math.log(_score * 2)"}}
             }
             """;
         try (XContentParser parser = createParser(rescoreElement)) {

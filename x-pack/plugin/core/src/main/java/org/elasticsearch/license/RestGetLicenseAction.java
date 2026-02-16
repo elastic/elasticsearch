@@ -7,6 +7,7 @@
 
 package org.elasticsearch.license;
 
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -20,6 +21,7 @@ import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -77,9 +79,10 @@ public class RestGetLicenseAction extends BaseRestHandler {
         final ToXContent.Params params = new ToXContent.DelegatingMapParams(overrideParams, request);
         GetLicenseRequest getLicenseRequest = new GetLicenseRequest(RestUtils.getMasterNodeTimeout(request));
         getLicenseRequest.local(request.paramAsBoolean("local", getLicenseRequest.local()));
-        return channel -> client.admin()
-            .cluster()
-            .execute(GetLicenseAction.INSTANCE, getLicenseRequest, new RestBuilderListener<>(channel) {
+        return channel -> client.threadPool()
+            .executor(ThreadPool.Names.MANAGEMENT)
+            // dispatching to MANAGEMENT here as a workaround for https://github.com/elastic/elasticsearch/issues/97916
+            .execute(ActionRunnable.wrap(new RestBuilderListener<GetLicenseResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(GetLicenseResponse response, XContentBuilder builder) throws Exception {
                     // Default to pretty printing, but allow ?pretty=false to disable
@@ -96,7 +99,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
                     builder.endObject();
                     return new RestResponse(hasLicense ? OK : NOT_FOUND, builder);
                 }
-            });
+            }, responseListener -> client.admin().cluster().execute(GetLicenseAction.INSTANCE, getLicenseRequest, responseListener)));
     }
 
 }

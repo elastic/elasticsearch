@@ -201,7 +201,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
 
-        safeSleep(1200);
+        safeSleep(1500);
 
         verify(client, times(1)).threadPool();
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
@@ -229,7 +229,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
         var updateRequest = new UpdateTrainedModelDeploymentAction.Request("test-deployment");
         updateRequest.setNumberOfAllocations(2);
-        updateRequest.setIsInternal(true);
+        updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.ADAPTIVE_ALLOCATIONS);
         verify(client, times(1)).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any());
         verifyNoMoreInteractions(client, clusterService);
         reset(client, clusterService);
@@ -275,7 +275,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             inferenceAuditor,
             meterRegistry,
             true,
-            ONE_SECOND,
+            2 * ONE_SECOND,
             ATOMIC_SECOND,
             TWO_THOUSAND_MILLISECONDS
         );
@@ -295,7 +295,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
 
-        safeSleep(1200);
+        safeSleep(2500);
 
         verify(client, times(1)).threadPool();
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
@@ -317,13 +317,13 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(client).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), any(), any());
 
-        safeSleep(1000);
+        safeSleep(2000);
 
         verify(client, times(2)).threadPool();
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
         var updateRequest = new UpdateTrainedModelDeploymentAction.Request("test-deployment");
         updateRequest.setNumberOfAllocations(0);
-        updateRequest.setIsInternal(true);
+        updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.ADAPTIVE_ALLOCATIONS);
         verify(client, times(1)).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any());
         verifyNoMoreInteractions(client, clusterService);
 
@@ -418,7 +418,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             return Void.TYPE;
         }).when(client).execute(eq(GetDeploymentStatsAction.INSTANCE), eq(new GetDeploymentStatsAction.Request("test-deployment")), any());
 
-        safeSleep(1200);
+        safeSleep(1500);
 
         verify(client, times(1)).threadPool();
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
@@ -468,7 +468,7 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
         verify(client, times(1)).execute(eq(GetDeploymentStatsAction.INSTANCE), any(), any());
         var updateRequest = new UpdateTrainedModelDeploymentAction.Request("test-deployment");
         updateRequest.setNumberOfAllocations(0);
-        updateRequest.setIsInternal(true);
+        updateRequest.setSource(UpdateTrainedModelDeploymentAction.Request.Source.ADAPTIVE_ALLOCATIONS);
         verify(client, times(1)).execute(eq(UpdateTrainedModelDeploymentAction.INSTANCE), eq(updateRequest), any());
         verifyNoMoreInteractions(client, clusterService);
 
@@ -572,5 +572,4 @@ public class AdaptiveAllocationsScalerServiceTests extends ESTestCase {
             100L
         );
     }
-
 }

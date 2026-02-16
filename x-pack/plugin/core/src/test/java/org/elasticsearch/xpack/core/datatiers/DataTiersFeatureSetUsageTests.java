@@ -23,7 +23,12 @@ public class DataTiersFeatureSetUsageTests extends AbstractWireSerializingTestCa
 
     @Override
     protected DataTiersFeatureSetUsage mutateInstance(DataTiersFeatureSetUsage instance) {
-        return randomValueOtherThan(instance, DataTiersFeatureSetUsageTests::randomUsage);
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> originalTierStats = instance.getTierStats();
+        Map<String, DataTiersFeatureSetUsage.TierSpecificStats> newTierStats = randomValueOtherThan(
+            originalTierStats,
+            DataTiersFeatureSetUsageTests::randomTierStats
+        );
+        return new DataTiersFeatureSetUsage(newTierStats);
     }
 
     @Override
@@ -32,6 +37,10 @@ public class DataTiersFeatureSetUsageTests extends AbstractWireSerializingTestCa
     }
 
     public static DataTiersFeatureSetUsage randomUsage() {
+        return new DataTiersFeatureSetUsage(randomTierStats());
+    }
+
+    private static Map<String, DataTiersFeatureSetUsage.TierSpecificStats> randomTierStats() {
         List<String> tiers = randomSubsetOf(DataTier.ALL_DATA_TIERS);
         Map<String, DataTiersFeatureSetUsage.TierSpecificStats> stats = new HashMap<>();
         tiers.forEach(
@@ -50,6 +59,6 @@ public class DataTiersFeatureSetUsageTests extends AbstractWireSerializingTestCa
                 )
             )
         );
-        return new DataTiersFeatureSetUsage(stats);
+        return stats;
     }
 }

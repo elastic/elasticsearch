@@ -55,7 +55,8 @@ public class LlamaChatCompletionRequest implements Request {
         HttpPost httpPost = new HttpPost(model.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new LlamaChatCompletionRequestEntity(chatInput, model)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new LlamaChatCompletionRequestEntity(chatInput, model.getServiceSettings().modelId()))
+                .getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

@@ -60,6 +60,11 @@ public class ReservedRoleMappingAction implements ReservedProjectStateHandler<Li
     }
 
     @Override
+    public ClusterState remove(ProjectId projectId, TransformState prevState) throws Exception {
+        return transform(projectId, List.of(), prevState).state();
+    }
+
+    @Override
     public List<PutRoleMappingRequest> fromXContent(XContentParser parser) throws IOException {
         List<PutRoleMappingRequest> result = new ArrayList<>();
         Map<String, ?> source = parser.map();

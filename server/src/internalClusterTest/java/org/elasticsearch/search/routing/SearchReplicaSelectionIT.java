@@ -39,7 +39,7 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
             .build();
     }
 
-    public void testNodeSelection() {
+    public void testNodeSelection() throws Exception {
         // We grab a client directly to avoid using a randomizing client that might set a search preference.
         Client client = internalCluster().coordOnlyNodeClient();
 
@@ -76,14 +76,16 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         assertNotNull(nodeStats);
         assertEquals(3, nodeStats.getAdaptiveSelectionStats().getComputedStats().size());
 
-        assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
-            String selectedNodeId = response.getHits().getAt(0).getShard().getNodeId();
-            double selectedRank = nodeStats.getAdaptiveSelectionStats().getRanks().get(selectedNodeId);
+        assertBusy(() -> {
+            assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
+                String selectedNodeId = response.getHits().getAt(0).getShard().getNodeId();
+                double selectedRank = nodeStats.getAdaptiveSelectionStats().getRanks().get(selectedNodeId);
 
-            for (Map.Entry<String, Double> entry : nodeStats.getAdaptiveSelectionStats().getRanks().entrySet()) {
-                double rank = entry.getValue();
-                assertThat(rank, greaterThanOrEqualTo(selectedRank));
-            }
+                for (Map.Entry<String, Double> entry : nodeStats.getAdaptiveSelectionStats().getRanks().entrySet()) {
+                    double rank = entry.getValue();
+                    assertThat(rank, greaterThanOrEqualTo(selectedRank));
+                }
+            });
         });
     }
 }

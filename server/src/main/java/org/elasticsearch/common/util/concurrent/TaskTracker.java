@@ -23,7 +23,10 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Supplier;
+import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.LongAccumulator;
 import java.util.concurrent.atomic.LongAdder;
@@ -33,7 +36,8 @@ import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_QU
 import static org.elasticsearch.threadpool.ThreadPool.THREAD_POOL_METRIC_NAME_UTILIZATION;
 
 class TaskTracker {
-    static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 18;
+    // 20 buckets means the upper bound on the largest bound bucket will be 2^18 ms (~= 4 minutes 20 seconds)
+    static final int QUEUE_LATENCY_HISTOGRAM_BUCKETS = 20;
     private static final int[] LATENCY_PERCENTILES_TO_REPORT = { 50, 90, 99 };
 
     private final int maximumPoolSize;
@@ -50,8 +54,19 @@ class TaskTracker {
     private final UtilizationTracker apmUtilizationTracker = new UtilizationTracker();
     private final UtilizationTracker allocationUtilizationTracker = new UtilizationTracker();
 
+    private final Supplier<? extends BlockingQueue<Runnable>> queueSupplier;
+
     TaskTracker(EsExecutors.TaskTrackingConfig trackingConfig, int maximumPoolSize) {
+        this(trackingConfig, maximumPoolSize, null);
+    }
+
+    TaskTracker(
+        EsExecutors.TaskTrackingConfig trackingConfig,
+        int maximumPoolSize,
+        Supplier<? extends BlockingQueue<Runnable>> queueSupplier
+    ) {
         this.maximumPoolSize = maximumPoolSize;
+        this.queueSupplier = queueSupplier;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.executionTimeEwmaAlpha(), 0);
         this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
@@ -107,6 +122,35 @@ class TaskTracker {
             return 0;
         }
         return maxQueueLatencyMillisSinceLastPoll.getThenReset();
+    }
+
+    /**
+     * Returns the queue latency of the next task to be executed that is still in the task queue. Essentially peeks at the front of the
+     * queue and calculates how long it has been there. Returns zero if there is no queue.
+     */
+    long peekMaxQueueLatencyInQueueMillis() {
+        if (trackMaxQueueLatency == false || queueSupplier == null) {
+            return 0;
+        }
+
+        var queue = queueSupplier.get();
+        assert queue instanceof LinkedTransferQueue || queue instanceof SizeBlockingQueue
+            : "Not the type of queue expected: " + queue.getClass();
+        var linkedTransferOrSizeBlockingQueue = queue instanceof LinkedTransferQueue
+            ? (LinkedTransferQueue) queue
+            : (SizeBlockingQueue) queue;
+
+        var task = linkedTransferOrSizeBlockingQueue.peek();
+        if (task == null) {
+            // There's nothing in the queue right now.
+            return 0;
+        }
+
+        assert task instanceof WrappedRunnable : "Not the type of task expected: " + task.getClass();
+        var wrappedTask = ((WrappedRunnable) task).unwrap();
+        assert wrappedTask instanceof TimedRunnable : "Not the type of task expected: " + task.getClass();
+        var timedTask = (TimedRunnable) wrappedTask;
+        return TimeUnit.NANOSECONDS.toMillis(timedTask.getTimeSinceCreationNanos());
     }
 
     /**

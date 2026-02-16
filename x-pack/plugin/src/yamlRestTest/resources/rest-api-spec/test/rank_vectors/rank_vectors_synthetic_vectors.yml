@@ -6,7 +6,7 @@ setup:
       capabilities:
         - method: GET
           path: /_search
-          capabilities: [ synthetic_vectors_setting ]
+          capabilities: [ exclude_source_vectors_setting ]
   - skip:
       features: "headers"
 
@@ -14,8 +14,6 @@ setup:
       indices.create:
         index: test
         body:
-          settings:
-            index.mapping.synthetic_vectors: true
           mappings:
             properties:
               name:
@@ -156,7 +154,6 @@ setup:
         index: test
         body:
           _source:
-            exclude_vectors: false
             includes: nested.vector
           sort: ["name"]
 

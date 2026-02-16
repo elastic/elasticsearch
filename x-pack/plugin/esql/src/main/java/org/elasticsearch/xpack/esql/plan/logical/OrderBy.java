@@ -10,7 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
-import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
+import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
@@ -19,17 +19,19 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
 public class OrderBy extends UnaryPlan
     implements
         PostAnalysisVerificationAware,
-        PostOptimizationVerificationAware,
+        PostOptimizationPlanVerificationAware,
         TelemetryAware,
         SortAgnostic,
         PipelineBreaker {
@@ -118,7 +120,25 @@ public class OrderBy extends UnaryPlan
     }
 
     @Override
-    public void postOptimizationVerification(Failures failures) {
-        failures.add(fail(this, "Unbounded sort not supported yet [{}] please add a limit", this.sourceText()));
+    public BiConsumer<LogicalPlan, Failures> postOptimizationPlanVerification() {
+        return (p, failures) -> {
+            if (p instanceof InlineJoin inlineJoin) {
+                inlineJoin.left()
+                    .forEachUp(
+                        OrderBy.class,
+                        orderBy -> failures.add(
+                            fail(
+                                inlineJoin,
+                                "INLINE STATS [{}] cannot yet have an unbounded SORT [{}] before it : either move the SORT after it,"
+                                    + " or add a LIMIT before the SORT",
+                                inlineJoin.sourceText(),
+                                orderBy.sourceText()
+                            )
+                        )
+                    );
+            } else if (p instanceof OrderBy) {
+                failures.add(fail(p, "Unbounded SORT not supported yet [{}] please add a LIMIT", p.sourceText()));
+            }
+        };
     }
 }

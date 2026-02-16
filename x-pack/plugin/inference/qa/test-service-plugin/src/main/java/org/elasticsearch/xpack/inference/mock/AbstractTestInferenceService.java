@@ -17,6 +17,7 @@ import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ChunkingStrategy;
 import org.elasticsearch.inference.InferenceService;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
@@ -25,9 +26,9 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.chunking.NoopChunker;
-import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunker;
-import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.NoopChunker;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunker;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,6 +94,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     }
 
     @Override
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return new TestServiceModel(config, secrets);
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     public Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         var serviceSettingsMap = (Map<String, Object>) config.remove(ModelConfigurations.SERVICE_SETTINGS);
@@ -119,31 +125,34 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     @Override
     public void close() throws IOException {}
 
-    protected List<ChunkedInput> chunkInputs(ChunkInferenceInput input) {
-        ChunkingSettings chunkingSettings = input.chunkingSettings();
-        String inputText = input.input();
-        if (chunkingSettings == null) {
-            return List.of(new ChunkedInput(inputText, 0, inputText.length()));
+    protected List<ChunkedInput> chunkInputs(ChunkInferenceInput chunkInput) {
+        ChunkingSettings chunkingSettings = chunkInput.chunkingSettings();
+        InferenceString inferenceString = chunkInput.input().value();
+        String inferenceStringValue = inferenceString.value();
+        if (chunkingSettings == null || inferenceString.isText() == false) {
+            return List.of(new ChunkedInput(inferenceStringValue, 0, inferenceStringValue.length()));
         }
 
         List<ChunkedInput> chunkedInputs = new ArrayList<>();
         if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.NONE) {
-            var offsets = NoopChunker.INSTANCE.chunk(input.input(), chunkingSettings);
+            var offsets = NoopChunker.INSTANCE.chunk(inferenceStringValue, chunkingSettings);
             List<ChunkedInput> ret = new ArrayList<>();
             for (var offset : offsets) {
-                ret.add(new ChunkedInput(inputText.substring(offset.start(), offset.end()), offset.start(), offset.end()));
+                ret.add(new ChunkedInput(inferenceStringValue.substring(offset.start(), offset.end()), offset.start(), offset.end()));
             }
             return ret;
         } else if (chunkingSettings.getChunkingStrategy() == ChunkingStrategy.WORD) {
             WordBoundaryChunker chunker = new WordBoundaryChunker();
             WordBoundaryChunkingSettings wordBoundaryChunkingSettings = (WordBoundaryChunkingSettings) chunkingSettings;
             List<WordBoundaryChunker.ChunkOffset> offsets = chunker.chunk(
-                inputText,
+                inferenceStringValue,
                 wordBoundaryChunkingSettings.maxChunkSize(),
                 wordBoundaryChunkingSettings.overlap()
             );
             for (WordBoundaryChunker.ChunkOffset offset : offsets) {
-                chunkedInputs.add(new ChunkedInput(inputText.substring(offset.start(), offset.end()), offset.start(), offset.end()));
+                chunkedInputs.add(
+                    new ChunkedInput(inferenceStringValue.substring(offset.start(), offset.end()), offset.start(), offset.end())
+                );
             }
 
         } else {
@@ -164,7 +173,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             TaskSettings taskSettings,
             TestSecretSettings secretSettings
         ) {
-            super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+            this(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secretSettings));
+        }
+
+        public TestServiceModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+            super(modelConfigurations, modelSecrets);
         }
 
         @Override
@@ -178,27 +191,29 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         }
     }
 
-    public record TestTaskSettings(Integer temperature) implements TaskSettings {
+    public record TestTaskSettings(Integer temperature, Boolean shouldFailValidation) implements TaskSettings {
 
         static final String NAME = "test_task_settings";
 
         public static TestTaskSettings fromMap(Map<String, Object> map) {
             Integer temperature = (Integer) map.remove("temperature");
-            return new TestTaskSettings(temperature);
+            Boolean shouldFailValidation = (Boolean) map.remove("should_fail_validation");
+            return new TestTaskSettings(temperature, shouldFailValidation);
         }
 
         public TestTaskSettings(StreamInput in) throws IOException {
-            this(in.readOptionalVInt());
+            this(in.readOptionalVInt(), in.readOptionalBoolean());
         }
 
         @Override
         public boolean isEmpty() {
-            return temperature == null;
+            return temperature == null && shouldFailValidation == null;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeOptionalVInt(temperature);
+            out.writeOptionalBoolean(shouldFailValidation);
         }
 
         @Override
@@ -206,6 +221,9 @@ public abstract class AbstractTestInferenceService implements InferenceService {
             builder.startObject();
             if (temperature != null) {
                 builder.field("temperature", temperature);
+            }
+            if (shouldFailValidation != null) {
+                builder.field("should_fail_validation", shouldFailValidation);
             }
             builder.endObject();
             return builder;

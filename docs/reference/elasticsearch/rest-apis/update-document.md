@@ -101,6 +101,7 @@ POST test/_update/1
 
 The following script removes a subfield from an object field:
 
+<!-- 
 ```console
 PUT test/_doc/1?refresh
 {
@@ -109,6 +110,7 @@ PUT test/_doc/1?refresh
   }
 }
 ```
+-->
 
 ```console
 POST test/_update/1
@@ -171,8 +173,7 @@ POST test/_update/1
 If the value of `name` is already `new_name`, the update
 request is ignored and the `result` element in the response returns `noop`:
 
-```console
-
+```js
 {
    "_shards": {
         "total": 0,
@@ -187,6 +188,7 @@ request is ignored and the `result` element in the response returns `noop`:
    "result": "noop"
 }
 ```
+% NOTCONSOLE
 
 You can disable this behavior by setting `"detect_noop": false`:
 

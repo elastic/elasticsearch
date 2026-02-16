@@ -26,7 +26,6 @@ import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycle
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -64,6 +63,7 @@ import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycl
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.transitions.DlmAction;
 import org.elasticsearch.datastreams.options.action.DeleteDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.GetDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.TransportDeleteDataStreamOptionsAction;
@@ -210,6 +210,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 errorStoreInitialisationService.get()
             )
         );
+
+        // Register DLM actions here. Order matters - they will be executed in the order they are listed for a given index.
+        List<DlmAction> dlmActions = List.of();
+
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(
                 settings,
@@ -221,7 +225,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 errorStoreInitialisationService.get(),
                 services.allocationService(),
                 dataStreamLifecycleErrorsPublisher.get(),
-                services.dataStreamGlobalRetentionSettings()
+                services.dataStreamGlobalRetentionSettings(),
+                dlmActions
             )
         );
         dataLifecycleInitialisationService.get().init();
@@ -253,10 +258,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         actions.add(new ActionHandler(DeleteDataStreamOptionsAction.INSTANCE, TransportDeleteDataStreamOptionsAction.class));
         actions.add(new ActionHandler(GetDataStreamSettingsAction.INSTANCE, TransportGetDataStreamSettingsAction.class));
         actions.add(new ActionHandler(UpdateDataStreamSettingsAction.INSTANCE, TransportUpdateDataStreamSettingsAction.class));
-        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
-            actions.add(new ActionHandler(GetDataStreamMappingsAction.INSTANCE, TransportGetDataStreamMappingsAction.class));
-            actions.add(new ActionHandler(UpdateDataStreamMappingsAction.INSTANCE, TransportUpdateDataStreamMappingsAction.class));
-        }
+        actions.add(new ActionHandler(GetDataStreamMappingsAction.INSTANCE, TransportGetDataStreamMappingsAction.class));
+        actions.add(new ActionHandler(UpdateDataStreamMappingsAction.INSTANCE, TransportUpdateDataStreamMappingsAction.class));
         return actions;
     }
 
@@ -294,10 +297,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         handlers.add(new RestDeleteDataStreamOptionsAction());
         handlers.add(new RestGetDataStreamSettingsAction());
         handlers.add(new RestUpdateDataStreamSettingsAction());
-        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
-            handlers.add(new RestGetDataStreamMappingsAction());
-            handlers.add(new RestUpdateDataStreamMappingsAction());
-        }
+        handlers.add(new RestGetDataStreamMappingsAction());
+        handlers.add(new RestUpdateDataStreamMappingsAction());
         return handlers;
     }
 

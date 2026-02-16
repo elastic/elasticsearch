@@ -370,7 +370,7 @@ public class ThreadPoolTests extends ESTestCase {
         assertThat(getMaxSnapshotThreadPoolSize(allocatedProcessors, ByteSizeValue.ofGb(4)), equalTo(10));
     }
 
-    public void testWriteThreadPoolUsesTaskExecutionTimeTrackingEsThreadPoolExecutor() {
+    public void testWriteThreadPoolUsesTaskTimeTrackingEsThreadPoolExecutor() {
         final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
         try {
             assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(TaskTimeTrackingEsThreadPoolExecutor.class));
@@ -531,10 +531,12 @@ public class ThreadPoolTests extends ESTestCase {
             });
             safeAwait(barrier);
             safeGet(future);
-            final long maxDurationNanos = System.nanoTime() - beforeStartNanos;
-
-            // Wait for TaskExecutionTimeTrackingEsThreadPoolExecutor#afterExecute to run
+            // Wait for TaskTimeTrackingEsThreadPoolExecutor#afterExecute to run
             assertBusy(() -> assertThat(executor.getTotalTaskExecutionTime(), greaterThan(0L)));
+            // When you call submit, the TimedRunnable wraps the FutureTask, so safeGet can return before the duration of
+            // the task is calculated. Waiting for totalTaskExecutionTime to be updated ensures maxDurationNanos is greater
+            // than the actual duration.
+            final long maxDurationNanos = System.nanoTime() - beforeStartNanos;
 
             final long beforeMetricsCollectedNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
@@ -635,7 +637,7 @@ public class ThreadPoolTests extends ESTestCase {
             // Let all threads complete
             safeAwait(barrier);
             futures.forEach(ESTestCase::safeGet);
-            // Wait for TaskExecutionTimeTrackingEsThreadPoolExecutor#afterExecute to complete
+            // Wait for TaskTimeTrackingEsThreadPoolExecutor#afterExecute to complete
             assertBusy(() -> assertThat(executor.getActiveCount(), equalTo(0)));
 
             meterRegistry.getRecorder().collect();

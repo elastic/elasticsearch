@@ -12,17 +12,24 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.RandomBlock;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
 import org.elasticsearch.core.TimeValue;
 import org.hamcrest.Matcher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.LongStream;
 
 import static org.elasticsearch.compute.test.RandomBlock.randomElementType;
+import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.test.MapMatcher.matchesMap;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class LimitOperatorTests extends OperatorTestCase {
@@ -182,7 +189,7 @@ public class LimitOperatorTests extends OperatorTestCase {
                 )
             );
         }
-        runDriver(drivers);
+        new TestDriverRunner().run(drivers);
         assertThat(receivedRows.get(), equalTo(limit));
     }
 
@@ -191,5 +198,21 @@ public class LimitOperatorTests extends OperatorTestCase {
             return blockFactory.newConstantNullBlock(size);
         }
         return RandomBlock.randomBlock(blockFactory, randomElementType(), size, false, 1, 1, 0, 0).block();
+    }
+
+    @Override
+    protected final void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
+        var emittedRows = output.stream().mapToInt(Page::getPositionCount).sum();
+        var inputRows = input.stream().mapToInt(Page::getPositionCount).sum();
+
+        // Once LimitOperator has received enough pages to fill the limit, it no longer receives
+        // input pages which is why we cannot just check that rows_received is the total number of input pages rows.
+        var mapMatcher = matchesMap().entry("rows_received", allOf(greaterThanOrEqualTo(emittedRows), lessThanOrEqualTo(inputRows)))
+            .entry("pages_processed", output.size())
+            .entry("rows_emitted", emittedRows)
+            .entry("limit", 100)
+            .entry("limit_remaining", 100 - emittedRows);
+
+        assertMap(map, mapMatcher);
     }
 }

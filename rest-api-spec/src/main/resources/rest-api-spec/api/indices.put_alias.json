@@ -1,66 +1,72 @@
 {
-  "indices.put_alias":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/indices-aliases.html",
-      "description":"Creates or updates an alias."
+  "indices.put_alias": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-put-alias",
+      "description": "Create or update an alias"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/{index}/_alias/{name}",
-          "methods":[
+          "path": "/{index}/_alias/{name}",
+          "methods": [
             "PUT",
             "POST"
           ],
-          "parts":{
-            "index":{
-              "type":"list",
-              "description":"A comma-separated list of index names the alias should point to (supports wildcards); use `_all` to perform the operation on all indices."
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names the alias should point to (supports wildcards); use `_all` to perform the operation on all indices."
             },
-            "name":{
-              "type":"string",
-              "description":"The name of the alias to be created or updated"
+            "name": {
+              "type": "string",
+              "description": "The name of the alias to be created or updated"
             }
           }
         },
         {
-          "path":"/{index}/_aliases/{name}",
-          "methods":[
+          "path": "/{index}/_aliases/{name}",
+          "methods": [
             "PUT",
             "POST"
           ],
-          "parts":{
-            "index":{
-              "type":"list",
-              "description":"A comma-separated list of index names the alias should point to (supports wildcards); use `_all` to perform the operation on all indices."
+          "parts": {
+            "index": {
+              "type": "list",
+              "description": "A comma-separated list of index names the alias should point to (supports wildcards); use `_all` to perform the operation on all indices."
             },
-            "name":{
-              "type":"string",
-              "description":"The name of the alias to be created or updated"
+            "name": {
+              "type": "string",
+              "description": "The name of the alias to be created or updated"
             }
           }
         }
       ]
     },
-    "params":{
-      "timeout":{
-        "type":"time",
-        "description":"Explicit timestamp for the document"
+    "params": {
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit timestamp for the document"
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Specify timeout for connection to master"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Specify timeout for connection to master"
       }
     },
-    "body":{
-      "description":"The settings for the alias, such as `routing` or `filter`",
-      "required":false
+    "body": {
+      "description": "The settings for the alias, such as `routing` or `filter`",
+      "required": false
     }
   }
 }

@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.test;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.util.Throwables;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
@@ -34,6 +33,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -42,6 +42,8 @@ import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
@@ -115,6 +117,23 @@ public class ClusterServiceUtils {
             DiscoveryNodeUtils.create("node", "node"),
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            projectId
+        );
+    }
+
+    public static ClusterService createClusterService(
+        ThreadPool threadPool,
+        ProjectId projectId,
+        Settings nodeSettings,
+        Set<Setting<?>> additionalClusterSettings
+    ) {
+        Set<Setting<?>> settingSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingSet.addAll(additionalClusterSettings);
+        return createClusterService(
+            threadPool,
+            DiscoveryNodeUtils.create("node", "node"),
+            nodeSettings,
+            new ClusterSettings(nodeSettings, settingSet),
             projectId
         );
     }
@@ -239,10 +258,8 @@ public class ClusterServiceUtils {
         clusterStatePublicationEvent.setMasterApplyElapsedMillis(0L);
     }
 
-    public static void awaitClusterState(Logger logger, Predicate<ClusterState> statePredicate, ClusterService clusterService)
-        throws Exception {
-        final var listener = addTemporaryStateListener(clusterService, statePredicate, ESTestCase.TEST_REQUEST_TIMEOUT);
-        ESTestCase.safeAwait(listener, ESTestCase.TEST_REQUEST_TIMEOUT);
+    public static void awaitClusterState(Predicate<ClusterState> statePredicate, ClusterService clusterService) {
+        ESTestCase.safeAwait(addTemporaryStateListener(clusterService, statePredicate, TimeValue.THIRTY_SECONDS), TimeValue.THIRTY_SECONDS);
     }
 
     public static void awaitNoPendingTasks(ClusterService clusterService) {

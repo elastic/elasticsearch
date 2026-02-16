@@ -10,10 +10,9 @@ package org.elasticsearch.transport;
 
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.MockBytesRefRecycler;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
@@ -56,21 +55,15 @@ public class TransportLoggerTests extends ESTestCase {
             readPattern
         );
 
-        try (var mockLog = MockLog.capture(TransportLogger.class)) {
+        try (
+            var mockLog = MockLog.capture(TransportLogger.class);
+            var recycler = new MockBytesRefRecycler();
+            var bytesStreamOutput = new RecyclerBytesStreamOutput(recycler)
+        ) {
             mockLog.addExpectation(writeExpectation);
             mockLog.addExpectation(readExpectation);
-            BytesReference bytesReference = buildRequest();
-            TransportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
-            TransportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
-            mockLog.assertAllExpectationsMatched();
-        }
-    }
-
-    private BytesReference buildRequest() throws IOException {
-        BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
-        Compression.Scheme compress = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null);
-        try (RecyclerBytesStreamOutput bytesStreamOutput = new RecyclerBytesStreamOutput(recycler)) {
-            return OutboundHandler.serialize(
+            final var compress = randomFrom(Compression.Scheme.DEFLATE, Compression.Scheme.LZ4, null);
+            final var bytesReference = OutboundHandler.serialize(
                 OutboundHandler.MessageDirection.REQUEST,
                 "internal:test",
                 randomInt(30),
@@ -79,8 +72,34 @@ public class TransportLoggerTests extends ESTestCase {
                 compress,
                 new EmptyRequest(),
                 new ThreadContext(Settings.EMPTY),
-                bytesStreamOutput
+                bytesStreamOutput,
+                recycler
             );
+            TransportLogger.logInboundMessage(mock(TcpChannel.class), bytesReference.slice(6, bytesReference.length() - 6));
+            TransportLogger.logOutboundMessage(mock(TcpChannel.class), bytesReference);
+            mockLog.assertAllExpectationsMatched();
+        }
+    }
+
+    public void testLoggingHandlerWithExceptionMessage() {
+        final String readPattern = ".*\\[length: \\d+" + ", request id: \\d+" + ", type: request" + ", version: .*" + " READ: \\d+B";
+
+        final MockLog.LoggingExpectation readExpectation = new MockLog.PatternSeenEventExpectation(
+            "spatial stats request",
+            TransportLogger.class.getCanonicalName(),
+            Level.TRACE,
+            readPattern
+        );
+
+        InboundMessage inboundMessage = new InboundMessage(
+            new Header(0, 0, TransportStatus.setRequest((byte) 0), TransportVersion.current()),
+            new ActionNotFoundTransportException("cluster:monitor/xpack/spatial/stats")
+        );
+
+        try (var mockLog = MockLog.capture(TransportLogger.class)) {
+            mockLog.addExpectation(readExpectation);
+            TransportLogger.logInboundMessage(mock(TcpChannel.class), inboundMessage);
+            mockLog.assertAllExpectationsMatched();
         }
     }
 }

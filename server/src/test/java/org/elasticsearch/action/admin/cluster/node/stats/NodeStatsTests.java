@@ -78,6 +78,7 @@ import org.elasticsearch.script.TimeSeries;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.ThreadPoolStats;
 import org.elasticsearch.transport.TransportActionStats;
@@ -129,6 +130,10 @@ public class NodeStatsTests extends ESTestCase {
                     assertEquals(nodeStats.getOs().getMem().getFreePercent(), deserializedNodeStats.getOs().getMem().getFreePercent());
                     assertEquals(nodeStats.getOs().getMem().getUsedPercent(), deserializedNodeStats.getOs().getMem().getUsedPercent());
                     assertEquals(nodeStats.getOs().getCpu().getPercent(), deserializedNodeStats.getOs().getCpu().getPercent());
+                    assertEquals(
+                        nodeStats.getOs().getCpu().getAvailableProcessors(),
+                        deserializedNodeStats.getOs().getCpu().getAvailableProcessors()
+                    );
                     assertEquals(
                         nodeStats.getOs().getCgroup().getCpuAcctControlGroup(),
                         deserializedNodeStats.getOs().getCgroup().getCpuAcctControlGroup()
@@ -468,11 +473,13 @@ public class NodeStatsTests extends ESTestCase {
                     assertNotSame(scriptCacheStats, deserializedScriptCacheStats);
                 }
 
-                RepositoriesStats repoThrottlingStats = deserializedNodeStats.getRepositoriesStats();
-                assertTrue(repoThrottlingStats.getRepositoryThrottlingStats().containsKey("test-repository"));
-                assertEquals(100, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalReadThrottledNanos());
-                assertEquals(200, repoThrottlingStats.getRepositoryThrottlingStats().get("test-repository").totalWriteThrottledNanos());
-
+                RepositoriesStats repoSnapshotStats = deserializedNodeStats.getRepositoriesStats();
+                assertTrue(repoSnapshotStats.getRepositorySnapshotStats().containsKey("test-repository"));
+                RepositoriesStats.SnapshotStats expectedSnapshotStats = nodeStats.getRepositoriesStats()
+                    .getRepositorySnapshotStats()
+                    .get("test-repository");
+                RepositoriesStats.SnapshotStats actualSnapshotStats = repoSnapshotStats.getRepositorySnapshotStats().get("test-repository");
+                assertEquals(XContentTestUtils.convertToMap(expectedSnapshotStats), XContentTestUtils.convertToMap(actualSnapshotStats));
             }
         }
     }
@@ -678,7 +685,7 @@ public class NodeStatsTests extends ESTestCase {
     public static NodeStats createNodeStats() {
         DiscoveryNode node = DiscoveryNodeUtils.builder("test_node")
             .roles(emptySet())
-            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         NodeIndicesStats nodeIndicesStats = null;
         if (frequently()) {
@@ -708,7 +715,7 @@ public class NodeStatsTests extends ESTestCase {
             long swapTotal = randomNonNegativeLong();
             osStats = new OsStats(
                 System.currentTimeMillis(),
-                new OsStats.Cpu(randomShort(), loadAverages),
+                new OsStats.Cpu(randomShort(), loadAverages, randomInt()),
                 new OsStats.Mem(memTotal, randomLongBetween(0, memTotal), randomLongBetween(0, memTotal)),
                 new OsStats.Swap(swapTotal, randomLongBetween(0, swapTotal)),
                 new OsStats.Cgroup(
@@ -1069,7 +1076,20 @@ public class NodeStatsTests extends ESTestCase {
             );
         }
         RepositoriesStats repositoriesStats = new RepositoriesStats(
-            Map.of("test-repository", new RepositoriesStats.ThrottlingStats(100, 200))
+            Map.of(
+                "test-repository",
+                new RepositoriesStats.SnapshotStats(
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong(),
+                    randomNonNegativeLong()
+                )
+            )
         );
         NodeAllocationStats nodeAllocationStats = new NodeAllocationStats(
             randomIntBetween(0, 10000),

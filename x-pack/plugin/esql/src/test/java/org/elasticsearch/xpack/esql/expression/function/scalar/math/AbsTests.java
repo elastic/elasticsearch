@@ -63,7 +63,7 @@ public class AbsTests extends AbstractScalarFunctionTestCase {
                 equalTo(Math.abs(arg))
             );
         }));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 
     public AbsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {

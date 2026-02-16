@@ -15,6 +15,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils;
@@ -52,7 +53,7 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         super(model, serviceSettings);
     }
 
-    // Should only be used directly for testing
+    // Should be used directly only for testing
     GoogleVertexAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -61,13 +62,13 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         GoogleVertexAiRerankTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
-        );
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public GoogleVertexAiRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (GoogleVertexAiRerankServiceSettings) modelConfigurations.getServiceSettings());
         try {
-            this.nonStreamingUri = buildUri(serviceSettings.projectId());
+            this.nonStreamingUri = buildUri(((GoogleVertexAiRerankServiceSettings) modelConfigurations.getServiceSettings()).projectId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -111,8 +112,8 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
     }
 
     @Override
-    public GoogleDiscoveryEngineRateLimitServiceSettings rateLimitServiceSettings() {
-        return (GoogleDiscoveryEngineRateLimitServiceSettings) super.rateLimitServiceSettings();
+    public GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings() {
+        return super.rateLimitServiceSettings();
     }
 
     @Override

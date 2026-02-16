@@ -8,22 +8,27 @@
 package org.elasticsearch.xpack.esql.plan.logical.local;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class CopyingLocalSupplierTests extends LocalSupplierTests {
 
+    private static final TransportVersion ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS = TransportVersion.fromName(
+        "esql_local_relation_with_new_blocks"
+    );
+
     @Override
     protected LocalSupplier createTestInstance() {
-        Block[] blocks = randomList(1, 10, LocalSupplierTests::randomBlock).toArray(Block[]::new);
-        return new CopyingLocalSupplier(blocks);
+        int blockSize = randomInt(1000);
+        Block[] blocks = randomList(1, 10, () -> LocalSupplierTests.randomBlock(blockSize)).toArray(Block[]::new);
+        return new CopyingLocalSupplier(new Page(blocks));
     }
 
     protected void assertOnBWCObject(LocalSupplier testInstance, LocalSupplier bwcDeserializedObject, TransportVersion version) {
         assertNotSame(version.toString(), bwcDeserializedObject, testInstance);
-        if (version.onOrAfter(TransportVersions.ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
+        if (version.supports(ESQL_LOCAL_RELATION_WITH_NEW_BLOCKS)) {
             assertThat(testInstance, equalTo(bwcDeserializedObject));
         } else {
             assertTrue(version.toString(), bwcDeserializedObject instanceof ImmediateLocalSupplier);

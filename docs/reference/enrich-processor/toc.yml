@@ -4,6 +4,7 @@ toc:
   - file: attachment.md
   - file: bytes-processor.md
   - file: ingest-circle-processor.md
+  - file: cef-processor.md
   - file: community-id-processor.md
   - file: convert-processor.md
   - file: csv-processor.md
@@ -32,6 +33,7 @@ toc:
   - file: pipeline-processor.md
   - file: redact-processor.md
   - file: registered-domain-processor.md
+  - file: recover-failure-document-processor.md
   - file: remove-processor.md
   - file: rename-processor.md
   - file: reroute-processor.md

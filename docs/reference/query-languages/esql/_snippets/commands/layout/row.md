@@ -1,4 +1,7 @@
-## `ROW` [esql-row]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `ROW` source command produces a row with one or more columns with values
 that you specify. This can be useful for testing.

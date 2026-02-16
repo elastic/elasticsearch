@@ -33,7 +33,7 @@ public class LicenseClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {
-        return ESClientYamlSuiteTestCase.createParameters(new String[] { "license" });
+        return ESClientYamlSuiteTestCase.createParameters("license");
     }
 
     @Override

@@ -32,13 +32,8 @@ public class ToLongErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(
-            typeErrorMessage(
-                false,
-                validPerPosition,
-                signature,
-                (v, p) -> "boolean or counter_integer or counter_long or date_nanos or datetime or numeric or string"
-            )
-        );
+        String expectedTypes =
+            "boolean or counter_integer or counter_long or date_nanos or datetime or geohash or geohex or geotile or numeric or string";
+        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> expectedTypes));
     }
 }

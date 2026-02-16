@@ -77,7 +77,7 @@ public class PowTests extends AbstractScalarFunctionTestCase {
                 )
             )
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

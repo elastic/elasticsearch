@@ -38,6 +38,21 @@ setup:
           }
 
   - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
       indices.create:
         index: test-semantic-text-index
         body:
@@ -46,6 +61,9 @@ setup:
               keyword_field:
                 type: keyword
               inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              another_dense_inference_field:
                 type: semantic_text
                 inference_id: dense-inference-id
 
@@ -60,6 +78,9 @@ setup:
               inference_field:
                 type: semantic_text
                 inference_id: dense-inference-id-2
+              another_dense_inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
 
   - do:
       indices.create:
@@ -94,6 +115,7 @@ setup:
         body:
           keyword_field: "foo"
           inference_field: [ "inference test", "another inference test" ]
+          another_dense_inference_field: "some text"
         refresh: true
 
   - do:
@@ -103,6 +125,7 @@ setup:
         body:
           keyword_field: "bar"
           inference_field: [ "inference test", "another inference test" ]
+          another_dense_inference_field: "some text"
         refresh: true
 
   - do:
@@ -350,7 +373,98 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
 
+---
+"knn query with semantic knn query filter":
+  - requires:
+      cluster_features: "search.semantic_knn_vector_query_filters_rewrite_interception_supported"
+      reason: knn query filters were previously not intercepted
 
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-semantic-text-index-2
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+              filter:
+                knn:
+                  field: another_dense_inference_field
+                  k: 10
+                  num_candidates: 100
+                  query_vector_builder:
+                    text_embedding:
+                      model_text: some
+
+  # We get zero hits because nested queries as filters to nested knn queries are not supported yet.
+  # See https://github.com/elastic/elasticsearch/issues/138184
+  - match: { hits.total.value: 0 }
+
+---
+"knn query with semantic match query filter":
+  - requires:
+      cluster_features: "search.semantic_knn_vector_query_filters_rewrite_interception_supported"
+      reason: knn query filters were previously not intercepted
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-semantic-text-index-2
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+              filter:
+                match:
+                  another_dense_inference_field:
+                    query: some
+
+  # We get zero hits because nested queries as filters to nested knn queries are not supported yet.
+  # See https://github.com/elastic/elasticsearch/issues/138184
+  - match: { hits.total.value: 0 }
+
+---
+"knn query with semantic match query filter within bool query":
+  - requires:
+      cluster_features: "search.semantic_knn_vector_query_filters_rewrite_interception_supported"
+      reason: knn query filters were previously not intercepted
+
+  - do:
+      search:
+        index:
+          - test-semantic-text-index
+          - test-semantic-text-index-2
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+              filter:
+                bool:
+                  filter:
+                    match:
+                      another_dense_inference_field:
+                        query: some
+
+  # We get zero hits because nested queries as filters to nested knn queries are not supported yet.
+  # See https://github.com/elastic/elasticsearch/issues/138184
+  - match: { hits.total.value: 0 }
 
 ---
 "knn query against multiple semantic_text fields with multiple inference IDs specified in semantic_text fields with smaller k returns k for each index":
@@ -517,3 +631,135 @@ setup:
   - match: { hits.hits.0.matched_queries: [ "i-like-naming-my-queries" ] }
   - close_to: { hits.hits.1._score: { value: 4.719687, error: 1e-3 } }
   - match: { hits.hits.1.matched_queries: [ "i-like-naming-my-queries" ] }
+
+---
+"knn query against an empty semantic_text field":
+  - requires:
+      cluster_features: "search.new_semantic_query_interceptors"
+      reason: New semantic query interceptors
+
+  - do:
+      indices.create:
+        index: empty-semantic-text-index
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      search:
+        index: empty-semantic-text-index
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+
+  - match: { hits.total.value: 0 }
+
+---
+"knn query against semantic_text field using a sparse vector model":
+  - requires:
+      cluster_features: "search.new_semantic_query_interceptors"
+      reason: New semantic query interceptors
+
+  - do:
+      indices.create:
+        index: test-semantic-text-index-using-sparse-vector
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+
+  - do:
+      index:
+        index: test-semantic-text-index-using-sparse-vector
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
+
+  # Don't specify the inference ID so that sparse vector inference results are generated for the query text
+  - do:
+      catch: bad_request
+      search:
+        index: test-semantic-text-index-using-sparse-vector
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_text: test
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Field [inference_field] does not use a [text_embedding] model" }
+
+  # Specify the inference ID so that dense vector inference results are generated for the query text
+  - do:
+      catch: bad_request
+      search:
+        index: test-semantic-text-index-using-sparse-vector
+        body:
+          query:
+            knn:
+              field: inference_field
+              k: 10
+              num_candidates: 100
+              query_vector_builder:
+                text_embedding:
+                  model_id: dense-inference-id
+                  model_text: test
+
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Field [inference_field] does not use a [text_embedding] model" }
+
+---
+"Text expansion query against semantic_text field using a dense vector model returns an failure":
+  - requires:
+      cluster_features: "search.new_semantic_query_interceptors"
+      reason: New semantic query interceptors
+      test_runner_features: [ "allowed_warnings" ]
+
+  - do:
+      indices.create:
+        index: test-semantic-text-index-using-dense-vector
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+
+  - do:
+      index:
+        index: test-semantic-text-index-using-dense-vector
+        id: doc_1
+        body:
+          inference_field: [ "inference test", "another inference test" ]
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-semantic-text-index-using-dense-vector
+        body:
+          query:
+            text_expansion:
+              embedding:
+                model_id: dense-inference-id
+                model_text: "octopus comforter smells"
+      allowed_warnings:
+        - "text_expansion is deprecated. Use sparse_vector instead."
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "expected a result of type [text_expansion_result] received [text_embedding_result]. Is [dense-inference-id] a compatible model?" }

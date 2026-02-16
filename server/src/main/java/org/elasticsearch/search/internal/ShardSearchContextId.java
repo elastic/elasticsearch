@@ -21,7 +21,6 @@ public final class ShardSearchContextId implements Writeable {
     private final long id;
     private final String searcherId;
 
-    // TODO: Remove this constructor
     public ShardSearchContextId(String sessionId, long id) {
         this(sessionId, id, null);
     }
@@ -43,7 +42,6 @@ public final class ShardSearchContextId implements Writeable {
         out.writeLong(id);
         out.writeString(sessionId);
         out.writeOptionalString(searcherId);
-
     }
 
     public String getSessionId() {
@@ -54,8 +52,12 @@ public final class ShardSearchContextId implements Writeable {
         return id;
     }
 
-    public String getSearcherId() {
-        return searcherId;
+    public boolean isRetryable() {
+        return this.searcherId != null;
+    }
+
+    public boolean sameSearcherIdsAs(String otherSearcherId) {
+        return this.isRetryable() && this.searcherId.equals(otherSearcherId);
     }
 
     @Override
@@ -74,5 +76,9 @@ public final class ShardSearchContextId implements Writeable {
     @Override
     public String toString() {
         return "[" + sessionId + "][" + id + "] searcherId [" + searcherId + "]";
+    }
+
+    public String getSearcherId() {
+        return searcherId;
     }
 }

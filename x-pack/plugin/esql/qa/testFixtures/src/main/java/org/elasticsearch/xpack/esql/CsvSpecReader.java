@@ -13,9 +13,6 @@ import java.util.Locale;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.junit.Assert.assertThat;
-
 public final class CsvSpecReader {
 
     private CsvSpecReader() {}
@@ -25,12 +22,10 @@ public final class CsvSpecReader {
     }
 
     public static class CsvSpecParser implements SpecReader.Parser {
-        private static final String SCHEMA_PREFIX = "schema::";
-
-        private final StringBuilder earlySchema = new StringBuilder();
         private final StringBuilder query = new StringBuilder();
         private final StringBuilder data = new StringBuilder();
         private final List<String> requiredCapabilities = new ArrayList<>();
+        private WhenLoadsRequestedToStored requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
         private CsvTestCase testCase;
 
         private CsvSpecParser() {}
@@ -39,21 +34,37 @@ public final class CsvSpecReader {
         public Object parse(String line) {
             // read the query
             if (testCase == null) {
-                if (line.startsWith(SCHEMA_PREFIX)) {
-                    assertThat("Early schema already declared " + earlySchema, earlySchema.length(), is(0));
-                    earlySchema.append(line.substring(SCHEMA_PREFIX.length()).trim());
-                } else if (line.toLowerCase(Locale.ROOT).startsWith("required_capability:")) {
+                String lower = line.toLowerCase(Locale.ROOT);
+                if (lower.startsWith("required_capability:")) {
                     requiredCapabilities.add(line.substring("required_capability:".length()).trim());
+                } else if (lower.startsWith("request_stored:")) {
+                    String value = lower.substring("request_stored:".length()).trim();
+                    requestStored = switch (value) {
+                        case "skip" -> WhenLoadsRequestedToStored.SKIP;
+                        case "ignore_order" -> WhenLoadsRequestedToStored.IGNORE_ORDER;
+                        case "ignore_value_order" -> WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
+                        default -> throw new IllegalArgumentException(
+                            "Invalid value for request_stored: ["
+                                + value
+                                + "], it can only be [skip], [ignore_order], or [ignore_value_order]"
+                        );
+                    };
                 } else {
-                    if (line.endsWith(";")) {
+                    if (line.endsWith("\\;")) {
+                        // SET statement with escaped ";"
+                        var updatedLine = line.substring(0, line.length() - 2);
+                        query.append(updatedLine);
+                        query.append(";");
+                        query.append("\r\n");
+                    } else if (line.endsWith(";")) {
                         // pick up the query
                         testCase = new CsvTestCase();
                         query.append(line.substring(0, line.length() - 1).trim());
                         testCase.query = query.toString();
-                        testCase.earlySchema = earlySchema.toString();
                         testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
+                        testCase.requestStored = requestStored;
                         requiredCapabilities.clear();
-                        earlySchema.setLength(0);
+                        requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
                         query.setLength(0);
                     }
                     // keep reading the query
@@ -109,12 +120,15 @@ public final class CsvSpecReader {
 
     public static class CsvTestCase {
         public String query;
-        public String earlySchema;
         public String expectedResults;
         private final List<String> expectedWarnings = new ArrayList<>();
         private final List<String> expectedWarningsRegexString = new ArrayList<>();
         private final List<Pattern> expectedWarningsRegex = new ArrayList<>();
         public boolean ignoreOrder;
+        /**
+         * How to change the test when requesting all values be loaded from stored fields.
+         */
+        public WhenLoadsRequestedToStored requestStored;
         public List<String> requiredCapabilities = List.of();
 
         /**
@@ -167,6 +181,12 @@ public final class CsvSpecReader {
             }
             return new AssertWarnings.NoWarnings();
         }
+    }
+
+    public enum WhenLoadsRequestedToStored {
+        SKIP,
+        IGNORE_ORDER,
+        IGNORE_VALUE_ORDER;
     }
 
 }

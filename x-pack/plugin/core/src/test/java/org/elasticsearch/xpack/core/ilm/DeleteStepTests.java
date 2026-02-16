@@ -87,7 +87,7 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
         performActionAndWait(step, indexMetadata, state, null);
 
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(client).admin();
+        Mockito.verify(projectClient).admin();
         Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.only()).indices();
         Mockito.verify(indicesClient, Mockito.only()).delete(any(), any());
@@ -236,14 +236,14 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             assertEquals(dataStreamName, request.getNames()[0]);
             listener.onResponse(null);
             return null;
-        }).when(client).execute(any(), any(), any());
+        }).when(projectClient).execute(any(), any(), any());
 
         // Try on the normal data stream - It should delete the data stream
         DeleteStep step = createRandomInstance();
         performActionAndWait(step, index1, state, null);
 
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(client).execute(any(), any(), any());
+        Mockito.verify(projectClient).execute(any(), any(), any());
         Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.never()).indices();
         Mockito.verify(indicesClient, Mockito.never()).delete(any(), any());
@@ -308,14 +308,14 @@ public class DeleteStepTests extends AbstractStepTestCase<DeleteStep> {
             assertEquals(dataStreamName, request.getNames()[0]);
             listener.onResponse(null);
             return null;
-        }).when(client).execute(any(), any(), any());
+        }).when(projectClient).execute(any(), any(), any());
 
         // Again, the deletion should work since the data stream would be fully deleted anyway if the failure store were disabled.
         DeleteStep step = createRandomInstance();
         performActionAndWait(step, index1, state, null);
 
         Mockito.verify(client).projectClient(state.projectId());
-        Mockito.verify(client).execute(any(), any(), any());
+        Mockito.verify(projectClient).execute(any(), any(), any());
         Mockito.verifyNoMoreInteractions(client);
         Mockito.verify(adminClient, Mockito.never()).indices();
         Mockito.verify(indicesClient, Mockito.never()).delete(any(), any());

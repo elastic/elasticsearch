@@ -14,7 +14,6 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
 import org.elasticsearch.action.MockResolvedIndices;
@@ -43,11 +42,13 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -63,6 +64,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesServiceTests.TestActionActionLoggingFieldsProvider;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
@@ -154,7 +156,7 @@ public class TransportSearchActionTests extends ESTestCase {
     ) {
         ShardId shardId = new ShardId(index, id);
         List<ShardRouting> shardRoutings = SearchShardIteratorTests.randomShardRoutings(shardId);
-        return new SearchShardIterator(clusterAlias, shardId, shardRoutings, originalIndices);
+        return new SearchShardIterator(clusterAlias, shardId, shardRoutings, originalIndices, SplitShardCountSummary.UNSET);
     }
 
     private static ResolvedIndices createMockResolvedIndices(
@@ -260,6 +262,7 @@ public class TransportSearchActionTests extends ESTestCase {
         for (SearchShardIterator searchShardIterator : groupShardsIterator) {
             result.add(searchShardIterator);
         }
+        result.sort(SearchShardIterator::compareTo);
         assertEquals(expected, result);
     }
 
@@ -275,9 +278,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 AliasFilter.of(new MatchAllQueryBuilder(), Strings.EMPTY_ARRAY)
             );
             List<SearchShardsGroup> groups = List.of(
-                new SearchShardsGroup(new ShardId("foo", "foo_id", 0), List.of("node1", "node2"), false),
-                new SearchShardsGroup(new ShardId("foo", "foo_id", 1), List.of("node2", "node1"), true),
-                new SearchShardsGroup(new ShardId("bar", "bar_id", 0), List.of("node2", "node1"), false)
+                new SearchShardsGroup(new ShardId("foo", "foo_id", 0), List.of("node1", "node2"), false, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(new ShardId("foo", "foo_id", 1), List.of("node2", "node1"), true, SplitShardCountSummary.UNSET),
+                new SearchShardsGroup(new ShardId("bar", "bar_id", 0), List.of("node2", "node1"), false, SplitShardCountSummary.UNSET)
             );
             searchShardsResponseMap.put("test_cluster_1", new SearchShardsResponse(groups, nodes, aliasFilters1));
         }
@@ -1086,11 +1089,13 @@ public class TransportSearchActionTests extends ESTestCase {
 
             TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(0, 0, () -> 0);
             RemoteClusterService remoteClusterService = service.getRemoteClusterService();
+            TaskId parentTaskId = new TaskId("n", 1);
             {
                 final CountDownLatch latch = new CountDownLatch(1);
                 AtomicReference<Map<String, SearchShardsResponse>> response = new AtomicReference<>();
                 var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true);
                 TransportSearchAction.collectSearchShards(
+                    parentTaskId,
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
@@ -1102,6 +1107,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
+                    null,
+                    false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1121,6 +1129,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Exception> failure = new AtomicReference<>();
                 var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true);
                 TransportSearchAction.collectSearchShards(
+                    parentTaskId,
                     IndicesOptions.lenientExpandOpen(),
                     "index_not_found",
                     null,
@@ -1132,6 +1141,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
+                    null,
+                    false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1174,6 +1186,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Exception> failure = new AtomicReference<>();
                 var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> false);
                 TransportSearchAction.collectSearchShards(
+                    parentTaskId,
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
@@ -1185,6 +1198,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionListener.wrap(r -> fail("no response expected"), failure::set), latch),
+                    null,
+                    false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1205,6 +1221,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Map<String, SearchShardsResponse>> response = new AtomicReference<>();
                 var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true);
                 TransportSearchAction.collectSearchShards(
+                    parentTaskId,
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
@@ -1216,6 +1233,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
+                    null,
+                    false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1252,6 +1272,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 AtomicReference<Map<String, SearchShardsResponse>> response = new AtomicReference<>();
                 var clusters = new SearchResponse.Clusters(null, remoteIndicesByCluster, false, clusterAlias -> true);
                 TransportSearchAction.collectSearchShards(
+                    parentTaskId,
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
@@ -1263,6 +1284,9 @@ public class TransportSearchActionTests extends ESTestCase {
                     timeProvider,
                     service,
                     new LatchedActionListener<>(ActionTestUtils.assertNoFailureListener(response::set), latch),
+                    null,
+                    false,
+                    null,
                     null
                 );
                 awaitLatch(latch, 5, TimeUnit.SECONDS);
@@ -1396,7 +1420,7 @@ public class TransportSearchActionTests extends ESTestCase {
         {
             SearchRequest searchRequest = new SearchRequest();
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, null, null)));
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, 10f, null, null)));
             searchRequest.source(source);
 
             searchRequest.setCcsMinimizeRoundtrips(true);
@@ -1411,7 +1435,7 @@ public class TransportSearchActionTests extends ESTestCase {
             // If the search includes kNN, we should always use DFS_QUERY_THEN_FETCH
             SearchRequest searchRequest = new SearchRequest();
             SearchSourceBuilder source = new SearchSourceBuilder();
-            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, null, null)));
+            source.knnSearch(List.of(new KnnSearchBuilder("field", new float[] { 1, 2, 3 }, 10, 50, 10f, null, null)));
             searchRequest.source(source);
 
             TransportSearchAction.adjustSearchType(searchRequest, randomBoolean());
@@ -1703,7 +1727,7 @@ public class TransportSearchActionTests extends ESTestCase {
             final ShardId shardId = new ShardId(indexMetadata.getIndex(), id);
             final SearchShardIterator shardIterator = shardIterators.get(id);
             final SearchContextIdForNode context = contexts.get(shardId);
-            if (context.getSearchContextId().getSearcherId() == null) {
+            if (context.getSearchContextId().isRetryable() == false) {
                 assertThat(shardIterator.getTargetNodeIds(), hasSize(1));
             } else {
                 final List<String> targetNodes = clusterState.routingTable(project)
@@ -1764,7 +1788,7 @@ public class TransportSearchActionTests extends ESTestCase {
             .build();
         ActionFilters actionFilters = mock(ActionFilters.class);
         when(actionFilters.filters()).thenReturn(new ActionFilter[0]);
-        TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersions.MINIMUM_CCS_VERSION, true);
+        TransportVersion transportVersion = TransportVersionUtils.getNextVersion(TransportVersion.minimumCCSVersion(), true);
         ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
         try {
             TransportService transportService = MockTransportService.createNewService(
@@ -1784,9 +1808,8 @@ public class TransportSearchActionTests extends ESTestCase {
             NodeClient client = new NodeClient(settings, threadPool, TestProjectResolvers.alwaysThrow());
 
             SearchService searchService = mock(SearchService.class);
-            when(searchService.getRewriteContext(any(), any(), any(), anyBoolean())).thenReturn(
-                new QueryRewriteContext(null, null, null, null, null, null)
-            );
+            when(searchService.getRewriteContext(any(), any(), any(), any(), any(), anyBoolean(), anyBoolean(), anyBoolean(), anyBoolean()))
+                .thenReturn(new QueryRewriteContext(null, null, null, null, null, null, null, null, null));
             ClusterService clusterService = new ClusterService(
                 settings,
                 new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
@@ -1811,7 +1834,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 null,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 client,
-                new UsageService()
+                new UsageService(),
+                new TestActionActionLoggingFieldsProvider(),
+                ActivityLogWriterProvider.NOOP
             );
 
             CountDownLatch latch = new CountDownLatch(1);

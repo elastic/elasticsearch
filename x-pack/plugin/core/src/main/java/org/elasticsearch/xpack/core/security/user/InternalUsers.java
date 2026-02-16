@@ -29,6 +29,8 @@ import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.tasks.TaskCancellationService;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
@@ -178,7 +180,9 @@ public class InternalUsers {
                         // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
                         ".fleet-actions-results",
                         // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
-                        ".fleet-fileds*"
+                        ".fleet-fileds*",
+                        // System data stream for kibana workflows logs
+                        ".workflows-execution-data-stream-logs"
                     )
                     .privileges(
                         filterNonNull(
@@ -294,6 +298,30 @@ public class InternalUsers {
         )
     );
 
+    /**
+     * Internal user that can manage a cross-project connections (e.g. handshake)
+     * and searches (e.g. cancelling).
+     */
+    public static final InternalUser CROSS_PROJECT_SEARCH_USER = new InternalUser(
+        UsernamesField.CROSS_PROJECT_SEARCH_USER_NAME,
+        new RoleDescriptor(
+            UsernamesField.CROSS_PROJECT_SEARCH_ROLE_NAME,
+            new String[] {
+                RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
+                TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
+                TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
+                "cluster:internal:data/read/esql/open_exchange",
+                "cluster:internal:data/read/esql/exchange",
+                "cluster:internal/remote_cluster/nodes" },
+            null,
+            null,
+            null,
+            null,
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
     public static final SystemUser SYSTEM_USER = SystemUser.INSTANCE;
 
     private static final Map<String, InternalUser> INTERNAL_USERS;
@@ -309,7 +337,8 @@ public class InternalUsers {
             DATA_STREAM_LIFECYCLE_USER,
             REINDEX_DATA_STREAM_USER,
             SYNONYMS_USER,
-            LAZY_ROLLOVER_USER
+            LAZY_ROLLOVER_USER,
+            CROSS_PROJECT_SEARCH_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));
     }
 

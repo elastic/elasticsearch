@@ -9,15 +9,11 @@ mapped_pages:
 
 The *Elastic SharePoint Server connector* is a [connector](/reference/search-connectors/index.md) for [Microsoft SharePoint Server](https://www.microsoft.com/en-ww/microsoft-365/sharepoint/).
 
-This connector is written in Python using the open code [Elastic connector framework](https://github.com/elastic/connectors/tree/main). View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_server.py).
+This connector is written in Python using the open code [Elastic connector framework](https://github.com/elastic/connectors/tree/main). View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_server).
 
 ::::{tip}
 Looking for the SharePoint **Online** connector? See the [SharePoint Online reference](/reference/search-connectors/es-connectors-sharepoint-online.md).
 
-::::
-
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
 ::::
 
 ## **Self-managed connector reference** [es-connectors-sharepoint-connector-client-reference]
@@ -39,7 +35,7 @@ This connector is in **beta** and is subject to change. Beta features are subjec
 
 To create a new SharePoint Server connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **SharePoint Server** self-managed connector.
 
 
@@ -57,6 +53,7 @@ PUT _connector/my-sharepoint_server-connector
   "service_type": "sharepoint_server"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -147,6 +144,7 @@ The following configuration fields are required to set up the connector:
     * `collection1`
     * `collection1, collection2`
 
+To index from the root of all site collections, simply specify your SharePoint server URL in the `site_collections` field.
 
 `ssl_enabled`
 :   Whether SSL verification will be enabled. Default value is `False`.
@@ -191,8 +189,9 @@ You can deploy the SharePoint Server connector as a self-managed connector using
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -341,4 +340,4 @@ See [Security](/reference/search-connectors/es-connectors-security.md).
 
 This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/sharepoint_server.py) (branch *main*, compatible with Elastic *9.0*).
+View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/sharepoint/sharepoint_server) (branch *main*, compatible with Elastic *9.0*).

@@ -1,4 +1,7 @@
-## `DROP` [esql-drop]
+```yaml {applies_to}
+serverless: ga
+stack: ga
+```
 
 The `DROP` processing command removes one or more columns.
 

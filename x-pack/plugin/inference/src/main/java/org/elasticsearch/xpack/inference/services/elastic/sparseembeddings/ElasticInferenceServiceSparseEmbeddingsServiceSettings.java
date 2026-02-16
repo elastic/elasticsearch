@@ -8,21 +8,23 @@
 package org.elasticsearch.xpack.inference.services.elastic.sparseembeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceRateLimitServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -30,6 +32,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE;
 
 public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends FilteredXContentObject
     implements
@@ -38,7 +41,9 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
 
     public static final String NAME = "elastic_inference_service_sparse_embeddings_service_settings";
 
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
+    private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
+        "inference_api_disable_eis_rate_limiting"
+    );
 
     public static ElasticInferenceServiceSparseEmbeddingsServiceSettings fromMap(
         Map<String, Object> map,
@@ -53,41 +58,53 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
+        Integer maxBatchSize = ElasticInferenceServiceSettingsUtils.parseMaxBatchSize(map, validationException);
 
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        RateLimitSettings.rejectRateLimitFieldForRequestContext(
             map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
+            ModelConfigurations.SERVICE_SETTINGS,
             ElasticInferenceService.NAME,
-            context
+            TaskType.SPARSE_EMBEDDING,
+            context,
+            validationException
         );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
-        return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, rateLimitSettings);
+        return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
     }
 
     private final String modelId;
 
     private final Integer maxInputTokens;
     private final RateLimitSettings rateLimitSettings;
+    private final Integer maxBatchSize;
 
     public ElasticInferenceServiceSparseEmbeddingsServiceSettings(
         String modelId,
         @Nullable Integer maxInputTokens,
-        @Nullable RateLimitSettings rateLimitSettings
+        @Nullable Integer maxBatchSize
     ) {
         this.modelId = Objects.requireNonNull(modelId);
         this.maxInputTokens = maxInputTokens;
-        this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
+        this.maxBatchSize = maxBatchSize;
+        this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
     }
 
     public ElasticInferenceServiceSparseEmbeddingsServiceSettings(StreamInput in) throws IOException {
         this.modelId = in.readString();
         this.maxInputTokens = in.readOptionalVInt();
-        this.rateLimitSettings = new RateLimitSettings(in);
+        this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
+        if (in.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
+            new RateLimitSettings(in);
+        }
+        if (in.getTransportVersion().supports(ElasticInferenceServiceSettingsUtils.INFERENCE_API_EIS_MAX_BATCH_SIZE)) {
+            this.maxBatchSize = in.readOptionalVInt();
+        } else {
+            this.maxBatchSize = null;
+        }
     }
 
     @Override
@@ -103,6 +120,10 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         return maxInputTokens;
     }
 
+    public Integer maxBatchSize() {
+        return maxBatchSize;
+    }
+
     @Override
     public RateLimitSettings rateLimitSettings() {
         return rateLimitSettings;
@@ -110,7 +131,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -130,6 +151,9 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         if (maxInputTokens != null) {
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
+        if (maxBatchSize != null) {
+            builder.field(MAX_BATCH_SIZE, maxBatchSize);
+        }
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -139,7 +163,12 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(modelId);
         out.writeOptionalVInt(maxInputTokens);
-        rateLimitSettings.writeTo(out);
+        if (out.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
+            rateLimitSettings.writeTo(out);
+        }
+        if (out.getTransportVersion().supports(ElasticInferenceServiceSettingsUtils.INFERENCE_API_EIS_MAX_BATCH_SIZE)) {
+            out.writeOptionalVInt(maxBatchSize);
+        }
     }
 
     @Override
@@ -149,11 +178,54 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
         ElasticInferenceServiceSparseEmbeddingsServiceSettings that = (ElasticInferenceServiceSparseEmbeddingsServiceSettings) object;
         return Objects.equals(modelId, that.modelId)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
-            && Objects.equals(rateLimitSettings, that.rateLimitSettings);
+            && Objects.equals(rateLimitSettings, that.rateLimitSettings)
+            && Objects.equals(maxBatchSize, that.maxBatchSize);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, maxInputTokens, rateLimitSettings);
+        return Objects.hash(modelId, maxInputTokens, rateLimitSettings, maxBatchSize);
+    }
+
+    private Builder createBuilderWithCopy() {
+        return new Builder(modelId).maxInputTokens(maxInputTokens).maxBatchSize(maxBatchSize);
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        serviceSettings = new HashMap<>(serviceSettings);
+
+        Integer maxBatchSize = ElasticInferenceServiceSettingsUtils.parseMaxBatchSize(serviceSettings, validationException);
+
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
+
+        return createBuilderWithCopy().maxBatchSize(maxBatchSize).build();
+    }
+
+    private static class Builder {
+        private final String modelId;
+        private Integer maxInputTokens;
+        private Integer maxBatchSize;
+
+        Builder(String modelId) {
+            this.modelId = Objects.requireNonNull(modelId);
+        }
+
+        Builder maxInputTokens(Integer maxInputTokens) {
+            this.maxInputTokens = maxInputTokens;
+            return this;
+        }
+
+        Builder maxBatchSize(Integer maxBatchSize) {
+            this.maxBatchSize = maxBatchSize;
+            return this;
+        }
+
+        ElasticInferenceServiceSparseEmbeddingsServiceSettings build() {
+            return new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelId, maxInputTokens, maxBatchSize);
+        }
     }
 }

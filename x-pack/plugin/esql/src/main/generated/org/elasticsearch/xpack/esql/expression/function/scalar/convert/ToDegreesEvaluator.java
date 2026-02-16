@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
@@ -21,6 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
  */
 public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDegreesEvaluator.class);
+
   private final EvalOperator.ExpressionEvaluator deg;
 
   public ToDegreesEvaluator(Source source, EvalOperator.ExpressionEvaluator deg,
@@ -111,6 +114,13 @@ public final class ToDegreesEvaluator extends AbstractConvertFunction.AbstractEv
   @Override
   public void close() {
     Releasables.closeExpectNoException(deg);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += deg.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

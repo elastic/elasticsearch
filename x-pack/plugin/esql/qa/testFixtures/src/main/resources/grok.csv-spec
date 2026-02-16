@@ -290,6 +290,24 @@ emp_no:integer | a:keyword                         | b:keyword                  
 10005          | null                              | null                               | null           | null
 ;
 
+multiPatterns
+required_capability: grok_multi_pattern
+row text = "XYZ extractme" | grok text "ABC %{WORD:foo}","XYZ %{WORD:bar}" | keep foo, bar;
+
+foo:keyword | bar:keyword
+null        | extractme
+;
+
+multiPatterns2
+required_capability: grok_multi_pattern
+from employees | sort emp_no asc | eval full_name = concat(first_name, " ", last_name) | grok full_name "Georgi %{WORD:georgis_last_name}", "%{WORD:first_name} %{WORD:last_name}" | keep full_name, first_name, last_name, georgis_last_name | limit 3;
+
+full_name:keyword      | first_name:keyword   | last_name:keyword | georgis_last_name:keyword 
+Georgi Facello         | null                 | null              | Facello
+Bezalel Simmel         | Bezalel              | Simmel            | null
+Parto Bamford          | Parto                | Bamford           | null
+;
+
 overwriteInputName
 required_capability: grok_dissect_masking
 row text = "123 abc", int = 5 | sort int asc | grok text "%{NUMBER:text:int} %{WORD:description}" | keep text, int, description;

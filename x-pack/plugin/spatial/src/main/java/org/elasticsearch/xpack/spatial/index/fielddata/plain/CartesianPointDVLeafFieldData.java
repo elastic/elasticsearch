@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.spatial.index.fielddata.plain;
 
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.xpack.spatial.search.aggregations.support.CartesianPointValuesSource;
 
@@ -35,9 +35,9 @@ final class CartesianPointDVLeafFieldData extends LeafCartesianPointFieldData {
     }
 
     @Override
-    public SortedNumericDocValues getSortedNumericDocValues() {
+    public SortedNumericLongValues getSortedNumericLongValues() {
         try {
-            return DocValues.getSortedNumeric(reader, fieldName);
+            return SortedNumericLongValues.wrap(DocValues.getSortedNumeric(reader, fieldName));
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }

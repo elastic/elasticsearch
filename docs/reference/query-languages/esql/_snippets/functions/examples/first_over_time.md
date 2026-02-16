@@ -4,7 +4,7 @@
 
 ```esql
 TS k8s
-| STATS max_cost=max(first_over_time(network.cost)) BY cluster, time_bucket = bucket(@timestamp,1minute)
+| STATS max_cost=MAX(FIRST_OVER_TIME(network.cost)) BY cluster, time_bucket = TBUCKET(1minute)
 ```
 
 | max_cost:double | cluster:keyword | time_bucket:datetime |

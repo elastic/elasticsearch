@@ -21,9 +21,6 @@ SORT : 'sort'                 -> pushMode(EXPRESSION_MODE);
 STATS : 'stats'               -> pushMode(EXPRESSION_MODE);
 WHERE : 'where'               -> pushMode(EXPRESSION_MODE);
 
-DEV_INLINESTATS : {this.isDevVersion()}? 'inlinestats' -> pushMode(EXPRESSION_MODE);
-
-
 mode EXPRESSION_MODE;
 
 PIPE : '|' -> popMode;
@@ -92,6 +89,7 @@ ASSIGN : '=';
 BY : 'by';
 CAST_OP : '::';
 COLON : ':';
+SEMICOLON : ';';
 COMMA : ',';
 DESC : 'desc';
 DOT : '.';
@@ -142,14 +140,10 @@ NAMED_OR_POSITIONAL_DOUBLE_PARAMS
     | DOUBLE_PARAMS DIGIT+
     ;
 
-// Brackets are funny. We can happen upon a CLOSING_BRACKET in two ways - one
-// way is to start in an explain command which then shifts us to expression
-// mode. Thus, the two popModes on CLOSING_BRACKET. The other way could as
-// the start of a multivalued field constant. To line up with the double pop
-// the explain mode needs, we double push when we see that.
+// TODO: We used to require the double expression mode to deal with EXPLAIN, but this doesn't use brackets anymore.
+// If at all, the double mode push is needed for parentheses below, as EXPLAIN and FORK use parentheses.
 OPENING_BRACKET : '[' -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE);
 CLOSING_BRACKET : ']' -> popMode, popMode;
-
 LP : '(' -> pushMode(EXPRESSION_MODE), pushMode(EXPRESSION_MODE);
 RP : ')' -> popMode, popMode;
 

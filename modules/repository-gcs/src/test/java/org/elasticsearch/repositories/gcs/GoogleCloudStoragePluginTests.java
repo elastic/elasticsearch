@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -41,7 +42,8 @@ public class GoogleCloudStoragePluginTests extends ESTestCase {
                 "gcs.client.*.token_uri",
                 "gcs.client.*.proxy.type",
                 "gcs.client.*.proxy.host",
-                "gcs.client.*.proxy.port"
+                "gcs.client.*.proxy.port",
+                "gcs.client.*.max_retries"
             ),
             settings.stream().map(Setting::getKey).toList()
         );
@@ -64,7 +66,8 @@ public class GoogleCloudStoragePluginTests extends ESTestCase {
             BlobStoreTestUtil.mockClusterService(),
             MockBigArrays.NON_RECYCLING_INSTANCE,
             new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)),
-            mock(GcsRepositoryStatsCollector.class)
+            mock(GcsRepositoryStatsCollector.class),
+            SnapshotMetrics.NOOP
         );
         assertThat(repository.getProjectId(), equalTo(projectId));
     }

@@ -148,13 +148,12 @@ fetch the tsid:
               query: '+@timestamp:"2021-04-28T18:51:04.467Z" +k8s.pod.name:cat'
 
   - match: {hits.total.value: 1}
-  - match: {hits.hits.0.fields._tsid: [ "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o" ]}
 
 ---
 "aggregate the tsid":
   - requires:
       cluster_features: ["gte_v8.13.0"]
-      reason: _tsid hahing introduced in 8.13
+      reason: _tsid hashing introduced in 8.13
 
   - do:
       search:
@@ -169,9 +168,8 @@ fetch the tsid:
                   _key: asc
 
   - match: {hits.total.value: 8}
-  - match: {aggregations.tsids.buckets.0.key: "KCjEJ9R_BgO8TRX2QOd6dpQ5ihHD--qoyLTiOy0pmP6_RAIE-e0-dKQ"}
+  - length: {aggregations.tsids.buckets: 2}
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
-  - match: {aggregations.tsids.buckets.1.key: "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
 
 ---
@@ -368,7 +366,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -387,7 +384,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -406,7 +402,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -425,7 +420,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
   - do:
       search:
@@ -443,7 +437,6 @@ dynamic templates:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "NOHjOAVWLTVWZM4CXLoraZYgYpiKqVppKnpcfycX2dfFiw707uoshWIGVb-ie-ZDQ7hwqiw" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
@@ -520,7 +513,6 @@ dynamic templates - conflicting aliases:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "KGejYryCnrIkXYZdIF_Q8F8X2dfFIGKYisFh7t1RGGWOWgWU7C0RiFE" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -539,7 +531,6 @@ dynamic templates - conflicting aliases:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "KGejYryCnrIkXYZdIF_Q8F8X2dfFIGKYisFh7t1RGGWOWgWU7C0RiFE" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---
@@ -699,7 +690,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -718,7 +708,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -737,7 +726,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -756,7 +744,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -775,7 +762,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
   - do:
@@ -794,7 +780,6 @@ dynamic templates with nesting:
                     field: _tsid
 
   - length: { aggregations.filterA.tsids.buckets: 1 }
-  - match: { aggregations.filterA.tsids.buckets.0.key: "OFP9EtCzqs8Sp7Rn2I9NahMBkssYqVppKnpcfycgYpiKiw707hfZ18UMdd8dUGmp6bH35LX6Gni-" }
   - match: { aggregations.filterA.tsids.buckets.0.doc_count: 2 }
 
 ---

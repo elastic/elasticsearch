@@ -33,11 +33,32 @@ import java.util.concurrent.TimeUnit;
  */
 public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecutorBuilder.ScalingExecutorSettings> {
 
+    public static final Setting<Integer> HOT_THREADS_ON_LARGE_QUEUE_SIZE_THRESHOLD_SETTING = Setting.intSetting(
+        "thread_pools.hot_threads_on_large_queue.size_threshold",
+        0, // default 0 means disabled
+        0,
+        Setting.Property.NodeScope
+    );
+    public static final Setting<TimeValue> HOT_THREADS_ON_LARGE_QUEUE_DURATION_THRESHOLD_SETTING = Setting.timeSetting(
+        "thread_pools.hot_threads_on_large_queue.duration_threshold",
+        TimeValue.timeValueMinutes(2),
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<TimeValue> HOT_THREADS_ON_LARGE_QUEUE_INTERVAL_SETTING = Setting.timeSetting(
+        "thread_pools.hot_threads_on_large_queue.interval",
+        TimeValue.timeValueMinutes(60),
+        TimeValue.timeValueMinutes(10),
+        Setting.Property.NodeScope
+    );
+
     private final Setting<Integer> coreSetting;
     private final Setting<Integer> maxSetting;
     private final Setting<TimeValue> keepAliveSetting;
     private final boolean rejectAfterShutdown;
     private final EsExecutors.TaskTrackingConfig trackingConfig;
+    private final EsExecutors.HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig;
 
     /**
      * Construct a scaling executor builder; the settings will have the
@@ -62,6 +83,38 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
 
     /**
      * Construct a scaling executor builder; the settings will have the
+     * key prefix "thread_pool." followed by the executor name.
+     *
+     * @param name      the name of the executor
+     * @param core      the minimum number of threads in the pool
+     * @param max       the maximum number of threads in the pool
+     * @param keepAlive the time that spare threads above {@code core}
+     *                  threads will be kept alive
+     * @param rejectAfterShutdown set to {@code true} if the executor should reject tasks after shutdown
+     * @param hotThreadsOnLargeQueueConfig configuration for indicating whether hot threads should be logged on large queue size
+     */
+    public ScalingExecutorBuilder(
+        final String name,
+        final int core,
+        final int max,
+        final TimeValue keepAlive,
+        final boolean rejectAfterShutdown,
+        final EsExecutors.HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig
+    ) {
+        this(
+            name,
+            core,
+            max,
+            keepAlive,
+            rejectAfterShutdown,
+            "thread_pool." + name,
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
+            hotThreadsOnLargeQueueConfig
+        );
+    }
+
+    /**
+     * Construct a scaling executor builder; the settings will have the
      * specified key prefix.
      *
      * @param name      the name of the executor
@@ -80,7 +133,16 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         final boolean rejectAfterShutdown,
         final String prefix
     ) {
-        this(name, core, max, keepAlive, rejectAfterShutdown, prefix, EsExecutors.TaskTrackingConfig.DO_NOT_TRACK);
+        this(
+            name,
+            core,
+            max,
+            keepAlive,
+            rejectAfterShutdown,
+            prefix,
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
+            EsExecutors.HotThreadsOnLargeQueueConfig.DISABLED
+        );
     }
 
     /**
@@ -95,6 +157,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
      * @param prefix    the prefix for the settings keys
      * @param rejectAfterShutdown set to {@code true} if the executor should reject tasks after shutdown
      * @param trackingConfig configuration that'll indicate if we should track statistics about task execution time
+     * @param hotThreadsOnLargeQueueConfig configuration for indicating whether hot threads should be logged on large queue size
      */
     public ScalingExecutorBuilder(
         final String name,
@@ -103,7 +166,8 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         final TimeValue keepAlive,
         final boolean rejectAfterShutdown,
         final String prefix,
-        final EsExecutors.TaskTrackingConfig trackingConfig
+        final EsExecutors.TaskTrackingConfig trackingConfig,
+        final EsExecutors.HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig
     ) {
         super(name, false);
         this.coreSetting = Setting.intSetting(settingsKey(prefix, "core"), core, 0, Setting.Property.NodeScope);
@@ -116,6 +180,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         );
         this.rejectAfterShutdown = rejectAfterShutdown;
         this.trackingConfig = trackingConfig;
+        this.hotThreadsOnLargeQueueConfig = hotThreadsOnLargeQueueConfig;
     }
 
     @Override
@@ -147,7 +212,8 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
             rejectAfterShutdown,
             threadFactory,
             threadContext,
-            trackingConfig
+            trackingConfig,
+            hotThreadsOnLargeQueueConfig
         );
         return new ThreadPool.ExecutorHolder(executor, info);
     }

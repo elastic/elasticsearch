@@ -46,6 +46,12 @@ public interface EsExecutorService extends ExecutorService {
 
         long getMaxQueueLatencyMillisSinceLastPollAndReset();
 
+        /**
+         * Returns the queue latency of the next task to be executed that is still in the task queue.
+         * Returns zero if the executor does not support this or the queue is empty.
+         */
+        long peekMaxQueueLatencyInQueueMillis();
+
         enum UtilizationTrackingPurpose {
             APM,
             ALLOCATION,

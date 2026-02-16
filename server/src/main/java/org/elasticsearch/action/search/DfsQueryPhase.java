@@ -42,7 +42,7 @@ import java.util.Map;
 
 /**
  * This search phase fans out to every shards to execute a distributed search with a pre-collected distributed frequencies for all
- * search terms used in the actual search query. This phase is very similar to a the default query-then-fetch search phase but it doesn't
+ * search terms used in the actual search query. This phase is very similar to the default query-then-fetch search phase, but it doesn't
  * retry on another shard if any of the shards are failing. Failures are treated as shard failures and are counted as a non-successful
  * operation.
  * @see CountedCollector#onFailure(int, SearchShardTarget, Exception)
@@ -55,6 +55,7 @@ class DfsQueryPhase extends SearchPhase {
     private final Client client;
     private final AbstractSearchAsyncAction<?> context;
     private final SearchProgressListener progressListener;
+    private long phaseStartTimeInNanos;
 
     DfsQueryPhase(SearchPhaseResults<SearchPhaseResult> queryResult, Client client, AbstractSearchAsyncAction<?> context) {
         super(NAME);
@@ -72,6 +73,7 @@ class DfsQueryPhase extends SearchPhase {
     @SuppressWarnings("unchecked")
     @Override
     protected void run() {
+        phaseStartTimeInNanos = System.nanoTime();
         List<DfsSearchResult> searchResults = (List<DfsSearchResult>) context.results.getAtomicArray().asList();
         AggregatedDfs dfs = aggregateDfs(searchResults);
         // TODO we can potentially also consume the actual per shard results from the initial phase here in the aggregateDfs
@@ -79,7 +81,7 @@ class DfsQueryPhase extends SearchPhase {
         final CountedCollector<SearchPhaseResult> counter = new CountedCollector<>(
             queryResult,
             searchResults.size(),
-            () -> context.executeNextPhase(NAME, () -> nextPhase(dfs)),
+            () -> onFinish(dfs),
             context
         );
 
@@ -128,6 +130,12 @@ class DfsQueryPhase extends SearchPhase {
                     }
                 });
         }
+    }
+
+    private void onFinish(AggregatedDfs dfs) {
+        context.getSearchResponseMetrics()
+            .recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, context.getSearchRequestAttributes());
+        context.executeNextPhase(NAME, () -> nextPhase(dfs));
     }
 
     private void shardFailure(

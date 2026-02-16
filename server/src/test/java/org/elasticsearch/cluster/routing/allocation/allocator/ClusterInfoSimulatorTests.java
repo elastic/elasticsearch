@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -40,6 +41,8 @@ import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
 
 import java.util.HashMap;
 import java.util.List;
@@ -53,11 +56,16 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+import static org.elasticsearch.cluster.routing.UnassignedInfo.Reason.REINITIALIZED;
 import static org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
 import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
 
@@ -629,6 +637,48 @@ public class ClusterInfoSimulatorTests extends ESAllocationTestCase {
             decider.canAllocate(shard3, allocation.routingNodes().node("node-0"), allocation).type(),
             equalTo(Decision.Type.NO)
         );
+    }
+
+    public void testSimulateAlreadyStartedShard() {
+        final var clusterInfoSimulator = mock(ClusterInfoSimulator.class);
+        doCallRealMethod().when(clusterInfoSimulator).simulateAlreadyStartedShard(any(), any());
+
+        final ShardRouting startedShard = ShardRouting.newUnassigned(
+            new ShardId(randomIdentifier(), randomUUID(), between(0, 5)),
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(REINITIALIZED, "simulation"),
+            ShardRouting.Role.DEFAULT
+        ).initialize(randomIdentifier(), null, randomLongBetween(100, 999)).moveToStarted(randomLongBetween(100, 999));
+
+        // New shard without relocation
+        {
+            final ArgumentCaptor<ShardRouting> shardCaptor = ArgumentCaptor.forClass(ShardRouting.class);
+            clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, null);
+            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture());
+            final var captureShard = shardCaptor.getValue();
+            assertTrue(captureShard.initializing());
+            assertNull(captureShard.relocatingNodeId());
+            assertThat(captureShard.shardId(), equalTo(startedShard.shardId()));
+            assertThat(captureShard.currentNodeId(), equalTo(startedShard.currentNodeId()));
+            assertThat(captureShard.getExpectedShardSize(), equalTo(startedShard.getExpectedShardSize()));
+        }
+
+        // Relocation
+        {
+            Mockito.clearInvocations(clusterInfoSimulator);
+            final ArgumentCaptor<ShardRouting> shardCaptor = ArgumentCaptor.forClass(ShardRouting.class);
+            final String sourceNodeId = randomIdentifier();
+            clusterInfoSimulator.simulateAlreadyStartedShard(startedShard, sourceNodeId);
+            verify(clusterInfoSimulator).simulateShardStarted(shardCaptor.capture());
+            final var captureShard = shardCaptor.getValue();
+            assertTrue(captureShard.initializing());
+            assertThat(captureShard.relocatingNodeId(), equalTo(sourceNodeId));
+            assertThat(captureShard.shardId(), equalTo(startedShard.shardId()));
+            assertThat(captureShard.currentNodeId(), equalTo(startedShard.currentNodeId()));
+            assertThat(captureShard.getExpectedShardSize(), equalTo(startedShard.getExpectedShardSize()));
+        }
+
     }
 
     private static void addIndex(Metadata.Builder metadataBuilder, RoutingTable.Builder routingTableBuilder, ShardRouting shardRouting) {

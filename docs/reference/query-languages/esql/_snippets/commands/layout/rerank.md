@@ -1,12 +1,56 @@
-## `RERANK` [esql-rerank]
 
 ```yaml {applies_to}
-serverless: preview
-stack: preview 9.2.0
+serverless: ga
+stack: preview 9.2-9.3, ga 9.4.0+
 ```
 
 The `RERANK` command uses an inference model to compute a new relevance score
 for an initial set of documents, directly within your ES|QL queries.
+
+::::{tab-set}
+
+:::{tab-item} 9.3.0+
+
+Starting in version 9.3.0, `RERANK` automatically limits processing to **1000
+rows by default** to prevent accidental high consumption. This limit is applied
+before the `RERANK` command executes.
+
+If you need to process more rows, you can adjust the limit using the cluster setting:
+```
+PUT _cluster/settings
+{
+  "persistent": {
+    "esql.command.rerank.limit": 5000
+  }
+}
+```
+
+You can also disable the command entirely if needed:
+```
+PUT _cluster/settings
+{
+  "persistent": {
+    "esql.command.rerank.enabled": false
+  }
+}
+```
+:::
+
+:::{tab-item} 9.2.x
+
+No automatic row limit is applied. **You should always use `LIMIT` before or after `RERANK` to control the number of documents processed**, to avoid accidentally reranking large datasets which can result in high latency and increased costs.
+
+For example:
+```esql
+FROM books
+| WHERE title:"search query"
+| SORT _score DESC
+| LIMIT 100  // Limit to top 100 results before reranking
+| RERANK "search query" ON title WITH { "inference_id" : "my_rerank_endpoint" }
+```
+:::
+
+::::
 
 **Syntax**
 
@@ -46,6 +90,10 @@ retrieve an initial set of documents. This set is often sorted by `_score` and
 reduced to the top results (for example, 100) using `LIMIT`. The `RERANK`
 command then processes this smaller, refined subset, which is a good balance
 between performance and accuracy.
+
+When using `RERANK` with a multivalue column, each value is ranked individually.
+The score column is then assigned the maximum score resulting from ranking the
+individual values.
 
 **Requirements**
 
@@ -100,61 +148,23 @@ If you don't want to increase the timeout limit, try the following:
 
 Rerank search results using a simple query and a single field:
 
-```esql
-FROM books
-| WHERE MATCH(title, "science fiction")
-| SORT _score DESC
-| LIMIT 100
-| RERANK "science fiction" ON (title) WITH { "inference_id" : "my_reranker" }
-| LIMIT 3
-| KEEP title, _score
-```
 
-| title:keyword | _score:double |
-|---------------|---------------|
-| Neuromancer   | 0.98          |
-| Dune          | 0.95          |
-| Foundation    | 0.92          |
+:::{include} ../examples/rerank.csv-spec/simple-query.md
+:::
 
 Rerank search results using a query and multiple fields, and store the new score
 in a column named `rerank_score`:
 
-```esql
-FROM movies
-| WHERE MATCH(title, "dystopian future") OR MATCH(synopsis, "dystopian future")
-| SORT _score DESC
-| LIMIT 100
-| RERANK rerank_score = "dystopian future" ON (title, synopsis) WITH { "inference_id" : "my_reranker" }
-| SORT rerank_score DESC
-| LIMIT 5
-| KEEP title, _score, rerank_score
-```
-
-| title:keyword   | _score:double | rerank_score:double |
-|-----------------|---------------|---------------------|
-| Blade Runner    | 8.75          | 0.99                |
-| The Matrix      | 9.12          | 0.97                |
-| Children of Men | 8.50          | 0.96                |
-| Akira           | 8.99          | 0.94                |
-| Gattaca         | 8.65          | 0.91                |
+:::{include} ../examples/rerank.csv-spec/two-queries.md
+:::
 
 Combine the original score with the reranked score:
 
-```esql
-FROM movies
-| WHERE MATCH(title, "dystopian future") OR MATCH(synopsis, "dystopian future")
-| SORT _score DESC
-| LIMIT 100
-| RERANK rerank_score = "dystopian future" ON (title, synopsis) WITH { "inference_id" : "my_reranker" }
-| EVAL original_score = _score, _score = rerank_score + original_score
-| SORT _score DESC
-| LIMIT 2
-| KEEP title, original_score, rerank_score, _score
-```
+:::{include} ../examples/rerank.csv-spec/combine.md
+:::
 
-| title:keyword | original_score:double | rerank_score:double | _score:double |
-|---------------|-----------------------|---------------------|---------------|
-| The Matrix    | 9.12                  | 0.97                | 10.09         |
-| Akira         | 8.99                  | 0.94                | 9.93          |
+Rerank using snippets extracted from the document with the `TOP_SNIPPETS`
+function:
 
-
+:::{include} ../examples/rerank.csv-spec/rerank-top-snippets.md
+:::

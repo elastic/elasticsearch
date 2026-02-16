@@ -14,10 +14,12 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -31,17 +33,22 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.test.AnyOperatorTestCase;
 import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SourceLoader;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.sort.SortAndFormats;
@@ -53,18 +60,21 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.hamcrest.Matchers.sameInstance;
 
-public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
+public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     private static final MappedFieldType S_FIELD = new NumberFieldMapper.NumberFieldType("s", NumberFieldMapper.NumberType.LONG);
 
     @ParametersFactory(argumentFormatting = "%s %s")
@@ -82,7 +92,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         MATCH_ALL {
             @Override
             List<LuceneSliceQueue.QueryAndTags> queryAndExtra() {
-                return List.of(new LuceneSliceQueue.QueryAndTags(new MatchAllDocsQuery(), List.of()));
+                return List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of()));
             }
 
             @Override
@@ -95,6 +105,22 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             @Override
             int numResults(int numDocs) {
                 return numDocs;
+            }
+        },
+        MATCH_0 {
+            @Override
+            List<LuceneSliceQueue.QueryAndTags> queryAndExtra() {
+                return List.of(new LuceneSliceQueue.QueryAndTags(SortedNumericDocValuesField.newSlowExactQuery("s", 0), List.of()));
+            }
+
+            @Override
+            void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results) {
+                assertThat(results, hasSize(both(greaterThanOrEqualTo(0)).and(lessThanOrEqualTo(1))));
+            }
+
+            @Override
+            int numResults(int numDocs) {
+                return Math.min(numDocs, 1);
             }
         },
         MATCH_0_AND_1 {
@@ -160,6 +186,13 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         abstract void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results);
 
         abstract int numResults(int numDocs);
+
+        void assertSourceOperator(LuceneSourceOperator sourceOperator) {
+            for (int shard = 0; shard < sourceOperator.refCounteds.size(); shard++) {
+                var shardContext = sourceOperator.getSliceQueue().getShardContext(shard);
+                assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
+            }
+        }
     }
 
     private final TestCase testCase;
@@ -188,24 +221,8 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     }
 
     private LuceneSourceOperator.Factory simple(DataPartitioning dataPartitioning, int numDocs, int limit, boolean scoring) {
-        int commitEvery = Math.max(1, numDocs / 10);
-        try (
-            RandomIndexWriter writer = new RandomIndexWriter(
-                random(),
-                directory,
-                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
-            )
-        ) {
-            for (int d = 0; d < numDocs; d++) {
-                List<IndexableField> doc = new ArrayList<>();
-                doc.add(new SortedNumericDocValuesField("s", d));
-                writer.addDocument(doc);
-                if (d % commitEvery == 0) {
-                    writer.commit();
-                }
-            }
-            reader = writer.getReader();
-
+        try {
+            reader = simpleReader(directory, numDocs, Math.max(1, numDocs / 10));
             IndexSearcher searcher = new IndexSearcher(reader);
             int count = 0;
             for (LuceneSliceQueue.QueryAndTags q : testCase.queryAndExtra()) {
@@ -221,14 +238,35 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         int maxPageSize = between(10, Math.max(10, numDocs));
         int taskConcurrency = randomIntBetween(1, 4);
         return new LuceneSourceOperator.Factory(
-            List.of(ctx),
+            new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
             dataPartitioning,
+            DataPartitioning.AutoStrategy.DEFAULT,
             taskConcurrency,
             maxPageSize,
             limit,
             scoring
         );
+    }
+
+    static IndexReader simpleReader(Directory directory, int numDocs, int commitEvery) throws IOException {
+        try (
+            RandomIndexWriter writer = new RandomIndexWriter(
+                random(),
+                directory,
+                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
+            )
+        ) {
+            for (int d = 0; d < numDocs; d++) {
+                List<IndexableField> doc = new ArrayList<>();
+                doc.add(new SortedNumericDocValuesField("s", d));
+                writer.addDocument(doc);
+                if (d % commitEvery == 0) {
+                    writer.commit();
+                }
+            }
+            return writer.getReader();
+        }
     }
 
     @Override
@@ -302,7 +340,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             );
             drivers.add(driver);
         }
-        OperatorTestCase.runDriver(drivers);
+        new TestDriverRunner().run(drivers);
         for (SourceOperator source : sources) {
             logger.info("source status {}", source.status());
         }
@@ -364,14 +402,16 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
 
         List<Page> results = new ArrayList<>();
 
-        OperatorTestCase.runDriver(
-            TestDriverFactory.create(ctx, factory.get(ctx), List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add))
+        LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(ctx);
+        new TestDriverRunner().run(
+            TestDriverFactory.create(ctx, sourceOperator, List.of(readS.get(ctx)), new TestResultPageSinkOperator(results::add))
         );
         OperatorTestCase.assertDriverContext(ctx);
 
         for (Page page : results) {
             assertThat(page.getPositionCount(), lessThanOrEqualTo(factory.maxPageSize()));
         }
+        assertAllRefCountedSameInstance(results);
 
         for (Page page : results) {
             LongBlock sBlock = page.getBlock(initialBlockIndex(page));
@@ -384,6 +424,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         int count = results.stream().mapToInt(Page::getPositionCount).sum();
         logger.info("{} received={} limit={} numResults={}", factory.dataPartitioning, count, limit, testCase.numResults(numDocs));
         assertThat(count, equalTo(Math.min(limit, testCase.numResults(numDocs))));
+        testCase.assertSourceOperator(sourceOperator);
     }
 
     // Returns the initial block index, ignoring the score block if scoring is enabled
@@ -405,6 +446,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
     public static class MockShardContext implements ShardContext {
         private final int index;
         private final ContextIndexSearcher searcher;
+        private final ShardSearchStats shardSearchStats;
 
         // TODO Reuse this overload in the places that pass 0.
         public MockShardContext(IndexReader reader) {
@@ -413,14 +455,21 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
 
         public MockShardContext(IndexReader reader, int index) {
             this.index = index;
+            this.shardSearchStats = new ShardSearchStats(
+                new SearchStatsSettings(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+            );
             try {
-                this.searcher = new ContextIndexSearcher(
-                    reader,
-                    IndexSearcher.getDefaultSimilarity(),
-                    IndexSearcher.getDefaultQueryCache(),
-                    TrivialQueryCachingPolicy.NEVER,
-                    true
-                );
+                if (reader != null) {
+                    this.searcher = new ContextIndexSearcher(
+                        reader,
+                        IndexSearcher.getDefaultSimilarity(),
+                        IndexSearcher.getDefaultQueryCache(),
+                        TrivialQueryCachingPolicy.NEVER,
+                        true
+                    );
+                } else {
+                    this.searcher = null;
+                }
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -437,7 +486,7 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         }
 
         @Override
-        public SourceLoader newSourceLoader() {
+        public SourceLoader newSourceLoader(Set<String> sourcePaths) {
             return SourceLoader.FROM_STORED_SOURCE;
         }
 
@@ -445,7 +494,8 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         public BlockLoader blockLoader(
             String name,
             boolean asUnsupportedSource,
-            MappedFieldType.FieldExtractPreference fieldExtractPreference
+            MappedFieldType.FieldExtractPreference fieldExtractPreference,
+            BlockLoaderFunctionConfig blockLoaderFunctionConfig
         ) {
             throw new UnsupportedOperationException();
         }
@@ -465,6 +515,11 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
             throw new UnsupportedOperationException();
         }
 
+        @Override
+        public ShardSearchStats stats() {
+            return shardSearchStats;
+        }
+
         public void incRef() {}
 
         @Override
@@ -480,6 +535,19 @@ public class LuceneSourceOperatorTests extends AnyOperatorTestCase {
         @Override
         public boolean hasReferences() {
             return true;
+        }
+    }
+
+    static void assertAllRefCountedSameInstance(List<Page> results) {
+        RefCounted firstRefCounted = null;
+        for (Page page : results) {
+            DocBlock docs = page.getBlock(0);
+            var refCounted = docs.asVector().shardRefCounted(docs.asVector().shards().getInt(0));
+            if (firstRefCounted == null) {
+                firstRefCounted = refCounted;
+            } else {
+                assertThat(refCounted, sameInstance(firstRefCounted));
+            }
         }
     }
 }

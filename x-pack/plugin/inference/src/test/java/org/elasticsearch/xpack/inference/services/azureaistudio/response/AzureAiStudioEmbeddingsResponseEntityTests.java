@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.response;
 
 import org.apache.http.HttpResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 
@@ -50,11 +50,11 @@ public class AzureAiStudioEmbeddingsResponseEntityTests extends ESTestCase {
 
         var entity = new AzureAiStudioEmbeddingsResponseEntity();
 
-        var parsedResults = (TextEmbeddingFloatResults) entity.apply(
+        var parsedResults = (DenseEmbeddingFloatResults) entity.apply(
             mock(Request.class),
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults.embeddings(), is(List.of(TextEmbeddingFloatResults.Embedding.of(List.of(0.014539449F, -0.015288644F)))));
+        assertThat(parsedResults.embeddings(), is(List.of(DenseEmbeddingFloatResults.Embedding.of(List.of(0.014539449F, -0.015288644F)))));
     }
 }

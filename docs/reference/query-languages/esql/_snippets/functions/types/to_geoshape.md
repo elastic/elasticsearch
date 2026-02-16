@@ -6,6 +6,9 @@
 | --- | --- |
 | geo_point | geo_shape |
 | geo_shape | geo_shape |
+| geohash | geo_shape |
+| geohex | geo_shape |
+| geotile | geo_shape |
 | keyword | geo_shape |
 | text | geo_shape |
 

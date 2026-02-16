@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
@@ -51,6 +50,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.license.LicenseStateListener;
@@ -59,7 +59,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.EmptyRequest;
 import org.elasticsearch.transport.TransportRequest;
@@ -74,6 +73,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
@@ -141,6 +141,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -205,6 +206,7 @@ import static org.mockito.Mockito.when;
 
 public class CompositeRolesStoreTests extends ESTestCase {
 
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
     private static final Settings SECURITY_ENABLED_SETTINGS = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
 
     private final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
@@ -2230,7 +2232,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
         var mgr = mock(SecurityIndexManager.class);
         return mgr.new IndexState(
             Metadata.DEFAULT_PROJECT_ID, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), isIndexUpToDate, true, true,
-            true, true, null, null, null, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
+            true, true, null, false, null, null, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, "my_uuid", Set
+                .of()
         );
     }
 
@@ -2652,7 +2655,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
                 mock(ThreadPool.class),
-                MeterRegistry.NOOP
+                MeterRegistry.NOOP,
+                mock(FeatureService.class)
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2678,10 +2682,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             rds -> effectiveRoleDescriptors.set(rds)
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final TransportVersion version = randomFrom(
-            TransportVersion.current(),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1)
-        );
+        final TransportVersion version = AuthenticationTests.randomTransportVersionBefore(Authentication.VERSION_API_KEY_ROLES_AS_BYTES);
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
             randomValueOtherThanMany(
@@ -2736,7 +2737,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
                 mock(ThreadPool.class),
-                MeterRegistry.NOOP
+                MeterRegistry.NOOP,
+                mock(FeatureService.class)
             )
         );
         NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2762,10 +2764,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             rds -> effectiveRoleDescriptors.set(rds)
         );
         AuditUtil.getOrGenerateRequestId(threadContext);
-        final TransportVersion version = randomFrom(
-            TransportVersion.current(),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1)
-        );
+        final TransportVersion version = AuthenticationTests.randomTransportVersionBefore(Authentication.VERSION_API_KEY_ROLES_AS_BYTES);
         final Authentication authentication = createApiKeyAuthentication(
             apiKeyService,
             randomValueOtherThanMany(
@@ -2837,7 +2836,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 clusterService,
                 mock(CacheInvalidatorRegistry.class),
                 mock(ThreadPool.class),
-                MeterRegistry.NOOP
+                MeterRegistry.NOOP,
+                mock(FeatureService.class)
             )
         );
         final NativePrivilegeStore nativePrivStore = mock(NativePrivilegeStore.class);
@@ -2996,7 +2996,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             clusterService,
             mock(CacheInvalidatorRegistry.class),
             mock(ThreadPool.class),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {
@@ -3112,7 +3113,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             clusterService,
             mock(CacheInvalidatorRegistry.class),
             mock(ThreadPool.class),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
         );
         final NativePrivilegeStore privilegeStore = mock(NativePrivilegeStore.class);
         doAnswer((invocationOnMock) -> {
@@ -3754,6 +3756,27 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertThat(future.actionGet(), equalTo(Set.of(expectedRoleDescriptor)));
     }
 
+    public void testOrderedUsageStatsWithJustDls() {
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
+
+        assertThat(
+            "needs LinkedHashMap to be ordered in transport",
+            compositeRolesStore.usageStatsWithJustDls(),
+            instanceOf(LinkedHashMap.class)
+        );
+    }
+
     private Role getRoleForRoleNames(CompositeRolesStore store, String... roleNames) {
         final PlainActionFuture<Role> future = new PlainActionFuture<>();
         getRoleForRoleNames(store, Set.of(roleNames), future);
@@ -3972,7 +3995,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     private DocumentSubsetBitsetCache buildBitsetCache() {
-        return new DocumentSubsetBitsetCache(Settings.EMPTY, mock(ThreadPool.class));
+        return new DocumentSubsetBitsetCache(Settings.EMPTY);
     }
 
     private static class InMemoryRolesProvider implements BiConsumer<Set<String>, ActionListener<RoleRetrievalResult>> {

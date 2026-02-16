@@ -1,44 +1,50 @@
 {
-  "autoscaling.put_autoscaling_policy":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-put-autoscaling-policy.html",
-      "description": "Creates a new autoscaling policy. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
+  "autoscaling.put_autoscaling_policy": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-put-autoscaling-policy",
+      "description": "Create or update an autoscaling policy"
     },
-    "stability":"stable",
-    "visibility":"private",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_autoscaling/policy/{name}",
-          "methods":[
+          "path": "/_autoscaling/policy/{name}",
+          "methods": [
             "PUT"
           ],
-          "parts":{
-            "name":{
-              "type":"string",
-              "description":"the name of the autoscaling policy"
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "the name of the autoscaling policy"
             }
           }
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for processing on master node"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for processing on master node"
       },
-      "timeout":{
-        "type":"time",
-        "description":"Timeout for acknowledgement of update from all nodes in cluster"
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for acknowledgement of update from all nodes in cluster"
       }
     },
-    "body":{
-      "description":"the specification of the autoscaling policy",
-      "required":true
+    "body": {
+      "description": "the specification of the autoscaling policy",
+      "required": true
     }
   }
 }

@@ -1,5 +1,0 @@
-pr: 131536
-summary: "Component Templates: Add `{created,modified}_date`"
-area: Ingest Node
-type: enhancement
-issues: []

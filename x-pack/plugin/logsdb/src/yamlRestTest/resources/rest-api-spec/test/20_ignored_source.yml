@@ -3,7 +3,7 @@ setup:
   - skip:
       features: headers
   - requires:
-      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      cluster_features: [ "mapper.source.mode_from_index_setting" , "mapper.ignored_source_fields_per_entry" ]
       reason: "Source mode configured through index setting"
 
   - do:
@@ -79,7 +79,7 @@ setup:
           stored_fields: [ _ignored_source ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source.0: !!binary "AQZvYmplY3QAG3ktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "fetch fields by name":
@@ -96,7 +96,7 @@ setup:
           fields: [ _ignored_source ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source.0: !!binary "AQZvYmplY3QAG3ktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "fields and stored fields combination":
@@ -113,11 +113,11 @@ setup:
           stored_fields: [ _ignored_source ]
           fields: [ _ignored_source ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0.fields.object: null }
-  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source.0: !!binary "AQZvYmplY3QAG3ktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "wildcard fields and stored fields combination":
@@ -151,7 +151,7 @@ setup:
           fields: [ object ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source.0: !!binary "AQZvYmplY3QAG3ktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
   - match: { hits.hits.0.fields: null }
 
 ---
@@ -170,7 +170,7 @@ setup:
           fields: [ _ignored_source ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source.0: !!binary "AQZvYmplY3QAG3ktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "ignored source via fields and wildcard stored fields":
@@ -188,7 +188,7 @@ setup:
           fields: [ _ignored_source ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source.0: !!binary "AQZvYmplY3QAG3ktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 "wildcard fields and ignored source via stored fields":
@@ -206,12 +206,12 @@ setup:
           fields: [ "*" ]
 
   - match: { hits.total.value: 1 }
-  - match: { hits.hits.0._ignored_source.0: !!binary "BgAAAG9iamVjdHktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
+  - match: { hits.hits.0._ignored_source.0: !!binary "AQZvYmplY3QAG3ktLS0KbmFtZTogImZvbyIKdmFsdWU6IDEwCg==" }
 
 ---
 ignored source array via fields:
   - requires:
-      cluster_features: [mapper.ignored_source_as_top_level_metadata_array_field]
+      cluster_features: [ mapper.ignored_source_as_top_level_metadata_array_field ]
       reason: requires returning the _ignored_source field as a top level array metadata field
 
   - do:
@@ -248,21 +248,21 @@ ignored source array via fields:
         body:
           fields: [ "_ignored_source" ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.name: "foo" }
   - match: { hits.hits.0._source.value: 1 }
   - match: { hits.hits.0._source.id: "f5t7-66gt" }
-  - match: { hits.hits.0._ignored: [ "id", "value" ]}
+  - match: { hits.hits.0._ignored: [ "id", "value" ] }
   - length: { hits.hits.0._ignored_source: 2 }
-  - match: { hits.hits.0._ignored_source.0: !!binary "AgAAAGlkU2Y1dDctNjZndA==" } # `id` field
-  - match: { hits.hits.0._ignored_source.1: !!binary "BQAAAHZhbHVlSQEAAAA=" } # `value` field
+  - match: { hits.hits.0._ignored_source.0: !!binary "AQJpZAAKU2Y1dDctNjZndA==" } # `id` field
+  - match: { hits.hits.0._ignored_source.1: !!binary "AQV2YWx1ZQAFSQEAAAA=" } # `value` field
 
 ---
 ignored source array via stored_fields:
   - requires:
-      cluster_features: [mapper.ignored_source_as_top_level_metadata_array_field]
+      cluster_features: [ mapper.ignored_source_as_top_level_metadata_array_field ]
       reason: requires returning the _ignored_source field as a top level array metadata field
 
   - do:
@@ -301,13 +301,13 @@ ignored source array via stored_fields:
           # a wildcard request would not include it.
           stored_fields: [ "_ignored_source", "_source" ]
           query:
-            match_all: {}
+            match_all: { }
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._source.name: "foo" }
   - match: { hits.hits.0._source.value: 1 }
   - match: { hits.hits.0._source.id: "f5t7-66gt" }
-  - match: { hits.hits.0._ignored: [ "id", "value" ]}
+  - match: { hits.hits.0._ignored: [ "id", "value" ] }
   - length: { hits.hits.0._ignored_source: 2 }
-  - match: { hits.hits.0._ignored_source.0: !!binary "AgAAAGlkU2Y1dDctNjZndA==" } # `id` field
-  - match: { hits.hits.0._ignored_source.1: !!binary "BQAAAHZhbHVlSQEAAAA=" } # `value` field
+  - match: { hits.hits.0._ignored_source.0: !!binary "AQJpZAAKU2Y1dDctNjZndA==" } # `id` field
+  - match: { hits.hits.0._ignored_source.1: !!binary "AQV2YWx1ZQAFSQEAAAA=" } # `value` field

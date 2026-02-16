@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.llama.completion;
 
+import org.elasticsearch.xpack.inference.external.http.retry.ErrorResponse;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
-import org.elasticsearch.xpack.inference.services.llama.response.LlamaErrorResponse;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiChatCompletionResponseHandler;
 
 /**
@@ -24,6 +24,6 @@ public class LlamaCompletionResponseHandler extends OpenAiChatCompletionResponse
      * @param parseFunction The function to parse the response.
      */
     public LlamaCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction, LlamaErrorResponse::fromResponse);
+        super(requestType, parseFunction, ErrorResponse::fromResponse);
     }
 }

@@ -1,69 +1,88 @@
 {
-  "snapshot.get":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-snapshots.html",
-      "description":"Returns information about a snapshot."
+  "snapshot.get": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-snapshot-get",
+      "description": "Get snapshot information"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_snapshot/{repository}/{snapshot}",
-          "methods":[
+          "path": "/_snapshot/{repository}/{snapshot}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "repository":{
-              "type":"string",
-              "description":"A repository name"
+          "parts": {
+            "repository": {
+              "type": "string",
+              "description": "A repository name"
             },
-            "snapshot":{
-              "type":"list",
-              "description":"A comma-separated list of snapshot names"
+            "snapshot": {
+              "type": "list",
+              "description": "A comma-separated list of snapshot names"
             }
           }
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Explicit operation timeout for connection to master node"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
       },
-      "ignore_unavailable":{
-        "type":"boolean",
-        "description":"Whether to ignore unavailable snapshots, defaults to false which means a SnapshotMissingException is thrown"
+      "ignore_unavailable": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether to ignore unavailable snapshots, defaults to false which means a SnapshotMissingException is thrown"
       },
-      "index_names":{
-        "type":"boolean",
-        "description":"Whether to include the name of each index in the snapshot. Defaults to true."
+      "index_names": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to include the name of each index in the snapshot. Defaults to true."
       },
-      "index_details":{
-        "type":"boolean",
-        "description":"Whether to include details of each index in the snapshot, if those details are available. Defaults to false."
+      "index_details": {
+        "type": "boolean",
+        "default": false,
+        "description": "Whether to include details of each index in the snapshot, if those details are available. Defaults to false."
       },
-      "include_repository":{
-        "type":"boolean",
-        "description":"Whether to include the repository name in the snapshot info. Defaults to true."
+      "include_repository": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to include the repository name in the snapshot info. Defaults to true."
       },
       "sort": {
         "type": "enum",
         "default": "start_time",
-        "options": ["start_time", "duration", "name", "repository", "index_count", "shard_count", "failed_shard_count"],
+        "options": [
+          "start_time",
+          "duration",
+          "name",
+          "repository",
+          "index_count",
+          "shard_count",
+          "failed_shard_count"
+        ],
         "description": "Allows setting a sort order for the result. Defaults to start_time"
       },
       "size": {
-        "type": "integer",
+        "type": "int",
+        "default": 0,
         "description": "Maximum number of snapshots to return. Defaults to 0 which means return all that match without limit."
       },
       "order": {
         "type": "enum",
         "default": "asc",
-        "options": ["asc", "desc"],
+        "options": [
+          "asc",
+          "desc"
+        ],
         "description": "Sort order"
       },
       "from_sort_value": {
@@ -75,20 +94,29 @@
         "description": "Offset identifier to start pagination from as returned by the 'next' field in the response body."
       },
       "offset": {
-        "type": "integer",
+        "type": "int",
+        "default": 0,
         "description": "Numeric offset to start pagination based on the snapshots matching the request. Defaults to 0"
       },
       "slm_policy_filter": {
         "type": "string",
         "description": "Filter snapshots by a comma-separated list of SLM policy names that snapshots belong to. Accepts wildcards. Use the special pattern '_none' to match snapshots without an SLM policy"
       },
-      "verbose":{
-        "type":"boolean",
-        "description":"Whether to show verbose snapshot info or only show the basic info found in the repository index blob"
+      "verbose": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether to show verbose snapshot info or only show the basic info found in the repository index blob"
       },
       "state": {
         "type": "list",
-        "description": "Filter snapshots by a comma-separated list of states. Valid state values are 'SUCCESS', 'IN_PROGRESS', 'FAILED', 'PARTIAL', or 'INCOMPATIBLE'."
+        "description": "Filter snapshots by a comma-separated list of states. Valid state values are 'SUCCESS', 'IN_PROGRESS', 'FAILED', 'PARTIAL', or 'INCOMPATIBLE'.",
+        "options": [
+          "IN_PROGRESS",
+          "SUCCESS",
+          "FAILED",
+          "PARTIAL",
+          "INCOMPATIBLE"
+        ]
       }
     }
   }

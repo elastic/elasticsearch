@@ -233,7 +233,23 @@ public class NotEqualsTests extends AbstractScalarFunctionTestCase {
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        for (DataType gridType : new DataType[] { DataType.GEOHASH, DataType.GEOTILE, DataType.GEOHEX }) {
+            suppliers.addAll(
+                TestCaseSupplier.forBinaryNotCasting(
+                    "NotEqualsLongsEvaluator",
+                    "lhs",
+                    "rhs",
+                    (l, r) -> false == l.equals(r),
+                    DataType.BOOLEAN,
+                    TestCaseSupplier.geoGridCases(gridType),
+                    TestCaseSupplier.geoGridCases(gridType),
+                    List.of(),
+                    false
+                )
+            );
+        }
+
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

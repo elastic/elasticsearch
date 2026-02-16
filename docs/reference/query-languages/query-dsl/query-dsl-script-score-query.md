@@ -31,7 +31,6 @@ GET /_search
 }
 ```
 
-
 ## Top-level parameters for `script_score` [script-score-top-level-params]
 
 `query`
@@ -88,6 +87,7 @@ We suggest using these predefined functions instead of writing your own. These f
     "source" : "saturation(doc['my-int'].value, 1)"
 }
 ```
+% NOTCONSOLE
 
 
 #### Sigmoid [script-score-sigmoid]
@@ -99,6 +99,7 @@ We suggest using these predefined functions instead of writing your own. These f
     "source" : "sigmoid(doc['my-int'].value, 2, 1)"
 }
 ```
+% NOTCONSOLE
 
 
 #### Random score function [random-score-function]
@@ -112,6 +113,7 @@ We suggest using these predefined functions instead of writing your own. These f
     "source" : "randomScore(100, '_seq_no')"
 }
 ```
+% NOTCONSOLE
 
 If the `fieldName` parameter is omitted, the internal Lucene document ids will be used as a source of randomness. This is very efficient, but unfortunately not reproducible since documents might be renumbered by merges.
 
@@ -120,6 +122,7 @@ If the `fieldName` parameter is omitted, the internal Lucene document ids will b
     "source" : "randomScore(100)"
 }
 ```
+% NOTCONSOLE
 
 Note that documents that are within the same shard and have the same value for field will get the same score, so it is usually desirable to use a field that has unique values for all documents across a shard. A good default choice might be to use the `_seq_no` field, whose only drawback is that scores will change if the document is updated since update operations also update the value of the `_seq_no` field.
 
@@ -143,6 +146,7 @@ You can read more about decay functions [here](/reference/query-languages/query-
     }
 }
 ```
+% NOTCONSOLE
 
 1. Using `params` allows to compile the script only once, even if params change.
 
@@ -165,6 +169,7 @@ You can read more about decay functions [here](/reference/query-languages/query-
     }
 }
 ```
+% NOTCONSOLE
 
 
 #### Decay functions for date fields [decay-functions-date-fields]
@@ -184,6 +189,7 @@ You can read more about decay functions [here](/reference/query-languages/query-
     }
 }
 ```
+% NOTCONSOLE
 
 ::::{note}
 Decay functions on dates are limited to dates in the default format and default time zone. Also calculations with `now` are not supported.
@@ -239,6 +245,7 @@ What you used in `script_score` of the Function Score query, you can copy into t
     }
 }
 ```
+% NOTCONSOLE
 
 
 #### `random_score` [random-score]
@@ -258,6 +265,7 @@ Use `randomScore` function as described in [random score function](#random-score
     }
 }
 ```
+% NOTCONSOLE
 
 For checking if a document has a missing value, you can use `doc['field'].size() == 0`. For example, this script will use a value `1` if a document doesn’t have a field `field`:
 
@@ -269,6 +277,7 @@ For checking if a document has a missing value, you can use `doc['field'].size()
     }
 }
 ```
+% NOTCONSOLE
 
 This table lists how `field_value_factor` modifiers can be implemented through a script:
 
@@ -389,6 +398,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 1. To restrict the number of documents on which script score calculation is applied, provide a filter.
 2. The script adds 1.0 to the cosine similarity to prevent the score from being negative.
@@ -432,6 +442,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 1. Using the standard sigmoid function prevents scores from being negative.
 
@@ -465,6 +476,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 1. Unlike `cosineSimilarity` that represent similarity, `l1norm` and `l2norm` shown below represent distances or differences. This means, that the more similar the vectors are, the lower the scores will be that are produced by the `l1norm` and `l2norm` functions. Thus, as we need more similar vectors to score higher, we reversed the output from `l1norm` and `l2norm`. Also, to avoid division by 0 when a document vector matches the query exactly, we added `1` in the denominator.
 
@@ -498,6 +510,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 1. Calculate the Hamming distance and normalize it by the bits to get a score between 0 and 1.
 
@@ -531,7 +544,7 @@ GET my-index-000001/_search
   }
 }
 ```
-
+% TEST[continued]
 
 #### Checking for missing values [vector-functions-missing-values]
 
@@ -542,6 +555,7 @@ You can check if a document has a value for the field `my_vector` with `doc['my_
 ```js
 "source": "doc['my_vector'].size() == 0 ? 0 : cosineSimilarity(params.queryVector, 'my_vector')"
 ```
+% NOTCONSOLE
 
 
 #### Accessing vectors directly [vector-functions-accessing-vectors]
@@ -597,7 +611,7 @@ GET my-index-000001/_search
   }
 }
 ```
-
+% TEST[setup:my_index]
 
 #### Bit vectors and vector functions [vector-functions-bit-vectors]
 
@@ -647,6 +661,7 @@ PUT my-index-bit-vectors/_doc/3
 
 POST my-index-bit-vectors/_refresh
 ```
+% TEST[continued]
 
 1. The number of dimensions or bits for the `bit` vector.
 2. This vector represents 5 bytes, or `5 * 8 = 40` bits, which equals the configured dimensions
@@ -670,6 +685,7 @@ GET my-index-bit-vectors/_search
   }
 }
 ```
+% TEST[continued]
 
 1. This vector is 40 bits, and thus will compute a bitwise `&` operation with the stored vectors.
 
@@ -692,6 +708,7 @@ GET my-index-bit-vectors/_search
   }
 }
 ```
+% TEST[continued]
 
 1. This vector is 40 individual dimensions, and thus will sum the floating point values using the stored `bit` vector as a mask.
 
@@ -726,6 +743,7 @@ GET /my-index-000001/_explain/0
   }
 }
 ```
+% TEST[continued]
 
 Note that the `explanation` will be null when using in a normal `_search` request, so having a conditional guard is best practice.
 

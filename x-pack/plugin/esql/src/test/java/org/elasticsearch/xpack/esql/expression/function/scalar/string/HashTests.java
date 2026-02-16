@@ -60,7 +60,7 @@ public class HashTests extends AbstractScalarFunctionTestCase {
                     "invalid algorithm for [source]: invalid MessageDigest not available"
                 );
         }));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases);
     }
 
     private static List<TestCaseSupplier> createTestCases(String algorithm) {

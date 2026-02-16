@@ -15,7 +15,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.TestPlainActionFuture;
@@ -31,7 +30,6 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -66,6 +64,7 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 import org.elasticsearch.xpack.security.authc.CrossClusterAccessAuthenticationService;
 import org.elasticsearch.xpack.security.transport.SSLEngineUtils;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
@@ -215,8 +214,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         SSLService sslService = createSSLService(
             Settings.builder().put("xpack.security.transport.ssl.supported_protocols", "TLSv1.2").build()
         );
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SocketFactory factory = sslService.sslSocketFactory(sslConfiguration);
+        final SslProfile sslProfile = sslService.profile("xpack.security.transport.ssl");
+        final SocketFactory factory = sslProfile.socketFactory();
         try (SSLSocket socket = (SSLSocket) factory.createSocket()) {
             SocketAccess.doPrivileged(() -> socket.connect(serviceA.boundAddress().publishAddress().address()));
 
@@ -267,8 +266,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = createSSLService();
 
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLContext sslContext = sslService.sslContext(sslConfiguration);
+        final SslProfile sslProfile = sslService.profile("xpack.security.transport.ssl");
+        final SSLContext sslContext = sslProfile.sslContext();
         final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
         final String sniIp = "sni-hostname";
         final SNIHostName sniHostName = new SNIHostName(sniIp);
@@ -332,8 +331,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = createSSLService();
 
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLContext sslContext = sslService.sslContext(sslConfiguration);
+        final SslProfile sslProfile = sslService.profile("xpack.security.transport.ssl");
+        final SSLContext sslContext = sslProfile.sslContext();
         final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
         final String sniIp = "invalid_hostname";
 
@@ -859,8 +858,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = createSSLService();
 
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLContext sslContext = sslService.sslContext(sslConfiguration);
+        final SslProfile sslProfile = sslService.profile("xpack.security.transport.ssl");
+        final SSLContext sslContext = sslProfile.sslContext();
         final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
         // use latch to to ensure that the accepted socket below isn't closed before the handshake times out
         final CountDownLatch doneLatch = new CountDownLatch(1);
@@ -996,8 +995,8 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
         assumeFalse("Can't run in a FIPS JVM, TrustAllConfig is not a SunJSSE TrustManagers", inFipsJvm());
         SSLService sslService = createSSLService();
 
-        final SslConfiguration sslConfiguration = sslService.getSSLConfiguration("xpack.security.transport.ssl");
-        SSLContext sslContext = sslService.sslContext(sslConfiguration);
+        final SslProfile sslProfile = sslService.profile("xpack.security.transport.ssl");
+        final SSLContext sslContext = sslProfile.sslContext();
         final SSLServerSocketFactory serverSocketFactory = sslContext.getServerSocketFactory();
         try (ServerSocket socket = serverSocketFactory.createServerSocket()) {
             socket.bind(getLocalEphemeral(), 1);
@@ -1113,7 +1112,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
                 super.executeHandshake(node, channel, profile, listener);
             } else {
                 assert version.equals(TransportVersion.current());
-                listener.onResponse(TransportVersions.MINIMUM_COMPATIBLE);
+                listener.onResponse(TransportVersion.minimumCompatible());
             }
         }
 

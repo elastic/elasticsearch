@@ -15,7 +15,6 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -24,6 +23,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
@@ -422,7 +422,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
 
         SearchExecutionContext searchExecutionContextWithUnkType = createShardContextWithNoType();
         luceneQuery = rewrittenRange.toQuery(searchExecutionContextWithUnkType);
-        assertThat(luceneQuery, equalTo(new MatchNoDocsQuery("no mappings yet")));
+        assertThat(luceneQuery, equalTo(Queries.NO_DOCS_INSTANCE));
     }
 
     public void testRewriteDateToMatchAllWithTimezoneAndFormat() throws IOException {

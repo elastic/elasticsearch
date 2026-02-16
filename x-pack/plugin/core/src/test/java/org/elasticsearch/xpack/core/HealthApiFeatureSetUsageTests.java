@@ -36,7 +36,12 @@ public class HealthApiFeatureSetUsageTests extends AbstractWireSerializingTestCa
 
     @Override
     protected HealthApiFeatureSetUsage mutateInstance(HealthApiFeatureSetUsage instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        Map<String, Object> originalStats = instance.stats();
+        Counters newStats = randomCounters(false);
+        while (originalStats.equals(newStats.toMutableNestedMap())) {
+            newStats = randomCounters(false);
+        }
+        return new HealthApiFeatureSetUsage(true, true, newStats);
     }
 
     @Override
@@ -45,7 +50,11 @@ public class HealthApiFeatureSetUsageTests extends AbstractWireSerializingTestCa
     }
 
     private Counters randomCounters() {
-        if (rarely()) {
+        return randomCounters(true);
+    }
+
+    private Counters randomCounters(boolean allowNull) {
+        if (allowNull && rarely()) {
             return null;
         }
         Counters counters = new Counters();

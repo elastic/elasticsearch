@@ -175,7 +175,7 @@ public class SimpleThreadPoolIT extends ESIntegTestCase {
                 new MetricDefinition<>(0L, TestTelemetryPlugin::getLongGaugeMeasurement, Measurement::getLong)
             );
 
-            // TaskExecutionTimeTrackingEsThreadPoolExecutor also publishes a utilization metric
+            // TaskTimeTrackingEsThreadPoolExecutor also publishes a utilization metric
             if (tp.executor(stats.name()) instanceof TaskTimeTrackingEsThreadPoolExecutor) {
                 metricDefinitions = Maps.copyMapWithAddedEntry(
                     metricDefinitions,

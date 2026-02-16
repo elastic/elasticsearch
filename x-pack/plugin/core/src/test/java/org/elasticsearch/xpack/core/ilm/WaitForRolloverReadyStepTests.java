@@ -235,7 +235,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -251,7 +251,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(true, conditionsMet.get());
 
         verify(client).projectClient(state.projectId());
-        verify(client).admin();
+        verify(projectClient).admin();
         verifyNoMoreInteractions(client);
         verify(adminClient, Mockito.only()).indices();
         verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
@@ -294,7 +294,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 )
         );
         IndexMetadata indexToOperateOn = failureStoreIndex ? failureStoreMetadata : indexMetadata;
-        step.evaluateCondition(state, indexToOperateOn.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexToOperateOn, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -310,7 +310,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(true, conditionsMet.get());
 
         verify(client).projectClient(state.projectId());
-        verify(client).admin();
+        verify(projectClient).admin();
         verifyNoMoreInteractions(client);
         verify(adminClient, Mockito.only()).indices();
 
@@ -373,7 +373,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
                 )
         );
         IndexMetadata indexToOperateOn = failureStoreIndex ? firstGenerationFailureIndex : firstGenerationIndex;
-        step.evaluateCondition(state, indexToOperateOn.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexToOperateOn, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -422,7 +422,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         WaitForRolloverReadyStep step = createRandomInstance();
 
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -457,7 +457,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         WaitForRolloverReadyStep step = createRandomInstance();
 
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -484,7 +484,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         WaitForRolloverReadyStep step = createRandomInstance();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -526,7 +526,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         SetOnce<Boolean> conditionsMet = new SetOnce<>();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -558,7 +558,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         SetOnce<Boolean> correctFailureCalled = new SetOnce<>();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -589,7 +589,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         SetOnce<Boolean> actionCompleted = new SetOnce<>();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -605,7 +605,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(false, actionCompleted.get());
 
         verify(client).projectClient(state.projectId());
-        verify(client).admin();
+        verify(projectClient).admin();
         verifyNoMoreInteractions(client);
         verify(adminClient, Mockito.only()).indices();
         verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
@@ -634,7 +634,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         SetOnce<Boolean> exceptionThrown = new SetOnce<>();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
 
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
@@ -651,7 +651,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
         assertEquals(true, exceptionThrown.get());
 
         verify(client).projectClient(state.projectId());
-        verify(client).admin();
+        verify(projectClient).admin();
         verifyNoMoreInteractions(client);
         verify(adminClient, Mockito.only()).indices();
         verify(indicesClient, Mockito.only()).rolloverIndex(Mockito.any(), Mockito.any());
@@ -668,7 +668,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Unexpected method call");
@@ -704,7 +704,7 @@ public class WaitForRolloverReadyStepTests extends AbstractStepTestCase<WaitForR
 
         SetOnce<Exception> exceptionThrown = new SetOnce<>();
         final var state = projectStateFromProject(ProjectMetadata.builder(randomProjectIdOrDefault()).put(indexMetadata, true));
-        step.evaluateCondition(state, indexMetadata.getIndex(), new AsyncWaitStep.Listener() {
+        step.evaluateCondition(state, indexMetadata, new AsyncWaitStep.Listener() {
             @Override
             public void onResponse(boolean complete, ToXContentObject informationContext) {
                 throw new AssertionError("Unexpected method call");

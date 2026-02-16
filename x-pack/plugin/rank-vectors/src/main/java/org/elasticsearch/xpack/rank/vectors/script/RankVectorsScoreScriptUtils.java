@@ -55,7 +55,7 @@ public class RankVectorsScoreScriptUtils {
             if (queryVector.isEmpty()) {
                 throw new IllegalArgumentException("The query vector is empty.");
             }
-            field.getElementType().checkDimensions(field.get().getDims(), queryVector.get(0).size());
+            field.getElement().checkDimensions(field.get().getDims(), queryVector.get(0).size());
             this.queryVector = new byte[queryVector.size()][queryVector.get(0).size()];
             float[] validateValues = new float[queryVector.size()];
             int lastSize = -1;
@@ -72,7 +72,7 @@ public class RankVectorsScoreScriptUtils {
                     this.queryVector[i][j] = value;
                     validateValues[i] = number.floatValue();
                 }
-                field.getElementType().checkVectorBounds(validateValues);
+                field.getElement().checkVectorBounds(validateValues);
             }
         }
 
@@ -118,7 +118,7 @@ public class RankVectorsScoreScriptUtils {
                 for (int j = 0; j < queryVector.get(i).size(); j++) {
                     this.queryVector[i][j] = queryVector.get(i).get(j).floatValue();
                 }
-                field.getElementType().checkVectorBounds(this.queryVector[i]);
+                field.getElement().checkVectorBounds(this.queryVector[i]);
             }
         }
     }
@@ -179,7 +179,8 @@ public class RankVectorsScoreScriptUtils {
 
         public MaxSimInvHamming(ScoreScript scoreScript, Object queryVector, String fieldName) {
             RankVectorsDocValuesField field = (RankVectorsDocValuesField) scoreScript.field(fieldName);
-            if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT) {
+            if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT
+                || field.getElementType() == DenseVectorFieldMapper.ElementType.BFLOAT16) {
                 throw new IllegalArgumentException("hamming distance is only supported for byte or bit vectors");
             }
             BytesOrList bytesOrList = parseBytes(queryVector);
@@ -351,7 +352,7 @@ public class RankVectorsScoreScriptUtils {
                         yield new MaxSimByteDotProduct(scoreScript, field, bytesOrList.list);
                     }
                 }
-                case FLOAT -> {
+                case FLOAT, BFLOAT16 -> {
                     if (queryVector instanceof List) {
                         yield new MaxSimFloatDotProduct(scoreScript, field, (List<List<Number>>) queryVector);
                     }

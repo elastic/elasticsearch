@@ -42,7 +42,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -370,7 +369,6 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
         }
     }
 
-    @TestIssueLogging(value = "org.elasticsearch.gateway:TRACE", issueUrl = "https://github.com/elastic/elasticsearch/issues/87952")
     public void testDataOnlyNodePersistence() throws Exception {
         final List<Closeable> cleanup = new ArrayList<>(2);
 

@@ -166,6 +166,7 @@ POST text_payloads/_doc/1
   "text": "the|0 brown|3 fox|4 is|0 quick|10"
 }
 ```
+% TEST[continued]
 
 Use the [term vectors API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-termvectors) to return the document’s tokens and base64-encoded payloads.
 
@@ -176,6 +177,7 @@ GET text_payloads/_termvectors/1
   "payloads": true
 }
 ```
+% TEST[continued]
 
 The API returns the following response:
 
@@ -244,5 +246,6 @@ The API returns the following response:
   }
 }
 ```
+% TESTRESPONSE[s/"took": 8/"took": "$body.took"/]
 
 

@@ -32,7 +32,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserModelTests.createModel;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -47,7 +47,7 @@ public class HuggingFaceActionTests extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
     @After
@@ -63,7 +63,7 @@ public class HuggingFaceActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -87,7 +87,7 @@ public class HuggingFaceActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );
@@ -108,7 +108,7 @@ public class HuggingFaceActionTests extends ESTestCase {
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
         action.execute(
-            new EmbeddingsInput(List.of("abc"), null, InputTypeTests.randomWithNull()),
+            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
             InferenceAction.Request.DEFAULT_TIMEOUT,
             listener
         );

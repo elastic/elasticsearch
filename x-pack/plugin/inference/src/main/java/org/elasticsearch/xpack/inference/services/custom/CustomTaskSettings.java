@@ -8,11 +8,9 @@
 package org.elasticsearch.xpack.inference.services.custom;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -22,8 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeNullValues;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalMapRemoveNulls;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapValues;
 
 public class CustomTaskSettings implements TaskSettings {
@@ -33,14 +30,15 @@ public class CustomTaskSettings implements TaskSettings {
 
     static final CustomTaskSettings EMPTY_SETTINGS = new CustomTaskSettings(new HashMap<>());
 
+    private static final TransportVersion INFERENCE_CUSTOM_SERVICE_ADDED = TransportVersion.fromName("inference_custom_service_added");
+
     public static CustomTaskSettings fromMap(Map<String, Object> map) {
         ValidationException validationException = new ValidationException();
         if (map == null || map.isEmpty()) {
             return EMPTY_SETTINGS;
         }
 
-        Map<String, Object> parameters = extractOptionalMap(map, PARAMETERS, ModelConfigurations.TASK_SETTINGS, validationException);
-        removeNullValues(parameters);
+        Map<String, Object> parameters = extractOptionalMapRemoveNulls(map, PARAMETERS, validationException);
         validateMapValues(
             parameters,
             List.of(String.class, Integer.class, Double.class, Float.class, Boolean.class),
@@ -101,13 +99,12 @@ public class CustomTaskSettings implements TaskSettings {
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED;
+        return INFERENCE_CUSTOM_SERVICE_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED)
-            || version.isPatchFrom(TransportVersions.INFERENCE_CUSTOM_SERVICE_ADDED_8_19);
+        return version.supports(INFERENCE_CUSTOM_SERVICE_ADDED);
     }
 
     @Override

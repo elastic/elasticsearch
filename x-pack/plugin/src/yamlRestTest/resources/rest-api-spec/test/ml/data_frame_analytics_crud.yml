@@ -432,7 +432,7 @@ setup:
 "Test put config with remote source index":
 
   - do:
-      catch: /.*Validation Failed.* remote source indices are not supported/
+      catch: /.*Validation Failed.* remote source and cross-project indices are not supported/
       ml.put_data_frame_analytics:
         id: "config-with-missing-concrete-source-index"
         body: >

@@ -36,7 +36,7 @@ public class ModelValidatorBuilder {
 
         switch (taskType) {
             case TEXT_EMBEDDING -> {
-                return new TextEmbeddingModelValidator(
+                return new DenseEmbeddingModelValidator(
                     Objects.requireNonNullElse(validatorFromService, new SimpleServiceIntegrationValidator())
                 );
             }
@@ -52,6 +52,11 @@ public class ModelValidatorBuilder {
             }
             case SPARSE_EMBEDDING, RERANK, ANY -> {
                 return new SimpleModelValidator(Objects.requireNonNullElse(validatorFromService, new SimpleServiceIntegrationValidator()));
+            }
+            case EMBEDDING -> {
+                return new DenseEmbeddingModelValidator(
+                    Objects.requireNonNullElse(validatorFromService, new SimpleEmbeddingServiceIntegrationValidator())
+                );
             }
             default -> throw new IllegalArgumentException(Strings.format("Can't validate inference model for task type %s", taskType));
         }

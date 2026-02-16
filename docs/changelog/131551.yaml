@@ -1,5 +1,0 @@
-pr: 131551
-summary: Added support to configure query timeout for inference
-area: Inference
-type: enhancement
-issues: []

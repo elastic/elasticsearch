@@ -8,12 +8,19 @@
 package org.elasticsearch.xpack.esql.qa.rest.generative;
 
 import org.elasticsearch.xpack.esql.CsvSpecReader;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.*;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.APPROXIMATION;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.FORK_V9;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_GROUP_BY_ALL;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 
 /**
@@ -37,7 +44,14 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
 
     @Override
     protected void doTest() throws Throwable {
-        String query = testCase.query + " | FORK (WHERE true) (WHERE true) | WHERE _fork == \"fork1\" | DROP _fork";
+        boolean addLimitAfterFork = randomBoolean();
+
+        String suffix = " | FORK (WHERE true) (WHERE true) ";
+        suffix = addLimitAfterFork ? suffix + " | LIMIT 300 " : suffix;
+
+        suffix = suffix + "| WHERE _fork == \"fork1\" | DROP _fork";
+
+        String query = testCase.query + suffix;
         doTest(query);
     }
 
@@ -56,10 +70,35 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         );
 
         assumeFalse(
-            "Tests using implicit_casting_date_and_date_nanos are not supported for now",
-            testCase.requiredCapabilities.contains(IMPLICIT_CASTING_DATE_AND_DATE_NANOS.capabilityName())
+            "Tests using subqueries are skipped since we don't support nested subqueries",
+            testCase.requiredCapabilities.contains(SUBQUERY_IN_FROM_COMMAND.capabilityName())
+        );
+
+        assumeFalse(
+            "Tests using PROMQL are not supported for now",
+            testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_COMMAND_V0.capabilityName())
+        );
+
+        assumeFalse(
+            "Tests using GROUP_BY_ALL are skipped since we add a new _timeseries field",
+            testCase.requiredCapabilities.contains(METRICS_GROUP_BY_ALL.capabilityName())
+        );
+
+        assumeFalse(
+            "Tests using query approximation are skipped since query approximation is not supported with FORK",
+            testCase.requiredCapabilities.contains(APPROXIMATION.capabilityName())
+        );
+
+        assumeFalse(
+            "Tests using VIEWS not supported for now (until we merge VIEWS and Subqueries/FORK including branch merging)",
+            testCase.requiredCapabilities.contains(VIEWS_WITH_BRANCHING.capabilityName())
         );
 
         assumeTrue("Cluster needs to support FORK", hasCapabilities(adminClient(), List.of(FORK_V9.capabilityName())));
+
+        assumeFalse(
+            "Tests expecting a _fork column can't be tested as _fork will be dropped",
+            loadCsvSpecValues(testCase.expectedResults).columnNames().contains("_fork")
+        );
     }
 }

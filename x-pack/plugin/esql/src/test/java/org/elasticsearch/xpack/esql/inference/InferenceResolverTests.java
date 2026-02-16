@@ -21,17 +21,15 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
-import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
@@ -44,6 +42,7 @@ import static org.mockito.Mockito.when;
 
 public class InferenceResolverTests extends ESTestCase {
     private TestThreadPool threadPool;
+    private EsqlFunctionRegistry functionRegistry;
 
     @Before
     public void setThreadPool() {
@@ -51,13 +50,18 @@ public class InferenceResolverTests extends ESTestCase {
             getTestClass().getSimpleName(),
             new FixedExecutorBuilder(
                 Settings.EMPTY,
-                EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+                "inference_utility",
                 between(1, 10),
                 1024,
                 "esql",
                 EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
+    }
+
+    @Before
+    public void setUpFunctionRegistry() {
+        functionRegistry = new EsqlFunctionRegistry();
     }
 
     @After
@@ -78,6 +82,24 @@ public class InferenceResolverTests extends ESTestCase {
             List.of("completion-inference-id")
         );
 
+        // Text embedding function
+        assertCollectInferenceIds(
+            "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(\"description\", \"text-embedding-inference-id\")",
+            List.of("text-embedding-inference-id")
+        );
+
+        // Test inference ID collection from an inference function
+        assertCollectInferenceIds(
+            "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(\"description\", \"text-embedding-inference-id\")",
+            List.of("text-embedding-inference-id")
+        );
+
+        // Test inference ID collection with nested functions
+        assertCollectInferenceIds(
+            "FROM books METADATA _score | EVAL embedding = TEXT_EMBEDDING(TEXT_EMBEDDING(\"nested\", \"nested-id\"), \"outer-id\")",
+            List.of("nested-id", "outer-id")
+        );
+
         // Multiple inference plans
         assertCollectInferenceIds("""
             FROM books METADATA _score
@@ -90,9 +112,8 @@ public class InferenceResolverTests extends ESTestCase {
     }
 
     private void assertCollectInferenceIds(String query, List<String> expectedInferenceIds) {
-        Set<String> inferenceIds = new HashSet<>();
         InferenceResolver inferenceResolver = inferenceResolver();
-        inferenceResolver.collectInferenceIds(new EsqlParser().createStatement(query, configuration(query)), inferenceIds::add);
+        List<String> inferenceIds = inferenceResolver.collectInferenceIds(EsqlParser.INSTANCE.parseQuery(query));
         assertThat(inferenceIds, containsInAnyOrder(expectedInferenceIds.toArray(new String[0])));
     }
 
@@ -101,9 +122,10 @@ public class InferenceResolverTests extends ESTestCase {
         List<String> inferenceIds = List.of("rerank-plan");
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceResolver.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
-            throw new RuntimeException(e);
-        }));
+        inferenceResolver.resolveInferenceIds(
+            inferenceIds,
+            assertAnswerUsingSearchCoordinationThreadPool(ActionListener.wrap(inferenceResolutionSetOnce::set, ESTestCase::fail))
+        );
 
         assertBusy(() -> {
             InferenceResolution inferenceResolution = inferenceResolutionSetOnce.get();
@@ -118,9 +140,10 @@ public class InferenceResolverTests extends ESTestCase {
         List<String> inferenceIds = List.of("rerank-plan", "rerank-plan", "completion-plan");
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceResolver.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
-            throw new RuntimeException(e);
-        }));
+        inferenceResolver.resolveInferenceIds(
+            inferenceIds,
+            assertAnswerUsingSearchCoordinationThreadPool(ActionListener.wrap(inferenceResolutionSetOnce::set, ESTestCase::fail))
+        );
 
         assertBusy(() -> {
             InferenceResolution inferenceResolution = inferenceResolutionSetOnce.get();
@@ -139,13 +162,14 @@ public class InferenceResolverTests extends ESTestCase {
 
     public void testResolveMissingInferenceIds() throws Exception {
         InferenceResolver inferenceResolver = inferenceResolver();
-        List<String> inferenceIds = List.of("missing-plan");
+        List<String> inferenceIds = List.of("missing-inference-id");
 
         SetOnce<InferenceResolution> inferenceResolutionSetOnce = new SetOnce<>();
 
-        inferenceResolver.resolveInferenceIds(inferenceIds, ActionListener.wrap(inferenceResolutionSetOnce::set, e -> {
-            throw new RuntimeException(e);
-        }));
+        inferenceResolver.resolveInferenceIds(
+            inferenceIds,
+            assertAnswerUsingSearchCoordinationThreadPool(ActionListener.wrap(inferenceResolutionSetOnce::set, ESTestCase::fail))
+        );
 
         assertBusy(() -> {
             InferenceResolution inferenceResolution = inferenceResolutionSetOnce.get();
@@ -153,7 +177,7 @@ public class InferenceResolverTests extends ESTestCase {
 
             assertThat(inferenceResolution.resolvedInferences(), empty());
             assertThat(inferenceResolution.hasError(), equalTo(true));
-            assertThat(inferenceResolution.getError("missing-plan"), equalTo("inference endpoint not found"));
+            assertThat(inferenceResolution.getError("missing-inference-id"), equalTo("inference endpoint not found"));
         });
     }
 
@@ -173,19 +197,15 @@ public class InferenceResolverTests extends ESTestCase {
                 }
             };
 
-            if (randomBoolean()) {
-                sendResponse.run();
-            } else {
-                threadPool.schedule(
-                    sendResponse,
-                    TimeValue.timeValueNanos(between(1, 1_000)),
-                    threadPool.executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME)
-                );
-            }
+            threadPool.schedule(sendResponse, TimeValue.timeValueNanos(between(1, 1_000)), threadPool.executor("inference_utility"));
 
             return null;
         }).when(client).execute(eq(GetInferenceModelAction.INSTANCE), any(), any());
         return client;
+    }
+
+    private <T> ActionListener<T> assertAnswerUsingSearchCoordinationThreadPool(ActionListener<T> actionListener) {
+        return ActionListener.runBefore(actionListener, () -> ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION));
     }
 
     private static ActionResponse getInferenceModelResponse(GetInferenceModelAction.Request request) {
@@ -205,7 +225,7 @@ public class InferenceResolverTests extends ESTestCase {
     }
 
     private InferenceResolver inferenceResolver() {
-        return new InferenceResolver(mockClient());
+        return new InferenceResolver(mockClient(), functionRegistry, threadPool);
     }
 
     private static ModelConfigurations mockModelConfig(String inferenceId, TaskType taskType) {

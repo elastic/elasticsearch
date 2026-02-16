@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.plugins.Plugin;
@@ -316,11 +317,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             @Override
             void checkSynonymsIndexHealth(ActionListener<ClusterHealthResponse> listener) {
                 ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
-                ClusterHealthResponse response = new ClusterHealthResponse(
-                    randomIdentifier(),
-                    new String[] { SynonymsManagementAPIService.SYNONYMS_INDEX_CONCRETE_NAME },
-                    clusterState
-                );
+                ClusterHealthResponse response = new ClusterHealthResponse(randomIdentifier(), Strings.EMPTY_ARRAY, clusterState);
                 response.setTimedOut(true);
                 listener.onResponse(response);
             }

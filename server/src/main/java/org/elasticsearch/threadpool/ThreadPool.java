@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
@@ -914,7 +913,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         private final int min;
         private final int max;
         private final TimeValue keepAlive;
-        private final SizeValue queueSize;
+        private final Long queueSize;
 
         public Info(String name, ThreadPoolType type) {
             this(name, type, -1);
@@ -924,7 +923,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             this(name, type, size, size, null, null);
         }
 
-        public Info(String name, ThreadPoolType type, int min, int max, @Nullable TimeValue keepAlive, @Nullable SizeValue queueSize) {
+        public Info(String name, ThreadPoolType type, int min, int max, @Nullable TimeValue keepAlive, @Nullable Long queueSize) {
             this.name = name;
             this.type = type;
             this.min = min;
@@ -939,7 +938,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             min = in.readInt();
             max = in.readInt();
             keepAlive = in.readOptionalTimeValue();
-            queueSize = in.readOptionalWriteable(SizeValue::new);
+            queueSize = in.readOptionalVLong();
         }
 
         @Override
@@ -949,7 +948,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             out.writeInt(min);
             out.writeInt(max);
             out.writeOptionalTimeValue(keepAlive);
-            out.writeOptionalWriteable(queueSize);
+            out.writeOptionalVLong(queueSize);
         }
 
         public String getName() {
@@ -974,7 +973,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         }
 
         @Nullable
-        public SizeValue getQueueSize() {
+        public Long getQueueSize() {
             return this.queueSize;
         }
 
@@ -998,10 +997,27 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             if (queueSize == null) {
                 builder.field("queue_size", -1);
             } else {
-                builder.field("queue_size", queueSize.singles());
+                builder.field("queue_size", queueSize);
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public String toString() {
+            return "Info[name="
+                + name
+                + ",type="
+                + type
+                + ",min="
+                + min
+                + ",max="
+                + max
+                + ",keepAlive="
+                + keepAlive
+                + ",queueSize="
+                + queueSize
+                + "]";
         }
 
     }
@@ -1071,11 +1087,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     }
 
     public static boolean assertCurrentThreadPool(String... permittedThreadPoolNames) {
-        final var threadName = Thread.currentThread().getName();
-        final var executorName = EsExecutors.executorName(threadName);
+        final Thread thread = Thread.currentThread();
+        final var threadName = thread.getName();
         assert threadName.startsWith("TEST-")
             || threadName.startsWith("LuceneTestCase")
-            || Arrays.asList(permittedThreadPoolNames).contains(executorName)
+            || Arrays.asList(permittedThreadPoolNames).contains(EsExecutors.executorName(thread))
             : threadName + " not in " + Arrays.toString(permittedThreadPoolNames) + " nor a test thread";
         return true;
     }

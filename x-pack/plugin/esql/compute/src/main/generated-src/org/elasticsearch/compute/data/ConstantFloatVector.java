@@ -41,7 +41,7 @@ final class ConstantFloatVector extends AbstractVector implements FloatVector {
     }
 
     @Override
-    public FloatVector filter(int... positions) {
+    public FloatVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantFloatVector(value, positions.length);
     }
 
@@ -101,6 +101,11 @@ final class ConstantFloatVector extends AbstractVector implements FloatVector {
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public FloatVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantFloatVector(value, getPositionCount());
     }
 
     @Override

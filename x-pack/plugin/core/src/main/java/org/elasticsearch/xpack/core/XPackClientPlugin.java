@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
@@ -59,6 +60,10 @@ import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.UnfollowAction;
 import org.elasticsearch.xpack.core.ilm.WaitForSnapshotAction;
 import org.elasticsearch.xpack.core.inference.InferenceFeatureSetUsage;
+import org.elasticsearch.xpack.core.inference.chunking.NoneChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.RecursiveChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.core.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.core.logstash.LogstashFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MachineLearningFeatureSetUsage;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
@@ -137,184 +142,219 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, SearchPlu
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return Stream.of(
-            // graph
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.GRAPH, GraphFeatureSetUsage::new),
-            // logstash
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSTASH, LogstashFeatureSetUsage::new),
-            // ML
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.MACHINE_LEARNING, MachineLearningFeatureSetUsage::new),
-            // inference
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.INFERENCE, InferenceFeatureSetUsage::new),
-            // monitoring
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.MONITORING, MonitoringFeatureSetUsage::new),
-            // security
-            new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetadata.TYPE, TokenMetadata::new),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetadata.TYPE, TokenMetadata::readDiffFrom),
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.SECURITY, SecurityFeatureSetUsage::new),
-            // security : configurable cluster privileges
-            new NamedWriteableRegistry.Entry(
-                ConfigurableClusterPrivilege.class,
-                ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
-                ConfigurableClusterPrivileges.ManageApplicationPrivileges::createFrom
+        return Stream.concat(
+            Stream.of(
+                // graph
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.GRAPH, GraphFeatureSetUsage::new),
+                // logstash
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSTASH, LogstashFeatureSetUsage::new),
+                // ML
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.MACHINE_LEARNING, MachineLearningFeatureSetUsage::new),
+                // inference
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.INFERENCE, InferenceFeatureSetUsage::new),
+                // monitoring
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.MONITORING, MonitoringFeatureSetUsage::new),
+                // security
+                new NamedWriteableRegistry.Entry(ClusterState.Custom.class, TokenMetadata.TYPE, TokenMetadata::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, TokenMetadata.TYPE, TokenMetadata::readDiffFrom),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.SECURITY, SecurityFeatureSetUsage::new),
+                // security : configurable cluster privileges
+                new NamedWriteableRegistry.Entry(
+                    ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.ManageApplicationPrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.ManageApplicationPrivileges::createFrom
+                ),
+                new NamedWriteableRegistry.Entry(
+                    ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
+                ),
+                new NamedWriteableRegistry.Entry(
+                    ConfigurableClusterPrivilege.class,
+                    ConfigurableClusterPrivileges.ManageRolesPrivilege.WRITEABLE_NAME,
+                    ConfigurableClusterPrivileges.ManageRolesPrivilege::createFrom
+                ),
+                // security : role-mappings
+                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::readDiffFrom),
+                new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
+                new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
+                new NamedWriteableRegistry.Entry(RoleMapperExpression.class, FieldExpression.NAME, FieldExpression::new),
+                new NamedWriteableRegistry.Entry(RoleMapperExpression.class, ExceptExpression.NAME, ExceptExpression::new),
+                // security : role descriptors
+                new NamedWriteableRegistry.Entry(
+                    RemoteClusterPermissions.class,
+                    RemoteClusterPermissions.NAME,
+                    RemoteClusterPermissions::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    RemoteClusterPermissionGroup.class,
+                    RemoteClusterPermissionGroup.NAME,
+                    RemoteClusterPermissionGroup::new
+                ),
+                // eql
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.EQL, EqlFeatureSetUsage::new),
+                // esql
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.ESQL, EsqlFeatureSetUsage::new),
+                // sql
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.SQL, SqlFeatureSetUsage::new),
+                // watcher
+                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, WatcherMetadata.TYPE, WatcherMetadata::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, WatcherMetadata.TYPE, WatcherMetadata::readDiffFrom),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.WATCHER, WatcherFeatureSetUsage::new),
+                // licensing
+                new NamedWriteableRegistry.Entry(Metadata.ClusterCustom.class, LicensesMetadata.TYPE, LicensesMetadata::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, LicensesMetadata.TYPE, LicensesMetadata::readDiffFrom),
+                // rollup
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.ROLLUP, RollupFeatureSetUsage::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, RollupJob.NAME, RollupJob::new),
+                new NamedWriteableRegistry.Entry(Task.Status.class, RollupJobStatus.NAME, RollupJobStatus::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, RollupJobStatus.NAME, RollupJobStatus::new),
+                new NamedWriteableRegistry.Entry(Task.Status.class, DownsampleShardStatus.NAME, DownsampleShardStatus::new),
+                // ccr
+                new NamedWriteableRegistry.Entry(AutoFollowMetadata.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
+                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    AutoFollowMetadata.TYPE,
+                    in -> AutoFollowMetadata.readDiffFrom(Metadata.ProjectCustom.class, AutoFollowMetadata.TYPE, in)
+                ),
+                // ILM
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.INDEX_LIFECYCLE, IndexLifecycleFeatureSetUsage::new),
+                // SLM
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.SNAPSHOT_LIFECYCLE, SLMFeatureSetUsage::new),
+                // ILM - Custom Metadata
+                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new),
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    IndexLifecycleMetadata.TYPE,
+                    IndexLifecycleMetadata.IndexLifecycleMetadataDiff::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    LifecycleOperationMetadata.TYPE,
+                    LifecycleOperationMetadata::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    LifecycleOperationMetadata.TYPE,
+                    LifecycleOperationMetadata.LifecycleOperationMetadataDiff::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    SnapshotLifecycleMetadata.TYPE,
+                    SnapshotLifecycleMetadata::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    SnapshotLifecycleMetadata.TYPE,
+                    SnapshotLifecycleMetadata.SnapshotLifecycleMetadataDiff::new
+                ),
+                // ILM - LifecycleTypes
+                new NamedWriteableRegistry.Entry(
+                    LifecycleType.class,
+                    TimeseriesLifecycleType.TYPE,
+                    (in) -> TimeseriesLifecycleType.INSTANCE
+                ),
+                // ILM - Lifecycle Actions
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, in -> UnfollowAction.INSTANCE),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, WaitForSnapshotAction.NAME, WaitForSnapshotAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new),
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::readFrom),
+                // Transforms
+                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, TransformMetadata.TYPE, TransformMetadata::new),
+                new NamedWriteableRegistry.Entry(NamedDiff.class, TransformMetadata.TYPE, TransformMetadata.TransformMetadataDiff::new),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.TRANSFORM, TransformFeatureSetUsage::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TransformField.TASK_NAME, TransformTaskParams::new),
+                new NamedWriteableRegistry.Entry(Task.Status.class, TransformField.TASK_NAME, TransformState::new),
+                new NamedWriteableRegistry.Entry(PersistentTaskState.class, TransformField.TASK_NAME, TransformState::new),
+                new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME.getPreferredName(), TimeSyncConfig::new),
+                new NamedWriteableRegistry.Entry(
+                    RetentionPolicyConfig.class,
+                    TransformField.TIME.getPreferredName(),
+                    TimeRetentionPolicyConfig::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    RetentionPolicyConfig.class,
+                    NullRetentionPolicyConfig.NAME.getPreferredName(),
+                    i -> NullRetentionPolicyConfig.INSTANCE
+                ),
+                // Voting Only Node
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.VOTING_ONLY, VotingOnlyNodeFeatureSetUsage::new),
+                // Frozen indices
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.FROZEN_INDICES, FrozenIndicesFeatureSetUsage::new),
+                // Spatial
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.SPATIAL, SpatialFeatureSetUsage::new),
+                // Analytics
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new),
+                // Aggregate metric field type
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.AGGREGATE_METRIC, AggregateMetricFeatureSetUsage::new),
+                // Enrich
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.ENRICH, EnrichFeatureSetUsage::new),
+                new NamedWriteableRegistry.Entry(Task.Status.class, ExecuteEnrichPolicyStatus.NAME, ExecuteEnrichPolicyStatus::new),
+                // Searchable snapshots
+                new NamedWriteableRegistry.Entry(
+                    XPackFeatureUsage.class,
+                    XPackField.SEARCHABLE_SNAPSHOTS,
+                    SearchableSnapshotFeatureSetUsage::new
+                ),
+                // Data Streams
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new),
+                new NamedWriteableRegistry.Entry(
+                    XPackFeatureUsage.class,
+                    XPackField.DATA_STREAM_LIFECYCLE,
+                    DataStreamLifecycleFeatureSetUsage::new
+                ),
+                // Data Tiers
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new),
+                // Archive
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.ARCHIVE, ArchiveFeatureSetUsage::new),
+                // TSDB Downsampling
+                new NamedWriteableRegistry.Entry(LifecycleAction.class, DownsampleAction.NAME, DownsampleAction::new),
+                // Health API usage
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.HEALTH_API, HealthApiFeatureSetUsage::new),
+                // Remote cluster usage
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.REMOTE_CLUSTERS, RemoteClusterFeatureSetUsage::new),
+                // Enterprise Search
+                new NamedWriteableRegistry.Entry(
+                    XPackFeatureUsage.class,
+                    XPackField.ENTERPRISE_SEARCH,
+                    EnterpriseSearchFeatureSetUsage::new
+                ),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new),
+                new NamedWriteableRegistry.Entry(
+                    PersistentTaskParams.class,
+                    SecurityMigrationTaskParams.TASK_NAME,
+                    SecurityMigrationTaskParams::new
+                ),
+                new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSDB, LogsDBFeatureSetUsage::new)
             ),
-            new NamedWriteableRegistry.Entry(
-                ConfigurableClusterPrivilege.class,
-                ConfigurableClusterPrivileges.WriteProfileDataPrivileges.WRITEABLE_NAME,
-                ConfigurableClusterPrivileges.WriteProfileDataPrivileges::createFrom
-            ),
-            new NamedWriteableRegistry.Entry(
-                ConfigurableClusterPrivilege.class,
-                ConfigurableClusterPrivileges.ManageRolesPrivilege.WRITEABLE_NAME,
-                ConfigurableClusterPrivileges.ManageRolesPrivilege::createFrom
-            ),
-            // security : role-mappings
-            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::new),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, RoleMappingMetadata.TYPE, RoleMappingMetadata::readDiffFrom),
-            new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AllExpression.NAME, AllExpression::new),
-            new NamedWriteableRegistry.Entry(RoleMapperExpression.class, AnyExpression.NAME, AnyExpression::new),
-            new NamedWriteableRegistry.Entry(RoleMapperExpression.class, FieldExpression.NAME, FieldExpression::new),
-            new NamedWriteableRegistry.Entry(RoleMapperExpression.class, ExceptExpression.NAME, ExceptExpression::new),
-            // security : role descriptors
-            new NamedWriteableRegistry.Entry(RemoteClusterPermissions.class, RemoteClusterPermissions.NAME, RemoteClusterPermissions::new),
-            new NamedWriteableRegistry.Entry(
-                RemoteClusterPermissionGroup.class,
-                RemoteClusterPermissionGroup.NAME,
-                RemoteClusterPermissionGroup::new
-            ),
-            // eql
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.EQL, EqlFeatureSetUsage::new),
-            // esql
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.ESQL, EsqlFeatureSetUsage::new),
-            // sql
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.SQL, SqlFeatureSetUsage::new),
-            // watcher
-            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, WatcherMetadata.TYPE, WatcherMetadata::new),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, WatcherMetadata.TYPE, WatcherMetadata::readDiffFrom),
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.WATCHER, WatcherFeatureSetUsage::new),
-            // licensing
-            new NamedWriteableRegistry.Entry(Metadata.ClusterCustom.class, LicensesMetadata.TYPE, LicensesMetadata::new),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, LicensesMetadata.TYPE, LicensesMetadata::readDiffFrom),
-            // rollup
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.ROLLUP, RollupFeatureSetUsage::new),
-            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, RollupJob.NAME, RollupJob::new),
-            new NamedWriteableRegistry.Entry(Task.Status.class, RollupJobStatus.NAME, RollupJobStatus::new),
-            new NamedWriteableRegistry.Entry(PersistentTaskState.class, RollupJobStatus.NAME, RollupJobStatus::new),
-            new NamedWriteableRegistry.Entry(Task.Status.class, DownsampleShardStatus.NAME, DownsampleShardStatus::new),
-            // ccr
-            new NamedWriteableRegistry.Entry(AutoFollowMetadata.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
-            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, AutoFollowMetadata.TYPE, AutoFollowMetadata::new),
-            new NamedWriteableRegistry.Entry(
-                NamedDiff.class,
-                AutoFollowMetadata.TYPE,
-                in -> AutoFollowMetadata.readDiffFrom(Metadata.ProjectCustom.class, AutoFollowMetadata.TYPE, in)
-            ),
-            // ILM
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.INDEX_LIFECYCLE, IndexLifecycleFeatureSetUsage::new),
-            // SLM
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.SNAPSHOT_LIFECYCLE, SLMFeatureSetUsage::new),
-            // ILM - Custom Metadata
-            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata::new),
-            new NamedWriteableRegistry.Entry(
-                NamedDiff.class,
-                IndexLifecycleMetadata.TYPE,
-                IndexLifecycleMetadata.IndexLifecycleMetadataDiff::new
-            ),
-            new NamedWriteableRegistry.Entry(
-                Metadata.ProjectCustom.class,
-                LifecycleOperationMetadata.TYPE,
-                LifecycleOperationMetadata::new
-            ),
-            new NamedWriteableRegistry.Entry(
-                NamedDiff.class,
-                LifecycleOperationMetadata.TYPE,
-                LifecycleOperationMetadata.LifecycleOperationMetadataDiff::new
-            ),
-            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata::new),
-            new NamedWriteableRegistry.Entry(
-                NamedDiff.class,
-                SnapshotLifecycleMetadata.TYPE,
-                SnapshotLifecycleMetadata.SnapshotLifecycleMetadataDiff::new
-            ),
-            // ILM - LifecycleTypes
-            new NamedWriteableRegistry.Entry(LifecycleType.class, TimeseriesLifecycleType.TYPE, (in) -> TimeseriesLifecycleType.INSTANCE),
-            // ILM - Lifecycle Actions
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, AllocateAction.NAME, AllocateAction::new),
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, ForceMergeAction.NAME, ForceMergeAction::new),
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, ReadOnlyAction.NAME, ReadOnlyAction::new),
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, RolloverAction.NAME, RolloverAction::read),
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, ShrinkAction.NAME, ShrinkAction::new),
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, DeleteAction.NAME, DeleteAction::readFrom),
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, FreezeAction.NAME, in -> FreezeAction.INSTANCE),
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, SetPriorityAction.NAME, SetPriorityAction::new),
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, UnfollowAction.NAME, in -> UnfollowAction.INSTANCE),
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, WaitForSnapshotAction.NAME, WaitForSnapshotAction::new),
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, SearchableSnapshotAction.NAME, SearchableSnapshotAction::new),
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, MigrateAction.NAME, MigrateAction::readFrom),
-            // Transforms
-            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, TransformMetadata.TYPE, TransformMetadata::new),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, TransformMetadata.TYPE, TransformMetadata.TransformMetadataDiff::new),
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.TRANSFORM, TransformFeatureSetUsage::new),
-            new NamedWriteableRegistry.Entry(PersistentTaskParams.class, TransformField.TASK_NAME, TransformTaskParams::new),
-            new NamedWriteableRegistry.Entry(Task.Status.class, TransformField.TASK_NAME, TransformState::new),
-            new NamedWriteableRegistry.Entry(PersistentTaskState.class, TransformField.TASK_NAME, TransformState::new),
-            new NamedWriteableRegistry.Entry(SyncConfig.class, TransformField.TIME.getPreferredName(), TimeSyncConfig::new),
-            new NamedWriteableRegistry.Entry(
-                RetentionPolicyConfig.class,
-                TransformField.TIME.getPreferredName(),
-                TimeRetentionPolicyConfig::new
-            ),
-            new NamedWriteableRegistry.Entry(
-                RetentionPolicyConfig.class,
-                NullRetentionPolicyConfig.NAME.getPreferredName(),
-                i -> NullRetentionPolicyConfig.INSTANCE
-            ),
-            // Voting Only Node
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.VOTING_ONLY, VotingOnlyNodeFeatureSetUsage::new),
-            // Frozen indices
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.FROZEN_INDICES, FrozenIndicesFeatureSetUsage::new),
-            // Spatial
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.SPATIAL, SpatialFeatureSetUsage::new),
-            // Analytics
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.ANALYTICS, AnalyticsFeatureSetUsage::new),
-            // Aggregate metric field type
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.AGGREGATE_METRIC, AggregateMetricFeatureSetUsage::new),
-            // Enrich
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.ENRICH, EnrichFeatureSetUsage::new),
-            new NamedWriteableRegistry.Entry(Task.Status.class, ExecuteEnrichPolicyStatus.NAME, ExecuteEnrichPolicyStatus::new),
-            // Searchable snapshots
-            new NamedWriteableRegistry.Entry(
-                XPackFeatureUsage.class,
-                XPackField.SEARCHABLE_SNAPSHOTS,
-                SearchableSnapshotFeatureSetUsage::new
-            ),
-            // Data Streams
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new),
-            new NamedWriteableRegistry.Entry(
-                XPackFeatureUsage.class,
-                XPackField.DATA_STREAM_LIFECYCLE,
-                DataStreamLifecycleFeatureSetUsage::new
-            ),
-            // Data Tiers
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new),
-            // Archive
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.ARCHIVE, ArchiveFeatureSetUsage::new),
-            // TSDB Downsampling
-            new NamedWriteableRegistry.Entry(LifecycleAction.class, DownsampleAction.NAME, DownsampleAction::new),
-            // Health API usage
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.HEALTH_API, HealthApiFeatureSetUsage::new),
-            // Remote cluster usage
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.REMOTE_CLUSTERS, RemoteClusterFeatureSetUsage::new),
-            // Enterprise Search
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.ENTERPRISE_SEARCH, EnterpriseSearchFeatureSetUsage::new),
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.UNIVERSAL_PROFILING, ProfilingUsage::new),
-            new NamedWriteableRegistry.Entry(
-                PersistentTaskParams.class,
-                SecurityMigrationTaskParams.TASK_NAME,
-                SecurityMigrationTaskParams::new
-            ),
-            new NamedWriteableRegistry.Entry(XPackFeatureUsage.class, XPackField.LOGSDB, LogsDBFeatureSetUsage::new)
+            getChunkingSettingsNamedWriteables().stream()
         ).filter(Objects::nonNull).toList();
+    }
+
+    /**
+     * @return List of chunking settings named writeable entries
+     */
+    public static List<NamedWriteableRegistry.Entry> getChunkingSettingsNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(ChunkingSettings.class, NoneChunkingSettings.NAME, in -> NoneChunkingSettings.INSTANCE),
+            new NamedWriteableRegistry.Entry(ChunkingSettings.class, WordBoundaryChunkingSettings.NAME, WordBoundaryChunkingSettings::new),
+            new NamedWriteableRegistry.Entry(
+                ChunkingSettings.class,
+                SentenceBoundaryChunkingSettings.NAME,
+                SentenceBoundaryChunkingSettings::new
+            ),
+            new NamedWriteableRegistry.Entry(ChunkingSettings.class, RecursiveChunkingSettings.NAME, RecursiveChunkingSettings::new)
+        );
     }
 
     @Override

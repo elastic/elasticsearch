@@ -18,18 +18,22 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,14 +42,14 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionServiceSettingsTests;
@@ -74,30 +78,36 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioConstants.API_KEY_FIELD;
 import static org.elasticsearch.xpack.inference.services.azureaistudio.request.AzureAiStudioRequestFields.API_KEY_HEADER;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
-public class AzureAiStudioServiceTests extends ESTestCase {
+public class AzureAiStudioServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String INFERENCE_ID_VALUE = "id";
+    private static final String URL_VALUE = "http://target.local";
+    private static final String API_KEY_VALUE = "secret";
     private final MockWebServer webServer = new MockWebServer();
     private ThreadPool threadPool;
     private HttpClientManager clientManager;
@@ -105,7 +115,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -122,20 +132,20 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
 
                 var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+                assertThat(embeddingsModel.getServiceSettings().target(), is(URL_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
                 assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
                 assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", null, null, null, null),
+                    getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", null, null, null, null),
                     getEmbeddingsTaskSettingsMap("user"),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -148,22 +158,22 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
 
                 var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+                assertThat(embeddingsModel.getServiceSettings().target(), is(URL_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
                 assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
                 assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", null, null, null, null),
+                    getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", null, null, null, null),
                     getEmbeddingsTaskSettingsMap("user"),
                     createRandomChunkingSettingsMap(),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -176,21 +186,21 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
 
                 var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+                assertThat(embeddingsModel.getServiceSettings().target(), is(URL_VALUE));
                 assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
                 assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
                 assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", null, null, null, null),
+                    getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", null, null, null, null),
                     getEmbeddingsTaskSettingsMap("user"),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -203,21 +213,21 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
 
                 var completionModel = (AzureAiStudioChatCompletionModel) model;
-                assertThat(completionModel.getServiceSettings().target(), is("http://target.local"));
+                assertThat(completionModel.getServiceSettings().target(), is(URL_VALUE));
                 assertThat(completionModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
                 assertThat(completionModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
-                assertThat(completionModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(completionModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
                 assertNull(completionModel.getTaskSettings().temperature());
                 assertTrue(completionModel.getTaskSettings().doSample());
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.COMPLETION,
                 getRequestConfigMap(
-                    getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
+                    getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "token"),
                     getChatCompletionTaskSettingsMap(null, null, true, null),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -230,21 +240,21 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 assertThat(model, instanceOf(AzureAiStudioRerankModel.class));
 
                 var rerankModel = (AzureAiStudioRerankModel) model;
-                assertThat(rerankModel.getServiceSettings().target(), is("http://target.local"));
+                assertThat(rerankModel.getServiceSettings().target(), is(URL_VALUE));
                 assertThat(rerankModel.getServiceSettings().provider(), is(AzureAiStudioProvider.COHERE));
                 assertThat(rerankModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
-                assertThat(rerankModel.getSecretSettings().apiKey().toString(), is("secret"));
+                assertThat(rerankModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
                 assertNull(rerankModel.getTaskSettings().returnDocuments());
                 assertNull(rerankModel.getTaskSettings().topN());
             }, exception -> fail("Unexpected exception: " + exception));
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.RERANK,
                 getRequestConfigMap(
-                    getRerankServiceSettingsMap("http://target.local", "cohere", "token"),
+                    getRerankServiceSettingsMap(URL_VALUE, "cohere", "token"),
                     getRerankTaskSettingsMap(null, null),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -262,12 +272,12 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             );
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
-                    getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
+                    getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "token"),
                     getChatCompletionTaskSettingsMap(null, null, true, null),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -277,9 +287,9 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createService()) {
             var config = getRequestConfigMap(
-                getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
+                getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "token"),
                 getChatCompletionTaskSettingsMap(null, null, true, null),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
             config.put("extra_key", "value");
 
@@ -294,16 +304,16 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInEmbeddingServiceSettingsMap() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", null, null, null, null);
+            var serviceSettings = getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", null, null, null, null);
             serviceSettings.put("extra_key", "value");
 
-            var config = getRequestConfigMap(serviceSettings, getEmbeddingsTaskSettingsMap("user"), getSecretSettingsMap("secret"));
+            var config = getRequestConfigMap(serviceSettings, getEmbeddingsTaskSettingsMap("user"), getSecretSettingsMap(API_KEY_VALUE));
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
                 model -> fail("Expected exception, but got model: " + model),
@@ -316,16 +326,16 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenDimsSetByUserExistsInEmbeddingServiceSettingsMap() throws IOException {
         try (var service = createService()) {
             var config = getRequestConfigMap(
-                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, null, null),
+                getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", 1024, true, null, null),
                 getEmbeddingsTaskSettingsMap("user"),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
@@ -339,7 +349,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -349,9 +359,9 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             taskSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", null, null, null, null),
+                getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", null, null, null, null),
                 taskSettings,
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
@@ -365,17 +375,17 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInEmbeddingSecretSettingsMap() throws IOException {
         try (var service = createService()) {
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             secretSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", null, null, null, null),
+                getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", null, null, null, null),
                 getEmbeddingsTaskSettingsMap("user"),
                 secretSettings
             );
@@ -391,19 +401,19 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInChatCompletionServiceSettingsMap() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getChatCompletionServiceSettingsMap("http://target.local", "openai", "token");
+            var serviceSettings = getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "token");
             serviceSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
                 serviceSettings,
                 getChatCompletionTaskSettingsMap(null, 2.0, null, null),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
@@ -417,7 +427,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
@@ -427,9 +437,9 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             taskSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
+                getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "token"),
                 taskSettings,
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
@@ -443,17 +453,17 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInChatCompletionSecretSettingsMap() throws IOException {
         try (var service = createService()) {
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             secretSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
+                getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "token"),
                 getChatCompletionTaskSettingsMap(null, 2.0, null, null),
                 secretSettings
             );
@@ -469,16 +479,16 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInRerankServiceSettingsMap() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getRerankServiceSettingsMap("http://target.local", "cohere", "token");
+            var serviceSettings = getRerankServiceSettingsMap(URL_VALUE, "cohere", "token");
             serviceSettings.put("extra_key", "value");
 
-            var config = getRequestConfigMap(serviceSettings, getRerankTaskSettingsMap(null, null), getSecretSettingsMap("secret"));
+            var config = getRequestConfigMap(serviceSettings, getRerankTaskSettingsMap(null, null), getSecretSettingsMap(API_KEY_VALUE));
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
                 model -> fail("Expected exception, but got model: " + model),
@@ -491,7 +501,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.RERANK, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.RERANK, config, modelVerificationListener);
         }
     }
 
@@ -501,9 +511,9 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             taskSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                getRerankServiceSettingsMap("http://target.local", "cohere", "token"),
+                getRerankServiceSettingsMap(URL_VALUE, "cohere", "token"),
                 taskSettings,
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
@@ -517,17 +527,17 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.RERANK, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.RERANK, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInRerankSecretSettingsMap() throws IOException {
         try (var service = createService()) {
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             secretSettings.put("extra_key", "value");
 
             var config = getRequestConfigMap(
-                getRerankServiceSettingsMap("http://target.local", "cohere", "token"),
+                getRerankServiceSettingsMap(URL_VALUE, "cohere", "token"),
                 getRerankTaskSettingsMap(null, null),
                 secretSettings
             );
@@ -543,15 +553,15 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.RERANK, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.RERANK, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenProviderIsNotValidForEmbeddings() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getEmbeddingsServiceSettingsMap("http://target.local", "databricks", "token", null, null, null, null);
+            var serviceSettings = getEmbeddingsServiceSettingsMap(URL_VALUE, "databricks", "token", null, null, null, null);
 
-            var config = getRequestConfigMap(serviceSettings, getEmbeddingsTaskSettingsMap("user"), getSecretSettingsMap("secret"));
+            var config = getRequestConfigMap(serviceSettings, getEmbeddingsTaskSettingsMap("user"), getSecretSettingsMap(API_KEY_VALUE));
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
                 model -> fail("Expected exception, but got model: " + model),
@@ -561,15 +571,15 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenEndpointTypeIsNotValidForEmbeddingsProvider() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getEmbeddingsServiceSettingsMap("http://target.local", "openai", "realtime", null, null, null, null);
+            var serviceSettings = getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "realtime", null, null, null, null);
 
-            var config = getRequestConfigMap(serviceSettings, getEmbeddingsTaskSettingsMap("user"), getSecretSettingsMap("secret"));
+            var config = getRequestConfigMap(serviceSettings, getEmbeddingsTaskSettingsMap("user"), getSecretSettingsMap(API_KEY_VALUE));
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
                 model -> fail("Expected exception, but got model: " + model),
@@ -582,18 +592,18 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenEndpointTypeIsNotValidForChatCompletionProvider() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getChatCompletionServiceSettingsMap("http://target.local", "openai", "realtime");
+            var serviceSettings = getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "realtime");
 
             var config = getRequestConfigMap(
                 serviceSettings,
                 getChatCompletionTaskSettingsMap(null, null, null, null),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
@@ -607,15 +617,15 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.COMPLETION, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenProviderIsNotValidForRerank() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getRerankServiceSettingsMap("http://target.local", "databricks", "token");
+            var serviceSettings = getRerankServiceSettingsMap(URL_VALUE, "databricks", "token");
 
-            var config = getRequestConfigMap(serviceSettings, getRerankTaskSettingsMap(null, null), getSecretSettingsMap("secret"));
+            var config = getRequestConfigMap(serviceSettings, getRerankTaskSettingsMap(null, null), getSecretSettingsMap(API_KEY_VALUE));
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
                 model -> fail("Expected exception, but got model: " + model),
@@ -625,15 +635,15 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.RERANK, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.RERANK, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenEndpointTypeIsNotValidForRerankProvider() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getRerankServiceSettingsMap("http://target.local", "cohere", "realtime");
+            var serviceSettings = getRerankServiceSettingsMap(URL_VALUE, "cohere", "realtime");
 
-            var config = getRequestConfigMap(serviceSettings, getRerankTaskSettingsMap(null, null), getSecretSettingsMap("secret"));
+            var config = getRequestConfigMap(serviceSettings, getRerankTaskSettingsMap(null, null), getSecretSettingsMap(API_KEY_VALUE));
 
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(
                 model -> fail("Expected exception, but got model: " + model),
@@ -646,30 +656,35 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.RERANK, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.RERANK, config, modelVerificationListener);
         }
     }
 
     public void testParsePersistedConfig_CreatesAnAzureAiStudioEmbeddingsModel() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
-                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
+                getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", 1024, true, 512, null),
                 getEmbeddingsTaskSettingsMap("user"),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                INFERENCE_ID_VALUE,
+                TaskType.TEXT_EMBEDDING,
+                config.config(),
+                config.secrets()
+            );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
 
             var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(embeddingsModel.getServiceSettings().target(), is(URL_VALUE));
             assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
             assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(true));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
         }
     }
@@ -677,24 +692,29 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
-                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
+                getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", 1024, true, 512, null),
                 getEmbeddingsTaskSettingsMap("user"),
                 createRandomChunkingSettingsMap(),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                INFERENCE_ID_VALUE,
+                TaskType.TEXT_EMBEDDING,
+                config.config(),
+                config.secrets()
+            );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
 
             var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(embeddingsModel.getServiceSettings().target(), is(URL_VALUE));
             assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
             assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(true));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
         }
@@ -703,23 +723,28 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
-                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
+                getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", 1024, true, 512, null),
                 getEmbeddingsTaskSettingsMap("user"),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                INFERENCE_ID_VALUE,
+                TaskType.TEXT_EMBEDDING,
+                config.config(),
+                config.secrets()
+            );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
 
             var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(embeddingsModel.getServiceSettings().target(), is(URL_VALUE));
             assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
             assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
             assertThat(embeddingsModel.getServiceSettings().dimensionsSetByUser(), is(true));
             assertThat(embeddingsModel.getServiceSettings().maxInputTokens(), is(512));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             assertThat(embeddingsModel.getTaskSettings().user(), is("user"));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
         }
@@ -728,17 +753,17 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesAnAzureAiStudioChatCompletionModel() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
-                getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
+                getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "token"),
                 getChatCompletionTaskSettingsMap(1.0, 2.0, true, 512),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.COMPLETION, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(INFERENCE_ID_VALUE, TaskType.COMPLETION, config.config(), config.secrets());
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
 
             var chatCompletionModel = (AzureAiStudioChatCompletionModel) model;
-            assertThat(chatCompletionModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(chatCompletionModel.getServiceSettings().target(), is(URL_VALUE));
             assertThat(chatCompletionModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
             assertThat(chatCompletionModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
             assertThat(chatCompletionModel.getTaskSettings().temperature(), is(1.0));
@@ -751,17 +776,17 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesAnAzureAiStudioRerankModel() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
-                getRerankServiceSettingsMap("http://target.local", "cohere", "token"),
+                getRerankServiceSettingsMap(URL_VALUE, "cohere", "token"),
                 getRerankTaskSettingsMap(true, 2),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.RERANK, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(INFERENCE_ID_VALUE, TaskType.RERANK, config.config(), config.secrets());
 
             assertThat(model, instanceOf(AzureAiStudioRerankModel.class));
 
             var chatCompletionModel = (AzureAiStudioRerankModel) model;
-            assertThat(chatCompletionModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(chatCompletionModel.getServiceSettings().target(), is(URL_VALUE));
             assertThat(chatCompletionModel.getServiceSettings().provider(), is(AzureAiStudioProvider.COHERE));
             assertThat(chatCompletionModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
             assertThat(chatCompletionModel.getTaskSettings().returnDocuments(), is(true));
@@ -780,12 +805,12 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             );
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
-                    getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
+                    getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "token"),
                     getChatCompletionTaskSettingsMap(null, null, true, null),
-                    getSecretSettingsMap("secret")
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -795,32 +820,43 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testParsePersistedConfigWithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
-                getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
+                getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "token"),
                 getChatCompletionTaskSettingsMap(1.0, 2.0, true, 512),
-                getSecretSettingsMap("secret")
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfigWithSecrets("id", TaskType.SPARSE_EMBEDDING, config.config(), config.secrets())
+                () -> service.parsePersistedConfigWithSecrets(
+                    INFERENCE_ID_VALUE,
+                    TaskType.SPARSE_EMBEDDING,
+                    config.config(),
+                    config.secrets()
+                )
             );
 
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [azureaistudio] service"));
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [azureaistudio] service, please delete and add the service again")
+                containsString("The [azureaistudio] service does not support task type [sparse_embedding]")
             );
         }
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null);
+            var serviceSettings = getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", 1024, true, 512, null);
             var taskSettings = getEmbeddingsTaskSettingsMap("user");
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
             config.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                INFERENCE_ID_VALUE,
+                TaskType.TEXT_EMBEDDING,
+                config.config(),
+                config.secrets()
+            );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
         }
@@ -828,14 +864,19 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_DoesNotThrowWhenExtraKeyExistsInEmbeddingServiceSettingsMap() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null);
+            var serviceSettings = getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", 1024, true, 512, null);
             serviceSettings.put("extra_key", "value");
 
             var taskSettings = getEmbeddingsTaskSettingsMap("user");
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                INFERENCE_ID_VALUE,
+                TaskType.TEXT_EMBEDDING,
+                config.config(),
+                config.secrets()
+            );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
         }
@@ -843,14 +884,19 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInEmbeddingTaskSettingsMap() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null);
+            var serviceSettings = getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", 1024, true, 512, null);
             var taskSettings = getEmbeddingsTaskSettingsMap("user");
             taskSettings.put("extra_key", "value");
 
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                INFERENCE_ID_VALUE,
+                TaskType.TEXT_EMBEDDING,
+                config.config(),
+                config.secrets()
+            );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
         }
@@ -858,14 +904,19 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInEmbeddingSecretSettingsMap() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null);
+            var serviceSettings = getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", 1024, true, 512, null);
             var taskSettings = getEmbeddingsTaskSettingsMap("user");
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             secretSettings.put("extra_key", "value");
 
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.TEXT_EMBEDDING, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(
+                INFERENCE_ID_VALUE,
+                TaskType.TEXT_EMBEDDING,
+                config.config(),
+                config.secrets()
+            );
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
         }
@@ -873,13 +924,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInChatCompletionServiceSettingsMap() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getChatCompletionServiceSettingsMap("http://target.local", "openai", "token");
+            var serviceSettings = getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "token");
             serviceSettings.put("extra_key", "value");
             var taskSettings = getChatCompletionTaskSettingsMap(1.0, 2.0, true, 512);
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.COMPLETION, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(INFERENCE_ID_VALUE, TaskType.COMPLETION, config.config(), config.secrets());
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
         }
@@ -887,13 +938,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInChatCompletionTaskSettingsMap() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getChatCompletionServiceSettingsMap("http://target.local", "openai", "token");
+            var serviceSettings = getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "token");
             var taskSettings = getChatCompletionTaskSettingsMap(1.0, 2.0, true, 512);
             taskSettings.put("extra_key", "value");
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.COMPLETION, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(INFERENCE_ID_VALUE, TaskType.COMPLETION, config.config(), config.secrets());
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
         }
@@ -901,13 +952,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInChatCompletionSecretSettingsMap() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getChatCompletionServiceSettingsMap("http://target.local", "openai", "token");
+            var serviceSettings = getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "token");
             var taskSettings = getChatCompletionTaskSettingsMap(1.0, 2.0, true, 512);
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             secretSettings.put("extra_key", "value");
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.COMPLETION, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(INFERENCE_ID_VALUE, TaskType.COMPLETION, config.config(), config.secrets());
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
         }
@@ -915,13 +966,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInRerankServiceSettingsMap() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getRerankServiceSettingsMap("http://target.local", "cohere", "token");
+            var serviceSettings = getRerankServiceSettingsMap(URL_VALUE, "cohere", "token");
             serviceSettings.put("extra_key", "value");
             var taskSettings = getRerankTaskSettingsMap(true, 2);
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.RERANK, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(INFERENCE_ID_VALUE, TaskType.RERANK, config.config(), config.secrets());
 
             assertThat(model, instanceOf(AzureAiStudioRerankModel.class));
         }
@@ -929,13 +980,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInRerankTaskSettingsMap() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getRerankServiceSettingsMap("http://target.local", "cohere", "token");
+            var serviceSettings = getRerankServiceSettingsMap(URL_VALUE, "cohere", "token");
             var taskSettings = getRerankTaskSettingsMap(true, 2);
             taskSettings.put("extra_key", "value");
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.RERANK, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(INFERENCE_ID_VALUE, TaskType.RERANK, config.config(), config.secrets());
 
             assertThat(model, instanceOf(AzureAiStudioRerankModel.class));
         }
@@ -943,13 +994,13 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInRerankSecretSettingsMap() throws IOException {
         try (var service = createService()) {
-            var serviceSettings = getRerankServiceSettingsMap("http://target.local", "cohere", "token");
+            var serviceSettings = getRerankServiceSettingsMap(URL_VALUE, "cohere", "token");
             var taskSettings = getRerankTaskSettingsMap(true, 2);
-            var secretSettings = getSecretSettingsMap("secret");
+            var secretSettings = getSecretSettingsMap(API_KEY_VALUE);
             secretSettings.put("extra_key", "value");
             var config = getPersistedConfigMap(serviceSettings, taskSettings, secretSettings);
 
-            var model = service.parsePersistedConfigWithSecrets("id", TaskType.RERANK, config.config(), config.secrets());
+            var model = service.parsePersistedConfigWithSecrets(INFERENCE_ID_VALUE, TaskType.RERANK, config.config(), config.secrets());
 
             assertThat(model, instanceOf(AzureAiStudioRerankModel.class));
         }
@@ -958,17 +1009,17 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testParsePersistedConfig_WithoutSecretsCreatesEmbeddingsModel() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
-                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
+                getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", 1024, true, 512, null),
                 getEmbeddingsTaskSettingsMap("user"),
                 Map.of()
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config.config());
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
 
             var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(embeddingsModel.getServiceSettings().target(), is(URL_VALUE));
             assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
             assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
@@ -981,18 +1032,18 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
-                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
+                getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", 1024, true, 512, null),
                 getEmbeddingsTaskSettingsMap("user"),
                 createRandomChunkingSettingsMap(),
                 Map.of()
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config.config());
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
 
             var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(embeddingsModel.getServiceSettings().target(), is(URL_VALUE));
             assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
             assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
@@ -1006,17 +1057,17 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testParsePersistedConfig_CreatesAnEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
-                getEmbeddingsServiceSettingsMap("http://target.local", "openai", "token", 1024, true, 512, null),
+                getEmbeddingsServiceSettingsMap(URL_VALUE, "openai", "token", 1024, true, 512, null),
                 getEmbeddingsTaskSettingsMap("user"),
                 Map.of()
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, config.config());
+            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config.config());
 
             assertThat(model, instanceOf(AzureAiStudioEmbeddingsModel.class));
 
             var embeddingsModel = (AzureAiStudioEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(embeddingsModel.getServiceSettings().target(), is(URL_VALUE));
             assertThat(embeddingsModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
             assertThat(embeddingsModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
             assertThat(embeddingsModel.getServiceSettings().dimensions(), is(1024));
@@ -1030,17 +1081,17 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testParsePersistedConfig_WithoutSecretsCreatesChatCompletionModel() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
-                getChatCompletionServiceSettingsMap("http://target.local", "openai", "token"),
+                getChatCompletionServiceSettingsMap(URL_VALUE, "openai", "token"),
                 getChatCompletionTaskSettingsMap(1.0, 2.0, true, 512),
                 Map.of()
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, config.config());
+            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, TaskType.COMPLETION, config.config());
 
             assertThat(model, instanceOf(AzureAiStudioChatCompletionModel.class));
 
             var chatCompletionModel = (AzureAiStudioChatCompletionModel) model;
-            assertThat(chatCompletionModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(chatCompletionModel.getServiceSettings().target(), is(URL_VALUE));
             assertThat(chatCompletionModel.getServiceSettings().provider(), is(AzureAiStudioProvider.OPENAI));
             assertThat(chatCompletionModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
             assertThat(chatCompletionModel.getTaskSettings().temperature(), is(1.0));
@@ -1053,17 +1104,17 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     public void testParsePersistedConfig_WithoutSecretsCreatesRerankModel() throws IOException {
         try (var service = createService()) {
             var config = getPersistedConfigMap(
-                getRerankServiceSettingsMap("http://target.local", "cohere", "token"),
+                getRerankServiceSettingsMap(URL_VALUE, "cohere", "token"),
                 getRerankTaskSettingsMap(true, 2),
                 Map.of()
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.RERANK, config.config());
+            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, TaskType.RERANK, config.config());
 
             assertThat(model, instanceOf(AzureAiStudioRerankModel.class));
 
             var rerankModel = (AzureAiStudioRerankModel) model;
-            assertThat(rerankModel.getServiceSettings().target(), is("http://target.local"));
+            assertThat(rerankModel.getServiceSettings().target(), is(URL_VALUE));
             assertThat(rerankModel.getServiceSettings().provider(), is(AzureAiStudioProvider.COHERE));
             assertThat(rerankModel.getServiceSettings().endpointType(), is(AzureAiStudioEndpointType.TOKEN));
             assertThat(rerankModel.getTaskSettings().returnDocuments(), is(true));
@@ -1178,7 +1229,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenModelIsNotAzureAiStudioModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -1207,7 +1258,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -1216,7 +1267,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
     }
 
     public void testInfer_ThrowsValidationErrorForInvalidInputType() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -1225,28 +1276,28 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
         try (var service = new AzureAiStudioService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            var thrownException = expectThrows(
-                ValidationException.class,
-                () -> service.infer(
-                    mockModel,
-                    null,
-                    null,
-                    null,
-                    List.of(""),
-                    false,
-                    new HashMap<>(),
-                    InputType.CLASSIFICATION,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                )
+
+            service.infer(
+                mockModel,
+                null,
+                null,
+                null,
+                List.of(""),
+                false,
+                new HashMap<>(),
+                InputType.CLASSIFICATION,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
             );
+
+            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             assertThat(
                 thrownException.getMessage(),
                 is("Validation Failed: 1: Input type [classification] is not supported for [Azure AI Studio];")
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -1256,12 +1307,12 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
         var model = AzureAiStudioEmbeddingsModelTests.createModel(
-            "id",
+            INFERENCE_ID_VALUE,
             getUrl(webServer),
             AzureAiStudioProvider.OPENAI,
             AzureAiStudioEndpointType.TOKEN,
             createRandomChunkingSettings(),
-            "apikey",
+            API_KEY_VALUE,
             null,
             false,
             null,
@@ -1274,12 +1325,12 @@ public class AzureAiStudioServiceTests extends ESTestCase {
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
         var model = AzureAiStudioEmbeddingsModelTests.createModel(
-            "id",
+            INFERENCE_ID_VALUE,
             getUrl(webServer),
             AzureAiStudioProvider.OPENAI,
             AzureAiStudioEndpointType.TOKEN,
             null,
-            "apikey",
+            API_KEY_VALUE,
             null,
             false,
             null,
@@ -1288,6 +1339,27 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             null
         );
         testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        var model = AzureAiStudioEmbeddingsModelTests.createModel(
+            INFERENCE_ID_VALUE,
+            getUrl(webServer),
+            AzureAiStudioProvider.OPENAI,
+            AzureAiStudioEndpointType.TOKEN,
+            API_KEY_VALUE
+        );
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            List<ChunkInferenceInput> input = List.of();
+            service.chunkedInfer(model, null, input, new HashMap<>(), InputType.INGEST, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
+        }
     }
 
     private void testChunkedInfer(AzureAiStudioEmbeddingsModel model) throws IOException {
@@ -1343,10 +1415,10 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(floatResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertArrayEquals(
                     new float[] { 0.0123f, -0.0123f },
-                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1355,10 +1427,10 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
                 assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertThat(floatResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertArrayEquals(
                     new float[] { 1.0123f, -1.0123f },
-                    ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                    ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                     0.0f
                 );
             }
@@ -1366,7 +1438,7 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             assertThat(webServer.requests(), hasSize(1));
             assertNull(webServer.requests().get(0).getUri().getQuery());
             assertThat(webServer.requests().get(0).getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
-            assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo("apikey"));
+            assertThat(webServer.requests().get(0).getHeader(API_KEY_HEADER), equalTo(API_KEY_VALUE));
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap.size(), Matchers.is(3));
@@ -1383,11 +1455,11 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testChatCompletionResultJson));
 
             var model = AzureAiStudioChatCompletionModelTests.createModel(
-                "id",
+                INFERENCE_ID_VALUE,
                 getUrl(webServer),
                 AzureAiStudioProvider.OPENAI,
                 AzureAiStudioEndpointType.TOKEN,
-                "apikey"
+                API_KEY_VALUE
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1420,11 +1492,11 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(testRerankTokenResponseJson));
 
             var model = AzureAiStudioRerankModelTests.createModel(
-                "id",
+                INFERENCE_ID_VALUE,
                 getUrl(webServer),
                 AzureAiStudioProvider.COHERE,
                 AzureAiStudioEndpointType.TOKEN,
-                "apikey"
+                API_KEY_VALUE
             );
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -1472,11 +1544,11 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
 
             var model = AzureAiStudioEmbeddingsModelTests.createModel(
-                "id",
+                INFERENCE_ID_VALUE,
                 getUrl(webServer),
                 AzureAiStudioProvider.OPENAI,
                 AzureAiStudioEndpointType.TOKEN,
-                "apikey",
+                API_KEY_VALUE,
                 null,
                 false,
                 null,
@@ -1536,11 +1608,11 @@ public class AzureAiStudioServiceTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
         try (var service = new AzureAiStudioService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             var model = AzureAiStudioChatCompletionModelTests.createModel(
-                "id",
+                INFERENCE_ID_VALUE,
                 getUrl(webServer),
                 AzureAiStudioProvider.OPENAI,
                 AzureAiStudioEndpointType.TOKEN,
-                "apikey"
+                API_KEY_VALUE
             );
             var listener = new PlainActionFuture<InferenceServiceResults>();
             service.infer(
@@ -1680,6 +1752,16 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             createWithEmptySettings(threadPool),
             mockClusterServiceEmpty()
         );
+    }
+
+    @Override
+    public InferenceService createInferenceService() {
+        return createService();
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(rerankingInferenceService.rerankerWindowSize("Any model"), is(300));
     }
 
     private Map<String, Object> getRequestConfigMap(
@@ -1826,4 +1908,83 @@ public class AzureAiStudioServiceTests extends ESTestCase {
             }
         }
         """;
+
+    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {
+        var model = createTestModel(TaskType.TEXT_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {
+        var model = createTestModel(TaskType.COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException {
+        var model = createTestModel(TaskType.RERANK);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ID_VALUE,
+            TaskType.CHAT_COMPLETION,
+            AzureAiStudioService.NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    Strings.format(
+                        """
+                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
+                            Please delete and add the service again""",
+                        INFERENCE_ID_VALUE,
+                        AzureAiStudioService.NAME,
+                        AzureAiStudioService.NAME,
+                        TaskType.CHAT_COMPLETION
+                    )
+                )
+
+            );
+        }
+    }
+
+    private Model createTestModel(TaskType taskType) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> AzureAiStudioEmbeddingsModelTests.createModel(
+                INFERENCE_ID_VALUE,
+                URL_VALUE,
+                AzureAiStudioProvider.COHERE,
+                AzureAiStudioEndpointType.TOKEN,
+                API_KEY_VALUE
+            );
+            case COMPLETION -> AzureAiStudioChatCompletionModelTests.createModel(
+                INFERENCE_ID_VALUE,
+                URL_VALUE,
+                AzureAiStudioProvider.OPENAI,
+                AzureAiStudioEndpointType.TOKEN,
+                API_KEY_VALUE
+            );
+            case RERANK -> AzureAiStudioRerankModelTests.createModel(
+                INFERENCE_ID_VALUE,
+                URL_VALUE,
+                AzureAiStudioProvider.COHERE,
+                AzureAiStudioEndpointType.TOKEN,
+                API_KEY_VALUE
+            );
+            default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
+        };
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, is(model));
+        }
+    }
 }

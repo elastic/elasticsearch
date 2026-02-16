@@ -1,24 +1,34 @@
 {
   "inference.put_googleaistudio": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/infer-service-google-ai-studio.html",
-      "description": "Configure a Google AI Studio inference endpoint"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-inference-put-googleaistudio",
+      "description": "Create an Google AI Studio inference endpoint"
     },
     "stability": "stable",
     "visibility": "public",
     "headers": {
-      "accept": ["application/json"],
-      "content_type": ["application/json"]
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
           "path": "/_inference/{task_type}/{googleaistudio_inference_id}",
-          "methods": ["PUT"],
+          "methods": [
+            "PUT"
+          ],
           "parts": {
             "task_type": {
-              "type": "string",
-              "description": "The task type"
+              "type": "enum",
+              "description": "The task type",
+              "options": [
+                "completion",
+                "text_embedding"
+              ]
             },
             "googleaistudio_inference_id": {
               "type": "string",
@@ -29,7 +39,15 @@
       ]
     },
     "body": {
-      "description": "The inference endpoint's task and service settings"
+      "description": "The inference endpoint's task and service settings",
+      "required": true
+    },
+    "params": {
+      "timeout": {
+        "type": "time",
+        "description": "Specifies the amount of time to wait for the inference endpoint to be created.",
+        "default": "30s"
+      }
     }
   }
 }

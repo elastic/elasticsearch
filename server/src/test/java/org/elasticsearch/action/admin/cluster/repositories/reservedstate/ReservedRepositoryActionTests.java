@@ -17,11 +17,13 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.reservedstate.TransformState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,6 +40,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.when;
 
 /**
  * Tests that the ReservedRepositoryAction does validation, can add and remove repositories
@@ -143,15 +146,20 @@ public class ReservedRepositoryActionTests extends ESTestCase {
         };
 
         ThreadPool threadPool = mock(ThreadPool.class);
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.getClusterSettings()).thenReturn(
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
         RepositoriesService repositoriesService = spy(
             new RepositoriesService(
                 Settings.EMPTY,
-                mock(ClusterService.class),
+                clusterService,
                 Map.of(),
                 Map.of("fs", fsFactory),
                 threadPool,
                 mock(NodeClient.class),
-                null
+                null,
+                SnapshotMetrics.NOOP
             )
         );
 

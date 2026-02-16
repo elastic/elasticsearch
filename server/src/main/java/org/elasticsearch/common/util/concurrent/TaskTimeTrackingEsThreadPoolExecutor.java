@@ -39,12 +39,14 @@ public final class TaskTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExec
         ThreadFactory threadFactory,
         EsRejectedExecutionHandler handler,
         ThreadContext contextHolder,
-        TaskTrackingConfig trackingConfig
+        TaskTrackingConfig trackingConfig,
+        EsExecutors.HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig
     ) {
-        super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
+        super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder,
+            hotThreadsOnLargeQueueConfig);
 
         this.runnableWrapper = runnableWrapper;
-        this.taskTracker = new TaskTracker(trackingConfig, maximumPoolSize);
+        this.taskTracker = new TaskTracker(trackingConfig, maximumPoolSize, this::getQueue);
     }
 
     public Stream<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
@@ -82,6 +84,11 @@ public final class TaskTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExec
 
     public long getMaxQueueLatencyMillisSinceLastPollAndReset() {
         return taskTracker.getMaxQueueLatencyMillisSinceLastPollAndReset();
+    }
+
+    @Override
+    public long peekMaxQueueLatencyInQueueMillis() {
+        return taskTracker.peekMaxQueueLatencyInQueueMillis();
     }
 
     /**

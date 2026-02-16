@@ -4,9 +4,9 @@
 
 ```esql
 TS k8s
-| STATS distincts=count_distinct(count_distinct_over_time(network.cost)),
-        distincts_imprecise=count_distinct(count_distinct_over_time(network.cost, 100))
-  BY cluster, time_bucket = bucket(@timestamp,1minute)
+| STATS distincts=COUNT_DISTINCT(COUNT_DISTINCT_OVER_TIME(network.cost)),
+        distincts_imprecise=COUNT_DISTINCT(COUNT_DISTINCT_OVER_TIME(network.cost, 100))
+  BY cluster, time_bucket = TBUCKET(1minute)
 ```
 
 | distincts:long | distincts_imprecise:long | cluster:keyword | time_bucket:datetime |

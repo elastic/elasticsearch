@@ -14,20 +14,12 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.RequestManager;
 
-import java.util.concurrent.TimeUnit;
-
 public interface RequestExecutor {
     void start();
 
     void shutdown();
 
-    void updateRateLimitDivisor(int newDivisor);
-
     boolean isShutdown();
-
-    boolean isTerminated();
-
-    boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException;
 
     void execute(
         RequestManager requestCreator,

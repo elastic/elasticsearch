@@ -9,7 +9,6 @@
 package org.elasticsearch.xcontent;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 /**
@@ -68,9 +67,8 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
     @Override
     public UTF8Bytes bytes() {
         if (bytes == null) {
-            var byteBuff = StandardCharsets.UTF_8.encode(string);
-            assert byteBuff.hasArray();
-            bytes = new UTF8Bytes(byteBuff.array(), byteBuff.arrayOffset() + byteBuff.position(), byteBuff.remaining());
+            byte[] byteArray = string.getBytes(StandardCharsets.UTF_8);
+            bytes = new UTF8Bytes(byteArray, 0, byteArray.length);
         }
         return bytes;
     }
@@ -85,8 +83,7 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
     @Override
     public String string() {
         if (string == null) {
-            var byteBuff = ByteBuffer.wrap(bytes.bytes(), bytes.offset(), bytes.length());
-            string = StandardCharsets.UTF_8.decode(byteBuff).toString();
+            string = new String(bytes.bytes(), bytes.offset(), bytes.length(), StandardCharsets.UTF_8);
             assert (stringLength < 0) || (string.length() == stringLength);
         }
         return string;
@@ -95,9 +92,40 @@ public final class Text implements XContentString, Comparable<Text>, ToXContentF
     @Override
     public int stringLength() {
         if (stringLength < 0) {
-            stringLength = string().length();
+            if (hasString()) {
+                stringLength = string().length();
+            } else {
+                stringLength = countCharsUtf8(bytes());
+                if (stringLength < 0) {
+                    stringLength = string().length();
+                }
+            }
         }
         return stringLength;
+    }
+
+    private int countCharsUtf8(UTF8Bytes bytes) {
+        int count = 0;
+        int offset = bytes.offset();
+        int end = offset + bytes.length();
+        for (int i = offset; i < end; i++) {
+            byte b = bytes.bytes()[i];
+            if ((b & 0x80) == 0) {
+                count++; // 1 byte character
+            } else if ((b & 0xE0) == 0xC0) {
+                count++; // 2 byte character
+                i++; // skip next byte
+            } else if ((b & 0xF0) == 0xE0) {
+                count++; // 3 byte character
+                i += 2; // skip next two bytes
+            } else if ((b & 0xF8) == 0xF0) {
+                count += 2; // 4 byte character
+                i += 3; // skip next three bytes
+            } else {
+                return -1; // invalid UTF-8 sequence
+            }
+        }
+        return count;
     }
 
     @Override

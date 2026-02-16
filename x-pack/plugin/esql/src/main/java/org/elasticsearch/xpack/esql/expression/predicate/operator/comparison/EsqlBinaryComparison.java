@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
@@ -47,17 +48,18 @@ import java.math.BigInteger;
 import java.time.OffsetTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.HOUR_MINUTE_SECOND;
@@ -230,6 +232,23 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
 
         // Our type is always boolean, so figure out the evaluator type from the inputs
         DataType commonType = commonType(left().dataType(), right().dataType());
+
+        // if you reached this point, it means that the types were not compatible, which should have been caught by the type resolution
+        // verification step, so this should never happen in practice. We are throwing an exception in this case to get more information
+        // about the failure, if it does happen.
+        // see also https://github.com/elastic/elasticsearch/issues/141267
+        if (commonType == null) {
+            throw new EsqlIllegalArgumentException(
+                "Cannot compare incompatible types ["
+                    + left().dataType().typeName()
+                    + "] and ["
+                    + right().dataType().typeName()
+                    + "] "
+                    + "with operator ["
+                    + functionType.symbol()
+                    + "]"
+            );
+        }
         if (commonType.isNumeric()) {
             lhs = Cast.cast(source(), left().dataType(), commonType, toEvaluator.apply(left()));
             rhs = Cast.cast(source(), right().dataType(), commonType, toEvaluator.apply(right()));
@@ -329,7 +348,13 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        if (right().foldable()) {
+        if (right() instanceof Literal lit) {
+            // Multi-valued literals are not supported going further. This also makes sure that we are handling multi-valued literals with
+            // a "warning" header, as well (see EqualsKeywordsEvaluator, for example, where lhs and rhs are both dealt with equally when
+            // it comes to multi-value handling).
+            if (lit.value() instanceof Collection<?>) {
+                return Translatable.NO;
+            }
             if (pushdownPredicates.isPushableFieldAttribute(left())) {
                 return Translatable.YES;
             }
@@ -378,7 +403,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
     private Query translate(TranslatorHandler handler) {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
         String name = handler.nameOf(attribute);
-        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
+        Object value = literalValueOf(right());
         String format = null;
         boolean isDateLiteralComparison = false;
 
@@ -478,7 +503,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison
         if ((left() instanceof FieldAttribute) == false || left().dataType().isNumeric() == false) {
             return null;
         }
-        Object value = valueOf(FoldContext.small() /* TODO remove me */, right());
+        Object value = literalValueOf(right());
 
         // Comparisons with multi-values always return null in ESQL.
         if (value instanceof List<?>) {

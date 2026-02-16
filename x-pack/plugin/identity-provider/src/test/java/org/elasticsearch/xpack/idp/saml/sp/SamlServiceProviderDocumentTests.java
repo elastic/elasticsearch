@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.idp.saml.sp;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -40,6 +39,10 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
+
+    private static final TransportVersion IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST = TransportVersion.fromName(
+        "idp_custom_saml_attributes_allow_list"
+    );
 
     public void testValidationFailuresForMissingFields() throws Exception {
         final SamlServiceProviderDocument doc = new SamlServiceProviderDocument();
@@ -93,17 +96,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
 
     public void testSerializationBeforeExtensionAttributes() throws Exception {
         final SamlServiceProviderDocument original = createFullDocument();
-        final TransportVersion version = randomBoolean()
-            ? TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_9_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST)
-            )
-            : TransportVersionUtils.randomVersionBetween(
-                random(),
-                TransportVersions.V_8_0_0,
-                TransportVersionUtils.getPreviousVersion(TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST_8_19)
-            );
+        final TransportVersion version = TransportVersionUtils.getPreviousVersion(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST);
         final SamlServiceProviderDocument copy = copyWriteable(
             original,
             new NamedWriteableRegistry(List.of()),
@@ -187,11 +180,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
     }
 
     private SamlServiceProviderDocument assertSerializationRoundTrip(SamlServiceProviderDocument doc) throws IOException {
-        final TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST,
-            TransportVersion.current()
-        );
+        final TransportVersion version = TransportVersionUtils.randomVersionSupporting(IDP_CUSTOM_SAML_ATTRIBUTES_ALLOW_LIST);
         final SamlServiceProviderDocument read = copyWriteable(
             doc,
             new NamedWriteableRegistry(List.of()),

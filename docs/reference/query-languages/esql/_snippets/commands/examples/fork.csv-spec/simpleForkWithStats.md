@@ -11,9 +11,9 @@ FROM books METADATA _score
 
 | author:text | score:double | _fork:keyword | total:long |
 | --- | --- | --- | --- |
-| William Faulkner | 2.39 | fork1 | null |
-| William Faulkner | 2.39 | fork1 | null |
-| Colleen Faulkner | 1.59 | fork1 | null |
-| Danny Faulkner | 1.59 | fork1 | null |
-| Keith Faulkner | 1.59 | fork1 | null |
+| Colleen Faulkner | 2.18 | fork1 | null |
+| William Faulkner | 2.18 | fork1 | null |
+| Danny Faulkner | 2.02 | fork1 | null |
+| Paul Faulkner | 2.02 | fork1 | null |
+| William Faulkner | 2.02 | fork1 | null |
 | null | null | fork2 | 18 |

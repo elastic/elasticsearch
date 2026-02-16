@@ -169,9 +169,9 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
     }
 
     @Before
-    public void ensureTemplatesArePresent() throws Exception {
+    public void ensureTemplatesArePresent() {
         if (cluster().size() > 0) {
-            awaitClusterState(logger, MachineLearning::criticalTemplatesInstalled);
+            awaitClusterState(MachineLearning::criticalTemplatesInstalled);
         }
     }
 

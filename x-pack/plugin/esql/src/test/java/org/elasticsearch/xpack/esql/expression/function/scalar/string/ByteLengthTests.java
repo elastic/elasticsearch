@@ -42,7 +42,7 @@ public class ByteLengthTests extends AbstractScalarFunctionTestCase {
         cases.addAll(makeTestCases("3 bytes, 1 code point", () -> "☕", 3));
         cases.addAll(makeTestCases("6 bytes, 2 code points", () -> "❗️", 6));
         cases.addAll(makeTestCases("100 random alpha", () -> randomAlphaOfLength(100), 100));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(ENTIRELY_NULL_PRESERVES_TYPE, cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(ENTIRELY_NULL_PRESERVES_TYPE, cases);
     }
 
     private static List<TestCaseSupplier> makeTestCases(String title, Supplier<String> text, int expectedByteLength) {

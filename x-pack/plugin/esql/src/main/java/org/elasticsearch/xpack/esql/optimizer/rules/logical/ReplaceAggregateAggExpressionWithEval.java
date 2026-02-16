@@ -43,9 +43,17 @@ import java.util.Map;
  * becomes
  * stats a = min(x), c = count(*) by g | eval b = a, d = c | keep a, b, c, d, g
  */
-public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.OptimizerRule<Aggregate> {
+    private final boolean replaceNestedExpressions;
+
+    public ReplaceAggregateAggExpressionWithEval(boolean replaceNestedExpressions) {
+        super(OptimizerRules.TransformDirection.UP);
+        this.replaceNestedExpressions = replaceNestedExpressions;
+    }
+
     public ReplaceAggregateAggExpressionWithEval() {
         super(OptimizerRules.TransformDirection.UP);
+        this.replaceNestedExpressions = true;
     }
 
     @Override
@@ -88,7 +96,7 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
                 // common case - handle duplicates
                 if (child instanceof AggregateFunction af) {
                     // canonical representation, with resolved aliases
-                    AggregateFunction canonical = (AggregateFunction) af.canonical().transformUp(e -> aliases.resolve(e, e));
+                    AggregateFunction canonical = getCannonical(af, aliases);
 
                     Alias found = rootAggs.get(canonical);
                     // aggregate is new
@@ -106,14 +114,15 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
                 }
                 // nested expression over aggregate function or groups
                 // replace them with reference and move the expression into a follow-up eval
-                else {
+                else if (replaceNestedExpressions) {
                     changed.set(true);
                     Expression aggExpression = child.transformUp(AggregateFunction.class, af -> {
-                        AggregateFunction canonical = (AggregateFunction) af.canonical();
+                        // canonical representation, with resolved aliases
+                        AggregateFunction canonical = getCannonical(af, aliases);
                         Alias alias = rootAggs.get(canonical);
                         if (alias == null) {
-                            // create synthetic alias ove the found agg function
-                            alias = new Alias(af.source(), syntheticName(canonical, child, counter[0]++), canonical, null, true);
+                            // create synthetic alias over the found agg function
+                            alias = new Alias(af.source(), syntheticName(canonical, child, counter[0]++), af.canonical(), null, true);
                             // and remember it to remove duplicates
                             rootAggs.put(canonical, alias);
                             // add it to the list of aggregates and continue
@@ -132,6 +141,9 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
                     Alias alias = as.replaceChild(aggExpression);
                     newEvals.add(alias);
                     newProjections.add(alias.toAttribute());
+                } else {
+                    newAggs.add(agg);
+                    newProjections.add(agg.toAttribute());
                 }
             }
             // not an alias (e.g. grouping field)
@@ -153,6 +165,10 @@ public final class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.
         }
 
         return plan;
+    }
+
+    private static AggregateFunction getCannonical(AggregateFunction af, AttributeMap<Expression> aliases) {
+        return (AggregateFunction) af.canonical().transformUp(e -> aliases.resolve(e, e));
     }
 
     private static String syntheticName(Expression expression, Expression af, int counter) {

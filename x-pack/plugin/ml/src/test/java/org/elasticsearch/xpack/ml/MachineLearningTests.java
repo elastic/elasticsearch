@@ -11,10 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
@@ -64,8 +61,6 @@ public class MachineLearningTests extends ESTestCase {
     @SuppressWarnings("unchecked")
     public void testPrePostSystemIndexUpgrade_givenNotInUpgradeMode() throws IOException {
         ThreadPool threadpool = new TestThreadPool("test");
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         Client client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadpool);
         doAnswer(invocationOnMock -> {
@@ -77,25 +72,24 @@ public class MachineLearningTests extends ESTestCase {
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(Settings.EMPTY)) {
 
             SetOnce<Map<String, Object>> response = new SetOnce<>();
-            machineLearning.prepareForIndicesMigration(clusterService, client, ActionTestUtils.assertNoFailureListener(response::set));
+            machineLearning.prepareForIndicesMigration(emptyProject(), client, ActionTestUtils.assertNoFailureListener(response::set));
 
             assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", false)));
             verify(client).execute(
                 same(SetUpgradeModeAction.INSTANCE),
-                eq(new SetUpgradeModeAction.Request(true)),
+                eq(new SetUpgradeModeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true)),
                 any(ActionListener.class)
             );
 
             machineLearning.indicesMigrationComplete(
                 response.get(),
-                clusterService,
                 client,
                 ActionTestUtils.assertNoFailureListener(ESTestCase::assertTrue)
             );
 
             verify(client).execute(
                 same(SetUpgradeModeAction.INSTANCE),
-                eq(new SetUpgradeModeAction.Request(false)),
+                eq(new SetUpgradeModeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, false)),
                 any(ActionListener.class)
             );
         } finally {
@@ -104,25 +98,21 @@ public class MachineLearningTests extends ESTestCase {
     }
 
     public void testPrePostSystemIndexUpgrade_givenAlreadyInUpgradeMode() throws IOException {
-        ClusterService clusterService = mock(ClusterService.class);
-        when(clusterService.state()).thenReturn(
-            ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build()))
-                .build()
-        );
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .putCustom(MlMetadata.TYPE, new MlMetadata.Builder().isUpgradeMode(true).build())
+            .build();
         Client client = mock(Client.class);
 
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(Settings.EMPTY)) {
 
             SetOnce<Map<String, Object>> response = new SetOnce<>();
-            machineLearning.prepareForIndicesMigration(clusterService, client, ActionTestUtils.assertNoFailureListener(response::set));
+            machineLearning.prepareForIndicesMigration(project, client, ActionTestUtils.assertNoFailureListener(response::set));
 
             assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", true)));
             verifyNoMoreInteractions(client);
 
             machineLearning.indicesMigrationComplete(
                 response.get(),
-                clusterService,
                 client,
                 ActionTestUtils.assertNoFailureListener(ESTestCase::assertTrue)
             );
@@ -219,8 +209,12 @@ public class MachineLearningTests extends ESTestCase {
     }
 
     public void testAnomalyDetectionOnly() throws IOException {
-        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, true, false, false));
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.getKey(), false)
+            .put(MachineLearning.NLP_ENABLED.getKey(), false)
+            .build();
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false));
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
             List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null, null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
@@ -239,8 +233,12 @@ public class MachineLearningTests extends ESTestCase {
     }
 
     public void testDataFrameAnalyticsOnly() throws IOException {
-        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, true, false));
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(MachineLearning.ANOMALY_DETECTION_ENABLED.getKey(), false)
+            .put(MachineLearning.NLP_ENABLED.getKey(), false)
+            .build();
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false));
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
             List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null, null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
@@ -259,8 +257,12 @@ public class MachineLearningTests extends ESTestCase {
     }
 
     public void testNlpOnly() throws IOException {
-        Settings settings = Settings.builder().put("path.home", createTempDir()).build();
-        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false, false, false, false, true));
+        Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(MachineLearning.ANOMALY_DETECTION_ENABLED.getKey(), false)
+            .put(MachineLearning.DATA_FRAME_ANALYTICS_ENABLED.getKey(), false)
+            .build();
+        MlTestExtensionLoader loader = new MlTestExtensionLoader(new MlTestExtension(false));
         try (MachineLearning machineLearning = createTrialLicensedMachineLearning(settings, loader)) {
             List<RestHandler> restHandlers = machineLearning.getRestHandlers(settings, null, null, null, null, null, null, null, null);
             assertThat(restHandlers, hasItem(instanceOf(RestMlInfoAction.class)));
@@ -282,49 +284,15 @@ public class MachineLearningTests extends ESTestCase {
 
         public static final String[] ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS = {};
 
-        private final boolean useIlm;
         private final boolean includeNodeInfo;
-        private final boolean isAnomalyDetectionEnabled;
-        private final boolean isDataFrameAnalyticsEnabled;
-        private final boolean isNlpEnabled;
 
-        MlTestExtension(
-            boolean useIlm,
-            boolean includeNodeInfo,
-            boolean isAnomalyDetectionEnabled,
-            boolean isDataFrameAnalyticsEnabled,
-            boolean isNlpEnabled
-        ) {
-            this.useIlm = useIlm;
+        MlTestExtension(boolean includeNodeInfo) {
             this.includeNodeInfo = includeNodeInfo;
-            this.isAnomalyDetectionEnabled = isAnomalyDetectionEnabled;
-            this.isDataFrameAnalyticsEnabled = isDataFrameAnalyticsEnabled;
-            this.isNlpEnabled = isNlpEnabled;
-        }
-
-        @Override
-        public boolean useIlm() {
-            return useIlm;
         }
 
         @Override
         public boolean includeNodeInfo() {
             return includeNodeInfo;
-        }
-
-        @Override
-        public boolean isAnomalyDetectionEnabled() {
-            return isAnomalyDetectionEnabled;
-        }
-
-        @Override
-        public boolean isDataFrameAnalyticsEnabled() {
-            return isDataFrameAnalyticsEnabled;
-        }
-
-        @Override
-        public boolean isNlpEnabled() {
-            return isNlpEnabled;
         }
 
         @Override

@@ -10,9 +10,9 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.DocValueFormat;
 
@@ -29,7 +29,7 @@ class GeoTileValuesSource extends LongValuesSource {
     GeoTileValuesSource(
         BigArrays bigArrays,
         MappedFieldType fieldType,
-        CheckedFunction<LeafReaderContext, SortedNumericDocValues, IOException> docValuesFunc,
+        CheckedFunction<LeafReaderContext, SortedNumericLongValues, IOException> docValuesFunc,
         LongUnaryOperator rounding,
         DocValueFormat format,
         boolean missingBucket,

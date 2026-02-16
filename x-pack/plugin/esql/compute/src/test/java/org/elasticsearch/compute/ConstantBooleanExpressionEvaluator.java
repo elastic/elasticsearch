@@ -37,6 +37,11 @@ public record ConstantBooleanExpressionEvaluator(BlockFactory factory, boolean v
     }
 
     @Override
+    public long baseRamBytesUsed() {
+        return 0;
+    }
+
+    @Override
     public void close() {}
 
 }

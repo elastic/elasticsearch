@@ -32,22 +32,25 @@ public final class StdDevIntGroupingAggregatorFunction implements GroupingAggreg
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
       new IntermediateStateDesc("count", ElementType.LONG)  );
 
-  private final StdDevStates.GroupingState state;
+  private final VarianceStates.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
+  private final boolean stdDev;
+
   public StdDevIntGroupingAggregatorFunction(List<Integer> channels,
-      StdDevStates.GroupingState state, DriverContext driverContext) {
+      VarianceStates.GroupingState state, DriverContext driverContext, boolean stdDev) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
+    this.stdDev = stdDev;
   }
 
   public static StdDevIntGroupingAggregatorFunction create(List<Integer> channels,
-      DriverContext driverContext) {
-    return new StdDevIntGroupingAggregatorFunction(channels, StdDevIntAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+      DriverContext driverContext, boolean stdDev) {
+    return new StdDevIntGroupingAggregatorFunction(channels, StdDevIntAggregator.initGrouping(driverContext.bigArrays(), stdDev), driverContext, stdDev);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -62,26 +65,24 @@ public final class StdDevIntGroupingAggregatorFunction implements GroupingAggreg
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds,
       Page page) {
-    IntBlock valuesBlock = page.getBlock(channels.get(0));
-    IntVector valuesVector = valuesBlock.asVector();
-    if (valuesVector == null) {
-      if (valuesBlock.mayHaveNulls()) {
-        state.enableGroupIdTracking(seenGroupIds);
-      }
+    IntBlock valueBlock = page.getBlock(channels.get(0));
+    IntVector valueVector = valueBlock.asVector();
+    if (valueVector == null) {
+      maybeEnableGroupIdTracking(seenGroupIds, valueBlock);
       return new GroupingAggregatorFunction.AddInput() {
         @Override
         public void add(int positionOffset, IntArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+          addRawInput(positionOffset, groupIds, valueBlock);
         }
 
         @Override
         public void add(int positionOffset, IntBigArrayBlock groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+          addRawInput(positionOffset, groupIds, valueBlock);
         }
 
         @Override
         public void add(int positionOffset, IntVector groupIds) {
-          addRawInput(positionOffset, groupIds, valuesBlock);
+          addRawInput(positionOffset, groupIds, valueBlock);
         }
 
         @Override
@@ -92,17 +93,17 @@ public final class StdDevIntGroupingAggregatorFunction implements GroupingAggreg
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, valueVector);
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, valueVector);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, valuesVector);
+        addRawInput(positionOffset, groupIds, valueVector);
       }
 
       @Override
@@ -111,34 +112,41 @@ public final class StdDevIntGroupingAggregatorFunction implements GroupingAggreg
     };
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, IntBlock values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, IntBlock valueBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      if (valueBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-        for (int v = valuesStart; v < valuesEnd; v++) {
-          StdDevIntAggregator.combine(state, groupId, values.getInt(v));
+        int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+        int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+        for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+          int valueValue = valueBlock.getInt(valueOffset);
+          StdDevIntAggregator.combine(state, groupId, valueValue);
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntArrayBlock groups, IntVector values) {
+  private void addRawInput(int positionOffset, IntArrayBlock groups, IntVector valueVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
       }
+      int valuesPosition = groupPosition + positionOffset;
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        StdDevIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
+        int valueValue = valueVector.getInt(valuesPosition);
+        StdDevIntAggregator.combine(state, groupId, valueValue);
       }
     }
   }
@@ -171,39 +179,47 @@ public final class StdDevIntGroupingAggregatorFunction implements GroupingAggreg
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        StdDevIntAggregator.combineIntermediate(state, groupId, mean.getDouble(groupPosition + positionOffset), m2.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
+        int valuesPosition = groupPosition + positionOffset;
+        StdDevIntAggregator.combineIntermediate(state, groupId, mean.getDouble(valuesPosition), m2.getDouble(valuesPosition), count.getLong(valuesPosition));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntBlock values) {
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntBlock valueBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (groups.isNull(groupPosition) || values.isNull(groupPosition + positionOffset)) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      if (valueBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-        int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-        for (int v = valuesStart; v < valuesEnd; v++) {
-          StdDevIntAggregator.combine(state, groupId, values.getInt(v));
+        int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+        int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+        for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+          int valueValue = valueBlock.getInt(valueOffset);
+          StdDevIntAggregator.combine(state, groupId, valueValue);
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntVector values) {
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups, IntVector valueVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
       }
+      int valuesPosition = groupPosition + positionOffset;
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        StdDevIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
+        int valueValue = valueVector.getInt(valuesPosition);
+        StdDevIntAggregator.combine(state, groupId, valueValue);
       }
     }
   }
@@ -236,29 +252,34 @@ public final class StdDevIntGroupingAggregatorFunction implements GroupingAggreg
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        StdDevIntAggregator.combineIntermediate(state, groupId, mean.getDouble(groupPosition + positionOffset), m2.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
+        int valuesPosition = groupPosition + positionOffset;
+        StdDevIntAggregator.combineIntermediate(state, groupId, mean.getDouble(valuesPosition), m2.getDouble(valuesPosition), count.getLong(valuesPosition));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
+  private void addRawInput(int positionOffset, IntVector groups, IntBlock valueBlock) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      if (values.isNull(groupPosition + positionOffset)) {
+      int valuesPosition = groupPosition + positionOffset;
+      if (valueBlock.isNull(valuesPosition)) {
         continue;
       }
       int groupId = groups.getInt(groupPosition);
-      int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
-      int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
-      for (int v = valuesStart; v < valuesEnd; v++) {
-        StdDevIntAggregator.combine(state, groupId, values.getInt(v));
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        int valueValue = valueBlock.getInt(valueOffset);
+        StdDevIntAggregator.combine(state, groupId, valueValue);
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
+  private void addRawInput(int positionOffset, IntVector groups, IntVector valueVector) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int valuesPosition = groupPosition + positionOffset;
       int groupId = groups.getInt(groupPosition);
-      StdDevIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
+      int valueValue = valueVector.getInt(valuesPosition);
+      StdDevIntAggregator.combine(state, groupId, valueValue);
     }
   }
 
@@ -284,7 +305,14 @@ public final class StdDevIntGroupingAggregatorFunction implements GroupingAggreg
     assert mean.getPositionCount() == m2.getPositionCount() && mean.getPositionCount() == count.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      StdDevIntAggregator.combineIntermediate(state, groupId, mean.getDouble(groupPosition + positionOffset), m2.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
+      int valuesPosition = groupPosition + positionOffset;
+      StdDevIntAggregator.combineIntermediate(state, groupId, mean.getDouble(valuesPosition), m2.getDouble(valuesPosition), count.getLong(valuesPosition));
+    }
+  }
+
+  private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, IntBlock valueBlock) {
+    if (valueBlock.mayHaveNulls()) {
+      state.enableGroupIdTracking(seenGroupIds);
     }
   }
 

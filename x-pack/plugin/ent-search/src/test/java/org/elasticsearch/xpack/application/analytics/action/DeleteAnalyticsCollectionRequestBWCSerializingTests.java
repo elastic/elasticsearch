@@ -33,7 +33,10 @@ public class DeleteAnalyticsCollectionRequestBWCSerializingTests extends Abstrac
 
     @Override
     protected DeleteAnalyticsCollectionAction.Request mutateInstance(DeleteAnalyticsCollectionAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new DeleteAnalyticsCollectionAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            randomValueOtherThan(instance.getCollectionName(), () -> randomIdentifier())
+        );
     }
 
     @Override

@@ -1,0 +1,5 @@
+area: Allocation
+issues: []
+pr: 141565
+summary: Don't overwrite decision with `NOT_PREFERRED` unless its an improvement
+type: bug

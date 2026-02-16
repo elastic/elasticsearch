@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.cluster.snapshots.get;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.Strings;
@@ -41,8 +40,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public static final String NO_POLICY_PATTERN = "_none";
     public static final boolean DEFAULT_VERBOSE_MODE = true;
 
-    private static final TransportVersion INDICES_FLAG_VERSION = TransportVersions.V_8_3_0;
-    private static final TransportVersion STATE_FLAG_VERSION = TransportVersions.STATE_PARAM_GET_SNAPSHOT;
+    private static final TransportVersion STATE_FLAG_VERSION = TransportVersion.fromName("state_param_get_snapshot");
 
     public static final int NO_LIMIT = -1;
 
@@ -121,10 +119,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         offset = in.readVInt();
         policies = in.readStringArray();
         fromSortValue = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
-            includeIndexNames = in.readBoolean();
-        }
-        if (in.getTransportVersion().onOrAfter(STATE_FLAG_VERSION)) {
+        includeIndexNames = in.readBoolean();
+        if (in.getTransportVersion().supports(STATE_FLAG_VERSION)) {
             states = in.readEnumSet(SnapshotState.class);
         } else {
             states = EnumSet.allOf(SnapshotState.class);
@@ -145,10 +141,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         out.writeVInt(offset);
         out.writeStringArray(policies);
         out.writeOptionalString(fromSortValue);
-        if (out.getTransportVersion().onOrAfter(INDICES_FLAG_VERSION)) {
-            out.writeBoolean(includeIndexNames);
-        }
-        if (out.getTransportVersion().onOrAfter(STATE_FLAG_VERSION)) {
+        out.writeBoolean(includeIndexNames);
+        if (out.getTransportVersion().supports(STATE_FLAG_VERSION)) {
             out.writeEnumSet(states);
         } else if (states.equals(EnumSet.allOf(SnapshotState.class)) == false) {
             final var errorString = "GetSnapshotsRequest [states] field is not supported on all nodes in the cluster";

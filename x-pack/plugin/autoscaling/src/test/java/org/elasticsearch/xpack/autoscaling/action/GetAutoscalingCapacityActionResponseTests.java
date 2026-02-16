@@ -13,7 +13,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderResults;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Map;
@@ -22,6 +21,8 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 
 public class GetAutoscalingCapacityActionResponseTests extends AutoscalingTestCase {
 
@@ -50,6 +51,6 @@ public class GetAutoscalingCapacityActionResponseTests extends AutoscalingTestCa
         expected.endObject();
         expected.endObject();
         BytesReference expectedBytes = BytesReference.bytes(expected);
-        assertThat(responseBytes, Matchers.equalTo(expectedBytes));
+        assertThat(responseBytes, equalBytes(expectedBytes));
     }
 }

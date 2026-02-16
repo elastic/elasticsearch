@@ -7,10 +7,8 @@
 
 package org.elasticsearch.compute.lucene.read;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.core.Releasable;
 
 class ComputeBlockLoaderFactory extends DelegatingBlockLoaderFactory implements Releasable {
@@ -24,6 +22,11 @@ class ComputeBlockLoaderFactory extends DelegatingBlockLoaderFactory implements 
     public Block constantNulls(int count) {
         if (nullBlock == null) {
             nullBlock = factory.newConstantNullBlock(count);
+        } else {
+            if (nullBlock.getPositionCount() != count) {
+                nullBlock.close();
+                nullBlock = factory.newConstantNullBlock(count);
+            }
         }
         nullBlock.incRef();
         return nullBlock;
@@ -34,10 +37,5 @@ class ComputeBlockLoaderFactory extends DelegatingBlockLoaderFactory implements 
         if (nullBlock != null) {
             nullBlock.close();
         }
-    }
-
-    @Override
-    public BytesRefBlock constantBytes(BytesRef value, int count) {
-        return factory.newConstantBytesRefBlockWith(value, count);
     }
 }

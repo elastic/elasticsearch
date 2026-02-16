@@ -58,6 +58,7 @@ PUT /test
   }
 }
 ```
+% TESTSETUP
 
 Index several documents to the `test` index.
 

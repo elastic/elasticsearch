@@ -58,6 +58,7 @@ PUT /keyword_example
   }
 }
 ```
+% TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: keyword_example, first: keyword, second: rebuilt_keyword}\nendyaml\n/]
 
 1. You’d add any token filters here.
 

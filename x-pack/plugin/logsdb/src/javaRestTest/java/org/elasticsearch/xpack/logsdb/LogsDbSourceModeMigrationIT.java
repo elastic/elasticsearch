@@ -12,6 +12,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -36,6 +39,10 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
 public class LogsDbSourceModeMigrationIT extends LogsIndexModeRestTestIT {
+
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
+
     public static final String INDEX_TEMPLATE = """
         {
           "index_patterns": ["my-logs-*-*"],
@@ -108,7 +115,8 @@ public class LogsDbSourceModeMigrationIT extends LogsIndexModeRestTestIT {
         .module("mapper-extras")
         .module("x-pack-aggregate-metric")
         .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .user(USER, PASS)
         .setting("xpack.otel_data.registry.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.logsdb.enabled", "true")
@@ -126,6 +134,11 @@ public class LogsDbSourceModeMigrationIT extends LogsIndexModeRestTestIT {
     }
 
     private RestClient client;
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
 
     public void testSwitchFromStoredToSyntheticSource() throws IOException {
         assertOK(putComponentTemplate(client, "my-logs-mapping", MAPPING_COMPONENT_TEMPLATE));

@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack: ga
+  serverless: ga
 navigation_title: "String functions"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-string-functions
@@ -18,7 +21,13 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/byte_length.md
 :::
 
+:::{include} ../_snippets/functions/layout/chunk.md
+:::
+
 :::{include} ../_snippets/functions/layout/concat.md
+:::
+
+:::{include} ../_snippets/functions/layout/contains.md
 :::
 
 :::{include} ../_snippets/functions/layout/ends_with.md
@@ -88,5 +97,14 @@ mapped_pages:
 :::
 
 :::{include} ../_snippets/functions/layout/trim.md
+:::
+
+:::{include} ../_snippets/functions/layout/url_encode.md
+:::
+
+:::{include} ../_snippets/functions/layout/url_encode_component.md
+:::
+
+:::{include} ../_snippets/functions/layout/url_decode.md
 :::
 

@@ -77,6 +77,48 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
     }
 
+    public void testRemovedAffixSetting() {
+        final Settings clusterSettings = Settings.EMPTY;
+        final Settings nodeSettings = Settings.builder().put("node.removed_setting.a.value", "value").build();
+        final Setting<?> removedSetting = Setting.affixKeySetting(
+            "node.removed_setting.",
+            "value",
+            key -> Setting.simpleString(key, Setting.Property.NodeScope)
+        );
+        final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
+            clusterSettings,
+            nodeSettings,
+            removedSetting,
+            "https://removed-setting.example.com",
+            "Some detail.",
+            DeprecationIssue.Level.CRITICAL
+        );
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getMessage(), equalTo("Setting [node.removed_setting.*.value] is deprecated"));
+        assertThat(issue.getDetails(), equalTo("Remove the [node.removed_setting.*.value] setting. Some detail."));
+        assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
+    public void testRemovedGroupSetting() {
+        final Settings clusterSettings = Settings.EMPTY;
+        final Settings nodeSettings = Settings.builder().put("node.removed_setting.v", "value").build();
+        final Setting<?> removedSetting = Setting.groupSetting("node.removed_setting.", Setting.Property.NodeScope);
+        final DeprecationIssue issue = NodeDeprecationChecks.checkRemovedSetting(
+            clusterSettings,
+            nodeSettings,
+            removedSetting,
+            "https://removed-setting.example.com",
+            "Some detail.",
+            DeprecationIssue.Level.CRITICAL
+        );
+        assertThat(issue, not(nullValue()));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getMessage(), equalTo("Setting [node.removed_setting.] is deprecated"));
+        assertThat(issue.getDetails(), equalTo("Remove the [node.removed_setting.] setting. Some detail."));
+        assertThat(issue.getUrl(), equalTo("https://removed-setting.example.com"));
+    }
+
     public void testMultipleRemovedSettings() {
         final Settings clusterSettings = Settings.EMPTY;
         final Settings nodeSettings = Settings.builder()

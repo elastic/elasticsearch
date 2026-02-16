@@ -10,6 +10,7 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 
@@ -23,7 +24,15 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
-    DefaultESVectorUtilSupport() {}
+    @Override
+    public float dotProduct(float[] a, float[] b) {
+        return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float squareDistance(float[] a, float[] b) {
+        return VectorUtil.squareDistance(a, b);
+    }
 
     @Override
     public long ipByteBinByte(byte[] q, byte[] d) {
@@ -80,10 +89,11 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         float dbb = 0;
         float dax = 0;
         float dbx = 0;
+        float invPmOnes = 1f / (points - 1f);
         for (int i = 0; i < target.length; ++i) {
             float v = target[i];
             float k = quantize[i];
-            float s = k / (points - 1);
+            float s = k * invPmOnes;
             float ms = 1f - s;
             daa = fma(ms, ms, daa);
             dab = fma(ms, s, dab);
@@ -223,7 +233,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * of the array are the initial bits of each of the {@code n} vector dimensions; the next {@code n}
      * bits are the second bits of each of the {@code n} vector dimensions, and so on
      * (this algorithm is only valid for vectors with dimensions a multiple of 8).
-     * The striping is usually done by {@code BQSpaceUtils.transposeHalfByte}.
+     * The striping is usually done by {@code ESVectorUtil.transposeHalfByte}.
      * <p>
      * The data vector should be single-bit quantized.
      *
@@ -236,7 +246,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * <h4>The algorithm</h4>
      *
      * The transposition already applied to the query vector ensures there's a 1-to-1 correspondence
-     * between the data vector bits and query vector bits (see {@code BQSpaceUtils.transposeHalfByte)};
+     * between the data vector bits and query vector bits (see {@code ESVectorUtil.transposeHalfByte)};
      * this means we can use a bitwise {@code &} to keep only the bits of the vector elements we want to sum.
      * Essentially, the data vector is used as a selector for each of the striped bits of each vector dimension
      * as stored, concatenated together, in {@code q}.
@@ -247,7 +257,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
      * the result of each stripe of {@code n} bits can be added together by shifting the value {@code s} bits to the left,
      * where {@code s} is the stripe number (0-3), then adding to the overall result. Any carry is handled by the add operation.
      *
-     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code BQSpaceUtils.transposeHalfByte})
+     * @param q query vector, {@link #B_QUERY}-bit quantized and striped (see {@code ESVectorUtil.transposeHalfByte})
      * @param d data vector, 1-bit quantized
      * @return  inner product result
      */
@@ -292,5 +302,171 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
             destination[h] = assignment;
         }
         return sumQuery;
+    }
+
+    @Override
+    public void squareDistanceBulk(float[] query, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
+        distances[0] = VectorUtil.squareDistance(query, v0);
+        distances[1] = VectorUtil.squareDistance(query, v1);
+        distances[2] = VectorUtil.squareDistance(query, v2);
+        distances[3] = VectorUtil.squareDistance(query, v3);
+    }
+
+    @Override
+    public void soarDistanceBulk(
+        float[] v1,
+        float[] c0,
+        float[] c1,
+        float[] c2,
+        float[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        distances[0] = soarDistance(v1, c0, originalResidual, soarLambda, rnorm);
+        distances[1] = soarDistance(v1, c1, originalResidual, soarLambda, rnorm);
+        distances[2] = soarDistance(v1, c2, originalResidual, soarLambda, rnorm);
+        distances[3] = soarDistance(v1, c3, originalResidual, soarLambda, rnorm);
+    }
+
+    @Override
+    public void packDibit(int[] vector, byte[] packed) {
+        packDibitImpl(vector, packed);
+    }
+
+    @Override
+    public void packAsBinary(int[] vector, byte[] packed) {
+        packAsBinaryImpl(vector, packed);
+    }
+
+    /**
+     * Packs two bit vector (values 0-3) into a byte array with lower bits first.
+     * The striding is similar to transposeHalfByte
+     *
+     * @param vector the input vector with values 0-3
+     * @param packed the output packed byte array
+     */
+    public static void packDibitImpl(int[] vector, byte[] packed) {
+        int limit = vector.length - 7;
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += 8, index++) {
+            assert vector[i] >= 0 && vector[i] <= 3;
+            assert vector[i + 1] >= 0 && vector[i + 1] <= 3;
+            assert vector[i + 2] >= 0 && vector[i + 2] <= 3;
+            assert vector[i + 3] >= 0 && vector[i + 3] <= 3;
+            assert vector[i + 4] >= 0 && vector[i + 4] <= 3;
+            assert vector[i + 5] >= 0 && vector[i + 5] <= 3;
+            assert vector[i + 6] >= 0 && vector[i + 6] <= 3;
+            assert vector[i + 7] >= 0 && vector[i + 7] <= 3;
+            int lowerByte = (vector[i] & 1) << 7 | (vector[i + 1] & 1) << 6 | (vector[i + 2] & 1) << 5 | (vector[i + 3] & 1) << 4
+                | (vector[i + 4] & 1) << 3 | (vector[i + 5] & 1) << 2 | (vector[i + 6] & 1) << 1 | (vector[i + 7] & 1);
+            int upperByte = ((vector[i] >> 1) & 1) << 7 | ((vector[i + 1] >> 1) & 1) << 6 | ((vector[i + 2] >> 1) & 1) << 5 | ((vector[i
+                + 3] >> 1) & 1) << 4 | ((vector[i + 4] >> 1) & 1) << 3 | ((vector[i + 5] >> 1) & 1) << 2 | ((vector[i + 6] >> 1) & 1) << 1
+                | ((vector[i + 7] >> 1) & 1);
+            packed[index] = (byte) lowerByte;
+            packed[index + packed.length / 2] = (byte) upperByte;
+        }
+        if (i == vector.length) {
+            return;
+        }
+        int lowerByte = 0;
+        int upperByte = 0;
+        for (int j = 7; i < vector.length; j--, i++) {
+            assert vector[i] >= 0 && vector[i] <= 3;
+            lowerByte |= (vector[i] & 1) << j;
+            upperByte |= ((vector[i] >> 1) & 1) << j;
+        }
+        packed[index] = (byte) lowerByte;
+        packed[index + packed.length / 2] = (byte) upperByte;
+    }
+
+    public static void packAsBinaryImpl(int[] vector, byte[] packed) {
+        int limit = vector.length - 7;
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += 8, index++) {
+            assert vector[i] == 0 || vector[i] == 1;
+            assert vector[i + 1] == 0 || vector[i + 1] == 1;
+            assert vector[i + 2] == 0 || vector[i + 2] == 1;
+            assert vector[i + 3] == 0 || vector[i + 3] == 1;
+            assert vector[i + 4] == 0 || vector[i + 4] == 1;
+            assert vector[i + 5] == 0 || vector[i + 5] == 1;
+            assert vector[i + 6] == 0 || vector[i + 6] == 1;
+            assert vector[i + 7] == 0 || vector[i + 7] == 1;
+            int result = vector[i] << 7 | (vector[i + 1] << 6) | (vector[i + 2] << 5) | (vector[i + 3] << 4) | (vector[i + 4] << 3)
+                | (vector[i + 5] << 2) | (vector[i + 6] << 1) | (vector[i + 7]);
+            packed[index] = (byte) result;
+        }
+        if (i == vector.length) {
+            return;
+        }
+        byte result = 0;
+        for (int j = 7; j >= 0 && i < vector.length; i++, j--) {
+            assert vector[i] == 0 || vector[i] == 1;
+            result |= (byte) ((vector[i] & 1) << j);
+        }
+        packed[index] = result;
+    }
+
+    @Override
+    public void transposeHalfByte(int[] q, byte[] quantQueryByte) {
+        transposeHalfByteImpl(q, quantQueryByte);
+    }
+
+    public static void transposeHalfByteImpl(int[] q, byte[] quantQueryByte) {
+        int limit = q.length - 7;
+        int i = 0;
+        int index = 0;
+        for (; i < limit; i += 8, index++) {
+            assert q[i] >= 0 && q[i] <= 15;
+            assert q[i + 1] >= 0 && q[i + 1] <= 15;
+            assert q[i + 2] >= 0 && q[i + 2] <= 15;
+            assert q[i + 3] >= 0 && q[i + 3] <= 15;
+            assert q[i + 4] >= 0 && q[i + 4] <= 15;
+            assert q[i + 5] >= 0 && q[i + 5] <= 15;
+            assert q[i + 6] >= 0 && q[i + 6] <= 15;
+            assert q[i + 7] >= 0 && q[i + 7] <= 15;
+            int lowerByte = (q[i] & 1) << 7 | (q[i + 1] & 1) << 6 | (q[i + 2] & 1) << 5 | (q[i + 3] & 1) << 4 | (q[i + 4] & 1) << 3 | (q[i
+                + 5] & 1) << 2 | (q[i + 6] & 1) << 1 | (q[i + 7] & 1);
+            int lowerMiddleByte = ((q[i] >> 1) & 1) << 7 | ((q[i + 1] >> 1) & 1) << 6 | ((q[i + 2] >> 1) & 1) << 5 | ((q[i + 3] >> 1) & 1)
+                << 4 | ((q[i + 4] >> 1) & 1) << 3 | ((q[i + 5] >> 1) & 1) << 2 | ((q[i + 6] >> 1) & 1) << 1 | ((q[i + 7] >> 1) & 1);
+            int upperMiddleByte = ((q[i] >> 2) & 1) << 7 | ((q[i + 1] >> 2) & 1) << 6 | ((q[i + 2] >> 2) & 1) << 5 | ((q[i + 3] >> 2) & 1)
+                << 4 | ((q[i + 4] >> 2) & 1) << 3 | ((q[i + 5] >> 2) & 1) << 2 | ((q[i + 6] >> 2) & 1) << 1 | ((q[i + 7] >> 2) & 1);
+            int upperByte = ((q[i] >> 3) & 1) << 7 | ((q[i + 1] >> 3) & 1) << 6 | ((q[i + 2] >> 3) & 1) << 5 | ((q[i + 3] >> 3) & 1) << 4
+                | ((q[i + 4] >> 3) & 1) << 3 | ((q[i + 5] >> 3) & 1) << 2 | ((q[i + 6] >> 3) & 1) << 1 | ((q[i + 7] >> 3) & 1);
+            quantQueryByte[index] = (byte) lowerByte;
+            quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+            quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+            quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+        }
+        if (i == q.length) {
+            return; // all done
+        }
+        int lowerByte = 0;
+        int lowerMiddleByte = 0;
+        int upperMiddleByte = 0;
+        int upperByte = 0;
+        for (int j = 7; i < q.length; j--, i++) {
+            lowerByte |= (q[i] & 1) << j;
+            lowerMiddleByte |= ((q[i] >> 1) & 1) << j;
+            upperMiddleByte |= ((q[i] >> 2) & 1) << j;
+            upperByte |= ((q[i] >> 3) & 1) << j;
+        }
+        quantQueryByte[index] = (byte) lowerByte;
+        quantQueryByte[index + quantQueryByte.length / 4] = (byte) lowerMiddleByte;
+        quantQueryByte[index + quantQueryByte.length / 2] = (byte) upperMiddleByte;
+        quantQueryByte[index + 3 * quantQueryByte.length / 4] = (byte) upperByte;
+    }
+
+    @Override
+    public int indexOf(byte[] bytes, int offset, int length, byte marker) {
+        return ByteArrayUtils.indexOf(bytes, offset, length, marker);
+    }
+
+    @Override
+    public int codePointCount(BytesRef bytesRef) {
+        return ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset, bytesRef.length);
     }
 }

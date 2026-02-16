@@ -204,7 +204,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             inProgressSnapshots.add(AbstractSnapshotIntegTestCase.startFullSnapshot(logger, repoName, snapshotName, false));
         }
         AbstractSnapshotIntegTestCase.awaitNumberOfSnapshotsInProgress(logger, inProgressCount);
-        AbstractSnapshotIntegTestCase.awaitClusterState(logger, state -> {
+        AbstractSnapshotIntegTestCase.awaitClusterState(state -> {
             final var snapshotsInProgress = SnapshotsInProgress.get(state);
             boolean firstIndexSuccessfullySnapshot = snapshotsInProgress.asStream()
                 .flatMap(s -> s.shards().entrySet().stream())

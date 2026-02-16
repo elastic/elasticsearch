@@ -50,7 +50,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             listener.onResponse(AcknowledgedResponse.TRUE);
             return null;
-        }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         performActionAndWait(step, indexMetadata, state, null);
@@ -70,7 +70,7 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             ActionListener<AcknowledgedResponse> listener = (ActionListener<AcknowledgedResponse>) invocation.getArguments()[2];
             listener.onResponse(AcknowledgedResponse.FALSE);
             return null;
-        }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         Exception e = expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null));
@@ -94,12 +94,12 @@ public class PauseFollowerIndexStepTests extends AbstractUnfollowIndexStepTestCa
             ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[2];
             listener.onFailure(error);
             return null;
-        }).when(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        }).when(projectClient).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
 
         PauseFollowerIndexStep step = new PauseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
         assertSame(error, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, state, null)));
 
-        Mockito.verify(client).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
+        Mockito.verify(projectClient).execute(Mockito.same(PauseFollowAction.INSTANCE), Mockito.any(), Mockito.any());
         Mockito.verify(client).projectClient(state.projectId());
         Mockito.verifyNoMoreInteractions(client);
     }

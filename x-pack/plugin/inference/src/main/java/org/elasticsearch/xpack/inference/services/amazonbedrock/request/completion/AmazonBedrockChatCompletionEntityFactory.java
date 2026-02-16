@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion;
 
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 
 import java.util.List;
@@ -15,14 +16,14 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.request.completion.AmazonBedrockConverseUtils.additionalTopK;
 
 public final class AmazonBedrockChatCompletionEntityFactory {
-    public static AmazonBedrockConverseRequestEntity createEntity(AmazonBedrockChatCompletionModel model, List<String> messages) {
+    public static AmazonBedrockCompletionRequestEntity createEntity(AmazonBedrockChatCompletionModel model, List<String> messages) {
         Objects.requireNonNull(model);
         Objects.requireNonNull(messages);
         var serviceSettings = model.getServiceSettings();
         var taskSettings = model.getTaskSettings();
         switch (serviceSettings.provider()) {
             case AI21LABS, AMAZONTITAN, META -> {
-                return new AmazonBedrockConverseRequestEntity(
+                return new AmazonBedrockCompletionRequestEntity(
                     messages,
                     taskSettings.temperature(),
                     taskSettings.topP(),
@@ -30,12 +31,51 @@ public final class AmazonBedrockChatCompletionEntityFactory {
                 );
             }
             case ANTHROPIC, COHERE, MISTRAL -> {
-                return new AmazonBedrockConverseRequestEntity(
+                return new AmazonBedrockCompletionRequestEntity(
                     messages,
                     taskSettings.temperature(),
                     taskSettings.topP(),
                     taskSettings.maxNewTokens(),
                     additionalTopK(taskSettings.topK())
+                );
+            }
+            default -> {
+                return null;
+            }
+        }
+    }
+
+    public static AmazonBedrockChatCompletionRequestEntity createEntity(
+        AmazonBedrockChatCompletionModel model,
+        UnifiedCompletionRequest request
+    ) {
+        Objects.requireNonNull(model);
+        Objects.requireNonNull(request);
+        var serviceSettings = model.getServiceSettings();
+
+        var messages = request.messages()
+            .stream()
+            .map(
+                message -> new UnifiedCompletionRequest.Message(
+                    message.content(),
+                    message.role(),
+                    message.toolCallId(),
+                    message.toolCalls()
+                )
+            )
+            .toList();
+
+        switch (serviceSettings.provider()) {
+            case ANTHROPIC, AI21LABS, AMAZONTITAN, COHERE, META, MISTRAL -> {
+                return new AmazonBedrockChatCompletionRequestEntity(
+                    messages,
+                    request.model(),
+                    request.maxCompletionTokens(),
+                    request.stop(),
+                    request.temperature(),
+                    request.toolChoice(),
+                    request.tools(),
+                    request.topP()
                 );
             }
             default -> {

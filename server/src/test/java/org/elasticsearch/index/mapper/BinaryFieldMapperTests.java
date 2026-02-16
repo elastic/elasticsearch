@@ -118,7 +118,7 @@ public class BinaryFieldMapperTests extends MapperTestCase {
 
         // case 2: a value that looks compressed: this used to fail in 1.x
         BytesStreamOutput out = new BytesStreamOutput();
-        try (OutputStream compressed = CompressorFactory.COMPRESSOR.threadLocalOutputStream(out)) {
+        try (OutputStream compressed = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(out)) {
             new BytesArray(binaryValue1).writeTo(compressed);
         }
         final byte[] binaryValue2 = BytesReference.toBytes(out.bytes());
@@ -262,5 +262,15 @@ public class BinaryFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

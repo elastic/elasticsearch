@@ -211,7 +211,7 @@ public class SnapshotsRecoveryPlannerServiceTests extends ESTestCase {
             final IndexVersion snapshotVersion;
             final Version luceneVersion;
             if (compatibleVersion) {
-                snapshotVersion = IndexVersionUtils.randomCompatibleVersion(random());
+                snapshotVersion = IndexVersionUtils.randomCompatibleVersion();
                 luceneVersion = snapshotVersion.luceneVersion();
             } else {
                 snapshotVersion = IndexVersion.fromId(Integer.MAX_VALUE);

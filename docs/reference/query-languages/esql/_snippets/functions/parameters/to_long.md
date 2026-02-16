@@ -5,3 +5,6 @@
 `field`
 :   Input value. The input can be a single- or multi-valued column or an expression.
 
+`base`
+:   (Optional) Radix or base used to convert the input value.When a base is specified the input type must be `keyword` or `text`.{applies_to}`stack: ga 9.3`
+

@@ -9,5 +9,8 @@
 :   The maximum number of values to collect.
 
 `order`
-:   The order to calculate the top values. Either `asc` or `desc`.
+:   The order to calculate the top values. Either `asc` or `desc`, and defaults to `asc` if omitted.
+
+`outputField`
+:   The extra field that, if present, will be the output of the TOP call instead of `field`.{applies_to}`stack: ga 9.3`
 

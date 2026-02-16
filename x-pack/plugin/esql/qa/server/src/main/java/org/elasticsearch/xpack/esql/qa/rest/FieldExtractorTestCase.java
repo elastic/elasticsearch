@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.qa.rest;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
@@ -69,12 +69,26 @@ import static org.hamcrest.Matchers.nullValue;
  */
 public abstract class FieldExtractorTestCase extends ESRestTestCase {
     private static final Logger logger = LogManager.getLogger(FieldExtractorTestCase.class);
+    private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                return false;
+            } else {
+                for (String warning : warnings) {
+                    if ("Parameter [default_metric] is deprecated and will be removed in a future version".equals(warning) == false) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        })
+        .build();
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
 
     @ParametersFactory(argumentFormatting = "%s")
-    public static List<Object[]> args() throws Exception {
+    public static List<Object[]> args() {
         return List.of(
             new Object[] { null },
             new Object[] { MappedFieldType.FieldExtractPreference.NONE },
@@ -208,10 +222,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testUnsignedLong() throws IOException {
-        assumeTrue(
-            "order of fields in error message inconsistent before 8.14",
-            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_14_0))
-        );
         BigInteger value = randomUnsignedLong();
         new Test("unsigned_long").randomIgnoreMalformedUnlessSynthetic()
             .randomDocValuesUnlessSynthetic()
@@ -283,10 +293,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testGeoPoint() throws IOException {
-        assumeTrue(
-            "not supported until 8.13",
-            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_13_0))
-        );
         new Test("geo_point")
             // TODO we should support loading geo_point from doc values if source isn't enabled
             .sourceMode(randomValueOtherThanMany(s -> s.stored() == false, () -> randomFrom(SourceMode.values())))
@@ -296,10 +302,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testGeoShape() throws IOException {
-        assumeTrue(
-            "not supported until 8.13",
-            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_13_0))
-        );
         new Test("geo_shape")
             // TODO if source isn't enabled how can we load *something*? It's just triangles, right?
             .sourceMode(randomValueOtherThanMany(s -> s.stored() == false, () -> randomFrom(SourceMode.values())))
@@ -926,10 +928,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * </pre>.
      */
     public void testIntegerDocValuesConflict() throws IOException {
-        assumeTrue(
-            "order of fields in error message inconsistent before 8.14",
-            getCachedNodesVersions().stream().allMatch(v -> Version.fromString(v).onOrAfter(Version.V_8_14_0))
-        );
         intTest().sourceMode(SourceMode.DEFAULT).storeAndDocValues(null, true).createIndex("test1", "emp_no");
         index("test1", """
             {"emp_no": 1}""");
@@ -1357,9 +1355,155 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         );
     }
 
+    public void testTsIndexConflictingTypes() throws IOException {
+        assumeTsIndexOriginalTypesFixed();
+        Settings settings = Settings.builder().put("mode", "time_series").put("routing_path", "metric.name").build();
+
+        ESRestTestCase.createIndex("metrics-counter", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "double",
+                "time_series_metric": "counter"
+              }
+            }
+            """);
+        ESRestTestCase.createIndex("metrics-gauge", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "double",
+                "time_series_metric": "gauge"
+              }
+            }
+            """);
+        ESRestTestCase.createIndex("metrics-keyword", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "keyword"
+              }
+            }
+            """);
+        ESRestTestCase.createIndex("metrics-amd", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "aggregate_metric_double",
+                "metrics": [ "min", "max", "sum", "value_count" ],
+                "default_metric": "max"
+              }
+            }
+            """, null, DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
+        ESRestTestCase.createIndex("metrics-long", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "long",
+                "time_series_metric": "gauge"
+              }
+            }
+            """);
+        ESRestTestCase.createIndex("metrics-long_dimension", settings, """
+            "properties": {
+              "@timestamp": { "type": "date" },
+              "metric.name": {
+                "type": "keyword",
+                "time_series_dimension": true
+              },
+              "metric.value": {
+                "type": "long",
+                "time_series_dimension": true
+              }
+            }
+            """);
+        index("metrics-amd", """
+            {"@timestamp": "2026-01-20T11:10:00Z","metric.name": "network_packets_total",""" + """
+            "metric.value": {"min": -302.50,"max": 702.30,"sum": 200.0,"value_count": 25}}""");
+        index("metrics-counter", """
+            {"@timestamp": "2026-01-20T11:00:00Z","metric.name": "network_packets_total","metric.value": 50}""");
+        index("metrics-gauge", """
+            {"@timestamp": "2026-01-20T10:00:00Z","metric.name": "cpu_usage_percentage","metric.value": 50}""");
+        index("metrics-keyword", """
+            {"@timestamp": "2026-01-20T10:00:00Z","metric.name": "cpu_usage_percentage","metric.value": "a"}""");
+        index("metrics-long", """
+            {"@timestamp": "2026-01-20T11:00:00Z","metric.name": "network_packets_total","metric.value": 50}""");
+        index("metrics-long_dimension", """
+            {"@timestamp": "2026-01-20T11:00:00Z","metric.name": "network_packets_total","metric.value": 50}""");
+
+        Map<String, Object> result = runEsql("TS metrics-amd,metrics-counter | KEEP metric.value");
+        assertResultMap(
+            result,
+            List.of(unsupportedColumnInfo("metric.value", "aggregate_metric_double", "counter_double")),
+            List.of(matchesList().item(null), matchesList().item(null))
+        );
+
+        result = runEsql("TS metrics-amd,metrics-gauge | KEEP metric.value");
+        assertResultMap(
+            result,
+            List.of(unsupportedColumnInfo("metric.value", "aggregate_metric_double", "double")),
+            List.of(matchesList().item(null), matchesList().item(null))
+        );
+        result = runEsql("TS metrics-amd,metrics-keyword | KEEP metric.value");
+        assertResultMap(
+            result,
+            List.of(unsupportedColumnInfo("metric.value", "aggregate_metric_double", "keyword")),
+            List.of(matchesList().item(null), matchesList().item(null))
+        );
+
+        result = runEsql("TS metrics-counter,metrics-gauge | KEEP metric.value");
+        assertResultMap(
+            result,
+            List.of(unsupportedColumnInfo("metric.value", "counter_double", "double")),
+            List.of(matchesList().item(null), matchesList().item(null))
+        );
+        result = runEsql("TS metrics-counter,metrics-keyword | KEEP metric.value");
+        assertResultMap(
+            result,
+            List.of(unsupportedColumnInfo("metric.value", "counter_double", "keyword")),
+            List.of(matchesList().item(null), matchesList().item(null))
+        );
+
+        result = runEsql("TS metrics-gauge,metrics-keyword | KEEP metric.value");
+        assertResultMap(
+            result,
+            List.of(unsupportedColumnInfo("metric.value", "double", "keyword")),
+            List.of(matchesList().item(null), matchesList().item(null))
+        );
+    }
+
     protected Matcher<Integer> pidMatcher() {
         // TODO these should all always return null because the parent is nested
         return preference == MappedFieldType.FieldExtractPreference.STORED ? equalTo(111) : nullValue(Integer.class);
+    }
+
+    private void assumeTsIndexOriginalTypesFixed() throws IOException {
+        var capsName = EsqlCapabilities.Cap.TS_ORIGINAL_TYPES_BUG_FIXED.name().toLowerCase(Locale.ROOT);
+        boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        assumeTrue(
+            "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/141379",
+            requiredClusterCapability
+        );
     }
 
     private void assumeIndexResolverNestedFieldsNameClashFixed() throws IOException {

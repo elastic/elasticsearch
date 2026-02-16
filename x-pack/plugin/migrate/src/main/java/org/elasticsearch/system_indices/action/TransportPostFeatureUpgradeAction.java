@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
@@ -43,6 +44,7 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
 
     private final SystemIndices systemIndices;
     private final PersistentTasksService persistentTasksService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPostFeatureUpgradeAction(
@@ -51,7 +53,8 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
         ActionFilters actionFilters,
         ClusterService clusterService,
         SystemIndices systemIndices,
-        PersistentTasksService persistentTasksService
+        PersistentTasksService persistentTasksService,
+        ProjectResolver projectResolver
     ) {
         super(
             PostFeatureUpgradeAction.NAME,
@@ -65,6 +68,7 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
         );
         this.systemIndices = systemIndices;
         this.persistentTasksService = persistentTasksService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -78,9 +82,10 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
             GetFeatureUpgradeStatusResponse.UpgradeStatus.MIGRATION_NEEDED,
             GetFeatureUpgradeStatusResponse.UpgradeStatus.ERROR
         );
+        final var project = projectResolver.getProjectMetadata(state);
         List<PostFeatureUpgradeResponse.Feature> featuresToMigrate = systemIndices.getFeatures()
             .stream()
-            .map(feature -> getFeatureUpgradeStatus(state, feature))
+            .map(feature -> getFeatureUpgradeStatus(project, feature))
             .filter(status -> upgradableStatuses.contains(status.getUpgradeStatus()))
             .map(GetFeatureUpgradeStatusResponse.FeatureUpgradeStatus::getFeatureName)
             .map(PostFeatureUpgradeResponse.Feature::new)
@@ -88,7 +93,8 @@ public class TransportPostFeatureUpgradeAction extends TransportMasterNodeAction
             .toList();
 
         if (featuresToMigrate.isEmpty() == false) {
-            persistentTasksService.sendStartRequest(
+            persistentTasksService.sendProjectStartRequest(
+                project.id(),
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 SYSTEM_INDEX_UPGRADE_TASK_NAME,
                 new SystemIndexMigrationTaskParams(),

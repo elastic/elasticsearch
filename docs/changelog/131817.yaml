@@ -1,5 +1,0 @@
-pr: 131817
-summary: Change equals and hashcode for `ConstantNullBlock`
-area: ES|QL
-type: bug
-issues: []

@@ -1,7 +1,0 @@
-{
-  "properties": {
-    "date_nanos": {
-      "type": "date_nanos"
-    }
-  }
-}

@@ -32,6 +32,15 @@ public class GetSynonymsActionRequestSerializingTests extends AbstractWireSerial
 
     @Override
     protected GetSynonymsAction.Request mutateInstance(GetSynonymsAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String synonymsSetId = instance.synonymsSetId();
+        int from = instance.from();
+        int size = instance.size();
+        switch (between(0, 2)) {
+            case 0 -> synonymsSetId = randomValueOtherThan(synonymsSetId, () -> randomIdentifier());
+            case 1 -> from = randomValueOtherThan(from, () -> randomIntBetween(0, Integer.MAX_VALUE));
+            case 2 -> size = randomValueOtherThan(size, () -> randomIntBetween(0, Integer.MAX_VALUE));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new GetSynonymsAction.Request(synonymsSetId, from, size);
     }
 }

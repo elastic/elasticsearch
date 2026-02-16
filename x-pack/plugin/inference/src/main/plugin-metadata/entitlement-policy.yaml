@@ -12,6 +12,7 @@ software.amazon.awssdk.http.nio.netty:
 io.netty.common:
   - outbound_network
   - manage_threads
+  - inbound_network
   - files:
       - path: "/etc/os-release"
         mode: "read"
@@ -22,3 +23,4 @@ io.netty.common:
 io.netty.transport:
   - manage_threads
   - outbound_network
+  - inbound_network

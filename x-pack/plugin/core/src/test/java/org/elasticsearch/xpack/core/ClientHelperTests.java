@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -369,7 +368,7 @@ public class ClientHelperTests extends ESTestCase {
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
         when(clusterState.nodes()).thenReturn(discoveryNodes);
-        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersions.MINIMUM_COMPATIBLE);
+        when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.minimumCompatible());
         // No security header
         ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         final String nonSecurityHeaderKey = "not-a-security-header";
@@ -423,11 +422,7 @@ public class ClientHelperTests extends ESTestCase {
         }
 
         // Rewritten for older version
-        final TransportVersion previousVersion = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion()
-        );
+        final TransportVersion previousVersion = TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
         when(clusterState.getMinTransportVersion()).thenReturn(previousVersion);
         final Map<String, String> headers2;
         if (randomBoolean()) {

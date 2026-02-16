@@ -49,13 +49,18 @@ public final class LongVectorBlock extends AbstractVectorBlock implements LongBl
     }
 
     @Override
-    public LongBlock filter(int... positions) {
-        return vector.filter(positions).asBlock();
+    public LongBlock filter(boolean mayContainDuplicates, int... positions) {
+        return vector.filter(mayContainDuplicates, positions).asBlock();
     }
 
     @Override
     public LongBlock keepMask(BooleanVector mask) {
         return vector.keepMask(mask);
+    }
+
+    @Override
+    public LongBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
     }
 
     @Override

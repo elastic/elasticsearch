@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
-public record PhysicalOptimizerContext(Configuration configuration) {}
+public record PhysicalOptimizerContext(Configuration configuration, TransportVersion minimumVersion) {}

@@ -51,9 +51,11 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -69,17 +71,22 @@ public class EvalMapperTests extends ESTestCase {
 
     private static final Configuration TEST_CONFIG = new Configuration(
         ZoneOffset.UTC,
+        Instant.now(),
         Locale.US,
         "test",
         null,
-        null,
+        QueryPragmas.EMPTY,
         10000000,
         10000,
         StringUtils.EMPTY,
         false,
         Map.of(),
         System.nanoTime(),
-        false
+        false,
+        10000000,
+        100000,
+        null,
+        Map.of()
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -90,8 +97,8 @@ public class EvalMapperTests extends ESTestCase {
 
         List<Object[]> params = new ArrayList<>();
         for (Expression e : new Expression[] {
-            new Add(Source.EMPTY, DOUBLE1, DOUBLE2),
-            new Sub(Source.EMPTY, DOUBLE1, DOUBLE2),
+            new Add(Source.EMPTY, DOUBLE1, DOUBLE2, TEST_CONFIG),
+            new Sub(Source.EMPTY, DOUBLE1, DOUBLE2, TEST_CONFIG),
             new Mul(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Div(Source.EMPTY, DOUBLE1, DOUBLE2),
             new Mod(Source.EMPTY, DOUBLE1, DOUBLE2),
@@ -124,7 +131,7 @@ public class EvalMapperTests extends ESTestCase {
             new DateFormat(Source.EMPTY, datePattern, literal, TEST_CONFIG),
             new StartsWith(Source.EMPTY, literal, literal),
             new Substring(Source.EMPTY, literal, LONG, LONG),
-            new DateTrunc(Source.EMPTY, dateInterval, DATE) }) {
+            new DateTrunc(Source.EMPTY, dateInterval, DATE, TEST_CONFIG) }) {
             params.add(new Object[] { e.nodeString(), e });
         }
 
@@ -161,13 +168,18 @@ public class EvalMapperTests extends ESTestCase {
     }
 
     private static FieldAttribute field(String name, DataType type) {
-        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Collections.emptyMap(), false));
+        return new FieldAttribute(
+            Source.EMPTY,
+            name,
+            new EsField(name, type, Collections.emptyMap(), false, EsField.TimeSeriesFieldType.NONE)
+        );
     }
 
     static DriverContext driverContext() {
         return new DriverContext(
             new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, new NoneCircuitBreakerService()).withCircuitBreaking(),
-            TestBlockFactory.getNonBreakingInstance()
+            TestBlockFactory.getNonBreakingInstance(),
+            null
         );
     }
 }

@@ -13,40 +13,55 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.apache.lucene.index.FilterLeafReader;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.DoubleValuesSource;
 import org.apache.lucene.search.FieldExistsQuery;
+import org.apache.lucene.search.FullPrecisionFloatVectorSimilarityValuesSource;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
-import org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec;
-import org.elasticsearch.index.codec.vectors.ES813Int8FlatVectorFormat;
-import org.elasticsearch.index.codec.vectors.ES814HnswScalarQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es818.ES818BinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es818.ES818HnswBinaryQuantizedVectorsFormat;
+import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93ScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
-import org.elasticsearch.index.mapper.vectors.VectorSimilarityFloatValueSource;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER;
+import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -54,12 +69,18 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
     public static final String FIELD_NAME = "float_vector";
 
+    /*
+     * Original KNN scoring and rescoring can use slightly different calculation methods,
+     * so there may be a very slight difference in the scores after rescoring.
+     */
+    private static final float DELTA = 1e-6f;
+
     public void testRescoreDocs() throws Exception {
         int numDocs = randomIntBetween(10, 100);
         int numDims = randomIntBetween(5, 100);
         int k = randomIntBetween(1, numDocs - 1);
 
-        var queryVector = randomVector(numDims);
+        float[] queryVector = randomVector(numDims);
         List<Query> innerQueries = new ArrayList<>();
         innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
         innerQueries.add(
@@ -67,14 +88,13 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 .add(new FieldExistsQuery(FIELD_NAME), BooleanClause.Occur.FILTER)
                 .build()
         );
-        innerQueries.add(new MatchAllDocsQuery());
+        innerQueries.add(Queries.ALL_DOCS_INSTANCE);
 
         try (Directory d = newDirectory()) {
             addRandomDocuments(numDocs, d, numDims);
 
             try (IndexReader reader = DirectoryReader.open(d)) {
-
-                for (var innerQuery : innerQueries) {
+                for (Query innerQuery : innerQueries) {
                     RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
                         FIELD_NAME,
                         queryVector,
@@ -85,16 +105,34 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     );
 
                     IndexSearcher searcher = newSearcher(reader, true, false);
+
                     TopDocs rescoredDocs = searcher.search(rescoreKnnVectorQuery, numDocs);
-                    assertThat(rescoredDocs.scoreDocs.length, equalTo(k));
+                    assertThat(rescoredDocs.scoreDocs, arrayWithSize(k));
+
+                    if (innerQuery instanceof KnnFloatVectorQuery) {
+                        // check that at least one doc has its score changed, indicating rescoring has happened
+                        TopDocs unrescoredDocs = searcher.search(innerQuery, numDocs);
+                        Map<Integer, Double> rescoredScores = Arrays.stream(rescoredDocs.scoreDocs)
+                            .collect(Collectors.toMap(sd -> sd.doc, sd -> (double) sd.score));
+
+                        boolean changed = false;
+                        for (ScoreDoc unrescored : unrescoredDocs.scoreDocs) {
+                            Double rescored = rescoredScores.get(unrescored.doc);
+                            if (rescored != null && Math.abs(rescored - unrescored.score) > DELTA) {
+                                changed = true;
+                                break;
+                            }
+                        }
+                        assertTrue("No docs had their scores changed", changed);
+                    }
 
                     // Get real scores
-                    DoubleValuesSource valueSource = new VectorSimilarityFloatValueSource(
-                        FIELD_NAME,
+                    DoubleValuesSource valueSource = new FullPrecisionFloatVectorSimilarityValuesSource(
                         queryVector,
+                        FIELD_NAME,
                         VectorSimilarityFunction.COSINE
                     );
-                    FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new MatchAllDocsQuery(), valueSource);
+                    FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(Queries.ALL_DOCS_INSTANCE, valueSource);
                     TopDocs realScoreTopDocs = searcher.search(functionScoreQuery, numDocs);
 
                     int i = 0;
@@ -108,7 +146,69 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                         if (i >= realScoreDocs.length) {
                             fail("Rescored doc not found in real score docs");
                         }
-                        assertThat("Real score is not the same as rescored score", rescoreDoc.score, equalTo(realScoreDocs[i].score));
+                        assertThat(
+                            "Real score is not the same as rescored score",
+                            (double) rescoreDoc.score,
+                            closeTo(realScoreDocs[i].score, DELTA)
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    public void testRescoreSingleAndBulkEquality() throws Exception {
+        int numDocs = randomIntBetween(10, 100);
+        int numDims = randomIntBetween(5, 100);
+        int k = randomIntBetween(1, numDocs - 1);
+
+        float[] queryVector = randomVector(numDims);
+
+        List<Query> innerQueries = new ArrayList<>();
+        innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
+        innerQueries.add(
+            new BooleanQuery.Builder().add(new DenseVectorQuery.Floats(queryVector, FIELD_NAME), BooleanClause.Occur.SHOULD)
+                .add(new FieldExistsQuery(FIELD_NAME), BooleanClause.Occur.FILTER)
+                .build()
+        );
+        innerQueries.add(Queries.ALL_DOCS_INSTANCE);
+
+        try (Directory d = newDirectory()) {
+            addRandomDocuments(numDocs, d, numDims);
+            try (DirectoryReader reader = DirectoryReader.open(d)) {
+                for (Query innerQuery : innerQueries) {
+                    RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
+                        FIELD_NAME,
+                        queryVector,
+                        VectorSimilarityFunction.COSINE,
+                        k,
+                        k,
+                        innerQuery
+                    );
+
+                    IndexSearcher searcher = newSearcher(reader, true, false);
+                    TopDocs rescoredDocs = searcher.search(rescoreKnnVectorQuery, numDocs);
+                    assertThat(rescoredDocs.scoreDocs, arrayWithSize(k));
+
+                    searcher = newSearcher(new SingleVectorQueryIndexReader(reader), true, false);
+                    rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
+                        FIELD_NAME,
+                        queryVector,
+                        VectorSimilarityFunction.COSINE,
+                        k,
+                        k,
+                        innerQuery
+                    );
+                    TopDocs singleRescored = searcher.search(rescoreKnnVectorQuery, numDocs);
+                    assertThat(singleRescored.scoreDocs, arrayWithSize(k));
+
+                    // Get real scores
+                    ScoreDoc[] singleRescoreDocs = singleRescored.scoreDocs;
+                    int i = 0;
+                    for (ScoreDoc rescoreDoc : rescoredDocs.scoreDocs) {
+                        assertThat(rescoreDoc.doc, equalTo(singleRescoreDocs[i].doc));
+                        assertThat((double) rescoreDoc.score, closeTo(singleRescoreDocs[i].score, DELTA));
+                        i++;
                     }
                 }
             }
@@ -126,7 +226,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             try (IndexReader reader = DirectoryReader.open(d)) {
                 float[] queryVector = randomVector(numDims);
 
-                checkProfiling(k, numDocs, queryVector, reader, new MatchAllDocsQuery());
+                checkProfiling(k, numDocs, queryVector, reader, Queries.ALL_DOCS_INSTANCE);
                 checkProfiling(k, numDocs, queryVector, reader, new MockQueryProfilerProvider(randomIntBetween(1, 100)));
             }
         }
@@ -189,7 +289,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
         @Override
         public Query rewrite(IndexSearcher indexSearcher) throws IOException {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override
@@ -214,14 +314,33 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
     private static void addRandomDocuments(int numDocs, Directory d, int numDims) throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig();
         // Pick codec from quantized vector formats to ensure scores use real scores when using knn rescore
-        KnnVectorsFormat format = randomFrom(
-            new ES818BinaryQuantizedVectorsFormat(),
-            new ES818HnswBinaryQuantizedVectorsFormat(),
-            new ES813Int8FlatVectorFormat(),
-            new ES813Int8FlatVectorFormat(),
-            new ES814HnswScalarQuantizedVectorsFormat()
+        DenseVectorFieldMapper.ElementType elementType = randomFrom(
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            DenseVectorFieldMapper.ElementType.BFLOAT16
         );
-        iwc.setCodec(new Elasticsearch900Lucene101Codec(randomFrom(Zstd814StoredFieldsFormat.Mode.values())) {
+        KnnVectorsFormat format = randomFrom(
+            new ES920DiskBBQVectorsFormat(
+                DEFAULT_VECTORS_PER_CLUSTER,
+                DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                elementType,
+                randomBoolean(),
+                null,
+                1
+            ),
+            new ES93BinaryQuantizedVectorsFormat(elementType, false),
+            new ES93HnswBinaryQuantizedVectorsFormat(elementType, randomBoolean()),
+            new ES93ScalarQuantizedVectorsFormat(elementType),
+            new ES93HnswScalarQuantizedVectorsFormat(
+                DEFAULT_VECTORS_PER_CLUSTER,
+                DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
+                elementType,
+                null,
+                7,
+                false,
+                randomBoolean()
+            )
+        );
+        iwc.setCodec(new Elasticsearch92Lucene103Codec(randomFrom(Zstd814StoredFieldsFormat.Mode.values())) {
             @Override
             public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
                 return format;
@@ -239,6 +358,102 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 }
             }
             w.commit();
+        }
+    }
+
+    private static class SingleVectorQueryIndexReader extends FilterDirectoryReader {
+
+        /**
+         * Create a new FilterDirectoryReader that filters a passed in DirectoryReader, using the supplied
+         * SubReaderWrapper to wrap its subreader.
+         *
+         * @param in      the DirectoryReader to filter
+         */
+        SingleVectorQueryIndexReader(DirectoryReader in) throws IOException {
+            super(in, new SubReaderWrapper() {
+                @Override
+                public LeafReader wrap(LeafReader reader) {
+                    return new FilterLeafReader(reader) {
+                        @Override
+                        public CacheHelper getReaderCacheHelper() {
+                            return null;
+                        }
+
+                        @Override
+                        public CacheHelper getCoreCacheHelper() {
+                            return null;
+                        }
+
+                        @Override
+                        public FloatVectorValues getFloatVectorValues(String field) throws IOException {
+                            FloatVectorValues values = super.getFloatVectorValues(field);
+                            if (values == null) {
+                                return null;
+                            }
+                            return new RegularFloatVectorValues(values);
+                        }
+                    };
+                }
+            });
+        }
+
+        @Override
+        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
+            return new SingleVectorQueryIndexReader(in);
+        }
+
+        @Override
+        public CacheHelper getReaderCacheHelper() {
+            return null;
+        }
+    }
+
+    private static final class RegularFloatVectorValues extends FloatVectorValues {
+
+        private final FloatVectorValues in;
+
+        RegularFloatVectorValues(FloatVectorValues in) {
+            this.in = in;
+        }
+
+        @Override
+        public VectorScorer scorer(float[] target) throws IOException {
+            return in.scorer(target);
+        }
+
+        @Override
+        public int ordToDoc(int ord) {
+            return in.ordToDoc(ord);
+        }
+
+        @Override
+        public Bits getAcceptOrds(Bits acceptDocs) {
+            return in.getAcceptOrds(acceptDocs);
+        }
+
+        @Override
+        public DocIndexIterator iterator() {
+            return in.iterator();
+        }
+
+        @Override
+        public float[] vectorValue(int ord) throws IOException {
+            return in.vectorValue(ord);
+        }
+
+        @Override
+        public FloatVectorValues copy() throws IOException {
+            return new RegularFloatVectorValues(in.copy());
+        }
+
+        @Override
+        public int dimension() {
+            return in.dimension();
+        }
+
+        @Override
+        public int size() {
+            return in.size();
         }
     }
 }

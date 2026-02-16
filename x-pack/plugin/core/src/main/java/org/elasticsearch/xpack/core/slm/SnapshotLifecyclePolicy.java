@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.slm;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.cluster.SimpleDiffable;
@@ -91,6 +91,10 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         );
     }
 
+    private static final TransportVersion SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN = TransportVersion.fromName(
+        "slm_unhealthy_if_no_snapshot_within"
+    );
+
     public SnapshotLifecyclePolicy(
         final String id,
         final String name,
@@ -128,7 +132,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         this.repository = in.readString();
         this.configuration = in.readGenericMap();
         this.retentionPolicy = in.readOptionalWriteable(SnapshotRetentionConfiguration::new);
-        this.unhealthyIfNoSnapshotWithin = in.getTransportVersion().onOrAfter(TransportVersions.SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)
+        this.unhealthyIfNoSnapshotWithin = in.getTransportVersion().supports(SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)
             ? in.readOptionalTimeValue()
             : null;
         this.isCronSchedule = isCronSchedule(schedule);
@@ -392,7 +396,7 @@ public class SnapshotLifecyclePolicy implements SimpleDiffable<SnapshotLifecycle
         out.writeString(this.repository);
         out.writeGenericMap(this.configuration);
         out.writeOptionalWriteable(this.retentionPolicy);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)) {
+        if (out.getTransportVersion().supports(SLM_UNHEALTHY_IF_NO_SNAPSHOT_WITHIN)) {
             out.writeOptionalTimeValue(this.unhealthyIfNoSnapshotWithin);
         }
     }

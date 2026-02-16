@@ -13,7 +13,15 @@ Empty string or `true`
 :   Refresh the relevant primary and replica shards (not the whole index) immediately after the operation occurs, so that the updated document appears in search results immediately. This should **ONLY** be done after careful thought and verification that it does not lead to poor performance, both from an indexing and a search standpoint.
 
 `wait_for`
-:   Wait for the changes made by the request to be made visible by a refresh before replying. This doesn’t force an immediate refresh, rather, it waits for a refresh to happen. Elasticsearch automatically refreshes shards that have changed every `index.refresh_interval` which defaults to one second. That setting is [dynamic](/reference/elasticsearch/index-settings/index.md). Calling the [Refresh](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-refresh) API or setting `refresh` to `true` on any of the APIs that support it will also cause a refresh, in turn causing already running requests with `refresh=wait_for` to return.
+:   Wait for the changes made by the request to be made visible by a refresh before replying. This doesn’t force an immediate refresh, rather, it waits for a refresh to happen. Elasticsearch automatically refreshes shards that have changed every [`index.refresh_interval`](/reference/elasticsearch/index-settings/index-modules.md#index-refresh-interval-setting).
+
+    Calling the [Refresh](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-indices-refresh) API or setting `refresh` to `true` on any of the APIs that support it will also cause a refresh, in turn causing already running requests with `refresh=wait_for` to return.
+
+    :::{note}
+    In {{stack}}, the default value for `index.refresh_interval` is `1s`.<br><br>
+    In {{serverless-full}}, the default value for `index.refresh_interval` is `5s`.<br><br>
+    The `index.refresh_interval` setting is [dynamic](/reference/elasticsearch/index-settings/index.md). 
+    :::
 
 `false` (the default)
 :   Take no refresh related actions. The changes made by this request will be made visible at some point after the request returns.
@@ -32,7 +40,7 @@ If you absolutely must have the changes made by a request visible synchronously 
 * `refresh=wait_for` only affects the request that it is on, but, by forcing a refresh immediately, `refresh=true` will affect other ongoing request. In general, if you have a running system you don’t wish to disturb then `refresh=wait_for` is a smaller modification.
 
 
-## `refresh=wait_for` Can Force a Refresh [refresh_wait_for-force-refresh]
+## `refresh=wait_for` can force a refresh [refresh_wait_for-force-refresh]
 
 If a `refresh=wait_for` request comes in when there are already `index.max_refresh_listeners` (defaults to 1000) requests waiting for a refresh on that shard then that request will behave just as though it had `refresh` set to `true` instead: it will force a refresh. This keeps the promise that when a `refresh=wait_for` request returns that its changes are visible for search while preventing unchecked resource usage for blocked requests. If a request forced a refresh because it ran out of listener slots then its response will contain `"forced_refresh": true`.
 

@@ -24,7 +24,7 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.hamcrest.Matchers.is;
 
 public class AdjustableCapacityBlockingQueueTests extends ESTestCase {
@@ -46,7 +46,7 @@ public class AdjustableCapacityBlockingQueueTests extends ESTestCase {
 
     @Before
     public void init() {
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
     @After

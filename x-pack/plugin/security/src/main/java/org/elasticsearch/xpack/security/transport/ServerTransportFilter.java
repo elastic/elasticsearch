@@ -34,7 +34,7 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
  * The server transport filter that should be used in nodes as it ensures that an incoming
  * request is properly authenticated and authorized
  */
-class ServerTransportFilter {
+public class ServerTransportFilter {
 
     private static final Logger logger = LogManager.getLogger(ServerTransportFilter.class);
 
@@ -45,7 +45,7 @@ class ServerTransportFilter {
     private final DestructiveOperations destructiveOperations;
     private final SecurityContext securityContext;
 
-    ServerTransportFilter(
+    public ServerTransportFilter(
         AuthenticationService authcService,
         AuthorizationService authzService,
         ThreadContext threadContext,
@@ -62,11 +62,12 @@ class ServerTransportFilter {
     }
 
     /**
-     * Called just after the given request was received by the transport. Any exception
-     * thrown by this method will stop the request from being handled and the error will
-     * be sent back to the sender.
+     * Called just after the given request was received by the transport service.
+     * <p>
+     * Any exception thrown by this method will stop the request from being handled
+     * and the error will be sent back to the sender.
      */
-    void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener) {
+    public void inbound(String action, TransportRequest request, TransportChannel transportChannel, ActionListener<Void> listener) {
         if (TransportCloseIndexAction.NAME.equals(action)
             || OpenIndexAction.NAME.equals(action)
             || TransportDeleteIndexAction.TYPE.name().equals(action)) {

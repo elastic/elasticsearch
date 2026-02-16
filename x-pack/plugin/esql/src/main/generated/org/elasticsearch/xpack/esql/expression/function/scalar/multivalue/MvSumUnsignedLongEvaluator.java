@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import java.lang.ArithmeticException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -19,6 +20,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * This class is generated. Edit {@code MvEvaluatorImplementer} instead.
  */
 public final class MvSumUnsignedLongEvaluator extends AbstractMultivalueFunction.AbstractNullableEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(MvSumUnsignedLongEvaluator.class);
+
   private final Source source;
 
   private Warnings warnings;
@@ -69,14 +72,14 @@ public final class MvSumUnsignedLongEvaluator extends AbstractMultivalueFunction
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    return BASE_RAM_BYTES_USED + field.baseRamBytesUsed();
   }
 
   public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {

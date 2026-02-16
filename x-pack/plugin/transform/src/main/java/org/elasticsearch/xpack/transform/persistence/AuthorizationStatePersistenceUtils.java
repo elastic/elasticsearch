@@ -130,7 +130,7 @@ public final class AuthorizationStatePersistenceUtils {
             },
             error -> {
                 String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_STATE, transformId);
-                logger.error(msg, error);
+                logger.warn(msg, error);
                 listener.onFailure(error);
             }
         );

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.basic;
 
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequest;
@@ -31,6 +30,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -101,7 +101,7 @@ public class QueryRewriteContextIT extends ESIntegTestCase {
 
         @Override
         protected Query doToQuery(SearchExecutionContext context) throws IOException {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
 
         @Override

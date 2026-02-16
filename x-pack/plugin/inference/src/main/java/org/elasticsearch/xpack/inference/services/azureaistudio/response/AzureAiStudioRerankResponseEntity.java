@@ -111,6 +111,7 @@ public class AzureAiStudioRerankResponseEntity extends BaseResponseEntity {
             PARSER.declareInt(constructorArg(), new ParseField("index"));
             PARSER.declareObject(optionalConstructorArg(), ObjectParser.PARSER::apply, new ParseField("document"));
         }
+
         public RankedDocsResults.RankedDoc toRankedDoc() {
             return new RankedDocsResults.RankedDoc(index, relevanceScore, document == null ? null : document.text);
         }

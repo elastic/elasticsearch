@@ -56,7 +56,7 @@ public class AsinTests extends AbstractScalarFunctionTestCase {
                 )
             )
         );
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

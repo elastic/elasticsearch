@@ -17,7 +17,9 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOSupplier;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
@@ -101,13 +103,13 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         }
 
         @Override
-        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+        public final IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
             return null;
         }
 
         @Override
         public final StoredFieldsSpec rowStrideStoredFieldSpec() {
-            return StoredFieldsSpec.NEEDS_SOURCE;
+            return fetcher.storedFieldsSpec();
         }
 
         @Override
@@ -124,7 +126,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
         public final RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
             DocIdSetIterator iter = lookup.lookup(context);
             if (iter == null) {
-                return new ConstantNullsReader();
+                return ConstantNull.READER;
             }
             return rowStrideReader(context, iter);
         }
@@ -479,7 +481,7 @@ public abstract class BlockSourceReader implements BlockLoader.RowStrideReader {
     }
 
     /**
-     * Build a {@link LeafIteratorLookup} which checks for norms of a text field.
+     * Build a {@link LeafIteratorLookup} which matches all documents in a segment
      */
     public static LeafIteratorLookup lookupMatchingAll() {
         return new LeafIteratorLookup() {

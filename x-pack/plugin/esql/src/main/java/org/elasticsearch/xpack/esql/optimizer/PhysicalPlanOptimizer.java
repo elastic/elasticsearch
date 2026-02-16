@@ -39,7 +39,7 @@ public class PhysicalPlanOptimizer extends ParameterizedRuleExecutor<PhysicalPla
     }
 
     PhysicalPlan verify(PhysicalPlan optimizedPlan, List<Attribute> expectedOutputAttributes) {
-        Failures failures = verifier.verify(optimizedPlan, false, expectedOutputAttributes);
+        Failures failures = verifier.verify(optimizedPlan, expectedOutputAttributes);
         if (failures.hasFailures()) {
             throw new VerificationException(failures);
         }

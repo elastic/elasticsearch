@@ -49,13 +49,18 @@ public final class DoubleVectorBlock extends AbstractVectorBlock implements Doub
     }
 
     @Override
-    public DoubleBlock filter(int... positions) {
-        return vector.filter(positions).asBlock();
+    public DoubleBlock filter(boolean mayContainDuplicates, int... positions) {
+        return vector.filter(mayContainDuplicates, positions).asBlock();
     }
 
     @Override
     public DoubleBlock keepMask(BooleanVector mask) {
         return vector.keepMask(mask);
+    }
+
+    @Override
+    public DoubleBlock deepCopy(BlockFactory blockFactory) {
+        return vector.deepCopy(blockFactory).asBlock();
     }
 
     @Override

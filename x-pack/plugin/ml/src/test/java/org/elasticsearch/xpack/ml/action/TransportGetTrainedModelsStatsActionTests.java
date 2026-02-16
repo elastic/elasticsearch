@@ -31,6 +31,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.ingest.IngestStats;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.SamplingService;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.test.ESTestCase;
@@ -138,7 +139,9 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                     OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                     ClusterService.USER_DEFINED_METADATA,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME
                 )
             )
         );
@@ -159,7 +162,8 @@ public class TransportGetTrainedModelsStatsActionTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            mock(SamplingService.class)
         );
     }
 

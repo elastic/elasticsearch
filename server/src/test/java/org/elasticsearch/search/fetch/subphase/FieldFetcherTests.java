@@ -34,6 +34,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.search.SearchHit;
@@ -50,6 +51,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.BiFunction;
 
 import static java.util.Collections.emptyMap;
@@ -1585,9 +1587,13 @@ public class FieldFetcherTests extends MapperServiceTestCase {
     }
 
     public void testStoredFieldsSpec() throws IOException {
+        var mapperService = createMapperService();
         List<FieldAndFormat> fields = List.of(new FieldAndFormat("field", null));
-        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(createMapperService()), fields);
-        assertEquals(StoredFieldsSpec.NEEDS_SOURCE, fieldFetcher.storedFieldsSpec());
+        FieldFetcher fieldFetcher = FieldFetcher.create(newSearchExecutionContext(mapperService), fields);
+        assertEquals(
+            StoredFieldsSpec.withSourcePaths(mapperService.getIndexSettings().getIgnoredSourceFormat(), Set.of("field")),
+            fieldFetcher.storedFieldsSpec()
+        );
     }
 
     private List<FieldAndFormat> fieldAndFormatList(String name, String format, boolean includeUnmapped) {
@@ -1694,7 +1700,9 @@ public class FieldFetcherTests extends MapperServiceTestCase {
             null,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 

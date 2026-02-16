@@ -4,7 +4,7 @@
 Calculates the dot product between two dense_vectors.
 
 ```esql
- from colors
- | eval similarity = v_dot_product(rgb_vector, [0, 255, 255])
- | sort similarity desc, color asc
+from colors
+| eval similarity = v_dot_product(rgb_vector, [0, 255, 255])
+| sort similarity desc, color asc
 ```

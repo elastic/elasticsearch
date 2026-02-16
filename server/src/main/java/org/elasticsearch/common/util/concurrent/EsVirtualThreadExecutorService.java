@@ -121,8 +121,12 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
     // FIXME remove hack, should be pushed up
     private static ThreadFactory virtualThreadFactory(String name) {
         String[] split = name.split("/", 2);
-        name = split.length == 2 ? EsExecutors.threadName(split[0], split[1]) : EsExecutors.threadName("", split[0]);
-        return Thread.ofVirtual().name(name, 0).factory();
+        String nodeName = split.length == 2 ? split[0] : "";
+        String executorName = split.length == 2 ? split[1] : split[0];
+        String prefix = nodeName.isEmpty()
+            ? "elasticsearch[" + executorName + "]"
+            : "elasticsearch[" + nodeName + "][" + executorName + "]";
+        return Thread.ofVirtual().name(prefix, 0).factory();
     }
 
     @Override
@@ -509,6 +513,11 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         @Override
         public long getMaxQueueLatencyMillisSinceLastPollAndReset() {
             return taskTracker.getMaxQueueLatencyMillisSinceLastPollAndReset();
+        }
+
+        @Override
+        public long peekMaxQueueLatencyInQueueMillis() {
+            return taskTracker.peekMaxQueueLatencyInQueueMillis();
         }
 
         @Override

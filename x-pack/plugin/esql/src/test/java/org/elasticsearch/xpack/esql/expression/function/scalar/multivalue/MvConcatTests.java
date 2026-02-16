@@ -67,7 +67,7 @@ public class MvConcatTests extends AbstractScalarFunctionTestCase {
                 }
             }
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(false, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }
 
     @Override

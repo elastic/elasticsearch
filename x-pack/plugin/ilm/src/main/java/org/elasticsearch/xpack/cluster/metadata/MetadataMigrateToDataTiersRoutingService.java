@@ -760,6 +760,8 @@ public final class MetadataMigrateToDataTiersRoutingService {
                     migratedComposableTemplateBuilder.ignoreMissingComponentTemplates(
                         composableTemplate.getIgnoreMissingComponentTemplates()
                     );
+                    migratedComposableTemplateBuilder.createdDate(composableTemplate.createdDateMillis().orElse(null));
+                    migratedComposableTemplateBuilder.modifiedDate(composableTemplate.modifiedDateMillis().orElse(null));
 
                     projectMetadataBuilder.put(templateEntry.getKey(), migratedComposableTemplateBuilder.build());
                     migratedComposableTemplates.add(templateEntry.getKey());

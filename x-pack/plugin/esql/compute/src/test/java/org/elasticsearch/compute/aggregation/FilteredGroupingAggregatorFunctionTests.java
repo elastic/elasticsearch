@@ -15,8 +15,8 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.LongIntBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.junit.After;
 
@@ -151,6 +151,11 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
                 }
                 return result.build().asBlock();
             }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return 0;
         }
 
         @Override

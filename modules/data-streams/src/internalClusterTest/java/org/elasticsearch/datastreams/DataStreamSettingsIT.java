@@ -24,6 +24,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -323,12 +324,57 @@ public class DataStreamSettingsIT extends ESIntegTestCase {
         }
     }
 
+    public void testPutDataStreamSettingsTSDS() throws Exception {
+        String dataStreamName = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        putComposableIndexTemplate(
+            "my-template",
+            List.of(dataStreamName),
+            indexSettings(1, 0).put("index.mode", "time_series").build(),
+            CompressedXContent.fromJSON("""
+                {
+                  "properties": {
+                    "host.name": {
+                      "type": "keyword",
+                      "time_series_dimension": true
+                    }
+                  }
+                }
+                """)
+        );
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStreamName);
+        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
+        final int numberOfShards = randomIntBetween(2, 7);
+        Settings dataStreamSettings = Settings.builder().put("index.number_of_shards", numberOfShards).build();
+        UpdateDataStreamSettingsAction.Response putSettingsResponse = client().execute(
+            UpdateDataStreamSettingsAction.INSTANCE,
+            new UpdateDataStreamSettingsAction.Request(dataStreamSettings, TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS).indices(
+                dataStreamName
+            )
+        ).actionGet();
+        List<UpdateDataStreamSettingsAction.DataStreamSettingsResponse> dataStreamSettingsResponses = putSettingsResponse
+            .getDataStreamSettingsResponses();
+        assertThat(dataStreamSettingsResponses.size(), equalTo(1));
+        UpdateDataStreamSettingsAction.DataStreamSettingsResponse dataStreamSettingsResponse = dataStreamSettingsResponses.get(0);
+        assertThat(dataStreamSettingsResponse.dataStreamName(), equalTo(dataStreamName));
+        assertThat(dataStreamSettingsResponse.dataStreamSucceeded(), equalTo(true));
+        assertThat(dataStreamSettingsResponse.settings().get("index.number_of_shards"), equalTo(Integer.toString(numberOfShards)));
+    }
+
     static void putComposableIndexTemplate(String id, List<String> patterns, @Nullable Settings settings) throws IOException {
+        putComposableIndexTemplate(id, patterns, settings, null);
+    }
+
+    static void putComposableIndexTemplate(
+        String id,
+        List<String> patterns,
+        @Nullable Settings settings,
+        @Nullable CompressedXContent mappings
+    ) throws IOException {
         TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(id);
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(Template.builder().settings(settings))
+                .template(Template.builder().settings(settings).mappings(mappings))
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()
         );

@@ -3,9 +3,9 @@
 **Example**
 
 ```esql
- from colors
- | eval similarity = v_l2_norm(rgb_vector, [0, 255, 255])
- | sort similarity desc, color asc
+from colors
+| eval similarity = v_l2_norm(rgb_vector, [0, 255, 255])
+| sort similarity desc, color asc
 ```
 
 | color:text | similarity:double |

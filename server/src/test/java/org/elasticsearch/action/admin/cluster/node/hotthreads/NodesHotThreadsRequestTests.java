@@ -39,11 +39,7 @@ public class NodesHotThreadsRequestTests extends ESTestCase {
         );
 
         TransportVersion latest = TransportVersion.current();
-        TransportVersion previous = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersionUtils.getFirstVersion(),
-            TransportVersionUtils.getPreviousVersion(TransportVersion.current())
-        );
+        TransportVersion previous = TransportVersionUtils.randomCompatibleVersion();
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             out.setTransportVersion(latest);

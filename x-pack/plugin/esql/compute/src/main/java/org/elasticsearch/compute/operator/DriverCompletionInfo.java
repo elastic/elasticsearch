@@ -7,7 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -51,7 +51,8 @@ public record DriverCompletionInfo(
         String description,
         String clusterName,
         String nodeName,
-        String planTree
+        String planTree,
+        PlanTimeProfile planTimeProfile
     ) {
         long documentsFound = 0;
         long valuesLoaded = 0;
@@ -68,7 +69,7 @@ public record DriverCompletionInfo(
             documentsFound,
             valuesLoaded,
             collectedProfiles,
-            List.of(new PlanProfile(description, clusterName, nodeName, planTree))
+            List.of(new PlanProfile(description, clusterName, nodeName, planTree, planTimeProfile))
         );
     }
 
@@ -89,15 +90,16 @@ public record DriverCompletionInfo(
         return new DriverCompletionInfo(documentsFound, valuesLoaded, List.of(), List.of());
     }
 
+    private static final TransportVersion ESQL_PROFILE_INCLUDE_PLAN = TransportVersion.fromName("esql_profile_include_plan");
+
     public static DriverCompletionInfo readFrom(StreamInput in) throws IOException {
         return new DriverCompletionInfo(
             in.readVLong(),
             in.readVLong(),
             in.readCollectionAsImmutableList(DriverProfile::readFrom),
-            in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
-                || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)
-                    ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
-                    : List.of()
+            in.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)
+                ? in.readCollectionAsImmutableList(PlanProfile::readFrom)
+                : List.of()
         );
     }
 
@@ -106,8 +108,7 @@ public record DriverCompletionInfo(
         out.writeVLong(documentsFound);
         out.writeVLong(valuesLoaded);
         out.writeCollection(driverProfiles);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_PROFILE_INCLUDE_PLAN_8_19)) {
+        if (out.getTransportVersion().supports(ESQL_PROFILE_INCLUDE_PLAN)) {
             out.writeCollection(planProfiles);
         }
     }

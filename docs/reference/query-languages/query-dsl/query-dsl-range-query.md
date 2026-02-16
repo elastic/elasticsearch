@@ -215,6 +215,7 @@ GET /_search
   }
 }
 ```
+% TEST[continued]
 
 1. Indicates that `date` values use a UTC offset of `+01:00`.
 2. With a UTC offset of `+01:00`, {{es}} converts this date to `2019-12-31T23:00:00 UTC`.

@@ -1,0 +1,25 @@
+ExchangeSinkExec[[avg_worked_seconds{f}, birth_date{f}, emp_no{f}, first_name{f}, gender{f}, height{f}, height.float{f}, height.half_float{f}, height.scaled_float{f}, hire_date{f}, is_rehired{f}, job_positions{f}, languages{f}, languages.byte{f}, languages.long{f}, languages.short{f}, last_name{f}, salary{f}, salary_change{f}, salary_change.int{f}, salary_change.keyword{f}, salary_change.long{f}, still_hired{f}, language_code{r}, language_name{f}],false]
+\_ProjectExec[[_doc{f}, emp_no{f}, languages{f}, language_code{r}, language_name{f}]]
+  \_TopNExec[[Order[emp_no{f},ASC,LAST]],20[INTEGER],82]
+    \_FieldExtractExec[emp_no{f}]<[],[]>
+      \_LookupJoinExec[[language_code{r}],[language_code{f}],[language_name{f}],null]
+        |_EvalExec[[languages{f} AS language_code]]
+        | \_FieldExtractExec[languages{f}]<[],[]>
+        |   \_EsQueryExec[employees], indexMode[standard], [_doc{f}], limit[], sort[] estimatedRowSize[66] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "emp_no",
+    "next" : {
+      "range" : {
+        "emp_no" : {
+          "gte" : 10091,
+          "lt" : 10094,
+          "time_zone" : "Z",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "emp_no >= 10091@4:9"
+  }
+}, tags=[]]]]
+        \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+EsRelation[languages_lookup][LOOKUP][language_code{f}, language_name{f}]<>]]

@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -53,13 +54,13 @@ public interface ActionWithReservedState<T> {
      * @param reservedStateMetadata the metadata to check
      * @param handlerName the name of the reserved state handler related to this implementation
      * @param modified the set of modified keys by the related request
-     * @param request a string representation of the request for error reporting purposes
+     * @param requestSupplier a supplier for a string representation of the request for error reporting purposes
      */
     default void validateForReservedState(
         Collection<ReservedStateMetadata> reservedStateMetadata,
         String handlerName,
         Set<String> modified,
-        String request
+        Supplier<String> requestSupplier
     ) {
         List<String> errors = new ArrayList<>();
 
@@ -72,7 +73,7 @@ public interface ActionWithReservedState<T> {
 
         if (errors.isEmpty() == false) {
             throw new IllegalArgumentException(
-                format("Failed to process request [%s] with errors: [%s]", request, String.join(", ", errors))
+                format("Failed to process request [%s] with errors: [%s]", requestSupplier.get(), String.join(", ", errors))
             );
         }
     }

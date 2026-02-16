@@ -6,6 +6,8 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
+
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -16,7 +18,6 @@ esplugin {
 }
 
 dependencies {
-
   implementation "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:apache-client:${versions.awsv2sdk}"
   implementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
@@ -67,7 +68,7 @@ dependencies {
   internalClusterTestImplementation project(':test:fixtures:ec2-imds-fixture')
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: 'annotations',              to: 'aws-sdk-2'
   mapping from: 'apache-client',            to: 'aws-sdk-2'
   mapping from: 'auth',                     to: 'aws-sdk-2'

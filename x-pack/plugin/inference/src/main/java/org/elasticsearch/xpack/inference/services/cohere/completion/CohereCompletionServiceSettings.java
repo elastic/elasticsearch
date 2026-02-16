@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.cohere.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -40,6 +39,7 @@ import static org.elasticsearch.xpack.inference.services.cohere.CohereServiceSet
 public class CohereCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
 
     public static final String NAME = "cohere_completion_service_settings";
+    private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
 
     // Production key rate limits for all endpoints: https://docs.cohere.com/docs/going-live#production-key-specifications
     // 10K requests per minute
@@ -102,8 +102,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         uri = createOptionalUri(in.readOptionalString());
         modelId = in.readOptionalString();
         rateLimitSettings = new RateLimitSettings(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+        if (in.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
             this.apiVersion = in.readEnum(CohereServiceSettings.CohereApiVersion.class);
         } else {
             this.apiVersion = CohereServiceSettings.CohereApiVersion.V1;
@@ -146,7 +145,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -155,8 +154,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         out.writeOptionalString(uriToWrite);
         out.writeOptionalString(modelId);
         rateLimitSettings.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_COHERE_API_VERSION)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.ML_INFERENCE_COHERE_API_VERSION_8_19)) {
+        if (out.getTransportVersion().supports(ML_INFERENCE_COHERE_API_VERSION)) {
             out.writeEnum(apiVersion);
         }
     }

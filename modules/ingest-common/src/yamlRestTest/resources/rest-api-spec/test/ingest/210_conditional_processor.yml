@@ -221,3 +221,44 @@ teardown:
         index: test
         id: "2"
       catch: missing
+
+---
+"Test conditionals support params and statements":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "if" : {
+                    "source": "def hit = params.success_codes.containsKey(ctx.code); return hit != null && hit == true;",
+                    "params": {
+                      "success_codes" : {
+                        "10": true,
+                        "20": true
+                      }
+                    }
+                  },
+                  "field" : "result",
+                  "value" : "success"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: { code: "20" }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.result: "success" }

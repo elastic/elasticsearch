@@ -110,6 +110,7 @@ public class OsProbeTests extends ESTestCase {
                 assertThat(loadAverage[2], equalTo((double) -1));
             }
         }
+        assertThat(stats.getCpu().getAvailableProcessors(), greaterThanOrEqualTo(1));
 
         assertNotNull(stats.getMem());
         assertThat(stats.getMem().getTotal().getBytes(), greaterThan(0L));

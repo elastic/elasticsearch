@@ -11,6 +11,7 @@ package org.elasticsearch.common.time;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.util.LocaleUtils;
+import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
@@ -401,6 +402,41 @@ public class DateFormattersTests extends ESTestCase {
         );
         ZonedDateTime second = DateFormatters.from(
             DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+01:00")
+        );
+        assertThat(first, is(second));
+    }
+
+    public void testIsoParsersWithDifferentTimezones() throws Exception {
+        ZonedDateTime first = DateFormatters.from(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T17:14:56+01:00")
+        );
+        ZonedDateTime second = DateFormatters.from(
+            DateFormatters.forPattern("strict_date_optional_time_nanos").parse("2018-05-15T19:14:56+03:00")
+        ).withZoneSameInstant(ZoneId.of("+01:00"));
+        assertThat(first, is(second));
+    }
+
+    public void testJavaParsersWithDifferentTimezones() throws Exception {
+        ZonedDateTime first = DateFormatters.from(DateFormatters.forPattern("yyyy-MM-dd HH_mm_ss XXX").parse("2018-05-15 17_14_56 +01:00"));
+        ZonedDateTime second = DateFormatters.from(DateFormatters.forPattern("yyyy-MM-dd HH-mm-ss-XXX").parse("2018-05-15 19-14-56-+03:00"))
+            .withZoneSameInstant(ZoneId.of("+01:00"));
+        assertThat(first, is(second));
+    }
+
+    public void testJavaParsersWithTimezoneDefault() throws Exception {
+        ZonedDateTime first = DateFormatters.from(DateFormatters.forPattern("yyyy-MM-dd HH:mm:ss XXX").parse("2018-05-15 17:14:56 +01:00"));
+        ZonedDateTime second = DateFormatters.from(
+            DateFormatters.forPattern("yyyy-MM-dd HH:mm:ss XXX").parse("2018-05-15 17:14:56 +01:00"),
+            Locale.ROOT,
+            ZoneId.of("-08:15")
+        );
+        assertThat(first, is(second));
+    }
+
+    public void testJavaParsersWithExternalTimezoneOverride() throws Exception {
+        ZonedDateTime first = DateFormatters.from(DateFormatters.forPattern("yyyy-MM-dd HH:mm:ss XXX").parse("2018-05-15 17:14:56 +01:00"));
+        ZonedDateTime second = DateFormatters.from(
+            DateFormatters.forPattern("yyyy-MM-dd HH:mm:ss XXX").withZone(ZoneId.of("+01:00")).parse("2018-05-15 17:14:56 -08:15")
         );
         assertThat(first, is(second));
     }
@@ -1467,5 +1503,20 @@ public class DateFormattersTests extends ESTestCase {
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DateFormatter.forPattern(input));
         assertThat(e.getCause(), instanceOf(ClassCastException.class));
         assertThat(e.getMessage(), containsString(input));
+    }
+
+    public void testXContentElasticsearchExtensionDefaultFormatter() {
+        final var formatter = DateFormatter.forPattern("strict_date_optional_time_nanos");
+        assertSame(XContentElasticsearchExtension.DEFAULT_FORMATTER, formatter);
+
+        assertEquals("2025-09-12T08:12:12.123Z", formatter.format(Instant.ofEpochMilli(1757664732123L)));
+        assertEquals("2025-09-12T08:12:12.000Z", formatter.format(Instant.ofEpochMilli(1757664732000L)));
+        assertEquals("2025-09-12T08:12:00.000Z", formatter.format(Instant.ofEpochMilli(1757664720000L)));
+        assertEquals("2025-09-12T08:00:00.000Z", formatter.format(Instant.ofEpochMilli(1757664000000L)));
+        assertEquals("2025-09-12T00:00:00.000Z", formatter.format(Instant.ofEpochMilli(1757635200000L)));
+
+        // NB differs from Instant.toString():
+        assertEquals("2025-09-12T08:12:12.123Z", Instant.ofEpochMilli(1757664732123L).toString());
+        assertEquals("2025-09-12T08:12:00Z", Instant.ofEpochMilli(1757664720000L).toString());
     }
 }

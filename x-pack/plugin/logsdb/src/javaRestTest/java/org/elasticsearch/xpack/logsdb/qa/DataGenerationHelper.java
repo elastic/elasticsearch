@@ -18,7 +18,10 @@ import org.elasticsearch.datageneration.TemplateGenerator;
 import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
+import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
+import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.datageneration.fields.PredefinedField;
+import org.elasticsearch.datageneration.fields.leaf.FlattenedFieldDataGenerator;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -74,6 +77,13 @@ public class DataGenerationHelper {
                         FieldType.LONG,
                         Map.of("type", "long"),
                         (ignored) -> ESTestCase.randomLongBetween(1000, 2000)
+                    ),
+
+                    new PredefinedField.WithGeneratorProvider(
+                        "flattened",
+                        FieldType.FLATTENED,
+                        Map.of("type", "flattened"),
+                        FlattenedFieldDataGenerator::new
                     )
                 )
             )
@@ -88,7 +98,10 @@ public class DataGenerationHelper {
                         @Override
                         public DataSourceResponse.FieldTypeGenerator.FieldTypeInfo get() {
                             // Base set of field types
-                            var options = Arrays.stream(FieldType.values()).map(FieldType::toString).collect(Collectors.toSet());
+                            var options = Arrays.stream(FieldType.values())
+                                .filter(ft -> DefaultObjectGenerationHandler.EXCLUDED_FROM_DYNAMIC_MAPPING.contains(ft) == false)
+                                .map(FieldType::toString)
+                                .collect(Collectors.toSet());
                             // Custom types coming from specific functionality modules
 
                             if (shapesGenerated < 5) {
@@ -105,7 +118,8 @@ public class DataGenerationHelper {
                         }
                     });
                 }
-            }));
+            }))
+            .withDataSourceHandlers(List.of(MultifieldAddonHandler.STRING_TYPE_HANDLER));
 
         // Customize builder if necessary
         builderConfigurator.accept(specificationBuilder);

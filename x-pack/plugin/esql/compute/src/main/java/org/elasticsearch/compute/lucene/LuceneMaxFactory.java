@@ -7,15 +7,16 @@
 
 package org.elasticsearch.compute.lucene;
 
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -93,8 +94,8 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
             }
         };
 
-        public final NumericDocValues multiValueMode(SortedNumericDocValues sortedNumericDocValues) {
-            return MultiValueMode.MAX.select(sortedNumericDocValues);
+        public final LongValues multiValueMode(SortedNumericDocValues sortedNumericDocValues) {
+            return MultiValueMode.MAX.select(SortedNumericLongValues.wrap(sortedNumericDocValues));
         }
 
         public final long fromPointValues(PointValues pointValues) throws IOException {
@@ -108,12 +109,12 @@ public final class LuceneMaxFactory extends LuceneOperator.Factory {
         abstract long bytesToLong(byte[] bytes);
     }
 
-    private final List<? extends ShardContext> contexts;
+    private final IndexedByShardId<? extends ShardContext> contexts;
     private final String fieldName;
     private final NumberType numberType;
 
     public LuceneMaxFactory(
-        List<? extends ShardContext> contexts,
+        IndexedByShardId<? extends ShardContext> contexts,
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction,
         DataPartitioning dataPartitioning,
         int taskConcurrency,

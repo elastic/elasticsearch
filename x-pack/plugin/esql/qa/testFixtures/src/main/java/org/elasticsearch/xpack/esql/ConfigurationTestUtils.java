@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -35,6 +36,7 @@ import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
+import static org.elasticsearch.test.ESTestCase.randomInstantBetween;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeInt;
 import static org.elasticsearch.test.ESTestCase.randomRealisticUnicodeOfLength;
@@ -51,17 +53,25 @@ public class ConfigurationTestUtils {
         return randomConfiguration(randomRealisticUnicodeOfLength(len), randomTables());
     }
 
+    public static Configuration randomConfiguration(String query) {
+        return randomConfiguration(query, randomTables());
+    }
+
     public static Configuration randomConfiguration(String query, Map<String, Map<String, Column>> tables) {
         var zoneId = randomZone();
+        var now = randomInstantBetween(Instant.EPOCH, Instant.ofEpochMilli(Long.MAX_VALUE));
         var locale = randomLocale(random());
         var username = randomAlphaOfLengthBetween(1, 10);
         var clusterName = randomAlphaOfLengthBetween(3, 10);
         var truncation = randomNonNegativeInt();
         var defaultTruncation = randomNonNegativeInt();
+        var tsTruncation = truncation + randomNonNegativeInt();
+        var defaultTsTruncation = defaultTruncation + randomNonNegativeInt();
         boolean profile = randomBoolean();
 
         return new Configuration(
             zoneId,
+            now,
             locale,
             username,
             clusterName,
@@ -72,8 +82,16 @@ public class ConfigurationTestUtils {
             profile,
             tables,
             System.nanoTime(),
-            false
+            false,
+            tsTruncation,
+            defaultTsTruncation,
+            null,
+            Map.of()
         );
+    }
+
+    public static ConfigurationBuilder randomConfigurationBuilder() {
+        return new ConfigurationBuilder(randomConfiguration());
     }
 
     private static QueryPragmas randomQueryPragmas() {

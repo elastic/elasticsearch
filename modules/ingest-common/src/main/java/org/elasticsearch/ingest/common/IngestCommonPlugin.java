@@ -43,6 +43,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
         return Map.ofEntries(
             entry(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService)),
             entry(BytesProcessor.TYPE, new BytesProcessor.Factory()),
+            entry(CefProcessor.TYPE, new CefProcessor.Factory(parameters.scriptService)),
             entry(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory()),
             entry(ConvertProcessor.TYPE, new ConvertProcessor.Factory()),
             entry(CsvProcessor.TYPE, new CsvProcessor.Factory()),
@@ -64,6 +65,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(NetworkDirectionProcessor.TYPE, new NetworkDirectionProcessor.Factory(parameters.scriptService)),
             entry(PipelineProcessor.TYPE, new PipelineProcessor.Factory(parameters.ingestService)),
             entry(RegisteredDomainProcessor.TYPE, new RegisteredDomainProcessor.Factory()),
+            entry(RecoverFailureDocumentProcessor.TYPE, new RecoverFailureDocumentProcessor.Factory()),
             entry(RemoveProcessor.TYPE, new RemoveProcessor.Factory(parameters.scriptService)),
             entry(RenameProcessor.TYPE, new RenameProcessor.Factory(parameters.scriptService)),
             entry(RerouteProcessor.TYPE, new RerouteProcessor.Factory()),

@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.analytics.ttest.UnpairedTTestState;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
+import org.elasticsearch.xpack.core.analytics.mapper.TDigestFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -140,7 +141,12 @@ public class AnalyticsPlugin extends Plugin implements SearchPlugin, ActionPlugi
 
     @Override
     public Map<String, Mapper.TypeParser> getMappers() {
-        return Map.of(HistogramFieldMapper.CONTENT_TYPE, HistogramFieldMapper.PARSER);
+        return Map.of(
+            HistogramFieldMapper.CONTENT_TYPE,
+            HistogramFieldMapper.PARSER,
+            TDigestFieldMapper.CONTENT_TYPE,
+            TDigestFieldMapper.PARSER
+        );
     }
 
     @Override

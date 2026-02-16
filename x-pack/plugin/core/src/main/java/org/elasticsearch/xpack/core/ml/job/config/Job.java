@@ -1349,6 +1349,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
                 // Conditional guards against multiple prepending due to updates instead of first creation
                 resultsIndexName = resultsIndexName.startsWith("custom-") ? resultsIndexName : "custom-" + resultsIndexName;
             }
+
             if (datafeedConfig != null) {
                 if (datafeedConfig.getId() == null) {
                     datafeedConfig.setId(id);

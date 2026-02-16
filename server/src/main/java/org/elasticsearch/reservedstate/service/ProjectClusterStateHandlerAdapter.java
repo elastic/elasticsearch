@@ -10,6 +10,7 @@
 package org.elasticsearch.reservedstate.service;
 
 import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.ReservedProjectStateHandler;
@@ -57,6 +58,11 @@ class ProjectClusterStateHandlerAdapter<T> implements ReservedClusterStateHandle
     @Override
     public TransformState transform(T source, TransformState prevState) throws Exception {
         return handler.transform(projectId, source, prevState);
+    }
+
+    @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return handler.remove(projectId, prevState);
     }
 
     @Override

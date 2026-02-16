@@ -28,7 +28,7 @@ public class PostConnectorSecretResponseBWCSerializingTests extends AbstractBWCW
 
     @Override
     protected PostConnectorSecretResponse mutateInstance(PostConnectorSecretResponse instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new PostConnectorSecretResponse(randomValueOtherThan(instance.id(), () -> randomAlphaOfLengthBetween(1, 10)));
     }
 
     @Override

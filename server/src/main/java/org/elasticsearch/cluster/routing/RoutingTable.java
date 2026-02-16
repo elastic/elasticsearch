@@ -10,7 +10,6 @@
 package org.elasticsearch.cluster.routing;
 
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -242,6 +241,13 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return allShardsSatisfyingPredicate(indices, Predicates.always(), false);
     }
 
+    /**
+     * Returns an iterator over all shard routing entries that are searchable (i.e., on a node that can service searches).
+     */
+    public ShardsIterator allSearchableShards(String[] indices) {
+        return allShardsSatisfyingPredicate(indices, ShardRouting::isSearchable, false);
+    }
+
     public ShardsIterator allActiveShards(String[] indices) {
         return allShardsSatisfyingPredicate(indices, ShardRouting::active, false);
     }
@@ -321,9 +327,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     public static RoutingTable readFrom(StreamInput in) throws IOException {
         Builder builder = new Builder();
-        if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-            in.readLong(); // previously 'version', unused in all applicable versions so any number will do
-        }
         int size = in.readVInt();
         for (int i = 0; i < size; i++) {
             IndexRoutingTable index = IndexRoutingTable.readFrom(in);
@@ -335,9 +338,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-            out.writeLong(0); // previously 'version', unused in all applicable versions so any number will do
-        }
         out.writeCollection(indicesRouting.values());
     }
 
@@ -353,9 +353,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
             new DiffableUtils.DiffableValueReader<>(IndexRoutingTable::readFrom, IndexRoutingTable::readDiffFrom);
 
         RoutingTableDiff(StreamInput in) throws IOException {
-            if (in.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-                in.readLong(); // previously 'version', unused in all applicable versions so any number will do
-            }
             indicesRouting = DiffableUtils.readImmutableOpenMapDiff(in, DiffableUtils.getStringKeySerializer(), DIFF_VALUE_READER);
         }
 
@@ -373,9 +370,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().before(TransportVersions.V_8_16_0)) {
-                out.writeLong(0); // previously 'version', unused in all applicable versions so any number will do
-            }
             indicesRouting.writeTo(out);
         }
     }

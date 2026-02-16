@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
 import org.apache.lucene.util.automaton.Transition;
 import org.apache.lucene.util.automaton.UTF32ToUTF8;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -36,7 +37,13 @@ public class AutomataMatch {
          * ByteRunAutomaton has a way to convert utf32 to utf8, but if we used it
          * we couldn’t get a nice toDot - so we call UTF32ToUTF8 ourselves.
          */
-        Automaton automaton = Operations.determinize(new UTF32ToUTF8().convert(utf32Automaton), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        Automaton automaton;
+        try {
+            automaton = Operations.determinize(new UTF32ToUTF8().convert(utf32Automaton), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
+        } catch (TooComplexToDeterminizeException e) {
+            throw new IllegalArgumentException("Pattern was too complex to determinize", e);
+        }
+
         ByteRunAutomaton run = new ByteRunAutomaton(automaton, true);
         return new AutomataMatchEvaluator.Factory(source, field, run, toDot(automaton));
     }

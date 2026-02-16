@@ -151,18 +151,35 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
-    public CompositeBlock filter(int... positions) {
+    public CompositeBlock filter(boolean mayContainDuplicates, int... positions) {
         CompositeBlock result = null;
         final Block[] filteredBlocks = new Block[blocks.length];
         try {
             for (int i = 0; i < blocks.length; i++) {
-                filteredBlocks[i] = blocks[i].filter(positions);
+                filteredBlocks[i] = blocks[i].filter(mayContainDuplicates, positions);
             }
             result = new CompositeBlock(filteredBlocks);
             return result;
         } finally {
             if (result == null) {
                 Releasables.close(filteredBlocks);
+            }
+        }
+    }
+
+    @Override
+    public CompositeBlock deepCopy(BlockFactory blockFactory) {
+        CompositeBlock result = null;
+        final Block[] copied = new Block[blocks.length];
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                copied[i] = blocks[i].deepCopy(blockFactory);
+            }
+            result = new CompositeBlock(copied);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.close(copied);
             }
         }
     }

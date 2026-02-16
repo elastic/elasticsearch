@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack: ga
+  serverless: ga
 navigation_title: "Multivalue functions"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-mv-functions
@@ -11,7 +14,6 @@ mapped_pages:
 :::{include} ../_snippets/lists/mv-functions.md
 :::
 
-
 :::{include} ../_snippets/functions/layout/mv_append.md
 :::
 
@@ -21,6 +23,9 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/mv_concat.md
 :::
 
+:::{include} ../_snippets/functions/layout/mv_contains.md
+:::
+
 :::{include} ../_snippets/functions/layout/mv_count.md
 :::
 
@@ -28,6 +33,12 @@ mapped_pages:
 :::
 
 :::{include} ../_snippets/functions/layout/mv_first.md
+:::
+
+:::{include} ../_snippets/functions/layout/mv_intersection.md
+:::
+
+:::{include} ../_snippets/functions/layout/mv_intersects.md
 :::
 
 :::{include} ../_snippets/functions/layout/mv_last.md
@@ -58,6 +69,9 @@ mapped_pages:
 :::
 
 :::{include} ../_snippets/functions/layout/mv_sum.md
+:::
+
+:::{include} ../_snippets/functions/layout/mv_union.md
 :::
 
 :::{include} ../_snippets/functions/layout/mv_zip.md

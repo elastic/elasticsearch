@@ -11,7 +11,9 @@ package org.elasticsearch.simdvec;
 
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 
@@ -19,6 +21,7 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
+import java.util.Objects;
 
 import static org.elasticsearch.simdvec.internal.vectorization.ESVectorUtilSupport.B_QUERY;
 
@@ -43,16 +46,38 @@ public class ESVectorUtil {
 
     private static final ESVectorUtilSupport IMPL = ESVectorizationProvider.getInstance().getVectorUtilSupport();
 
-    public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension) throws IOException {
-        return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension);
+    public static ES91OSQVectorsScorer getES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
+        return ESVectorizationProvider.getInstance().newES91OSQVectorsScorer(input, dimension, bulkSize);
     }
 
-    public static ES91Int4VectorsScorer getES91Int4VectorsScorer(IndexInput input, int dimension) throws IOException {
-        return ESVectorizationProvider.getInstance().newES91Int4VectorsScorer(input, dimension);
+    public static ESNextOSQVectorsScorer getESNextOSQVectorsScorer(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength,
+        int bulkSize
+    ) throws IOException {
+        return ESVectorizationProvider.getInstance()
+            .newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
     }
 
-    public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension) throws IOException {
-        return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension);
+    public static ES92Int7VectorsScorer getES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
+        return ESVectorizationProvider.getInstance().newES92Int7VectorsScorer(input, dimension, bulkSize);
+    }
+
+    public static float dotProduct(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.dotProduct(a, b);
+    }
+
+    public static float squareDistance(float[] a, float[] b) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        return IMPL.squareDistance(a, b);
     }
 
     public static long ipByteBinByte(byte[] q, byte[] d) {
@@ -292,5 +317,153 @@ public class ESVectorUtil {
             throw new IllegalArgumentException("bit must be between 1 and 8, but was: " + bit);
         }
         return IMPL.quantizeVectorWithIntervals(vector, destination, lowInterval, upperInterval, bit);
+    }
+
+    /**
+     * Bulk computation of square distances between a query vector and four vectors.Result is stored in the provided distances array.
+     *
+     * @param q the query vector
+     * @param v0 the first vector
+     * @param v1 the second vector
+     * @param v2 the third vector
+     * @param v3 the fourth vector
+     * @param distances an array to store the computed square distances, must have length 4
+     *
+     * @throws IllegalArgumentException if the dimensions of the vectors do not match or if the distances array does not have length 4
+     */
+    public static void squareDistanceBulk(float[] q, float[] v0, float[] v1, float[] v2, float[] v3, float[] distances) {
+        if (q.length != v0.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v0.length);
+        }
+        if (q.length != v1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v1.length);
+        }
+        if (q.length != v2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v2.length);
+        }
+        if (q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + q.length + "!=" + v3.length);
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        IMPL.squareDistanceBulk(q, v0, v1, v2, v3, distances);
+    }
+
+    /**
+     * Bulk computation of the soar distance for a vector to four centroids
+     * @param v1 the vector
+     * @param c0 the first centroid
+     * @param c1 the second centroid
+     * @param c2 the third centroid
+     * @param c3 the fourth centroid
+     * @param originalResidual the residual with the actually nearest centroid
+     * @param soarLambda the lambda parameter
+     * @param rnorm distance to the nearest centroid
+     * @param distances an array to store the computed soar distances, must have length 4
+     */
+    public static void soarDistanceBulk(
+        float[] v1,
+        float[] c0,
+        float[] c1,
+        float[] c2,
+        float[] c3,
+        float[] originalResidual,
+        float soarLambda,
+        float rnorm,
+        float[] distances
+    ) {
+        if (v1.length != c0.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c0.length);
+        }
+        if (v1.length != c1.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c1.length);
+        }
+        if (v1.length != c2.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c2.length);
+        }
+        if (v1.length != c3.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + c3.length);
+        }
+        if (v1.length != originalResidual.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + v1.length + "!=" + originalResidual.length);
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        IMPL.soarDistanceBulk(v1, c0, c1, c2, c3, originalResidual, soarLambda, rnorm, distances);
+    }
+
+    /**
+     * Packs the provided int array populated with "0" and "1" values into a byte array.
+     *
+     * @param vector the int array to pack, must contain only "0" and "1" values.
+     * @param packed the byte array to store the packed result, must be large enough to hold the packed data.
+     */
+    public static void packAsBinary(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE + " < " + vector.length);
+        }
+        IMPL.packAsBinary(vector, packed);
+    }
+
+    public static void packDibit(int[] vector, byte[] packed) {
+        if (packed.length * Byte.SIZE / 2 < vector.length) {
+            throw new IllegalArgumentException("packed array is too small: " + packed.length * Byte.SIZE / 2 + " < " + vector.length);
+        }
+        IMPL.packDibit(vector, packed);
+    }
+
+    /**
+     * The idea here is to organize the query vector bits such that the first bit
+     * of every dimension is in the first set dimensions bits, or (dimensions/8) bytes. The second,
+     * third, and fourth bits are in the second, third, and fourth set of dimensions bits,
+     * respectively. This allows for direct bitwise comparisons with the stored index vectors through
+     * summing the bitwise results with the relative required bit shifts.
+     *
+     * @param q the query vector, assumed to be half-byte quantized with values between 0 and 15
+     * @param quantQueryByte the byte array to store the transposed query vector.
+     *
+     **/
+    public static void transposeHalfByte(int[] q, byte[] quantQueryByte) {
+        if (quantQueryByte.length * Byte.SIZE < 4 * q.length) {
+            throw new IllegalArgumentException("packed array is too small: " + quantQueryByte.length * Byte.SIZE + " < " + 4 * q.length);
+        }
+        IMPL.transposeHalfByte(q, quantQueryByte);
+    }
+
+    /**
+     * Searches for the first occurrence of the given marker byte in the specified range of the array.
+     *
+     * <p>The search starts at {@code offset} and examines at most {@code length} bytes. The return
+     * value is the relative index of the first occurrence of {@code marker} within this slice,
+     * or {@code -1} if not found.
+     *
+     * @param bytes  the byte array to search
+     * @param offset the starting index within the array
+     * @param length the number of bytes to examine
+     * @param marker the byte to search for
+     * @return the relative index (0..length-1) of the first match, or {@code -1} if not found
+     */
+    public static int indexOf(byte[] bytes, int offset, int length, byte marker) {
+        Objects.checkFromIndexSize(offset, length, bytes.length);
+        return IMPL.indexOf(bytes, offset, length, marker);
+    }
+
+    /**
+     * Count the number of Unicode code points in a utf-8 encoded string. Assumes that the input
+     * string is correctly encoded. If the input string is incorrectly encoded, no errors will be
+     * thrown, but invalid results will be returned.
+     *
+     * @param bytesRef bytes reference containing a valid utf-8 encoded string
+     * @return the number of code points in the bytes ref
+     */
+    public static int codePointCount(BytesRef bytesRef) {
+        // Scalar logic is faster for lengths below approximately 12
+        if (bytesRef.length < 12) {
+            return UnicodeUtil.codePointCount(bytesRef);
+        }
+        Objects.checkFromIndexSize(bytesRef.offset, bytesRef.length, bytesRef.bytes.length);
+        return IMPL.codePointCount(bytesRef);
     }
 }

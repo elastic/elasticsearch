@@ -12,4 +12,4 @@ package org.elasticsearch.xpack.inference.services.elastic.request;
  * @param productOrigin - product origin of the inference request (usually a whole system like "kibana", "logstash" etc.)
  * @param productUseCase - product use case of the inference request (more granular view on a user flow like "security ai assistant" etc.)
  */
-public record ElasticInferenceServiceRequestMetadata(String productOrigin, String productUseCase) {}
+public record ElasticInferenceServiceRequestMetadata(String productOrigin, String productUseCase, String esVersion) {}

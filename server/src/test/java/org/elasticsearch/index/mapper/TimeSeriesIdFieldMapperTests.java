@@ -59,7 +59,6 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
     @Override
     protected IndexVersion getVersion() {
         return IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.V_8_8_0,
             IndexVersionUtils.getPreviousVersion(IndexVersions.TIME_SERIES_ID_HASHING)
         );
@@ -767,5 +766,24 @@ public class TimeSeriesIdFieldMapperTests extends MetadataMapperTestCase {
             );
         });
         assertThat(failure.getMessage(), equalTo("[5:1] failed to parse: Illegal base64 character 20"));
+    }
+
+    public void testValueForDisplay() throws Exception {
+        DocumentMapper docMapper = createDocumentMapper("a", mapping(b -> {
+            b.startObject("a").field("type", "keyword").field("time_series_dimension", true).endObject();
+            b.startObject("b").field("type", "long").field("time_series_dimension", true).endObject();
+        }));
+
+        ParsedDocument doc = parseDocument(docMapper, b -> b.field("a", "value").field("b", 100));
+        BytesRef tsidBytes = doc.rootDoc().getBinaryValue("_tsid");
+        assertThat(tsidBytes, not(nullValue()));
+
+        TimeSeriesIdFieldMapper.TimeSeriesIdFieldType fieldType = TimeSeriesIdFieldMapper.FIELD_TYPE;
+        Object displayValue = fieldType.valueForDisplay(tsidBytes);
+        Object encodedValue = TimeSeriesIdFieldMapper.encodeTsid(tsidBytes);
+
+        assertThat(displayValue, equalTo(encodedValue));
+        assertThat(displayValue.getClass(), is(String.class));
+        assertThat(fieldType.valueForDisplay(null), nullValue());
     }
 }

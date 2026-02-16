@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
@@ -56,6 +57,7 @@ import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.DataRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -233,7 +235,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
 
     protected Settings createTestIndexSettings() {
         // we have to prefer CURRENT since with the range of versions we support it's rather unlikely to get the current actually.
-        IndexVersion indexVersionCreated = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion(random());
+        IndexVersion indexVersionCreated = randomBoolean() ? IndexVersion.current() : IndexVersionUtils.randomCompatibleVersion();
         return Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersionCreated).build();
     }
 
@@ -503,10 +505,11 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 idxSettings.getMode().idFieldMapperWithoutFieldData(),
                 ScriptCompiler.NONE,
                 bitsetFilterCache::getBitSetProducer,
-                MapperMetrics.NOOP
+                MapperMetrics.NOOP,
+                null,
+                null
             );
-            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {
-            });
+            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(nodeSettings, new IndexFieldDataCache.Listener() {});
             indexFieldDataService = new IndexFieldDataService(idxSettings, indicesFieldDataCache, new NoneCircuitBreakerService());
             if (registerType) {
                 mapperService.merge(
@@ -612,7 +615,9 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 () -> true,
                 null,
                 emptyMap(),
-                MapperMetrics.NOOP
+                null,
+                MapperMetrics.NOOP,
+                SearchExecutionContextHelper.SHARD_SEARCH_STATS
             );
         }
 
@@ -625,8 +630,10 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 mapperService.mappingLookup(),
                 emptyMap(),
                 idxSettings,
+                TransportVersion.current(),
+                RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                 new Index(
-                    RemoteClusterAware.buildRemoteIndexName(null, idxSettings.getIndex().getName()),
+                    RemoteClusterAware.buildRemoteIndexName(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, idxSettings.getIndex().getName()),
                     idxSettings.getIndex().getUUID()
                 ),
                 indexNameMatcher(),
@@ -637,6 +644,8 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 createMockResolvedIndices(),
                 null,
                 createMockQueryRewriteInterceptor(),
+                null,
+                false,
                 false
             );
         }

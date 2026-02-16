@@ -41,7 +41,7 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
     }
 
     @Override
-    public BooleanVector filter(int... positions) {
+    public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantBooleanVector(value, positions.length);
     }
 
@@ -117,6 +117,11 @@ final class ConstantBooleanVector extends AbstractVector implements BooleanVecto
     @Override
     public boolean isConstant() {
         return true;
+    }
+
+    @Override
+    public BooleanVector deepCopy(BlockFactory blockFactory) {
+        return blockFactory.newConstantBooleanVector(value, getPositionCount());
     }
 
     @Override

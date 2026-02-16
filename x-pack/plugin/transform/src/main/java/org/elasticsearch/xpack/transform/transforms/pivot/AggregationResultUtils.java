@@ -494,6 +494,10 @@ public final class AggregationResultUtils {
 
         @Override
         public Object value(Object key, String type) {
+            // if missing_buckets are true, we want to return the null bucket
+            if (key == null) {
+                return null;
+            }
             assert key instanceof String;
             Rectangle rectangle = GeoTileUtils.toBoundingBox(key.toString());
             final Map<String, Object> geoShape = Maps.newLinkedHashMapWithExpectedSize(2);

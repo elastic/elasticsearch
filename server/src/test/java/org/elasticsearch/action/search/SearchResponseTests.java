@@ -230,7 +230,6 @@ public class SearchResponseTests extends ESTestCase {
                 failedShards = 5;
                 failed--;
             } else {
-                failedShards = 0;
                 throw new IllegalStateException("Test setup coding error - should not get here");
             }
             String clusterAlias = "";

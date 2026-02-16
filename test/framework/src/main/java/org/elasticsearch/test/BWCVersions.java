@@ -10,7 +10,6 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 
 import java.util.NavigableSet;
 
@@ -18,7 +17,7 @@ public final class BWCVersions {
     private BWCVersions() {}
 
     public static NavigableSet<TransportVersion> getAllBWCVersions() {
-        return TransportVersionUtils.allReleasedVersions().tailSet(TransportVersions.MINIMUM_COMPATIBLE, true);
+        return TransportVersionUtils.allReleasedVersions().tailSet(TransportVersion.minimumCompatible(), true);
     }
 
     public static final NavigableSet<TransportVersion> DEFAULT_BWC_VERSIONS = getAllBWCVersions();

@@ -32,7 +32,6 @@ import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -636,7 +635,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
         BytesRef qbSource = doc.rootDoc().getFields(fieldType.queryBuilderField.name()).get(0).binaryValue();
         SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
             throw new UnsupportedOperationException();
-        }, null, emptyMap());
+        }, null, emptyMap(), null, null);
         PlainActionFuture<QueryBuilder> future = new PlainActionFuture<>();
         Rewriteable.rewriteAndFetch(queryBuilder, searchExecutionContext, future);
         assertQueryBuilder(qbSource, future.get());
@@ -1212,7 +1211,7 @@ public class PercolatorFieldMapperTests extends ESSingleNodeTestCase {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.ZERO;
+            return TransportVersion.zero();
         }
 
         @Override

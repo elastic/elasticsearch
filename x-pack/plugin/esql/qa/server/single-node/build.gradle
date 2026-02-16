@@ -1,3 +1,4 @@
+apply plugin: 'java'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 // Necessary to use tests in Serverless
@@ -35,7 +36,7 @@ dependencies {
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities', 'index'
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities', 'index', 'search'
   }
   restTests {
     includeXpack 'esql'

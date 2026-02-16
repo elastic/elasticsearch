@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -453,18 +452,8 @@ public class TrainedModelConfigTests extends AbstractBWCSerializationTestCase<Tr
     @Override
     protected TrainedModelConfig mutateInstanceForVersion(TrainedModelConfig instance, TransportVersion version) {
         TrainedModelConfig.Builder builder = new TrainedModelConfig.Builder(instance);
-        if (version.before(TrainedModelConfig.VERSION_3RD_PARTY_CONFIG_ADDED)) {
-            builder.setModelType(null);
-            builder.setLocation(null);
-        }
         if (instance.getInferenceConfig() instanceof NlpConfig nlpConfig) {
             builder.setInferenceConfig(InferenceConfigItemTestCase.mutateForVersion(nlpConfig, version));
-        }
-        if (version.before(TransportVersions.V_8_11_X)) {
-            builder.setPlatformArchitecture(null);
-        }
-        if (version.before(TransportVersions.V_8_12_0)) {
-            builder.setPrefixStrings(null);
         }
         return builder.build();
     }

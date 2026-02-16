@@ -27,7 +27,13 @@ public class PostConnectorActionResponseBWCSerializingTests extends AbstractBWCW
 
     @Override
     protected ConnectorCreateActionResponse mutateInstance(ConnectorCreateActionResponse instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String id = instance.getId();
+        DocWriteResponse.Result result = instance.getResult();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> id = randomValueOtherThan(id, () -> randomUUID());
+            case 1 -> result = randomValueOtherThan(result, () -> randomFrom(DocWriteResponse.Result.values()));
+        }
+        return new ConnectorCreateActionResponse(id, result);
     }
 
     @Override

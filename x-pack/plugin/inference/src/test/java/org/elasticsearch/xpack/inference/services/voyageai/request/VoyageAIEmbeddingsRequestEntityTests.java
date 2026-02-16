@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAIServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsTaskSettings;
 import org.hamcrest.MatcherAssert;
@@ -44,9 +43,9 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
                         2048,
                         ServiceFields.MAX_INPUT_TOKENS,
                         512,
-                        VoyageAIServiceSettings.MODEL_ID,
+                        ServiceFields.MODEL_ID,
                         "model",
-                        VoyageAIEmbeddingsServiceSettings.EMBEDDING_TYPE,
+                        ServiceFields.EMBEDDING_TYPE,
                         "float"
                     )
                 ),
@@ -79,9 +78,9 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
                         2048,
                         ServiceFields.MAX_INPUT_TOKENS,
                         512,
-                        VoyageAIServiceSettings.MODEL_ID,
+                        ServiceFields.MODEL_ID,
                         "model",
-                        VoyageAIEmbeddingsServiceSettings.EMBEDDING_TYPE,
+                        ServiceFields.EMBEDDING_TYPE,
                         "int8"
                     )
                 ),
@@ -114,9 +113,9 @@ public class VoyageAIEmbeddingsRequestEntityTests extends ESTestCase {
                         2048,
                         ServiceFields.MAX_INPUT_TOKENS,
                         512,
-                        VoyageAIServiceSettings.MODEL_ID,
+                        ServiceFields.MODEL_ID,
                         "model",
-                        VoyageAIEmbeddingsServiceSettings.EMBEDDING_TYPE,
+                        ServiceFields.EMBEDDING_TYPE,
                         "binary"
                     )
                 ),

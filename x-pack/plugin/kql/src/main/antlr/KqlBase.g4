@@ -27,7 +27,7 @@ topLevelQuery
 
 query
     : <assoc=right> query operator=(AND|OR) query  #booleanQuery
-    | simpleQuery                                  #defaultQuery
+    | simpleQuery                                   #defaultQuery
     ;
 
 simpleQuery
@@ -51,7 +51,7 @@ nestedQuery
 
 nestedSubQuery
     : <assoc=right> nestedSubQuery operator=(AND|OR) nestedSubQuery #booleanNestedQuery
-    | nestedSimpleSubQuery                                          #defaultNestedQuery
+    | nestedSimpleSubQuery                                           #defaultNestedQuery
     ;
 
 nestedSimpleSubQuery
@@ -89,20 +89,34 @@ existsQuery
 
 fieldQuery
     : fieldName COLON fieldQueryValue
-    | fieldName COLON LEFT_PARENTHESIS fieldQueryValue RIGHT_PARENTHESIS
     ;
 
 fieldLessQuery
     : fieldQueryValue
-    | LEFT_PARENTHESIS fieldQueryValue RIGHT_PARENTHESIS
     ;
 
 fieldQueryValue
-    : (AND|OR|NOT)? (UNQUOTED_LITERAL|WILDCARD)+ (NOT|AND|OR)?
-    | (AND|OR) (AND|OR|NOT)?
-    | NOT (AND|OR)?
+    : fieldQueryValueLiteral
+    | operator=NOT fieldQueryValue
+    | LEFT_PARENTHESIS booleanFieldQueryValue RIGHT_PARENTHESIS
+    ;
+
+fieldQueryValueLiteral
+    : fieldQueryValueUnquotedLiteral
     | QUOTED_STRING
     ;
+
+fieldQueryValueUnquotedLiteral
+    : (UNQUOTED_LITERAL|WILDCARD)+ (UNQUOTED_LITERAL|WILDCARD|NOT)* (AND|OR)?
+    | (AND|OR) (((UNQUOTED_LITERAL|WILDCARD|NOT)+(OR|AND)?)|OR|AND)?
+    | NOT
+    ;
+
+booleanFieldQueryValue
+   : booleanFieldQueryValue operator=(AND|OR) fieldQueryValue
+   | LEFT_PARENTHESIS booleanFieldQueryValue RIGHT_PARENTHESIS
+   | fieldQueryValue
+   ;
 
 fieldName
     : value=UNQUOTED_LITERAL

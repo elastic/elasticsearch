@@ -311,93 +311,6 @@ set start_time and end_time:
         index: test_index
 
 ---
-set start_time and end_time without timeseries mode:
-  - requires:
-      cluster_features: ["gte_v8.2.0"]
-      reason: tsdb indexing changed in 8.2.0
-
-  - do:
-      catch: /\[index.time_series.start_time\] requires \[index.mode=time_series\]/
-      indices.create:
-        index: test_index
-        body:
-          settings:
-            index:
-              time_series:
-                start_time: 1632625782000
-
-  - do:
-      catch: /\[index.time_series.end_time\] requires \[index.mode=time_series\]/
-      indices.create:
-        index: test_index
-        body:
-          settings:
-            index:
-              time_series:
-                end_time: 1632625782000
-
----
-set start_time, end_time and routing_path via put settings api without time_series mode:
-  - requires:
-      cluster_features: [ "gte_v8.15.0" ]
-      reason: bug fixed in 8.15.0
-
-  - do:
-      indices.create:
-        index: test-index
-  - match: { acknowledged: true }
-
-  - do:
-      catch: /\[index.time_series.end_time\] requires \[index.mode=time_series\]/
-      indices.put_settings:
-        index: test-index
-        body:
-          index.time_series.end_time: 1632625782000
-
-  - do:
-      catch: /Can't update non dynamic settings \[\[index.time_series.start_time\]\] for open indices/
-      indices.put_settings:
-        index: test-index
-        body:
-          index.time_series.start_time: 1632625782000
-
-  - do:
-      catch: /Can't update non dynamic settings \[\[index.routing_path\]\] for open indices/
-      indices.put_settings:
-        index: test-index
-        body:
-          settings:
-            index:
-              routing_path: foo
-
-  - do:
-      indices.close:
-        index: test-index
-
-  - do:
-      catch: /\[index.time_series.end_time\] requires \[index.mode=time_series\]/
-      indices.put_settings:
-        index: test-index
-        body:
-          index.time_series.end_time: 1632625782000
-
-  - do:
-      catch: /final test-index setting \[index.time_series.start_time\], not updateable/
-      indices.put_settings:
-        index: test-index
-        body:
-          index.time_series.start_time: 1632625782000
-
-  - do:
-      catch: /final test-index setting \[index.routing_path\], not updateable/
-      indices.put_settings:
-        index: test-index
-        body:
-          settings:
-            index:
-              routing_path: foo
-
----
 set bad start_time and end_time:
   - requires:
       cluster_features: ["gte_v8.2.0"]
@@ -663,3 +576,29 @@ check time_series empty time bound value:
           "@timestamp": "2021-09-26T03:09:52.123456789Z",
           "metricset": "pod"
         }
+
+---
+default sort field:
+  - requires:
+      cluster_features: [ "mapper.provide_index_sort_setting_defaults" ]
+      reason: "testing index sort setting defaults"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: foo
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+
+  - do:
+      indices.get_settings:
+        index: test_index
+        include_defaults: true
+  - match: { .test_index.settings.index.mode: time_series }
+  - match: { .test_index.defaults.index.sort.field: [ "_tsid", "@timestamp" ] }
+  - match: { .test_index.defaults.index.sort.order: [ "asc", "desc" ] }

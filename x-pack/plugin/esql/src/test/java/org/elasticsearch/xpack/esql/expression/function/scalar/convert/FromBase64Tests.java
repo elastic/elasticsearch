@@ -47,7 +47,7 @@ public class FromBase64Tests extends AbstractScalarFunctionTestCase {
             }));
         }
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

@@ -86,6 +86,8 @@ public final class ParserUtils {
                     case KqlBaseParser.UNQUOTED_LITERAL -> token.getText().matches("[^\\\\]*[*].*");
                     default -> false;
                 };
+            } else if (childNode instanceof ParserRuleContext childCtx && hasWildcard(childCtx)) {
+                return true;
             }
 
             return false;
@@ -126,6 +128,8 @@ public final class ParserUtils {
         for (ParseTree currentNode : ctx.children) {
             if (currentNode instanceof TerminalNode terminalNode) {
                 textTokens.add(extractText(terminalNode));
+            } else if (currentNode instanceof ParserRuleContext childCtx) {
+                textTokens.addAll(extractTextTokens(childCtx));
             } else {
                 throw new KqlParsingException("Unable to extract text from ctx", ctx.start.getLine(), ctx.start.getCharPositionInLine());
             }

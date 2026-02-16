@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonEncoding;
 import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.core.json.JsonWriteFeature;
 
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -27,6 +28,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Reader;
 import java.util.Set;
+
+import static org.elasticsearch.xcontent.provider.json.JsonXContentParser.handleParserException;
 
 /**
  * A JSON based content implementation using Jackson.
@@ -46,7 +49,7 @@ public class JsonXContentImpl implements XContent {
     }
 
     static {
-        jsonFactory = XContentImplUtils.configure(new ESJsonFactoryBuilder());
+        jsonFactory = XContentImplUtils.configure(new ESJsonFactoryBuilder().enable(JsonWriteFeature.COMBINE_UNICODE_SURROGATES_IN_UTF8));
         jsonFactory.configure(JsonGenerator.Feature.QUOTE_FIELD_NAMES, true);
         jsonFactory.configure(JsonParser.Feature.ALLOW_COMMENTS, true);
         jsonFactory.configure(JsonFactory.Feature.FAIL_ON_SYMBOL_HASH_OVERFLOW, false); // this trips on many mappings now...
@@ -64,6 +67,11 @@ public class JsonXContentImpl implements XContent {
     @Override
     public XContentType type() {
         return XContentType.JSON;
+    }
+
+    @Override
+    public boolean hasBulkSeparator() {
+        return true;
     }
 
     @Override
@@ -95,21 +103,37 @@ public class JsonXContentImpl implements XContent {
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, String content) throws IOException {
-        return createParser(config, jsonFactory.createParser(content));
+        try {
+            return createParser(config, jsonFactory.createParser(content));
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, InputStream is) throws IOException {
-        return createParser(config, jsonFactory.createParser(is));
+        try {
+            return createParser(config, jsonFactory.createParser(is));
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, byte[] data, int offset, int length) throws IOException {
-        return createParser(config, jsonFactory.createParser(data, offset, length));
+        try {
+            return createParser(config, jsonFactory.createParser(data, offset, length));
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 
     @Override
     public XContentParser createParser(XContentParserConfiguration config, Reader reader) throws IOException {
-        return createParser(config, jsonFactory.createParser(reader));
+        try {
+            return createParser(config, jsonFactory.createParser(reader));
+        } catch (IOException e) {
+            throw handleParserException(e);
+        }
     }
 }

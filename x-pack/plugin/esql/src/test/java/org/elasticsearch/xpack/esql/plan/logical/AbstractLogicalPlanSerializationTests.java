@@ -33,6 +33,8 @@ public abstract class AbstractLogicalPlanSerializationTests<T extends LogicalPla
         entries.addAll(PlanWritables.others());
         entries.addAll(ExpressionWritables.aggregates());
         entries.addAll(ExpressionWritables.allExpressions());
+        entries.addAll(ExpressionWritables.binaryComparisons());
+        entries.addAll(ExpressionWritables.scalars());
         return new NamedWriteableRegistry(entries);
     }
 

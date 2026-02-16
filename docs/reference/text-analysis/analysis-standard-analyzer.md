@@ -109,6 +109,7 @@ PUT /standard_example
   }
 }
 ```
+% TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: standard_example, first: standard, second: rebuilt_standard}\nendyaml\n/]
 
 1. You’d add any token filters after `lowercase`.
 

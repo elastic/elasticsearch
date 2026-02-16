@@ -13,13 +13,14 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
+import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -48,6 +49,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
@@ -63,6 +65,8 @@ import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndexCreationException;
+import org.elasticsearch.indices.IndexLimitExceededException;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
@@ -81,6 +85,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.Matchers;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -105,6 +110,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_READ_ONLY_B
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING;
+import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_SETTING;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.buildIndexMetadata;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.clusterStateCreateIndex;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.getIndexNumberOfRoutingShards;
@@ -127,6 +134,9 @@ import static org.hamcrest.Matchers.iterableWithSize;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 
 public class MetadataCreateIndexServiceTests extends ESTestCase {
 
@@ -288,6 +298,75 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             targetShards = randomIntBetween(1, numShards / 2);
         } while (isShrinkable(numShards, targetShards) == false);
         validateShrinkIndex(clusterState, "source", "target", Settings.builder().put("index.number_of_shards", targetShards).build());
+    }
+
+    public void testUserIndicesLimit() {
+        var indexLimit = randomIntBetween(10, 30);
+        Settings nodeSettings = Settings.builder()
+            .put(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.getKey(), indexLimit)
+            .put(CLUSTER_MAX_INDICES_PER_PROJECT_ENABLED_SETTING.getKey(), true)
+            .build();
+
+        withTemporaryClusterService((clusterService, threadPool) -> {
+            var totalUserIndices = indexLimit + randomIntBetween(0, 10);
+            String[] indices = new String[totalUserIndices + randomIntBetween(1, 10)];
+            for (int i = 0; i < totalUserIndices; i++) {
+                indices[i] = "index-" + i;
+            }
+            for (int i = totalUserIndices; i < indices.length; i++) {
+                indices[i] = randomFrom(".synonyms-000000", ".tasks-000000") + i;
+            }
+            DiscoveryNodes discoveryNodes = DiscoveryNodes.builder().add(newNode("node1")).build();
+            final Tuple<ProjectMetadata.Builder, RoutingTable.Builder> tuple = ClusterStateCreationUtils
+                .projectWithAssignedPrimariesAndReplicas(projectId, indices, between(1, 5), 0, discoveryNodes);
+
+            ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
+                .nodes(discoveryNodes)
+                .routingTable(GlobalRoutingTable.builder().put(projectId, tuple.v2()).build())
+                .metadata(Metadata.builder().put(tuple.v1()))
+                .build();
+
+            IndicesService indicesService = mock(IndicesService.class);
+            MetadataCreateIndexService checkerService = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                newEnvironment(),
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                false,
+                new IndexSettingProviders(Set.of())
+            );
+
+            CreateIndexClusterStateUpdateRequest userIndexCreateRequest = new CreateIndexClusterStateUpdateRequest(
+                "test",
+                projectId,
+                "just-another-user-index",
+                "just-another-user-index"
+            );
+
+            IndexLimitExceededException e = expectThrows(
+                IndexLimitExceededException.class,
+                () -> checkerService.validateIndexLimit(clusterState.getMetadata().getProject(projectId), userIndexCreateRequest)
+            );
+            assertThat(e.getMessage(), startsWith("This action would add an index, but this project currently has ["));
+
+            CreateIndexClusterStateUpdateRequest systemIndexCreateRequest = new CreateIndexClusterStateUpdateRequest(
+                "test",
+                projectId,
+                ".synonyms-001",
+                ".synonyms-001"
+            );
+            try {
+                checkerService.validateIndexLimit(clusterState.getMetadata().getProject(projectId), systemIndexCreateRequest);
+            } catch (Exception ex) {
+                fail(ex, "System indices creation should not be limited by indices total.");
+            }
+        }, nodeSettings, Set.of(CLUSTER_MAX_INDICES_PER_PROJECT_SETTING));
     }
 
     public void testValidateSplitIndex() {
@@ -768,16 +847,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings getAdditionalIndexSettings(
+                public void provideAdditionalSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    IndexVersion indexVersion,
+                    Settings.Builder additionalSettings
                 ) {
-                    return Settings.builder().put("request_setting", "overrule_value").put("other_setting", "other_value").build();
+                    additionalSettings.put("request_setting", "overrule_value").put("other_setting", "other_value");
                 }
 
                 @Override
@@ -818,16 +899,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings getAdditionalIndexSettings(
+                public void provideAdditionalSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    IndexVersion indexVersion,
+                    Settings.Builder additionalSettings
                 ) {
-                    return Settings.builder().put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "override").build();
+                    additionalSettings.put(ExistingShardsAllocator.EXISTING_SHARDS_ALLOCATOR_SETTING.getKey(), "override");
                 }
 
                 @Override
@@ -860,16 +943,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings getAdditionalIndexSettings(
+                public void provideAdditionalSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    IndexVersion indexVersion,
+                    Settings.Builder additionalSettings
                 ) {
-                    return Settings.builder().put("request_setting", "overrule_value").put("other_setting", "other_value").build();
+                    additionalSettings.put("request_setting", "overrule_value").put("other_setting", "other_value");
                 }
 
                 @Override
@@ -902,17 +987,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             IndexScopedSettings.DEFAULT_SCOPED_SETTINGS,
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
-                @Override
-                public Settings getAdditionalIndexSettings(
+                public void provideAdditionalSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    IndexVersion indexVersion,
+                    Settings.Builder additionalSettings
                 ) {
-                    return Settings.builder().put("template_setting", "overrule_value").put("other_setting", "other_value").build();
+                    additionalSettings.put("template_setting", "overrule_value").put("other_setting", "other_value");
                 }
 
                 @Override
@@ -946,16 +1032,18 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             randomShardLimitService(),
             Set.of(new IndexSettingProvider() {
                 @Override
-                public Settings getAdditionalIndexSettings(
+                public void provideAdditionalSettings(
                     String indexName,
                     String dataStreamName,
                     IndexMode templateIndexMode,
                     ProjectMetadata projectMetadata,
                     Instant resolvedAt,
                     Settings indexTemplateAndCreateRequestSettings,
-                    List<CompressedXContent> combinedTemplateMappings
+                    List<CompressedXContent> combinedTemplateMappings,
+                    IndexVersion indexVersion,
+                    Settings.Builder additionalSettings
                 ) {
-                    return Settings.builder().put("template_setting", "overrule_value").put("other_setting", "other_value").build();
+                    additionalSettings.put("template_setting", "overrule_value").put("other_setting", "other_value");
                 }
 
                 @Override
@@ -1383,13 +1471,24 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         Settings indexSettings = indexSettings(IndexVersion.current(), 1, 0).build();
         List<AliasMetadata> aliases = List.of(AliasMetadata.builder("alias1").build());
-        IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
+        IndexMetadata indexMetadata = buildIndexMetadata(
+            "test",
+            aliases,
+            () -> null,
+            indexSettings,
+            4,
+            sourceIndexMetadata,
+            false,
+            Map.of(),
+            TransportVersion.current()
+        );
 
         assertThat(indexMetadata.getAliases().size(), is(1));
         assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
         assertThat(indexMetadata.getTimestampRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
         assertThat(indexMetadata.getEventIngestedRange(), equalTo(IndexLongFieldRange.NO_SHARDS));
+        assertThat(indexMetadata.getTransportVersion(), equalTo(TransportVersion.current()));
     }
 
     public void testGetIndexNumberOfRoutingShardsWithNullSourceIndex() {
@@ -1553,10 +1652,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
         if (randomBoolean()) {
-            settings.put(
-                SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_8_0_0, IndexVersion.current())
-            );
+            settings.put(SETTING_VERSION_CREATED, IndexVersionUtils.randomVersionBetween(IndexVersions.V_8_0_0, IndexVersion.current()));
         }
         request.settings(settings.build());
         IllegalArgumentException error = expectThrows(
@@ -1590,7 +1686,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         } else {
             settings.put(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(), between(1, 128) + "mb");
         }
-        settings.put(SETTING_VERSION_CREATED, IndexVersionUtils.randomPreviousCompatibleVersion(random(), IndexVersions.V_8_0_0));
+        settings.put(SETTING_VERSION_CREATED, IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0));
         request.settings(settings.build());
         aggregateIndexSettings(
             ClusterState.builder(ClusterState.EMPTY_STATE).putProjectMetadata(ProjectMetadata.builder(projectId).build()).build(),
@@ -1655,7 +1751,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             assertThat(updatedClusterState.routingTable(projectId).index("test"), is(notNullValue()));
         }
         {
-            var minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+            var minTransportVersion = TransportVersionUtils.randomCompatibleVersion();
             var emptyClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
                 .putProjectMetadata(ProjectMetadata.builder(projectId))
                 .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_id")).build())
@@ -1680,7 +1776,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
 
-            var expectRefreshBlock = 0 < nbReplicas && minTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
+            var expectRefreshBlock = 0 < nbReplicas;
             assertThat(updatedClusterState.blocks().indices(projectId), is(aMapWithSize(expectRefreshBlock ? 1 : 0)));
             assertThat(
                 updatedClusterState.blocks().hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK),
@@ -1693,7 +1789,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testCreateClusterBlocksTransformerForIndexCreation() {
         boolean isStateless = randomBoolean();
         boolean useRefreshBlock = randomBoolean();
-        var minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+        var minTransportVersion = TransportVersionUtils.randomCompatibleVersion();
 
         var applier = MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(
             Settings.builder()
@@ -1711,13 +1807,109 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(randomIntBetween(1, 3))
-                .build(),
-            minTransportVersion
+                .build()
         );
-        assertThat(
-            blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK),
-            is(isStateless && useRefreshBlock && minTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK))
-        );
+        assertThat(blocks.hasIndexBlock(projectId, "test", IndexMetadata.INDEX_REFRESH_BLOCK), is(isStateless && useRefreshBlock));
+    }
+
+    public void testSetPrivateSettingsFails() throws Exception {
+        request.settings(Settings.builder().put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey(), "private_setting").build());
+
+        IndicesService indicesService = mock(IndicesService.class);
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService service = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                createTestShardLimitService(randomIntBetween(1, 1000), clusterService),
+                newEnvironment(),
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                true,
+                IndexSettingProviders.EMPTY
+            );
+
+            IndexCreationException exception = assertThrows(
+                IndexCreationException.class,
+                () -> service.applyCreateIndexRequest(clusterService.state(), request, false, ActionListener.wrap(r -> {}, e -> {}))
+            );
+            assertThat(
+                exception.getCause().getMessage(),
+                containsString(
+                    "private index setting [" + IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey() + "] can not be set explicitly"
+                )
+            );
+        }));
+    }
+
+    public void testSetPrivateSettingsSucceedsWhenSystemProvided() throws Exception {
+        request.settings(Settings.builder().put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey(), "private_setting").build());
+        request.settingsSystemProvided(true);
+
+        IndicesService indicesService = mock(IndicesService.class);
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService service = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                createTestShardLimitService(randomIntBetween(10, 1000), clusterService),
+                newEnvironment(),
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                true,
+                IndexSettingProviders.EMPTY
+            );
+
+            try {
+                service.applyCreateIndexRequest(clusterService.state(), request, false, ActionListener.wrap(r -> {}, e -> {}));
+            } catch (Exception e) {
+                fail(e, "did not expect private setting to be rejected when system provided");
+            }
+        }));
+
+        ArgumentCaptor<IndexMetadata> captor = ArgumentCaptor.forClass(IndexMetadata.class);
+        verify(indicesService).withTempIndexService(captor.capture(), any());
+        IndexMetadata indexMetadata = captor.getValue();
+        assertThat(indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_UUID.getKey()), equalTo("private_setting"));
+    }
+
+    public void testIndexSettingProviderPrivateSetting() throws Exception {
+        IndicesService indicesService = mock(IndicesService.class);
+        withTemporaryClusterService(((clusterService, threadPool) -> {
+            MetadataCreateIndexService service = new MetadataCreateIndexService(
+                Settings.EMPTY,
+                clusterService,
+                indicesService,
+                null,
+                createTestShardLimitService(randomIntBetween(10, 1000), clusterService),
+                newEnvironment(),
+                new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
+                threadPool,
+                null,
+                EmptySystemIndices.INSTANCE,
+                true,
+                IndexSettingProviders.of(
+                    (additionalSettings) -> additionalSettings.put(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey(), "private_setting")
+                )
+            );
+
+            try {
+                service.applyCreateIndexRequest(clusterService.state(), request, false, ActionListener.wrap(r -> {}, e -> {}));
+            } catch (Exception e) {
+                fail(e, "did not expect private setting to be rejected when added via IndexSettingProvider");
+            }
+        }));
+
+        ArgumentCaptor<IndexMetadata> captor = ArgumentCaptor.forClass(IndexMetadata.class);
+        verify(indicesService).withTempIndexService(captor.capture(), any());
+        IndexMetadata indexMetadata = captor.getValue();
+        assertThat(indexMetadata.getSettings().get(IndexMetadata.INDEX_DOWNSAMPLE_SOURCE_NAME.getKey()), equalTo("private_setting"));
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {
@@ -1757,7 +1949,22 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     private void withTemporaryClusterService(BiConsumer<ClusterService, ThreadPool> consumer) {
         final ThreadPool threadPool = new TestThreadPool(getTestName());
-        final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, projectId);
+        try {
+            consumer.accept(clusterService, threadPool);
+        } finally {
+            clusterService.stop();
+            threadPool.shutdown();
+        }
+    }
+
+    private void withTemporaryClusterService(
+        BiConsumer<ClusterService, ThreadPool> consumer,
+        Settings nodeSettings,
+        Set<Setting<?>> settingSet
+    ) {
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
+        final ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool, projectId, nodeSettings, settingSet);
         try {
             consumer.accept(clusterService, threadPool);
         } finally {

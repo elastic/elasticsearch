@@ -1,46 +1,50 @@
 {
-  "security.put_role":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-put-role.html",
-      "description":"Adds and updates roles in the native realm."
+  "security.put_role": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-put-role",
+      "description": "Create or update roles"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"],
-      "content_type": ["application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_security/role/{name}",
-          "methods":[
+          "path": "/_security/role/{name}",
+          "methods": [
             "PUT",
             "POST"
           ],
-          "parts":{
-            "name":{
-              "type":"string",
-              "description":"Role name"
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "Role name"
             }
           }
         }
       ]
     },
-    "params":{
-      "refresh":{
-        "type":"enum",
-        "options":[
+    "params": {
+      "refresh": {
+        "type": "enum",
+        "options": [
           "true",
           "false",
           "wait_for"
         ],
-        "description":"If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
+        "description": "If `true` (the default) then refresh the affected shards to make this operation visible to search, if `wait_for` then wait for a refresh to make this operation visible to search, if `false` then do nothing with refreshes."
       }
     },
-    "body":{
-      "description":"The role to add",
-      "required":true
+    "body": {
+      "description": "The role to add",
+      "required": true
     }
   }
 }

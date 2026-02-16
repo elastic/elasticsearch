@@ -358,6 +358,24 @@ result:double | step:datetime
 1.4436354751788103 | 2024-05-10T00:00:00.000Z
 ;
 
+atanh_scalar
+required_capability: promql_command_v0
+required_capability: atanh_function
+PROMQL index=k8s step=1h result=(atanh(vector(0)));
+
+result:double | step:datetime
+0.0           | 2024-05-10T00:00:00.000Z
+;
+
+atanh_scalar_2
+required_capability: promql_command_v0
+required_capability: atanh_function
+PROMQL index=k8s step=1h result=(atanh(vector(0.5)));
+
+result:double | step:datetime
+0.5493061443340548 | 2024-05-10T00:00:00.000Z
+;
+
 sinh_scalar
 required_capability: promql_command_v0
 PROMQL index=k8s step=1h result=(sinh(vector(0)));
@@ -521,6 +539,29 @@ PROMQL index=k8s step=1h start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:
 
 result:double          | step:datetime            | cluster:keyword | pod:keyword
 0.0                    | 2024-05-10T00:00:00.000Z | prod             | one
+;
+
+post_processing_stats_global
+required_capability: promql_command_v0
+required_capability: promql_post_processing_stats
+PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+| STATS max_bytes=MAX(bytes);
+
+max_bytes:double
+972.0
+;
+
+post_processing_stats_by_cluster
+required_capability: promql_command_v0
+required_capability: promql_post_processing_stats
+PROMQL index=k8s step=1h bytes=(max by (cluster) (network.bytes_in))
+| STATS max_bytes=MAX(bytes) BY cluster
+| SORT cluster;
+
+max_bytes:double | cluster:keyword
+931.0            | prod
+972.0            | qa
+238.0            | staging
 ;
 
 // used as a reference for comparison filtering tests

@@ -14,7 +14,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
@@ -87,7 +87,7 @@ public class ReindexerTests extends ESTestCase {
         Exception anotherException = new Exception("another failure");
         BulkByScrollResponse response = reindexResponse(
             null,
-            List.of(new ScrollableHitSource.SearchFailure(exception), new ScrollableHitSource.SearchFailure(anotherException))
+            List.of(new PaginatedHitSource.SearchFailure(exception), new PaginatedHitSource.SearchFailure(anotherException))
         );
         wrapped.onResponse(response);
 
@@ -99,7 +99,7 @@ public class ReindexerTests extends ESTestCase {
 
     private BulkByScrollResponse reindexResponse(
         List<BulkItemResponse.Failure> bulkFailures,
-        List<ScrollableHitSource.SearchFailure> searchFailures
+        List<PaginatedHitSource.SearchFailure> searchFailures
     ) {
         return new BulkByScrollResponse(
             TimeValue.ZERO,

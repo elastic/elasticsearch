@@ -27,8 +27,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.ClientScrollableHitSource;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource;
+import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -54,7 +54,7 @@ import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.hamcrest.Matchers.instanceOf;
 
-public class ClientScrollableHitSourceTests extends ESTestCase {
+public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
 
     private ThreadPool threadPool;
 
@@ -87,12 +87,12 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
 
     private void dotestBasicsWithRetry(int retries, int minFailures, int maxFailures, Consumer<Exception> failureHandler)
         throws InterruptedException {
-        BlockingQueue<ScrollableHitSource.AsyncResponse> responses = new ArrayBlockingQueue<>(100);
+        BlockingQueue<PaginatedHitSource.AsyncResponse> responses = new ArrayBlockingQueue<>(100);
         MockClient client = new MockClient(threadPool);
         TaskId parentTask = new TaskId("thenode", randomInt());
         AtomicInteger actualSearchRetries = new AtomicInteger();
         int expectedSearchRetries = 0;
-        ClientScrollableHitSource hitSource = new ClientScrollableHitSource(
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
             logger,
             BackoffPolicy.constantBackoff(TimeValue.ZERO, retries),
             threadPool,
@@ -103,7 +103,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             new SearchRequest().scroll(TimeValue.timeValueMinutes(1))
         );
 
-        hitSource.start();
+        paginatedHitSource.start();
         for (int retry = 0; retry < randomIntBetween(minFailures, maxFailures); ++retry) {
             client.fail(TransportSearchAction.TYPE, new EsRejectedExecutionException());
             if (retry >= retries) {
@@ -118,7 +118,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             client.respond(TransportSearchAction.TYPE, searchResponse);
 
             for (int i = 0; i < randomIntBetween(1, 10); ++i) {
-                ScrollableHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
+                PaginatedHitSource.AsyncResponse asyncResponse = responses.poll(10, TimeUnit.SECONDS);
                 assertNotNull(asyncResponse);
                 assertEquals(responses.size(), 0);
                 assertSameHits(asyncResponse.response().getHits(), searchResponse.getHits().getHits());
@@ -145,7 +145,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         MockClient client = new MockClient(threadPool);
         TaskId parentTask = new TaskId("thenode", randomInt());
 
-        ClientScrollableHitSource hitSource = new ClientScrollableHitSource(
+        ClientScrollablePaginatedHitSource paginatedHitSource = new ClientScrollablePaginatedHitSource(
             logger,
             BackoffPolicy.constantBackoff(TimeValue.ZERO, 0),
             threadPool,
@@ -157,7 +157,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
             new SearchRequest().scroll(timeValueSeconds(10))
         );
 
-        hitSource.startNextScroll(timeValueSeconds(100));
+        paginatedHitSource.startNextScroll(timeValueSeconds(100));
         client.validateRequest(TransportSearchScrollAction.TYPE, (SearchScrollRequest r) -> assertEquals(r.scroll().seconds(), 110));
     }
 
@@ -172,7 +172,7 @@ public class ClientScrollableHitSourceTests extends ESTestCase {
         return SearchResponseUtils.response(hits).scrollId(randomSimpleString(random(), 1, 10)).shards(5, 4, 0).build();
     }
 
-    private void assertSameHits(List<? extends ScrollableHitSource.Hit> actual, SearchHit[] expected) {
+    private void assertSameHits(List<? extends PaginatedHitSource.Hit> actual, SearchHit[] expected) {
         assertEquals(actual.size(), expected.length);
         for (int i = 0; i < actual.size(); ++i) {
             assertThat(expected[i].getSourceRef(), equalBytes(actual.get(i).getSource()));

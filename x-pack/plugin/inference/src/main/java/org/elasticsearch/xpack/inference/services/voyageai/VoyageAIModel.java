@@ -51,14 +51,11 @@ public abstract class VoyageAIModel extends RateLimitGroupingModel {
         tempMap.put("voyage-finance-2", "embed_large");
         tempMap.put("voyage-law-2", "embed_large");
         tempMap.put("voyage-code-2", "embed_large");
-        tempMap.put("voyage-2", "embed_medium");
-        tempMap.put("voyage-02", "embed_medium");
         // Reranker models
         tempMap.put("rerank-2.5", "rerank_large");
         tempMap.put("rerank-2.5-lite", "rerank_small");
         tempMap.put("rerank-2", "rerank_large");
         tempMap.put("rerank-2-lite", "rerank_small");
-        tempMap.put("rerank-lite-1", "rerank_small");
 
         MODEL_TO_MODEL_FAMILY = Collections.unmodifiableMap(tempMap);
     }

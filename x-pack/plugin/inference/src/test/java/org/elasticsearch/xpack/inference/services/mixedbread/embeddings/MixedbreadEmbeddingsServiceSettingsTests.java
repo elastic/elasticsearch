@@ -35,7 +35,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSer
     public static MixedbreadEmbeddingsServiceSettings createRandom() {
         return new MixedbreadEmbeddingsServiceSettings(
             randomAlphaOfLength(10),
-            randomAlphaOfLengthOrNull(10),
             randomNonNegativeIntOrNull(),
             randomAlphaOfLengthOrNull(10),
             randomFrom(randomSimilarityMeasure(), null),
@@ -48,7 +47,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSer
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new MixedbreadEmbeddingsServiceSettings(
             TestUtils.MODEL_ID,
-            TestUtils.CUSTOM_URL,
             TestUtils.DIMENSIONS,
             TestUtils.ENCODING_VALUE,
             SimilarityMeasure.COSINE,
@@ -59,7 +57,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSer
         assertThat(getXContentResult(serviceSettings), equalToIgnoringWhitespaceInJsonString("""
             {
                 "model_id":"model_id_value",
-                "url": "https://custom.url.com/v1/task",
                 "rate_limit": {
                     "requests_per_minute": 2
                 },
@@ -130,7 +127,6 @@ public class MixedbreadEmbeddingsServiceSettingsTests extends AbstractBWCWireSer
 
         return new MixedbreadEmbeddingsServiceSettings(
             modelId,
-            TestUtils.CUSTOM_URL,
             TestUtils.DIMENSIONS,
             TestUtils.ENCODING_VALUE,
             SimilarityMeasure.COSINE,

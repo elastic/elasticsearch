@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.mixedbread.embeddings;
 
-import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,9 +46,6 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
  */
 public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettings {
     public static final String NAME = "mixedbread_embeddings_service_settings";
-    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
-        .setHost(MixedbreadUtils.HOST)
-        .setPathSegments(MixedbreadUtils.VERSION_1, MixedbreadUtils.EMBEDDINGS_PATH);
 
     private final Integer dimensions;
     private final String encodingFormat;
@@ -193,7 +189,7 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
 
     @Override
     protected URI buildDefaultUri() throws URISyntaxException {
-        return DEFAULT_URI_BUILDER.build();
+        return null;
     }
 
     /**
@@ -221,29 +217,6 @@ public class MixedbreadEmbeddingsServiceSettings extends MixedbreadServiceSettin
         this.similarity = similarity;
         this.maxInputTokens = maxInputTokens;
         this.dimensionsSetByUser = Objects.requireNonNull(dimensionsSetByUser);
-    }
-
-    /**
-     * Constructs a new instance of {@link MixedbreadEmbeddingsServiceSettings} with the specified parameters.
-     *
-     * @param modelId the model identifier
-     * @param url the URL of the Mixedbread service
-     * @param dimensions the number of dimensions for the embeddings, can be null
-     * @param similarity the similarity measure to use, can be null
-     * @param maxInputTokens the maximum number of input tokens, can be null
-     * @param rateLimitSettings the rate limit settings for the service, can be null
-     */
-    MixedbreadEmbeddingsServiceSettings(
-        String modelId,
-        @Nullable String url,
-        @Nullable Integer dimensions,
-        @Nullable String encodingFormat,
-        @Nullable SimilarityMeasure similarity,
-        @Nullable Integer maxInputTokens,
-        @Nullable RateLimitSettings rateLimitSettings,
-        Boolean dimensionsSetByUser
-    ) {
-        this(modelId, dimensions, encodingFormat, similarity, maxInputTokens, rateLimitSettings, dimensionsSetByUser);
     }
 
     @Override

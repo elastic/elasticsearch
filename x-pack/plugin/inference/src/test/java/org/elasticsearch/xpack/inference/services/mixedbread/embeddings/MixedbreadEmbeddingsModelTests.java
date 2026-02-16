@@ -181,7 +181,6 @@ public class MixedbreadEmbeddingsModelTests extends ESTestCase {
             "inferenceEntityId",
             new MixedbreadEmbeddingsServiceSettings(
                 modelId,
-                url,
                 dimensions,
                 TestUtils.ENCODING_VALUE,
                 similarity,

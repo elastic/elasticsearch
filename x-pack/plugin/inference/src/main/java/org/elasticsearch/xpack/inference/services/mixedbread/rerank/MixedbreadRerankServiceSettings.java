@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.mixedbread.rerank;
 
-import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadServiceSettings;
-import org.elasticsearch.xpack.inference.services.mixedbread.MixedbreadUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
@@ -27,9 +25,6 @@ import java.util.Objects;
  */
 public class MixedbreadRerankServiceSettings extends MixedbreadServiceSettings {
     public static final String NAME = "mixedbread_rerank_service_settings";
-    private static final URIBuilder DEFAULT_URI_BUILDER = new URIBuilder().setScheme("https")
-        .setHost(MixedbreadUtils.HOST)
-        .setPathSegments(MixedbreadUtils.VERSION_1, MixedbreadUtils.RERANK_PATH);
 
     /**
      * Creates a new instance of {@link MixedbreadRerankServiceSettings} from a map of settings.
@@ -65,7 +60,7 @@ public class MixedbreadRerankServiceSettings extends MixedbreadServiceSettings {
 
     @Override
     protected URI buildDefaultUri() throws URISyntaxException {
-        return DEFAULT_URI_BUILDER.build();
+        return null;
     }
 
     @Override

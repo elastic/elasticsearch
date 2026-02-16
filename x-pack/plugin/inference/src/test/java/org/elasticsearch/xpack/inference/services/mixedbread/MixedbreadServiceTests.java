@@ -1089,7 +1089,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                 assertThat(model, instanceOf(MixedbreadEmbeddingsModel.class));
 
                 var embeddingsModel = (MixedbreadEmbeddingsModel) model;
-                assertThat(embeddingsModel.uri().toString(), Matchers.is(TestUtils.CUSTOM_URL));
+                assertThat(embeddingsModel.uri().toString(), Matchers.is(TestUtils.DEFAULT_EMBEDDINGS_URL));
                 assertThat(embeddingsModel.getServiceSettings().modelId(), Matchers.is(TestUtils.MODEL_ID));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings().asMap(), Matchers.is(chunkingSettings.asMap()));
@@ -1115,7 +1115,7 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                 assertThat(model, instanceOf(MixedbreadEmbeddingsModel.class));
 
                 var embeddingsModel = (MixedbreadEmbeddingsModel) model;
-                assertThat(embeddingsModel.uri().toString(), Matchers.is(TestUtils.CUSTOM_URL));
+                assertThat(embeddingsModel.uri().toString(), Matchers.is(TestUtils.DEFAULT_EMBEDDINGS_URL));
                 assertThat(embeddingsModel.getServiceSettings().modelId(), Matchers.is(TestUtils.MODEL_ID));
                 assertThat(
                     embeddingsModel.getConfigurations().getChunkingSettings(),

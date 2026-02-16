@@ -589,10 +589,10 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             return blockFactory.newIntBlockBuilder(estimatedSize);
         } else if ((extractPreference == EXTRACT_SPATIAL_CENTROID || extractPreference == EXTRACT_SPATIAL_BOUNDS_AND_CENTROID)
             && isShapeType(dataType)) {
-            return blockFactory.newDoubleBlockBuilder(estimatedSize);
-        } else {
-            return elementType.newBlockBuilder(estimatedSize, blockFactory);
-        }
+                return blockFactory.newDoubleBlockBuilder(estimatedSize);
+            } else {
+                return elementType.newBlockBuilder(estimatedSize, blockFactory);
+            }
     }
 
     private static TestBlockCopier blockCopier(DataType dataType, FieldExtractPreference extractPreference, IntVector docIndices) {
@@ -602,11 +602,11 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
             return TestSpatialShapeExtentBlockCopier.create(docIndices, dataType);
         } else if ((extractPreference == EXTRACT_SPATIAL_CENTROID || extractPreference == EXTRACT_SPATIAL_BOUNDS_AND_CENTROID)
             && isShapeType(dataType)) {
-            // For centroid/combined extraction, we use the default copier since test data would need special handling
-            return new TestBlockCopier(docIndices);
-        } else {
-            return new TestBlockCopier(docIndices);
-        }
+                // For centroid/combined extraction, we use the default copier since test data would need special handling
+                return new TestBlockCopier(docIndices);
+            } else {
+                return new TestBlockCopier(docIndices);
+            }
     }
 
     private static boolean isShapeType(DataType dataType) {

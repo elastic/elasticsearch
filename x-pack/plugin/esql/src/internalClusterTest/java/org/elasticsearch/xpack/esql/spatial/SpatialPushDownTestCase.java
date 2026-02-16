@@ -33,11 +33,10 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
 
-import static org.hamcrest.Matchers.closeTo;
-
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.closeTo;
 
 /**
  * Base class to check that a query that can be pushed down gives the same result

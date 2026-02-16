@@ -342,9 +342,8 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
             }
         }
 
-        static class GeoBoundsAndCentroidBlockLoader
-            extends
-                AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsAndCentroidBlockLoader {
+        static class GeoBoundsAndCentroidBlockLoader extends
+            AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.BoundsAndCentroidBlockLoader {
 
             GeoBoundsAndCentroidBlockLoader(String fieldName) {
                 super(fieldName, CoordinateEncoder.GEO);

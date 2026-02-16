@@ -170,17 +170,17 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         var barrier = new CyclicBarrier(numThreads);
         var errors = new ArrayList<Throwable>();
 
+        Sort sort = switch(randomInt(2)) {
+            case 0 -> Sort.RELEVANCE;
+            case 1 -> new Sort(SortField.FIELD_DOC, SortField.FIELD_SCORE);
+            case 2 -> new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
+            default -> throw new IllegalStateException("Unexpected value");
+        };
         Thread[] threads = new Thread[numThreads];
         for (int i = 0; i < numThreads; i++) {
             threads[i] = new Thread(() -> {
                 try {
                     barrier.await();
-                    Sort sort = switch(randomInt(2)) {
-                        case 0 -> Sort.RELEVANCE;
-                        case 1 -> new Sort(SortField.FIELD_DOC, SortField.FIELD_SCORE);
-                        case 2 -> new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
-                        default -> throw new IllegalStateException("Unexpected value");
-                    };
                     for (int j = 0; j < randomIntBetween(500, 1000); j++) {
                         provider.newTopDocsCollector(sort);
                     }

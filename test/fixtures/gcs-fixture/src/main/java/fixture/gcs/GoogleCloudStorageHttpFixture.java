@@ -21,6 +21,7 @@ public class GoogleCloudStorageHttpFixture extends ExternalResource {
     private final String bucket;
     private final String token;
     private HttpServer server;
+    private GoogleCloudStorageHttpHandler handler;
 
     public GoogleCloudStorageHttpFixture(boolean enabled, final String bucket, final String token) {
         this.enabled = enabled;
@@ -32,13 +33,28 @@ public class GoogleCloudStorageHttpFixture extends ExternalResource {
         return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
     }
 
+    /**
+     * Get the underlying HTTP handler for direct blob manipulation (e.g., loading test fixtures).
+     */
+    public GoogleCloudStorageHttpHandler getHandler() {
+        return handler;
+    }
+
+    /**
+     * Get the token path used for OAuth2 authentication.
+     */
+    public String getToken() {
+        return token;
+    }
+
     @Override
     protected void before() throws Throwable {
         if (enabled) {
             this.server = HttpServer.create(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
+            this.handler = new GoogleCloudStorageHttpHandler(bucket);
             server.createContext("/" + token, new FakeOAuth2HttpHandler());
             server.createContext("/computeMetadata/v1/project/project-id", new FakeProjectIdHttpHandler());
-            server.createContext("/", new GoogleCloudStorageHttpHandler(bucket));
+            server.createContext("/", handler);
             server.start();
         }
     }

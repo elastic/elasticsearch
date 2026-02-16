@@ -43,13 +43,18 @@ import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 
 /**
- * A scrollable source of hits from a {@linkplain Client} instance.
+ * Scrollable search lets you retrieve large result sets by opening a search context and repeatedly requesting
+ * the next batch using a {@code _scroll_id}, effectively acting like a cursor over a snapshot of the index at the time of the
+ * initial search. It is no longer recommended for deep pagination due to resource costs and limits on open scrolls.
+ * <p>
+ * This implementation is a scrollable source of hits from a {@linkplain Client} instance. For a remote client instance,
+ * please use {@code RemoteScrollablePaginatedHitSource}
  */
-public class ClientScrollableHitSource extends ScrollableHitSource {
+public class ClientScrollablePaginatedHitSource extends PaginatedHitSource {
     private final ParentTaskAssigningClient client;
     private final SearchRequest firstSearchRequest;
 
-    public ClientScrollableHitSource(
+    public ClientScrollablePaginatedHitSource(
         Logger logger,
         BackoffPolicy backoffPolicy,
         ThreadPool threadPool,

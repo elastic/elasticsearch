@@ -23,17 +23,18 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -52,13 +53,21 @@ import static org.elasticsearch.core.TimeValue.timeValueNanos;
 import static org.elasticsearch.reindex.remote.RemoteResponseParsers.MAIN_ACTION_PARSER;
 import static org.elasticsearch.reindex.remote.RemoteResponseParsers.RESPONSE_PARSER;
 
-public class RemoteScrollableHitSource extends ScrollableHitSource {
+/**
+ * Scrollable search lets you retrieve large result sets by opening a search context and repeatedly requesting
+ * the next batch using a {@code _scroll_id}, effectively acting like a cursor over a snapshot of the index at the time of the
+ * initial search. It is no longer recommended for deep pagination due to resource costs and limits on open scrolls.
+ * <p>
+ * This implementation is a scrollable source of hits from a <i>remote</i> {@linkplain Client} instance. For local
+ * clients, please use {@link org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource}
+ */
+public class RemoteScrollablePaginatedHitSource extends PaginatedHitSource {
     private final RestClient client;
     private final RemoteInfo remote;
     private final SearchRequest searchRequest;
     Version remoteVersion;
 
-    public RemoteScrollableHitSource(
+    public RemoteScrollablePaginatedHitSource(
         Logger logger,
         BackoffPolicy backoffPolicy,
         ThreadPool threadPool,

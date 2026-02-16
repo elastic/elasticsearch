@@ -453,25 +453,6 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             return topFieldCollectorManagers.computeIfAbsent(sort, s -> new TopFieldCollectorManager(s, limit, null, 0));
         }
 
-        TopDocsCollector<?> newTopDocsCollectorOld(Sort sort) {
-            if (needsScore == false) {
-                return getTopFieldCollectorManager(sort).newCollector();
-            }
-
-            if (Sort.RELEVANCE.equals(sort)) {
-                // SORT _score DESC
-                TopScoreDocCollectorManager manager = getTopScoreDocCollectorManager();
-                return manager.newCollector();
-            }
-
-            // SORT ..., _score, ...
-            var l = new ArrayList<>(Arrays.asList(sort.getSort()));
-            l.add(SortField.FIELD_DOC);
-            l.add(SortField.FIELD_SCORE);
-            sort = new Sort(l.toArray(SortField[]::new));
-            return getTopFieldCollectorManager(sort).newCollector();
-        }
-
         TopDocsCollector<?> newTopDocsCollector(Sort sort) {
             if (needsScore) {
                 if (Sort.RELEVANCE.equals(sort)) {

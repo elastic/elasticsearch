@@ -312,8 +312,8 @@ required_capability: fix_null_comparison_type_check
 
 FROM ul_logs | WHERE bytes_in IN (to_ul(0), null) | SORT id | KEEP id, bytes_in
 ;
-warning:Line 1:22: evaluation of [bytes_in IN (to_ul(0), null)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:22: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex:Line 1:22: evaluation of [bytes_in IN (to_ul(0), null)] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:Line 1:22: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 id:integer | bytes_in:ul
 70         | 0

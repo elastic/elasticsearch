@@ -1166,6 +1166,24 @@ public class MixedbreadServiceTests extends AbstractInferenceServiceTests {
                                 "type": "int",
                                 "supported_task_types": ["text_embedding"]
                             },
+                            "similarity": {
+                                "description":"The similarity measure. One of [cosine, dot_product, l2_norm]",
+                                "label": "Similarity",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "str",
+                                "supported_task_types": ["text_embedding"]
+                            },
+                            "max_input_tokens": {
+                                "description":"The maximum number of input tokens for embeddings",
+                                "label": "Max Input Tokens",
+                                "required": false,
+                                "sensitive": false,
+                                "updatable": false,
+                                "type": "int",
+                                "supported_task_types": ["text_embedding"]
+                            },
                             "api_key": {
                                 "description": "API Key for the provider you're connecting to.",
                                 "label": "API Key",

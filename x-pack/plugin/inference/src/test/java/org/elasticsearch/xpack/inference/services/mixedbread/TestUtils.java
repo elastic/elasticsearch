@@ -15,7 +15,6 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomNonNegativeIntOrNull;
-import static org.elasticsearch.test.ESTestCase.randomOptionalBoolean;
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 
 public final class TestUtils {

@@ -93,7 +93,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         Task task,
         DiscoveryNode clientNode,
         Settings settings
-    ) throws Exception {
+    ) {
         super(sessionId, exchangeService, executor, maxBufferSize, transportService, task, settings);
         this.clientToServerId = clientToServerId;
         this.serverToClientId = serverToClientId;

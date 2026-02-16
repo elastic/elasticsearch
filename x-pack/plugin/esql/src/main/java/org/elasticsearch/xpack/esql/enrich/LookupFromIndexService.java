@@ -584,7 +584,6 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
                 request,
                 physicalPlan,
                 BlockOptimization.NONE,
-                dc -> this,
                 sourceFactory
             );
 
@@ -605,14 +604,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
             // The response will be sent after the remote sink connection is ready
             // This ensures the client doesn't send pages before the server can receive them
-            startServerWithOperators(
-                server,
-                lookupQueryPlan,
-                intermediateOperators,
-                serverReleasables,
-                ActionListener.wrap(listener::onResponse, listener::onFailure),
-                planString
-            );
+            startServerWithOperators(server, lookupQueryPlan, intermediateOperators, serverReleasables, listener, planString);
             started = true;
         } catch (Exception e) {
             listener.onFailure(e);
@@ -661,7 +653,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         LookupQueryPlan lookupQueryPlan,
         List<Operator> intermediateOperators,
         Releasable releasables,
-        ActionListener<LookupResponse> responseListener,
+        ActionListener<? super LookupResponse> responseListener,
         @Nullable String planString
     ) {
         server.startWithOperators(

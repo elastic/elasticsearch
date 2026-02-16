@@ -136,7 +136,7 @@ public class LookupExecutionPlannerTests extends ESTestCase {
             LookupQueryPlan lookupQueryPlan,
             List<Operator> intermediateOperators,
             Releasable releasables,
-            ActionListener<LookupResponse> responseListener,
+            ActionListener<? super LookupResponse> responseListener,
             String planString
         ) {
             // Capture the plan instead of starting the server

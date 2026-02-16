@@ -167,7 +167,6 @@ public class LookupExecutionPlanner {
         AbstractLookupService.TransportRequest request,
         PhysicalPlan physicalPlan,
         BlockOptimization blockOptimization,
-        Function<DriverContext, LookupFromIndexService> lookupServiceFactory,
         SourceOperatorFactory sourceFactory
     ) throws IOException {
         return planLookupNode(physicalPlan, blockOptimization, sourceFactory);

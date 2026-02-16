@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
@@ -435,6 +436,8 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
      * Test ported from csv-spec:lookup-join.mvJoinKeyOnFrom
      * Tests that multi-value join keys generate the expected warnings.
      * This test uses real transport (not MockTransport) so warnings should propagate correctly.
+     * Follows the same pattern as {@link WarningsIT}: send the request to a known coordinator node
+     * and read warnings from that node's thread context in the response callback.
      */
     public void testMultiValueJoinKeyWarnings() throws Exception {
         // Required indices for this test
@@ -449,41 +452,25 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
             | KEEP emp_no, language_code, language_name
             """, EMPLOYEES_INDEX, LANGUAGES_LOOKUP_INDEX);
 
-        // Use async pattern to capture warnings from the thread context (like WarningsIT)
+        // Pick a specific coordinator node so we read warnings from the right thread context
+        DiscoveryNode coordinator = randomFrom(clusterService().state().nodes().stream().toList());
+
         CountDownLatch latch = new CountDownLatch(1);
         EsqlQueryRequest request = syncEsqlQueryRequest(query);
         AtomicReference<List<String>> capturedWarnings = new AtomicReference<>();
-        AtomicReference<EsqlQueryResponse> responseRef = new AtomicReference<>();
 
-        client().execute(EsqlQueryAction.INSTANCE, request, new ActionListener<>() {
-            @Override
-            public void onResponse(EsqlQueryResponse response) {
-                try {
-                    responseRef.set(response);
-                    // Capture warnings from thread context
-                    var threadpool = internalCluster().getInstance(TransportService.class, internalCluster().getRandomNodeName())
-                        .getThreadPool();
-                    Map<String, List<String>> responseHeaders = threadpool.getThreadContext().getResponseHeaders();
-                    capturedWarnings.set(new ArrayList<>(responseHeaders.getOrDefault("Warning", List.of())));
-                } finally {
-                    latch.countDown();
-                }
-            }
-
-            @Override
-            public void onFailure(Exception e) {
+        client(coordinator.getName()).execute(EsqlQueryAction.INSTANCE, request, ActionListener.running(() -> {
+            try {
+                // Read warnings from the coordinator node's thread context (same node we sent to)
+                var threadpool = internalCluster().getInstance(TransportService.class, coordinator.getName()).getThreadPool();
+                Map<String, List<String>> responseHeaders = threadpool.getThreadContext().getResponseHeaders();
+                capturedWarnings.set(new ArrayList<>(responseHeaders.getOrDefault("Warning", List.of())));
+            } finally {
                 latch.countDown();
-                fail("Query failed: " + e.getMessage());
             }
-        });
+        }));
 
         assertTrue("Test timed out", latch.await(30, TimeUnit.SECONDS));
-
-        // Close the response to prevent resource leaks
-        EsqlQueryResponse response = responseRef.get();
-        if (response != null) {
-            response.close();
-        }
 
         // Verify warnings were captured
         List<String> warnings = capturedWarnings.get();

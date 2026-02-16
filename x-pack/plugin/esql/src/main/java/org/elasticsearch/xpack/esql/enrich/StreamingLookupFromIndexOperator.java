@@ -11,8 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -44,8 +42,6 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -77,8 +73,6 @@ public class StreamingLookupFromIndexOperator implements Operator {
     private final AtomicLong batchIdGenerator = new AtomicLong(0);
     private final Map<Long, PendingJoin> activeBatches = new HashMap<>();
     private BidirectionalBatchExchangeClient client;
-    private final SubscribableListener<Void> clientReadyListener = new SubscribableListener<>();
-    private final IsBlockedResult waitingForClientResult = new IsBlockedResult(clientReadyListener, "waiting for client");
     private final AtomicReference<Exception> failure = new AtomicReference<>();
 
     private volatile boolean finished = false;
@@ -94,10 +88,10 @@ public class StreamingLookupFromIndexOperator implements Operator {
     private long totalInputRows = 0;
     private long totalOutputRows = 0;
 
-    // Timing stats
-    private long planningStartNanos = 0;
-    private long planningEndNanos = 0;
-    private long processEndNanos = 0;
+    // Timing stats - volatile because written from transport callback threads, read from driver thread
+    private volatile long planningStartNanos = 0;
+    private volatile long planningEndNanos = 0;
+    private volatile long processEndNanos = 0;
 
     // Lookup plans from servers (for profile output)
     // Maps plan string -> set of worker keys (e.g., "nodeId:worker0") that produced this plan
@@ -209,12 +203,9 @@ public class StreamingLookupFromIndexOperator implements Operator {
                 this::determineServerNode  // Supplier for getting server nodes for workers
             );
 
-            // Client is ready immediately - server setup happens lazily when first page is sent
-            clientReadyListener.onResponse(null);
         } catch (Exception e) {
             logger.error("Failed to create client", e);
             failure.set(e);
-            clientReadyListener.onFailure(e);
         }
     }
 
@@ -338,7 +329,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
             );
         }
 
-        if (client == null || clientReadyListener.isDone() == false) {
+        if (client == null) {
             return null;
         }
 
@@ -572,10 +563,6 @@ public class StreamingLookupFromIndexOperator implements Operator {
             return NOT_BLOCKED;
         }
 
-        if (clientReadyListener.isDone() == false) {
-            return waitingForClientResult;
-        }
-
         // Fast path: if client has ready pages, don't block
         if (client != null && client.hasReadyPages()) {
             return NOT_BLOCKED;
@@ -636,18 +623,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         activeBatches.clear();
 
         if (client != null) {
-            // Wait for server setup to complete before closing client.
-            // This ensures that clientToServer exchange is open
-            // and closing it signals the server that we are closing too
-            if (clientReadyListener.isDone() == false) {
-                try {
-                    CountDownLatch setupLatch = new CountDownLatch(1);
-                    clientReadyListener.addListener(new LatchedActionListener<>(ActionListener.noop(), setupLatch));
-                    setupLatch.await(BidirectionalBatchExchangeClient.closeWaitTimeoutSeconds(), TimeUnit.SECONDS);
-                } catch (Exception e) {
-                    logger.debug("Timeout waiting for server setup during close", e);
-                }
-            }
+            // Per-worker setup and server response waits are handled inside client.close().
             try {
                 client.finish();
             } catch (Exception e) {

@@ -147,7 +147,7 @@ $endif$
     }
 
     @Override
-    public $Type$Vector filter(int... positions) {
+    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
     $if(BytesRef)$
         final var scratch = new BytesRef();
     $endif$

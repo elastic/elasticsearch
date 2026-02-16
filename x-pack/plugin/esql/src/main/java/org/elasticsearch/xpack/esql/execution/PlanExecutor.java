@@ -19,6 +19,8 @@ import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -50,6 +52,7 @@ public class PlanExecutor {
     private final Verifier verifier;
     private final PlanTelemetryManager planTelemetryManager;
     private final EsqlQueryLog queryLog;
+    private final DataSourceModule dataSourceModule;
 
     public PlanExecutor(
         IndexResolver indexResolver,
@@ -57,7 +60,8 @@ public class PlanExecutor {
         XPackLicenseState licenseState,
         EsqlQueryLog queryLog,
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
-        Settings settings
+        Settings settings,
+        DataSourceModule dataSourceModule
     ) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
@@ -67,6 +71,7 @@ public class PlanExecutor {
         this.verifier = new Verifier(metrics, licenseState, extraCheckers);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
         this.queryLog = queryLog;
+        this.dataSourceModule = dataSourceModule;
     }
 
     public void esql(
@@ -83,6 +88,12 @@ public class PlanExecutor {
         ActionListener<Versioned<Result>> listener
     ) {
         final PlanTelemetry planTelemetry = new PlanTelemetry(functionRegistry);
+        // Create ExternalSourceResolver for Iceberg/Parquet resolution
+        // Use the same executor as for searches to avoid blocking
+        final ExternalSourceResolver externalSourceResolver = new ExternalSourceResolver(
+            services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH),
+            dataSourceModule
+        );
         final var session = new EsqlSession(
             sessionId,
             localClusterMinimumVersion,
@@ -90,6 +101,7 @@ public class PlanExecutor {
             indexResolver,
             enrichPolicyResolver,
             viewResolver,
+            externalSourceResolver,
             preAnalyzer,
             functionRegistry,
             mapper,
@@ -146,5 +158,9 @@ public class PlanExecutor {
 
     public Metrics metrics() {
         return this.metrics;
+    }
+
+    public DataSourceModule dataSourceModule() {
+        return dataSourceModule;
     }
 }

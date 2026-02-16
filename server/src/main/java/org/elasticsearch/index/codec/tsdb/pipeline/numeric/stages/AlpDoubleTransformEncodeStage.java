@@ -25,8 +25,8 @@ public final class AlpDoubleTransformEncodeStage implements TransformEncoder {
     private final int[] candE = new int[AlpDoubleUtils.CAND_POOL_SIZE];
     private final int[] candF = new int[AlpDoubleUtils.CAND_POOL_SIZE];
     private final int[] candCount = new int[AlpDoubleUtils.CAND_POOL_SIZE];
-    private final int[] execPositions;
-    private final long[] execValues;
+    private final int[] positions;
+    private final long[] exceptions;
     private int cachedAlpE = -1;
     private int cachedAlpF = -1;
 
@@ -34,8 +34,8 @@ public final class AlpDoubleTransformEncodeStage implements TransformEncoder {
         this.maxExceptionPercent = AlpDoubleUtils.DEFAULT_MAX_EXCEPTION_PERCENT;
         this.maxExponent = AlpDoubleUtils.MAX_EXPONENT;
         this.quantizeStep = 0.0;
-        this.execPositions = new int[blockSize];
-        this.execValues = new long[blockSize];
+        this.positions = new int[blockSize];
+        this.exceptions = new long[blockSize];
     }
 
     // NOTE: Derives maxExponent = ceil(-log10(maxError)) and fuses quantization
@@ -45,8 +45,8 @@ public final class AlpDoubleTransformEncodeStage implements TransformEncoder {
         this.maxExceptionPercent = AlpDoubleUtils.DEFAULT_MAX_EXCEPTION_PERCENT;
         this.maxExponent = Math.min((int) Math.ceil(-Math.log10(maxError)), AlpDoubleUtils.MAX_EXPONENT);
         this.quantizeStep = 2.0 * maxError;
-        this.execPositions = new int[blockSize];
-        this.execValues = new long[blockSize];
+        this.positions = new int[blockSize];
+        this.exceptions = new long[blockSize];
     }
 
     @Override
@@ -106,17 +106,15 @@ public final class AlpDoubleTransformEncodeStage implements TransformEncoder {
             return valueCount;
         }
 
-        final int[] excPositions = execPositions;
-        final long[] excValues = execValues;
-        final int excCount = AlpDoubleUtils.alpTransformBlock(values, valueCount, bestE, bestF, excPositions, excValues);
+        final int excCount = AlpDoubleUtils.alpTransformBlock(values, valueCount, bestE, bestF, positions, exceptions);
         final var metadata = context.metadata();
         metadata.writeByte((byte) bestE);
         metadata.writeByte((byte) bestF);
         metadata.writeVInt(excCount);
 
         for (int i = 0; i < excCount; i++) {
-            metadata.writeVInt(excPositions[i]);
-            metadata.writeLong(excValues[i]);
+            metadata.writeVInt(positions[i]);
+            metadata.writeLong(exceptions[i]);
         }
         return valueCount;
     }

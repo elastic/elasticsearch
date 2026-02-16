@@ -25,8 +25,8 @@ public final class AlpFloatTransformEncodeStage implements TransformEncoder {
     private final int[] candE = new int[AlpFloatUtils.CAND_POOL_SIZE];
     private final int[] candF = new int[AlpFloatUtils.CAND_POOL_SIZE];
     private final int[] candCount = new int[AlpFloatUtils.CAND_POOL_SIZE];
-    private final int[] scratchPositions;
-    private final int[] scratchExcValues;
+    private final int[] positions;
+    private final int[] exceptions;
     private int cachedAlpE = -1;
     private int cachedAlpF = -1;
 
@@ -34,8 +34,8 @@ public final class AlpFloatTransformEncodeStage implements TransformEncoder {
         this.maxExceptionPercent = AlpFloatUtils.DEFAULT_MAX_EXCEPTION_PERCENT;
         this.maxExponent = AlpFloatUtils.MAX_EXPONENT;
         this.quantizeStep = 0.0f;
-        this.scratchPositions = new int[blockSize];
-        this.scratchExcValues = new int[blockSize];
+        this.positions = new int[blockSize];
+        this.exceptions = new int[blockSize];
     }
 
     // NOTE: Derives maxExponent = ceil(-log10(maxError)) and fuses quantization
@@ -45,8 +45,8 @@ public final class AlpFloatTransformEncodeStage implements TransformEncoder {
         this.maxExceptionPercent = AlpFloatUtils.DEFAULT_MAX_EXCEPTION_PERCENT;
         this.maxExponent = Math.min((int) Math.ceil(-Math.log10(maxError)), AlpFloatUtils.MAX_EXPONENT);
         this.quantizeStep = (float) (2.0 * maxError);
-        this.scratchPositions = new int[blockSize];
-        this.scratchExcValues = new int[blockSize];
+        this.positions = new int[blockSize];
+        this.exceptions = new int[blockSize];
     }
 
     @Override
@@ -105,17 +105,15 @@ public final class AlpFloatTransformEncodeStage implements TransformEncoder {
             return valueCount;
         }
 
-        final int[] excPositions = scratchPositions;
-        final int[] excValues = scratchExcValues;
-        final int excCount = AlpFloatUtils.alpTransformBlock(values, valueCount, bestE, bestF, excPositions, excValues);
+        final int excCount = AlpFloatUtils.alpTransformBlock(values, valueCount, bestE, bestF, positions, exceptions);
         final var metadata = context.metadata();
         metadata.writeByte((byte) bestE);
         metadata.writeByte((byte) bestF);
         metadata.writeVInt(excCount);
 
         for (int i = 0; i < excCount; i++) {
-            metadata.writeVInt(excPositions[i]);
-            metadata.writeZInt(excValues[i]);
+            metadata.writeVInt(positions[i]);
+            metadata.writeZInt(exceptions[i]);
         }
         return valueCount;
     }

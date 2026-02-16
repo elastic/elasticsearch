@@ -38,8 +38,8 @@ public final class AlpRdDoubleEncodeStage implements PayloadEncoder {
     private final int[] candE = new int[AlpDoubleUtils.CAND_POOL_SIZE];
     private final int[] candF = new int[AlpDoubleUtils.CAND_POOL_SIZE];
     private final int[] candCount = new int[AlpDoubleUtils.CAND_POOL_SIZE];
-    private final int[] scratchInts;
-    private final long[] scratchValues;
+    private final int[] positions;
+    private final long[] exceptions;
     private int cachedAlpE = -1;
     private int cachedAlpF = -1;
 
@@ -49,8 +49,8 @@ public final class AlpRdDoubleEncodeStage implements PayloadEncoder {
         this.quantizeStep = 0.0;
         this.blockSize = blockSize;
         this.forUtil = new DocValuesForUtil(blockSize);
-        this.scratchInts = new int[blockSize];
-        this.scratchValues = new long[blockSize];
+        this.positions = new int[blockSize];
+        this.exceptions = new long[blockSize];
     }
 
     // NOTE: Derives maxExponent = ceil(-log10(maxError)) and fuses quantization
@@ -62,8 +62,8 @@ public final class AlpRdDoubleEncodeStage implements PayloadEncoder {
         this.quantizeStep = 2.0 * maxError;
         this.blockSize = blockSize;
         this.forUtil = new DocValuesForUtil(blockSize);
-        this.scratchInts = new int[blockSize];
-        this.scratchValues = new long[blockSize];
+        this.positions = new int[blockSize];
+        this.exceptions = new long[blockSize];
     }
 
     @Override
@@ -140,9 +140,7 @@ public final class AlpRdDoubleEncodeStage implements PayloadEncoder {
         int bestF,
         final EncodingContext context
     ) throws IOException {
-        final int[] excPositions = scratchInts;
-        final long[] excValues = scratchValues;
-        final int excCount = AlpDoubleUtils.alpTransformBlock(values, valueCount, bestE, bestF, excPositions, excValues);
+        final int excCount = AlpDoubleUtils.alpTransformBlock(values, valueCount, bestE, bestF, positions, exceptions);
 
         out.writeByte(MODE_DECIMAL);
         out.writeByte((byte) bestE);
@@ -159,8 +157,8 @@ public final class AlpRdDoubleEncodeStage implements PayloadEncoder {
         }
 
         for (int i = 0; i < excCount; i++) {
-            out.writeVInt(excPositions[i]);
-            out.writeLong(excValues[i]);
+            out.writeVInt(positions[i]);
+            out.writeLong(exceptions[i]);
         }
     }
 

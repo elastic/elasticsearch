@@ -38,8 +38,8 @@ public final class AlpRdFloatEncodeStage implements PayloadEncoder {
     private final int[] candE = new int[AlpFloatUtils.CAND_POOL_SIZE];
     private final int[] candF = new int[AlpFloatUtils.CAND_POOL_SIZE];
     private final int[] candCount = new int[AlpFloatUtils.CAND_POOL_SIZE];
-    private final int[] scratchPositions;
-    private final int[] scratchExcValues;
+    private final int[] positions;
+    private final int[] exceptions;
     private int cachedAlpE = -1;
     private int cachedAlpF = -1;
 
@@ -49,8 +49,8 @@ public final class AlpRdFloatEncodeStage implements PayloadEncoder {
         this.quantizeStep = 0.0f;
         this.blockSize = blockSize;
         this.forUtil = new DocValuesForUtil(blockSize);
-        this.scratchPositions = new int[blockSize];
-        this.scratchExcValues = new int[blockSize];
+        this.positions = new int[blockSize];
+        this.exceptions = new int[blockSize];
     }
 
     // NOTE: Derives maxExponent = ceil(-log10(maxError)) and fuses quantization
@@ -62,8 +62,8 @@ public final class AlpRdFloatEncodeStage implements PayloadEncoder {
         this.quantizeStep = (float) (2.0 * maxError);
         this.blockSize = blockSize;
         this.forUtil = new DocValuesForUtil(blockSize);
-        this.scratchPositions = new int[blockSize];
-        this.scratchExcValues = new int[blockSize];
+        this.positions = new int[blockSize];
+        this.exceptions = new int[blockSize];
     }
 
     @Override
@@ -131,9 +131,7 @@ public final class AlpRdFloatEncodeStage implements PayloadEncoder {
         int bestF,
         final EncodingContext context
     ) throws IOException {
-        final int[] excPositions = scratchPositions;
-        final int[] excValues = scratchExcValues;
-        final int excCount = AlpFloatUtils.alpTransformBlock(values, valueCount, bestE, bestF, excPositions, excValues);
+        final int excCount = AlpFloatUtils.alpTransformBlock(values, valueCount, bestE, bestF, positions, exceptions);
 
         out.writeByte(MODE_DECIMAL);
         out.writeByte((byte) bestE);
@@ -150,8 +148,8 @@ public final class AlpRdFloatEncodeStage implements PayloadEncoder {
         }
 
         for (int i = 0; i < excCount; i++) {
-            out.writeVInt(excPositions[i]);
-            out.writeInt(excValues[i]);
+            out.writeVInt(positions[i]);
+            out.writeInt(exceptions[i]);
         }
     }
 

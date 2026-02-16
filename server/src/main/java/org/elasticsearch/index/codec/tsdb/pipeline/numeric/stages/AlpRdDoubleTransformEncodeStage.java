@@ -30,8 +30,8 @@ public final class AlpRdDoubleTransformEncodeStage implements TransformEncoder {
     private final int[] candE = new int[AlpDoubleUtils.CAND_POOL_SIZE];
     private final int[] candF = new int[AlpDoubleUtils.CAND_POOL_SIZE];
     private final int[] candCount = new int[AlpDoubleUtils.CAND_POOL_SIZE];
-    private final int[] scratchInts;
-    private final long[] scratchValues;
+    private final int[] positions;
+    private final long[] exceptions;
     private int cachedAlpE = -1;
     private int cachedAlpF = -1;
 
@@ -39,8 +39,8 @@ public final class AlpRdDoubleTransformEncodeStage implements TransformEncoder {
         this.maxExceptionPercent = AlpDoubleUtils.DEFAULT_MAX_EXCEPTION_PERCENT;
         this.maxExponent = AlpDoubleUtils.MAX_EXPONENT;
         this.quantizeStep = 0.0;
-        this.scratchInts = new int[blockSize];
-        this.scratchValues = new long[blockSize];
+        this.positions = new int[blockSize];
+        this.exceptions = new long[blockSize];
     }
 
     // NOTE: Derives maxExponent = ceil(-log10(maxError)) and fuses quantization
@@ -50,8 +50,8 @@ public final class AlpRdDoubleTransformEncodeStage implements TransformEncoder {
         this.maxExceptionPercent = AlpDoubleUtils.DEFAULT_MAX_EXCEPTION_PERCENT;
         this.maxExponent = Math.min((int) Math.ceil(-Math.log10(maxError)), AlpDoubleUtils.MAX_EXPONENT);
         this.quantizeStep = 2.0 * maxError;
-        this.scratchInts = new int[blockSize];
-        this.scratchValues = new long[blockSize];
+        this.positions = new int[blockSize];
+        this.exceptions = new long[blockSize];
     }
 
     @Override
@@ -121,9 +121,7 @@ public final class AlpRdDoubleTransformEncodeStage implements TransformEncoder {
     }
 
     private int encodeDecimal(final long[] values, int valueCount, final EncodingContext context, int bestE, int bestF) throws IOException {
-        final int[] excPositions = scratchInts;
-        final long[] excValues = scratchValues;
-        final int excCount = AlpDoubleUtils.alpTransformBlock(values, valueCount, bestE, bestF, excPositions, excValues);
+        final int excCount = AlpDoubleUtils.alpTransformBlock(values, valueCount, bestE, bestF, positions, exceptions);
 
         final var metadata = context.metadata();
         metadata.writeByte(MODE_DECIMAL);
@@ -132,8 +130,8 @@ public final class AlpRdDoubleTransformEncodeStage implements TransformEncoder {
         metadata.writeVInt(excCount);
 
         for (int i = 0; i < excCount; i++) {
-            metadata.writeVInt(excPositions[i]);
-            metadata.writeLong(excValues[i]);
+            metadata.writeVInt(positions[i]);
+            metadata.writeLong(exceptions[i]);
         }
         return valueCount;
     }

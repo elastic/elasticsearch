@@ -20,8 +20,6 @@ final class AlpFloatUtils {
     static final float[] POWERS_OF_TEN_FLOAT = new float[MAX_EXPONENT + 1];
     static final float[] NEG_POWERS_OF_TEN_FLOAT = new float[MAX_EXPONENT + 1];
     static final int SAMPLE_SIZE = 16;
-    static final int PRECISION_MARGIN = 2;
-    static final int MAX_F_CANDIDATES = 4;
     static final int MAX_NON_IMPROVE_STREAK = 8;
     static final float PRECISION_TOLERANCE = 1e-4f;
 
@@ -165,9 +163,8 @@ final class AlpFloatUtils {
             return 0;
         }
         final int p = estimatePrecisionFloat(value, maxExponent);
-        final int eMax = Math.min(p + PRECISION_MARGIN, maxExponent);
-        for (int e = p; e <= eMax; e++) {
-            for (int f = 0; f <= Math.min(MAX_F_CANDIDATES - 1, e); f++) {
+        for (int e = p; e <= maxExponent; e++) {
+            for (int f = 0; f <= e; f++) {
                 final float mulFactor = POWERS_OF_TEN_FLOAT[e] * NEG_POWERS_OF_TEN_FLOAT[f];
                 final int encoded = alpRound(value * mulFactor);
                 final float decoded = encoded * POWERS_OF_TEN_FLOAT[f] * NEG_POWERS_OF_TEN_FLOAT[e];
@@ -222,9 +219,8 @@ final class AlpFloatUtils {
                 minP = Math.min(minP, p);
                 maxP = Math.max(maxP, p);
             }
-            final int boundMax = Math.min(maxP + PRECISION_MARGIN, maxExponent);
-            for (int e = minP; e <= boundMax; e++) {
-                for (int f = 0; f <= Math.min(MAX_F_CANDIDATES - 1, e); f++) {
+            for (int e = minP; e <= maxExponent; e++) {
+                for (int f = 0; f <= e; f++) {
                     poolUsed = insertIntoPool(candE, candF, candCount, poolUsed, e, f);
                 }
             }

@@ -5,6 +5,7 @@
 * [`ASINH`](../../functions-operators/math-functions.md#esql-asinh)
 * [`ATAN`](../../functions-operators/math-functions.md#esql-atan)
 * [`ATAN2`](../../functions-operators/math-functions.md#esql-atan2)
+* [`ATANH`](../../functions-operators/math-functions.md#esql-atanh)
 * [`CBRT`](../../functions-operators/math-functions.md#esql-cbrt)
 * [`CEIL`](../../functions-operators/math-functions.md#esql-ceil)
 * [`COPY_SIGN`](../../functions-operators/math-functions.md#esql-copy_sign)

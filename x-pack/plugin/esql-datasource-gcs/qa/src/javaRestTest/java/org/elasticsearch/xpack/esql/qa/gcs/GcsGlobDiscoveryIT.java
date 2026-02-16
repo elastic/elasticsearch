@@ -27,7 +27,6 @@ import org.junit.ClassRule;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.Pattern;
@@ -70,16 +69,12 @@ public class GcsGlobDiscoveryIT extends ESTestCase {
 
     private static Storage buildTestStorageClient(String endpoint) throws Exception {
         byte[] serviceAccountJson = TestUtils.createServiceAccount(random());
-        ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(
-            new ByteArrayInputStream(serviceAccountJson)
-        ).toBuilder().setTokenServerUri(URI.create(endpoint + "/" + TOKEN)).build();
+        ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(new ByteArrayInputStream(serviceAccountJson))
+            .toBuilder()
+            .setTokenServerUri(URI.create(endpoint + "/" + TOKEN))
+            .build();
 
-        return StorageOptions.newBuilder()
-            .setCredentials(credentials)
-            .setProjectId("test-project")
-            .setHost(endpoint)
-            .build()
-            .getService();
+        return StorageOptions.newBuilder().setCredentials(credentials).setProjectId("test-project").setHost(endpoint).build().getService();
     }
 
     private static void uploadTestBlob(String key, byte[] content) {

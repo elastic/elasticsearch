@@ -63,16 +63,12 @@ public class GcsStorageObjectIT extends ESTestCase {
 
     private static Storage buildTestStorageClient(String endpoint) throws Exception {
         byte[] serviceAccountJson = TestUtils.createServiceAccount(random());
-        ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(
-            new ByteArrayInputStream(serviceAccountJson)
-        ).toBuilder().setTokenServerUri(URI.create(endpoint + "/" + TOKEN)).build();
+        ServiceAccountCredentials credentials = ServiceAccountCredentials.fromStream(new ByteArrayInputStream(serviceAccountJson))
+            .toBuilder()
+            .setTokenServerUri(URI.create(endpoint + "/" + TOKEN))
+            .build();
 
-        return StorageOptions.newBuilder()
-            .setCredentials(credentials)
-            .setProjectId("test-project")
-            .setHost(endpoint)
-            .build()
-            .getService();
+        return StorageOptions.newBuilder().setCredentials(credentials).setProjectId("test-project").setHost(endpoint).build().getService();
     }
 
     @AfterClass

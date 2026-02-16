@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -22,6 +23,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.ArrayList;
@@ -33,7 +35,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * A driver operates single-threadedly on a simple chain of {@link Operator}s, passing
@@ -62,7 +63,7 @@ public class Driver implements Releasable, Describable {
      * Description of the driver. This description should be short and meaningful as a grouping identifier.
      * We use the phase of the query right now: "data", "node_reduce", "final".
      */
-    private final String shortDescription;
+    protected final String shortDescription;
 
     /**
      * The wall clock time when this driver was created in milliseconds since epoch.
@@ -81,7 +82,7 @@ public class Driver implements Releasable, Describable {
     private final long startNanos;
     private final DriverContext driverContext;
     private final Supplier<String> description;
-    private List<Operator> activeOperators;
+    protected List<Operator> activeOperators;
     private final List<OperatorStatus> statusOfCompletedOperators = new ArrayList<>();
     private final Releasable releasable;
     private final long statusNanos;
@@ -90,6 +91,8 @@ public class Driver implements Releasable, Describable {
     private final AtomicBoolean started = new AtomicBoolean();
     private final SubscribableListener<Void> completionListener = new SubscribableListener<>();
     private final DriverScheduler scheduler = new DriverScheduler();
+    /** Reusable list to collect blocked results, avoiding new allocation on every driver loop. */
+    private final List<IsBlockedResult> blockedResults = new ArrayList<>();
 
     /**
      * Status reported to the tasks API. We write the status at most once every
@@ -196,7 +199,16 @@ public class Driver implements Releasable, Describable {
                 LOGGER.debug("Cancelling running driver [{}]", shortDescription, e);
                 throw e;
             } catch (RuntimeException e) {
-                LOGGER.warn(Strings.format("Error running driver [%s]", shortDescription), e);
+                RestStatus status = ExceptionsHelper.status(e);
+                // HTTP 4xx status codes (400-499) indicate client/user errors: malformed requests, authentication
+                // failures, cancellations, etc. These are expected user actions, not system failures, so log at
+                // DEBUG level to reduce noise. HTTP 5xx status codes (500+) indicate internal server failures and
+                // potential bugs, so log at ERROR.
+                if (status.getStatus() >= 400 && status.getStatus() < 500) {
+                    LOGGER.debug(Strings.format("User error running driver [%s]", shortDescription), e);
+                } else {
+                    LOGGER.error(Strings.format("Error running driver [%s]", shortDescription), e);
+                }
                 throw e;
             } finally {
                 assert driverContext.assertEndRunLoop();
@@ -283,8 +295,8 @@ public class Driver implements Releasable, Describable {
                 Page page = op.getOutput();
                 if (page == null) {
                     // No result, just move to the next iteration
-                } else if (page.getPositionCount() == 0) {
-                    // Empty result, release any memory it holds immediately and move to the next iteration
+                } else if (page.getPositionCount() == 0 && page.batchMetadata() == null) {
+                    // Empty result (not a batch marker), release any memory it holds immediately and move to the next iteration
                     page.releaseBlocks();
                 } else {
                     // Non-empty result from the previous operation, move it to the next operation
@@ -312,18 +324,25 @@ public class Driver implements Releasable, Describable {
         closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
 
         if (movedPage == false) {
-            return oneOf(
-                activeOperators.stream()
-                    .map(Operator::isBlocked)
-                    .filter(laf -> laf.listener().isDone() == false)
-                    .collect(Collectors.toList())
-            );
+            blockedResults.clear();
+            activeOperators.stream().map(Operator::isBlocked).filter(laf -> laf.listener().isDone() == false).forEach(blockedResults::add);
+            IsBlockedResult result = oneOf(blockedResults);
+            onNoPagesMoved();
+            return result;
         }
         return Operator.NOT_BLOCKED;
     }
 
+    /**
+     * Called when no pages were moved in a loop iteration.
+     * Subclasses can override this to detect when the driver is idle/empty.
+     */
+    protected void onNoPagesMoved() {
+        // Default implementation does nothing
+    }
+
     // Returns the index of the last operator that was closed, -1 if no operator was closed.
-    private int closeEarlyFinishedOperators(ListIterator<Operator> operators) {
+    protected int closeEarlyFinishedOperators(ListIterator<Operator> operators) {
         var iterator = activeOperators.listIterator(operators.nextIndex());
         while (iterator.hasPrevious()) {
             if (iterator.previous().isFinished()) {
@@ -351,6 +370,16 @@ public class Driver implements Releasable, Describable {
             }
         }
         return -1;
+    }
+
+    /**
+     * Finish all active operators. This is used before throwing DriverEarlyTerminationException
+     * to ensure all operators are properly finished and can be closed.
+     */
+    protected void finishAllActiveOperators() {
+        for (Operator op : activeOperators) {
+            op.finish();
+        }
     }
 
     public void cancel(String reason) {
@@ -399,8 +428,7 @@ public class Driver implements Releasable, Describable {
         }
     }
 
-    // Drains all active operators and closes them.
-    private void drainAndCloseOperators(@Nullable Exception e) {
+    protected void drainAndCloseOperators(@Nullable Exception e) {
         Iterator<Operator> itr = activeOperators.iterator();
         while (itr.hasNext()) {
             try {

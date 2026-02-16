@@ -46,6 +46,11 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
+import org.elasticsearch.xpack.esql.datasources.StorageEntry;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -85,14 +90,17 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
@@ -116,6 +124,7 @@ import org.elasticsearch.xpack.esql.session.IndexResolver;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -2605,6 +2614,99 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyze(query, analyzer);
         var limit = as(plan, Limit.class);
         assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
+    }
+
+    public void testImplicitTimestampSortForTsQuery() {
+        // TS query without STATS or SORT should have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test", analyzer);
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var order = orders.get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        var orderChild = as(order.child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
+    public void testImplicitTimestampSortWithKeep() {
+        // TS query with KEEP should have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | KEEP @timestamp, host", analyzer);
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var order = orders.get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        var orderChild = as(order.child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
+    public void testImplicitTimestampSortWithExplicitLimit() {
+        // TS query with explicit LIMIT should still have implicit sort below the user's limit
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | KEEP @timestamp, host | LIMIT 5", analyzer);
+
+        // AddImplicitLimit wraps the user's Limit in a cap Limit
+        var outerLimit = as(plan, Limit.class);
+        var innerLimit = as(outerLimit.child(), Limit.class);
+        // The OrderBy should be injected below the innermost Limit
+        var orderBy = as(innerLimit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var order = orders.get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        var orderChild = as(order.child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
+    public void testNoImplicitTimestampSortWithStats() {
+        // TS query with STATS should NOT have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | STATS avg(rate(network.bytes_in))", analyzer);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), not(instanceOf(OrderBy.class)));
+    }
+
+    public void testNoImplicitTimestampSortWithExplicitSort() {
+        // TS query with explicit sort should keep it
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | SORT host", analyzer);
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var orderChild = as(orders.get(0).child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("host"));
+    }
+
+    public void testNoImplicitTimestampSortWhenTimestampDropped() {
+        // TS query with @timestamp dropped
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | DROP @timestamp", analyzer);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), not(instanceOf(OrderBy.class)));
+    }
+
+    public void testNoImplicitTimestampSortForNotTsQuery() {
+        // Not TS query should NOT have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("FROM test", analyzer);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), not(instanceOf(OrderBy.class)));
     }
 
     public void testRateRequiresCounterTypes() {
@@ -6118,5 +6220,120 @@ public class AnalyzerTests extends ESTestCase {
 
     static IndexResolver.FieldsInfo fieldsInfoOnCurrentVersion(FieldCapabilitiesResponse caps) {
         return new IndexResolver.FieldsInfo(caps, TransportVersion.current(), false, false, false);
+    }
+
+    // ===== ResolveExternalRelations + FileSet tests =====
+
+    public void testResolveExternalRelationPassesFileSet() {
+        var entries = List.of(
+            new StorageEntry(StoragePath.of("s3://bucket/data/f1.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://bucket/data/f2.parquet"), 200, Instant.EPOCH)
+        );
+        var fileSet = new FileSet(entries, "s3://bucket/data/*.parquet");
+
+        List<Attribute> schema = List.of(
+            new FieldAttribute(EMPTY, "id", new EsField("id", LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE)),
+            new FieldAttribute(EMPTY, "name", new EsField("name", KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+
+        var metadata = new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return "s3://bucket/data/*.parquet";
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
+
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet);
+        var externalResolution = new ExternalSourceResolution(Map.of("s3://bucket/data/*.parquet", resolvedSource));
+
+        var context = new AnalyzerContext(
+            EsqlTestUtils.TEST_CFG,
+            new EsqlFunctionRegistry(),
+            null,
+            Map.of(),
+            Map.of(),
+            defaultEnrichResolution(),
+            defaultInferenceResolution(),
+            externalResolution,
+            TransportVersion.current(),
+            QuerySettings.UNMAPPED_FIELDS.defaultValue()
+        );
+        var testAnalyzer = new Analyzer(context, TEST_VERIFIER);
+
+        var plan = EsqlParser.INSTANCE.parseQuery("EXTERNAL \"s3://bucket/data/*.parquet\" | STATS count = COUNT(*)");
+        var analyzed = testAnalyzer.analyze(plan);
+
+        var externalRelations = new ArrayList<ExternalRelation>();
+        analyzed.forEachDown(ExternalRelation.class, externalRelations::add);
+
+        assertThat("Should have one ExternalRelation", externalRelations, hasSize(1));
+        var externalRelation = externalRelations.get(0);
+
+        assertSame(fileSet, externalRelation.fileSet());
+        assertTrue(externalRelation.fileSet().isResolved());
+        assertEquals(2, externalRelation.fileSet().size());
+        assertEquals("s3://bucket/data/*.parquet", externalRelation.fileSet().originalPattern());
+    }
+
+    public void testResolveExternalRelationUnresolvedFileSet() {
+        List<Attribute> schema = List.of(
+            new FieldAttribute(EMPTY, "id", new EsField("id", LONG, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
+        );
+
+        var metadata = new ExternalSourceMetadata() {
+            @Override
+            public String location() {
+                return "s3://bucket/data/single.parquet";
+            }
+
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+        };
+
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, FileSet.UNRESOLVED);
+        var externalResolution = new ExternalSourceResolution(Map.of("s3://bucket/data/single.parquet", resolvedSource));
+
+        var context = new AnalyzerContext(
+            EsqlTestUtils.TEST_CFG,
+            new EsqlFunctionRegistry(),
+            null,
+            Map.of(),
+            Map.of(),
+            defaultEnrichResolution(),
+            defaultInferenceResolution(),
+            externalResolution,
+            TransportVersion.current(),
+            QuerySettings.UNMAPPED_FIELDS.defaultValue()
+        );
+        var testAnalyzer = new Analyzer(context, TEST_VERIFIER);
+
+        var plan = EsqlParser.INSTANCE.parseQuery("EXTERNAL \"s3://bucket/data/single.parquet\" | STATS count = COUNT(*)");
+        var analyzed = testAnalyzer.analyze(plan);
+
+        var externalRelations = new ArrayList<ExternalRelation>();
+        analyzed.forEachDown(ExternalRelation.class, externalRelations::add);
+
+        assertThat("Should have one ExternalRelation", externalRelations, hasSize(1));
+        var externalRelation = externalRelations.get(0);
+
+        assertTrue(externalRelation.fileSet().isUnresolved());
+        assertSame(FileSet.UNRESOLVED, externalRelation.fileSet());
     }
 }

@@ -9,22 +9,18 @@
 
 package org.elasticsearch.ingest.common;
 
-import org.apache.http.conn.util.PublicSuffixMatcher;
-import org.apache.http.conn.util.PublicSuffixMatcherLoader;
 import org.elasticsearch.cluster.metadata.ProjectId;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.web.RegisteredDomain;
 
 import java.util.Map;
 
 public class RegisteredDomainProcessor extends AbstractProcessor {
 
     public static final String TYPE = "registered_domain";
-    private static final PublicSuffixMatcher SUFFIX_MATCHER = PublicSuffixMatcherLoader.getDefault();
 
     private final String field;
     private final String targetField;
@@ -52,84 +48,23 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument document) throws Exception {
         final String fqdn = document.getFieldValue(field, String.class, ignoreMissing);
-        final DomainInfo info = getRegisteredDomain(fqdn);
-        if (info == null) {
-            if (ignoreMissing) {
-                return document;
-            } else {
-                throw new IllegalArgumentException("unable to set domain information for document");
-            }
-        }
         String fieldPrefix = targetField;
         if (fieldPrefix.isEmpty() == false) {
             fieldPrefix += ".";
         }
-        String domainTarget = fieldPrefix + "domain";
-        String registeredDomainTarget = fieldPrefix + "registered_domain";
-        String subdomainTarget = fieldPrefix + "subdomain";
-        String topLevelDomainTarget = fieldPrefix + "top_level_domain";
-
-        if (info.domain() != null) {
-            document.setFieldValue(domainTarget, info.domain());
-        }
-        if (info.registeredDomain() != null) {
-            document.setFieldValue(registeredDomainTarget, info.registeredDomain());
-        }
-        if (info.eTLD() != null) {
-            document.setFieldValue(topLevelDomainTarget, info.eTLD());
-        }
-        if (info.subdomain() != null) {
-            document.setFieldValue(subdomainTarget, info.subdomain());
+        boolean infoFound = RegisteredDomain.parseRegisteredDomainInfo(
+            fqdn,
+            new IngestDocumentRegisteredDomainInfoCollector(document, fieldPrefix)
+        );
+        if (infoFound == false && ignoreMissing == false) {
+            throw new IllegalArgumentException("unable to set domain information for document");
         }
         return document;
-    }
-
-    @Nullable
-    // visible for testing
-    static DomainInfo getRegisteredDomain(@Nullable String fqdn) {
-        if (Strings.hasText(fqdn) == false) {
-            return null;
-        }
-        String registeredDomain = SUFFIX_MATCHER.getDomainRoot(fqdn);
-        if (registeredDomain == null) {
-            if (SUFFIX_MATCHER.matches(fqdn)) {
-                return DomainInfo.of(fqdn);
-            }
-            return null;
-        }
-        if (registeredDomain.indexOf('.') == -1) {
-            // we have domain with no matching public suffix, but "." in it
-            return null;
-        }
-        return DomainInfo.of(registeredDomain, fqdn);
     }
 
     @Override
     public String getType() {
         return TYPE;
-    }
-
-    // visible for testing
-    record DomainInfo(
-        String domain,
-        String registeredDomain,
-        String eTLD, // n.b. https://developer.mozilla.org/en-US/docs/Glossary/eTLD
-        String subdomain
-    ) {
-        static DomainInfo of(final String eTLD) {
-            return new DomainInfo(eTLD, null, eTLD, null);
-        }
-
-        static DomainInfo of(final String registeredDomain, final String domain) {
-            int index = registeredDomain.indexOf('.') + 1;
-            if (index > 0 && index < registeredDomain.length()) {
-                int subdomainIndex = domain.lastIndexOf("." + registeredDomain);
-                final String subdomain = subdomainIndex > 0 ? domain.substring(0, subdomainIndex) : null;
-                return new DomainInfo(domain, registeredDomain, registeredDomain.substring(index), subdomain);
-            } else {
-                return new DomainInfo(null, null, null, null);
-            }
-        }
     }
 
     public static final class Factory implements Processor.Factory {
@@ -149,6 +84,36 @@ public class RegisteredDomainProcessor extends AbstractProcessor {
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, tag, config, "ignore_missing", true);
 
             return new RegisteredDomainProcessor(tag, description, field, targetField, ignoreMissing);
+        }
+    }
+
+    private static class IngestDocumentRegisteredDomainInfoCollector implements RegisteredDomain.RegisteredDomainInfoCollector {
+        private final IngestDocument document;
+        private final String fieldPrefix;
+
+        IngestDocumentRegisteredDomainInfoCollector(IngestDocument document, String fieldPrefix) {
+            this.document = document;
+            this.fieldPrefix = fieldPrefix;
+        }
+
+        @Override
+        public void domain(String domain) {
+            document.setFieldValue(fieldPrefix + RegisteredDomain.DOMAIN, domain);
+        }
+
+        @Override
+        public void registeredDomain(String registeredDomain) {
+            document.setFieldValue(fieldPrefix + RegisteredDomain.REGISTERED_DOMAIN, registeredDomain);
+        }
+
+        @Override
+        public void topLevelDomain(String topLevelDomain) {
+            document.setFieldValue(fieldPrefix + RegisteredDomain.eTLD, topLevelDomain);
+        }
+
+        @Override
+        public void subdomain(String subdomain) {
+            document.setFieldValue(fieldPrefix + RegisteredDomain.SUBDOMAIN, subdomain);
         }
     }
 }

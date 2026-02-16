@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.analytics.cumulativecardinality.InternalSimpleLon
 import org.elasticsearch.xpack.analytics.exponentialhistogram.ExponentialHistogramFieldMapper;
 import org.elasticsearch.xpack.analytics.exponentialhistogram.aggregations.ExponentialHistogramAggregatorsRegistrar;
 import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
-import org.elasticsearch.xpack.analytics.mapper.TDigestFieldMapper;
 import org.elasticsearch.xpack.analytics.movingPercentiles.MovingPercentilesPipelineAggregationBuilder;
 import org.elasticsearch.xpack.analytics.multiterms.InternalMultiTerms;
 import org.elasticsearch.xpack.analytics.multiterms.MultiTermsAggregationBuilder;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.analytics.ttest.UnpairedTTestState;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.analytics.action.AnalyticsStatsAction;
+import org.elasticsearch.xpack.core.analytics.mapper.TDigestFieldMapper;
 
 import java.util.ArrayList;
 import java.util.Collection;

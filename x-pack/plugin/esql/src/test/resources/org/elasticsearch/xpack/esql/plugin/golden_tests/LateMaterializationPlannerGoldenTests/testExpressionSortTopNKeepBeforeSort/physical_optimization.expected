@@ -1,0 +1,8 @@
+ProjectExec[[hire_date{f}, height{f}]]
+\_TopNExec[[Order[$$order_by{r},ASC,LAST]],20[INTEGER],null]
+  \_ExchangeExec[[height{f}, hire_date{f}, $$order_by{r}],false]
+    \_FragmentExec[filter=null, estimatedRowSize=0, reducer=[], fragment=[<>
+Project[[height{f}, hire_date{f}, $$order_by{r}]]
+\_TopN[[Order[$$order_by{r},ASC,LAST]],20[INTEGER],false]
+  \_Eval[[SIN(height{f}) * 2[INTEGER] AS $$order_by]]
+    \_EsRelation[employees][avg_worked_seconds{f}, birth_date{f}, emp_no{f}, first_name{f}, gender{f}, height{f}, height.float{f}, height.half_float{f}, height.scaled_float{f}, hire_date{f}, is_rehired{f}, job_positions{f}, languages{f}, languages.byte{f}, languages.long{f}, languages.short{f}, last_name{f}, salary{f}, salary_change{f}, salary_change.int{f}, salary_change.keyword{f}, salary_change.long{f}, still_hired{f}]<>]]

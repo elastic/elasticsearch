@@ -18,6 +18,7 @@ import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -36,6 +37,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
@@ -56,6 +58,9 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStr
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 
 public class CsvTestsDataLoader {
+
+    private static final Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
+
     private static final int BULK_DATA_SIZE = 100_000;
     private static final TestDataset EMPLOYEES = new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
     private static final TestDataset VOYAGER = new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields();
@@ -202,6 +207,22 @@ public class CsvTestsDataLoader {
         "histogram_standard_index.csv"
     ).withSetting("settings-histogram_time_series_index.json");
     private static final TestDataset MANY_NUMBERS = new TestDataset("many_numbers");
+    private static final TestDataset MMR_TEXT_VECTOR_KEYWORD = new TestDataset("mmr_text_vector_keyword");
+
+    private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                return false;
+            } else {
+                for (String warning : warnings) {
+                    if ("Parameter [default_metric] is deprecated and will be removed in a future version".equals(warning) == false) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        })
+        .build();
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
@@ -282,7 +303,8 @@ public class CsvTestsDataLoader {
         Map.entry(HISTOGRAM_STANDARD_INDEX.indexName, HISTOGRAM_STANDARD_INDEX),
         Map.entry(TDIGEST_TIMESERIES_INDEX.indexName, TDIGEST_TIMESERIES_INDEX),
         Map.entry(HISTOGRAM_TIMESERIES_INDEX.indexName, HISTOGRAM_TIMESERIES_INDEX),
-        Map.entry(MANY_NUMBERS.indexName, MANY_NUMBERS)
+        Map.entry(MANY_NUMBERS.indexName, MANY_NUMBERS),
+        Map.entry(MMR_TEXT_VECTOR_KEYWORD.indexName, MMR_TEXT_VECTOR_KEYWORD)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
@@ -629,7 +651,14 @@ public class CsvTestsDataLoader {
             bFloat16ElementTypeSupported,
             tDigestMetricFieldSupported,
             (restClient, indexName, indexMapping, indexSettings) -> {
-                ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
+                ESRestTestCase.createIndex(
+                    restClient,
+                    indexName,
+                    indexSettings,
+                    indexMapping,
+                    null,
+                    DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER
+                );
             }
         );
         if (timeSeriesOnly == false) {
@@ -650,8 +679,6 @@ public class CsvTestsDataLoader {
         boolean tDigestMetricFieldSupported,
         IndexCreator indexCreator
     ) throws IOException {
-        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
-
         Set<String> loadedDatasets = new HashSet<>();
         logger.info("Loading test datasets");
         for (var dataset : availableDatasetsForEs(
@@ -665,43 +692,36 @@ public class CsvTestsDataLoader {
             bFloat16ElementTypeSupported,
             tDigestMetricFieldSupported
         )) {
-            load(client, dataset, logger, indexCreator);
+            load(client, dataset, indexCreator);
             loadedDatasets.add(dataset.indexName);
         }
-        forceMerge(client, loadedDatasets, logger);
+        forceMerge(client, loadedDatasets);
     }
 
     private static void loadEnrichPolicies(RestClient client) throws IOException {
-        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
         logger.info("Loading enrich policies");
         for (var policy : ENRICH_POLICIES) {
-            loadEnrichPolicy(client, policy.policyName, policy.policyFileName, logger);
+            loadEnrichPolicy(client, policy);
         }
     }
 
     public static void loadViewsIntoEs(RestClient client) throws IOException {
-        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
-        if (clusterHasViewSupport(client, logger)) {
+        if (clusterHasViewSupport(client)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS) {
-                loadView(client, view.viewName, view.viewFileName, logger);
+                loadView(client, view);
             }
-            // Just for debugging output TODO: remove
-            clusterHasViewSupport(client, logger);
         } else {
             logger.info("Skipping loading views as the cluster does not support views");
         }
     }
 
     public static void deleteViews(RestClient client) throws IOException {
-        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
-        if (clusterHasViewSupport(client, logger)) {
-            logger.info("Deleting views");
+        if (clusterHasViewSupport(client)) {
+            logger.debug("Deleting views");
             for (var view : VIEW_CONFIGS) {
-                deleteView(client, view.viewName, logger);
+                deleteView(client, view.name);
             }
-            // Just for debugging output TODO: remove
-            clusterHasViewSupport(client, logger);
         } else {
             logger.info("Skipping deleting views as the cluster does not support views");
         }
@@ -719,7 +739,6 @@ public class CsvTestsDataLoader {
         boolean bFloat16ElementTypeSupported,
         boolean tDigestMetricFieldSupported
     ) throws IOException {
-        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
         logger.info("Deleting test datasets");
         for (var dataset : availableDatasetsForEs(
             supportsIndexModeLookup,
@@ -732,15 +751,14 @@ public class CsvTestsDataLoader {
             bFloat16ElementTypeSupported,
             tDigestMetricFieldSupported
         )) {
-            deleteIndex(client, dataset.indexName(), logger);
+            deleteIndex(client, dataset.indexName());
         }
     }
 
     private static void deleteEnrichPolicies(RestClient client) throws IOException {
-        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
-        logger.info("Deleting enrich policies");
+        logger.debug("Deleting enrich policies");
         for (var policy : ENRICH_POLICIES) {
-            deleteEnrichPolicy(client, policy.policyName, logger);
+            deleteEnrichPolicy(client, policy.policyName);
         }
     }
 
@@ -879,60 +897,28 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public static void loadEnrichPolicy(RestClient client, String policyName, String policyFileName, Logger logger) throws IOException {
-        logger.info("Loading enrich policy [{}] from file [{}]", policyName, policyFileName);
-        URL policyMapping = getResource("/" + policyFileName);
-        String entity = readTextFile(policyMapping);
-        Request request = new Request("PUT", "/_enrich/policy/" + policyName);
-        request.setJsonEntity(entity);
+    public static void loadEnrichPolicy(RestClient client, EnrichConfig policy) throws IOException {
+        logger.debug("Loading enrich policy [{}]", policy.policyName);
+        Request request = new Request("PUT", "/_enrich/policy/" + policy.policyName);
+        request.setJsonEntity(policy.loadPolicy());
         client.performRequest(request);
 
-        request = new Request("POST", "/_enrich/policy/" + policyName + "/_execute");
+        request = new Request("POST", "/_enrich/policy/" + policy.policyName + "/_execute");
         client.performRequest(request);
     }
 
-    private static void loadView(RestClient client, String viewName, String viewFilename, Logger logger) throws IOException {
-        String viewQuery = loadViewQuery(viewName, viewFilename, logger);
-        Request request = new Request("PUT", "/_query/view/" + viewName);
-        request.setJsonEntity("{\"query\":\"" + viewQuery.replace("\"", "\\\"").replace("\n", "\\\n") + "\"}");
-        Response response = client.performRequest(request);
-        logger.info("View creation response: {}", response.getStatusLine());
-        getView(client, viewName, logger);
+    private static void loadView(RestClient client, ViewConfig view) throws IOException {
+        logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name, view.name);
+        Request request = new Request("PUT", "/_query/view/" + view.name);
+        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\n", "\\\n") + "\"}");
+        client.performRequest(request);
     }
 
-    static String loadViewQuery(String viewName, String viewFilename, Logger logger) throws IOException {
-        logger.info("Loading view [{}] from file [{}]", viewName, viewFilename);
-        URL viewFile = getResource("/" + viewFilename);
-        return readTextFile(viewFile);
-    }
-
-    private static boolean getView(RestClient client, String viewName, Logger logger) throws IOException {
-        Request request = new Request("GET", "/_query/view/" + viewName);
-        try {
-            Response response = client.performRequest(request);
-            logger.info("View response status: {}", response.getStatusLine());
-            logger.info("View response body info: {}", response.getEntity());
-            logger.info("View response body: {}", new String(response.getEntity().getContent().readAllBytes()));
-        } catch (ResponseException e) {
-            logger.info("View error: {}", e.getMessage());
-            int code = e.getResponse().getStatusLine().getStatusCode();
-            if (code == 400 || code == 404) {
-                return false;
-            }
-            throw e;
-        }
-        return true;
-    }
-
-    private static boolean clusterHasViewSupport(RestClient client, Logger logger) throws IOException {
+    private static boolean clusterHasViewSupport(RestClient client) throws IOException {
         Request request = new Request("GET", "/_query/view");
         try {
-            Response response = client.performRequest(request);
-            logger.info("View listing response: {}", response.getStatusLine());
-            logger.info("View response body info: {}", response.getEntity());
-            logger.info("View response body: {}", new String(response.getEntity().getContent().readAllBytes()));
+            Response ignored = client.performRequest(request);
         } catch (ResponseException e) {
-            logger.info("View listing error: {}", e.getMessage());
             int code = e.getResponse().getStatusLine().getStatusCode();
             // Different versions of Elasticsearch return different codes when views are not supported
             if (code == 400 || code == 500 || code == 405) {
@@ -943,7 +929,7 @@ public class CsvTestsDataLoader {
         return true;
     }
 
-    private static void deleteView(RestClient client, String viewName, Logger logger) throws IOException {
+    private static void deleteView(RestClient client, String viewName) throws IOException {
         try {
             client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
         } catch (ResponseException e) {
@@ -956,7 +942,7 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void deleteIndex(RestClient client, String indexName, Logger logger) throws IOException {
+    private static void deleteIndex(RestClient client, String indexName) throws IOException {
         try {
             client.performRequest(new Request("DELETE", "/" + indexName));
         } catch (ResponseException e) {
@@ -964,7 +950,7 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static void deleteEnrichPolicy(RestClient client, String policyName, Logger logger) throws IOException {
+    private static void deleteEnrichPolicy(RestClient client, String policyName) throws IOException {
         try {
             client.performRequest(new Request("DELETE", "/_enrich/policy/" + policyName));
         } catch (ResponseException e) {
@@ -980,7 +966,7 @@ public class CsvTestsDataLoader {
         return result;
     }
 
-    private static void load(RestClient client, TestDataset dataset, Logger logger, IndexCreator indexCreator) throws IOException {
+    private static void load(RestClient client, TestDataset dataset, IndexCreator indexCreator) throws IOException {
         logger.info("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
         URL mapping = getResource("/" + dataset.mappingFileName);
         Settings indexSettings = dataset.readSettingsFile();
@@ -989,7 +975,7 @@ public class CsvTestsDataLoader {
         // Some examples only test that the query and mappings are valid, and don't need example data. Use .noData() for those
         if (dataset.dataFileName != null) {
             URL data = getResource("/data/" + dataset.dataFileName);
-            loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
+            loadCsvData(client, dataset.indexName, data, dataset.allowSubFields);
         }
     }
 
@@ -1046,8 +1032,7 @@ public class CsvTestsDataLoader {
      *   - multi-values are comma separated
      *   - commas inside multivalue fields can be escaped with \ (backslash) character
      */
-    public static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields, Logger logger)
-        throws IOException {
+    public static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields) throws IOException {
 
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
@@ -1150,13 +1135,13 @@ public class CsvTestsDataLoader {
                 }
                 lineNumber++;
                 if (builder.length() > BULK_DATA_SIZE) {
-                    sendBulkRequest(indexName, builder, client, logger, failures);
+                    sendBulkRequest(indexName, builder, client, failures);
                     builder.setLength(0);
                 }
             }
         }
         if (builder.isEmpty() == false) {
-            sendBulkRequest(indexName, builder, client, logger, failures);
+            sendBulkRequest(indexName, builder, client, failures);
         }
         if (failures.isEmpty() == false) {
             for (String failure : failures) {
@@ -1185,11 +1170,11 @@ public class CsvTestsDataLoader {
         };
     }
 
-    private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, Logger logger, List<String> failures)
+    private static void sendBulkRequest(String indexName, StringBuilder builder, RestClient client, List<String> failures)
         throws IOException {
         // The indexName is optional for a bulk request, but we use it for routing in MultiClusterSpecIT.
         builder.append("\n");
-        logger.debug("Sending bulk request of [{}] bytes for [{}]", builder.length(), indexName);
+        logger.trace("Sending bulk request of [{}] bytes for [{}]", builder.length(), indexName);
         Request request = new Request("POST", "/" + indexName + "/_bulk");
         request.setJsonEntity(builder.toString());
         request.addParameter("refresh", "false"); // will be _forcemerge'd next
@@ -1200,9 +1185,7 @@ public class CsvTestsDataLoader {
                 XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
                 Map<String, Object> result = XContentHelper.convertToMap(xContentType.xContent(), content, false);
                 Object errors = result.get("errors");
-                if (Boolean.FALSE.equals(errors)) {
-                    logger.info("Data loading of [{}] bytes into [{}] OK", builder.length(), indexName);
-                } else {
+                if (Boolean.TRUE.equals(errors)) {
                     addError(failures, indexName, builder, "errors: " + result);
                 }
             }
@@ -1223,7 +1206,7 @@ public class CsvTestsDataLoader {
         );
     }
 
-    private static void forceMerge(RestClient client, Set<String> indices, Logger logger) throws IOException {
+    private static void forceMerge(RestClient client, Set<String> indices) throws IOException {
         String pattern = String.join(",", indices);
 
         Request request = new Request("POST", "/" + pattern + "/_forcemerge?max_num_segments=1");
@@ -1377,13 +1360,25 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record ViewConfig(String viewName, String viewFileName) {
-        public ViewConfig(String viewName) {
-            this(viewName, "views/" + viewName + ".esql");
+    public record ViewConfig(String name) {
+        public String loadQuery() {
+            try {
+                return readTextFile(getResource("/views/" + name + ".esql"));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 
-    public record EnrichConfig(String policyName, String policyFileName) {}
+    public record EnrichConfig(String policyName, String policyFileName) {
+        public String loadPolicy() {
+            try {
+                return readTextFile(getResource("/" + policyFileName));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
 
     private interface IndexCreator {
         void createIndex(RestClient client, String indexName, String mapping, Settings indexSettings) throws IOException;

@@ -805,6 +805,7 @@ class NodeConstruction {
             repositoriesService,
             rerouteServiceReference::get
         );
+        final var snapshotShardContextFactoryRef = new SetOnce<SnapshotShardContextFactory>();
         final ClusterModule clusterModule = new ClusterModule(
             settings,
             clusterService,
@@ -815,7 +816,11 @@ class NodeConstruction {
             systemIndices,
             projectResolver,
             getWriteLoadForecaster(threadPool, settings, clusterService.getClusterSettings()),
-            telemetryProvider
+            telemetryProvider,
+            () -> {
+                assert snapshotShardContextFactoryRef.get() != null : "Snapshot shard context factory must be initialized";
+                return snapshotShardContextFactoryRef.get().isSnapshotDecoupledFromShardLifecycle();
+            }
         );
         modules.add(clusterModule);
 
@@ -1185,16 +1190,18 @@ class NodeConstruction {
             snapshotMetrics
         );
 
+        final SnapshotShardContextFactory snapshotShardContextFactory = pluginsService.loadSingletonServiceProvider(
+            SnapshotShardContextFactory.class,
+            () -> new LocalPrimarySnapshotShardContextFactory(clusterService, indicesService)
+        );
+        snapshotShardContextFactoryRef.set(snapshotShardContextFactory);
         SnapshotShardsService snapshotShardsService = new SnapshotShardsService(
             settings,
             clusterService,
             repositoriesService,
             transportService,
             indicesService,
-            pluginsService.loadSingletonServiceProvider(
-                SnapshotShardContextFactory.class,
-                () -> new LocalPrimarySnapshotShardContextFactory(clusterService, indicesService)
-            )
+            snapshotShardContextFactory
         );
         final CachingSnapshotAndShardByStateMetricsService cachingSnapshotAndShardByStateMetricsService =
             new CachingSnapshotAndShardByStateMetricsService(clusterService);

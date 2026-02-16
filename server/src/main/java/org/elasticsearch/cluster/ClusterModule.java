@@ -112,6 +112,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.ShardAllocationExplainer;
@@ -156,10 +157,16 @@ public class ClusterModule extends AbstractModule {
         SystemIndices systemIndices,
         ProjectResolver projectResolver,
         WriteLoadForecaster writeLoadForecaster,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        BooleanSupplier snapshotDecoupledFromShardLifecycle
     ) {
         this.clusterPlugins = clusterPlugins;
-        this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
+        this.deciderList = createAllocationDeciders(
+            settings,
+            clusterService.getClusterSettings(),
+            clusterPlugins,
+            snapshotDecoupledFromShardLifecycle
+        );
         this.allocationDeciders = new AllocationDeciders(deciderList);
         final BalancerSettings balancerSettings = new BalancerSettings(clusterService.getClusterSettings());
         final BalancingWeightsFactory balancingWeightsFactory = getBalancingWeightsFactory(
@@ -489,7 +496,8 @@ public class ClusterModule extends AbstractModule {
     public static Collection<AllocationDecider> createAllocationDeciders(
         Settings settings,
         ClusterSettings clusterSettings,
-        List<ClusterPlugin> clusterPlugins
+        List<ClusterPlugin> clusterPlugins,
+        BooleanSupplier snapshotDecoupledFromShardLifecycle
     ) {
         // collect deciders by class so that we can detect duplicates
         Map<Class<?>, AllocationDecider> deciders = new LinkedHashMap<>();
@@ -502,7 +510,7 @@ public class ClusterModule extends AbstractModule {
         addAllocationDecider(deciders, new EnableAllocationDecider(clusterSettings));
         addAllocationDecider(deciders, new IndexVersionAllocationDecider());
         addAllocationDecider(deciders, new NodeVersionAllocationDecider());
-        addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider());
+        addAllocationDecider(deciders, new SnapshotInProgressAllocationDecider(snapshotDecoupledFromShardLifecycle));
         addAllocationDecider(deciders, new RestoreInProgressAllocationDecider());
         addAllocationDecider(deciders, new NodeShutdownAllocationDecider());
         addAllocationDecider(deciders, new WriteLoadConstraintDecider(clusterSettings));

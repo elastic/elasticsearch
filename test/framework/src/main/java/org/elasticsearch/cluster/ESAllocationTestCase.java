@@ -176,7 +176,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         List<ClusterPlugin> clusterPlugins
     ) {
         List<AllocationDecider> deciders = new ArrayList<>(
-            ClusterModule.createAllocationDeciders(settings, clusterSettings, clusterPlugins)
+            ClusterModule.createAllocationDeciders(settings, clusterSettings, clusterPlugins, () -> false)
         );
         Collections.shuffle(deciders, random());
         return new AllocationDeciders(deciders);

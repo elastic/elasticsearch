@@ -253,7 +253,7 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
 
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
-        if (snapshotShardContextFactory.ignoreShardCloseEvent()) {
+        if (snapshotShardContextFactory.isSnapshotDecoupledFromShardLifecycle()) {
             return;
         }
         // abort any snapshots occurring on the soon-to-be closed shard

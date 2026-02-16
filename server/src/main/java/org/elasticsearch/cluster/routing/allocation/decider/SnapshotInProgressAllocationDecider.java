@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.core.FixForMultiProject;
 
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 
 /**
  * This {@link org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider} prevents shards that
@@ -25,6 +26,12 @@ import java.util.Objects;
 public class SnapshotInProgressAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "snapshot_in_progress";
+
+    private final BooleanSupplier snapshotDecoupledFromShardLifecycle;
+
+    public SnapshotInProgressAllocationDecider(BooleanSupplier snapshotDecoupledFromShardLifecycle) {
+        this.snapshotDecoupledFromShardLifecycle = snapshotDecoupledFromShardLifecycle;
+    }
 
     /**
      * Returns a {@link Decision} whether the given shard routing can be
@@ -52,8 +59,13 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
 
     private static final Decision YES_NOT_RUNNING = Decision.single(Decision.Type.YES, NAME, "no snapshots are currently running");
     private static final Decision YES_NOT_SNAPSHOTTED = Decision.single(Decision.Type.YES, NAME, "the shard is not being snapshotted");
+    private static final Decision YES_DECOUPLED = Decision.single(Decision.Type.YES, NAME, "snapshot is decoupled from shard lifecycle");
 
-    private static Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
+    private Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
+        if (snapshotDecoupledFromShardLifecycle.getAsBoolean()) {
+            return YES_DECOUPLED;
+        }
+
         if (allocation.isSimulating()) {
             return allocation.decision(Decision.YES, NAME, "allocation is always enabled when simulating");
         }

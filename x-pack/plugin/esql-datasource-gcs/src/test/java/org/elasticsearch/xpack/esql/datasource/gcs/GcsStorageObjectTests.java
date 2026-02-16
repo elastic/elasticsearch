@@ -39,10 +39,7 @@ public class GcsStorageObjectTests extends ESTestCase {
 
     public void testConstructorNullStorageThrows() {
         StoragePath path = StoragePath.of("gs://bucket/key");
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new GcsStorageObject(null, "bucket", "key", path)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GcsStorageObject(null, "bucket", "key", path));
         assertEquals("storage cannot be null", e.getMessage());
     }
 
@@ -57,10 +54,7 @@ public class GcsStorageObjectTests extends ESTestCase {
 
     public void testConstructorEmptyBucketThrows() {
         StoragePath path = StoragePath.of("gs://bucket/key");
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new GcsStorageObject(mockStorage, "", "key", path)
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new GcsStorageObject(mockStorage, "", "key", path));
         assertEquals("bucket cannot be null or empty", e.getMessage());
     }
 

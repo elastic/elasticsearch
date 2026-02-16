@@ -34,11 +34,7 @@ public record GcsConfiguration(String serviceAccountCredentials, String projectI
         String endpoint = extractStringParam(params, "endpoint");
         String tokenUri = extractStringParam(params, "token_uri");
 
-        if (credentials == null && projectId == null && endpoint == null && tokenUri == null) {
-            return null;
-        }
-
-        return new GcsConfiguration(credentials, projectId, endpoint, tokenUri);
+        return fromFields(credentials, projectId, endpoint, tokenUri);
     }
 
     public static GcsConfiguration fromFields(String serviceAccountCredentials, String projectId, String endpoint) {

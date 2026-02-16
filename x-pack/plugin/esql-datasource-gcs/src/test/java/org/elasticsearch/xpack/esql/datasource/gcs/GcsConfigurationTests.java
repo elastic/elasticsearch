@@ -112,11 +112,7 @@ public class GcsConfigurationTests extends ESTestCase {
     }
 
     public void testFromFieldsWithAllFields() {
-        GcsConfiguration config = GcsConfiguration.fromFields(
-            "{\"type\":\"service_account\"}",
-            "my-project",
-            "http://localhost:4443"
-        );
+        GcsConfiguration config = GcsConfiguration.fromFields("{\"type\":\"service_account\"}", "my-project", "http://localhost:4443");
 
         assertNotNull(config);
         assertEquals("{\"type\":\"service_account\"}", config.serviceAccountCredentials());

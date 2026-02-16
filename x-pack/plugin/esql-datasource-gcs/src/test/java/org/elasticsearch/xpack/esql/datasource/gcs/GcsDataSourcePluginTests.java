@@ -61,9 +61,12 @@ public class GcsDataSourcePluginTests extends ESTestCase {
         assertNotNull("gs factory should not be null", factory);
 
         Map<String, Object> config = Map.of(
-            "credentials", "{\"type\":\"service_account\",\"project_id\":\"test\",\"private_key_id\":\"key\"}",
-            "project_id", "my-project",
-            "endpoint", "http://localhost:4443"
+            "credentials",
+            "{\"type\":\"service_account\",\"project_id\":\"test\",\"private_key_id\":\"key\"}",
+            "project_id",
+            "my-project",
+            "endpoint",
+            "http://localhost:4443"
         );
 
         // The factory should parse the config into a GcsConfiguration and attempt to build a client.

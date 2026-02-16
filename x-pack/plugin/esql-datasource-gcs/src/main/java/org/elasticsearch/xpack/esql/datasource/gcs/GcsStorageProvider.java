@@ -279,16 +279,11 @@ public final class GcsStorageProvider implements StorageProvider {
                 if (blob.getName().endsWith(StoragePath.PATH_SEPARATOR)) {
                     continue;
                 }
-                String fullPath = baseDirectory.scheme()
-                    + StoragePath.SCHEME_SEPARATOR
-                    + bucket
-                    + StoragePath.PATH_SEPARATOR
-                    + blob.getName();
+                String fullPath = baseDirectory.scheme() + StoragePath.SCHEME_SEPARATOR + bucket + StoragePath.PATH_SEPARATOR + blob
+                    .getName();
                 StoragePath objectPath = StoragePath.of(fullPath);
 
-                Instant lastModified = blob.getUpdateTimeOffsetDateTime() != null
-                    ? blob.getUpdateTimeOffsetDateTime().toInstant()
-                    : null;
+                Instant lastModified = blob.getUpdateTimeOffsetDateTime() != null ? blob.getUpdateTimeOffsetDateTime().toInstant() : null;
 
                 return new StorageEntry(objectPath, blob.getSize(), lastModified);
             }
@@ -311,9 +306,7 @@ public final class GcsStorageProvider implements StorageProvider {
             } catch (StorageException e) {
                 throw new UncheckedIOException(new IOException("Failed to list objects in bucket " + bucket + " with prefix " + prefix, e));
             } catch (Exception e) {
-                throw new UncheckedIOException(
-                    new IOException("Failed to list objects in bucket " + bucket + " with prefix " + prefix, e)
-                );
+                throw new UncheckedIOException(new IOException("Failed to list objects in bucket " + bucket + " with prefix " + prefix, e));
             }
         }
     }

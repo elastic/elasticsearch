@@ -426,9 +426,56 @@ The overall election flow looks like this:
     └───────────────────────────────────────────────┴──────────────────────────────────┘
 ```
 
-#### Leader Failure Detection
+#### Failure Detection
 
-(LeaderChecker and FollowerChecker)
+[LeaderChecker]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java
+
+[FollowersChecker]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java
+
+[FollowerChecker]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L274
+
+The cluster uses two complementary checks to detect node failures:
+the [LeaderChecker] (run by followers) and the [FollowersChecker] (run by the leader).
+
+Each follower runs a [LeaderChecker]
+that [periodically sends](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L233)
+a [LeaderCheckRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L399)
+to the current master (every 1 second by default).
+Upon receiving the request, the
+master [will verify](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L174)
+that its local node is healthy, that it is still the elected master, and that the requesting
+node is part of the current cluster state. If all conditions are met, it will
+then [ack](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L120)
+the request.
+
+If the check fails more times than the configured limit (3 by default), if the master reported itself as unhealthy or if
+the master disconnected, the follower will conclude that the
+master [has failed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L340).
+The follower will stop the periodic check and notify the [Coordinator],
+which will transition the node to `CANDIDATE` mode and start the election process.
+
+On the other end, the leader's [FollowersChecker] maintains a map of discovered node to [FollowerChecker]
+objects.
+
+Each [FollowerChecker] periodically (by default every 10s) sends
+a [FollowerCheckRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L437)
+containing the current term and the identity of the master node.
+When receiving this request, each follower will
+first [verify](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L185)
+that its local node is healthy (and throw if not), and then check whether the request term matches its current term.
+If it does, then the follower
+will [ack](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L199)
+the request right away. Otherwise, if the request term is higher than the node current term, the request
+is [handed off](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L382)
+to the [Coordinator] so that the node can update its local state and become follower of the master in the new term.
+
+If the follower disconnects or the check fails too many times (3 by default), the master will conclude that the node has
+[failed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L365)
+and add it to
+its [set](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L102)
+of `faultyNodes` and untrack its corresponding [FollowerChecker] object. The [Coordinator] will get notified and
+eventually remove the node from the set of discovered nodes in the [ClusterState] (which will cause its shards to be
+reallocated to other healthy nodes).
 
 #### Discovery
 
@@ -500,9 +547,37 @@ https://davecturner.github.io/2017/08/17/paxos-pre-voting.html
 (Description about the Join process, both during a master election and when a node joins a cluster with an existing
 master)
 
-#### Stateful vs Serverless
+#### Serverless Elections
 
-(How the quorum and election process differs in Stateful vs Serverless)
+[AtomicRegisterPreVoteCollector]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/AtomicRegisterPreVoteCollector.java
+
+[StoreHeartbeatService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/StoreHeartbeatService.java
+
+[HeartbeatStore]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/HeartbeatStore.java
+
+[Heartbeat]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/Heartbeat.java
+
+[SingleNodeReconfigurator]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/SingleNodeReconfigurator.java
+
+Stateful and Serverless ES share the same [Coordinator] core logic, but they differ in how they check leader liveness,
+and define quorum.
+
+In Serverless, the elected master
+periodically [writes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/StoreHeartbeatService.java#L153)
+a [Heartbeat] (containing the current term and timestamp) to an external blob store, the [HeartbeatStore], via
+the [StoreHeartbeatService]. Other nodes check whether the leader is alive by reading the latest heartbeat from the
+store.
+
+In Serverless, the master uses a single node voting configuration with only itself (defined by
+the [SingleNodeReconfigurator]). Committing and publishing a new cluster state therefore only requires the master's own
+acknowledgment. Similarly, during elections, the pre-vote phase does not contact any peers. Instead,
+the [AtomicRegisterPreVoteCollector]
+solely [checks](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/AtomicRegisterPreVoteCollector.java#L35)
+the latest heartbeat from the blob store and starts the election if it's older the configured threshold (default 30
+seconds). To become master, the candidate node will atomically override the current term in the blob store via a CAS
+operation.
+
+(Flush out the serverless election a little more)
 
 ### Master Service
 

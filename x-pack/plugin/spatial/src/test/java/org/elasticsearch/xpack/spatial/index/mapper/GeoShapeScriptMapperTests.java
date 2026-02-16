@@ -100,7 +100,15 @@ public class GeoShapeScriptMapperTests extends MapperScriptTestCase<GeometryFiel
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(new Point(-1, 1));
         centroidCalculator.add(new Point(-2, 2));
-        assertBinaryDocValue(fields.get(2), centroidCalculator, fields.get(0), fields.get(1));
+        assertBinaryDocValue(
+            fields.get(2),
+            centroidCalculator,
+            List.of(
+                new org.elasticsearch.geometry.GeometryCollection<>(List.of(new Point(-1, 1), new Point(-2, 2)))
+            ),
+            fields.get(0),
+            fields.get(1)
+        );
     }
 
     @Override
@@ -115,7 +123,7 @@ public class GeoShapeScriptMapperTests extends MapperScriptTestCase<GeometryFiel
         Field[] f = LatLonShape.createIndexableFields("test", 1, -1);
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(new Point(-1, 1));
-        assertBinaryDocValue(fields.get(0), centroidCalculator, f);
+        assertBinaryDocValue(fields.get(0), centroidCalculator, List.of(new Point(-1, 1)), f);
     }
 
     private void assertPoint(IndexableField indexableField, double lon, double lat) {
@@ -129,9 +137,19 @@ public class GeoShapeScriptMapperTests extends MapperScriptTestCase<GeometryFiel
         assertEquals(triangle.aY, GeoEncodingUtils.encodeLatitude(lat), 0.0);
     }
 
-    private void assertBinaryDocValue(IndexableField binaryDocValue, CentroidCalculator calculator, IndexableField... values) {
+    private void assertBinaryDocValue(
+        IndexableField binaryDocValue,
+        CentroidCalculator calculator,
+        List<org.elasticsearch.geometry.Geometry> normalizedGeometries,
+        IndexableField... values
+    ) {
         try {
-            BytesRef bytesRef = GeometryDocValueWriter.write(Arrays.stream(values).toList(), CoordinateEncoder.GEO, calculator);
+            BytesRef bytesRef = GeometryDocValueWriter.write(
+                Arrays.stream(values).toList(),
+                CoordinateEncoder.GEO,
+                calculator,
+                normalizedGeometries
+            );
             assertEquals(bytesRef, binaryDocValue.binaryValue());
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);

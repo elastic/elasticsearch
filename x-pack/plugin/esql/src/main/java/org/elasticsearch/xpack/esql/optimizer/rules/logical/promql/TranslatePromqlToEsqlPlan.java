@@ -314,7 +314,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
      * The implicit window is calculated as the smallest multiple of {@code step} where {@code window >= scrape_interval}.
      */
     private static Literal resolveImplicitRangeWindow(Source source, PromqlCommand promqlCommand) {
-        Duration step = foldDuration(promqlCommand.step(), "step");
+        Duration step = foldDuration(resolveTimeBucketSize(promqlCommand), "step");
         Duration scrapeInterval = foldDuration(promqlCommand.scrapeInterval(), "scrape_interval");
         long stepMillis = step.toMillis();
         long scrapeMillis = scrapeInterval.toMillis();

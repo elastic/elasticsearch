@@ -248,6 +248,30 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofSeconds(80)));
     }
 
+    public void testImplicitRangeSelectorUsesInferredStepFromDefaultBuckets() {
+        var plan = planPromql("""
+            PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+    }
+
+    public void testImplicitRangeSelectorUsesInferredStepFromBuckets() {
+        var plan = planPromql("""
+            PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" buckets=6 rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+    }
+
     public void testStartEndStep() {
         String testQuery = """
             PROMQL index=k8s start=$now-1h end=$now step=5m (

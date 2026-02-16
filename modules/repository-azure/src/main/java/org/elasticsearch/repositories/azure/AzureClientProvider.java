@@ -51,7 +51,6 @@ import org.elasticsearch.transport.netty4.NettyAllocator;
 import java.net.URL;
 import java.time.Duration;
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadFactory;
 
@@ -258,15 +257,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     protected void doStop() {
         closed = true;
         connectionProvider.dispose();
-        try {
-            eventLoopGroup.shutdownGracefully().get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            logger.warn("Interrupted while shutting down the event loop group", e);
-        } catch (ExecutionException e) {
-            logger.warn("Error shutting down the event loop group", e);
-        }
-        Schedulers.resetFactory();
+        eventLoopGroup.shutdownGracefully().addListener(f -> Schedulers.resetFactory());
     }
 
     @Override

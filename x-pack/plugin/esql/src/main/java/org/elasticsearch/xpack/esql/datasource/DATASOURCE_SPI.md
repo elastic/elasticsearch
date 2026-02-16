@@ -83,13 +83,25 @@ These are the types that define the DataSource SPI contract. Every data source m
 
 | Type | Description |
 |------|-------------|
-| [DataSource](DataSource.java) | Main SPI interface with all lifecycle hooks |
+| [DataSource](DataSource.java) | Main SPI interface with all lifecycle hooks (including `capabilities()`) |
 | [DataSourcePlan](DataSourcePlan.java) | Abstract base class for data source plan leaves (extends LeafPlan) |
 | [DataSourceDescriptor](DataSourceDescriptor.java) | Parsed data source reference (type, configuration, settings, expression) |
 | [DataSourcePartition](DataSourcePartition.java) | Interface for units of work in distributed execution |
-| [DataSourceCapabilities](DataSourceCapabilities.java) | Declares execution mode (distributed vs coordinator-only) |
+| [DataSourceCapabilities](DataSourceCapabilities.java) | Execution mode flag (distributed vs coordinator-only), returned by `DataSource.capabilities()` |
 | [DataSourceExec](DataSourceExec.java) | Physical plan node for all data sources (wraps DataSourcePlan) |
-| [DistributionHints](DistributionHints.java) | Hints for partitioning (target parallelism, available nodes) |
+
+### Partitioning (`datasource/partitioning/`)
+
+Types for the split → partition pipeline. Used by distributed data sources that discover
+fine-grained units of work (files, key ranges, shards) and group them into balanced partitions.
+
+| Type | Description |
+|------|-------------|
+| [SplitPartitioner](partitioning/SplitPartitioner.java) | Reusable discover → group → wrap helper for split-based partitioning (composed by data sources) |
+| [DataSourceSplit](partitioning/DataSourceSplit.java) | Interface for discovered units of work with optional size/affinity |
+| [NodeAffinity](partitioning/NodeAffinity.java) | Value type for hard (`require`) vs soft (`prefer`) node affinity |
+| [DistributionHints](partitioning/DistributionHints.java) | Hints for partitioning (target parallelism, available nodes) |
+| [SizeAwareBinPacking](partitioning/SizeAwareBinPacking.java) | Static utility for FFD bin-packing of splits (used by `SplitPartitioner`) |
 
 ### Helpers
 
@@ -100,7 +112,6 @@ the core abstractions directly.
 |------|-------------|
 | [DataSourcePushdownRule](DataSourcePushdownRule.java) | Convenience base for optimization rules that push operations into plan leaves |
 | [DataSourceOptimizer](DataSourceOptimizer.java) | Collects and runs data source-provided optimization rules |
-| [CoordinatorPartition](CoordinatorPartition.java) | Coordinator-only partition (never serialized across nodes) |
 
 ### Base Classes: Lakehouse
 
@@ -109,7 +120,7 @@ core abstractions directly.
 
 | Type | Description |
 |------|-------------|
-| [LakehouseDataSource](lakehouse/LakehouseDataSource.java) | Base for lakehouse data sources (composes storage + format SPI types) |
+| [LakehouseDataSource](lakehouse/LakehouseDataSource.java) | Base for lakehouse data sources (composes [`SplitPartitioner`](partitioning/SplitPartitioner.java)`<FileTask>`, storage + format SPI types) |
 | [LakehousePlan](lakehouse/LakehousePlan.java) | Abstract plan class with filter/limit support |
 
 ### Lakehouse SPI
@@ -200,15 +211,15 @@ How core SPI concepts are used in each query phase:
 
   PARTITION          DataSource.planPartitions()
                      DataSourceExec + DistributionHints ─────────────► DataSourcePartition[]
-                     (plan + target parallelism)                      (units of parallel work)
+                     (plan + hints)                                   (units of parallel work)
 
   EXECUTE            DataSource.createSourceOperator()
                      DataSourcePartition ────────────────────────────► SourceOperator
                      (one unit of work)                               (produces Pages)
 ```
 
-`DataSourceCapabilities` determines which phases run — coordinator-only data sources skip
-PARTITION (single `CoordinatorPartition` is used instead).
+`capabilities()` determines which phases run — coordinator-only data sources
+skip PARTITION (single `CoordinatorPartition` is used instead).
 
 ---
 
@@ -308,6 +319,20 @@ Data sources can override `createPhysicalPlan()` if they need custom physical pl
 
 Only called if [`capabilities().distributed()`](DataSourceCapabilities.java#L39) is true.
 
+**Three-phase pattern (discover → group → wrap):**
+Cross-engine research (Spark, Trino, Flink) reveals a universal pipeline for work distribution.
+Discovery is source-specific (files, shards, scan tasks), but grouping is reusable.
+[`SplitPartitioner`](partitioning/SplitPartitioner.java) encapsulates this pipeline: data sources provide
+discover, group, and wrap functions via its constructor.
+The default grouping delegates to [`SizeAwareBinPacking`](partitioning/SizeAwareBinPacking.java)
+(FFD algorithm with count-based round-robin fallback), so data sources only need
+to provide discovery and wrapping. Splits implement [`DataSourceSplit`](partitioning/DataSourceSplit.java)
+to provide optional size estimates and [`NodeAffinity`](partitioning/NodeAffinity.java).
+
+**Node affinity** distinguishes two access patterns:
+- **Required** ([`NodeAffinity.require`](partitioning/NodeAffinity.java)) — data only exists on one node (local filesystem, node-local resources). Always enforced; required-affinity splits from different nodes are never mixed.
+- **Preferred** ([`NodeAffinity.prefer`](partitioning/NodeAffinity.java)) — data is faster to read locally but accessible from anywhere (HDFS replicas, S3 with warm cache). Honored when [`DistributionHints.preferDataLocality()`](partitioning/DistributionHints.java) is true; ignored otherwise.
+
 ### Phase 5: Execution (LocalExecutionPlanner)
 
 **DataSource method:** [`DataSource.createSourceOperator()`](DataSource.java#L190)
@@ -344,9 +369,9 @@ How lakehouse SPI concepts are used in each query phase:
                        fps.pushFilters(expressions) ───────────────────► pushed + remainder
                                                                           (split filters)
 
-  PARTITION          StorageProvider
+  PARTITION          StorageProvider + SplitPartitioner.planPartitions()
                        storage.listObjects() ──► StorageEntry[] ───────► FileTask[]
-                       partitionTasks(tasks, parallelism) ─────────────► DataSourcePartition[]
+                       partitioner.planPartitions(plan, hints) ────────► DataSourcePartition[]
 
   EXECUTE            StorageProvider + FormatReader
                        storage.newObject(path) ──► StorageObject
@@ -375,7 +400,7 @@ Any storage can be paired with any format:
 |-------|-----------|-------------|
 | **Resolution** | TableCatalog or StorageProvider + FormatReader | Catalog resolves schema, or `storage.newObject()` + `format.metadata()` infers schema |
 | **Optimization** | FilterPushdownSupport | `fps.pushFilters()` determines which filters can be pushed to the source |
-| **Partitioning** | StorageProvider | `storage.listObjects()` lists files via `StorageIterator`, wraps as `FileTask`s |
+| **Partitioning** | StorageProvider + `SplitPartitioner` | `storage.listObjects()` lists files as `FileTask`s, partitioner bin-packs by size |
 | **Execution** | StorageProvider + FormatReader | `storage.newObject()` opens files, `format.read()` produces Pages |
 
 All phases have default implementations in the base class. Subclasses override when needed
@@ -429,10 +454,10 @@ Lucene's `translatable()` pattern and Spark's `SupportsPushDownFilters`.
 
 ### Partitioning Flow
 
-Default `planPartitions()` implementation:
-1. `getFileTasks(plan)` — calls `storage.listObjects(StoragePath)`, wraps each `StorageEntry` as a `FileTask`
-2. `partitionTasks(tasks, targetPartitions)` — groups files based on target parallelism
-3. `createPartition(plan, taskGroup)` — creates `DataSourcePartition` with aggregated size estimates
+Default `planPartitions()` implementation (discover → group → wrap via `SplitPartitioner`):
+1. **discover:** calls `storage.listObjects(StoragePath)`, wraps each `StorageEntry` as a `FileTask`
+2. **group:** size-aware bin-packing via `SizeAwareBinPacking` — respects [`NodeAffinity`](partitioning/NodeAffinity.java) (required splits grouped strictly by node, preferred splits grouped by node when `preferDataLocality` is true), FFD bin-packing when file sizes are available, count-based round-robin fallback
+3. **wrap:** creates `DataSourcePartition` with aggregated size estimates
 
 Subclasses with catalogs override `getFileTasks()` to use catalog file manifests
 (which provide partition pruning and richer metadata like row counts).
@@ -532,4 +557,24 @@ PARTITION phase — SQL data sources are coordinator-only.
 | **Operations** | Filter, limit | Filter, limit, ORDER BY, aggregation |
 | **Execution** | Distributed across data nodes | Coordinator only |
 | **Partitioning** | By files | Single partition |
-| **Example** | *(coming soon)* | [JdbcDataSource](sql/JdbcDataSource.java) |
+| **Example** | Cluster Logs ([design](EXAMPLE_DATASOURCES.md#2-cluster-logs-logs)) | [JdbcDataSource](sql/JdbcDataSource.java) |
+
+---
+
+## Built-In Example Data Sources
+
+Two data sources that run entirely within the cluster, demonstrating the full SPI without external dependencies.
+See [EXAMPLE_DATASOURCES.md](EXAMPLE_DATASOURCES.md) for detailed design.
+
+```
+DataSource (interface) — capabilities()
+├── LakehouseDataSource — distributed(), composes partitioning.SplitPartitioner
+│   └── [logs data source]
+└── SqlDataSource — coordinatorOnly()
+    └── JdbcDataSource (example JDBC implementation)
+```
+
+| Data Source | Base Class | Capabilities | Purpose |
+|-------------|-----------|-------------|---------|
+| `cluster` (nodes/indices/shards) | (implements DataSource) | `coordinatorOnly()` | Queryable cluster metadata |
+| `logs` (ES JSON log files) | `LakehouseDataSource` | `distributed()` (via `LakehouseDataSource`) | Queryable cluster-wide log files |

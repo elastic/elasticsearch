@@ -5,9 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasource;
+package org.elasticsearch.xpack.esql.datasource.partitioning;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.xpack.esql.datasource.DataSource;
 
 import java.util.OptionalLong;
 import java.util.Set;
@@ -28,7 +29,10 @@ import java.util.Set;
  * @param targetPartitions Desired number of partitions (derived from available data nodes and query parallelism setting)
  * @param availableNodes Data node IDs that can execute partitions (from cluster state)
  * @param maxPartitionBytes Suggested maximum bytes per partition (from memory settings)
- * @param preferDataLocality Whether to prioritize data node affinity over load balancing
+ * @param preferDataLocality Whether to honor soft ({@link NodeAffinity#prefer}) node affinity.
+ *     When true, splits with preferred affinity are grouped by node (best-effort).
+ *     When false, preferred affinity is ignored. Has no effect on required
+ *     ({@link NodeAffinity#require}) affinity, which is always enforced.
  */
 public record DistributionHints(
     int targetPartitions,

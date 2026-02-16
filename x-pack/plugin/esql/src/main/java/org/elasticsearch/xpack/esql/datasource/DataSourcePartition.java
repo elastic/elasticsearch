@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.esql.datasource;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.datasource.partitioning.NodeAffinity;
 
+import java.io.IOException;
 import java.util.OptionalLong;
 
 /**
@@ -52,10 +55,16 @@ public interface DataSourcePartition extends NamedWriteable {
     DataSourcePlan plan();
 
     /**
-     * Preferred data node for execution (for data locality), or null if no preference.
+     * Node affinity for this partition — where it should or must execute.
+     *
+     * <p>Typically derived from the splits contained in this partition.
+     * {@link NodeAffinity#require} partitions must be routed to the specified node.
+     * {@link NodeAffinity#prefer} partitions should be routed there when possible.
+     *
+     * @see NodeAffinity
      */
-    default String nodeAffinity() {
-        return null;
+    default NodeAffinity nodeAffinity() {
+        return NodeAffinity.NONE;
     }
 
     /**
@@ -79,6 +88,30 @@ public interface DataSourcePartition extends NamedWriteable {
      * (e.g., SQL data sources that execute a single query on the coordinator).
      */
     static DataSourcePartition single(DataSourcePlan plan) {
-        return new CoordinatorPartition(plan);
+        return new CoordinatorOnlyPartition(plan);
+    }
+
+    /**
+     * A partition for coordinator-only data sources that don't distribute work.
+     *
+     * <p>Coordinator-only data sources (e.g., SQL/JDBC) execute the entire query on the
+     * coordinator node — there's no splitting across data nodes. This partition simply
+     * wraps the plan with no additional partition-specific state.
+     *
+     * <p>Since this partition never leaves the coordinator, serialization is not supported.
+     */
+    record CoordinatorOnlyPartition(DataSourcePlan plan) implements DataSourcePartition {
+
+        @Override
+        public String getWriteableName() {
+            return "esql.partition.coordinator";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            throw new UnsupportedOperationException(
+                "CoordinatorOnlyPartition should not be serialized — coordinator-only data sources execute on the coordinator node only"
+            );
+        }
     }
 }

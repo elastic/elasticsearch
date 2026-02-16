@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.xpack.esql.datasource.partitioning.DistributionHints;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
@@ -85,10 +86,15 @@ public interface DataSource {
     // =========================================================================
 
     /**
-     * Declare what this data source supports for execution planning.
+     * Declares the execution capabilities for this data source.
      *
-     * <p><b>Called by:</b> Physical planner to decide whether to run on coordinator only
-     * or distribute across data nodes.
+     * <p><b>Called by:</b> Physical planner to determine execution mode.
+     * If {@link DataSourceCapabilities#distributed()}, the planner calls
+     * {@link #planPartitions} to split work across data nodes.
+     * If coordinator-only, execution runs on the coordinator with a single partition.
+     *
+     * @see DataSourceCapabilities#forDistributed()
+     * @see DataSourceCapabilities#forCoordinatorOnly()
      */
     DataSourceCapabilities capabilities();
 
@@ -207,7 +213,7 @@ public interface DataSource {
      * Plan how to distribute work across cluster data nodes.
      *
      * <p><b>Called by:</b> Physical planner after physical planning completes. Only called
-     * for data sources where {@link #capabilities()}.{@link DataSourceCapabilities#distributed()}
+     * for data sources where {@link #capabilities()}'s {@link DataSourceCapabilities#distributed()}
      * is true.
      *
      * <p>Default returns a single partition for coordinator-only execution.

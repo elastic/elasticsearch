@@ -14,10 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.datasource.DataSource;
 import org.elasticsearch.xpack.esql.datasource.DataSourceCapabilities;
-import org.elasticsearch.xpack.esql.datasource.DataSourcePartition;
-import org.elasticsearch.xpack.esql.datasource.DataSourcePlan;
 import org.elasticsearch.xpack.esql.datasource.DataSourcePushdownRule;
-import org.elasticsearch.xpack.esql.datasource.DistributionHints;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -34,16 +31,13 @@ import java.util.List;
  *
  * <h2>What This Base Class Provides</h2>
  *
- * <p>This class implements the {@link DataSource} SPI methods with SQL-appropriate
+ * <p>This class implements the {@link org.elasticsearch.xpack.esql.datasource.DataSource DataSource} SPI methods with SQL-appropriate
  * behavior. It accumulates operations into a SQL query that the database executes.
  *
  * <p><b>{@link #optimizationRules} implementation:</b> Provides default rules that push
  * Filter, Limit, OrderBy, and Aggregate nodes into {@link SqlPlan} leaves. Each rule
  * checks translatability via the abstract translate methods; if translation fails, the
  * operation stays in the ES|QL plan. A finalization rule builds the SQL from accumulated state.
- *
- * <p><b>{@link #planPartitions} implementation:</b> Returns a single partition since
- * SQL databases typically execute on coordinator only. Sharded databases can override.
  *
  * <h2>Subclass Responsibilities</h2>
  * <ul>
@@ -55,10 +49,11 @@ import java.util.List;
  *   <li>{@link #translateOrderBy} - Convert ESQL ORDER BY to SQL ORDER BY fragment</li>
  *   <li>{@link #applyBuiltSql} - Return updated plan with the built SQL</li>
  *   <li>{@link #createPhysicalPlan} - Create physical plan node for this source</li>
- *   <li>{@link DataSource#createSourceOperator} - Execute SQL and stream results</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSource#createSourceOperator DataSource.createSourceOperator} - Execute SQL and stream results</li>
  * </ul>
  *
  * @see SqlPlan
+ * @see DataSourceCapabilities#forCoordinatorOnly()
  */
 public abstract class SqlDataSource implements DataSource {
 
@@ -221,17 +216,6 @@ public abstract class SqlDataSource implements DataSource {
             logger.debug("Built SQL for [{}]: {}", getTableName(sqlPlan), sql.build());
             return applyBuiltSql(sqlPlan, sql);
         }
-    }
-
-    /**
-     * Called by the physical planner on the coordinator.
-     *
-     * <p>Default returns single partition for coordinator-only execution.
-     * Sharded databases can override to create partitions per shard for parallel execution.
-     */
-    @Override
-    public List<DataSourcePartition> planPartitions(DataSourcePlan plan, DistributionHints hints) {
-        return List.of(DataSourcePartition.single(plan));
     }
 
     // createPhysicalPlan() is inherited from DataSource — creates a DataSourceExec

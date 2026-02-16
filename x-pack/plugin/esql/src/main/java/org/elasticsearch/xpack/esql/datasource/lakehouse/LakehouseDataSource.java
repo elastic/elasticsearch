@@ -18,7 +18,9 @@ import org.elasticsearch.xpack.esql.datasource.DataSourceDescriptor;
 import org.elasticsearch.xpack.esql.datasource.DataSourcePartition;
 import org.elasticsearch.xpack.esql.datasource.DataSourcePlan;
 import org.elasticsearch.xpack.esql.datasource.DataSourcePushdownRule;
-import org.elasticsearch.xpack.esql.datasource.DistributionHints;
+import org.elasticsearch.xpack.esql.datasource.partitioning.DataSourceSplit;
+import org.elasticsearch.xpack.esql.datasource.partitioning.DistributionHints;
+import org.elasticsearch.xpack.esql.datasource.partitioning.SplitPartitioner;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -64,9 +66,10 @@ import java.util.OptionalLong;
  * {@link #optimizationRules()} override. The base class returns no rules by default
  * since not all formats support filter or limit pushdown.
  *
- * <p><b>{@link #planPartitions} implementation:</b> Lists files via {@link StorageProvider#listObjects},
- * wraps them as {@link FileTask}s, groups them based on {@link DistributionHints#targetPartitions()},
- * and creates {@link DataSourcePartition}s for each group.
+ * <p><b>Split-based partitioning:</b> Composes a {@link SplitPartitioner} that implements
+ * the discover → group → wrap pipeline. Discovery delegates to {@link #getFileTasks};
+ * grouping uses {@link org.elasticsearch.xpack.esql.datasource.partitioning.SizeAwareBinPacking SizeAwareBinPacking};
+ * wrapping delegates to {@link #createPartition(LakehousePlan, List)}.
  *
  * <h2>Subclass Responsibilities</h2>
  * <ul>
@@ -89,10 +92,33 @@ import java.util.OptionalLong;
  * @see FormatReader
  * @see TableCatalog
  * @see FilterPushdownSupport
+ * @see SplitPartitioner
  */
 public abstract class LakehouseDataSource implements DataSource {
 
     private final Logger logger = LogManager.getLogger(getClass());
+
+    private final SplitPartitioner<FileTask> partitioner;
+
+    /**
+     * Create a lakehouse data source with default partitioning (FFD bin-packing).
+     */
+    @SuppressWarnings("this-escape")
+    protected LakehouseDataSource() {
+        this.partitioner = new SplitPartitioner<>(this::discoverFileTasks, this::wrapPartition);
+    }
+
+    /**
+     * Create a lakehouse data source with a custom split partitioner.
+     *
+     * <p>Use this constructor when the default FFD bin-packing is not appropriate
+     * (e.g., locality-first grouping, fixed-size partitions, or catalog-driven partitioning).
+     *
+     * @param partitioner The custom split partitioner to use
+     */
+    protected LakehouseDataSource(SplitPartitioner<FileTask> partitioner) {
+        this.partitioner = partitioner;
+    }
 
     @Override
     public DataSourceCapabilities capabilities() {
@@ -258,59 +284,48 @@ public abstract class LakehouseDataSource implements DataSource {
      */
     @Override
     public SourceOperator.SourceOperatorFactory createSourceOperator(DataSourcePartition partition, ExecutionContext context) {
-        // Subclasses provide their own SourceOperator that reads from storage + format.
-        // The operator extends SourceOperator directly — no intermediate abstraction needed.
-        //
-        // Example using lakehouse types:
-        // LakehousePlan plan = (LakehousePlan) partition.plan();
-        // StorageProvider storage = getStorageProvider();
-        // FormatReader format = getFormatReader();
-        // StoragePath path = StoragePath.of(filePath);
-        // StorageObject object = storage.newObject(path);
-        // CloseableIterator<Page> pages = format.read(object, plan.output(), 1000);
-
         throw new UnsupportedOperationException("Subclass must override createSourceOperator");
     }
 
     // =========================================================================
-    // PHASE 4: WORK DISTRIBUTION
+    // PHASE 4: WORK DISTRIBUTION (via composed SplitPartitioner)
     // =========================================================================
 
     /**
-     * Called by the physical planner on the coordinator to divide work across data nodes.
-     *
-     * <p>Default implementation:
-     * <ol>
-     *   <li>Lists files via {@link #getFileTasks} (which defaults to {@link StorageProvider#listObjects})</li>
-     *   <li>Groups files based on {@link DistributionHints#targetPartitions()}</li>
-     *   <li>Creates a {@link DataSourcePartition} for each group</li>
-     * </ol>
+     * Delegates to a composed {@link SplitPartitioner} that runs the
+     * discover → group → wrap pipeline.
      */
     @Override
     public List<DataSourcePartition> planPartitions(DataSourcePlan plan, DistributionHints hints) {
+        return partitioner.planPartitions(plan, hints);
+    }
+
+    /**
+     * Discover file tasks for the plan.
+     *
+     * <p>Delegates to {@link #getFileTasks(LakehousePlan)} if the plan is a
+     * {@link LakehousePlan}, otherwise returns empty.
+     */
+    private List<FileTask> discoverFileTasks(DataSourcePlan plan) {
         if (plan instanceof LakehousePlan == false) {
             return List.of();
         }
-
         LakehousePlan lakehousePlan = (LakehousePlan) plan;
         List<FileTask> tasks = getFileTasks(lakehousePlan);
-
         if (tasks.isEmpty()) {
             logger.debug("No file tasks for [{}], returning empty partitions", lakehousePlan.location());
-            return List.of();
         }
+        return tasks;
+    }
 
-        // Partition tasks based on target parallelism
-        List<List<FileTask>> groups = partitionTasks(tasks, hints.targetPartitions());
-        logger.debug(
-            "Partitioned [{}] file tasks into [{}] groups (target parallelism [{}]) for [{}]",
-            tasks.size(),
-            groups.size(),
-            hints.targetPartitions(),
-            lakehousePlan.location()
-        );
-
-        return groups.stream().map(taskGroup -> createPartition(lakehousePlan, taskGroup)).toList();
+    /**
+     * Wrap a group of file tasks into a partition.
+     *
+     * <p>Bridges the generic {@link SplitPartitioner} callback to the typed
+     * {@link #createPartition(LakehousePlan, List)} overload.
+     */
+    private DataSourcePartition wrapPartition(DataSourcePlan plan, List<FileTask> splits) {
+        return createPartition((LakehousePlan) plan, splits);
     }
 
     // =========================================================================
@@ -459,26 +474,6 @@ public abstract class LakehouseDataSource implements DataSource {
     // =========================================================================
 
     /**
-     * Partition tasks into groups for parallel execution.
-     */
-    protected List<List<FileTask>> partitionTasks(List<FileTask> tasks, int targetPartitions) {
-        if (tasks.size() <= targetPartitions) {
-            // One task per partition
-            return tasks.stream().map(List::of).toList();
-        }
-
-        // Distribute tasks across partitions
-        int partitionCount = Math.min(targetPartitions, tasks.size());
-        int tasksPerPartition = (tasks.size() + partitionCount - 1) / partitionCount;
-
-        return java.util.stream.IntStream.range(0, partitionCount).mapToObj(i -> {
-            int start = i * tasksPerPartition;
-            int end = Math.min(start + tasksPerPartition, tasks.size());
-            return tasks.subList(start, end);
-        }).filter(list -> list.isEmpty() == false).toList();
-    }
-
-    /**
      * Combine multiple filter expressions with AND.
      */
     private static Expression combineWithAnd(List<Expression> expressions) {
@@ -519,21 +514,15 @@ public abstract class LakehouseDataSource implements DataSource {
 
     /**
      * Represents a unit of work (typically a file or file segment) to be read.
+     *
+     * <p>Extends {@link DataSourceSplit} so file tasks can be grouped by
+     * {@link SplitPartitioner}. The {@link #estimatedBytes()} and
+     * {@link #estimatedRows()} methods are inherited from {@link DataSourceSplit}.
      */
-    public interface FileTask {
+    public interface FileTask extends DataSourceSplit {
         /**
          * Path to the file/resource.
          */
         String path();
-
-        /**
-         * Estimated size in bytes.
-         */
-        OptionalLong estimatedBytes();
-
-        /**
-         * Estimated number of rows.
-         */
-        OptionalLong estimatedRows();
     }
 }

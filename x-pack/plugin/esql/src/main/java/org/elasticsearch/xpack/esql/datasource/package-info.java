@@ -31,11 +31,13 @@
  * <h2>Core Abstractions</h2>
  *
  * <ul>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSource} - Main SPI interface with all lifecycle hooks</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSource} - Main SPI interface (includes
+ *       {@link org.elasticsearch.xpack.esql.datasource.DataSource#capabilities() capabilities()})</li>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSourcePlan} - Abstract base class for data source plan leaves (extends LeafPlan)</li>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSourcePartition} - Interface for units of work in distributed execution</li>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSourceDescriptor} - Parsed data source reference</li>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSourceCapabilities} - Declares execution mode</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSourceCapabilities} - Execution mode flag
+ *       (returned by {@code DataSource.capabilities()})</li>
  * </ul>
  *
  * <h2>Helpers</h2>
@@ -48,6 +50,20 @@
  *       optimization rules that push operations into data source plan leaves</li>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.DataSource#applyOptimizationRules
  *       DataSource.applyOptimizationRules()} - Collects and runs data source-provided optimization rules</li>
+ * </ul>
+ *
+ * <h2>Sub-Packages</h2>
+ *
+ * <ul>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.partitioning partitioning} - Split-based
+ *       partitioning: {@link org.elasticsearch.xpack.esql.datasource.partitioning.SplitPartitioner},
+ *       {@link org.elasticsearch.xpack.esql.datasource.partitioning.DataSourceSplit},
+ *       {@link org.elasticsearch.xpack.esql.datasource.partitioning.NodeAffinity},
+ *       {@link org.elasticsearch.xpack.esql.datasource.partitioning.DistributionHints}</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse lakehouse} - Storage + format
+ *       separation for data lake sources (Iceberg, Delta Lake, Parquet)</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.sql sql} - SQL translation base classes
+ *       (PostgreSQL, MySQL, Oracle)</li>
  * </ul>
  *
  * <h2>Design Principles</h2>
@@ -69,6 +85,7 @@
  * <ul>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.LakehouseDataSource} -
  *       For Iceberg, Delta Lake, Hudi, raw Parquet (composes
+ *       {@link org.elasticsearch.xpack.esql.datasource.partitioning.SplitPartitioner},
  *       {@link org.elasticsearch.xpack.esql.datasource.lakehouse.StorageProvider}
  *       + {@link org.elasticsearch.xpack.esql.datasource.lakehouse.FormatReader})</li>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.sql.SqlDataSource} -

@@ -447,7 +447,7 @@ public abstract class LakehouseDataSource implements DataSource {
     protected List<FileTask> getFileTasks(LakehousePlan plan) {
         StoragePath path = StoragePath.of(plan.location());
         List<FileTask> tasks = new ArrayList<>();
-        try (StorageIterator iterator = getStorageProvider().listObjects(path)) {
+        try (StorageIterator iterator = getStorageProvider().listObjects(path, true)) {
             while (iterator.hasNext()) {
                 tasks.add(new StorageFileTask(iterator.next()));
             }

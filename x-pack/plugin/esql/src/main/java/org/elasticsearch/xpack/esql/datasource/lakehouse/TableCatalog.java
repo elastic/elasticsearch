@@ -29,8 +29,6 @@ import java.util.Map;
  * Implementations typically reuse a FormatReader (e.g., ParquetFormatReader)
  * for actual data reading after planning which files to read.
  *
- * <p>Origin: PR #141678 ({@code org.elasticsearch.xpack.esql.datasources.spi.TableCatalog}).
- * Changes: package rename only.
  */
 public interface TableCatalog extends Closeable {
 

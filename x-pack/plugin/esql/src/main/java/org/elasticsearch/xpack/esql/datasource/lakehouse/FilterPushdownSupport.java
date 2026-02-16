@@ -31,8 +31,6 @@ import java.util.List;
  * the pushed filter is never serialized - it's created during local physical optimization
  * and consumed immediately by the operator factory in the same JVM.
  *
- * <p>Origin: PR #141678 ({@code org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport}).
- * Changes: package rename only.
  */
 public interface FilterPushdownSupport {
 

@@ -16,8 +16,6 @@ import java.util.OptionalLong;
  * Implementations should provide as much information as available from
  * the underlying data source metadata.
  *
- * <p>Origin: PR #141678 ({@code org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics}).
- * Changes: package rename only.
  */
 public interface SourceStatistics {
 

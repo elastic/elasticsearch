@@ -13,8 +13,6 @@ import org.elasticsearch.common.settings.Settings;
  * Factory for creating TableCatalog instances.
  * Used to provide table catalogs in a lazy manner.
  *
- * <p>Origin: PR #141678 ({@code org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory}).
- * Changes: package rename only.
  */
 @FunctionalInterface
 public interface TableCatalogFactory {

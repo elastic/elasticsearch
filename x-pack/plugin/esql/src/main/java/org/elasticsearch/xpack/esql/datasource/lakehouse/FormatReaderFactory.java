@@ -11,21 +11,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 
 /**
- * Factory for creating FormatReader instances.
- * Used to provide format readers in a lazy manner.
+ * Factory for creating {@link FormatReader} instances.
+ * This functional interface allows data source plugins to provide
+ * format reader implementations without exposing implementation details.
  *
- * <p>Origin: PR #141678 ({@code org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory}).
- * Changes: package rename only.
  */
 @FunctionalInterface
 public interface FormatReaderFactory {
 
     /**
-     * Creates a new FormatReader instance.
+     * Creates a new format reader instance.
      *
-     * @param settings the node settings
-     * @param blockFactory the block factory for creating compute engine blocks
-     * @return a new FormatReader instance
+     * @param settings Elasticsearch settings for configuration
+     * @param blockFactory factory for creating data blocks
+     * @return a new format reader instance
      */
     FormatReader create(Settings settings, BlockFactory blockFactory);
 }

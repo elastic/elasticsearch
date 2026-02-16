@@ -18,8 +18,6 @@ import java.util.Optional;
  * Suitable for use by FormatReader implementations and as a base for
  * table-based sources that need to pass through opaque metadata.
  *
- * <p>Origin: PR #141678 ({@code org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata}).
- * Changes: package rename only.
  */
 public final class SimpleSourceMetadata implements SourceMetadata {
 

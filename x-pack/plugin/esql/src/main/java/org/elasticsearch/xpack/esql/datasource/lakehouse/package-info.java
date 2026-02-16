@@ -50,6 +50,8 @@
  *       Immutable implementation of SourceMetadata with builder</li>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.SourceStatistics} —
  *       Row count, size, and per-column statistics for query planning</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.FileSet} —
+ *       Resolved set of files from glob/path with sentinel states (UNRESOLVED, EMPTY)</li>
  * </ul>
  *
  * <h2>Filter Pushdown</h2>

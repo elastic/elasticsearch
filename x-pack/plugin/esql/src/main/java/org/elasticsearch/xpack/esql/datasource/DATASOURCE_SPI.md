@@ -132,8 +132,8 @@ and filter pushdown. Used by `LakehouseDataSource` and available for direct use 
 
 | Type | Description |
 |------|-------------|
-| [StoragePath](lakehouse/StoragePath.java) | URI-like path for addressing objects in storage systems (scheme://host[:port]/path) |
-| [StorageProvider](lakehouse/StorageProvider.java) | SPI for accessing files in a storage system (S3, GCS, HDFS) |
+| [StoragePath](lakehouse/StoragePath.java) | URI-like path for addressing objects in storage systems (scheme://host[:port]/path) with glob support |
+| [StorageProvider](lakehouse/StorageProvider.java) | SPI for accessing files in a storage system (S3, GCS, HDFS); lists by prefix with recursive option |
 | [StorageObject](lakehouse/StorageObject.java) | Read handle for a single object (sync + async) |
 | [StorageEntry](lakehouse/StorageEntry.java) | Metadata record from directory listing (path, length, lastModified) |
 | [StorageIterator](lakehouse/StorageIterator.java) | Storage-specific iterator over entries (extends CloseableIterator) |
@@ -143,7 +143,7 @@ and filter pushdown. Used by `LakehouseDataSource` and available for direct use 
 
 | Type | Description |
 |------|-------------|
-| [FormatReader](lakehouse/FormatReader.java) | SPI for reading file formats (Parquet, ORC, CSV, Avro) |
+| [FormatReader](lakehouse/FormatReader.java) | SPI for reading file formats (Parquet, ORC, CSV, Avro) with SchemaResolution strategy |
 | [FormatReaderFactory](lakehouse/FormatReaderFactory.java) | Factory for creating FormatReader instances |
 | [CloseableIterator](lakehouse/CloseableIterator.java) | Generic closeable iterator for streaming data pages |
 
@@ -151,9 +151,10 @@ and filter pushdown. Used by `LakehouseDataSource` and available for direct use 
 
 | Type | Description |
 |------|-------------|
-| [SourceMetadata](lakehouse/SourceMetadata.java) | Schema, location, and optional statistics |
+| [SourceMetadata](lakehouse/SourceMetadata.java) | Unified metadata output from schema discovery (schema, location, statistics, source-specific metadata) |
 | [SimpleSourceMetadata](lakehouse/SimpleSourceMetadata.java) | Immutable SourceMetadata implementation with builder |
 | [SourceStatistics](lakehouse/SourceStatistics.java) | Row count, size, and per-column statistics |
+| [FileSet](lakehouse/FileSet.java) | Resolved set of files from glob/path with sentinel states (UNRESOLVED, EMPTY) |
 
 **Filter pushdown:**
 
@@ -370,7 +371,7 @@ How lakehouse SPI concepts are used in each query phase:
                                                                           (split filters)
 
   PARTITION          StorageProvider + SplitPartitioner.planPartitions()
-                       storage.listObjects() ──► StorageEntry[] ───────► FileTask[]
+                       storage.listObjects(prefix, recursive) ──► StorageEntry[] ► FileTask[]
                        partitioner.planPartitions(plan, hints) ────────► DataSourcePartition[]
 
   EXECUTE            StorageProvider + FormatReader
@@ -455,7 +456,7 @@ Lucene's `translatable()` pattern and Spark's `SupportsPushDownFilters`.
 ### Partitioning Flow
 
 Default `planPartitions()` implementation (discover → group → wrap via `SplitPartitioner`):
-1. **discover:** calls `storage.listObjects(StoragePath)`, wraps each `StorageEntry` as a `FileTask`
+1. **discover:** calls `storage.listObjects(prefix, recursive)`, wraps each `StorageEntry` as a `FileTask`
 2. **group:** size-aware bin-packing via `SizeAwareBinPacking` — respects [`NodeAffinity`](partitioning/NodeAffinity.java) (required splits grouped strictly by node, preferred splits grouped by node when `preferDataLocality` is true), FFD bin-packing when file sizes are available, count-based round-robin fallback
 3. **wrap:** creates `DataSourcePartition` with aggregated size estimates
 

@@ -14,12 +14,13 @@ import java.util.Map;
 import java.util.Optional;
 
 /**
- * Metadata about a data source, including schema, location, and optional statistics.
+ * Unified metadata output type returned by all schema discovery mechanisms.
+ * This interface provides a consistent way to access metadata regardless of
+ * whether it comes from a FormatReader (Parquet, CSV) or a TableCatalog
+ * (Iceberg, Delta Lake).
  * <p>
- * This is the common metadata type returned by both {@link FormatReader#metadata}
- * and {@link TableCatalog#metadata}. It provides a uniform way to discover schema
- * and source characteristics regardless of whether the source is file-based or
- * table-based.
+ * For file-based sources (Parquet, CSV), the schema is embedded in the file itself,
+ * so no additional metadata needs to flow through to execution.
  * <p>
  * For table-based sources (Iceberg, Delta Lake), the native schema and other
  * source-specific data must be preserved in {@link #sourceMetadata()} to avoid
@@ -28,8 +29,6 @@ import java.util.Optional;
  * <p>
  * Implementations should be immutable and thread-safe.
  *
- * <p>Origin: PR #141678 ({@code org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata}).
- * Changes: package rename only.
  */
 public interface SourceMetadata {
 

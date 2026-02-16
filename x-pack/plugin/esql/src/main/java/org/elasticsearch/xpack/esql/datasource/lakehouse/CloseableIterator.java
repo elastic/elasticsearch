@@ -13,8 +13,6 @@ import java.util.Iterator;
 /**
  * Iterator that must be closed to release resources.
  *
- * <p>Origin: PR #141678 ({@code org.elasticsearch.xpack.esql.datasources.CloseableIterator}).
- * Changes: package rename only.
  *
  * @param <T> the type of elements returned by this iterator
  */

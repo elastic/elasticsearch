@@ -13,13 +13,11 @@ import org.elasticsearch.compute.operator.SourceOperator;
  * Functional interface for creating source operator factories.
  *
  * <p>This is the extension point for plugins that need custom operator logic
- * beyond what the generic data lake operator provides.
+ * beyond what the generic AsyncExternalSourceOperatorFactory provides.
  *
  * <p>Implementations receive a {@link SourceOperatorContext} containing all
  * necessary information to create the operator factory.
  *
- * <p>Origin: PR #141678 ({@code org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider}).
- * Changes: package rename only.
  */
 @FunctionalInterface
 public interface SourceOperatorFactoryProvider {

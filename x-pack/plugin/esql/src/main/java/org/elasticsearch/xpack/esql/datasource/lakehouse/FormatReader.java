@@ -28,10 +28,24 @@ import java.util.concurrent.Executor;
  * Implementations should provide metadata discovery via {@link #metadata(StorageObject)}
  * which returns a unified {@link SourceMetadata} containing schema and source information.
  *
- * <p>Origin: PR #141678 ({@code org.elasticsearch.xpack.esql.datasources.spi.FormatReader}).
- * Changes: package rename only.
  */
 public interface FormatReader extends Closeable {
+
+    /**
+     * Strategy for resolving schemas across multiple files in a glob/multi-file query.
+     */
+    enum SchemaResolution {
+        /** Use the schema from the first file; ignore differences in subsequent files. */
+        FIRST_FILE_WINS,
+        /** All files must have exactly the same schema; fail if any differ. */
+        STRICT,
+        /** Merge schemas by column name, filling missing columns with nulls. */
+        UNION_BY_NAME
+    }
+
+    default SchemaResolution defaultSchemaResolution() {
+        return SchemaResolution.FIRST_FILE_WINS;
+    }
 
     // === SYNC API (required - implement this for simple formats) ===
 

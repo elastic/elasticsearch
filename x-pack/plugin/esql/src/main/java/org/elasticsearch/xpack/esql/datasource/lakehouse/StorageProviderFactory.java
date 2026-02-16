@@ -16,8 +16,6 @@ import java.util.Map;
  * This functional interface allows data source plugins to provide
  * storage provider implementations without exposing implementation details.
  *
- * <p>Origin: PR #141678 ({@code org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory}).
- * Changes: package rename only.
  */
 @FunctionalInterface
 public interface StorageProviderFactory {

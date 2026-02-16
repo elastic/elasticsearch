@@ -17,8 +17,6 @@ import java.util.List;
  * Implementations handle specific protocols (HTTP, S3, GCS, local, etc.).
  * This is a read-only interface focused on ESQL's needs for querying external data.
  *
- * <p>Origin: PR #141678 ({@code org.elasticsearch.xpack.esql.datasources.spi.StorageProvider}).
- * Changes: package rename only.
  */
 public interface StorageProvider extends Closeable {
 
@@ -32,10 +30,13 @@ public interface StorageProvider extends Closeable {
     StorageObject newObject(StoragePath path, long length, Instant lastModified);
 
     /**
-     * Lists objects in a directory. For blob storage, lists all objects with the given prefix.
+     * Lists objects under a prefix. For blob storage, lists all objects with the given prefix.
      * Returns an iterator to support lazy loading of large directories.
+     *
+     * @param prefix the prefix path to list under
+     * @param recursive if true, recurse into subdirectories; if false, list only immediate children
      */
-    StorageIterator listObjects(StoragePath directory) throws IOException;
+    StorageIterator listObjects(StoragePath prefix, boolean recursive) throws IOException;
 
     /** Checks if an object exists at the given path. */
     boolean exists(StoragePath path) throws IOException;

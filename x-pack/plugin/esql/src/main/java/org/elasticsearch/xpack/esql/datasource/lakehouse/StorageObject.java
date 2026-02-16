@@ -25,8 +25,6 @@ import java.util.concurrent.Executor;
  * Uses standard Java InputStream for compatibility with existing Elasticsearch code.
  * Random access is handled via range-based reads (like BlobContainer pattern).
  *
- * <p>Origin: PR #141678 ({@code org.elasticsearch.xpack.esql.datasources.spi.StorageObject}).
- * Changes: package rename only.
  */
 public interface StorageObject {
 

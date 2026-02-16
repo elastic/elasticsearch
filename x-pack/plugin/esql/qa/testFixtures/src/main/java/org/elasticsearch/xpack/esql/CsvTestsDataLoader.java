@@ -62,6 +62,7 @@ public class CsvTestsDataLoader {
     static {
         // Ensure the logging factory is initialized before the static logger field below. When running standalone (via main() or
         // Gradle's loadCsvSpecData task), nothing has initialized the ES logging system before this class is loaded.
+        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
     }
 

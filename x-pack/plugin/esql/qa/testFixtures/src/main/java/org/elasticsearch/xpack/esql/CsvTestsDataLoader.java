@@ -933,10 +933,10 @@ public class CsvTestsDataLoader {
         try {
             client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
         } catch (ResponseException e) {
-            logger.info("View delete error: {}", e.getMessage());
             int code = e.getResponse().getStatusLine().getStatusCode();
             // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500
             if (code != 404 && code != 400 && code != 500) {
+                logger.info("View delete error: {}", e.getMessage());
                 throw e;
             }
         }

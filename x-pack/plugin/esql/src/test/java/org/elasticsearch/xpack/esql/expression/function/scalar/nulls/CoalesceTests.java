@@ -162,6 +162,19 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 equalTo(firstHisto == null ? secondHisto : firstHisto)
             );
         }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR), () -> {
+            List<Float> firstVector = randomBoolean() ? null : List.of(1.0f, 2.0f, 3.0f);
+            List<Float> secondVector = List.of(4.0f, 5.0f, 6.0f);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstVector, DataType.DENSE_VECTOR, "first"),
+                    new TestCaseSupplier.TypedData(secondVector, DataType.DENSE_VECTOR, "second")
+                ),
+                "CoalesceFloatEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.DENSE_VECTOR,
+                equalTo(firstVector == null ? secondVector : firstVector)
+            );
+        }));
         List<TestCaseSupplier> suppliers = new ArrayList<>(noNullsSuppliers);
         for (TestCaseSupplier s : noNullsSuppliers) {
             for (int nullUpTo = 1; nullUpTo < s.types().size(); nullUpTo++) {

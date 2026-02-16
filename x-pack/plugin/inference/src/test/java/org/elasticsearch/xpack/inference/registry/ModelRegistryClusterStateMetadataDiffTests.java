@@ -18,25 +18,25 @@ import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 import java.util.Map;
 import java.util.Set;
 
-public class ModelRegistryMetadataDiffTests extends SimpleDiffableWireSerializationTestCase<Metadata.ProjectCustom> {
+public class ModelRegistryClusterStateMetadataDiffTests extends SimpleDiffableWireSerializationTestCase<Metadata.ProjectCustom> {
     @Override
     protected Metadata.ProjectCustom createTestInstance() {
-        return ModelRegistryMetadataTests.randomInstance();
+        return ModelRegistryClusterStateMetadataTests.randomInstance();
     }
 
     @Override
     protected Writeable.Reader<Metadata.ProjectCustom> instanceReader() {
-        return ModelRegistryMetadata::new;
+        return ModelRegistryClusterStateMetadata::new;
     }
 
     @Override
     protected Metadata.ProjectCustom makeTestChanges(Metadata.ProjectCustom testInstance) {
-        return mutateInstance((ModelRegistryMetadata) testInstance);
+        return mutateInstance((ModelRegistryClusterStateMetadata) testInstance);
     }
 
     @Override
     protected Writeable.Reader<Diff<Metadata.ProjectCustom>> diffReader() {
-        return ModelRegistryMetadata::readDiffFrom;
+        return ModelRegistryClusterStateMetadata::readDiffFrom;
     }
 
     @Override
@@ -46,10 +46,10 @@ public class ModelRegistryMetadataDiffTests extends SimpleDiffableWireSerializat
 
     @Override
     protected Metadata.ProjectCustom mutateInstance(Metadata.ProjectCustom instance) {
-        return mutateInstance((ModelRegistryMetadata) instance);
+        return mutateInstance((ModelRegistryClusterStateMetadata) instance);
     }
 
-    private static ModelRegistryMetadata mutateInstance(ModelRegistryMetadata instance) {
+    private static ModelRegistryClusterStateMetadata mutateInstance(ModelRegistryClusterStateMetadata instance) {
         if (instance.isUpgraded() == false && randomBoolean()) {
             return instance.withUpgradedModels(Map.of(randomAlphaOfLength(10), MinimalServiceSettingsTests.randomInstance()));
         }

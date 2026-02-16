@@ -41,11 +41,14 @@ import java.util.function.Consumer;
 import static java.util.Objects.requireNonNull;
 
 /**
- * A scrollable source of results. Pumps data out into the passed onResponse consumer. Same data may come out several times in case
- * of failures during searching (though not yet). Once the onResponse consumer is done, it should call AsyncResponse.isDone(time) to receive
- * more data (only receives one response at a time).
+ * A source of paginated search results. Pumps data out into the passed onResponse consumer. If a scrollable search is used, then the
+ * same data may come out several times in case of failures during searching (though not yet). Once the onResponse consumer is done,
+ * it should call AsyncResponse.isDone(time) to receive more data (only receives one response at a time).
+ * <p>
+ * For more information on paginating searches, view the
+ * <a href="https://www.elastic.co/docs/reference/elasticsearch/rest-apis/paginate-search-results"> ES Search documentation</a>
  */
-public abstract class ScrollableHitSource {
+public abstract class PaginatedHitSource {
     private final AtomicReference<String> scrollId = new AtomicReference<>();
 
     protected final Logger logger;
@@ -55,7 +58,7 @@ public abstract class ScrollableHitSource {
     private final Consumer<AsyncResponse> onResponse;
     protected final Consumer<Exception> fail;
 
-    public ScrollableHitSource(
+    public PaginatedHitSource(
         Logger logger,
         BackoffPolicy backoffPolicy,
         ThreadPool threadPool,

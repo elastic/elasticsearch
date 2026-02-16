@@ -258,7 +258,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
         closed = true;
         connectionProvider.dispose();
         eventLoopGroup.shutdownGracefully();
-        Schedulers.resetFactory();
+        Schedulers.setFactory(STOPPED_FACTORY);
     }
 
     @Override
@@ -418,4 +418,24 @@ class AzureClientProvider extends AbstractLifecycleComponent {
 
         void requestCompleted(OperationPurpose purpose, HttpMethod method, URL url, RequestMetrics metrics);
     }
+
+    /**
+     * A factory that doesn't allow the creation of any more Schedulers
+     */
+    private static final Schedulers.Factory STOPPED_FACTORY = new Schedulers.Factory() {
+        @Override
+        public Scheduler newBoundedElastic(int threadCap, int queuedTaskCap, ThreadFactory threadFactory, int ttlSeconds) {
+            throw new AlreadyClosedException("AzureClientProvider is already closed");
+        }
+
+        @Override
+        public Scheduler newParallel(int parallelism, ThreadFactory threadFactory) {
+            throw new AlreadyClosedException("AzureClientProvider is already closed");
+        }
+
+        @Override
+        public Scheduler newSingle(ThreadFactory threadFactory) {
+            throw new AlreadyClosedException("AzureClientProvider is already closed");
+        }
+    };
 }

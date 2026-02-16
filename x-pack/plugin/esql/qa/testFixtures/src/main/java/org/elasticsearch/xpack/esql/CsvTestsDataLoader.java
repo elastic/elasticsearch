@@ -61,6 +61,13 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 
 public class CsvTestsDataLoader {
 
+    static {
+        // Ensure the logging factory is initialized before the static logger field below. When running standalone (via main() or
+        // Gradle's loadCsvSpecData task), nothing has initialized the ES logging system before this class is loaded.
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging();
+    }
+
     private static final Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
     private static final int BULK_DATA_SIZE = 100_000;

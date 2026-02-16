@@ -48,6 +48,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -63,6 +64,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesServiceTests.TestActionActionLoggingFieldsProvider;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
@@ -1832,7 +1834,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 null,
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 client,
-                new UsageService()
+                new UsageService(),
+                new TestActionActionLoggingFieldsProvider(),
+                ActivityLogWriterProvider.NOOP
             );
 
             CountDownLatch latch = new CountDownLatch(1);

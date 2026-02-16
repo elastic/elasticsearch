@@ -28,12 +28,12 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdFloatEnco
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdFloatTransformDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdFloatTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.BitPackCodecStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaDeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleTransformDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatTransformDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatTransformEncodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaDeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcTransformDecodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;

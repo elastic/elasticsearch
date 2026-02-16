@@ -22,10 +22,10 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpFloatTransf
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdDoubleTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdFloatTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.BitPackCodecStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaDeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatTransformEncodeStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaDeltaCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.FpcTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.GcdCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.OffsetCodecStage;

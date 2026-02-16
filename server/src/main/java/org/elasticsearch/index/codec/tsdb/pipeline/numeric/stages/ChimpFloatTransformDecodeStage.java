@@ -31,10 +31,8 @@ public final class ChimpFloatTransformDecodeStage implements TransformDecoder {
         final int groupSize = metadata.readByte() & 0xFF;
 
         for (int g = 0; g < valueCount; g += groupSize) {
-            final long ref = ((metadata.readByte() & 0xFFL) << 24)
-                | ((metadata.readByte() & 0xFFL) << 16)
-                | ((metadata.readByte() & 0xFFL) << 8)
-                | (metadata.readByte() & 0xFFL);
+            final long ref = ((metadata.readByte() & 0xFFL) << 24) | ((metadata.readByte() & 0xFFL) << 16) | ((metadata.readByte() & 0xFFL)
+                << 8) | (metadata.readByte() & 0xFFL);
             final int end = Math.min(g + groupSize, valueCount);
             for (int i = g; i < end; i++) {
                 values[i] ^= ref;

@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.VectorConversionFunction;
@@ -176,6 +177,7 @@ public class ApproximationSupportTests extends ESTestCase {
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
         PlaceholderRelation.class,
+        ScalarConversionFunction.class,
         ScalarFunction.class,
         ValueTransformationFunction.class,
         VectorBinarySet.class,

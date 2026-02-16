@@ -72,7 +72,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
             document.add(field);
         }
         BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
-        docVal.add(fields, geometry);
+        docVal.add(fields, geometry, geometry);
         document.add(docVal);
         w.addDocument(document);
         w.flush();
@@ -117,7 +117,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
                 doc.add(field);
             }
             BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
-            docVal.add(fields, geometry);
+            docVal.add(fields, geometry, geometry);
             doc.add(docVal);
             w.addDocument(doc);
         }
@@ -159,7 +159,7 @@ public class LatLonShapeDocValuesQueryTests extends ESTestCase {
                 doc.add(field);
             }
             BinaryShapeDocValuesField docVal = new BinaryShapeDocValuesField(FIELD_NAME, CoordinateEncoder.GEO);
-            docVal.add(fields, geometry);
+            docVal.add(fields, geometry, geometry);
             doc.add(docVal);
             w.addDocument(doc);
         }

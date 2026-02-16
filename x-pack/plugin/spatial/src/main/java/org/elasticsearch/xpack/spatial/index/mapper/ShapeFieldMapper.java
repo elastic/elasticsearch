@@ -328,7 +328,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 docValuesField = new BinaryShapeDocValuesField(name, CoordinateEncoder.CARTESIAN);
                 context.doc().addWithKey(name, docValuesField);
             }
-            docValuesField.add(fields, geometry);
+            docValuesField.add(fields, geometry, geometry);
 
             if (fieldType().isColumnar() && context.mappingLookup().isMultiField(name) == false) {
                 // Columnar rebuilds _source from doc values, so keep the original geometries verbatim in this field-owned

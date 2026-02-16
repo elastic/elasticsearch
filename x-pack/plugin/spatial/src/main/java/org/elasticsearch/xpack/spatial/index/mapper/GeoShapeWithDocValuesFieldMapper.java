@@ -525,7 +525,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 context.doc().addWithKey(name, docValuesField);
             }
             // we need to pass the original geometry to compute more precisely the centroid, e.g if lon > 180
-            docValuesField.add(fields, geometry);
+            docValuesField.add(fields, geometry, normalizedGeometry);
 
             if (fieldType().isColumnar() && context.mappingLookup().isMultiField(name) == false) {
                 // Columnar rebuilds _source from doc values, so keep the original geometries verbatim in this field-owned

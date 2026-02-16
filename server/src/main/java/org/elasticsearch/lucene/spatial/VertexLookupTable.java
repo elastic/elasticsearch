@@ -128,10 +128,7 @@ public class VertexLookupTable {
 
         /** Builds an immutable {@link VertexLookupTable} from the collected vertices. */
         public VertexLookupTable build() {
-            return new VertexLookupTable(
-                Arrays.copyOf(xCoords, nextOrdinal),
-                Arrays.copyOf(yCoords, nextOrdinal)
-            );
+            return new VertexLookupTable(Arrays.copyOf(xCoords, nextOrdinal), Arrays.copyOf(yCoords, nextOrdinal));
         }
 
         private static long packCoordinates(int x, int y) {

@@ -30,13 +30,13 @@ import java.util.List;
  * <p><b>V2 format</b> (DimensionalShapeType high bit set):
  * <pre>
  * centroid-x(4) | centroid-y(4) | DimensionalShapeType(1, 0x80 set) | sumWeight(VLong) | extent |
- * vertexTable | treeLength(VInt) | tree(vertex ordinals) | connectivity
+ * treeLength(VInt) | tree(vertex ordinals) | vertexTable | connectivity
  * </pre>
  *
  * <p>The format is detected automatically on first access after {@link #reset(BytesRef)}.
  * Reading the centroid or extent never loads the vertex table, keeping analytics-only
- * access paths fast. The vertex table sits between the extent and the tree, so it is
- * available before both sections that reference it.
+ * access paths fast. The tree length prefix allows the reader to skip past the tree to
+ * reach the vertex table (loaded lazily on first tree visit or geometry reconstruction).
  */
 public class GeometryDocValueReader {
     private final ByteArrayStreamInput input;
@@ -54,7 +54,7 @@ public class GeometryDocValueReader {
     /** Position right after the extent in the byte array. */
     private int afterExtentOffset;
 
-    /** Offset of the tree data within the byte array. Set after vertex table is loaded (V2) or after extent (legacy). */
+    /** Offset of the tree data within the byte array. Set after extent is loaded (V2: after treeLength; legacy: right after extent). */
     private int treeOffset;
     /** Length of the tree data in bytes (V2 only). */
     private int treeLength;
@@ -62,7 +62,7 @@ public class GeometryDocValueReader {
     /** Lazily loaded vertex table (V2 only). Null until first needed. */
     private VertexLookupTable vertexTable;
 
-    /** Position of the connectivity data (V2 only). Set after vertex table + tree length are known. */
+    /** Position of the connectivity data (V2 only). Set after vertex table is loaded from after the tree. */
     private int connectivityOffset;
 
     public GeometryDocValueReader() {
@@ -126,7 +126,11 @@ public class GeometryDocValueReader {
             getSumCentroidWeight(); // positions input after the VLong sumWeight
             Extent.readFromCompressed(input, extent);
             afterExtentOffset = input.getPosition();
-            if (v2Format == false) {
+            if (v2Format) {
+                // V2: tree length prefix sits between extent and tree
+                treeLength = input.readVInt();
+                treeOffset = input.getPosition();
+            } else {
                 // Legacy: tree starts right after extent
                 treeOffset = afterExtentOffset;
             }
@@ -142,12 +146,10 @@ public class GeometryDocValueReader {
             if (v2Format == false) {
                 throw new UnsupportedOperationException("Vertex table is not available in legacy doc-value format");
             }
-            // V2: vertex table is right after extent
-            input.setPosition(afterExtentOffset);
+            // V2: vertex table is right after the tree data
+            input.setPosition(treeOffset + treeLength);
             vertexTable = VertexLookupTable.readFrom(input);
-            treeLength = input.readVInt();
-            treeOffset = input.getPosition();
-            connectivityOffset = treeOffset + treeLength;
+            connectivityOffset = input.getPosition();
         }
     }
 

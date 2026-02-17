@@ -271,13 +271,8 @@ to communicate with Elasticsearch.
 
 [ClusterState]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
 [Metadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
-[ProjectMetadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/ProjectMetadata.java
 
-The [Metadata] of a [ClusterState] is persisted on disk and comprises information from two categories:
-1. Cluster scope information such as `clusterUUID`, `CoordinationMetadata`
-2. Project scope information ([ProjectMetadata]) such as indices and templates belong to each project.
-
-Some concepts are applicable to both cluster and project scopes, e.g. [persistent tasks](#persistent-tasks). The state of a persistent task is therefore stored accordingly depending on the task's scope.
+(Detail the different components of the [ClusterState] and its persisted [Metadata])
 
 ### Node Roles
 

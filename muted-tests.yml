@@ -389,18 +389,6 @@ tests:
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
   method: testBulkScalarVsVectorized {p0=768 p1=1 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/142413
-- class: org.elasticsearch.xpack.esql.expression.promql.function.PromqlKibanaDefinitionGeneratorTests
-  method: testGenerateDefinitions
-  issue: https://github.com/elastic/elasticsearch/issues/142417
-- class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
-  method: testInstantVectorExpectedWithGrouping
-  issue: https://github.com/elastic/elasticsearch/issues/142418
-- class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
-  method: testRangeVectorExpected
-  issue: https://github.com/elastic/elasticsearch/issues/142419
-- class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
-  method: testInstantVectorExpected
-  issue: https://github.com/elastic/elasticsearch/issues/142420
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFieldDataStats
   issue: https://github.com/elastic/elasticsearch/issues/142424
@@ -455,6 +443,24 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/TS Command grouping on text field}
   issue: https://github.com/elastic/elasticsearch/issues/142544
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
+  method: test {csv-spec:subquery.SubqueryInFromWithRerankInSubquery}
+  issue: https://github.com/elastic/elasticsearch/issues/142552
+- class: org.elasticsearch.index.IndexSettingsTests
+  method: testSyntheticIdBadVersion
+  issue: https://github.com/elastic/elasticsearch/issues/142508
+- class: org.elasticsearch.index.IndexSettingsTests
+  method: testSyntheticIdBadCodec
+  issue: https://github.com/elastic/elasticsearch/issues/142509
+- class: org.elasticsearch.index.IndexSettingsTests
+  method: testSyntheticIdBadMode
+  issue: https://github.com/elastic/elasticsearch/issues/142510
+- class: org.elasticsearch.index.IndexSettingsTests
+  method: testSyntheticIdCorrectSettings
+  issue: https://github.com/elastic/elasticsearch/issues/142507
+- class: org.elasticsearch.xpack.esql.datasources.GlobDiscoveryLocalTests
+  method: testRecursiveDoubleStarAllFiles
+  issue: https://github.com/elastic/elasticsearch/issues/142576
 
 # Examples:
 #

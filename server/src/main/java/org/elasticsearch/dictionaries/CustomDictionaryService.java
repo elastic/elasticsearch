@@ -32,6 +32,7 @@ public class CustomDictionaryService {
     private static final String CUSTOM_DICTIONARY_ID_FIELD = "id";
     private static final String CUSTOM_DICTIONARY_VALUE_FIELD = "value";
 
+    public static final String CUSTOM_DICTIONARIES_FEATURE_NAME = "custom_dictionaries";
     public static final SystemIndexDescriptor CUSTOM_DICTIONARIES_DESCRIPTOR = SystemIndexDescriptor.builder()
         .setIndexPattern(CUSTOM_DICTIONARIES_INDEX_NAME_PATTERN)
         .setDescription("System index for custom dictionaries")

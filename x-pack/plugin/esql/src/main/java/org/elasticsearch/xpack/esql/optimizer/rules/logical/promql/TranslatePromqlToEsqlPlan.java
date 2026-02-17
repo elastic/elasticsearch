@@ -342,6 +342,9 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         boolean leftAgg = containsAggregation(leftResult.plan());
         boolean rightAgg = containsAggregation(rightResult.plan());
 
+        // If both sides have Aggregate, use a new joint Aggregate plan;
+        // otherwise, use the plan from the side that has Aggregate.
+        // In both cases aggregate expressions participate in the Eval node that wraps the result.
         LogicalPlan resultPlan;
         if (leftAgg && rightAgg) {
             resultPlan = foldBinaryExpressionAggregates(leftResult.plan(), rightResult.plan());
@@ -368,8 +371,9 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         var rightAgg = rightPlan.collect(Aggregate.class).getFirst();
 
         var result = leftPlan.transformDown(Aggregate.class, leftAgg -> {
-            // TODO: vector matching semantics (on/ignoring/group_left/group_right)
-            // https://prometheus.io/docs/prometheus/latest/querying/operators/#vector-matching
+            // Different groupings require vector matching semantics (on/ignoring/group_left/group_right)
+            // which is tracked in TODO: https://github.com/elastic/elasticsearch/issues/142596
+            // This check is a safety net; such queries should ideally be rejected during validation.
             boolean areGroupingsCompatible = leftAgg.groupings().size() == rightAgg.groupings().size()
                 && new HashSet<>(leftAgg.groupings()).containsAll(rightAgg.groupings());
 
@@ -377,11 +381,11 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
                 throw new QlIllegalArgumentException("binary expressions with different grouping keys not supported yet");
             }
 
-            // Deduplicate overlapping groupings
-            var combined = new LinkedHashSet<NamedExpression>(leftAgg.aggregates());
-            combined.addAll(rightAgg.aggregates());
+            // Unique aggregates from both sides
+            var uniqueAggregates = new LinkedHashSet<NamedExpression>(leftAgg.aggregates());
+            uniqueAggregates.addAll(rightAgg.aggregates());
 
-            var newAggregates = combined.stream().map(e -> {
+            var newAggregates = uniqueAggregates.stream().map(e -> {
                 Expression inner = e;
                 if (e instanceof Alias a) {
                     inner = a.child();

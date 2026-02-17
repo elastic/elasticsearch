@@ -23,13 +23,21 @@ import java.util.List;
 final class SnappyBlockDecoder extends ByteToMessageDecoder {
     private static final int INCOMPLETE_PREAMBLE = -1;
 
+    private enum State {
+        READ_PREAMBLE,
+        DECODE_PAYLOAD,
+        DONE,
+        CORRUPTED
+    }
+
     private final Snappy snappy = new Snappy();
     private final int maxUncompressedSize;
-    private int expectedUncompressedSize = INCOMPLETE_PREAMBLE;
+    // Transitions: READ_PREAMBLE -> DECODE_PAYLOAD -> DONE.
+    // Any decode error or truncation moves to CORRUPTED.
+    private State state = State.READ_PREAMBLE;
+    private int expectedUncompressedSize;
     private ByteBuf decompressed;
     private boolean sawInput;
-    private boolean finished;
-    private boolean corrupted;
 
     SnappyBlockDecoder(int maxUncompressedSize) {
         this.maxUncompressedSize = maxUncompressedSize;
@@ -37,7 +45,7 @@ final class SnappyBlockDecoder extends ByteToMessageDecoder {
 
     @Override
     protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
-        if (corrupted) {
+        if (state == State.CORRUPTED) {
             in.skipBytes(in.readableBytes());
             return;
         }
@@ -45,7 +53,7 @@ final class SnappyBlockDecoder extends ByteToMessageDecoder {
         try {
             decodeInternal(ctx, in, out);
         } catch (Exception e) {
-            corrupted = true;
+            state = State.CORRUPTED;
             releaseDecompressedBuffer();
             throw e;
         }
@@ -53,26 +61,31 @@ final class SnappyBlockDecoder extends ByteToMessageDecoder {
 
     @Override
     protected void decodeLast(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
-        if (corrupted) {
+        if (state == State.CORRUPTED) {
             in.skipBytes(in.readableBytes());
             return;
         }
 
         decode(ctx, in, out);
-        if (finished || sawInput == false) {
+        if (sawInput == false) {
+            state = State.DONE;
+        }
+        if (state == State.DONE) {
             return;
         }
 
-        corrupted = true;
+        State priorState = state;
+        state = State.CORRUPTED;
+        int produced = decompressed == null ? 0 : decompressed.writerIndex();
         releaseDecompressedBuffer();
-        if (expectedUncompressedSize == INCOMPLETE_PREAMBLE) {
+        if (priorState == State.READ_PREAMBLE) {
             throw new DecompressionException("truncated snappy preamble");
+        } else {
+            throw new DecompressionException(
+                "truncated snappy block: expected [" + expectedUncompressedSize + "] bytes but decoded [" + produced + "]"
+            );
         }
 
-        int produced = decompressed == null ? 0 : decompressed.writerIndex();
-        throw new DecompressionException(
-            "truncated snappy block: expected [" + expectedUncompressedSize + "] bytes but decoded [" + produced + "]"
-        );
     }
 
     @Override
@@ -82,7 +95,7 @@ final class SnappyBlockDecoder extends ByteToMessageDecoder {
     }
 
     private void decodeInternal(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) {
-        if (finished) {
+        if (state == State.DONE) {
             if (in.isReadable()) {
                 throw new DecompressionException("snappy block has trailing bytes after decompression completed");
             }
@@ -95,7 +108,7 @@ final class SnappyBlockDecoder extends ByteToMessageDecoder {
 
         sawInput = true;
 
-        if (expectedUncompressedSize == INCOMPLETE_PREAMBLE) {
+        if (state == State.READ_PREAMBLE) {
             int uncompressedSize = readUncompressedLength(in);
             if (uncompressedSize == INCOMPLETE_PREAMBLE) {
                 return;
@@ -107,6 +120,7 @@ final class SnappyBlockDecoder extends ByteToMessageDecoder {
             }
             expectedUncompressedSize = uncompressedSize;
             decompressed = ctx.alloc().buffer(expectedUncompressedSize, expectedUncompressedSize);
+            state = State.DECODE_PAYLOAD;
         }
 
         snappy.decode(in, decompressed);
@@ -123,7 +137,7 @@ final class SnappyBlockDecoder extends ByteToMessageDecoder {
     private void finish(List<Object> out) {
         ByteBuf output = decompressed;
         decompressed = null;
-        finished = true;
+        state = State.DONE;
         snappy.reset();
         if (output.isReadable()) {
             out.add(output);

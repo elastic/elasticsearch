@@ -8,6 +8,8 @@ package org.elasticsearch.xpack.esql.view;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
@@ -16,6 +18,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xpack.core.esql.EsqlViewActionNames;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -26,13 +29,18 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class PutViewAction extends ActionType<AcknowledgedResponse> {
 
     public static final PutViewAction INSTANCE = new PutViewAction();
-    public static final String NAME = "cluster:admin/xpack/esql/view/put";
+    public static final String NAME = EsqlViewActionNames.ESQL_PUT_VIEW_ACTION_NAME;
+
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.builder()
+        .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
+        .wildcardOptions(IndicesOptions.WildcardOptions.builder().resolveViews(true).build())
+        .build();
 
     private PutViewAction() {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
         private final View view;
 
         public Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, View view) {
@@ -94,6 +102,16 @@ public class PutViewAction extends ActionType<AcknowledgedResponse> {
         @Override
         public int hashCode() {
             return Objects.hash(view);
+        }
+
+        @Override
+        public String[] indices() {
+            return new String[] { view.getName() };
+        }
+
+        @Override
+        public IndicesOptions indicesOptions() {
+            return DEFAULT_INDICES_OPTIONS;
         }
     }
 }

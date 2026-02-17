@@ -1,0 +1,32 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+
+esplugin {
+  name = 'esql-datasource-http'
+  description = 'HTTP/HTTPS and local file storage providers for ESQL external data sources'
+  classname = 'org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin'
+  extendedPlugins = ['x-pack-esql']
+}
+
+base {
+  archivesName = 'esql-datasource-http'
+}
+
+dependencies {
+  // SPI interfaces from ESQL core
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+  compileOnly project(xpackModule('esql:compute'))
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+}

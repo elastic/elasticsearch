@@ -192,33 +192,6 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             return null;
         }
 
-        private abstract static class FilterStoredFieldsReader extends StoredFieldsReader {
-
-            protected final StoredFieldsReader in;
-
-            FilterStoredFieldsReader(StoredFieldsReader fieldsReader) {
-                this.in = fieldsReader;
-            }
-
-            @Override
-            public void close() throws IOException {
-                in.close();
-            }
-
-            @Override
-            public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-                in.document(docID, visitor);
-            }
-
-            @Override
-            public abstract StoredFieldsReader clone();
-
-            @Override
-            public void checkIntegrity() throws IOException {
-                in.checkIntegrity();
-            }
-        }
-
         private static class RecoverySourcePruningStoredFieldsReader extends FilterStoredFieldsReader {
 
             private final BitSet recoverySourceToKeep;

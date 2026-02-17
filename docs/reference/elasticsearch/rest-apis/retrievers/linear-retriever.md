@@ -24,7 +24,7 @@ Combining `query` and `retrievers` is not supported.
     This format automatically groups fields into **lexical** (text) and **semantic** (vector) categories. To ensure both categories contribute equally to the final score regardless of the number of fields, the retriever applies a two-level normalization formula:
 
     ```{math}
-    Score_{total} = Normalizer(\sum_{s \in Semantic} Normalizer(Score_s)) + Normalizer(\sum_{l \in Lexical} Normalizer(Score_l))
+    Score_{total} = Normalizer(\sum_{s \in Semantic} Normalizer(Score_s)) + Normalizer(\sum_{l \in Lexical} Score_l)
     ```
 
 `fields` {applies_to}`stack: ga 9.1`

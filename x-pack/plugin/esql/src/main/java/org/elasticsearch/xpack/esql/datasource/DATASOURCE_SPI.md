@@ -2,6 +2,127 @@
 
 This document describes how ES|QL integrates with external data sources through the DataSource SPI.
 
+## Architecture
+
+Two SPI layers: a generic **Core DataSource SPI** that the ESQL pipeline calls, and a
+**Lakehouse SPI** that provides one concrete implementation composed from pluggable storage,
+format, and catalog components.
+
+### Plan node lifecycle
+
+How plan nodes transform through the pipeline — each stage produces the input for the next:
+
+```
+  UnresolvedDataSourceRelation            created by Parser
+  │  has  DataSourceDescriptor              (type, config, settings, expression)
+  │
+  │  resolved by DataSource.resolve()       async, on ResolutionContext.executor()
+  ▼
+  DataSourcePlan (abstract)               schema is now known
+  │  has  dataSource()                      back-pointer to owning DataSource
+  │  has  location()                        for error messages
+  │  has  output()                          projected columns
+  │
+  │  optimized by DataSourceOptimizer
+  │    collects rules from all DataSources
+  │    runs DataSourcePushdownRule[]        folds Filter / Limit into plan leaf
+  ▼
+  DataSourcePlan  (same type, with pushed operations)
+  │
+  │  wrapped by DataSource.createPhysicalPlan()
+  ▼
+  DataSourceExec                          physical plan node
+  │  has  plan: DataSourcePlan              carries the optimized logical plan
+  │
+  │  split by DataSource.planPartitions()
+  │    skipped for coordinator-only sources ── uses single CoordinatorPartition
+  ▼
+  DataSourcePartition[]                   units of parallel work
+  │
+  │  executed by DataSource.createSourceOperator()
+  ▼
+  SourceOperatorFactory ──► Pages
+```
+
+### Component ownership
+
+How the Core SPI, Lakehouse SPI, and Plugin layers relate structurally:
+
+```
+  Core DataSource SPI  (datasource/spi/)
+ ┌──────────────────────────────────────────────────────────────────────────┐
+ │                                                                          │
+ │  DataSource (interface)              DataSourceCapabilities              │
+ │  │                                     distributed / coordinator-only    │
+ │  │  produces                                                             │
+ │  ├──► DataSourcePlan (abstract)      DataSourceDescriptor               │
+ │  ├──► DataSourceExec                   type, config, settings, expr      │
+ │  └──► DataSourcePartition                                                │
+ │                                      DataSourceOptimizer                │
+ │  DataSourcePushdownRule                runs rules from all data sources  │
+ │    guard: checks child type                                              │
+ │    guard: checks dataSource identity SplitPartitioner<S>                │
+ │                                        discover ──► group ──► wrap      │
+ │                                        uses SizeAwareBinPacking (FFD)   │
+ │                                                                          │
+ └──────────────────────────┬───────────────────────────────────────────────┘
+                            │
+                            │ implements
+                            │
+  Lakehouse SPI  (datasource/lakehouse/spi/)
+ ┌──────────────────────────┼───────────────────────────────────────────────┐
+ │                          │                                               │
+ │  LakehouseDataSource ────┘  (concrete, final)                           │
+ │  │                                                                       │
+ │  │  owns                                                                 │
+ │  ├──► LakehouseRegistry                                                 │
+ │  │    ├── StorageProviderRegistry ──► StorageProvider (by URI scheme)    │
+ │  │    ├── FormatReaderRegistry ────► FormatReader     (by name / ext)   │
+ │  │    └── (future) ───────────────► TableCatalog     (by catalog type)  │
+ │  │                                                                       │
+ │  │  produces                                                             │
+ │  ├──► LakehousePlan  (extends DataSourcePlan, concrete, final)          │
+ │  │      expression   ── file path or pattern                            │
+ │  │      formatName   ── for FormatReader lookup at execution time       │
+ │  │      nativeFilter ── opaque, from FilterPushdownSupport              │
+ │  │      limit        ── pushed from LIMIT node                          │
+ │  │                                                                       │
+ │  ├──► LakehousePartition  (implements DataSourcePartition)              │
+ │  │      tasks: List<FileTask>                                            │
+ │  │                                                                       │
+ │  └──► ExternalSourceOperatorFactory  (SourceOperatorFactory)            │
+ │                                                                          │
+ │  StorageProvider ──► StorageObject  (read handle, sync + async)         │
+ │                  ──► StorageEntry   (directory listing metadata)         │
+ │  FormatReader    ──► SourceMetadata (schema + statistics)               │
+ │  FilterPushdownSupport ──► nativeFilter (opaque pushdown result)        │
+ │                                                                          │
+ └──────────────────────────┬───────────────────────────────────────────────┘
+                            │
+                            │ populated by plugins at startup
+                            │
+  Plugin Implementations
+ ┌──────────────────────────┼───────────────────────────────────────────────┐
+ │                          │                                               │
+ │  StoragePlugin ──► Map<scheme, StorageProviderFactory>                   │
+ │    "s3"   → S3StorageProvider       ┐                                   │
+ │    "gcs"  → GcsStorageProvider      ├── any storage + any format        │
+ │    "file" → LocalFsStorageProvider  ┘                                   │
+ │                                                                          │
+ │  FormatPlugin ──► Map<name, FormatReaderFactory>                        │
+ │    "parquet" → ParquetFormatReader  ┐                                   │
+ │    "orc"     → OrcFormatReader      ├── mixed freely with any storage   │
+ │    "csv"     → CsvFormatReader      ┘                                   │
+ │                                                                          │
+ │  CatalogPlugin ──► Map<type, TableCatalogFactory>   (future)            │
+ │    "iceberg" → IcebergTableCatalog                                      │
+ │    "delta"   → DeltaTableCatalog                                        │
+ │                                                                          │
+ └──────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 ## Implementation Plan
 
 We have two parallel packages:

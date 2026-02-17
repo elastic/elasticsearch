@@ -21,6 +21,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
@@ -37,6 +38,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 
 public class StatelessReshardMixedOperationsIT extends AbstractStatelessPluginIntegTestCase {
     public void testIndexingAndSearchDuringSplit() throws InterruptedException {
@@ -87,7 +89,10 @@ public class StatelessReshardMixedOperationsIT extends AbstractStatelessPluginIn
     protected Settings.Builder nodeSettings() {
         // Test framework randomly sets this to 0, but we rely on retries to handle target shards still being in recovery
         // when we start re-splitting bulk requests.
-        return super.nodeSettings().put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), "60s");
+        return super.nodeSettings().put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), "60s")
+            // Reduce the grace period to speed up the test.
+            // We should not see requests that were queued for a long time in a local cluster setup anyway.
+            .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.timeValueMillis(100));
     }
 
     private void executeOperations(

@@ -143,6 +143,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.both;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -3193,6 +3194,12 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         plugins.add(StatelessMockRepositoryPlugin.class);
         plugins.add(EsqlPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
+        return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
     }
 
     @Override

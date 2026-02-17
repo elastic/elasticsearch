@@ -31,6 +31,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
@@ -62,6 +64,31 @@ import static org.elasticsearch.core.Strings.format;
 public class SplitSourceService {
     private static final Logger logger = LogManager.getLogger(SplitSourceService.class);
 
+    /// This is a grace period to drain queued requests before deleting unowned data and completing the split.
+    /// It is needed for both search and indexing.
+    ///
+    /// In search logic we rely on refresh blocks to ensure consistency of search results. Since a refresh can not
+    /// be performed while target search shards are being set up, it is correct to return pre-split results
+    /// using only the source shard. In other words we don't "resplit" searches. So any stale requests
+    /// that f.e. got queued on the coordinators or in the network buffers somewhere will be served
+    /// by the source shard only, and it's not a problem from correctness perspective.
+    /// This means however that we can't delete unowned data on the source shard as soon as possible because in that case
+    /// stale requests described above will see a big chunk of the documents being missing - the now-unowned documents.
+    /// We can allow search results for such requests to be stale, but we can't allow such a major discrepancy.
+    /// Once we know that unowned documents are deleted after the grace period we need to reject such stale search requests.
+    ///
+    /// In indexing logic we currently read resharding metadata in order to figure out the corresponding target shard
+    /// for the source shard when we forward broadcast requests like flush.
+    /// We would lose that ability if we were to immediately delete unowned data and complete the split
+    /// (thus removing resharding metadata).
+    /// Note that using the resharding metadata is not strictly necessary to do that (you can work it out using shard count summary)
+    /// so this may change.
+    public static final Setting<TimeValue> RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD = Setting.positiveTimeSetting(
+        "reshard.split.delete_unowned_grace_period",
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope
+    );
+
     private final Client client;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
@@ -69,6 +96,8 @@ public class SplitSourceService {
     private final ObjectStoreService objectStoreService;
     private final ReshardIndexService reshardIndexService;
     private final TaskManager taskManager;
+
+    private final TimeValue deleteUnownedDelay;
 
     // Tracks ongoing split request, target primary term used to reject stale split request or cancel ongoing request task
     private final ConcurrentHashMap<IndexShard, SplitRequestState> onGoingSplits = new ConcurrentHashMap<>();
@@ -86,7 +115,8 @@ public class SplitSourceService {
         StatelessCommitService commitService,
         ObjectStoreService objectStoreService,
         ReshardIndexService reshardIndexService,
-        TaskManager taskManager
+        TaskManager taskManager,
+        Settings settings
     ) {
         this.client = client;
         this.clusterService = clusterService;
@@ -95,6 +125,8 @@ public class SplitSourceService {
         this.objectStoreService = objectStoreService;
         this.reshardIndexService = reshardIndexService;
         this.taskManager = taskManager;
+
+        this.deleteUnownedDelay = RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.get(settings);
     }
 
     /**
@@ -232,7 +264,7 @@ public class SplitSourceService {
             // This is the first time a target shard contacted this source shard to start a split.
             // We'll start tracking this split now to be able to eventually properly finish it.
             // If we have already seen this split before, we are all set already.
-            setupSourceShardCleanup(sourceShard);
+            setupSourceShardCleanup(sourceShard, deleteUnownedDelay);
         }
 
         var currentSplit = onGoingSplits.putIfAbsent(sourceShard, new SplitRequestState(targetPrimaryTerm, task));
@@ -356,7 +388,7 @@ public class SplitSourceService {
         }
 
         /// It is possible that the shard is already STARTED at this point,
-        /// see {@link IndicesClusterStateService#updateShard(ShardRouting, IndicesClusterStateService.Shard, ClusterState)}
+        /// see [org.elasticsearch.indices.cluster.IndicesClusterStateService#updateShard].
         /// As such it is possible that we are already accepting requests to start split from targets.
         /// If any of them already set up tracking of the split process we don't need to do anything here.
         if (splitCleanup.putIfAbsent(indexShard, new Split(indexShard)) != null) {
@@ -364,12 +396,12 @@ public class SplitSourceService {
             return;
         }
 
-        setupSourceShardCleanup(indexShard);
+        setupSourceShardCleanup(indexShard, deleteUnownedDelay);
         listener.onResponse(null);
     }
 
-    public void setupSourceShardCleanup(IndexShard indexShard) {
-        var cleanup = new SourceShardCleanupAction(indexShard, new ActionListener<>() {
+    public void setupSourceShardCleanup(IndexShard indexShard, TimeValue deleteUnownedDelay) {
+        var cleanup = new SourceShardCleanupAction(indexShard, deleteUnownedDelay, new ActionListener<>() {
             @Override
             public void onResponse(Void unused) {
                 logger.info(Strings.format("Split source shard %s successfully transitioned to DONE", indexShard.shardId()));
@@ -624,8 +656,9 @@ public class SplitSourceService {
 
     private class SourceShardCleanupAction extends RetryableAction<Void> {
         private final IndexShard indexShard;
+        private final TimeValue deleteUnownedDelay;
 
-        private SourceShardCleanupAction(IndexShard indexShard, ActionListener<Void> listener) {
+        private SourceShardCleanupAction(IndexShard indexShard, TimeValue deleteUnownedDelay, ActionListener<Void> listener) {
             super(
                 logger,
                 clusterService.threadPool(),
@@ -637,6 +670,7 @@ public class SplitSourceService {
                 clusterService.threadPool().generic()
             );
             this.indexShard = indexShard;
+            this.deleteUnownedDelay = deleteUnownedDelay;
         }
 
         @Override
@@ -696,9 +730,19 @@ public class SplitSourceService {
                         return;
                     }
 
-                    // It is possible that shard gets closed right after this line.
-                    // It is not a problem since delete of unowned documents is idempotent.
-                    clusterService.threadPool().generic().submit(() -> moveToDone(indexShard, listener));
+                    // All operations in `moveToDone` are idempotent, if a shard/node gets closed we'll simply retry
+                    // once new shard instance recovers.
+                    // Note that this means that `deleteUnownedDelay` is reset every time the source shard recovers
+                    // but at this point all target shards are fully online and so this delay does not have any
+                    // impact on the user.
+                    // It may only delay the next round of split from starting (since we don't allow concurrent splits obviously),
+                    // but executing back-to-back splits is not something we expect too.
+                    clusterService.threadPool()
+                        .scheduleUnlessShuttingDown(
+                            deleteUnownedDelay,
+                            clusterService.threadPool().generic(),
+                            () -> moveToDone(indexShard, listener)
+                        );
                 }
 
                 @Override

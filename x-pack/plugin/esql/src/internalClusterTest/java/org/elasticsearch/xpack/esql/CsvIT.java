@@ -110,7 +110,7 @@ public class CsvIT extends ESTestCase {
                 AggregateMetricMapperPlugin.class,
                 AnalyticsPlugin.class,
                 ConstantKeywordMapperPlugin.class,
-//                EnrichPlugin.class,
+                // EnrichPlugin.class,
                 ExponentialHistogramMapperPlugin.class,
                 LocalStateInferencePlugin.class,
                 MapperExtrasPlugin.class,
@@ -161,27 +161,27 @@ public class CsvIT extends ESTestCase {
             }
         }
 
-//        TODO enrich?
-//        for (var policy : CsvTestsDataLoader.ENRICH_POLICIES) {
-//            logger.info("Creating policy [{}]", policy.policyFileName());
-//            var p = EnrichPolicy.fromXContent(
-//                JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, policy.streamPolicy())
-//            );
-//            assertAcked(
-//                cluster.client()
-//                    .execute(
-//                        PutEnrichPolicyAction.INSTANCE,
-//                        new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName(), p)
-//                    )
-//            );
-//            var response = cluster.client()
-//                .execute(
-//                    ExecuteEnrichPolicyAction.INSTANCE,
-//                    new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName())
-//                )
-//                .actionGet();
-//            assertTrue(response.getStatus().isCompleted());
-//        }
+        // TODO enrich?
+        // for (var policy : CsvTestsDataLoader.ENRICH_POLICIES) {
+        // logger.info("Creating policy [{}]", policy.policyFileName());
+        // var p = EnrichPolicy.fromXContent(
+        // JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, policy.streamPolicy())
+        // );
+        // assertAcked(
+        // cluster.client()
+        // .execute(
+        // PutEnrichPolicyAction.INSTANCE,
+        // new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName(), p)
+        // )
+        // );
+        // var response = cluster.client()
+        // .execute(
+        // ExecuteEnrichPolicyAction.INSTANCE,
+        // new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName())
+        // )
+        // .actionGet();
+        // assertTrue(response.getStatus().isCompleted());
+        // }
 
         for (var view : CsvTestsDataLoader.VIEW_CONFIGS) {
             logger.info("Creating view [{}]", view.name());
@@ -213,10 +213,7 @@ public class CsvIT extends ESTestCase {
         skipUnsupportedCapability(EsqlCapabilities.Cap.RERANK);
         skipUnsupportedCapability(EsqlCapabilities.Cap.COMPLETION);
 
-        assumeFalse(
-            "Enrich is not supported in IT yet",
-            testCase.query.trim().toUpperCase(java.util.Locale.ROOT).contains("ENRICH")
-        );
+        assumeFalse("Enrich is not supported in IT yet", testCase.query.trim().toUpperCase(java.util.Locale.ROOT).contains("ENRICH"));
         assumeFalse(
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")

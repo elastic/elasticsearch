@@ -340,7 +340,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
             for (Map<String, Object> o : operators) {
-                sig.add(checkOperatorProfile(o));
+                sig.add(signature(o));
+            }
+            for (Map<String, Object> o : operators) {
+                checkOperatorProfile(sig, o);
             }
             String description = p.get("description").toString();
             switch (description) {
@@ -548,7 +551,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
             @SuppressWarnings("unchecked")
             List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
             for (Map<String, Object> o : operators) {
-                sig.add(checkOperatorProfile(o));
+                sig.add(signature(o));
+            }
+            for (Map<String, Object> o : operators) {
+                checkOperatorProfile(sig, o);
             }
             signatures.add(sig);
         }
@@ -628,7 +634,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 @SuppressWarnings("unchecked")
                 List<Map<String, Object>> operators = (List<Map<String, Object>>) p.get("operators");
                 for (Map<String, Object> o : operators) {
-                    sig.add(checkOperatorProfile(o));
+                    sig.add(signature(o));
+                }
+                for (Map<String, Object> o : operators) {
+                    checkOperatorProfile(sig, o);
                 }
                 String description = p.get("description").toString();
                 switch (description) {
@@ -1227,22 +1236,44 @@ public class RestEsqlIT extends RestEsqlTestCase {
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
     }
 
-    private String checkOperatorProfile(Map<String, Object> o) {
+    private String signature(Map<String, Object> o) {
         String name = (String) o.get("operator");
-        name = name.replaceAll("\\[.+", "");
+        return name.replaceAll("\\[.+", "");
+    }
+
+    private void checkOperatorProfile(List<String> signature, Map<String, Object> o) {
+        String name = signature(o);
         MapMatcher status = switch (name) {
-            case "LuceneSourceOperator" -> matchesMap().entry("processed_slices", greaterThan(0))
-                .entry("processed_shards", List.of(testIndexName() + ":0"))
-                .entry("total_slices", greaterThan(0))
-                .entry("slice_index", 0)
-                .entry("slice_max", 0)
-                .entry("slice_min", 0)
-                .entry("current", DocIdSetIterator.NO_MORE_DOCS)
-                .entry("pages_emitted", greaterThan(0))
-                .entry("rows_emitted", greaterThan(0))
-                .entry("process_nanos", greaterThan(0))
-                .entry("processed_queries", List.of("*:*"))
-                .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
+            case "LuceneSourceOperator" -> {
+                System.err.println(signature);
+                MapMatcher matcher = matchesMap().entry("processed_slices", greaterThan(0))
+                    .entry("processed_shards", List.of(testIndexName() + ":0"))
+                    .entry("total_slices", greaterThan(0))
+                    .entry("slice_index", 0)
+                    .entry("slice_max", 0)
+                    .entry("slice_min", 0)
+                    .entry("current", DocIdSetIterator.NO_MORE_DOCS)
+                    .entry("pages_emitted", greaterThan(0))
+                    .entry("rows_emitted", greaterThan(0))
+                    .entry("process_nanos", greaterThan(0))
+                    .entry("processed_queries", List.of("*:*"))
+                    .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
+                if (signature.contains("TopNOperator")) {
+                    /*
+                     * min_competitive is enabled if there's a TopNOperator *and* it's sorting in certain ways.
+                     * But this test doesn't sort in any ways that disable it, so this `if` is enough.
+                     */
+                    matcher = matcher.entry(
+                        "min_competitive",
+                        matchesMap().entry("match_all", greaterThanOrEqualTo(0))
+                            .entry("match_none", greaterThanOrEqualTo(0))
+                            .entry("greater_than_min_competitive", greaterThanOrEqualTo(0))
+                            .entry("changed_value", greaterThanOrEqualTo(0))
+                            .entry("update_nanos", greaterThanOrEqualTo(0))
+                    );
+                }
+                yield matcher;
+            }
             case "ValuesSourceReaderOperator" -> basicProfile().entry("pages_received", greaterThan(0))
                 .entry("pages_emitted", greaterThan(0))
                 .entry("values_loaded", greaterThanOrEqualTo(0))
@@ -1286,12 +1317,13 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("partitioning_strategies", matchesMap().entry("rest-esql-test:0", "SHARD"));
             default -> throw new AssertionError("unexpected status: " + o);
         };
+
         MapMatcher expectedOp = matchesMap().entry("operator", startsWith(name));
         if (status != null) {
             expectedOp = expectedOp.entry("status", status);
         }
+
         assertMap(o, expectedOp);
-        return name;
     }
 
     private MapMatcher basicProfile() {

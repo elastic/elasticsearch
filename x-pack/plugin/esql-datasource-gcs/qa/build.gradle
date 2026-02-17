@@ -1,0 +1,87 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: org.elasticsearch.gradle.internal.precommit.CheckstylePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenApisPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.ForbiddenPatternsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.FilePermissionsPrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.LoggerUsagePrecommitPlugin
+apply plugin: org.elasticsearch.gradle.internal.precommit.TestingConventionsPrecommitPlugin
+
+// Exclude grpc-context globally to avoid jar hell with grpc-api
+// (grpc-api 1.70.0 absorbed grpc-context classes, but older transitive deps still pull grpc-context 1.49.2)
+configurations.javaRestTestRuntimeClasspath {
+  exclude group: 'io.grpc', module: 'grpc-context'
+}
+
+dependencies {
+  // Test fixtures and spec reader infrastructure
+  javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
+  javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql'))
+  javaRestTestImplementation(project(path: xpackModule('esql'), configuration: 'testRuntimeElements'))
+
+  // GCS fixture infrastructure for mocking GCS operations
+  javaRestTestImplementation project(':test:fixtures:gcs-fixture')
+
+  // GCS datasource provider for discovery tests
+  javaRestTestImplementation project(xpackModule('esql-datasource-gcs'))
+
+  // Google Cloud Storage client library (needed for GcsStorageProvider in tests)
+  javaRestTestImplementation 'com.google.cloud:google-cloud-storage:2.50.0'
+  javaRestTestImplementation 'com.google.cloud:google-cloud-core:2.53.1'
+  javaRestTestImplementation 'com.google.cloud:google-cloud-core-http:2.53.1'
+  javaRestTestImplementation 'com.google.auth:google-auth-library-credentials:1.33.1'
+  javaRestTestImplementation 'com.google.auth:google-auth-library-oauth2-http:1.33.1'
+  javaRestTestImplementation 'com.google.http-client:google-http-client:1.46.3'
+  javaRestTestImplementation 'com.google.api:api-common:2.46.1'
+  javaRestTestImplementation 'com.google.api:gax:2.63.1'
+
+  // Repository GCS module for cluster
+  clusterModules project(':modules:repository-gcs')
+  clusterPlugins project(':plugins:mapper-size')
+  clusterPlugins project(':plugins:mapper-murmur3')
+
+  // The GCS datasource plugin under test
+  clusterPlugins project(xpackModule('esql-datasource-gcs'))
+  clusterPlugins project(xpackModule('esql-datasource-http'))
+}
+
+tasks.named('javaRestTestTestingConventions').configure {
+  baseClass 'org.elasticsearch.test.rest.ESRestTestCase'
+  baseClass 'org.elasticsearch.test.ESTestCase'
+}
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
+}
+
+tasks.named('javaRestTest') {
+  usesDefaultDistribution("to be triaged")
+  maxParallelForks = 1
+
+  // Increase timeouts for GCS operations which may take longer than standard queries
+  systemProperty 'tests.rest.client_timeout', '60'
+  systemProperty 'tests.rest.socket_timeout', '60'
+
+  // Enable more verbose logging for debugging
+  testLogging {
+    events = ["passed", "skipped", "failed"]
+    exceptionFormat = "full"
+    showStandardStreams = false
+  }
+}
+
+restResources {
+  restApi {
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'cluster', 'capabilities', 'index'
+  }
+  restTests {
+    includeXpack 'esql'
+  }
+}

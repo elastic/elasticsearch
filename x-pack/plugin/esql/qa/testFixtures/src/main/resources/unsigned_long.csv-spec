@@ -301,17 +301,13 @@ null
 unsignedLongInWithNull
 required_capability: fix_null_comparison_type_check
 
-FROM ul_logs | WHERE bytes_in IN (to_ul(0), null) | SORT id | KEEP id, bytes_in
+FROM ul_logs | WHERE id IN (42, 85) | LIMIT 5 | SORT id | WHERE bytes_in IN (to_ul(0), null) | KEEP id, bytes_in 
 ;
-warningRegex:evaluation of \[bytes_in IN \(to_ul\(0\), null\)\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:65: evaluation of [bytes_in IN (to_ul(0), null)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:65: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 
 id:integer | bytes_in:ul
-70         | 0
-71         | 0
-72         | 0
-80         | 0
 ;
 
 

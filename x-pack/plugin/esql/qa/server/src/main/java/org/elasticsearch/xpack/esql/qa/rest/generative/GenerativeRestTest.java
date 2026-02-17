@@ -138,6 +138,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Pattern.DOTALL
     );
     /**
+     * Matches FIRST(...) or LAST(...) function calls where the second argument is the literal {@code null}.
+     * See https://github.com/elastic/elasticsearch/issues/142180#issuecomment-3913054718
+     */
+    private static final Pattern FIRST_LAST_NULL_ARG_PATTERN = Pattern.compile(
+        "(?i)\\b(?:first|last)\\s*\\([^,()]+,\\s*null\\s*\\)"
+    );
+    /**
      * Matches FIRST(...) or LAST(...) function calls and captures both arguments.
      * Used to detect when the same field is passed as both the search and sort parameters.
      * See https://github.com/elastic/elasticsearch/issues/142180
@@ -364,12 +371,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
 
     /**
      * Checks if the error is an {@code ArrayIndexOutOfBoundsException} caused by calling FIRST or LAST
-     * with the same field as both the search and sort parameters (e.g. {@code FIRST(timestamp, timestamp)}).
+     * with problematic arguments.
      * See <a href="https://github.com/elastic/elasticsearch/issues/142180">#142180</a>
      */
     private static boolean isFirstLastSameFieldError(String errorMessage, String query) {
         if (errorMessage.contains("out of bounds for length") == false) {
             return false;
+        }
+        if (FIRST_LAST_NULL_ARG_PATTERN.matcher(query).find()) {
+            return true;
         }
         Matcher matcher = FIRST_LAST_CALL_PATTERN.matcher(query);
         while (matcher.find()) {

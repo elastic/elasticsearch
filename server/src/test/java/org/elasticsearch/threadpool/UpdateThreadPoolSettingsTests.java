@@ -20,7 +20,6 @@ import java.lang.reflect.Field;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -152,7 +151,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
 
             final CountDownLatch shutDownLatch = new CountDownLatch(1);
             final CountDownLatch latch = new CountDownLatch(1);
-            ThreadPoolExecutor oldExecutor = (ThreadPoolExecutor) threadPool.executor(threadPoolName);
+            ExecutorService oldExecutor = threadPool.executor(threadPoolName);
             threadPool.executor(threadPoolName).execute(() -> {
                 try {
                     shutDownLatch.countDown();
@@ -166,7 +165,7 @@ public class UpdateThreadPoolSettingsTests extends ESThreadPoolTestCase {
             threadPool.shutdownNow();
             latch.await(3, TimeUnit.SECONDS); // if this throws then ThreadPool#shutdownNow did not interrupt
             assertThat(oldExecutor.isShutdown(), equalTo(true));
-            assertThat(oldExecutor.isTerminating() || oldExecutor.isTerminated(), equalTo(true));
+            assertTrue("executor should terminate after shutdownNow", oldExecutor.awaitTermination(5, TimeUnit.SECONDS));
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }

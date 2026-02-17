@@ -21,6 +21,7 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutorService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -50,20 +51,19 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.search.dfs.DfsPhase.executeKnnVectorQuery;
 
 public class DfsPhaseTests extends IndexShardTestCase {
 
-    ThreadPoolExecutor threadPoolExecutor;
+    EsExecutorService threadPoolExecutor;
     private TestThreadPool threadPool;
 
     @Before
     public final void init() {
         threadPool = new TestThreadPool(DfsPhaseTests.class.getName());
-        threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
+        threadPoolExecutor = (EsExecutorService) threadPool.executor(ThreadPool.Names.SEARCH);
     }
 
     @After

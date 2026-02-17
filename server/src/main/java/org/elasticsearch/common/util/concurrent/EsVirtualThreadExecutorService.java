@@ -151,7 +151,7 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         this.name = name;
         this.virtualExecutor = Executors.newThreadPerTaskExecutor(virtualThreadFactory(name));
         this.maxThreads = maxThreads;
-        this.maxQueueSize = 10;// maxQueueSize;
+        this.maxQueueSize = maxQueueSize;
         this.rejectAfterShutdown = rejectAfterShutdown;
         this.contextHolder = contextHolder;
     }

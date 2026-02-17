@@ -222,7 +222,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     @Before
     public final void initPlugins() {
         threadPool = new TestThreadPool(AggregatorTestCase.class.getName());
-        threadPoolExecutor = threadPool.executor(ThreadPool.Names.SEARCH);
+        threadPoolExecutor = (EsExecutorService) threadPool.executor(ThreadPool.Names.SEARCH);
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
         plugins.add(new AggCardinalityUpperBoundPlugin());
         SearchModule searchModule = new SearchModule(Settings.EMPTY, plugins);

@@ -19,6 +19,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -90,9 +91,9 @@ public class CustomDictionaryService {
         }));
     }
 
-    public void putDictionary(String id, String dictionary, ActionListener<DictionaryOperationResult> listener) {
+    public void putDictionary(String id, BytesReference dictionary, ActionListener<DictionaryOperationResult> listener) {
         try {
-            IndexRequest indexRequest = createDictionaryIndexRequest(id, dictionary);
+            IndexRequest indexRequest = createDictionaryIndexRequest(id, dictionary.utf8ToString());
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
             client.index(indexRequest, listener.delegateFailureAndWrap((l, indexResponse) -> {
@@ -101,7 +102,7 @@ public class CustomDictionaryService {
                     : DictionaryOperationResult.UPDATED;
                 l.onResponse(result);
             }));
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
         }
     }

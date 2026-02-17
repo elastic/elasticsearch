@@ -9,8 +9,10 @@
 
 package org.elasticsearch.rest.action.dictionary;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.dictionary.PutCustomDictionaryAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -39,11 +41,15 @@ public class RestPutCustomDictionaryAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         String id = restRequest.param("id");
 
-        // Get the raw text content from the request body
-        String dictionaryContent = restRequest.content().utf8ToString();
+        // Retain a reference to the content before async processing
+        ReleasableBytesReference content = restRequest.content().retain();
+        PutCustomDictionaryAction.Request request = new PutCustomDictionaryAction.Request(id, content);
 
-        PutCustomDictionaryAction.Request request = new PutCustomDictionaryAction.Request(id, dictionaryContent);
-
-        return channel -> client.execute(PutCustomDictionaryAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        return channel -> client.execute(
+            PutCustomDictionaryAction.INSTANCE,
+            request,
+            // Release the content reference after async processing completes
+            ActionListener.releaseBefore(content, new RestToXContentListener<>(channel))
+        );
     }
 }

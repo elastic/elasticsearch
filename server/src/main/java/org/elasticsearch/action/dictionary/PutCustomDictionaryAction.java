@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.dictionary.CustomDictionaryService;
@@ -35,9 +36,9 @@ public class PutCustomDictionaryAction extends ActionType<PutCustomDictionaryAct
 
     public static class Request extends ActionRequest {
         private final String id;
-        private final String dictionary;
+        private final BytesReference dictionary;
 
-        public Request(String id, String dictionary) {
+        public Request(String id, BytesReference dictionary) {
             this.id = id;
             this.dictionary = dictionary;
         }
@@ -45,7 +46,7 @@ public class PutCustomDictionaryAction extends ActionType<PutCustomDictionaryAct
         public Request(StreamInput in) throws IOException {
             super(in);
             this.id = in.readString();
-            this.dictionary = in.readString();
+            this.dictionary = in.readBytesReference();
         }
 
         @Override
@@ -54,7 +55,7 @@ public class PutCustomDictionaryAction extends ActionType<PutCustomDictionaryAct
             if (Strings.isEmpty(id)) {
                 validationException = ValidateActions.addValidationError("dictionary id must be specified", validationException);
             }
-            if (Strings.isEmpty(dictionary)) {
+            if (dictionary == null || dictionary.length() == 0) {
                 validationException = ValidateActions.addValidationError("dictionary content must be specified", validationException);
             }
             return validationException;
@@ -64,14 +65,14 @@ public class PutCustomDictionaryAction extends ActionType<PutCustomDictionaryAct
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(id);
-            out.writeString(dictionary);
+            out.writeBytesReference(dictionary);
         }
 
         public String id() {
             return id;
         }
 
-        public String dictionary() {
+        public BytesReference dictionary() {
             return dictionary;
         }
 

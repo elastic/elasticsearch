@@ -1934,6 +1934,11 @@ public class EsqlCapabilities {
         PROMQL_POST_PROCESSING_STATS,
 
         /**
+         * PromQL scalar() function support.
+         */
+        PROMQL_SCALAR,
+
+        /**
          * Support implicit conversion from an instant selector to a range selector for range-vector functions.
          * For example, `rate(metric)` is interpreted as `rate(metric[step])`.
          */

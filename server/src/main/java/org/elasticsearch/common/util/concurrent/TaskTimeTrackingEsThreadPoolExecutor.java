@@ -42,8 +42,18 @@ public final class TaskTimeTrackingEsThreadPoolExecutor extends EsThreadPoolExec
         TaskTrackingConfig trackingConfig,
         EsExecutors.HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig
     ) {
-        super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder,
-            hotThreadsOnLargeQueueConfig);
+        super(
+            name,
+            corePoolSize,
+            maximumPoolSize,
+            keepAliveTime,
+            unit,
+            workQueue,
+            threadFactory,
+            handler,
+            contextHolder,
+            hotThreadsOnLargeQueueConfig
+        );
 
         this.runnableWrapper = runnableWrapper;
         this.taskTracker = new TaskTracker(trackingConfig, maximumPoolSize, this::getQueue);

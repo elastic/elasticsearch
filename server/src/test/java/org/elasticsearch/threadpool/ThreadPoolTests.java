@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutorService;
+import org.elasticsearch.common.util.concurrent.EsExecutorService.TaskTrackingEsExecutorService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -373,9 +374,9 @@ public class ThreadPoolTests extends ESTestCase {
     public void testWriteThreadPoolUsesTaskTimeTrackingEsThreadPoolExecutor() {
         final ThreadPool threadPool = new TestThreadPool("test", Settings.EMPTY);
         try {
-            assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(TaskTimeTrackingEsThreadPoolExecutor.class));
-            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_WRITE), instanceOf(TaskTimeTrackingEsThreadPoolExecutor.class));
-            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_CRITICAL_WRITE), instanceOf(TaskTimeTrackingEsThreadPoolExecutor.class));
+            assertThat(threadPool.executor(ThreadPool.Names.WRITE), instanceOf(TaskTrackingEsExecutorService.class));
+            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_WRITE), instanceOf(TaskTrackingEsExecutorService.class));
+            assertThat(threadPool.executor(ThreadPool.Names.SYSTEM_CRITICAL_WRITE), instanceOf(TaskTrackingEsExecutorService.class));
         } finally {
             assertTrue(terminate(threadPool));
         }
@@ -506,9 +507,7 @@ public class ThreadPoolTests extends ESTestCase {
 
             final long beforePreviousCollectNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
-            double allocationUtilization = executor.pollUtilization(
-                EsExecutorService.TaskTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION
-            );
+            double allocationUtilization = executor.pollUtilization(TaskTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION);
             final long afterPreviousCollectNanos = System.nanoTime();
 
             var metricValue = metricAsserter.assertLatestMetricValueMatches(
@@ -540,9 +539,7 @@ public class ThreadPoolTests extends ESTestCase {
 
             final long beforeMetricsCollectedNanos = System.nanoTime();
             meterRegistry.getRecorder().collect();
-            allocationUtilization = executor.pollUtilization(
-                EsExecutorService.TaskTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION
-            );
+            allocationUtilization = executor.pollUtilization(TaskTrackingEsExecutorService.UtilizationTrackingPurpose.ALLOCATION);
             final long afterMetricsCollectedNanos = System.nanoTime();
 
             // Calculate upper bound on utilisation metric

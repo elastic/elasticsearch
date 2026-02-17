@@ -347,11 +347,11 @@ public class EsExecutors {
     }
 
     public static String executorName(Thread thread) {
-        if (thread instanceof EsThread esThread) {
-            return esThread.executorName;
-        }
         if (thread.isVirtual()) {
             return EsVirtualThreadExecutorService.executorName(thread);
+        }
+        if (thread instanceof EsThread esThread) {
+            return esThread.executorName;
         }
         return null;
     }

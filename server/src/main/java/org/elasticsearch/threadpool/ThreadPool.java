@@ -50,7 +50,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
@@ -448,19 +447,19 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     }
 
     /**
-     * Get the generic {@link ExecutorService}. This executor service
+     * Get the generic {@link EsExecutorService}. This executor service
      * {@link Executor#execute(Runnable)} method will run the {@link Runnable} it is given in the
      * {@link ThreadContext} of the thread that queues it.
      * <p>
      * Warning: this {@linkplain ExecutorService} will not throw {@link RejectedExecutionException}
      * if you submit a task while it shutdown. It will instead silently queue it and not run it.
      */
-    public ExecutorService generic() {
+    public EsExecutorService generic() {
         return executor(Names.GENERIC);
     }
 
     /**
-     * Get the {@link ExecutorService} with the given name. This executor service's
+     * Get the {@link EsExecutorService} with the given name. This executor service's
      * {@link Executor#execute(Runnable)} method will run the {@link Runnable} it is given in the
      * {@link ThreadContext} of the thread that queues it.
      * <p>
@@ -470,7 +469,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
      * @param name the name of the executor service to obtain
      * @throws IllegalArgumentException if no executor service with the specified name exists
      */
-    public ExecutorService executor(String name) {
+    public EsExecutorService executor(String name) {
         final ExecutorHolder holder = executors.get(name);
         if (holder == null) {
             final var message = "no executor service found for [" + name + "]";
@@ -593,10 +592,8 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         stopCachedTimeThread();
         scheduler.shutdown();
         for (ExecutorHolder executor : executors.values()) {
-            if (executor.executor() instanceof ThreadPoolExecutor) {
-                closeMetrics(executor);
-                executor.executor().shutdown();
-            }
+            closeMetrics(executor);
+            executor.executor().shutdown();
         }
     }
 
@@ -604,20 +601,16 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         stopCachedTimeThread();
         scheduler.shutdownNow();
         for (ExecutorHolder executor : executors.values()) {
-            if (executor.executor() instanceof ThreadPoolExecutor) {
-                closeMetrics(executor);
-                executor.executor().shutdownNow();
-            }
+            closeMetrics(executor);
+            executor.executor().shutdownNow();
         }
     }
 
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         boolean result = scheduler.awaitTermination(timeout, unit);
         for (ExecutorHolder executor : executors.values()) {
-            if (executor.executor() instanceof ThreadPoolExecutor) {
-                closeMetrics(executor);
-                result &= executor.executor().awaitTermination(timeout, unit);
-            }
+            closeMetrics(executor);
+            result &= executor.executor().awaitTermination(timeout, unit);
         }
         cachedTimeThread.join(unit.toMillis(timeout));
         return result;

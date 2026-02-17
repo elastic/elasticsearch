@@ -9,14 +9,22 @@
 
 package org.elasticsearch.dictionaries;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -32,7 +40,6 @@ public class CustomDictionaryService {
     private static final String CUSTOM_DICTIONARIES_INDEX_CONCRETE_NAME = ".custom_dictionaries-" + CUSTOM_DICTIONARIES_INDEX_FORMAT;
     private static final String CUSTOM_DICTIONARIES_ALIAS_NAME = ".custom_dictionaries";
     private static final int CUSTOM_DICTIONARIES_INDEX_MAPPINGS_VERSION = 1;
-    private static final String CUSTOM_DICTIONARY_ID_FIELD = "id";
     private static final String CUSTOM_DICTIONARY_VALUE_FIELD = "value";
 
     public static final String CUSTOM_DICTIONARIES_FEATURE_NAME = "custom_dictionaries";
@@ -60,15 +67,75 @@ public class CustomDictionaryService {
     }
 
     public void getDictionary(String id, ActionListener<String> listener) {
-        // TODO: Implement
+        client.prepareGet(CUSTOM_DICTIONARIES_ALIAS_NAME, id).execute(ActionListener.wrap(getResponse -> {
+            if (getResponse.isExists() == false) {
+                listener.onFailure(new ResourceNotFoundException("custom dictionary [" + id + "] not found"));
+                return;
+            }
+
+            // Extract the dictionary value from the source
+            Object dictionaryValue = getResponse.getSourceAsMap().get(CUSTOM_DICTIONARY_VALUE_FIELD);
+            if (dictionaryValue == null) {
+                listener.onFailure(new IllegalStateException("custom dictionary [" + id + "] has no value field"));
+                return;
+            }
+
+            listener.onResponse(dictionaryValue.toString());
+        }, e -> {
+            if (e instanceof IndexNotFoundException) {
+                listener.onFailure(new ResourceNotFoundException("custom dictionary [" + id + "] not found"));
+            } else {
+                listener.onFailure(e);
+            }
+        }));
     }
 
     public void putDictionary(String id, String dictionary, ActionListener<DictionaryOperationResult> listener) {
-        // TODO: Implement
+        try {
+            IndexRequest indexRequest = createDictionaryIndexRequest(id, dictionary);
+            indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+            client.index(indexRequest, listener.delegateFailureAndWrap((l, indexResponse) -> {
+                DictionaryOperationResult result = indexResponse.status() == RestStatus.CREATED
+                    ? DictionaryOperationResult.CREATED
+                    : DictionaryOperationResult.UPDATED;
+                l.onResponse(result);
+            }));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
     }
 
     public void deleteDictionary(String id, ActionListener<DictionaryOperationResult> listener) {
-        // TODO: Implement
+        client.prepareDelete(CUSTOM_DICTIONARIES_ALIAS_NAME, id)
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .execute(ActionListener.wrap(deleteResponse -> {
+                if (deleteResponse.getResult() == DocWriteResponse.Result.NOT_FOUND) {
+                    listener.onFailure(new ResourceNotFoundException("custom dictionary [" + id + "] not found"));
+                    return;
+                }
+                listener.onResponse(DictionaryOperationResult.DELETED);
+            }, e -> {
+                if (e instanceof IndexNotFoundException) {
+                    listener.onFailure(new ResourceNotFoundException("custom dictionary [" + id + "] not found"));
+                } else {
+                    listener.onFailure(e);
+                }
+            }));
+    }
+
+    private IndexRequest createDictionaryIndexRequest(String id, String dictionary) throws IOException {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            builder.startObject();
+            {
+                builder.field(CUSTOM_DICTIONARY_VALUE_FIELD, dictionary);
+            }
+            builder.endObject();
+
+            return new IndexRequest(CUSTOM_DICTIONARIES_ALIAS_NAME).id(id)
+                .opType(DocWriteRequest.OpType.INDEX)
+                .source(builder);
+        }
     }
 
     private static XContentBuilder mappings() {
@@ -87,11 +154,6 @@ public class CustomDictionaryService {
                     builder.field("dynamic", "strict");
                     builder.startObject("properties");
                     {
-                        builder.startObject(CUSTOM_DICTIONARY_ID_FIELD);
-                        {
-                            builder.field("type", "keyword");
-                        }
-                        builder.endObject();
                         builder.startObject(CUSTOM_DICTIONARY_VALUE_FIELD);
                         {
                             builder.field("type", "keyword");

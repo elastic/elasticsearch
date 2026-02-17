@@ -351,7 +351,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         out.writeOptionalVInt(dimensions);
         out.writeBoolean(dimensionsSetByUser);
         out.writeOptionalVInt(maxInputTokens);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalEnum(similarity);
         rateLimitSettings.writeTo(out);
     }
 

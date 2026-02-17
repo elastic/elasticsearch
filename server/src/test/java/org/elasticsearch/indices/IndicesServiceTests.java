@@ -820,7 +820,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testLoadSlowLogFieldProvider() {
+    public void testLoadLoggingFieldsProvider() {
         TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
         TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of("key2", "value2"));
 

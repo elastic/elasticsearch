@@ -1,5 +1,7 @@
 ---
 setup:
+  - skip:
+      features: allowed_warnings
   - do:
       cluster.health:
         wait_for_events: languid
@@ -7,6 +9,8 @@ setup:
 ---
 "Test metrics-apm.app-* dynamic mapping":
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       bulk:
         index: metrics-apm.app.svc1-testing
         refresh: true

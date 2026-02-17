@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 142281
+pr: 142328
+summary: Fix NPE with null field parameter
+type: bug

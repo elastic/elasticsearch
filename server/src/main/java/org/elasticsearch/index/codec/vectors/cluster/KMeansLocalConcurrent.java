@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
@@ -40,8 +39,8 @@ class KMeansLocalConcurrent extends KMeansLocal {
 
     @Override
     protected boolean stepLloyd(
-        FloatVectorValues vectors,
-        IntToIntFunction translateOrd,
+        ClusteringFloatVectorValues vectors,
+        IntToIntFunction ordTranslator,
         float[][] centroids,
         FixedBitSet[] centroidChangedSlices,
         int[] assignments,
@@ -55,7 +54,7 @@ class KMeansLocalConcurrent extends KMeansLocal {
             final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
             final FixedBitSet centroidChangedSlice = centroidChangedSlices[i];
             runners.add(
-                () -> stepLloydSlice(vectors.copy(), translateOrd, centroids, centroidChangedSlice, assignments, neighborHoods, start, end)
+                () -> stepLloydSlice(vectors.copy(), ordTranslator, centroids, centroidChangedSlice, assignments, neighborHoods, start, end)
             );
         }
         final List<Boolean> hasChanges = executor.invokeAll(runners);
@@ -64,7 +63,7 @@ class KMeansLocalConcurrent extends KMeansLocal {
 
     @Override
     protected void assignSpilled(
-        FloatVectorValues vectors,
+        ClusteringFloatVectorValues vectors,
         KMeansIntermediate kmeansIntermediate,
         NeighborHood[] neighborhoods,
         float soarLambda

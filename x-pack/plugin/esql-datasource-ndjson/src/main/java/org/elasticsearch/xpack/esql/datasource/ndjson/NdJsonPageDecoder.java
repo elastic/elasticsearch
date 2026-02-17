@@ -18,6 +18,7 @@ import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
 import java.util.BitSet;
 import java.util.HashMap;
 import java.util.List;
@@ -177,9 +179,11 @@ public class NdJsonPageDecoder implements AutoCloseable {
                     // Keep in sync with NdJsonSchemaInferrer.inferValueSchema
                     case BOOLEAN -> blockFactory.newBooleanBlockBuilder(batchSize);
                     case NULL -> new ConstantNullBlock.Builder(blockFactory);
+                    case INTEGER -> blockFactory.newIntBlockBuilder(batchSize);
                     case LONG -> blockFactory.newLongBlockBuilder(batchSize);
                     case DOUBLE -> blockFactory.newDoubleBlockBuilder(batchSize);
                     case KEYWORD -> blockFactory.newBytesRefBlockBuilder(batchSize);
+                    case DATETIME -> blockFactory.newLongBlockBuilder(batchSize); // milliseconds since epoch
                     default -> throw new IllegalArgumentException("Unsupported data type: " + attribute.dataType());
                 };
                 blockBuilders[blockIdx] = blockBuilder;
@@ -243,6 +247,13 @@ public class NdJsonPageDecoder implements AutoCloseable {
                     // NULL handled above
                     unexpectedValue(parser);
                 }
+                case INTEGER -> {
+                    if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
+                        ((IntBlock.Builder) blockBuilder).appendInt(parser.getIntValue());
+                    } else {
+                        unexpectedValue(parser);
+                    }
+                }
                 case LONG -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
                         ((LongBlock.Builder) blockBuilder).appendLong(parser.getLongValue());
@@ -254,6 +265,14 @@ public class NdJsonPageDecoder implements AutoCloseable {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {
                         ((DoubleBlock.Builder) blockBuilder).appendDouble(parser.getDoubleValue());
                     } else {
+                        unexpectedValue(parser);
+                    }
+                }
+                case DATETIME -> {
+                    try {
+                        var millis = Instant.parse(parser.getValueAsString()).toEpochMilli();
+                        ((LongBlock.Builder) blockBuilder).appendLong(millis);
+                    } catch (Exception e) {
                         unexpectedValue(parser);
                     }
                 }

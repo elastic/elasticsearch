@@ -22,6 +22,8 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.LinkedHashMap;
@@ -125,8 +127,22 @@ public class NdJsonSchemaInferrer {
             }
             // Keep in sync with NdJsonPageIterator.Decoder
             case START_OBJECT -> inferObjectSchema(parser, field);
-            case VALUE_STRING -> field.addType(DataType.KEYWORD);
-            case VALUE_NUMBER_INT -> field.addType(DataType.LONG); // conservative size
+            case VALUE_STRING -> {
+                try {
+                    Instant.parse(parser.getText());
+                    field.addType(DataType.DATETIME);
+                } catch (DateTimeParseException e) {
+                    field.addType(DataType.KEYWORD);
+                }
+            }
+            case VALUE_NUMBER_INT -> {
+                long value = parser.getLongValue();
+                if (value >= Integer.MIN_VALUE && value <= Integer.MAX_VALUE) {
+                    field.addType(DataType.INTEGER);
+                } else {
+                    field.addType(DataType.LONG);
+                }
+            } // conservative size
             case VALUE_NUMBER_FLOAT -> field.addType(DataType.DOUBLE); // conservative size
             case VALUE_TRUE, VALUE_FALSE -> field.addType(DataType.BOOLEAN);
             case VALUE_NULL -> field.addType(DataType.NULL);
@@ -204,8 +220,8 @@ public class NdJsonSchemaInferrer {
             }
             // Multiple types - for now, use the widest type
             // TODO: Create MultiTypeEsField for proper union type support
-            if (types.contains(DataType.TEXT)) {
-                return DataType.TEXT;
+            if (types.contains(DataType.DATETIME)) {
+                return DataType.DATETIME;
             }
             if (types.contains(DataType.KEYWORD)) {
                 return DataType.KEYWORD;

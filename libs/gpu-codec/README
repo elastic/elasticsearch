@@ -6,7 +6,7 @@ a minimal cuvs-java "api" jar. Test cannot be run.
 
 1. Clone cuvs
    git clone https://github.com/rapidsai/cuvs/; cd cuvs
-   git checkout branch-25.08
+   git checkout main
    cd java/cuvs-java
 
 2. Remove the implementation compile target from the pom.xml, e.g.
@@ -40,11 +40,11 @@ index 15e0193a..446f2b61 100644
 
 3. Build and install into local maven repository
 
-  export JAVA_HOME=/Users/chegar/binaries/jdk-22.0.2.jdk/Contents/Home/
+  export JAVA_HOME=`/usr/libexec/java_home`
   cd java/cuvs-java
   mvn install
   Installs into maven local repository, e.g:
-    /Users/chegar/.m2/repository/com/nvidia/cuvs/cuvs-java/25.08.0/
+    ~/.m2/repository/com/nvidia/cuvs/cuvs-java/<cuvs-version>/
 
   Might need to modify gradle metadata sha in gradle/verification-metadata.xml
 

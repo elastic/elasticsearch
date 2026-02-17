@@ -2,6 +2,13 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
+repositories {
+  mavenLocal()
+  maven {
+    url = uri("https://storage.googleapis.com/elasticsearch-cuvs-snapshots")
+  }
+}
+
 esplugin {
   name = 'gpu'
   description = 'A plugin for doing vector search in GPU'

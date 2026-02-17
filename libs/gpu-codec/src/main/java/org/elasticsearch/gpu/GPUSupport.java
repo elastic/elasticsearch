@@ -17,22 +17,26 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.util.concurrent.atomic.AtomicInteger;
+
 public class GPUSupport {
 
     private static final Logger LOG = LogManager.getLogger(GPUSupport.class);
 
     // Set the minimum at 7.5GB: 8GB GPUs (which are our targeted minimum) report less than that via the API
-    private static final long MIN_DEVICE_MEMORY_IN_BYTES = 8053063680L;
+    public static final long MIN_DEVICE_MEMORY_IN_BYTES = 8053063680L;
 
     private static class Holder {
-        static final long TOTAL_GPU_MEMORY;
+        static final long TOTAL_GPU_MEMORY_IN_BYTES;
         static final boolean IS_SUPPORTED;
 
         static {
-            TOTAL_GPU_MEMORY = initializeGpuInfo();
-            IS_SUPPORTED = TOTAL_GPU_MEMORY != -1L;
+            TOTAL_GPU_MEMORY_IN_BYTES = initializeGpuInfo();
+            IS_SUPPORTED = TOTAL_GPU_MEMORY_IN_BYTES != -1L;
         }
     }
+
+    private static final AtomicInteger POOLED_MEMORY_PERCENT = new AtomicInteger(0);
 
     /**
      * Initializes GPU support information by finding the first compatible GPU.
@@ -71,7 +75,7 @@ public class GPUSupport {
                         gpu.totalDeviceMemoryInBytes()
                     );
                 } else {
-                    LOG.info("Found compatible GPU [{}] (id: [{}])", gpu.name(), gpu.gpuId());
+                    LOG.info("Found compatible GPU [{}] (id: [{}], memory: [{}])", gpu.name(), gpu.gpuId(), gpu.totalDeviceMemoryInBytes());
                     return gpu.totalDeviceMemoryInBytes();
                 }
             }
@@ -105,6 +109,14 @@ public class GPUSupport {
         return Holder.IS_SUPPORTED;
     }
 
+    public static void enableMemoryPooling(int pooledMemoryPercent) {
+        assert Holder.IS_SUPPORTED;
+        if (POOLED_MEMORY_PERCENT.getAndSet(pooledMemoryPercent) == 0) {
+            LOG.info("Enabling GPU memory pooling (initial: [{}%], max: [{}%])", pooledMemoryPercent, pooledMemoryPercent);
+            CuVSProvider.provider().enableRMMPooledMemory(pooledMemoryPercent, pooledMemoryPercent);
+        }
+    }
+
     /** Returns a resources if supported, otherwise null. */
     public static CuVSResources cuVSResourcesOrNull(boolean logError) {
         try {
@@ -131,12 +143,22 @@ public class GPUSupport {
         return null;
     }
 
+    public static boolean isPoolingEnabled() {
+        assert Holder.IS_SUPPORTED;
+        var poolingPercent = POOLED_MEMORY_PERCENT.get();
+        return poolingPercent > 0;
+    }
+
     /**
      * Returns the total device memory in bytes of the first available compatible GPU.
      *
      * @return total device memory in bytes, or -1 if GPU is not available or supported
      */
-    public static long getTotalGpuMemory() {
-        return Holder.TOTAL_GPU_MEMORY;
+    public static long getTotalGpuMemoryInBytes() {
+        var poolingPercent = POOLED_MEMORY_PERCENT.get();
+        if (poolingPercent > 0) {
+            return (long) (Holder.TOTAL_GPU_MEMORY_IN_BYTES * (double) poolingPercent / 100.0);
+        }
+        return Holder.TOTAL_GPU_MEMORY_IN_BYTES;
     }
 }

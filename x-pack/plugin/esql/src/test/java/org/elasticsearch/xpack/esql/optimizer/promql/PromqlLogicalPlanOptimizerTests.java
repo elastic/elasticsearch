@@ -445,6 +445,11 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.total_bytes_in"));
     }
 
+    public void testBinaryAcrossSeriesAggregations() {
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.total_bytes_in) / max(network.total_bytes_in))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("ratio", "step")));
+    }
+
     public void testAcrossSeriesMultiplicationLiteral() {
         var plan = planPromql("PROMQL index=k8s step=1m bits=(max(network.total_bytes_in * 8))");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step")));

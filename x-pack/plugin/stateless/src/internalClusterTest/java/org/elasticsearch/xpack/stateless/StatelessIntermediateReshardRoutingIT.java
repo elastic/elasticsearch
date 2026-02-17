@@ -68,6 +68,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
@@ -83,7 +84,9 @@ public class StatelessIntermediateReshardRoutingIT extends AbstractStatelessPlug
     @Override
     protected Settings.Builder nodeSettings() {
         // Randomly the test framework sets this to 0, but we need retries in case the primary is not ready during target delegation.
-        return super.nodeSettings().put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), "60s");
+        return super.nodeSettings().put(TransportReplicationAction.REPLICATION_RETRY_TIMEOUT.getKey(), "60s")
+            // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
+            .put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
     }
 
     // Test forwarding of indexing requests (by the primary shard) when the coordinator is so stale that

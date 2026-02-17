@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -480,6 +481,37 @@ public abstract class PaginatedHitSource {
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SearchFailure that = (SearchFailure) o;
+            if (!Objects.equals(index, that.index)) return false;
+            if (!Objects.equals(shardId, that.shardId)) return false;
+            if (!Objects.equals(nodeId, that.nodeId)) return false;
+            if (status != that.status) return false;
+            // Compare Throwable meaningfully, not by identity
+            if (reason == null && that.reason == null) {
+                return true;
+            }
+            if (reason == null || that.reason == null) {
+                return false;
+            }
+            return reason.getClass().equals(that.reason.getClass())
+                && Objects.equals(reason.getMessage(), that.reason.getMessage());
+        }
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                index,
+                shardId,
+                nodeId,
+                status,
+                reason.getClass(),
+                reason.getMessage()
+            );
         }
     }
 }

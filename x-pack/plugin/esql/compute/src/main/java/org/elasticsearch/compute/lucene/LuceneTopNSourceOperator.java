@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
@@ -80,7 +81,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 taskConcurrency,
                 limit,
                 needsScore,
-                scoreModeFunction(sorts, needsScore)
+                scoreModeFunction(sorts, needsScore, contexts)
             );
             this.contexts = contexts;
             this.maxPageSize = maxPageSize;
@@ -88,7 +89,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             this.estimatedPerRowSortSize = estimatedPerRowSortSize;
 
             // Create provider once - will be shared across all operators
-            this.perShardCollectorProvider = new PerShardCollectorProvider(limit, needsScore, sorts);
+            this.perShardCollectorProvider = new PerShardCollectorProvider(limit, needsScore, sorts, contexts);
         }
 
         @Override
@@ -393,11 +394,12 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
     }
 
-    private static Function<ShardContext, ScoreMode> scoreModeFunction(List<SortBuilder<?>> sorts, boolean needsScore) {
+    private static Function<ShardContext, ScoreMode> scoreModeFunction(List<SortBuilder<?>> sorts, boolean needsScore,
+                                                                       IndexedByShardId<? extends ShardContext> contexts) {
         return ctx -> {
             try {
                 // we create a collector with a limit of 1 to determine the appropriate score mode to use.
-                PerShardCollectorProvider tempProvider = new PerShardCollectorProvider(1, needsScore, sorts);
+                PerShardCollectorProvider tempProvider = new PerShardCollectorProvider(1, needsScore, sorts, contexts);
                 return tempProvider.newPerShardCollector(ctx).collector.scoreMode();
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -423,11 +425,23 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         final Map<Sort, TopFieldCollectorManager> topFieldCollectorManagers;
         private final List<SortBuilder<?>> sorts;
 
-        PerShardCollectorProvider(int limit, boolean needsScore, List<SortBuilder<?>> sorts) {
+        PerShardCollectorProvider(
+            int limit,
+            boolean needsScore,
+            List<SortBuilder<?>> sorts,
+            IndexedByShardId<? extends ShardContext> contexts
+        ) {
             this.limit = limit;
             this.needsScore = needsScore;
             this.sorts = sorts;
             this.topFieldCollectorManagers = new ConcurrentHashMap<>();
+            for (ShardContext shardContext : contexts.iterable()) {
+                try {
+                    buildCollectors(getShardContextSort(shardContext, sorts));
+                } catch (IOException e) {
+                    // Ignore the exception, will throw later when we try to get the sort from the shard context
+                }
+            }
         }
 
         /**
@@ -435,56 +449,67 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
          * Uses double-checked locking for thread-safe lazy initialization.
          */
         TopScoreDocCollectorManager getTopScoreDocCollectorManager() {
-            if (topScoreDocCollectorManager == null) {
-                synchronized (this) {
-                    if (topScoreDocCollectorManager == null) {
-                        topScoreDocCollectorManager = new TopScoreDocCollectorManager(limit, null, 0);
-                    }
-                }
-            }
             return topScoreDocCollectorManager;
         }
 
-        /**
-         * Gets or creates a TopFieldCollectorManager for the given Sort.
-         * Uses ConcurrentHashMap.computeIfAbsent for thread-safe lazy creation.
-         */
-        TopFieldCollectorManager getTopFieldCollectorManager(Sort sort) {
-            return topFieldCollectorManagers.computeIfAbsent(sort, s -> new TopFieldCollectorManager(s, limit, null, 0));
-        }
-
-        TopDocsCollector<?> newTopDocsCollector(Sort sort) {
+        void buildCollectors(Sort sort) {
             if (needsScore) {
                 if (Sort.RELEVANCE.equals(sort)) {
-                    // SORT _score DESC, use top score collector
-                    TopScoreDocCollectorManager manager = getTopScoreDocCollectorManager();
-                    return manager.newCollector();
+                    topScoreDocCollectorManager = Objects.requireNonNullElseGet(
+                        topScoreDocCollectorManager,
+                        () -> new TopScoreDocCollectorManager(limit, null, 0)
+                    );
+                    return;
                 } else {
-                    // Add doc and score to sort
-                    var l = new ArrayList<>(Arrays.asList(sort.getSort()));
-                    l.add(SortField.FIELD_DOC);
-                    l.add(SortField.FIELD_SCORE);
-                    sort = new Sort(l.toArray(SortField[]::new));
+                    sort = getSortForScore(sort);
                 }
             }
 
-            TopFieldCollectorManager topFieldCollectorManager = getTopFieldCollectorManager(sort);
-            synchronized (topFieldCollectorManager) {
-                // Need to synchronize on the manager to ensure that only one collector is created at a time for a given Sort,
-                // since TopFieldCollectorManager is not thread-safe.
-                return topFieldCollectorManager.newCollector();
+            topFieldCollectorManagers.computeIfAbsent(sort, s -> new TopFieldCollectorManager(s, limit, null, 0));
+        }
+
+        private static Sort getSortForScore(Sort sort) {
+            // Add doc and score to sort
+            var l = new ArrayList<>(Arrays.asList(sort.getSort()));
+            l.add(SortField.FIELD_DOC);
+            l.add(SortField.FIELD_SCORE);
+            sort = new Sort(l.toArray(SortField[]::new));
+            return sort;
+        }
+
+        TopDocsCollector<?> getTopDocsCollectorForSort(Sort sort) {
+            if (needsScore) {
+                if (Sort.RELEVANCE.equals(sort)) {
+                    // SORT _score DESC, use top score collector
+                    assert topScoreDocCollectorManager != null : "TopScoreDocCollectorManager should have been built for relevance sort";
+                    return topScoreDocCollectorManager.newCollector();
+                } else {
+                    // Add doc and score to sort
+                    sort = getSortForScore(sort);
+                }
             }
 
+            return getTopFieldCollectorManager(sort).newCollector();
+        }
+
+        TopFieldCollectorManager getTopFieldCollectorManager(Sort sort) {
+            TopFieldCollectorManager topFieldCollectorManager = topFieldCollectorManagers.get(sort);
+            assert topFieldCollectorManager != null : "TopFieldCollectorManager should have been built for sort: " + sort;
+            return topFieldCollectorManager;
         }
 
         PerShardCollector newPerShardCollector(ShardContext context) throws IOException {
-            Optional<SortAndFormats> sortAndFormats = context.buildSort(this.sorts);
+            Sort sort = getShardContextSort(context, sorts);
+            return new PerShardCollector(context, getTopDocsCollectorForSort(sort));
+        }
+
+        private static Sort getShardContextSort(ShardContext context, List<SortBuilder<?>> sorts) throws IOException {
+            Optional<SortAndFormats> sortAndFormats = context.buildSort(sorts);
             if (sortAndFormats.isEmpty()) {
                 throw new IllegalStateException("sorts must not be disabled in TopN");
             }
 
-            Sort sort = sortAndFormats.get().sort;
-            return new PerShardCollector(context, newTopDocsCollector(sort));
+            return sortAndFormats.get().sort;
         }
     }
 }

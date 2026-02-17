@@ -46,6 +46,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.CsvAssert.assertResultsWithTransformer;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
@@ -231,9 +232,20 @@ public class CsvIT extends ESTestCase {
                 response.columns().stream().map(column -> CsvTestUtils.Type.asType(column.type().nameUpper())).toList(),
                 response.columns().stream().map(ColumnInfoImpl::type).toList(),
                 response.pages(),
-                Map.of() // TODO get warning headers
+                Map.of()
             );
-            CsvAssert.assertResults(expected, actual, testCase.ignoreOrder, logResults() ? logger : null);
+
+            // TODO assert warning headers
+            assertResultsWithTransformer(
+                expected,
+                actual.columnNames(),
+                actual.columnTypes(),
+                actual.values(),
+                testCase.ignoreOrder,
+                false,
+                false,
+                logResults() ? logger : null
+            );
         } catch (Throwable t) {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;

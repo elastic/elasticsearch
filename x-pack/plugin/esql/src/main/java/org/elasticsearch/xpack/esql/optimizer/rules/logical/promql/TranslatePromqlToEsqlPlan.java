@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -565,13 +566,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     }
 
     private static Alias createStepBucketAlias(PromqlCommand promqlCommand) {
-        Expression timeBucketSize;
-        if (promqlCommand.isRangeQuery()) {
-            timeBucketSize = promqlCommand.step();
-        } else {
-            // use default lookback for instant queries
-            timeBucketSize = Literal.timeDuration(promqlCommand.source(), DEFAULT_LOOKBACK);
-        }
+        Expression timeBucketSize = resolveTimeBucketSize(promqlCommand);
         Bucket b = new Bucket(
             timeBucketSize.source(),
             promqlCommand.timestamp(),
@@ -581,6 +576,34 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ConfigurationAware.CONFIGURATION_MARKER
         );
         return new Alias(b.source(), STEP_COLUMN_NAME, b, promqlCommand.stepId());
+    }
+
+    private static Expression resolveTimeBucketSize(PromqlCommand promqlCommand) {
+        if (promqlCommand.isRangeQuery()) {
+            if (promqlCommand.step().value() != null) {
+                return promqlCommand.step();
+            }
+            return resolveAutoStepFromBuckets(promqlCommand);
+        }
+        // use default lookback for instant queries
+        return Literal.timeDuration(promqlCommand.source(), DEFAULT_LOOKBACK);
+    }
+
+    private static Literal resolveAutoStepFromBuckets(PromqlCommand promqlCommand) {
+        Bucket autoBucket = new Bucket(
+            promqlCommand.buckets().source(),
+            promqlCommand.timestamp(),
+            promqlCommand.buckets(),
+            promqlCommand.start(),
+            promqlCommand.end(),
+            ConfigurationAware.CONFIGURATION_MARKER
+        );
+        long rangeStart = ((Number) promqlCommand.start().value()).longValue();
+        long rangeEnd = ((Number) promqlCommand.end().value()).longValue();
+        var rounding = autoBucket.getDateRounding(FoldContext.small(), rangeStart, rangeEnd);
+        long roundedStart = rounding.round(rangeStart);
+        long nextRoundedValue = rounding.nextRoundingValue(roundedStart);
+        return Literal.timeDuration(promqlCommand.source(), Duration.ofMillis(Math.max(1L, nextRoundedValue - roundedStart)));
     }
 
     /**

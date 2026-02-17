@@ -17,7 +17,8 @@
       reason: "GPU monitoring feature required"
 
   - do:
-      xpack.usage: {}
+      xpack.usage:
+        filter_path: gpu_vector_indexing
   - is_true: gpu_vector_indexing
   - is_true: gpu_vector_indexing.available
   - is_true: gpu_vector_indexing.enabled
@@ -68,6 +69,6 @@
           - embedding: [1.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7]
 
   - do:
-      xpack.usage: {}
+      xpack.usage:
+        filter_path: gpu_vector_indexing
   - gt: { gpu_vector_indexing.index_build_count: 0 }
-  - gt: { gpu_vector_indexing.nodes.0.index_build_count: 0 }

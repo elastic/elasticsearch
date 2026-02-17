@@ -295,7 +295,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsServerLauncher', 'libsServerLauncherCommon', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -335,6 +335,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsCliLauncher project(':distribution:tools:cli-launcher')
     libsServerCli project(':distribution:tools:server-cli')
+    libsServerLauncher project(':distribution:tools:server-launcher')
+    libsServerLauncherCommon project(':libs:server-launcher-common')
     libsWindowsServiceCli project(':distribution:tools:windows-service-cli')
     libsAnsiConsole project(':distribution:tools:ansi-console')
     libsPluginCli project(':distribution:tools:plugin-cli')
@@ -363,6 +365,22 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         into('tools/server-cli') {
           from(configurations.libsServerCli)
+          from(configurations.libsServerLauncherCommon)
+        }
+        into('tools/server-launcher') {
+          from(configurations.libsServerLauncher)
+          from(configurations.libsServerLauncherCommon)
+          // Include the native-image binary if it was built (opt-in via nativeCompile task)
+          def nativeCompileTask = project(':distribution:tools:server-launcher').tasks.named('nativeCompile')
+          from(nativeCompileTask) {
+            include 'server-launcher'
+            include 'server-launcher.exe'
+          }
+          eachFile {
+            if (it.name == 'server-launcher' || it.name == 'server-launcher.exe') {
+              it.permissions.unix(0755)
+            }
+          }
         }
         into('tools/windows-service-cli') {
           from(configurations.libsWindowsServiceCli)

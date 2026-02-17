@@ -6,31 +6,19 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
-
 apply plugin: 'elasticsearch.build'
 
+// This library has zero ES dependencies - only JDK classes
 dependencies {
-  compileOnly project(":server")
-  compileOnly project(":libs:cli")
-  compileOnly project(":libs:server-launcher-common")
-
-  testImplementation project(":test:framework")
 }
 
-tasks.named("test").configure {
-  systemProperty "tests.security.manager", "false"
-}
+// Since this library does not depend on :server, it cannot run the jarHell task
+tasks.named("jarHell").configure { enabled = false }
 
-tasks.withType(CheckForbiddenApisTask).configureEach {
+tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-["javadoc", "loggerUsageCheck", "jarHell"].each { tsk ->
+["javadoc", "loggerUsageCheck"].each { tsk ->
   tasks.named(tsk).configure { enabled = false }
-}
-
-tasks.named("test").configure {
-  // this is necessary to jvm options can invoke java to find final options
-  systemProperty "tests.system_call_filter", "false"
 }

@@ -84,18 +84,15 @@ abstract class BidirectionalBatchExchangeBase implements Releasable {
      * This is a common pattern used by both server and client to establish
      * transport-based connections for bidirectional exchange.
      * <p>
-     * The {@link BatchSortedExchangeSource} ensures pages are delivered in order within each batch.
-     *
-     * @param failFast if {@code true}, a sink failure causes the source handler to abort immediately
-     *                 (throwing {@link org.elasticsearch.tasks.TaskCancelledException} on the next poll/isFinished call).
-     *                 If {@code false}, the source handler continues normally and the caller is responsible
-     *                 for shutting down the exchange via the failure listener.
+     * Always uses failFast=true so the source handler aborts immediately on sink failure.
+     * The caller collects the real error via the listener and an {@link org.elasticsearch.compute.EsqlRefCountingListener}
+     * whose {@link org.elasticsearch.compute.operator.FailureCollector} picks it over the generic
+     * {@link org.elasticsearch.tasks.TaskCancelledException} thrown by the aborted source.
      */
     protected void connectRemoteSink(
         DiscoveryNode node,
         String exchangeId,
         ExchangeSourceHandler sourceHandler,
-        boolean failFast,
         ActionListener<Void> listener,
         String errorMessagePrefix
     ) {
@@ -103,7 +100,7 @@ abstract class BidirectionalBatchExchangeBase implements Releasable {
             Transport.Connection connection = transportService.getConnection(node);
             RemoteSink remoteSink = exchangeService.newRemoteSink(task, exchangeId, transportService, connection);
             int concurrentClients = ExchangeSourceHandler.getConcurrentClients(settings);
-            sourceHandler.addRemoteSink(remoteSink, failFast, () -> {}, concurrentClients, listener);
+            sourceHandler.addRemoteSink(remoteSink, true, () -> {}, concurrentClients, listener);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to connect to " + errorMessagePrefix + " for exchange [" + exchangeId + "]", e);
         }

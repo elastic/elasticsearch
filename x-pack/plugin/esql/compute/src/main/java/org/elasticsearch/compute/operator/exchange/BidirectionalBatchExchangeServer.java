@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -76,6 +77,11 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                                                                                        // closes
     private volatile boolean closing = false; // Flag to prevent recursive close if server is part of the releasable
     private final SubscribableListener<Void> remoteSinkReady = new SubscribableListener<>(); // Signals when remote sink connection is ready
+    // Ref acquired from the responseCoordinator for the driver completion channel.
+    // Released when the driver finishes (success or failure). The responseCoordinator
+    // uses a FailureCollector to pick the real error (e.g. CircuitBreakingException from the
+    // sink channel) over a generic TaskCancelledException from the driver channel.
+    private ActionListener<Void> driverResponseRef;
 
     /**
      * Create a new BidirectionalBatchExchangeServer with explicit exchange IDs.
@@ -270,16 +276,22 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
 
     /**
      * Create an ActionListener for driver completion that handles both success and failure cases.
-     * Important: We close server resources BEFORE sending the response to the client.
+     * Important: We close server resources BEFORE releasing the driver ref to the response coordinator.
      * This ensures all resources (like DirectoryReader) are released before the client
      * considers the operation complete and proceeds with its own cleanup.
+     * <p>
+     * The response is NOT sent directly here. Instead, we release the driver ref to the
+     * {@link EsqlRefCountingListener} response coordinator. The coordinator waits for both
+     * the driver and the remote sink to complete, then uses a {@link org.elasticsearch.compute.operator.FailureCollector}
+     * to pick the most relevant error. This ensures that real errors like CircuitBreakingException
+     * (from the sink channel) are preferred over generic TaskCancelledException (from the driver channel).
      */
     private ActionListener<Void> createDriverCompletionListener() {
         return ActionListener.wrap(ignored -> {
             logger.debug("[LookupJoinServer] Driver completion listener onResponse called (success) for exchangeId={}", serverToClientId);
             driverFuture.onResponse(null);
             logger.debug("[LookupJoinServer] Batch processing completed successfully for exchangeId={}", serverToClientId);
-            // Close server resources BEFORE sending response to client
+            // Close server resources BEFORE releasing the driver ref
             // This ensures DirectoryReader etc. are closed before client proceeds with cleanup
             Exception closeException = null;
             try {
@@ -288,11 +300,11 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 logger.error("[LookupJoinServer] Exception during close after successful driver completion", e);
                 closeException = e;
             }
-            // Send response - success if close() succeeded, failure if close() threw
+            // Release driver ref - success if close() succeeded, failure if close() threw
             if (closeException != null) {
-                handleDriverFailureAfterClose(closeException);
+                driverResponseRef.onFailure(closeException);
             } else {
-                sendBatchExchangeStatusResponse(null);
+                driverResponseRef.onResponse(null);
             }
         }, failure -> {
             logger.debug(
@@ -300,38 +312,18 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
                 serverToClientId,
                 failure != null ? failure.getMessage() : "unknown"
             );
-            logger.debug(
-                "[LookupJoinServer] Batch processing completed with failure for exchangeId={}, failure={}",
-                serverToClientId,
-                failure != null ? failure.getMessage() : "unknown"
-            );
             // Complete the future first so close() won't throw
             driverFuture.onFailure(failure);
-            // Close server resources BEFORE sending response
+            // Close server resources BEFORE releasing the driver ref
             try {
                 close();
             } catch (Exception e) {
                 logger.error("[LookupJoinServer] Exception during close after driver failure", e);
-                // Continue to send the original failure, not the close exception
             }
-            // Always handle failure and send response
-            handleDriverFailureAfterClose(failure);
+            // Release driver ref with failure - the response coordinator's FailureCollector
+            // will pick the best error across driver and sink channels
+            driverResponseRef.onFailure(failure);
         });
-    }
-
-    /**
-     * Handle driver failure after close() has already been called.
-     * This propagates the failure to the exchange sink handler and sends the failure response.
-     */
-    private void handleDriverFailureAfterClose(Exception failure) {
-        logger.error("[LookupJoinServer] Server driver failed, propagating failure to exchange sink handler", failure);
-        try {
-            serverToClientSinkHandler.onFailure(failure);
-        } catch (Exception e) {
-            logger.error("[LookupJoinServer] Exception propagating failure to sink handler", e);
-        }
-        // Always send response, even if onFailure() threw
-        sendBatchExchangeStatusResponse(failure);
     }
 
     /**
@@ -398,17 +390,42 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         String shortDescription = "batch-exchange";
         Supplier<String> description = () -> "bidirectional-batch-exchange-server-" + sessionId;
 
-        // Connect to the client's sink handler for client-to-server exchange
-        // This should be called after the client has created its sink handler
-        logger.debug(
-            "[LookupJoinServer] Connecting to client sink handler via transport for client-to-server exchange, exchangeId={}",
-            clientToServerId
-        );
-        connectRemoteSink(clientNode, clientToServerId, clientToServerSourceHandler, true, ActionListener.wrap(nullValue -> {
-            logger.debug("[LookupJoinServer] Client-to-server exchange sink connection completed successfully");
-        }, failure -> { logger.error("[LookupJoinServer] Client-to-server exchange sink connection failed", failure); }),
-            "client sink handler"
-        );
+        // Create a response coordinator that waits for both the driver and the remote sink
+        // to complete before sending the BatchExchangeStatusResponse. The FailureCollector inside
+        // EsqlRefCountingListener picks the most relevant error: e.g. CircuitBreakingException
+        // (from the sink channel) over TaskCancelledException (from the driver channel).
+        // This follows the same pattern as the standard data-node-to-coordinator exchange
+        // (see DataNodeComputeHandler), where addRemoteSink and driver errors are collected
+        // independently and the FailureCollector picks the best one.
+        try (EsqlRefCountingListener responseCoordinator = new EsqlRefCountingListener(ActionListener.wrap(v -> {
+            sendBatchExchangeStatusResponse(null);
+        }, e -> {
+            logger.error("[LookupJoinServer] Server failed, propagating failure to exchange sink handler", e);
+            try {
+                serverToClientSinkHandler.onFailure(e);
+            } catch (Exception ex) {
+                logger.error("[LookupJoinServer] Exception propagating failure to sink handler", ex);
+            }
+            sendBatchExchangeStatusResponse(e);
+        }))) {
+            // Sink ref: collects the original error (e.g. TransportSerializationException wrapping
+            // CircuitBreakingException) when the remote sink fetch fails during page deserialization.
+            // The FailureCollector unwraps TransportException to get the real cause.
+            ActionListener<Void> sinkRef = responseCoordinator.acquire();
+
+            // Driver ref: collects the driver's error (e.g. TaskCancelledException("remote sinks failed"))
+            // which is less informative. The FailureCollector categorizes it as CANCELLATION and
+            // prefers CLIENT/SERVER errors from the sink channel.
+            driverResponseRef = responseCoordinator.acquire();
+
+            // Connect to the client's sink handler for client-to-server exchange
+            // This should be called after the client has created its sink handler
+            logger.debug(
+                "[LookupJoinServer] Connecting to client sink handler via transport for client-to-server exchange, exchangeId={}",
+                clientToServerId
+            );
+            connectRemoteSink(clientNode, clientToServerId, clientToServerSourceHandler, sinkRef, "client sink handler");
+        }
         // Signal that the remote sink has been added to the source handler.
         // At this point, outstandingSinks >= 1, so the buffer won't report isFinished() = true
         // until the actual fetch completes. This prevents the race where the driver starts

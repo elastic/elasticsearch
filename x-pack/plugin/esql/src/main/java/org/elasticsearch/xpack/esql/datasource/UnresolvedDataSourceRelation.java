@@ -96,7 +96,7 @@ public class UnresolvedDataSourceRelation extends LeafPlan implements Unresolvab
 
     @Override
     public List<Object> nodeProperties() {
-        return List.of(descriptor);
+        return List.of(descriptor, unresolvedMsg);
     }
 
     @Override

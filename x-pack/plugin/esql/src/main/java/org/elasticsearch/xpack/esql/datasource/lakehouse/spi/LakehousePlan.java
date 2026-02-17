@@ -147,7 +147,7 @@ public final class LakehousePlan extends DataSourcePlan {
 
     @Override
     protected NodeInfo<LakehousePlan> info() {
-        return NodeInfo.create(this);
+        return NodeInfo.create(this, LakehousePlan::new, dataSource, location, output, expression, formatName, nativeFilter, limit);
     }
 
     @Override

@@ -207,11 +207,14 @@ public class CsvIT extends ESTestCase {
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
 
         skipUnsupportedCapability(EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS);
+        skipUnsupportedCapability(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION);
         skipUnsupportedCapability(EsqlCapabilities.Cap.CATEGORIZE_V6);
         skipUnsupportedCapability(EsqlCapabilities.Cap.CATEGORIZE_OPTIONS);
         skipUnsupportedCapability(EsqlCapabilities.Cap.CATEGORIZE_MULTIPLE_GROUPINGS);
         skipUnsupportedCapability(EsqlCapabilities.Cap.RERANK);
         skipUnsupportedCapability(EsqlCapabilities.Cap.COMPLETION);
+        // runs in a single cluster/single node mode
+        skipUnsupportedCapability(EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST);
 
         assumeFalse("Enrich is not supported in IT yet", testCase.query.trim().toUpperCase(java.util.Locale.ROOT).contains("ENRICH"));
         assumeFalse(

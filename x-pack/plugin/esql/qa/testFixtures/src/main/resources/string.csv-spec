@@ -1455,7 +1455,8 @@ beta         | Kubernetes cluster
 beta         | Kubernetes cluster
 ;
 
-lucenePushdownMultipleIndices
+// airports* conflicts with views
+lucenePushdownMultipleIndices-Ignore
 required_capability: index_metadata_field
 required_capability: casting_operator
 
@@ -1528,7 +1529,8 @@ abbrev:keyword | name:text | scalerank:integer
 LUH            | Sahnewal  | 9
 ;
 
-lucenePushdownMixOrAnd
+// airports* conflicts with views
+lucenePushdownMixOrAnd-Ignore
 required_capability: index_metadata_field
 required_capability: casting_operator
 

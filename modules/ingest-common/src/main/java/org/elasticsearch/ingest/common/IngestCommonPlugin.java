@@ -44,6 +44,7 @@ public class IngestCommonPlugin extends Plugin implements ActionPlugin, IngestPl
             entry(AppendProcessor.TYPE, new AppendProcessor.Factory(parameters.scriptService)),
             entry(BytesProcessor.TYPE, new BytesProcessor.Factory()),
             entry(CefProcessor.TYPE, new CefProcessor.Factory(parameters.scriptService)),
+            entry(CommandLineParserProcessor.TYPE, new CommandLineParserProcessor.Factory()),
             entry(CommunityIdProcessor.TYPE, new CommunityIdProcessor.Factory()),
             entry(ConvertProcessor.TYPE, new ConvertProcessor.Factory()),
             entry(CsvProcessor.TYPE, new CsvProcessor.Factory()),

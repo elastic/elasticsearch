@@ -1,0 +1,224 @@
+---
+teardown:
+  - do:
+      ingest.delete_pipeline:
+        id: "command_line_args_pipeline"
+        ignore: 404
+
+---
+"Test command_line_args processor with bash shell":
+  - do:
+      ingest.put_pipeline:
+        id: "command_line_args_pipeline"
+        body: >
+          {
+            "description": "parse command line args",
+            "processors": [
+              {
+                "command_line_args": {
+                  "field": "process.command_line",
+                  "target_field": "process.args",
+                  "shell": "bash"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "command_line_args_pipeline"
+        body: >
+          {
+            "process": {
+              "command_line": "ls -la '/tmp/my dir'"
+            }
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.process.args: ["ls", "-la", "/tmp/my dir"] }
+
+---
+"Test command_line_args processor with cmd shell":
+  - do:
+      ingest.put_pipeline:
+        id: "command_line_args_pipeline"
+        body: >
+          {
+            "description": "parse command line args",
+            "processors": [
+              {
+                "command_line_args": {
+                  "field": "process.command_line",
+                  "target_field": "process.args",
+                  "shell": "cmd"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "command_line_args_pipeline"
+        body: >
+          {
+            "process": {
+              "command_line": "\"C:\\Program Files\\app.exe\" --flag \"hello world\""
+            }
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.process.args: ["C:\\Program Files\\app.exe", "--flag", "hello world"] }
+
+---
+"Test command_line_args processor with powershell shell":
+  - do:
+      ingest.put_pipeline:
+        id: "command_line_args_pipeline"
+        body: >
+          {
+            "description": "parse command line args",
+            "processors": [
+              {
+                "command_line_args": {
+                  "field": "process.command_line",
+                  "target_field": "process.args",
+                  "shell": "powershell"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "command_line_args_pipeline"
+        body: >
+          {
+            "process": {
+              "command_line": "Write-Host 'it''s working'"
+            }
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.process.args: ["Write-Host", "it's working"] }
+
+---
+"Test command_line_args processor defaults to bash":
+  - do:
+      ingest.put_pipeline:
+        id: "command_line_args_pipeline"
+        body: >
+          {
+            "description": "parse command line args with default shell",
+            "processors": [
+              {
+                "command_line_args": {
+                  "field": "process.command_line",
+                  "target_field": "process.args"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "command_line_args_pipeline"
+        body: >
+          {
+            "process": {
+              "command_line": "echo \"hello world\""
+            }
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.process.args: ["echo", "hello world"] }
+
+---
+"Test command_line_args processor with ignore_missing":
+  - do:
+      ingest.put_pipeline:
+        id: "command_line_args_pipeline"
+        body: >
+          {
+            "description": "parse command line args with ignore_missing",
+            "processors": [
+              {
+                "command_line_args": {
+                  "field": "process.command_line",
+                  "target_field": "process.args",
+                  "ignore_missing": true
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "command_line_args_pipeline"
+        body: >
+          {
+            "other_field": "value"
+          }
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.other_field: "value" }
+  - is_false: _source.process.args
+
+---
+"Test command_line_args processor fails on missing field":
+  - do:
+      ingest.put_pipeline:
+        id: "command_line_args_pipeline"
+        body: >
+          {
+            "description": "parse command line args without ignore_missing",
+            "processors": [
+              {
+                "command_line_args": {
+                  "field": "process.command_line",
+                  "target_field": "process.args"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /field \[process.command_line\] not present/
+      index:
+        index: test
+        id: "1"
+        pipeline: "command_line_args_pipeline"
+        body: >
+          {
+            "other_field": "value"
+          }

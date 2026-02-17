@@ -60,7 +60,7 @@ import java.util.OptionalLong;
  *
  * <h2>Configuration</h2>
  *
- * <p>Per-data-source configuration is provided via {@link DataSourceDescriptor#configuration()}:
+ * <p>Per-data-source configuration is provided via {@link DataSourceDescriptor.Specified#configuration()}:
  * <ul>
  *   <li>{@code "format"} — explicit format name (optional; inferred from file extension if absent)</li>
  *   <li>Storage-specific keys (bucket, credentials, endpoint) — passed to
@@ -128,14 +128,18 @@ public final class LakehouseDataSource implements DataSource {
     }
 
     private DataSourcePlan resolveSync(DataSourceDescriptor source) {
-        String expression = source.expression();
+        DataSourceDescriptor.Specified inline = switch (source) {
+            case DataSourceDescriptor.Specified i -> i;
+            case DataSourceDescriptor.Registered r -> resolveRegistered(r);
+        };
+        String expression = inline.expression();
 
         // Look up storage provider by URI scheme
         StoragePath path = StoragePath.of(expression);
         StorageProvider storage = resolveStorageProvider(path);
 
         // Look up format reader (explicit from config, or inferred from extension)
-        FormatReader format = resolveFormatReader(source, expression);
+        FormatReader format = resolveFormatReader(inline, expression);
         logger.debug("Resolving [{}] via [{}] format reader on [{}] storage", expression, format.formatName(), path.scheme());
 
         try {
@@ -146,6 +150,11 @@ public final class LakehouseDataSource implements DataSource {
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to read metadata for: " + expression, e);
         }
+    }
+
+    private DataSourceDescriptor.Specified resolveRegistered(DataSourceDescriptor.Registered registered) {
+        // TODO: look up type, configuration, and settings from the data source registry by name
+        throw new UnsupportedOperationException("Registered data source lookup not yet implemented: " + registered.name());
     }
 
     // =========================================================================
@@ -238,7 +247,7 @@ public final class LakehouseDataSource implements DataSource {
         return registry.storageProviderRegistry().createProvider(path.scheme(), registry.settings(), configuration);
     }
 
-    private FormatReader resolveFormatReader(DataSourceDescriptor source, String expression) {
+    private FormatReader resolveFormatReader(DataSourceDescriptor.Specified source, String expression) {
         // Explicit format from configuration takes priority
         Object formatConfig = source.config("format", null);
         if (formatConfig == null) {

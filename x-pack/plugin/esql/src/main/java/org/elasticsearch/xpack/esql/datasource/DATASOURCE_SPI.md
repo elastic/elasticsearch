@@ -241,76 +241,74 @@ Also mirrored: StorageEntry, StorageIterator, FileSet (`datasources/` → `datas
 
 ## Data Source Syntax
 
-The syntax is `where:what`:
-- **where** — the data source (registered name or inline `EXTERNAL(...)`)
-- **what** — the query/expression (data source-specific, opaque to ES|QL)
+> **Note:** The `SOURCE` command described below is a **temporary, development-only syntax**
+> for wiring and testing the DataSource SPI. It will be replaced by `FROM` integration
+> (e.g., `FROM s3_logs:"logs/*.parquet"`) once the data source registry and `FROM` colon syntax
+> are implemented. The `SOURCE` command exists behind a dev feature flag and is not intended
+> for end users.
 
-### Registered Data Sources
+### SOURCE Command (temporary)
 
-Data sources registered via ES CRUD API, referenced by name:
+```
+SOURCE type expression [WITH {key: value, ...}]
+```
+
+A standalone source command that explicitly specifies the data source type, expression,
+and optional configuration. Uses the same `WITH {mapExpression}` pattern as `RERANK`,
+`COMPLETION`, and other ES|QL commands.
+
+**Grammar:**
+
+```antlr
+sourceCommand
+    : SOURCE identifier stringOrParameter commandNamedParameters
+    ;
+```
+
+Where `commandNamedParameters` is the existing `(WITH mapExpression)?` rule.
+
+**Examples:**
 
 ```sql
--- Unquoted shorthand (simple identifiers)
-FROM s3_logs:logs
-FROM s3_logs:events
-FROM my_postgres:users
-FROM my_iceberg:my_catalog.my_schema.orders
+-- S3 with inline configuration
+SOURCE s3 "logs/*.parquet" WITH {"bucket": "my-bucket", "region": "us-east-1"}
 
--- Quoted string (patterns, paths, SQL queries)
+-- Iceberg table (no configuration needed if defaults suffice)
+SOURCE iceberg "catalog.db.table"
+
+-- Nested configuration
+SOURCE s3 "events/*.parquet" WITH {"bucket": "my-bucket", "auth": {"access_key": "AKIA...", "secret_key": "..."}}
+
+-- PostgreSQL with connection details
+SOURCE postgres "SELECT * FROM users" WITH {"host": "db.example.com", "port": 5432, "database": "mydb"}
+```
+
+### Mapping to DataSourceDescriptor
+
+| Grammar token | DataSourceDescriptor field | Notes |
+|---|---|---|
+| `identifier` | `type` | Bare identifier: `s3`, `iceberg`, `postgres` |
+| `stringOrParameter` | `expression` | Quoted string or parameter reference |
+| `WITH {...}` | `configuration` | JSON-style map expression, optional |
+| *(not present)* | `settings` | Empty for now (ES-controlled, future) |
+| *(not present)* | `dataSourceName` | null (always inline — no registry yet) |
+| parser source location | `source` | For error reporting |
+
+### Future: FROM Integration
+
+Once the data source registry is implemented, the long-term syntax will use `FROM`
+with colon notation to reference registered data sources by name:
+
+```sql
 FROM s3_logs:"logs/*.parquet"
-FROM s3_logs:"2024/01/*/events.parquet"
-FROM my_postgres:"SELECT * FROM users WHERE active = true"
-
--- Query pseudo-function (equivalent to quoted)
-FROM s3_logs:query("logs/*.parquet")
-FROM my_postgres:query("SELECT * FROM users WHERE active = true")
+FROM my_postgres:query("SELECT * FROM users")
+FROM my_iceberg:catalog.schema.table
 ```
 
-### Inline Data Sources
-
-Data sources defined inline using `EXTERNAL()` with a raw JSON literal:
-
-```sql
--- EXTERNAL with unquoted expression
-FROM EXTERNAL({"type": "s3", "configuration": {"bucket": "my-bucket", "access_key": "AKIA...", "secret_key": "..."}, "settings": {}}):logs
-
--- EXTERNAL with quoted expression
-FROM EXTERNAL({"type": "s3", "configuration": {"bucket": "my-bucket", "access_key": "AKIA...", "secret_key": "..."}, "settings": {"max_files": 100}}):"logs/*.parquet"
-
--- EXTERNAL with query function
-FROM EXTERNAL({"type": "postgres", "configuration": {"host": "db.example.com", "port": 5432, "database": "mydb", "username": "...", "password": "..."}, "settings": {}}):query("SELECT * FROM users")
-```
-
-### EXTERNAL JSON Structure
-
-```json
-{
-  "type": "s3",
-  "configuration": {
-    "bucket": "my-bucket",
-    "access_key": "AKIA...",
-    "secret_key": "..."
-  },
-  "settings": {
-    "max_files": 100
-  }
-}
-```
-
-| Field | Owner | Purpose |
-|-------|-------|---------|
-| `type` | ES | DataSource type to use |
-| `configuration` | DataSource | Connection, auth, data source-specific |
-| `settings` | ES | ES-controlled behavior settings |
-
-### Expression Forms
-
-| Form | Syntax | Use Case |
-|------|--------|----------|
-| Unquoted | `users` | Simple table names, identifiers |
-| Unquoted dotted | `catalog.schema.table` | Qualified names |
-| Quoted | `"logs/*.parquet"` | Patterns, paths, special characters |
-| Query function | `query("SELECT ...")` | Explicit, equivalent to quoted |
+This requires:
+1. A data source registration API (CRUD for named data sources with stored configuration)
+2. Parser changes to `FROM` to distinguish `cluster:index` from `datasource:expression`
+3. Migration of the `SOURCE` command users to `FROM` syntax
 
 ---
 
@@ -477,7 +475,7 @@ How core SPI concepts are used in each query phase:
 
   RESOLVE            DataSource.resolve(descriptor, context, listener)
                      DataSourceDescriptor ──────────────► ActionListener<DataSourcePlan>
-                     (FROM clause: type + config + expression)   (async callback with schema)
+                     (SOURCE command: type + config + expression) (async callback with schema)
 
   OPTIMIZE           DataSource.optimizationRules()
                      DataSourcePushdownRule ──► pushDown(plan) ──────► DataSourcePlan'
@@ -552,10 +550,10 @@ database, querying a catalog). Implementations run blocking I/O on the executor 
 `ResolutionContext.executor()`, then call `listener.onResponse()` or `listener.onFailure()`.
 
 **Flow:**
-1. PreAnalyzer sees `FROM s3_logs:"logs/*.parquet"` (or `s3_logs:logs` for shorthand)
-2. Looks up registered data source `s3_logs`, gets type/configuration/settings
-3. Creates [`DataSourceDescriptor`](spi/DataSourceDescriptor.java) with expression `logs/*.parquet` (parser strips quotes)
-4. Looks up data source by type, calls `dataSource.resolve(descriptor, context, listener)`
+1. PreAnalyzer sees `SOURCE s3 "logs/*.parquet" WITH {...}` (temporary syntax)
+2. Parser creates [`DataSourceDescriptor`](spi/DataSourceDescriptor.java) with type, expression, and configuration
+3. Looks up data source by type from [`DataSourceRegistry`](DataSourceRegistry.java)
+4. Calls `dataSource.resolve(descriptor, context, listener)`
 5. Data source runs I/O on `context.executor()`, calls `listener.onResponse(plan)` with resolved schema
 
 **Lakehouse resolution:** [`LakehouseDataSource.resolve()`](lakehouse/spi/LakehouseDataSource.java) wraps sync I/O on the executor:

@@ -444,14 +444,13 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == FileSet.class) {
             // FileSet is final, cannot be mocked
             return FileSet.UNRESOLVED;
-        } else if (argClass == DataSourceDescriptor.class) {
-            // DataSourceDescriptor is a record / final, cannot be mocked
-            return new DataSourceDescriptor(
+        } else if (DataSourceDescriptor.class.isAssignableFrom(argClass)) {
+            // DataSourceDescriptor variants are sealed records, cannot be mocked
+            return new DataSourceDescriptor.Specified(
                 randomAlphaOfLength(5),
                 Map.of(),
                 Map.of(),
                 randomAlphaOfLength(10),
-                randomAlphaOfLength(5),
                 SourceTests.randomSource()
             );
         } else if (argClass == EsQueryExec.FieldSort.class) {

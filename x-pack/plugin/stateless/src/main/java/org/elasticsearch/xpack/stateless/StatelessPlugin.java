@@ -1098,7 +1098,8 @@ public class StatelessPlugin extends Plugin
                 commitService,
                 objectStoreService,
                 reshardIndexService,
-                services.taskManager()
+                services.taskManager(),
+                settings
             )
         );
         components.add(splitSourceService);
@@ -1427,6 +1428,7 @@ public class StatelessPlugin extends Plugin
             RemoveRefreshClusterBlockService.EXPIRE_AFTER_SETTING,
             SplitTargetService.RESHARD_SPLIT_SEARCH_SHARDS_ONLINE_TIMEOUT,
             SplitTargetService.RESHARD_SPLIT_SPLIT_STATE_APPLIED_TIMEOUT,
+            SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD,
             IndexingOperationsMemoryRequirementsSampler.SAMPLE_VALIDITY_SETTING,
             StatelessBalancingWeightsFactory.SEPARATE_WEIGHTS_PER_TIER_ENABLED_SETTING,
             StatelessBalancingWeightsFactory.INDEXING_TIER_SHARD_BALANCE_FACTOR_SETTING,

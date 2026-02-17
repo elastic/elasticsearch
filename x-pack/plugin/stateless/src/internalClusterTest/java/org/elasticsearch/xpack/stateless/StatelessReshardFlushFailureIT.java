@@ -20,6 +20,7 @@ package org.elasticsearch.xpack.stateless;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -46,6 +47,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 
 public class StatelessReshardFlushFailureIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -55,6 +57,12 @@ public class StatelessReshardFlushFailureIT extends AbstractStatelessPluginInteg
         plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
         plugins.add(org.elasticsearch.xpack.stateless.TestStatelessPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
+        return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
     }
 
     private static final AtomicInteger flushFailureCountdown = new AtomicInteger(0);

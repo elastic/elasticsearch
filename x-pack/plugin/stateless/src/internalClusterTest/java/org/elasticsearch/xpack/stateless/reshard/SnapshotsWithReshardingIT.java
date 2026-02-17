@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequestHelper;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -43,6 +44,7 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.xpack.stateless.reshard.SplitSourceService.RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD;
 
 public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestCase {
     public void testShardSnapshotIsFailedWhenReshardingMetadataIsPresent() throws Exception {
@@ -468,6 +470,12 @@ public class SnapshotsWithReshardingIT extends AbstractStatelessPluginIntegTestC
         plugins.remove(TestUtils.StatelessPluginWithTrialLicense.class);
         plugins.add(CustomSnapshotCommitSupplierPlugin.class);
         return plugins;
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        // These tests are carefully set up and do not hit the situations that the delete unowned grace period prevents.
+        return super.nodeSettings().put(RESHARD_SPLIT_DELETE_UNOWNED_GRACE_PERIOD.getKey(), TimeValue.ZERO);
     }
 
     private void waitForReshardCompletion(Index index) {

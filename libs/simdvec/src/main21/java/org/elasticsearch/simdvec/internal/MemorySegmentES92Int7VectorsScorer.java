@@ -28,12 +28,19 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
 
     @Override
     public long int7DotProduct(byte[] q) throws IOException {
-        return panamaInt7DotProduct(q);
+        if (memorySegment != null) {
+            return panamaInt7DotProduct(q);
+        }
+        return super.int7DotProduct(q);
     }
 
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
-        panamaInt7DotProductBulk(q, count, scores);
+        if (memorySegment != null) {
+            panamaInt7DotProductBulk(q, count, scores);
+        } else {
+            super.int7DotProductBulk(q, count, scores);
+        }
     }
 
     @Override
@@ -48,16 +55,30 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         float[] scores,
         int bulkSize
     ) throws IOException {
-        int7DotProductBulk(q, bulkSize, scores);
-        applyCorrectionsBulk(
-            queryLowerInterval,
-            queryUpperInterval,
-            queryComponentSum,
-            queryAdditionalCorrection,
-            similarityFunction,
-            centroidDp,
-            scores,
-            bulkSize
-        );
+        if (memorySegment != null) {
+            int7DotProductBulk(q, bulkSize, scores);
+            applyCorrectionsBulk(
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                bulkSize
+            );
+        } else {
+            super.scoreBulk(
+                q,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                bulkSize
+            );
+        }
     }
 }

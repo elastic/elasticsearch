@@ -215,7 +215,8 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
 
         /**
          * Returns the raw backing memory segment, or null if not available.
-         * Prefer {@code getMemorySegment()} where available, which handles
+         * Prefer {@link org.elasticsearch.simdvec.internal.IndexInputSegments#sliceOrCopy
+         * IndexInputSegments.sliceOrCopy} where available, which handles
          * ref-counting for eviction safety. Only use this method when the
          * segment is known to be long-lived (e.g. whole-file mmap).
          */

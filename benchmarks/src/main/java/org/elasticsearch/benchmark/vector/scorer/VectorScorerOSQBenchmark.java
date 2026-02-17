@@ -55,6 +55,7 @@ public class VectorScorerOSQBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
+        LogConfigurator.loadLog4jPlugins();
     }
 
     public enum DirectoryType {

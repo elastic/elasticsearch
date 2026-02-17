@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec.internal;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.nativeaccess.NativeAccess;
+import org.elasticsearch.simdvec.internal.IndexInputSegments.SegmentSlice;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -24,6 +25,10 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         super(in, dimensions, bulkSize, memorySegment);
     }
 
+    private SegmentSlice getMemorySegment(long length) throws IOException {
+        return IndexInputSegments.sliceOrCopy(in, memorySegment, length);
+    }
+
     @Override
     public boolean hasNativeAccess() {
         return NATIVE_SUPPORTED;
@@ -34,26 +39,28 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         assert q.length == dimensions;
         if (NATIVE_SUPPORTED) {
             return nativeInt7DotProduct(q);
-        } else {
+        } else if (memorySegment != null) {
             return panamaInt7DotProduct(q);
+        } else {
+            return super.int7DotProduct(q);
         }
-
     }
 
     private long nativeInt7DotProduct(byte[] q) throws IOException {
-        final MemorySegment segment = memorySegment.asSlice(in.getFilePointer(), dimensions);
-        final MemorySegment querySegment = MemorySegment.ofArray(q);
-        final long res = Similarities.dotProductI7u(segment, querySegment, dimensions);
-        in.skipBytes(dimensions);
-        return res;
+        try (var slice = getMemorySegment(dimensions)) {
+            final MemorySegment segment = slice.segment();
+            final MemorySegment querySegment = MemorySegment.ofArray(q);
+            return Similarities.dotProductI7u(segment, querySegment, dimensions);
+        }
     }
 
     private void nativeInt7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
-        final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
-        final MemorySegment segment = memorySegment.asSlice(in.getFilePointer(), dimensions * count);
-        final MemorySegment querySegment = MemorySegment.ofArray(q);
-        Similarities.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
-        in.skipBytes(dimensions * count);
+        try (var slice = getMemorySegment((long) dimensions * count)) {
+            final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
+            final MemorySegment segment = slice.segment();
+            final MemorySegment querySegment = MemorySegment.ofArray(q);
+            Similarities.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
+        }
     }
 
     @Override
@@ -61,8 +68,10 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         assert q.length == dimensions;
         if (NATIVE_SUPPORTED) {
             nativeInt7DotProductBulk(q, count, scores);
-        } else {
+        } else if (memorySegment != null) {
             panamaInt7DotProductBulk(q, count, scores);
+        } else {
+            super.int7DotProductBulk(q, count, scores);
         }
     }
 
@@ -78,16 +87,30 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         float[] scores,
         int bulkSize
     ) throws IOException {
-        int7DotProductBulk(q, bulkSize, scores);
-        applyCorrectionsBulk(
-            queryLowerInterval,
-            queryUpperInterval,
-            queryComponentSum,
-            queryAdditionalCorrection,
-            similarityFunction,
-            centroidDp,
-            scores,
-            bulkSize
-        );
+        if (memorySegment != null) {
+            int7DotProductBulk(q, bulkSize, scores);
+            applyCorrectionsBulk(
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                bulkSize
+            );
+        } else {
+            super.scoreBulk(
+                q,
+                queryLowerInterval,
+                queryUpperInterval,
+                queryComponentSum,
+                queryAdditionalCorrection,
+                similarityFunction,
+                centroidDp,
+                scores,
+                bulkSize
+            );
+        }
     }
 }

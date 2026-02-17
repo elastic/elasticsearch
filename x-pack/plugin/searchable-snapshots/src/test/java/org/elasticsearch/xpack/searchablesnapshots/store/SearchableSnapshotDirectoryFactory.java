@@ -177,8 +177,7 @@ public class SearchableSnapshotDirectoryFactory {
 
                 BlobStoreIndexShardSnapshot snapshot = new BlobStoreIndexShardSnapshot("snapshotId", fileInfos, 0L, 0L, 0, 0L);
 
-                // Cap cache size at 4 GB — cache misses are cheap since blobs are local disk
-                long cacheSize = Math.min(totalSize, 4L * 1024 * 1024 * 1024);
+                long cacheSize = totalSize;
 
                 SnapshotId snapshotId = new SnapshotId("_name", "_uuid");
                 IndexId indexId = new IndexId("_name", "_uuid");
@@ -214,7 +213,7 @@ public class SearchableSnapshotDirectoryFactory {
                 );
 
                 // loadSnapshot asserts ThreadPool.assertCurrentThreadPool(GENERIC)
-                SearchableSnapshotRecoveryState recoveryState = createRecoveryState(false);
+                SearchableSnapshotRecoveryState recoveryState = createRecoveryState(true);
                 PlainActionFuture<Void> f = new PlainActionFuture<>();
                 CountDownLatch latch = new CountDownLatch(1);
                 tp.generic().execute(() -> {
@@ -479,7 +478,7 @@ public class SearchableSnapshotDirectoryFactory {
             );
 
             // load the snapshot so it's ready for reads
-            SearchableSnapshotRecoveryState recoveryState = createRecoveryState(false);
+            SearchableSnapshotRecoveryState recoveryState = createRecoveryState(true);
             final PlainActionFuture<Void> f = new PlainActionFuture<>();
             delegate.loadSnapshot(recoveryState, () -> false, f);
             try {

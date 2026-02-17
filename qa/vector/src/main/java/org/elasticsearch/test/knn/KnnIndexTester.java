@@ -381,21 +381,26 @@ public class KnnIndexTester {
                 }
                 numSegments(indexPath, indexResults);
                 if (testConfiguration.queryVectors() != null && testConfiguration.numQueries() > 0) {
-                    if (parsedArgs.warmUpIterations() > 0) {
-                        logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
-                    }
-                    // Warm up
-                    for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
-                        for (int i = 0; i < results.length; i++) {
-                            var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
-                            KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-                            knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i));
+                    try (Directory dir = KnnIndexer.openReadDirectory(indexPath, testConfiguration.useSearchableSnapshot())) {
+                        if (testConfiguration.useSearchableSnapshot()) {
+                            KnnSearcher.preWarmDirectory(dir);
                         }
-                    }
+                        if (parsedArgs.warmUpIterations() > 0) {
+                            logger.info("Running the searches for " + parsedArgs.warmUpIterations() + " warm up iterations");
+                        }
+                        // Warm up
+                        for (int warmUpCount = 0; warmUpCount < parsedArgs.warmUpIterations(); warmUpCount++) {
+                            for (int i = 0; i < results.length; i++) {
+                                var ignoreResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
+                                KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                                knnSearcher.runSearch(ignoreResults, testConfiguration.searchParams().get(i), dir);
+                            }
+                        }
 
-                    for (int i = 0; i < results.length; i++) {
-                        KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
-                        knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i));
+                        for (int i = 0; i < results.length; i++) {
+                            KnnSearcher knnSearcher = new KnnSearcher(indexPath, testConfiguration);
+                            knnSearcher.runSearch(results[i], testConfiguration.searchParams().get(i), dir);
+                        }
                     }
                 }
                 formattedResults.queryResults.addAll(List.of(results));

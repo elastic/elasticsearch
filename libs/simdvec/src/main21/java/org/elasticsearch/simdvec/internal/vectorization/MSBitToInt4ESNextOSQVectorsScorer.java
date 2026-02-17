@@ -18,8 +18,8 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.nativeaccess.ByteBufferAccessInput;
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
+import org.elasticsearch.simdvec.internal.IndexInputSegments;
+import org.elasticsearch.simdvec.internal.IndexInputSegments.SegmentSlice;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
@@ -42,16 +42,6 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         super(in, dimensions, dataLength, bulkSize, memorySegment);
     }
 
-    /** A memory segment paired with an optional resource to close when the segment is no longer needed. */
-    private record SegmentSlice(MemorySegment segment, CloseableByteBuffer toClose) implements AutoCloseable {
-        @Override
-        public void close() {
-            if (toClose != null) {
-                toClose.close();
-            }
-        }
-    }
-
     @Override
     public long quantizeScore(byte[] q) throws IOException {
         assert q.length == length * 4;
@@ -70,38 +60,8 @@ final class MSBitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVect
         return Long.MIN_VALUE;
     }
 
-    /**
-     * Reads the given number of bytes from the relative position of the
-     * given IndexInput. Returning a memory segment of the data.
-     */
-    private MemorySegment copyOnHeap(IndexInput in, int bytesToRead) throws IOException {
-        byte[] scratch = new byte[bytesToRead];
-        in.readBytes(scratch, 0, bytesToRead);
-        return MemorySegment.ofArray(scratch);
-    }
-
-    /**
-     * Returns a memory segment containing the next length bytes of the
-     * index input. The position of the index input is advanced by length.
-     * The caller must close the returned {@link SegmentSlice} when done.
-     */
     private SegmentSlice getMemorySegment(long length) throws IOException {
-        if (rawMemorySegment() != null) {
-            long offset = in.getFilePointer();
-            MemorySegment seg = rawMemorySegment().asSlice(offset, length);
-            in.skipBytes(length);
-            return new SegmentSlice(seg, null);
-        }
-        // try direct ByteBuffer access (e.g., from blob cache mmap'd regions)
-        if (in instanceof ByteBufferAccessInput bbai) {
-            long offset = in.getFilePointer();
-            CloseableByteBuffer cbb = bbai.byteBufferSliceOrNull(offset, length);
-            if (cbb != null) {
-                in.skipBytes(length);
-                return new SegmentSlice(MemorySegment.ofBuffer(cbb.buffer()), cbb);
-            }
-        }
-        return new SegmentSlice(copyOnHeap(in, Math.toIntExact(length)), null);
+        return IndexInputSegments.sliceOrCopy(in, rawMemorySegment(), length);
     }
 
     private long nativeQuantizeScore(byte[] q) throws IOException {

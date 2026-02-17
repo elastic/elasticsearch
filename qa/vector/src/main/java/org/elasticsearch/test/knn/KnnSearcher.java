@@ -51,10 +51,13 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FSDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.common.io.Channels;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
@@ -106,7 +109,6 @@ class KnnSearcher {
     private final VectorSimilarityFunction similarityFunction;
     private final VectorEncoding vectorEncoding;
     private final boolean doPrecondition;
-    private final boolean useSearchableSnapshot;
 
     KnnSearcher(Path indexPath, TestConfiguration testConfiguration) {
         this.docPath = testConfiguration.docVectors();
@@ -122,10 +124,9 @@ class KnnSearcher {
         }
         this.indexType = testConfiguration.indexType();
         this.doPrecondition = testConfiguration.doPrecondition();
-        this.useSearchableSnapshot = testConfiguration.useSearchableSnapshot();
     }
 
-    void runSearch(KnnIndexTester.Results finalResults, SearchParameters searchParameters) throws IOException {
+    void runSearch(KnnIndexTester.Results finalResults, SearchParameters searchParameters, Directory dir) throws IOException {
         Query filterQuery = searchParameters.filterSelectivity() < 1f
             ? generateRandomQuery(
                 new Random(searchParameters.seed()),
@@ -175,7 +176,7 @@ class KnnSearcher {
             );
             KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(input, dim, vectorEncoding, offsetByteSize);
             long startNS;
-            try (Directory dir = KnnIndexer.openReadDirectory(indexPath, useSearchableSnapshot)) {
+            {
                 try (DirectoryReader reader = DirectoryReader.open(dir)) {
                     IndexSearcher searcher = searchParameters.searchThreads() > 1
                         ? new IndexSearcher(reader, executorService)
@@ -309,6 +310,35 @@ class KnnSearcher {
         finalResults.filterSelectivity = searchParameters.filterSelectivity();
         finalResults.numCandidates = searchParameters.numCandidates();
         finalResults.earlyTermination = searchParameters.earlyTermination();
+    }
+
+    /**
+     * Pre-warms the searchable snapshot cache by sequentially reading every
+     * file in the directory through a single {@link IndexInput} per file.
+     */
+    static void preWarmDirectory(Directory dir) throws IOException {
+        long startNS = System.nanoTime();
+        long totalBytes = 0;
+        byte[] buf = new byte[64 * 1024];
+        for (String file : dir.listAll()) {
+            long fileLength = dir.fileLength(file);
+            try (IndexInput in = dir.openInput(file, IOContext.READONCE)) {
+                long remaining = fileLength;
+                while (remaining > 0) {
+                    int toRead = (int) Math.min(buf.length, remaining);
+                    in.readBytes(buf, 0, toRead);
+                    remaining -= toRead;
+                }
+            }
+            totalBytes += fileLength;
+        }
+        long elapsedMS = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNS);
+        logger.info(
+            "Pre-warmed searchable snapshot cache: {} across {} files in {} ms",
+            ByteSizeValue.ofBytes(totalBytes),
+            dir.listAll().length,
+            elapsedMS
+        );
     }
 
     private static Query generateRandomQuery(Random random, Path indexPath, int size, float selectivity, boolean filterCached)

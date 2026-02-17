@@ -1065,6 +1065,58 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     /**
+     * Backing indices of the same data stream on different data nodes may report different units.
+     * The FINAL phase must first merge by (metricName, dataStreamName) — unioning unit values —
+     * before re-grouping by signature. Without this, rows with {usd} and {eur} would have
+     * different signatures and produce two rows instead of one row with multi-valued unit.
+     */
+    public void testFinalModeSameDataStreamDifferentUnitsAcrossNodesProduceOneRow() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, FINAL_CHANNELS);
+        try {
+            // Data node A has backing index 000001 (unit=usd)
+            Page page1 = buildFinalPage(
+                blockFactory,
+                "total_cost",
+                Set.of("metrics-unit-conflict"),
+                Set.of("usd"),
+                Set.of("counter"),
+                Set.of("double"),
+                Set.of("metric.name")
+            );
+            // Data node B has backing indices 000002+000003 (unit=eur)
+            Page page2 = buildFinalPage(
+                blockFactory,
+                "total_cost",
+                Set.of("metrics-unit-conflict"),
+                Set.of("eur"),
+                Set.of("counter"),
+                Set.of("double"),
+                Set.of("metric.name")
+            );
+
+            op.addInput(page1);
+            op.addInput(page2);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            // One row with multi-valued unit, not two rows
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertColumnValue(output, 0, 0, "total_cost");
+            assertThat(collectMultiValues(output, 1, 0), equalTo(Set.of("metrics-unit-conflict")));
+            assertThat(collectMultiValues(output, 2, 0), equalTo(Set.of("usd", "eur")));
+            assertThat(collectMultiValues(output, 3, 0), equalTo(Set.of("counter")));
+            assertThat(collectMultiValues(output, 4, 0), equalTo(Set.of("double")));
+            assertThat(collectMultiValues(output, 5, 0), equalTo(Set.of("metric.name")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
      * Build a single-row 6-column page for FINAL mode input, matching the MetricsInfo output schema.
      */
     private static Page buildFinalPage(

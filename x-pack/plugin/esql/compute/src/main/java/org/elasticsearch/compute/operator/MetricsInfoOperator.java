@@ -169,8 +169,7 @@ public class MetricsInfoOperator implements Operator {
     }
 
     private final Map<MetricInfoKey, MetricInfo> metricsByKey = new LinkedHashMap<>();
-    /** Accumulates merged rows in FINAL mode. Null in INITIAL mode. */
-    private final Map<MetricSignature, MetricInfoRow> mergedRows;
+    private final Map<MetricInfoKey, MetricInfo> finalMetricsByKey;
 
     private final BlockFactory blockFactory;
     /** INITIAL-mode fields (null in FINAL mode). */
@@ -192,7 +191,7 @@ public class MetricsInfoOperator implements Operator {
         this.metadataSourceChannel = metadataSourceChannel;
         this.indexChannel = indexChannel;
         this.finalChannels = null;
-        this.mergedRows = null;
+        this.finalMetricsByKey = null;
     }
 
     /**
@@ -207,7 +206,7 @@ public class MetricsInfoOperator implements Operator {
         this.metadataSourceChannel = -1;
         this.indexChannel = -1;
         this.finalChannels = channels;
-        this.mergedRows = new LinkedHashMap<>();
+        this.finalMetricsByKey = new LinkedHashMap<>();
     }
 
     private boolean isFinalMode() {
@@ -256,7 +255,6 @@ public class MetricsInfoOperator implements Operator {
         page.releaseBlocks();
     }
 
-    /** FINAL mode: read the 6-column output from data nodes and merge by metric signature. */
     private void addInputFinal(Page page) {
         BytesRefBlock nameBlock = page.getBlock(finalChannels[COL_METRIC_NAME]);
         BytesRefBlock dsBlock = page.getBlock(finalChannels[COL_DATA_STREAM]);
@@ -271,18 +269,22 @@ public class MetricsInfoOperator implements Operator {
                 continue;
             }
 
+            // A row can have multi-valued data_stream (already merged on a data node).
+            // Accumulate into a MetricInfo per (metricName, dataStream) pair.
+            Set<String> dataStreams = readMultiValue(dsBlock, pos);
             Set<String> units = readMultiValue(unitBlock, pos);
             Set<String> fieldTypes = readMultiValue(ftBlock, pos);
             Set<String> metricTypes = readMultiValue(mtBlock, pos);
+            Set<String> dimensionFields = readMultiValue(dfBlock, pos);
 
-            MetricSignature sig = new MetricSignature(metricName, units, fieldTypes, metricTypes);
-            MetricInfoRow row = mergedRows.computeIfAbsent(
-                sig,
-                s -> new MetricInfoRow(s.metricName(), s.units(), s.fieldTypes(), s.metricTypes())
-            );
-
-            row.dataStreams.addAll(readMultiValue(dsBlock, pos));
-            row.dimensionFieldKeys.addAll(readMultiValue(dfBlock, pos));
+            for (String ds : dataStreams) {
+                MetricInfoKey key = new MetricInfoKey(metricName, ds);
+                MetricInfo info = finalMetricsByKey.computeIfAbsent(key, k -> new MetricInfo(k.metricName(), k.dataStreamName()));
+                info.units.addAll(units);
+                info.fieldTypes.addAll(fieldTypes);
+                info.metricTypes.addAll(metricTypes);
+                info.dimensionFieldKeys.addAll(dimensionFields);
+            }
         }
 
         page.releaseBlocks();
@@ -442,7 +444,7 @@ public class MetricsInfoOperator implements Operator {
         outputProduced = true;
 
         if (isFinalMode()) {
-            return mergedRows.isEmpty() ? createEmptyPage() : createOutputPageFromRows(new ArrayList<>(mergedRows.values()));
+            return finalMetricsByKey.isEmpty() ? createEmptyPage() : createOutputPageFromRows(mergeRowsBySignature(finalMetricsByKey));
         }
 
         if (metricsByKey.isEmpty()) {

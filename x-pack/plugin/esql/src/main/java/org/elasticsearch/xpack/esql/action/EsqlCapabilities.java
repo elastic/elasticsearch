@@ -1917,6 +1917,11 @@ public class EsqlCapabilities {
         PROMQL_TIME,
 
         /**
+         * Support for deriving PromQL time buckets from [start, end, buckets] when [step] is omitted.
+         */
+        PROMQL_BUCKETS_PARAMETER,
+
+        /**
          * Queries for unmapped fields return no data instead of an error.
          * Also filters out nulls from results.
          */
@@ -1932,6 +1937,11 @@ public class EsqlCapabilities {
          * Support post-processing STATS commands after PROMQL source commands.
          */
         PROMQL_POST_PROCESSING_STATS,
+
+        /**
+         * PromQL scalar() function support.
+         */
+        PROMQL_SCALAR,
 
         /**
          * KNN function adds support for k and visit_percentage options

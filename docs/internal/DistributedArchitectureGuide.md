@@ -299,7 +299,8 @@ an elasticsearch node can be assigned and their implication)
 
 The master's core responsibility is updating the [ClusterState] and propagating the changes to other nodes.
 
-The cluster maintains (conceptually at least) at most a single master at all times. If no master is
+The cluster maintains (conceptually at least, see [term](#terms) section) at most a single master at all times. If no
+master is
 present, [master-eligible](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles#master-node-role)
 nodes will attempt to become the master by starting an election. The cluster will not be able to commit
 any [ClusterState] changes until a new master is elected.
@@ -338,8 +339,12 @@ numbered [term](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/
 Terms are monotonically increasing `long`s that act as logical clocks for the coordination layer, allowing the cluster
 to distinguish between master mandates coming from distinct elections. They are persisted
 via [CoordinationState.PersistedState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L42).
-A term can have at most one master. A node will never vote in the same term twice. Note that nodes may not necessarily
-be aware of the same latest term at the same physical time.
+A term can have at most one master. A node will never vote in the same term twice.
+
+Note that nodes may not necessarily be aware of the same latest term at the same physical time. The practical
+consequence of this is that two nodes may temporarily both *believe* they are the master at the same physical time. But
+because there is only ever a single master per term, terms are always monotonically increasing and cluster
+state updates require a quorum of votes, at most one of them will be able to update the cluster state.
 
 #### Election Flow
 

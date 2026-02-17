@@ -411,7 +411,7 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
             Fields mergedFields = new MappedMultiFields(
                 mergeState,
-                new MultiFields(fields.toArray(Fields.EMPTY_ARRAY), slices.toArray(ReaderSlice.EMPTY_ARRAY))
+                new MultiFields(fields.toArray(Fields[]::new), slices.toArray(ReaderSlice[]::new))
             );
 
             var terms = mergedFields.terms(bloomFilterFieldName);

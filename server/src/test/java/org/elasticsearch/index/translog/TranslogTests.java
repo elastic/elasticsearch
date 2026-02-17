@@ -1024,7 +1024,7 @@ public class TranslogTests extends ESTestCase {
                         final Translog.Operation.Type type = Translog.Operation.Type.values()[((int) (id % Translog.Operation.Type
                             .values().length))];
                         op = switch (type) {
-                            case CREATE, INDEX -> indexOp("" + id, id, primaryTerm.get(), Long.toString(id));
+                            case CREATE, INDEX, BATCH -> indexOp("" + id, id, primaryTerm.get(), Long.toString(id));
                             case DELETE -> new Translog.Delete(Long.toString(id), id, primaryTerm.get());
                             case NO_OP -> new Translog.NoOp(id, 1, Long.toString(id));
                         };
@@ -2427,7 +2427,7 @@ public class TranslogTests extends ESTestCase {
                     Translog.Operation op;
                     final Translog.Operation.Type type = randomFrom(Translog.Operation.Type.values());
                     op = switch (type) {
-                        case CREATE, INDEX -> indexOp(
+                        case CREATE, INDEX, BATCH -> indexOp(
                             threadId + "_" + opCount,
                             seqNoGenerator.getAndIncrement(),
                             primaryTerm.get(),

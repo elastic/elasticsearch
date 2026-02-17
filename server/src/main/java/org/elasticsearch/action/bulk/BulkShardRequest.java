@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
@@ -35,8 +36,14 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(BulkShardRequest.class);
 
+    private static final TransportVersion BATCH_MODE_VERSION = TransportVersion.fromName("bulk_batch_mode");
+
     private final BulkItemRequest[] items;
     private final boolean isSimulated;
+
+    // Batch mode: when set, the batch code path is used instead of the serial per-item loop.
+    // Serialized over the wire so the primary shard receives the batch from the coordinating node.
+    private DocumentBatch documentBatch;
 
     private transient Map<String, InferenceFieldMetadata> inferenceFieldMap = null;
 
@@ -44,6 +51,12 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         super(in);
         items = in.readArray(i -> i.readOptionalWriteable(inpt -> new BulkItemRequest(shardId, inpt)), BulkItemRequest[]::new);
         isSimulated = in.readBoolean();
+        if (in.getTransportVersion().supports(BATCH_MODE_VERSION)) {
+            boolean hasBatch = in.readBoolean();
+            if (hasBatch) {
+                this.documentBatch = new DocumentBatch(in.readByteArray());
+            }
+        }
     }
 
     public BulkShardRequest(
@@ -162,6 +175,14 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         super.writeTo(out);
         out.writeArray((o, item) -> o.writeOptional(BulkItemRequest.THIN_WRITER, item), items);
         out.writeBoolean(isSimulated);
+        if (out.getTransportVersion().supports(BATCH_MODE_VERSION)) {
+            if (documentBatch != null) {
+                out.writeBoolean(true);
+                out.writeByteArray(documentBatch.getRawData());
+            } else {
+                out.writeBoolean(false);
+            }
+        }
     }
 
     @Override
@@ -187,6 +208,9 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
         }
         if (isSimulated) {
             b.append(", simulated");
+        }
+        if (documentBatch != null) {
+            b.append(", batch[").append(documentBatch.docCount()).append(" docs]");
         }
         return b.toString();
     }
@@ -236,5 +260,27 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
 
     public boolean isSimulated() {
         return isSimulated;
+    }
+
+    /**
+     * Set a DocumentBatch for batch mode processing.
+     * When set, the batch code path is used in TransportShardBulkAction instead of the serial per-item loop.
+     */
+    public void setDocumentBatch(DocumentBatch documentBatch) {
+        this.documentBatch = documentBatch;
+    }
+
+    /**
+     * Returns the DocumentBatch if batch mode is enabled, null otherwise.
+     */
+    public DocumentBatch getDocumentBatch() {
+        return documentBatch;
+    }
+
+    /**
+     * Returns true if this request should use the batch processing code path.
+     */
+    public boolean isBatchMode() {
+        return documentBatch != null;
     }
 }

@@ -1153,13 +1153,14 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * A generic interface representing an operation performed on the transaction log.
      * Each is associated with a type.
      */
-    public abstract static sealed class Operation implements Writeable permits Delete, Index, NoOp {
+    public abstract static sealed class Operation implements Writeable permits Batch, Delete, Index, NoOp {
         public enum Type {
             @Deprecated
             CREATE((byte) 1),
             INDEX((byte) 2),
             DELETE((byte) 3),
-            NO_OP((byte) 4);
+            NO_OP((byte) 4),
+            BATCH((byte) 5);
 
             private final byte id;
 
@@ -1177,6 +1178,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     case 2 -> INDEX;
                     case 3 -> DELETE;
                     case 4 -> NO_OP;
+                    case 5 -> BATCH;
                     default -> throw new IllegalArgumentException("no type mapped for [" + id + "]");
                 };
             }
@@ -1213,6 +1215,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 case CREATE, INDEX -> Index.readFrom(input);
                 case DELETE -> Delete.readFrom(input);
                 case NO_OP -> new NoOp(input);
+                case BATCH -> Batch.readFrom(input);
             };
         }
 
@@ -1232,6 +1235,101 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * Writes the entire operation body which comes after the byte indicating the operation type.
          */
         protected abstract void writeBody(StreamOutput out) throws IOException;
+    }
+
+    public static final class Batch extends Operation {
+
+        private final List<Index> operations;
+
+        public Batch(List<Index> operations) {
+            super(minSeqNo(operations), maxPrimaryTerm(operations));
+            if (operations.isEmpty()) {
+                throw new IllegalArgumentException("a batch must contain at least one operation");
+            }
+            this.operations = operations;
+        }
+
+        private static long minSeqNo(List<Index> operations) {
+            long min = Long.MAX_VALUE;
+            for (Index op : operations) {
+                min = Math.min(min, op.seqNo());
+            }
+            return min;
+        }
+
+        private static long maxPrimaryTerm(List<Index> operations) {
+            long max = Long.MIN_VALUE;
+            for (Index op : operations) {
+                max = Math.max(max, op.primaryTerm());
+            }
+            return max;
+        }
+
+        static Batch readFrom(StreamInput in) throws IOException {
+            int count = in.readVInt();
+            List<Index> ops = new ArrayList<>(count);
+            for (int i = 0; i < count; i++) {
+                ops.add(Index.readFrom(in));
+            }
+            return new Batch(ops);
+        }
+
+        public List<Index> operations() {
+            return operations;
+        }
+
+        @Override
+        public Type opType() {
+            return Type.BATCH;
+        }
+
+        @Override
+        public long estimateSize() {
+            long size = Integer.BYTES; // vint for count
+            for (Index op : operations) {
+                size += op.estimateSize();
+            }
+            return size;
+        }
+
+        @Override
+        protected void writeHeader(int format, StreamOutput out) throws IOException {
+            // Batch uses writeBody directly; writeHeader writes the full content
+            out.writeVInt(operations.size());
+            for (Index op : operations) {
+                op.writeBody(out);
+            }
+        }
+
+        @Override
+        protected void writeBody(StreamOutput out) throws IOException {
+            out.writeVInt(operations.size());
+            for (Index op : operations) {
+                op.writeBody(out);
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Batch other = (Batch) o;
+            return operations.equals(other.operations);
+        }
+
+        @Override
+        public int hashCode() {
+            return operations.hashCode();
+        }
+
+        @Override
+        public String toString() {
+            return "Batch{" + "count=" + operations.size() + ", seqNo=" + seqNo + ", primaryTerm=" + primaryTerm + '}';
+        }
     }
 
     public static final class Index extends Operation {
@@ -1802,10 +1900,24 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     public static void writeHeaderWithSize(RecyclerBytesStreamOutput out, Translog.Operation op) throws IOException {
         switch (op) {
+            case Batch batch -> writeSlowBatchHeader(out, batch);
             case Index index -> TranslogHeaderWriter.writeIndexHeader(out, index);
             case Delete delete -> TranslogHeaderWriter.writeDeleteHeader(out, delete);
             case NoOp noOp -> TranslogHeaderWriter.writeNoOpHeader(out, noOp);
         }
+    }
+
+    private static void writeSlowBatchHeader(RecyclerBytesStreamOutput buffer, Translog.Batch batch) throws IOException {
+        final long start = buffer.position();
+        buffer.skip(Integer.BYTES);
+        buffer.writeByte(Translog.Operation.Type.BATCH.id());
+        batch.writeBody(buffer);
+        final long end = buffer.position();
+        // The total operation size is the header size + 4 bytes for checksum
+        final int operationSize = (int) (end - Integer.BYTES - start) + Integer.BYTES;
+        buffer.seek(start);
+        buffer.writeInt(operationSize);
+        buffer.seek(end);
     }
 
     /**

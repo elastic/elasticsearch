@@ -52,14 +52,17 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -422,9 +425,53 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 if (task != null) {
                     bulkShardRequest.setParentTask(nodeId, task.getId());
                 }
+
+                // Try to encode as a batch for the batch execution path
+                if (isBatchEligible(requests)) {
+                    try {
+                        List<IndexRequest> indexRequests = new ArrayList<>(requests.size());
+                        for (BulkItemRequest r : requests) {
+                            indexRequests.add((IndexRequest) r.request());
+                        }
+                        DocumentBatch batch = DocumentBatchEncoder.encode(indexRequests);
+                        bulkShardRequest.setDocumentBatch(batch);
+                    } catch (IOException e) {
+                        // Encoding failed — leave batch null, serial path will be used on the primary
+                        logger.debug("Failed to encode document batch, falling back to serial path", e);
+                    }
+                }
+
                 executeBulkShardRequest(bulkShardRequest, project.id(), bulkItemRequestCompleteRefCount.acquire());
             }
         }
+    }
+
+    /**
+     * Checks whether a shard's requests are eligible for batch encoding on the coordinating node.
+     * This only checks request-level criteria (all IndexRequest, no conditional writes, no duplicate IDs).
+     * Mapping-level checks (dynamic: strict/false) are deferred to the primary shard.
+     */
+    private static boolean isBatchEligible(List<BulkItemRequest> requests) {
+        if (requests.size() <= 1) {
+            return false;
+        }
+        Set<String> seenIds = new HashSet<>();
+        for (BulkItemRequest item : requests) {
+            DocWriteRequest<?> req = item.request();
+            if (req instanceof IndexRequest indexRequest) {
+                if (indexRequest.ifSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO
+                    || indexRequest.ifPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
+                    return false;
+                }
+                String id = indexRequest.id();
+                if (id != null && seenIds.add(id) == false) {
+                    return false; // duplicate ID
+                }
+            } else {
+                return false; // not an IndexRequest (delete, update, etc.)
+            }
+        }
+        return true;
     }
 
     private void redirectFailuresOrCompleteBulkOperation() {

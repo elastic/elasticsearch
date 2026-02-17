@@ -288,6 +288,25 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             @Override
             protected void doRun() throws Exception {
+                // Try batch path first if eligible
+                if (isBatchEligibleOnPrimary(request, primary)) {
+                    try {
+                        var batchResult = performBatchOnPrimary(request, primary, postWriteRefresh, postWriteAction);
+                        if (batchResult != null) {
+                            primary.getBulkOperationListener().afterBulk(
+                                request.totalSizeInBytes(),
+                                System.nanoTime() - startBulkTime
+                            );
+                            listener.onResponse(batchResult);
+                            return;
+                        }
+                        // null = fallback to serial (e.g., mapping update needed)
+                    } catch (Exception e) {
+                        // Batch failed entirely — fall through to serial path
+                        logger.debug("Batch execution failed, falling back to serial path", e);
+                    }
+                }
+                // Existing serial loop (unchanged)
                 while (context.hasMoreOperationsToExecute()) {
                     if (executeBulkItemRequest(
                         context,
@@ -358,6 +377,192 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 );
             }
         }.run();
+    }
+
+    /**
+     * Checks whether the batch mode can be used on the primary shard.
+     * Requires that the request carries a DocumentBatch and that the index mapping is strict or false
+     * (no dynamic mapping updates will be needed).
+     */
+    static boolean isBatchEligibleOnPrimary(BulkShardRequest request, IndexShard primary) {
+        if (request.isBatchMode() == false) {
+            return false;
+        }
+        MapperService mapperService = primary.mapperService();
+        if (mapperService.documentMapper() == null) {
+            return false;
+        }
+        MappingLookup mappingLookup = mapperService.mappingLookup();
+        var rootDynamic = mappingLookup.getMapping().getRoot().dynamic();
+        if (rootDynamic == null) {
+            return false; // default is TRUE which does not support batch
+        }
+        return rootDynamic == org.elasticsearch.index.mapper.ObjectMapper.Dynamic.STRICT
+            || rootDynamic == org.elasticsearch.index.mapper.ObjectMapper.Dynamic.FALSE;
+    }
+
+    /**
+     * Attempts batch execution of all items on the primary shard.
+     * Returns a WritePrimaryResult on success, or null if the batch should fall back to the serial path
+     * (e.g., because a dynamic mapping update is needed).
+     */
+    @Nullable
+    static WritePrimaryResult<BulkShardRequest, BulkShardResponse> performBatchOnPrimary(
+        BulkShardRequest request,
+        IndexShard primary,
+        @Nullable PostWriteRefresh postWriteRefresh,
+        @Nullable Consumer<Runnable> postWriteAction
+    ) throws IOException {
+        final BulkItemRequest[] items = request.items();
+        final ShardId shardId = request.shardId();
+        final MapperService mapperService = primary.mapperService();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
+        final DocumentBatch batch = request.getDocumentBatch();
+
+        // Phase 1: Collect non-aborted items and map batch doc index -> items array index
+        final int[] itemIndices = new int[items.length];
+        final java.util.List<IndexRequest> indexRequests = new java.util.ArrayList<>(items.length);
+        int batchDocCount = 0;
+
+        for (int i = 0; i < items.length; i++) {
+            BulkItemRequest item = items[i];
+            if (item.getPrimaryResponse() != null) {
+                continue; // skip aborted items
+            }
+            indexRequests.add((IndexRequest) item.request());
+            itemIndices[batchDocCount] = i;
+            batchDocCount++;
+        }
+
+        if (batchDocCount == 0) {
+            return null;
+        }
+
+        // Phase 2: Parse batch using BatchDocumentParser
+        var batchParser = mapperService.createBatchDocumentParser();
+        var parseResult = batchParser.parseBatch(batch, mappingLookup);
+
+        // Phase 3: Check for dynamic mapping updates — if any, fall back to serial
+        for (int i = 0; i < batchDocCount; i++) {
+            if (parseResult.isSuccess(i)) {
+                var parsedDoc = parseResult.getDocument(i);
+                if (parsedDoc.dynamicMappingsUpdate() != null) {
+                    return null; // fall back to serial path
+                }
+            }
+        }
+
+        // Phase 4: Build Engine.Index operations for successfully parsed documents
+        final java.util.List<Engine.Index> engineOps = new java.util.ArrayList<>(batchDocCount);
+        final int[] engineOpToDocIndex = new int[batchDocCount]; // maps engine op index -> batch doc index
+        int engineOpCount = 0;
+        final long startTimeNanos = primary.getRelativeTimeInNanos();
+        final long operationPrimaryTerm = primary.getOperationPrimaryTerm();
+
+        for (int i = 0; i < batchDocCount; i++) {
+            if (parseResult.isSuccess(i) == false) {
+                continue;
+            }
+
+            var parsedDoc = parseResult.getDocument(i);
+            IndexRequest indexRequest = indexRequests.get(i);
+
+            Engine.Index engineIndex = new Engine.Index(
+                org.elasticsearch.index.mapper.Uid.encodeId(parsedDoc.id()),
+                parsedDoc,
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                operationPrimaryTerm,
+                indexRequest.version(),
+                indexRequest.versionType(),
+                Engine.Operation.Origin.PRIMARY,
+                startTimeNanos,
+                indexRequest.getAutoGeneratedTimestamp(),
+                indexRequest.isRetry(),
+                SequenceNumbers.UNASSIGNED_SEQ_NO,
+                0
+            );
+
+            engineOps.add(engineIndex);
+            engineOpToDocIndex[engineOpCount] = i;
+            engineOpCount++;
+        }
+
+        // Phase 5: Execute on engine
+        final java.util.List<Engine.IndexResult> engineResults = primary.indexBatch(engineOps);
+
+        // Phase 6: Build BulkItemResponse for each item
+        final BulkItemResponse[] responses = new BulkItemResponse[items.length];
+        Translog.Location locationToSync = null;
+
+        // Handle parse failures first
+        for (int i = 0; i < batchDocCount; i++) {
+            if (parseResult.isSuccess(i) == false) {
+                int itemIndex = itemIndices[i];
+                BulkItemRequest item = items[itemIndex];
+                Exception parseException = parseResult.getException(i);
+                responses[itemIndex] = BulkItemResponse.failure(
+                    item.id(),
+                    item.request().opType(),
+                    new BulkItemResponse.Failure(request.index(), item.request().id(), parseException)
+                );
+                item.setPrimaryResponse(responses[itemIndex]);
+            }
+        }
+
+        // Handle engine results for successfully parsed documents
+        int engineResultIdx = 0;
+        for (int i = 0; i < batchDocCount; i++) {
+            if (parseResult.isSuccess(i) == false) {
+                continue;
+            }
+
+            int itemIndex = itemIndices[i];
+            BulkItemRequest item = items[itemIndex];
+            Engine.IndexResult result = engineResults.get(engineResultIdx);
+            engineResultIdx++;
+
+            if (result.getResultType() == Engine.Result.Type.SUCCESS) {
+                IndexRequest indexRequest = indexRequests.get(i);
+                IndexResponse indexResponse = new IndexResponse(
+                    shardId,
+                    result.getId(),
+                    result.getSeqNo(),
+                    result.getTerm(),
+                    result.getVersion(),
+                    result.isCreated(),
+                    indexRequest.getExecutedPipelines()
+                );
+                indexResponse.setShardInfo(
+                    org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo.EMPTY
+                );
+                responses[itemIndex] = BulkItemResponse.success(item.id(), item.request().opType(), indexResponse);
+                locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
+            } else {
+                responses[itemIndex] = BulkItemResponse.failure(
+                    item.id(),
+                    item.request().opType(),
+                    new BulkItemResponse.Failure(
+                        request.index(),
+                        result.getId(),
+                        result.getFailure(),
+                        result.getSeqNo(),
+                        result.getTerm()
+                    )
+                );
+            }
+            item.setPrimaryResponse(responses[itemIndex]);
+        }
+
+        // Fill in aborted items (already have primaryResponse set)
+        for (int i = 0; i < items.length; i++) {
+            if (responses[i] == null && items[i].getPrimaryResponse() != null) {
+                responses[i] = items[i].getPrimaryResponse();
+            }
+        }
+
+        BulkShardResponse shardResponse = new BulkShardResponse(shardId, responses);
+
+        return new WritePrimaryResult<>(request, shardResponse, locationToSync, primary, logger, postWriteRefresh, postWriteAction);
     }
 
     /**

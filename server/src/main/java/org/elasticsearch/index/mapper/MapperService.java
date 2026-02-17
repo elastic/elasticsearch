@@ -208,6 +208,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final IndexAnalyzers indexAnalyzers;
     private final MappingParser mappingParser;
     private final DocumentParser documentParser;
+    private final XContentParserConfiguration parserConfiguration;
     private final IndexVersion indexVersionCreated;
     private final IndexMode indexMode;
     private final MapperRegistry mapperRegistry;
@@ -267,6 +268,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         @Nullable Supplier<ProjectMetadata> projectMetadataSupplier
     ) {
         super(indexSettings);
+        this.parserConfiguration = parserConfiguration;
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         // We parse the setting in this way to avoid any index settings validations which are not relevant here.
         this.indexMode = IndexMode.fromIndexSettingsWithoutValidation(indexSettings.getSettings());
@@ -313,6 +315,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     public MappingParserContext parserContext() {
         return mappingParserContextSupplier.get();
+    }
+
+    /**
+     * Creates a new {@link BatchDocumentParser} for batch document parsing.
+     */
+    public BatchDocumentParser createBatchDocumentParser() {
+        return new BatchDocumentParser(parserConfiguration, mappingParserContextSupplier.get());
     }
 
     /**

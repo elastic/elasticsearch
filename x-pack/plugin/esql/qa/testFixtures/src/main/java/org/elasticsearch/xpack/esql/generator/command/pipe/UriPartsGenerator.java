@@ -34,7 +34,6 @@ public class UriPartsGenerator implements CommandGenerator {
      */
     private static final String PREFIX = "prefix";
 
-
     /**
      * Expected URI_PARTS output field names and their ES|QL types. Computed once from
      * {@link UriPartsFunctionBridge#getAllOutputFields()} and {@link DataType#fromJavaType}.

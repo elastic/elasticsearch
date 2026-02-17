@@ -28,11 +28,6 @@ For information about basic constructs that Painless and Java share, refer to co
 
 Painless scripts are parsed and compiled using the [ANTLR4](https://www.antlr.org/) and [ASM](https://asm.ow2.org/) libraries. Scripts are compiled directly into Java Virtual Machine (JVM) bytecode and executed against a standard JVM. 
 
-
-:::{image} images/painless-compilation-process.png
-:alt: Painless compilation process
-:::
-
 ```mermaid
 flowchart LR
     A[Painless Script] --> B[ANTLR4 & ASM<br/>parsing & compilation]
@@ -49,7 +44,6 @@ flowchart LR
     class C lightPoppy
     class D pink
 ```
-
 
 ### Step breakdown:
 
@@ -72,12 +66,6 @@ This context-aware design allows Painless to optimize performance and security f
 * **Return type expectations:** Expected script output format and type constraints
 
 Understanding context-syntax relationships is essential for effective Painless development. For detailed information about context-syntax patterns and practical examples, refer to [Painless syntax-context bridge](docs-content://explore-analyze/scripting/painless-syntax-context-bridge.md).
-
-:::{image} images/painless-integration-points.png
-:alt: Painless integration-points
-:::
-Double-click to expand the image.
-
 
 ```mermaid
 flowchart TD
@@ -118,7 +106,6 @@ flowchart TD
   style H1 fill:#7DD3D0,color:#000
   style I1 fill:#A1D1FF,color:#000
 ```
-
 
 ### Where to write Painless scripts:
 

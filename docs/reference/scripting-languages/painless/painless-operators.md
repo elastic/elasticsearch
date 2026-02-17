@@ -20,11 +20,6 @@ Painless operators use Java-like syntax with {{es}} specific enhancements such a
 
 Painless organizes operators into five functional categories based on their purpose.
 
-:::{image} images/painless-operator-categories.png
-:alt: Painless operator categories
-:::
-Double-click to expand the image.
-
 ```mermaid
 graph TB
     A["Painless Operators"]
@@ -69,7 +64,6 @@ graph TB
     class B1,C1,D1,E1,F1 descBox
     class B2,C2,D2,E2,F2 exampleBox
 ```
-
 
 ### General operators
 

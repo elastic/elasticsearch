@@ -6,9 +6,7 @@ Provides NDJSON (newline-delimited JSON) format support for ESQL external data s
 
 - Schema inference from the first 100 non-empty lines
 - Type conflict resolution to KEYWORD
-- Nested objects/arrays marked as UNSUPPORTED
 - Ignores blank lines; logs warnings for malformed lines (does not fail the file)
-- UTF-8 decoding with buffered reading
 - Supports `.ndjson` and `.jsonl` extensions
 
 ## Usage
@@ -35,11 +33,8 @@ these blocks represent (name, type, nullability, etc.)
 
 - Inferred schema should be cached in the `StorageObject`, along with the byte buffer used to read it.
 - This can be done by adding a map of (possibly `Closeable`) arbitrary data to `StorageObject`.
-- Parsing to blocks works but is highly inefficient
-- Values whose type is inconsistent with the inferred schema are read as `null`
 - Dates aren't handled (need to mimic ES behavior)
 - For pre-configured ndjson sources, allow users to provide a schema/mapping
-- Should the schema be created/augmented on the fly like dynamic mappings?
 
 ## Misc
 

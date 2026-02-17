@@ -64,18 +64,9 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
  * dashboard2;http_requests_total{job="api-server"}
  * </pre>
  * To run the utility, execute the following command:
- * <pre>
- * ./gradlew :x-pack:plugin:esql:analyzePromqlQueries \
- *   -PqueriesFile=&lt;path-to-query-file&gt; \
- *   -PoutputFile=&lt;path-to-output-file&gt; \
- *   [-Pverbose=true|false]
- * </pre>
- * Options:
- * <ul>
- *   <li>{@code queriesFile} - Path to CSV file with queries (required)</li>
- *   <li>{@code outputFile} - Path to output file; .json for JSON, otherwise Markdown (required)</li>
- *   <li>{@code verbose} - Include full query details (default: true)</li>
- * </ul>
+ * {@code ./gradlew :x-pack:plugin:esql:analyzePromqlQueries \
+ *         -PqueriesFile=<path-to-query-file> -PoutputFile=<path-to-output-file> \
+ *        [-Pverbose=<true>]}
  */
 public class PromqlCoverageAnalyzer implements Closeable {
 
@@ -106,7 +97,7 @@ public class PromqlCoverageAnalyzer implements Closeable {
     }
 
     public static void main(String[] args) throws IOException {
-        OptionParser parser = new OptionParser();
+        var parser = new OptionParser();
         var inputOpt = parser.accepts("input", "Path to query file").withRequiredArg().required();
         var outputOpt = parser.accepts("output", "Path to output file").withRequiredArg().required();
         var verboseOpt = parser.accepts("verbose", "Include full query details").withOptionalArg().ofType(Boolean.class).defaultsTo(true);
@@ -128,13 +119,7 @@ public class PromqlCoverageAnalyzer implements Closeable {
 
         var writer = Files.newBufferedWriter(outputFile, TRUNCATE_EXISTING, CREATE, WRITE);
 
-        Printer printer;
-        boolean isJson = outputFile.toString().endsWith(".json");
-        if (isJson) {
-            printer = new Printer.Json(writer, verbose);
-        } else {
-            printer = new Printer.Markdown(writer, verbose);
-        }
+        var printer = outputFile.toString().endsWith(".json") ? new Printer.Json(writer, verbose) : new Printer.Markdown(writer, verbose);
 
         try (var coverageAnalyzer = new PromqlCoverageAnalyzer(printer)) {
             var lineCounter = new AtomicInteger(0);
@@ -233,8 +218,8 @@ public class PromqlCoverageAnalyzer implements Closeable {
     ) {}
 
     public abstract static class Printer implements Closeable {
-        private final BufferedWriter out;
         protected final boolean verbose;
+        private final BufferedWriter out;
 
         protected Printer(BufferedWriter out, boolean verbose) {
             this.out = out;

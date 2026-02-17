@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -151,7 +152,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             () -> randomIntBetween(1, ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE_UPPER_BOUND)
         );
 
-        ServiceSettings updated = original.updateServiceSettings(Map.of("max_batch_size", newBatchSize));
+        ServiceSettings updated = original.updateServiceSettings(Map.of("max_batch_size", newBatchSize), TaskType.SPARSE_EMBEDDING);
 
         assertThat(
             updated,
@@ -165,7 +166,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
         {
             ValidationException e = expectThrows(
                 ValidationException.class,
-                () -> original.updateServiceSettings(Map.of("max_batch_size", 0))
+                () -> original.updateServiceSettings(Map.of("max_batch_size", 0), TaskType.SPARSE_EMBEDDING)
             );
             assertThat(e.getMessage(), containsString("Invalid value [0]. [max_batch_size] must be a positive integer;"));
         }
@@ -174,7 +175,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             final int newBatchSize = randomIntBetween(Integer.MIN_VALUE, 0);
             ValidationException e = expectThrows(
                 ValidationException.class,
-                () -> original.updateServiceSettings(Map.of("max_batch_size", newBatchSize))
+                () -> original.updateServiceSettings(Map.of("max_batch_size", newBatchSize), TaskType.SPARSE_EMBEDDING)
             );
             assertThat(
                 e.getMessage(),
@@ -189,7 +190,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettingsTests extends
             );
             ValidationException e = expectThrows(
                 ValidationException.class,
-                () -> original.updateServiceSettings(Map.of("max_batch_size", newBatchSize))
+                () -> original.updateServiceSettings(Map.of("max_batch_size", newBatchSize), TaskType.SPARSE_EMBEDDING)
             );
             assertThat(
                 e.getMessage(),

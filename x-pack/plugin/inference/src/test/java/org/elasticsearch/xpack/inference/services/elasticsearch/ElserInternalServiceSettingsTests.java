@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.TaskType;
 
 import java.util.HashSet;
 
@@ -70,5 +71,10 @@ public class ElserInternalServiceSettingsTests extends AbstractElasticsearchInte
     @Override
     protected void assertUpdated(ElserInternalServiceSettings original, ElserInternalServiceSettings updated) {
         // Nothing to do as there are no additional properties
+    }
+
+    @Override
+    protected TaskType getSupportedTask() {
+        return TaskType.SPARSE_EMBEDDING;
     }
 }

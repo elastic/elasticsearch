@@ -215,6 +215,24 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         verifyNoModelRegistryMutations();
     }
 
+    public void testMasterOperation_UpdatedModelIsEqualToExistingModel_ValidationAndUpdateIsSkipped() {
+        var unparsedModel = new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of());
+        mockGetModelWithSecretsToReturnUnparsedModel(unparsedModel);
+        mockServiceRegistryToReturnService(service);
+        mockLicenseStateIsAllowed(true);
+        GoogleVertexAiEmbeddingsModel model = createModel();
+        mockParsePersistedConfigWithSecretsToReturnModel(model);
+        when(service.buildModelFromConfigAndSecrets(any(ModelConfigurations.class), any(ModelSecrets.class))).thenReturn(model);
+        mockModelRegistryGetModelToReturnUnparsedModel(unparsedModel);
+        mockParsePersistedConfigToReturnModel(model);
+
+        var listener = callMasterOperationWithActionFuture();
+
+        var response = listener.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        assertThat(response.getModel(), is(model.getConfigurations()));
+        verifyNoModelRegistryMutations();
+    }
+
     public void testMasterOperation_UpdateModelTransactionFailedDueToRuntimeException_ThrowsSameException() {
         mockGetModelWithSecretsToReturnUnparsedModel(
             new UnparsedModel(INFERENCE_ENTITY_ID_VALUE, TaskType.TEXT_EMBEDDING, SERVICE_NAME_VALUE, Map.of(), Map.of())
@@ -505,7 +523,9 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         Map<String, Object> newServiceSettingsMap = Map.of("some_service_key", "some_service_value");
         var originalServiceSettings = mock(ServiceSettings.class);
         var updatedServiceSettings = mock(ServiceSettings.class);
-        when(originalServiceSettings.updateServiceSettings(newServiceSettingsMap)).thenReturn(updatedServiceSettings);
+        when(originalServiceSettings.updateServiceSettings(newServiceSettingsMap, TaskType.TEXT_EMBEDDING)).thenReturn(
+            updatedServiceSettings
+        );
 
         Map<String, Object> newTaskSettingsMap = Map.of("some_task_key", "some_task_value");
         var originalTaskSettings = mock(TaskSettings.class);
@@ -519,7 +539,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             SERVICE_NAME_VALUE
         );
 
-        verify(originalServiceSettings).updateServiceSettings(newServiceSettingsMap);
+        verify(originalServiceSettings).updateServiceSettings(newServiceSettingsMap, TaskType.TEXT_EMBEDDING);
         verify(originalTaskSettings).updatedTaskSettings(newTaskSettingsMap);
 
         assertThat(resultModelConfigurations.getInferenceEntityId(), sameInstance(model.getInferenceEntityId()));

@@ -11,7 +11,13 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.operator.SideChannel;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -19,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -55,8 +62,15 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     private final InputOrdering inputOrdering;
 
+    /**
+     * Optional {@link SideChannel} for passing information about the minimum competitive
+     * match back to the source operator.
+     */
+    @Nullable
+    private final transient SharedMinCompetitive.Supplier minCompetitive;
+
     public TopNExec(Source source, PhysicalPlan child, List<Order> order, Expression limit, Integer estimatedRowSize) {
-        this(source, child, order, limit, estimatedRowSize, Set.of(), InputOrdering.NOT_SORTED);
+        this(source, child, order, limit, estimatedRowSize, Set.of(), InputOrdering.NOT_SORTED, null);
     }
 
     private TopNExec(
@@ -67,7 +81,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         Integer estimatedRowSize,
         InputOrdering inputOrdering
     ) {
-        this(source, child, order, limit, estimatedRowSize, Set.of(), inputOrdering);
+        this(source, child, order, limit, estimatedRowSize, Set.of(), inputOrdering, null);
     }
 
     private TopNExec(
@@ -77,7 +91,8 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         Expression limit,
         Integer estimatedRowSize,
         Set<Attribute> docValuesAttributes,
-        InputOrdering inputOrdering
+        InputOrdering inputOrdering,
+        SharedMinCompetitive.Supplier minCompetitive
     ) {
         super(source, child);
         this.order = order;
@@ -85,6 +100,7 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         this.estimatedRowSize = estimatedRowSize;
         this.inputOrdering = inputOrdering;
         this.docValuesAttributes = docValuesAttributes;
+        this.minCompetitive = minCompetitive;
     }
 
     private TopNExec(StreamInput in) throws IOException {
@@ -124,19 +140,49 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     public TopNExec replaceChild(PhysicalPlan newChild) {
-        return new TopNExec(source(), newChild, order, limit, estimatedRowSize, docValuesAttributes, inputOrdering);
+        return new TopNExec(source(), newChild, order, limit, estimatedRowSize, docValuesAttributes, inputOrdering, minCompetitive);
     }
 
     public TopNExec withDocValuesAttributes(Set<Attribute> docValuesAttributes) {
-        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, inputOrdering);
+        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, inputOrdering, minCompetitive);
     }
 
     public TopNExec withSortedInput() {
-        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, InputOrdering.SORTED);
+        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, InputOrdering.SORTED, minCompetitive);
     }
 
     public TopNExec withNonSortedInput() {
-        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, InputOrdering.NOT_SORTED);
+        return new TopNExec(
+            source(),
+            child(),
+            order,
+            limit,
+            estimatedRowSize,
+            docValuesAttributes,
+            InputOrdering.NOT_SORTED,
+            minCompetitive
+        );
+    }
+
+    public SharedMinCompetitive.Supplier minCompetitive() {
+        return minCompetitive;
+    }
+
+    public List<SharedMinCompetitive.KeyConfig> minCompetitiveKeyConfig() {
+        return order.stream()
+            .map(
+                o -> new SharedMinCompetitive.KeyConfig(
+                    keyElementType(o.child().dataType()),
+                    keyEncoder(o.child().dataType()),
+                    o.direction() == Order.OrderDirection.ASC,
+                    o.nullsPosition() == Order.NullsPosition.FIRST
+                )
+            )
+            .toList();
+    }
+
+    public TopNExec withMinCompetitive(SharedMinCompetitive.Supplier minCompetitive) {
+        return new TopNExec(source(), child(), order, limit, estimatedRowSize, docValuesAttributes, inputOrdering, minCompetitive);
     }
 
     public Expression limit() {
@@ -168,12 +214,12 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
         size = Math.max(size, 1);
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new TopNExec(source(), child(), order, limit, size, docValuesAttributes, inputOrdering);
+            : new TopNExec(source(), child(), order, limit, size, docValuesAttributes, inputOrdering, minCompetitive);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), order, limit, estimatedRowSize, docValuesAttributes, inputOrdering);
+        return Objects.hash(super.hashCode(), order, limit, estimatedRowSize, docValuesAttributes, inputOrdering, minCompetitive);
     }
 
     @Override
@@ -185,12 +231,28 @@ public class TopNExec extends UnaryExec implements EstimatesRowSize {
                 && Objects.equals(limit, other.limit)
                 && Objects.equals(estimatedRowSize, other.estimatedRowSize)
                 && Objects.equals(docValuesAttributes, other.docValuesAttributes)
-                && Objects.equals(inputOrdering, other.inputOrdering);
+                && Objects.equals(inputOrdering, other.inputOrdering)
+                && Objects.equals(minCompetitive, other.minCompetitive);
         }
         return equals;
     }
 
     public InputOrdering inputOrdering() {
         return inputOrdering;
+    }
+
+    private static ElementType keyElementType(DataType type) {
+        return PlannerUtils.toElementType(type, MappedFieldType.FieldExtractPreference.NONE);
+    }
+
+    private static TopNEncoder keyEncoder(DataType type) {
+        return switch (type) {
+            case IP -> TopNEncoder.IP;
+            case TEXT, KEYWORD -> TopNEncoder.UTF8;
+            case VERSION -> TopNEncoder.VERSION;
+            case BOOLEAN, NULL, BYTE, SHORT, INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, DATETIME, DATE_NANOS, DATE_PERIOD, TIME_DURATION,
+                OBJECT, SCALED_FLOAT, UNSIGNED_LONG -> TopNEncoder.DEFAULT_SORTABLE;
+            default -> null;
+        };
     }
 }

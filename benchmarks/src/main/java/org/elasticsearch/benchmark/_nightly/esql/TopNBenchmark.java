@@ -23,6 +23,7 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.indices.breaker.CircuitBreakerMetrics;
@@ -56,6 +57,10 @@ import java.util.stream.Stream;
 @State(Scope.Thread)
 @Fork(1)
 public class TopNBenchmark {
+    static {
+        LogConfigurator.configureESLogging();
+    }
+
     private static final BlockFactory blockFactory = BlockFactory.getInstance(
         new NoopCircuitBreaker("noop"),
         BigArrays.NON_RECYCLING_INSTANCE
@@ -133,6 +138,19 @@ public class TopNBenchmark {
             List.of(),
             ClusterSettings.createBuiltInClusterSettings()
         );
+        SharedMinCompetitive.Supplier minCompetitive = new SharedMinCompetitive.Supplier(
+            blockFactory.breaker(),
+            IntStream.range(0, encoders.size())
+                .mapToObj(
+                    i -> new SharedMinCompetitive.KeyConfig(
+                        elementTypes.get(i),
+                        encoders.get(i),
+                        sortOrders.get(i).asc(),
+                        sortOrders.get(i).nullsFirst()
+                    )
+                )
+                .toList()
+        );
         return new TopNOperator(
             blockFactory,
             breakerService.getBreaker(CircuitBreaker.REQUEST),
@@ -141,7 +159,8 @@ public class TopNBenchmark {
             encoders,
             sortOrders,
             8 * 1024,
-            sortedInput ? TopNOperator.InputOrdering.SORTED : TopNOperator.InputOrdering.NOT_SORTED
+            sortedInput ? TopNOperator.InputOrdering.SORTED : TopNOperator.InputOrdering.NOT_SORTED,
+            minCompetitive // This is optional, but doesn't add much overhead either way
         );
     }
 

@@ -14,6 +14,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
@@ -54,8 +55,8 @@ import java.util.concurrent.TimeUnit;
  *
  * <p>Measures:
  * <ul>
- *   <li>Write throughput for legacy vs V2 format vs WKT vs WKB</li>
- *   <li>Read throughput: centroid, extent, tree visitation, geometry reconstruction, WKT/WKB parsing</li>
+ *   <li>Write throughput: legacy, V2, auto-select, WKT, WKB</li>
+ *   <li>Read throughput: tree visitation, geometry reconstruction, WKT/WKB parsing</li>
  *   <li>Storage size comparison (reported via setup output)</li>
  * </ul>
  *
@@ -74,7 +75,7 @@ public class GeometryDocValueBenchmark {
         LogConfigurator.configureESLogging();
     }
 
-    @Param({ "point", "simplePoly", "complexPoly", "multiPoint" })
+    @Param({ "point", "multiPoint", "simpleLine", "complexLine", "simplePoly", "complexPoly" })
     public String geometryType;
 
     private Geometry geometry;
@@ -84,6 +85,7 @@ public class GeometryDocValueBenchmark {
 
     private BytesRef legacyBytes;
     private BytesRef v2Bytes;
+    private BytesRef autoBytes;
 
     private String wktString;
     private byte[] wkbBytes;
@@ -104,7 +106,8 @@ public class GeometryDocValueBenchmark {
         centroidCalculator.add(geometry);
 
         legacyBytes = GeometryDocValueWriter.writeLegacy(tessellatedFields, CoordinateEncoder.GEO, centroidCalculator);
-        v2Bytes = GeometryDocValueWriter.write(tessellatedFields, CoordinateEncoder.GEO, centroidCalculator, List.of(normalizedGeometry));
+        v2Bytes = GeometryDocValueWriter.writeV2(tessellatedFields, CoordinateEncoder.GEO, centroidCalculator, List.of(normalizedGeometry));
+        autoBytes = GeometryDocValueWriter.write(tessellatedFields, CoordinateEncoder.GEO, centroidCalculator, List.of(normalizedGeometry));
 
         wktString = WellKnownText.toWKT(geometry);
         wkbBytes = WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN);
@@ -115,8 +118,8 @@ public class GeometryDocValueBenchmark {
             System.out.println("  Triangles:    " + tessellatedFields.size());
             System.out.println("  Legacy bytes: " + legacyBytes.length);
             System.out.println("  V2 bytes:     " + v2Bytes.length);
-            System.out.println("  V2 delta:     " + (v2Bytes.length - legacyBytes.length) + " bytes ("
-                + String.format("%.1f%%", 100.0 * (v2Bytes.length - legacyBytes.length) / legacyBytes.length) + ")");
+            System.out.println("  Auto bytes:   " + autoBytes.length + " (" + (autoBytes.length == legacyBytes.length ? "legacy" : "V2")
+                + ")");
             System.out.println("  WKT chars:    " + wktString.length());
             System.out.println("  WKB bytes:    " + wkbBytes.length);
         }
@@ -131,6 +134,11 @@ public class GeometryDocValueBenchmark {
 
     @Benchmark
     public BytesRef writeV2() throws IOException {
+        return GeometryDocValueWriter.writeV2(tessellatedFields, CoordinateEncoder.GEO, centroidCalculator, List.of(normalizedGeometry));
+    }
+
+    @Benchmark
+    public BytesRef writeAuto() throws IOException {
         return GeometryDocValueWriter.write(tessellatedFields, CoordinateEncoder.GEO, centroidCalculator, List.of(normalizedGeometry));
     }
 
@@ -144,40 +152,6 @@ public class GeometryDocValueBenchmark {
     @Benchmark
     public byte[] writeWKB() {
         return WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN);
-    }
-
-    // ---- Read centroid benchmarks ----
-
-    @Benchmark
-    public void readCentroidLegacy(Blackhole bh) throws IOException {
-        reader.reset(legacyBytes);
-        bh.consume(reader.getCentroidX());
-        bh.consume(reader.getCentroidY());
-        bh.consume(reader.getDimensionalShapeType());
-        bh.consume(reader.getSumCentroidWeight());
-    }
-
-    @Benchmark
-    public void readCentroidV2(Blackhole bh) throws IOException {
-        reader.reset(v2Bytes);
-        bh.consume(reader.getCentroidX());
-        bh.consume(reader.getCentroidY());
-        bh.consume(reader.getDimensionalShapeType());
-        bh.consume(reader.getSumCentroidWeight());
-    }
-
-    // ---- Read extent benchmarks ----
-
-    @Benchmark
-    public void readExtentLegacy(Blackhole bh) throws IOException {
-        reader.reset(legacyBytes);
-        bh.consume(reader.getExtent());
-    }
-
-    @Benchmark
-    public void readExtentV2(Blackhole bh) throws IOException {
-        reader.reset(v2Bytes);
-        bh.consume(reader.getExtent());
     }
 
     // ---- Tree visit benchmarks ----
@@ -201,8 +175,8 @@ public class GeometryDocValueBenchmark {
     // ---- Geometry reconstruction / parsing benchmarks ----
 
     @Benchmark
-    public void reconstructGeometryV2(Blackhole bh) throws IOException {
-        reader.reset(v2Bytes);
+    public void reconstructGeometry(Blackhole bh) throws IOException {
+        reader.reset(autoBytes);
         bh.consume(reader.getGeometry(CoordinateEncoder.GEO));
     }
 
@@ -221,34 +195,43 @@ public class GeometryDocValueBenchmark {
     private static Geometry createGeometry(String type) {
         return switch (type) {
             case "point" -> new Point(5.0, 10.0);
+            case "multiPoint" -> createMultiPoint(100);
+            case "simpleLine" -> new Line(new double[] { 0, 5, 10, 15, 20 }, new double[] { 0, 5, 0, 5, 0 });
+            case "complexLine" -> createComplexLine(500);
             case "simplePoly" -> new Polygon(
                 new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 })
             );
             case "complexPoly" -> createStarPolygon(500);
-            case "multiPoint" -> createMultiPoint(100);
             default -> throw new IllegalArgumentException("Unknown geometry type: " + type);
         };
     }
 
+    private static Line createComplexLine(int numPoints) {
+        double[] lons = new double[numPoints];
+        double[] lats = new double[numPoints];
+        for (int i = 0; i < numPoints; i++) {
+            double t = (double) i / (numPoints - 1);
+            lons[i] = -170.0 + 340.0 * t;
+            lats[i] = 30.0 * Math.sin(t * 10.0 * Math.PI);
+        }
+        return new Line(lons, lats);
+    }
+
     /**
      * Creates a star-shaped polygon with many vertices that tessellates into many triangles.
-     * The polygon alternates between an outer and inner radius, creating a gear/star shape
-     * with {@code numPoints} teeth.
      */
     private static Polygon createStarPolygon(int numPoints) {
         int totalVertices = numPoints * 2;
         double[] lons = new double[totalVertices + 1];
         double[] lats = new double[totalVertices + 1];
-        double centerLon = 0.0;
-        double centerLat = 0.0;
         double outerRadius = 10.0;
         double innerRadius = 5.0;
 
         for (int i = 0; i < totalVertices; i++) {
             double angle = 2.0 * Math.PI * i / totalVertices;
             double radius = (i % 2 == 0) ? outerRadius : innerRadius;
-            lons[i] = centerLon + radius * Math.cos(angle);
-            lats[i] = centerLat + radius * Math.sin(angle);
+            lons[i] = radius * Math.cos(angle);
+            lats[i] = radius * Math.sin(angle);
         }
         lons[totalVertices] = lons[0];
         lats[totalVertices] = lats[0];

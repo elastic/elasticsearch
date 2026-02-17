@@ -12,8 +12,12 @@ package org.elasticsearch.lucene.spatial;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.Point;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * A reusable Geometry doc value reader that supports two binary formats:
@@ -181,22 +185,80 @@ public class GeometryDocValueReader {
         }
     }
 
-    // ---- Geometry reconstruction: V2 only ----
+    // ---- Geometry reconstruction ----
 
     /**
-     * Reconstructs the original geometry from the vertex connectivity section.
-     * Only available for V2 format doc-values. Returns null for legacy format.
+     * Reconstructs the original geometry from the doc-value.
+     *
+     * <p>For V2 format, reads from the connectivity section.
+     * For legacy format, point-only geometries (Point, MultiPoint) are reconstructed
+     * by visiting the triangle tree, since vertex ordering is irrelevant for points.
+     * Returns null for legacy format with non-point geometries.
      *
      * @param encoder the coordinate encoder to decode vertex coordinates
-     * @return the reconstructed geometry, or null if legacy format
+     * @return the reconstructed geometry, or null if not reconstructable
      */
     public Geometry getGeometry(CoordinateEncoder encoder) throws IOException {
-        if (v2Format == false) {
-            return null;
+        if (v2Format) {
+            ensureVertexTableLoaded();
+            input.setPosition(connectivityOffset);
+            return GeometryConnectivityReader.readGeometry(input, vertexTable, encoder);
         }
-        ensureVertexTableLoaded();
-        input.setPosition(connectivityOffset);
-        return GeometryConnectivityReader.readGeometry(input, vertexTable, encoder);
+        // Legacy format: reconstruct point geometries from the triangle tree
+        if (getDimensionalShapeType() == DimensionalShapeType.POINT) {
+            return reconstructPointsFromTree(encoder);
+        }
+        return null;
+    }
+
+    /**
+     * Reconstructs a Point or MultiPoint geometry by visiting the legacy triangle tree
+     * and collecting all point coordinates. Since points have no ordering, the tree
+     * contains all the information needed for reconstruction.
+     */
+    private Geometry reconstructPointsFromTree(CoordinateEncoder encoder) throws IOException {
+        List<Point> points = new ArrayList<>();
+        visit(new TriangleTreeVisitor() {
+            @Override
+            public void visitPoint(int x, int y) {
+                points.add(new Point(encoder.decodeX(x), encoder.decodeY(y)));
+            }
+
+            @Override
+            public void visitLine(int aX, int aY, int bX, int bY, byte metadata) {}
+
+            @Override
+            public void visitTriangle(int aX, int aY, int bX, int bY, int cX, int cY, byte metadata) {}
+
+            @Override
+            public boolean push() {
+                return true;
+            }
+
+            @Override
+            public boolean pushX(int minX) {
+                return true;
+            }
+
+            @Override
+            public boolean pushY(int minY) {
+                return true;
+            }
+
+            @Override
+            public boolean push(int maxX, int maxY) {
+                return true;
+            }
+
+            @Override
+            public boolean push(int minX, int minY, int maxX, int maxY) {
+                return true;
+            }
+        });
+        if (points.size() == 1) {
+            return points.get(0);
+        }
+        return new MultiPoint(points);
     }
 
     public boolean isV2Format() {

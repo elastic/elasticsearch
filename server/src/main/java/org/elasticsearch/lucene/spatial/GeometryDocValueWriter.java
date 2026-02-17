@@ -64,10 +64,38 @@ import java.util.List;
  * <p>The vertex lookup table is placed between the extent and the tree so that reading
  * just the centroid and/or extent (common for analytics) does not require loading it,
  * while it is available before both the tree and the connectivity section that need it.
+ *
+ * <p>The {@link #write} method automatically selects the optimal format: point-only
+ * geometries (Point, MultiPoint) use the legacy format since vertex ordering is irrelevant
+ * and the legacy format is more compact. All other geometries use V2 format. The reader
+ * can reconstruct point geometries from the legacy tree without connectivity data.
  */
 public class GeometryDocValueWriter {
 
     private GeometryDocValueWriter() {}
+
+    /**
+     * Serialize the geometry, automatically selecting the optimal format.
+     * Point-only geometries (Point, MultiPoint) use the legacy format since vertex ordering
+     * is irrelevant and the legacy format is more compact. All other geometries use V2 format
+     * with vertex table and connectivity for geometry reconstruction.
+     *
+     * @param fields               the tessellated triangle fields from the indexer
+     * @param coordinateEncoder    encoder for quantizing coordinates to the integer grid
+     * @param centroidCalculator   calculator with accumulated centroid data
+     * @param normalizedGeometries the normalized geometries whose connectivity to preserve (unused for points)
+     */
+    public static BytesRef write(
+        List<IndexableField> fields,
+        CoordinateEncoder coordinateEncoder,
+        CentroidCalculator centroidCalculator,
+        List<Geometry> normalizedGeometries
+    ) throws IOException {
+        if (centroidCalculator.getDimensionalShapeType() == DimensionalShapeType.POINT) {
+            return writeLegacy(fields, coordinateEncoder, centroidCalculator);
+        }
+        return writeV2(fields, coordinateEncoder, centroidCalculator, normalizedGeometries);
+    }
 
     /**
      * Serialize the geometry into a BytesRef in V2 format with vertex table and connectivity.
@@ -77,7 +105,7 @@ public class GeometryDocValueWriter {
      * @param centroidCalculator   calculator with accumulated centroid data
      * @param normalizedGeometries the normalized geometries whose connectivity to preserve
      */
-    public static BytesRef write(
+    public static BytesRef writeV2(
         List<IndexableField> fields,
         CoordinateEncoder coordinateEncoder,
         CentroidCalculator centroidCalculator,

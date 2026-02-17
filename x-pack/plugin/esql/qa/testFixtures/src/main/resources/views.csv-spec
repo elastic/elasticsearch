@@ -394,8 +394,8 @@ required_capability: views_crud_as_index_actions
 FROM employees_rehired
 | STATS rehired_count = COUNT()
 ;
-warning:Line 1:23 (in view [employees_rehired]): evaluation of [is_rehired == true] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:23 (in view [employees_rehired]): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 rehired_count:long
 11

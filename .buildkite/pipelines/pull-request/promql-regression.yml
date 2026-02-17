@@ -1,0 +1,127 @@
+config:
+  allow-labels: promql
+steps:
+  - label: "PromQL Coverage Regression Check"
+    command: |
+      set -euo pipefail
+
+      QUERIES_REPO="elastic/grafana-dashboards-analysis"
+      QUERIES_DIR="/tmp/grafana-dashboards-analysis/results"
+      REPORTS_DIR="/tmp/promql_regression"
+      SUMMARY_FILE="$$REPORTS_DIR/summary.txt"
+
+      cleanup() {
+        rm -rf /tmp/grafana-dashboards-analysis
+      }
+      trap cleanup EXIT
+
+      echo "--- Setup"
+      mkdir -p "$$REPORTS_DIR"
+
+      if [ -z "$${GH_TOKEN:-}" ]; then
+        echo "Error: GH_TOKEN not set"
+        exit 1
+      fi
+
+      echo "--- Cloning queries repository"
+      git clone --depth 1 --single-branch \
+        "https://$${GH_TOKEN}@github.com/$${QUERIES_REPO}.git" \
+        /tmp/grafana-dashboards-analysis
+
+      QUERY_FILES=($$(find "$$QUERIES_DIR" -name "*.csv" -type f | sort))
+      if [ $${#QUERY_FILES[@]} -eq 0 ]; then
+        echo "Error: No CSV files found in $$QUERIES_DIR"
+        exit 1
+      fi
+      echo "Found $${#QUERY_FILES[@]} query file(s)"
+
+      echo "--- Fetching base branch"
+      git fetch origin "$$BUILDKITE_PULL_REQUEST_BASE_BRANCH" --depth=1
+
+      PR_COMMIT="$$BUILDKITE_COMMIT"
+      BASE_REF="origin/$$BUILDKITE_PULL_REQUEST_BASE_BRANCH"
+
+      TOTAL_REGRESSIONS=0
+      FAILED_FILES=()
+
+      for QUERIES_FILE in "$${QUERY_FILES[@]}"; do
+        FILENAME=$$(basename "$$QUERIES_FILE" .csv)
+        BASE_REPORT="$$REPORTS_DIR/$${FILENAME}_base.json"
+        CURRENT_REPORT="$$REPORTS_DIR/$${FILENAME}_current.json"
+
+        echo "--- $$FILENAME"
+
+        # Run on base branch (minimal output)
+        git checkout --quiet "$$BASE_REF"
+        if ! ./gradlew :x-pack:plugin:esql:analyzePromqlQueries \
+          -PqueriesFile="$$QUERIES_FILE" \
+          -PoutputFile="$$BASE_REPORT" \
+          -Pverbose=false \
+          --quiet 2>/dev/null; then
+          echo "Skipping (analyzer unavailable on base branch)"
+          continue
+        fi
+
+        # Run on PR branch (minimal output)
+        git checkout --quiet "$$PR_COMMIT"
+        if ! ./gradlew :x-pack:plugin:esql:analyzePromqlQueries \
+          -PqueriesFile="$$QUERIES_FILE" \
+          -PoutputFile="$$CURRENT_REPORT" \
+          -Pverbose=false \
+          --quiet; then
+          echo "Error: analyzer failed on PR branch"
+          exit 1
+        fi
+
+        # Compare overall numbers
+        BASE_SUCCESS=$$(jq '.successful' "$$BASE_REPORT")
+        CURRENT_SUCCESS=$$(jq '.successful' "$$CURRENT_REPORT")
+        BASE_TOTAL=$$(jq '.total' "$$BASE_REPORT")
+        CURRENT_TOTAL=$$(jq '.total' "$$CURRENT_REPORT")
+
+        DIFF=$$((CURRENT_SUCCESS - BASE_SUCCESS))
+
+        if [ "$$DIFF" -lt 0 ]; then
+          STATUS="REGRESSION"
+          TOTAL_REGRESSIONS=$$((TOTAL_REGRESSIONS + 1))
+          FAILED_FILES+=("$$FILENAME")
+          echo "^^^ +++"
+        elif [ "$$DIFF" -gt 0 ]; then
+          STATUS="IMPROVED (+$$DIFF)"
+        else
+          STATUS="OK"
+        fi
+
+        echo "$$STATUS: $$BASE_SUCCESS/$$BASE_TOTAL -> $$CURRENT_SUCCESS/$$CURRENT_TOTAL"
+        echo "$$FILENAME: $$STATUS base=$$BASE_SUCCESS/$$BASE_TOTAL current=$$CURRENT_SUCCESS/$$CURRENT_TOTAL" >> "$$SUMMARY_FILE"
+      done
+
+      echo ""
+      echo "--- Summary"
+      echo ""
+
+      if [ -f "$$SUMMARY_FILE" ]; then
+        cat "$$SUMMARY_FILE"
+        echo ""
+      fi
+
+      if [ "$$TOTAL_REGRESSIONS" -gt 0 ]; then
+        echo "FAILED: Regressions detected in: $${FAILED_FILES[*]}"
+        exit 1
+      fi
+
+      echo "SUCCESS: No regressions detected"
+    timeout_in_minutes: 60
+    retry:
+      automatic:
+        - exit_status: -1
+          limit: 2
+        - exit_status: 137
+          limit: 2
+    agents:
+      provider: gcp
+      image: family/elasticsearch-ubuntu-2404
+      machineType: n1-standard-8
+    artifact_paths:
+      - "/tmp/promql_regression/*.json"
+      - "/tmp/promql_regression/summary.txt"

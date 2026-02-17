@@ -182,11 +182,11 @@ public class NdJsonPageDecoder implements AutoCloseable {
         private void decodeObject(JsonParser parser, int position) throws IOException {
             JsonToken token = parser.currentToken();
             if (token != JsonToken.START_OBJECT) {
-                throw new IllegalArgumentException("Expected JSON object");
+                throw new NdJsonParseException(parser, "Expected JSON object");
             }
             while ((token = parser.nextToken()) != JsonToken.END_OBJECT) {
                 if (token != JsonToken.FIELD_NAME) {
-                    throw new IllegalArgumentException("Expected field name in object");
+                    throw new NdJsonParseException(parser, "Expected field name in object");
                 }
                 var childDecoder = this.children == null ? null : this.children.get(parser.currentName());
                 parser.nextToken();
@@ -228,7 +228,7 @@ public class NdJsonPageDecoder implements AutoCloseable {
                 }
                 case NULL -> {
                     // NULL handled above
-                    throw new IllegalArgumentException("Expected null value");
+                    unexpectedValue(parser);
                 }
                 case LONG -> {
                     if (token == JsonToken.VALUE_NUMBER_INT || token == JsonToken.VALUE_NUMBER_FLOAT) {

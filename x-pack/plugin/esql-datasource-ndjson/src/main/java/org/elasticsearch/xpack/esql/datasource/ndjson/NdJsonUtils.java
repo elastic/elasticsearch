@@ -29,20 +29,63 @@ class NdJsonUtils {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         parser.releaseBuffered(baos);
         parser.close();
+
         if (baos.size() > 0) {
-            // FIXME: improve this by using a single byte buffer and the actual stream
-            // The code below will create a list of BAIS for every parsing error encountered.
-            input = new SequenceInputStream(new ByteArrayInputStream(baos.toByteArray()), input);
+            if (input instanceof RecoveredStream recoveredStream) {
+                recoveredStream.prependReleasedBuffer(baos);
+            } else {
+                input = new RecoveredStream(baos, input);
+            }
         }
 
-        char c;
-        while ((c = (char) input.read()) != -1) {
+        int c;
+        while ((c = input.read()) != -1) {
             if (c == '\n' || c == '\r') {
                 break;
             }
         }
 
-        // Note: location will restart at line 1.
         return input;
+    }
+
+    private static class RecoveredStream extends InputStream {
+        private SequenceInputStream delegate;
+        // Released from Jackson's internal buffers
+        private ByteArrayInputStream releasedStream;
+        // Original stream
+        private final InputStream baseStream;
+
+        RecoveredStream(ByteArrayOutputStream buffer, InputStream baseStream) {
+            this.releasedStream = new ByteArrayInputStream(buffer.toByteArray());
+            this.baseStream = baseStream;
+            this.delegate = new SequenceInputStream(releasedStream, baseStream);
+        }
+
+        void prependReleasedBuffer(ByteArrayOutputStream buffer) throws IOException {
+            // Re-add any previously released bytes
+            releasedStream.transferTo(buffer);
+            this.releasedStream = new ByteArrayInputStream(buffer.toByteArray());
+            this.delegate = new SequenceInputStream(releasedStream, baseStream);
+        }
+
+        @Override
+        public int read() throws IOException {
+            return delegate.read();
+        }
+
+        @Override
+        public int read(byte[] b, int off, int len) throws IOException {
+            return delegate.read(b, off, len);
+        }
+
+        @Override
+        public int available() throws IOException {
+            return delegate.available();
+        }
+
+        @Override
+        public void close() throws IOException {
+            delegate.close();
+        }
     }
 }

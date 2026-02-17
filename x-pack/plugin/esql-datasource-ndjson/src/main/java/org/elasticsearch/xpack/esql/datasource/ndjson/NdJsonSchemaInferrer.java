@@ -103,11 +103,11 @@ public class NdJsonSchemaInferrer {
     private static void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
         JsonToken token = parser.currentToken();
         if (token != JsonToken.START_OBJECT) {
-            throw new IllegalArgumentException("Expected JSON object");
+            throw new NdJsonParseException(parser, "Expected JSON object");
         }
         while ((token = parser.nextToken()) != JsonToken.END_OBJECT) {
             if (token != JsonToken.FIELD_NAME) {
-                throw new IllegalArgumentException("Expected field name in object");
+                throw new NdJsonParseException(parser, "Expected field name in object");
             }
             var child = object.getChild(parser.getCurrentName());
             parser.nextToken();

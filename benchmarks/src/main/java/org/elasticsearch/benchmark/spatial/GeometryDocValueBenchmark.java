@@ -12,11 +12,15 @@ package org.elasticsearch.benchmark.spatial;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
@@ -38,29 +42,37 @@ import org.openjdk.jmh.annotations.Warmup;
 import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
+import java.nio.ByteOrder;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Benchmarks for geometry doc-value writing and reading in both legacy and V2 formats.
+ * Benchmarks for geometry doc-value writing and reading in both legacy and V2 formats,
+ * plus WKT/WKB serialization for comparison.
  *
  * <p>Measures:
  * <ul>
- *   <li>Write throughput for legacy vs V2 format</li>
- *   <li>Read throughput: centroid, extent, tree visitation, geometry reconstruction</li>
+ *   <li>Write throughput for legacy vs V2 format vs WKT vs WKB</li>
+ *   <li>Read throughput: centroid, extent, tree visitation, geometry reconstruction, WKT/WKB parsing</li>
  *   <li>Storage size comparison (reported via setup output)</li>
  * </ul>
  *
  * <p>Run with: {@code ./gradlew :benchmarks:run --args 'GeometryDocValueBenchmark'}
  */
 @Fork(1)
-@Warmup(iterations = 5)
-@Measurement(iterations = 5)
+@Warmup(iterations = 3, time = 5, timeUnit = TimeUnit.SECONDS)
+@Measurement(iterations = 3, time = 5, timeUnit = TimeUnit.SECONDS)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.MICROSECONDS)
 @State(Scope.Thread)
 public class GeometryDocValueBenchmark {
+
+    static {
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging();
+    }
 
     @Param({ "point", "simplePoly", "complexPoly", "multiPoint" })
     public String geometryType;
@@ -72,6 +84,9 @@ public class GeometryDocValueBenchmark {
 
     private BytesRef legacyBytes;
     private BytesRef v2Bytes;
+
+    private String wktString;
+    private byte[] wkbBytes;
 
     private final GeometryDocValueReader reader = new GeometryDocValueReader();
 
@@ -91,23 +106,23 @@ public class GeometryDocValueBenchmark {
         legacyBytes = GeometryDocValueWriter.writeLegacy(tessellatedFields, CoordinateEncoder.GEO, centroidCalculator);
         v2Bytes = GeometryDocValueWriter.write(tessellatedFields, CoordinateEncoder.GEO, centroidCalculator, List.of(normalizedGeometry));
 
+        wktString = WellKnownText.toWKT(geometry);
+        wkbBytes = WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN);
+
         if (sizeReported == false) {
             sizeReported = true;
             System.out.println("=== Storage size for " + geometryType + " ===");
             System.out.println("  Triangles:    " + tessellatedFields.size());
             System.out.println("  Legacy bytes: " + legacyBytes.length);
             System.out.println("  V2 bytes:     " + v2Bytes.length);
-            System.out.println(
-                "  Delta:        "
-                    + (v2Bytes.length - legacyBytes.length)
-                    + " bytes ("
-                    + String.format("%.1f%%", 100.0 * (v2Bytes.length - legacyBytes.length) / legacyBytes.length)
-                    + ")"
-            );
+            System.out.println("  V2 delta:     " + (v2Bytes.length - legacyBytes.length) + " bytes ("
+                + String.format("%.1f%%", 100.0 * (v2Bytes.length - legacyBytes.length) / legacyBytes.length) + ")");
+            System.out.println("  WKT chars:    " + wktString.length());
+            System.out.println("  WKB bytes:    " + wkbBytes.length);
         }
     }
 
-    // ---- Write benchmarks ----
+    // ---- Doc-value write benchmarks ----
 
     @Benchmark
     public BytesRef writeLegacy() throws IOException {
@@ -117,6 +132,18 @@ public class GeometryDocValueBenchmark {
     @Benchmark
     public BytesRef writeV2() throws IOException {
         return GeometryDocValueWriter.write(tessellatedFields, CoordinateEncoder.GEO, centroidCalculator, List.of(normalizedGeometry));
+    }
+
+    // ---- WKT/WKB write benchmarks ----
+
+    @Benchmark
+    public String writeWKT() {
+        return WellKnownText.toWKT(geometry);
+    }
+
+    @Benchmark
+    public byte[] writeWKB() {
+        return WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN);
     }
 
     // ---- Read centroid benchmarks ----
@@ -171,7 +198,7 @@ public class GeometryDocValueBenchmark {
         bh.consume(visitor.count);
     }
 
-    // ---- Geometry reconstruction benchmark (V2 only) ----
+    // ---- Geometry reconstruction / parsing benchmarks ----
 
     @Benchmark
     public void reconstructGeometryV2(Blackhole bh) throws IOException {
@@ -179,12 +206,24 @@ public class GeometryDocValueBenchmark {
         bh.consume(reader.getGeometry(CoordinateEncoder.GEO));
     }
 
+    @Benchmark
+    public Geometry parseWKT() throws IOException, ParseException {
+        return WellKnownText.fromWKT(GeometryValidator.NOOP, false, wktString);
+    }
+
+    @Benchmark
+    public Geometry parseWKB() {
+        return WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkbBytes);
+    }
+
     // ---- Helper methods ----
 
     private static Geometry createGeometry(String type) {
         return switch (type) {
             case "point" -> new Point(5.0, 10.0);
-            case "simplePoly" -> new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 }));
+            case "simplePoly" -> new Polygon(
+                new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 })
+            );
             case "complexPoly" -> createStarPolygon(500);
             case "multiPoint" -> createMultiPoint(100);
             default -> throw new IllegalArgumentException("Unknown geometry type: " + type);

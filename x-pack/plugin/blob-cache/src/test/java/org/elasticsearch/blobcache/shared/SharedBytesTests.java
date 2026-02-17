@@ -23,7 +23,6 @@ import java.nio.file.Files;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 
 public class SharedBytesTests extends ESTestCase {

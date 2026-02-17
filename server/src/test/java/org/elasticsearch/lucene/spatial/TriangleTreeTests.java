@@ -95,13 +95,14 @@ public class TriangleTreeTests extends ESTestCase {
     }
 
     public void testExtentDoesNotLoadVertexTable() throws IOException {
-        Point point = new Point(5.0, 10.0);
+        // Use a polygon (not a point) since write() auto-selects legacy for points
+        Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 }));
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
-        Geometry normalized = indexer.normalize(point);
+        Geometry normalized = indexer.normalize(polygon);
         List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
 
         CentroidCalculator centroidCalculator = new CentroidCalculator();
-        centroidCalculator.add(point);
+        centroidCalculator.add(polygon);
 
         BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(normalized));
 
@@ -121,6 +122,54 @@ public class TriangleTreeTests extends ESTestCase {
         assertNotNull(extent);
     }
 
+    public void testPointAutoSelectsLegacyFormat() throws IOException {
+        Point point = new Point(5.0, 10.0);
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(point);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(point);
+
+        // write() should auto-select legacy format for points
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(normalized));
+
+        GeometryDocValueReader reader = new GeometryDocValueReader();
+        reader.reset(bytesRef);
+
+        assertFalse(reader.isV2Format());
+        assertThat(reader.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
+
+        // Geometry reconstruction should still work via tree traversal
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        assertNotNull(reconstructed);
+        assertThat(reconstructed.type(), equalTo(normalized.type()));
+    }
+
+    public void testMultiPointAutoSelectsLegacyFormat() throws IOException {
+        MultiPoint multiPoint = new MultiPoint(List.of(new Point(0, 0), new Point(5, 5), new Point(10, 10)));
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        Geometry normalized = indexer.normalize(multiPoint);
+        List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
+
+        CentroidCalculator centroidCalculator = new CentroidCalculator();
+        centroidCalculator.add(multiPoint);
+
+        // write() should auto-select legacy format for multipoints
+        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(normalized));
+
+        GeometryDocValueReader reader = new GeometryDocValueReader();
+        reader.reset(bytesRef);
+
+        assertFalse(reader.isV2Format());
+        assertThat(reader.getDimensionalShapeType(), equalTo(DimensionalShapeType.POINT));
+
+        // Geometry reconstruction should produce a MultiPoint with all 3 points
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        assertNotNull(reconstructed);
+        assertThat(reconstructed.type(), equalTo(normalized.type()));
+    }
+
     public void testFullDocValueRoundTrip() throws IOException {
         Polygon polygon = new Polygon(new LinearRing(new double[] { 0, 10, 10, 0, 0 }, new double[] { 0, 0, 10, 10, 0 }));
         GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
@@ -130,8 +179,8 @@ public class TriangleTreeTests extends ESTestCase {
         CentroidCalculator centroidCalculator = new CentroidCalculator();
         centroidCalculator.add(polygon);
 
-        // Write V2 format
-        BytesRef bytesRef = GeometryDocValueWriter.write(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(normalized));
+        // Write V2 format explicitly (write() also selects V2 for polygons, but be explicit)
+        BytesRef bytesRef = GeometryDocValueWriter.writeV2(fieldList, CoordinateEncoder.GEO, centroidCalculator, List.of(normalized));
 
         // Read and verify
         GeometryDocValueReader reader = new GeometryDocValueReader();
@@ -259,8 +308,13 @@ public class TriangleTreeTests extends ESTestCase {
         reader.visit(counter);
         assertThat(counter.counter, equalTo(fieldList.size()));
 
-        // Geometry reconstruction not available for legacy format
-        assertThat(reader.getGeometry(CoordinateEncoder.GEO), nullValue());
+        // Geometry reconstruction: available for POINT type (from tree), null for others
+        Geometry reconstructed = reader.getGeometry(CoordinateEncoder.GEO);
+        if (reader.getDimensionalShapeType() == DimensionalShapeType.POINT) {
+            assertNotNull(reconstructed);
+        } else {
+            assertThat(reconstructed, nullValue());
+        }
     }
 
     public void testLegacyAndV2ProduceSameTriangles() throws IOException {

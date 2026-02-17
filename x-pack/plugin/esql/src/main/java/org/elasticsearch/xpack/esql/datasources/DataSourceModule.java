@@ -50,9 +50,7 @@ public final class DataSourceModule implements Closeable {
     private final Map<String, TableCatalogFactory> tableCatalogs;
     private final Map<String, SourceOperatorFactoryProvider> operatorFactories;
     private final FilterPushdownRegistry filterPushdownRegistry;
-    private final Map<String, StorageProviderFactory> spiStorageFactories;
     private final Settings settings;
-    private final BlockFactory blockFactory;
 
     public DataSourceModule(
         List<DataSourcePlugin> dataSourcePlugins,
@@ -61,8 +59,7 @@ public final class DataSourceModule implements Closeable {
         ExecutorService executor
     ) {
         this.settings = settings;
-        this.blockFactory = blockFactory;
-        this.storageProviderRegistry = new StorageProviderRegistry();
+        this.storageProviderRegistry = new StorageProviderRegistry(settings);
         this.formatReaderRegistry = new FormatReaderRegistry();
 
         Map<String, StorageProviderFactory> storageFactories = new HashMap<>();
@@ -120,13 +117,11 @@ public final class DataSourceModule implements Closeable {
         for (Map.Entry<String, StorageProviderFactory> entry : storageFactories.entrySet()) {
             storageProviderRegistry.registerFactory(entry.getKey(), entry.getValue());
         }
-        storageProviderRegistry.setSettings(settings);
 
         for (Map.Entry<String, FormatReaderFactory> entry : formatFactories.entrySet()) {
             formatReaderRegistry.registerLazy(entry.getKey(), entry.getValue(), settings, blockFactory);
         }
 
-        this.spiStorageFactories = Map.copyOf(storageFactories);
         this.tableCatalogs = Map.copyOf(catalogFactories);
         this.operatorFactories = Map.copyOf(operatorFactoryProviders);
         this.filterPushdownRegistry = new FilterPushdownRegistry(filterPushdownProviders);
@@ -139,10 +134,6 @@ public final class DataSourceModule implements Closeable {
 
     public StorageProviderRegistry storageProviderRegistry() {
         return storageProviderRegistry;
-    }
-
-    public Map<String, StorageProviderFactory> spiStorageFactories() {
-        return spiStorageFactories;
     }
 
     public FormatReaderRegistry formatReaderRegistry() {

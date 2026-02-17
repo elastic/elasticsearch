@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -40,20 +41,20 @@ public class StorageProviderRegistry implements Closeable {
     private final Map<String, StorageProviderFactory> factories = new ConcurrentHashMap<>();
     private final Map<String, StorageProvider> providers = new ConcurrentHashMap<>();
     private final List<StorageProvider> createdProviders = new ArrayList<>();
-    private Settings settings = Settings.EMPTY;
+    private final Settings settings;
+
+    public StorageProviderRegistry(Settings settings) {
+        this.settings = settings != null ? settings : Settings.EMPTY;
+    }
 
     public void registerFactory(String scheme, StorageProviderFactory factory) {
-        if (scheme == null || scheme.isEmpty()) {
+        if (Strings.isNullOrEmpty(scheme)) {
             throw new IllegalArgumentException("Scheme cannot be null or empty");
         }
         if (factory == null) {
             throw new IllegalArgumentException("Factory cannot be null");
         }
         factories.put(scheme.toLowerCase(Locale.ROOT), factory);
-    }
-
-    void setSettings(Settings settings) {
-        this.settings = settings;
     }
 
     public StorageProvider provider(StoragePath path) {
@@ -70,7 +71,7 @@ public class StorageProviderRegistry implements Closeable {
     }
 
     public boolean hasProvider(String scheme) {
-        if (scheme == null || scheme.isEmpty()) {
+        if (Strings.isNullOrEmpty(scheme)) {
             return false;
         }
         String normalized = scheme.toLowerCase(Locale.ROOT);

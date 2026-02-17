@@ -7,12 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 
-import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -26,55 +26,8 @@ public class FormatReaderRegistry {
     private final Map<String, Supplier<FormatReader>> byName = new ConcurrentHashMap<>();
     private final Map<String, Supplier<FormatReader>> byExtension = new ConcurrentHashMap<>();
 
-    public void register(FormatReader reader) {
-        if (reader == null) {
-            throw new IllegalArgumentException("Reader cannot be null");
-        }
-
-        String formatName = reader.formatName();
-        if (formatName == null || formatName.isEmpty()) {
-            throw new IllegalArgumentException("Format name cannot be null or empty");
-        }
-
-        Supplier<FormatReader> supplier = () -> reader;
-        byName.put(formatName.toLowerCase(Locale.ROOT), supplier);
-
-        for (String ext : reader.fileExtensions()) {
-            if (ext != null && ext.isEmpty() == false) {
-                String normalizedExt = ext.toLowerCase(Locale.ROOT);
-                if (normalizedExt.startsWith(".") == false) {
-                    normalizedExt = "." + normalizedExt;
-                }
-                byExtension.put(normalizedExt, supplier);
-            }
-        }
-    }
-
-    public void register(String formatName, List<String> fileExtensions, Supplier<FormatReader> supplier) {
-        if (formatName == null || formatName.isEmpty()) {
-            throw new IllegalArgumentException("Format name cannot be null or empty");
-        }
-        if (supplier == null) {
-            throw new IllegalArgumentException("Supplier cannot be null");
-        }
-
-        byName.put(formatName.toLowerCase(Locale.ROOT), supplier);
-
-        if (fileExtensions != null) {
-            for (String ext : fileExtensions) {
-                if (ext != null && ext.isEmpty() == false) {
-                    String normalizedExt = ext.toLowerCase(Locale.ROOT);
-                    if (normalizedExt.startsWith(".") == false) {
-                        normalizedExt = "." + normalizedExt;
-                    }
-                    byExtension.put(normalizedExt, supplier);
-                }
-            }
-        }
-    }
-
     public void registerLazy(String formatName, FormatReaderFactory factory, Settings settings, BlockFactory blockFactory) {
-        if (formatName == null || formatName.isEmpty()) {
+        if (Strings.isNullOrEmpty(formatName)) {
             throw new IllegalArgumentException("Format name cannot be null or empty");
         }
         if (factory == null) {
@@ -93,7 +46,7 @@ public class FormatReaderRegistry {
                             instance = factory.create(settings, blockFactory);
                             // Register extension mappings now that the reader is created
                             for (String ext : instance.fileExtensions()) {
-                                if (ext != null && ext.isEmpty() == false) {
+                                if (Strings.isNullOrEmpty(ext) == false) {
                                     String normalizedExt = ext.toLowerCase(Locale.ROOT);
                                     if (normalizedExt.startsWith(".") == false) {
                                         normalizedExt = "." + normalizedExt;
@@ -112,14 +65,14 @@ public class FormatReaderRegistry {
     }
 
     public Supplier<FormatReader> unregister(String formatName) {
-        if (formatName == null || formatName.isEmpty()) {
+        if (Strings.isNullOrEmpty(formatName)) {
             return null;
         }
         return byName.remove(formatName.toLowerCase(Locale.ROOT));
     }
 
     public FormatReader byName(String formatName) {
-        if (formatName == null || formatName.isEmpty()) {
+        if (Strings.isNullOrEmpty(formatName)) {
             throw new IllegalArgumentException("Format name cannot be null or empty");
         }
 
@@ -131,7 +84,7 @@ public class FormatReaderRegistry {
     }
 
     public FormatReader byExtension(String objectName) {
-        if (objectName == null || objectName.isEmpty()) {
+        if (Strings.isNullOrEmpty(objectName)) {
             throw new IllegalArgumentException("Object name cannot be null or empty");
         }
 
@@ -156,14 +109,14 @@ public class FormatReaderRegistry {
     }
 
     public boolean hasFormat(String formatName) {
-        if (formatName == null || formatName.isEmpty()) {
+        if (Strings.isNullOrEmpty(formatName)) {
             return false;
         }
         return byName.containsKey(formatName.toLowerCase(Locale.ROOT));
     }
 
     public boolean hasExtension(String extension) {
-        if (extension == null || extension.isEmpty()) {
+        if (Strings.isNullOrEmpty(extension)) {
             return false;
         }
         String normalizedExt = extension.toLowerCase(Locale.ROOT);

@@ -545,8 +545,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
         if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting()) {
             if (value instanceof Double d) {
+                if (Double.isNaN(d) || Double.isInfinite(d)) {
+                    return d;
+                }
                 return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
             } else if (value instanceof String s) {
+                if ("NaN".equals(s)) {
+                    return Double.NaN;
+                }
                 return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
             }
         }
@@ -556,6 +562,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
         }
         if (type == CsvTestUtils.Type.DOUBLE) {
+            if (value instanceof String s && "NaN".equals(s)) {
+                return Double.NaN;
+            }
             return ((Number) value).doubleValue();
         }
         if (type == CsvTestUtils.Type.INTEGER) {

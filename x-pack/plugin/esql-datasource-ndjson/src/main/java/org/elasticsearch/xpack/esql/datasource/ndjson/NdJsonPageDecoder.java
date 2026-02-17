@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
@@ -175,7 +176,7 @@ public class NdJsonPageDecoder implements AutoCloseable {
                 blockBuilder = switch (attribute.dataType()) {
                     // Keep in sync with NdJsonSchemaInferrer.inferValueSchema
                     case BOOLEAN -> blockFactory.newBooleanBlockBuilder(batchSize);
-                    case NULL -> new NullBlockBuilder(blockFactory, batchSize);
+                    case NULL -> new ConstantNullBlock.Builder(blockFactory);
                     case LONG -> blockFactory.newLongBlockBuilder(batchSize);
                     case DOUBLE -> blockFactory.newDoubleBlockBuilder(batchSize);
                     case KEYWORD -> blockFactory.newBytesRefBlockBuilder(batchSize);

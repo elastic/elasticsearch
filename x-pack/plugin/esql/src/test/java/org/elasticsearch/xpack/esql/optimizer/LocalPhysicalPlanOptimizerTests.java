@@ -294,7 +294,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
     }
 
     public void testCountPushdownForSvAndMvFields() throws IOException {
-        String properties = EsqlTestUtils.loadUtf8TextFile("/mapping-basic.json");
+        String properties = EsqlTestUtils.loadUtf8TextFile("/index/mappings/mapping-basic.json");
         String mapping = "{\"mappings\": " + properties + "}";
 
         String query = """

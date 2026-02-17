@@ -20,6 +20,9 @@ import org.elasticsearch.datageneration.MappingGenerator;
 import org.elasticsearch.datageneration.Template;
 import org.elasticsearch.datageneration.TemplateGenerator;
 import org.elasticsearch.datageneration.datasource.ASCIIStringsHandler;
+import org.elasticsearch.datageneration.datasource.DataSourceHandler;
+import org.elasticsearch.datageneration.datasource.DataSourceRequest;
+import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.datageneration.fields.PredefinedField;
@@ -37,6 +40,7 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -79,6 +83,19 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
                     )
                 )
             )
+            // 9.0.x: do not generate counted_keyword (object array + counted_keyword triggers indexing bug)
+            .withDataSourceHandlers(List.of(new DataSourceHandler() {
+                @Override
+                public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
+                    if (System.getProperty("tests.old_cluster_version", "").startsWith("9.0.") == false) {
+                        return null;
+                    }
+                    var allowed = Arrays.stream(FieldType.values()).filter(ft -> ft != FieldType.COUNTED_KEYWORD).toList();
+                    return new DataSourceResponse.FieldTypeGenerator(
+                        () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(allowed).toString())
+                    );
+                }
+            }))
             .withDataSourceHandlers(List.of(new DefaultMappingParametersHandler() {
                 @Override
                 protected Object extendedDocValuesParams() {

@@ -131,6 +131,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.CopySign;
@@ -400,6 +401,7 @@ public class EsqlFunctionRegistry {
                 def(Cosh.class, Cosh::new, "cosh"),
                 def(Acosh.class, Acosh::new, "acosh"),
                 def(Asinh.class, Asinh::new, "asinh"),
+                def(Atanh.class, Atanh::new, "atanh"),
                 def(E.class, E::new, "e"),
                 def(Exp.class, Exp::new, "exp"),
                 def(Floor.class, Floor::new, "floor"),

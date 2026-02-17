@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.WithinSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
@@ -170,6 +172,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     private TranslationResult translateNode(LogicalPlan node, LogicalPlan currentPlan, TranslationContext ctx) {
         return switch (node) {
             case AcrossSeriesAggregate agg -> translateAcrossSeriesAggregate(agg, currentPlan, ctx);
+            case ScalarConversionFunction scalar -> translateScalarConversion(scalar, currentPlan, ctx);
             case WithinSeriesAggregate withinAgg -> translateFunctionCall(withinAgg, currentPlan, ctx);
             case PromqlFunctionCall functionCall -> translateFunctionCall(functionCall, currentPlan, ctx);
             case ScalarFunction scalarFunction -> translateScalarFunction(scalarFunction, currentPlan, ctx);
@@ -201,6 +204,41 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             Expression outputRef = getValueOutput(timeSeriesAgg);
             return new TranslationResult(timeSeriesAgg, outputRef);
         }
+    }
+
+    /**
+     * Translates a ScalarConversionFunction.
+     */
+    private TranslationResult translateScalarConversion(
+        ScalarConversionFunction scalarFunc,
+        LogicalPlan currentPlan,
+        TranslationContext ctx
+    ) {
+        TranslationResult childResult = translateNode(scalarFunc.child(), currentPlan, ctx);
+
+        // Foldable: convert to double directly
+        if (childResult.expression().foldable()) {
+            return new TranslationResult(childResult.plan(), new ToDouble(scalarFunc.source(), childResult.expression()));
+        }
+
+        // Child aggregated: grouping by step
+        // E.g. scalar(sum by (cluster) (metric)))
+        Expression scalarExpr = new Scalar(scalarFunc.source(), childResult.expression());
+        if (containsAggregation(childResult.plan())) {
+            // plain Aggregate grouped by step only, collapsing all series into one value per step.
+            Attribute stepAttr = ctx.stepAttr();
+            Alias aggAlias = new Alias(scalarExpr.source(), ctx.promqlCommand().valueColumnName(), scalarExpr);
+            LogicalPlan aggregate = new Aggregate(
+                ctx.promqlCommand().source(),
+                childResult.plan(),
+                List.of(stepAttr),
+                List.of(aggAlias, stepAttr)
+            );
+            return new TranslationResult(aggregate, getValueOutput(aggregate));
+        }
+
+        LogicalPlan timeSeriesAgg = createInnerAggregate(ctx, childResult.plan(), scalarFunc.output(), scalarExpr);
+        return new TranslationResult(timeSeriesAgg, getValueOutput(timeSeriesAgg));
     }
 
     /**

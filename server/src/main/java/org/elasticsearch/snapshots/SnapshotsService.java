@@ -734,22 +734,10 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
             assert false : new AssertionError(e);
             logger.warn("Failed to update snapshot state ", e);
         }
-        assert assertConsistentWithClusterState();
-        assert SnapshotsServiceUtils.assertNoDanglingSnapshots(event.state());
-        assert event.state().metadata().projects().keySet().containsAll(snapshotDeletionStartBatchers.keySet());
-        assert snapshotDeletionStartBatchers.entrySet()
-            .stream()
-            .allMatch(
-                e -> RepositoriesMetadata.get(event.state().metadata().getProject(e.getKey()))
-                    .repositories()
-                    .stream()
-                    .map(RepositoryMetadata::name)
-                    .collect(Collectors.toSet())
-                    .containsAll(e.getValue().keySet())
-            );
+        assert assertConsistentWithClusterState(event.state());
     }
 
-    private boolean assertConsistentWithClusterState() {
+    private boolean assertConsistentWithClusterState(ClusterState currentState) {
         // submit the assertion to the master because it has to run when the publication has completely finished
         submitUnbatchedTask("assertConsistentWithClusterStateAtEndOfPublish", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
@@ -792,6 +780,20 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
                 assert MasterService.isPublishFailureException(e) : e;
             }
         });
+        assert SnapshotsServiceUtils.assertNoDanglingSnapshots(currentState);
+        synchronized (snapshotDeletionStartBatchers) {
+            assert currentState.metadata().projects().keySet().containsAll(snapshotDeletionStartBatchers.keySet());
+            assert snapshotDeletionStartBatchers.entrySet()
+                .stream()
+                .allMatch(
+                    e -> RepositoriesMetadata.get(currentState.metadata().getProject(e.getKey()))
+                        .repositories()
+                        .stream()
+                        .map(RepositoryMetadata::name)
+                        .collect(Collectors.toSet())
+                        .containsAll(e.getValue().keySet())
+                );
+        }
         return true;
     }
 

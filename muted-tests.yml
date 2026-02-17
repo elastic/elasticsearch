@@ -461,6 +461,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.GlobDiscoveryLocalTests
   method: testRecursiveDoubleStarAllFiles
   issue: https://github.com/elastic/elasticsearch/issues/142576
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testBulkScalarVsVectorized {p0=768 p1=4 p2=MMAP p3=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/142587
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testBulkScalarVsVectorized {p0=768 p1=4 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/142588
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testBulkScalarVsVectorized {p0=768 p1=4 p2=MMAP p3=DOT_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/142589
 
 # Examples:
 #

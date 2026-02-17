@@ -34,7 +34,7 @@ public class NdJsonFormatReader implements FormatReader {
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<Attribute> schema;
         try (var stream = object.newStream()) {
-            schema = NdJsonSchemaInferrer.inferSchema(stream); // FIXME: needs caching (see README)
+            schema = NdJsonSchemaInferrer.inferSchema(stream);
         }
         return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
     }

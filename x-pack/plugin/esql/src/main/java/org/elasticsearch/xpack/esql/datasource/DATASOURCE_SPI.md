@@ -52,18 +52,23 @@ How the Core SPI, Lakehouse SPI, and Plugin layers relate structurally:
   Core DataSource SPI  (datasource/spi/)
  ┌──────────────────────────────────────────────────────────────────────────┐
  │                                                                          │
+ │  Contracts (what implementors must use):                                 │
+ │                                                                          │
  │  DataSource (interface)              DataSourceCapabilities              │
  │  │                                     distributed / coordinator-only    │
  │  │  produces                                                             │
  │  ├──► DataSourcePlan (abstract)      DataSourceDescriptor               │
  │  ├──► DataSourceExec                   type, config, settings, expr      │
  │  └──► DataSourcePartition                                                │
- │                                      DataSourceOptimizer                │
- │  DataSourcePushdownRule                runs rules from all data sources  │
- │    guard: checks child type                                              │
- │    guard: checks dataSource identity SplitPartitioner<S>                │
- │                                        discover ──► group ──► wrap      │
- │                                        uses SizeAwareBinPacking (FFD)   │
+ │                                                                          │
+ │  Helpers (optional conveniences):                                        │
+ │                                                                          │
+ │  DataSourcePushdownRule              DataSourceOptimizer                 │
+ │    convenience base for rules          runs rules from all data sources  │
+ │    (guards: child type + identity)                                       │
+ │                                      SplitPartitioner<S>                │
+ │  CloseableIterator                     discover ──► group ──► wrap      │
+ │    Iterator + Closeable                uses SizeAwareBinPacking (FFD)   │
  │                                                                          │
  └──────────────────────────┬───────────────────────────────────────────────┘
                             │
@@ -145,7 +150,7 @@ and the existing plan nodes.
 | [LakehousePlan](lakehouse/spi/LakehousePlan.java) | `plan/logical/ExternalRelation` | Typed fields (expression, formatName, nativeFilter, limit) replace ExternalRelation's opaque `Map<String, Object>` config/metadata |
 | [DataSourceExec](spi/DataSourceExec.java) | `plan/physical/ExternalSourceExec` | Generic physical wrapper; ExternalSourceExec also had opaque maps |
 
-**Core SPI** — new abstractions with no `datasources/` equivalent:
+**Core SPI** — new contracts with no `datasources/` equivalent:
 
 | `datasource/` (this package) | Replaces | Notes |
 |------|------|-------|
@@ -153,10 +158,15 @@ and the existing plan nodes.
 | [DataSourceCapabilities](spi/DataSourceCapabilities.java) | *(new)* | Distributed vs coordinator-only execution mode |
 | [DataSourcePartition](spi/DataSourcePartition.java) | *(new)* | Work distribution unit — `datasources/` was coordinator-only |
 | [DataSourceDescriptor](spi/DataSourceDescriptor.java) | `ExternalSourceResolution` (partial) | Parsed FROM clause; replaces resolution record |
-| [DataSourceOptimizer](spi/DataSourceOptimizer.java) | `FilterPushdownRegistry` | Data source-owned rules replace framework-level filter registry |
-| [DataSourcePushdownRule](spi/DataSourcePushdownRule.java) | *(new)* | Convenience base for pushdown rules |
 | [DataSourceFactory](spi/DataSourceFactory.java) | *(new)* | Per-type factory — `datasources/` plugin was monolithic |
-| Partitioning sub-package (5 types) | *(new)* | Split→partition pipeline for distributed execution |
+
+**Helpers** — optional conveniences, not part of the core contract:
+
+| `datasource/` (this package) | Replaces | Notes |
+|------|------|-------|
+| [DataSourcePushdownRule](spi/DataSourcePushdownRule.java) | *(new)* | Convenience base for pushdown rules (handles guard logic); data sources can use plain `Rule` instead |
+| [DataSourceOptimizer](spi/DataSourceOptimizer.java) | `FilterPushdownRegistry` | Internal: collects and runs data source-provided rules; not called by implementors |
+| Partitioning sub-package (5 types) | *(new)* | Split→partition pipeline for distributed execution; data sources can implement `planPartitions()` directly |
 
 **Plugin discovery:**
 

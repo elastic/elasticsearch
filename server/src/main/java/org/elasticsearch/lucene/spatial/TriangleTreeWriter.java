@@ -48,30 +48,18 @@ public class TriangleTreeWriter {
 
     /**
      * Builds the triangle tree and extent from the given fields, populating the vertex table builder
-     * with unique vertices, then writes the extent and tree to the output.
+     * with unique vertices, then writes the extent, tree length, and tree to the output.
+     * The tree length prefix allows the reader to skip past the tree to reach subsequent sections
+     * (vertex table, connectivity) without traversing it.
      */
     public static void writeTo(StreamOutput out, List<IndexableField> fields, VertexLookupTable.Builder vertexTableBuilder)
         throws IOException {
         final Extent extent = new Extent();
         final TriangleTreeNode node = build(fields, extent, vertexTableBuilder);
         extent.writeCompressed(out);
+        CountingStreamOutput countingBuffer = new CountingStreamOutput();
+        out.writeVInt(Math.toIntExact(node.totalSize(countingBuffer)));
         node.writeTo(out);
-    }
-
-    /**
-     * Builds the triangle tree from the given fields, populates the vertex table builder and the
-     * provided extent, and writes ONLY the tree (not the extent) to treeOut.
-     * The caller is responsible for writing the extent separately, which allows inserting
-     * other data (like the vertex lookup table) between the extent and the tree in the output.
-     */
-    public static void buildExtentAndWriteTree(
-        List<IndexableField> fields,
-        VertexLookupTable.Builder vertexTableBuilder,
-        Extent outExtent,
-        StreamOutput treeOut
-    ) throws IOException {
-        final TriangleTreeNode node = build(fields, outExtent, vertexTableBuilder);
-        node.writeTo(treeOut);
     }
 
     // ---- Legacy format: coordinate deltas ----
@@ -180,6 +168,24 @@ public class TriangleTreeWriter {
                 this.bOrd = 0;
                 this.cOrd = 0;
             }
+        }
+
+        /**
+         * Computes the total size in bytes of the root node's serialized tree.
+         * This mirrors the structure of {@link #writeTo}: metadata + component + children,
+         * but unlike non-root nodes, the root does NOT write a rightSize prefix before the right child.
+         */
+        private long totalSize(CountingStreamOutput countingBuffer) throws IOException {
+            long size = 0;
+            size++; // metadata byte
+            size += componentSize(countingBuffer);
+            if (left != null) {
+                size += left.nodeSize(true, maxX, maxY, countingBuffer);
+            }
+            if (right != null) {
+                size += right.nodeSize(true, maxX, maxY, countingBuffer);
+            }
+            return size;
         }
 
         private void writeTo(StreamOutput out) throws IOException {

@@ -261,7 +261,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         if (functionCall.child() instanceof RangeSelector rangeSelector) {
             window = rangeSelector.range();
             if (isImplicitRangePlaceholder(window)) {
-                window = resolveImplicitRangeWindow(window.source(), ctx.promqlCommand());
+                window = resolveImplicitRangeWindow(ctx.promqlCommand());
             }
         }
 
@@ -311,21 +311,12 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
     /**
      * Resolves the implicit range placeholder to a concrete duration based on step and scrape interval.
-     * The implicit window is calculated as the smallest multiple of {@code step} where {@code window >= scrape_interval}.
+     * The implicit window is calculated as {@code max(step, scrape_interval)}.
      */
-    private static Literal resolveImplicitRangeWindow(Source source, PromqlCommand promqlCommand) {
+    private static Literal resolveImplicitRangeWindow(PromqlCommand promqlCommand) {
         Duration step = foldDuration(resolveTimeBucketSize(promqlCommand), "step");
         Duration scrapeInterval = foldDuration(promqlCommand.scrapeInterval(), "scrape_interval");
-        long stepMillis = step.toMillis();
-        long scrapeMillis = scrapeInterval.toMillis();
-        long multiplier = scrapeMillis / stepMillis;
-        if (scrapeMillis % stepMillis != 0) {
-            multiplier++;
-        }
-        if (multiplier < 1) {
-            multiplier = 1;
-        }
-        return Literal.timeDuration(source, step.multipliedBy(multiplier));
+        return Literal.timeDuration(promqlCommand.source(), step.compareTo(scrapeInterval) >= 0 ? step : scrapeInterval);
     }
 
     private static Duration foldDuration(Expression expression, String paramName) {

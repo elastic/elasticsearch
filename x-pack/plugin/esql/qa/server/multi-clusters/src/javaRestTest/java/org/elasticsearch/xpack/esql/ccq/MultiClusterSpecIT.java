@@ -423,8 +423,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     @Override
     protected boolean clusterHasCapability(EsqlCapabilities.Cap capability) {
         try {
-            return super.clusterHasCapability(capability)
-                && hasCapabilities(remoteClusterClient(), List.of(capability.capabilityName()));
+            return super.clusterHasCapability(capability) && hasCapabilities(remoteClusterClient(), List.of(capability.capabilityName()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

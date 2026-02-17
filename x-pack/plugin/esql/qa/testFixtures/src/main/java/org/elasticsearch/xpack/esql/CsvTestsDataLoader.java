@@ -30,10 +30,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -49,9 +49,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -480,30 +480,22 @@ public class CsvTestsDataLoader {
             }
             if (load) {
                 if (indexes) {
-                    loadDataSets(
-                        client,
-                        true,
-                        true,
-                        false,
-                        false,
-                        cap -> true,
-                        (restClient, indexName, indexMapping, indexSettings) -> {
-                            // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
-                            StringBuilder jsonBody = new StringBuilder("{");
-                            if (indexSettings != null && indexSettings.isEmpty() == false) {
-                                jsonBody.append("\"settings\":");
-                                jsonBody.append(Strings.toString(indexSettings));
-                                jsonBody.append(",");
-                            }
-                            jsonBody.append("\"mappings\":");
-                            jsonBody.append(indexMapping);
-                            jsonBody.append("}");
-
-                            Request request = new Request("PUT", "/" + indexName);
-                            request.setJsonEntity(jsonBody.toString());
-                            restClient.performRequest(request);
+                    loadDataSets(client, true, true, false, false, cap -> true, (restClient, indexName, indexMapping, indexSettings) -> {
+                        // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
+                        StringBuilder jsonBody = new StringBuilder("{");
+                        if (indexSettings != null && indexSettings.isEmpty() == false) {
+                            jsonBody.append("\"settings\":");
+                            jsonBody.append(Strings.toString(indexSettings));
+                            jsonBody.append(",");
                         }
-                    );
+                        jsonBody.append("\"mappings\":");
+                        jsonBody.append(indexMapping);
+                        jsonBody.append("}");
+
+                        Request request = new Request("PUT", "/" + indexName);
+                        request.setJsonEntity(jsonBody.toString());
+                        restClient.performRequest(request);
+                    });
                 }
                 if (policies) {
                     loadEnrichPolicies(client);

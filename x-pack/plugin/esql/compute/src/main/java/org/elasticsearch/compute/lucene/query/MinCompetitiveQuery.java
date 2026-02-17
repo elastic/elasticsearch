@@ -33,7 +33,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.function.BiFunction;
 
 /**
  * Infrastructure to provide {@link LeafCollector#competitiveIterator} from a

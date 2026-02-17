@@ -84,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -469,10 +470,11 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // After METRICS_INFO or TS_INFO, the output is metadata, not time series data, so use regular Aggregate.
         return input -> {
             boolean hasAggregate = input.anyMatch(p -> p instanceof Aggregate);
+            boolean hasPromqlCommand = input.anyMatch(p -> p instanceof PromqlCommand);
             boolean hasTimeSeries = input.anyMatch(p -> p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES);
             boolean hasInfoCommand = input.anyMatch(p -> p instanceof MetricsInfo);
 
-            if (hasAggregate == false && hasTimeSeries && hasInfoCommand == false) {
+            if (hasAggregate == false && hasPromqlCommand == false && hasTimeSeries && hasInfoCommand == false) {
                 return new TimeSeriesAggregate(
                     source(ctx),
                     input,
@@ -734,6 +736,17 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx) {
         return visitRelation(source(ctx), SourceCommand.TS, ctx.indexPatternAndMetadataFields());
+    }
+
+    @Override
+    public LogicalPlan visitExternalCommand(EsqlBaseParser.ExternalCommandContext ctx) {
+        Source source = source(ctx);
+        Expression tablePath = expression(ctx.stringOrParameter());
+
+        MapExpression options = visitCommandNamedParameters(ctx.commandNamedParameters());
+        Map<String, Expression> params = options != null ? options.keyFoldedMap() : Map.of();
+
+        return new UnresolvedExternalRelation(source, tablePath, params);
     }
 
     @Override

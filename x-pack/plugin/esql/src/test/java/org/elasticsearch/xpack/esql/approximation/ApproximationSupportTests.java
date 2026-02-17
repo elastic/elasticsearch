@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOver
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
@@ -54,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTi
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
@@ -67,6 +69,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -81,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.VectorConversionFunction;
@@ -146,6 +150,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Explain.class,
         ShowInfo.class,
         LocalRelation.class,
+        ExternalRelation.class,
         MetricsInfo.class,
 
         // The plans are superclasses of other plans.
@@ -157,6 +162,7 @@ public class ApproximationSupportTests extends ESTestCase {
 
         // These plans don't occur in a correct analyzed query.
         UnresolvedRelation.class,
+        UnresolvedExternalRelation.class,
         StubRelation.class,
         Drop.class,
         Keep.class,
@@ -173,6 +179,7 @@ public class ApproximationSupportTests extends ESTestCase {
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
         PlaceholderRelation.class,
+        ScalarConversionFunction.class,
         ScalarFunction.class,
         ValueTransformationFunction.class,
         VectorBinarySet.class,
@@ -244,7 +251,8 @@ public class ApproximationSupportTests extends ESTestCase {
         Rate.class,
         StddevOverTime.class,
         SumOverTime.class,
-        VarianceOverTime.class
+        VarianceOverTime.class,
+        Scalar.class
     );
 
     private static List<Class<?>> getClassesInPackage(String packageName) throws Exception {

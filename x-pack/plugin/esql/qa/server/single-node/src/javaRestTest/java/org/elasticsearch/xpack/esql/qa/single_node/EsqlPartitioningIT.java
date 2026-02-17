@@ -22,7 +22,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matcher;
 import org.junit.ClassRule;
 
@@ -63,7 +62,7 @@ public class EsqlPartitioningIT extends ESRestTestCase {
             for (String index : new String[] { "idx", "small_idx" }) {
                 for (Case c : new Case[] {
                     new Case("", "SHARD"),
-                    new Case("| SORT @timestamp ASC", "DOC"),
+                    new Case("| SORT @timestamp ASC", "SHARD"),
                     new Case("| WHERE ABS(a) == 1", "DOC"),
                     new Case("| WHERE a == 1", "SHARD"),
                     new Case("| STATS SUM(a)", "DOC"),
@@ -74,18 +73,18 @@ public class EsqlPartitioningIT extends ESRestTestCase {
                     new Case("| WHERE QSTR(\"a:1\")", "SHARD"),
                     new Case("| WHERE KQL(\"a:1\")", "SHARD"),
                     new Case("| WHERE a:\"1\"", "SHARD"),
-                    new Case("| WHERE MATCH(a, \"2\") | SORT _score DESC", "SEGMENT", true),
-                    new Case("| WHERE QSTR(\"a:2\") | SORT _score DESC", "SEGMENT", true),
-                    new Case("| WHERE KQL(\"a:2\") | SORT _score DESC", "SEGMENT", true),
-                    new Case("| WHERE MATCH(a, \"3\") | SORT _score DESC | LIMIT 10", "SEGMENT", true),
-                    new Case("| WHERE MATCH(a, \"3\") OR MATCH(a, \"4\") | SORT _score DESC | LIMIT 10", "SEGMENT", true),
-                    new Case("| WHERE a:\"3\" | WHERE a:\"4\" | SORT _score DESC | LIMIT 10", "SEGMENT", true), }) {
+                    new Case("| WHERE MATCH(a, \"2\") | SORT _score DESC", "SHARD", true),
+                    new Case("| WHERE QSTR(\"a:2\") | SORT _score DESC", "SHARD", true),
+                    new Case("| WHERE KQL(\"a:2\") | SORT _score DESC", "SHARD", true),
+                    new Case("| WHERE MATCH(a, \"3\") | SORT _score DESC | LIMIT 10", "SHARD", true),
+                    new Case("| WHERE MATCH(a, \"3\") OR MATCH(a, \"4\") | SORT _score DESC | LIMIT 10", "SHARD", true),
+                    new Case("| WHERE a:\"3\" | WHERE a:\"4\" | SORT _score DESC | LIMIT 10", "SHARD", true), }) {
                     params.add(
                         new Object[] {
                             defaultDataPartitioning,
                             index,
                             "FROM " + index + (c.score ? " METADATA _score " : " ") + c.suffix,
-                            expectedPartition(defaultDataPartitioning, index, c.idxPartition, c.score) }
+                            expectedPartition(defaultDataPartitioning, index, c.idxPartition) }
                     );
                 }
             }
@@ -133,19 +132,15 @@ public class EsqlPartitioningIT extends ESRestTestCase {
         assertThat(code, equalTo(200));
     }
 
-    private static Matcher<String> expectedPartition(String defaultDataPartitioning, String index, String idxPartition, boolean score) {
+    private static Matcher<String> expectedPartition(String defaultDataPartitioning, String index, String idxPartition) {
         return switch (defaultDataPartitioning) {
-            case null -> expectedAutoPartition(index, idxPartition, score);
-            case "auto" -> expectedAutoPartition(index, idxPartition, score);
+            case null -> expectedAutoPartition(index, idxPartition);
+            case "auto" -> expectedAutoPartition(index, idxPartition);
             default -> equalTo(defaultDataPartitioning.toUpperCase(Locale.ROOT));
         };
     }
 
-    private static Matcher<String> expectedAutoPartition(String index, String idxPartition, boolean score) {
-        boolean lateMaterializationEnabled = EsqlCapabilities.Cap.ENABLE_REDUCE_NODE_LATE_MATERIALIZATION.isEnabled();
-        if (score && lateMaterializationEnabled == false) {
-            return equalTo("SHARD");
-        }
+    private static Matcher<String> expectedAutoPartition(String index, String idxPartition) {
         return equalTo(switch (index) {
             case "idx" -> idxPartition;
             case "small_idx" -> "SHARD";

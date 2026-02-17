@@ -66,8 +66,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.dictionaries.CustomDictionaryService.CUSTOM_DICTIONARIES_DESCRIPTOR;
-import static org.elasticsearch.dictionaries.CustomDictionaryService.CUSTOM_DICTIONARIES_FEATURE_NAME;
+import static org.elasticsearch.dictionary.CustomDictionaryService.CUSTOM_DICTIONARIES_DESCRIPTOR;
+import static org.elasticsearch.dictionary.CustomDictionaryService.CUSTOM_DICTIONARIES_FEATURE_NAME;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_DESCRIPTOR;
 import static org.elasticsearch.synonyms.SynonymsManagementAPIService.SYNONYMS_FEATURE_NAME;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;

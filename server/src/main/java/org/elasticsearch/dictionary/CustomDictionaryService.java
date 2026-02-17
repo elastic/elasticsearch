@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.dictionaries;
+package org.elasticsearch.dictionary;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.Version;

@@ -44,6 +44,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
@@ -606,14 +607,17 @@ public class SplitTargetService {
         }
 
         private void waitForShardStarted(ActionListener<Void> listener) {
+            // We don't really need the cluster state as can be seen below,
+            // but we know that if the shard is not currently started one of the cluster state updates will start it.
+            // So we use the observer as a way to deterministically wait for this to happen
+            // (as opposed to f.e. sleeping).
             Predicate<ClusterState> predicate = state -> {
                 if (cancelled.get()) {
                     return true;
                 }
 
-                var project = state.metadata().projectFor(split.shardId().getIndex());
-                var primaryShardRouting = state.routingTable(project.id()).shardRoutingTable(split.shardId()).primaryShard();
-                return primaryShardRouting.allocationId().equals(shard.routingEntry().allocationId()) && primaryShardRouting.started();
+                // We don't look at CLOSED since it will trigger cancellation flow.
+                return shard.state() == IndexShardState.STARTED;
             };
 
             ClusterStateObserver.waitForState(

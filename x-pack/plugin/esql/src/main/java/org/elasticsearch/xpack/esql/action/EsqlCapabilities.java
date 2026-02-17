@@ -9,9 +9,11 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
@@ -1186,13 +1188,16 @@ public class EsqlCapabilities {
         /**
          * Support for views in cluster state (and REST API).
          */
-        VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
+        VIEWS_IN_CLUSTER_STATE(EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
 
         /**
          * Basic Views with no branching (do not need subqueries or FORK).
          */
         VIEWS_WITH_NO_BRANCHING(VIEWS_IN_CLUSTER_STATE.isEnabled()),
-
+        /**
+         * Views crud actions as index actions
+         */
+        VIEWS_CRUD_AS_INDEX_ACTIONS(VIEWS_WITH_NO_BRANCHING.isEnabled()),
         /**
          * Views with branching (requires subqueries/FORK).
          */
@@ -1307,7 +1312,7 @@ public class EsqlCapabilities {
         LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS,
 
         /**
-         * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} rewrites the query before executing it in Lucene. This
+         * {@link LuceneQueryEvaluator} rewrites the query before executing it in Lucene. This
          * provides support for KQL in a STATS ... BY command that uses a KQL query for filter, for example.
          */
         LUCENE_QUERY_EVALUATOR_QUERY_REWRITE,
@@ -1897,6 +1902,11 @@ public class EsqlCapabilities {
         ASINH_FUNCTION,
 
         /**
+         * Support for the ATANH function.
+         */
+        ATANH_FUNCTION,
+
+        /**
          * Initial support for simple binary comparisons in PromQL.
          * Only top-level comparisons are supported where the right-hand side is a scalar.
          */
@@ -1906,6 +1916,11 @@ public class EsqlCapabilities {
          * Support for PromQL time() function.
          */
         PROMQL_TIME,
+
+        /**
+         * Support for deriving PromQL time buckets from [start, end, buckets] when [step] is omitted.
+         */
+        PROMQL_BUCKETS_PARAMETER,
 
         /**
          * Queries for unmapped fields return no data instead of an error.
@@ -1923,6 +1938,11 @@ public class EsqlCapabilities {
          * Support post-processing STATS commands after PROMQL source commands.
          */
         PROMQL_POST_PROCESSING_STATS,
+
+        /**
+         * PromQL scalar() function support.
+         */
+        PROMQL_SCALAR,
 
         /**
          * KNN function adds support for k and visit_percentage options

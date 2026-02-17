@@ -466,6 +466,10 @@ public abstract class LuceneOperator extends SourceOperator {
             return partitioningStrategies;
         }
 
+        public MinCompetitiveQuery.Status minCompetitive() {
+            return minCompetitive;
+        }
+
         @Override
         public long documentsFound() {
             return rowsEmitted;

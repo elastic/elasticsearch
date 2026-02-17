@@ -215,8 +215,6 @@ public class MinCompetitiveQuery implements Releasable {
         implements
             Writeable,
             ToXContentObject {
-        // NOCOMMIT round trip tests
-
         public static Status readFrom(StreamInput in) throws IOException {
             return new Status(in.readVInt(), in.readVInt(), in.readVInt(), in.readVInt(), in.readVLong());
         }

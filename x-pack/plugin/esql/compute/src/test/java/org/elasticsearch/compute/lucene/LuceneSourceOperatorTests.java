@@ -248,7 +248,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 blockFactory().breaker(),
                 List.of(new SharedMinCompetitive.KeyConfig(ElementType.LONG, TopNEncoder.DEFAULT_SORTABLE, false, false))
             );
-            minCompetitive = new MinCompetitiveQuery.Factory(supplier, (context, min) -> Queries.ALL_DOCS_INSTANCE);
+            minCompetitive = new MinCompetitiveQuery.Factory(supplier, (context, min, helper) -> helper.matchAll());
         }
         return new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromSingleton<>(ctx),

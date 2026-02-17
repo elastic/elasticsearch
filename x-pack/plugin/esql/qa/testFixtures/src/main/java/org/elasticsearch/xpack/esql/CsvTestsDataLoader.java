@@ -51,6 +51,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -474,7 +475,7 @@ public class CsvTestsDataLoader {
                     deleteEnrichPolicies(client);
                 }
                 if (indexes) {
-                    deleteIndexes(client, true, true, false, false, true, true, true, true, true);
+                    deleteIndexes(client, true, true, false, false, cap -> true);
                 }
             }
             if (load) {
@@ -485,11 +486,7 @@ public class CsvTestsDataLoader {
                         true,
                         false,
                         false,
-                        true,
-                        true,
-                        true,
-                        true,
-                        true,
+                        cap -> true,
                         (restClient, indexName, indexMapping, indexSettings) -> {
                             // don't use ESRestTestCase methods here or, if you do, test running the main method before making the change
                             StringBuilder jsonBody = new StringBuilder("{");
@@ -523,11 +520,7 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
         boolean requiresTimeSeries,
-        boolean exponentialHistogramFieldSupported,
-        boolean tDigestFieldSupported,
-        boolean histogramFieldSupported,
-        boolean bFloat16ElementTypeSupported,
-        boolean tDigestMetricFieldSupported
+        Predicate<EsqlCapabilities.Cap> capabilityCheck
     ) throws IOException {
         Set<TestDataset> testDataSets = new HashSet<>();
 
@@ -536,11 +529,7 @@ public class CsvTestsDataLoader {
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
                 && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
                 && (requiresTimeSeries == false || isTimeSeries(dataset))
-                && (exponentialHistogramFieldSupported || containsExponentialHistogramFields(dataset) == false)
-                && (tDigestFieldSupported || containsTDigestFields(dataset) == false)
-                && (tDigestMetricFieldSupported || containsTDigestMetricFields(dataset) == false)
-                && (histogramFieldSupported || containsHistogramFields(dataset) == false)
-                && (bFloat16ElementTypeSupported || containsBFloat16ElementType(dataset) == false)) {
+                && dataset.requiredCapabilities.stream().allMatch(capabilityCheck)) {
                 testDataSets.add(dataset);
             }
         }
@@ -563,60 +552,6 @@ public class CsvTestsDataLoader {
         return mappingNode.get("_source") != null;
     }
 
-    private static boolean containsExponentialHistogramFields(TestDataset dataset) throws IOException {
-        return containsFieldWithProperties(dataset, Map.of("type", "exponential_histogram"));
-    }
-
-    private static boolean containsTDigestFields(TestDataset dataset) throws IOException {
-        return containsFieldWithProperties(dataset, Map.of("type", "tdigest"));
-    }
-
-    private static boolean containsTDigestMetricFields(TestDataset dataset) throws IOException {
-        return containsFieldWithProperties(dataset, Map.of("type", "tdigest", "time_series_metric", "histogram"));
-    }
-
-    private static boolean containsBFloat16ElementType(TestDataset dataset) throws IOException {
-        return containsFieldWithProperties(dataset, Map.of("element_type", "bfloat16"));
-    }
-
-    private static boolean containsFieldWithProperties(TestDataset dataset, Map<String, Object> properties) throws IOException {
-        if (dataset.mappingFileName() == null || properties.isEmpty()) {
-            return false;
-        }
-
-        Map<?, ?> mappingNode = new ObjectMapper().readValue(dataset.streamMapping(), Map.class);
-        Object mappingProperties = mappingNode.get("properties");
-        if (mappingProperties instanceof Map<?, ?> mappingPropertiesMap) {
-            for (Object field : mappingPropertiesMap.values()) {
-                if (field instanceof Map<?, ?> fieldMap && fieldMap.entrySet().containsAll(properties.entrySet())) {
-                    return true;
-                }
-            }
-        }
-
-        return false;
-    }
-
-    private static boolean containsHistogramFields(TestDataset dataset) throws IOException {
-        if (dataset.mappingFileName() == null) {
-            return false;
-        }
-        JsonNode mappingNode = new ObjectMapper().readTree(dataset.streamMapping());
-        JsonNode properties = mappingNode.get("properties");
-        if (properties != null) {
-            for (var fieldWithValue : properties.properties()) {
-                JsonNode fieldProperties = fieldWithValue.getValue();
-                if (fieldProperties != null) {
-                    JsonNode typeNode = fieldProperties.get("type");
-                    if (typeNode != null && typeNode.asText().equals("histogram")) {
-                        return true;
-                    }
-                }
-            }
-        }
-        return false;
-    }
-
     private static boolean isTimeSeries(TestDataset dataset) throws IOException {
         Settings settings = dataset.loadSettings();
         String mode = settings.get("index.mode");
@@ -629,18 +564,7 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled
     ) throws IOException {
-        loadDataSetIntoEs(
-            client,
-            supportsIndexModeLookup,
-            supportsSourceFieldMapping,
-            inferenceEnabled,
-            false,
-            false,
-            false,
-            false,
-            false,
-            false
-        );
+        loadDataSetIntoEs(client, supportsIndexModeLookup, supportsSourceFieldMapping, inferenceEnabled, false, cap -> false);
     }
 
     public static void loadDataSetIntoEs(
@@ -649,11 +573,7 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
         boolean timeSeriesOnly,
-        boolean exponentialHistogramFieldSupported,
-        boolean tDigestFieldSupported,
-        boolean histogramFieldSupported,
-        boolean bFloat16ElementTypeSupported,
-        boolean tDigestMetricFieldSupported
+        Predicate<EsqlCapabilities.Cap> capabilityCheck
     ) throws IOException {
         loadDataSets(
             client,
@@ -661,11 +581,7 @@ public class CsvTestsDataLoader {
             supportsSourceFieldMapping,
             inferenceEnabled,
             timeSeriesOnly,
-            exponentialHistogramFieldSupported,
-            tDigestFieldSupported,
-            histogramFieldSupported,
-            bFloat16ElementTypeSupported,
-            tDigestMetricFieldSupported,
+            capabilityCheck,
             (restClient, indexName, indexMapping, indexSettings) -> {
                 ESRestTestCase.createIndex(
                     restClient,
@@ -688,11 +604,7 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
         boolean timeSeriesOnly,
-        boolean exponentialHistogramFieldSupported,
-        boolean tDigestFieldSupported,
-        boolean histogramFieldSupported,
-        boolean bFloat16ElementTypeSupported,
-        boolean tDigestMetricFieldSupported,
+        Predicate<EsqlCapabilities.Cap> capabilityCheck,
         IndexCreator indexCreator
     ) throws IOException {
         Set<String> loadedDatasets = new HashSet<>();
@@ -702,11 +614,7 @@ public class CsvTestsDataLoader {
             supportsSourceFieldMapping,
             inferenceEnabled,
             timeSeriesOnly,
-            exponentialHistogramFieldSupported,
-            tDigestFieldSupported,
-            histogramFieldSupported,
-            bFloat16ElementTypeSupported,
-            tDigestMetricFieldSupported
+            capabilityCheck
         )) {
             load(client, dataset, indexCreator);
             loadedDatasets.add(dataset.indexName);
@@ -749,11 +657,7 @@ public class CsvTestsDataLoader {
         boolean supportsSourceFieldMapping,
         boolean inferenceEnabled,
         boolean timeSeriesOnly,
-        boolean exponentialHistogramFieldSupported,
-        boolean tDigestFieldSupported,
-        boolean histogramFieldSupported,
-        boolean bFloat16ElementTypeSupported,
-        boolean tDigestMetricFieldSupported
+        Predicate<EsqlCapabilities.Cap> capabilityCheck
     ) throws IOException {
         logger.info("Deleting test datasets");
         for (var dataset : availableDatasetsForEs(
@@ -761,11 +665,7 @@ public class CsvTestsDataLoader {
             supportsSourceFieldMapping,
             inferenceEnabled,
             timeSeriesOnly,
-            exponentialHistogramFieldSupported,
-            tDigestFieldSupported,
-            histogramFieldSupported,
-            bFloat16ElementTypeSupported,
-            tDigestMetricFieldSupported
+            capabilityCheck
         )) {
             deleteIndex(client, dataset.indexName());
         }

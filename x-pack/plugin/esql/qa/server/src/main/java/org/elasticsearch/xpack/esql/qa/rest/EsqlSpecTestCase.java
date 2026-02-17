@@ -201,11 +201,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 supportsSourceFieldMapping(),
                 supportsSemanticTextInference(),
                 timeSeriesOnly(),
-                supportsExponentialHistograms(),
-                supportsTDigestField(),
-                supportsHistogramDataType(),
-                supportsBFloat16ElementType(),
-                supportsTDigestFieldAsMetric()
+                this::clusterHasCapability
             );
             return null;
         });
@@ -372,26 +368,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
      */
     protected boolean clusterHasCapability(EsqlCapabilities.Cap capability) {
         return hasCapabilities(client(), List.of(capability.capabilityName()));
-    }
-
-    protected boolean supportsExponentialHistograms() {
-        return clusterHasCapability(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW);
-    }
-
-    protected boolean supportsTDigestField() {
-        return clusterHasCapability(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW);
-    }
-
-    protected boolean supportsTDigestFieldAsMetric() {
-        return clusterHasCapability(EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC);
-    }
-
-    protected boolean supportsHistogramDataType() {
-        return clusterHasCapability(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION);
-    }
-
-    protected boolean supportsBFloat16ElementType() {
-        return clusterHasCapability(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT);
     }
 
     protected void doTest() throws Throwable {

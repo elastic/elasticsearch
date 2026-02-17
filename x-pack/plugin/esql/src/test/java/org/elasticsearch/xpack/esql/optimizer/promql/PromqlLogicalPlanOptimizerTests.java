@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -77,6 +78,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -233,6 +235,35 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
                 .count(),
             equalTo(2L)
         );
+    }
+
+    public void testInferredStepUsesDefaultBuckets() {
+        var plan = planPromql("""
+            PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" (
+                avg(avg_over_time(network.bytes_in[6m]))
+              )
+            """);
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+    }
+
+    public void testInferredStepMinStepIsUnknownParameter() {
+        ParsingException e = assertThrows(ParsingException.class, () -> planPromql("""
+            PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" min_step=1s (
+                avg(avg_over_time(network.bytes_in[6m]))
+              )
+            """));
+        assertThat(e.getMessage(), containsString("Unknown parameter [min_step]"));
+    }
+
+    public void testInferredStepUsesBuckets() {
+        var plan = planPromql("""
+            PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" buckets=6 (
+                avg(avg_over_time(network.bytes_in[1h]))
+              )
+            """);
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
     }
 
     public void testLabelSelector() {

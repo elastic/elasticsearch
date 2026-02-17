@@ -95,7 +95,21 @@ public class PromqlVerifierTests extends ESTestCase {
     public void testPromqlInstantQuery() {
         assertThat(
             error("PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))", tsdb),
-            equalTo("1:48: instant queries are not supported at this time [PROMQL index=test time=\"2025-10-31T00:00:00Z\" (avg(foo))]")
+            containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
+        );
+    }
+
+    public void testPromqlMissingBucketParameters() {
+        assertThat(
+            error("PROMQL index=test avg(foo)", tsdb),
+            containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
+        );
+    }
+
+    public void testPromqlBucketsWithoutRange() {
+        assertThat(
+            error("PROMQL index=test buckets=10 avg(foo)", tsdb),
+            containsString("unable to create a bucket; provide either [step] or all of [start], [end], and [buckets]")
         );
     }
 

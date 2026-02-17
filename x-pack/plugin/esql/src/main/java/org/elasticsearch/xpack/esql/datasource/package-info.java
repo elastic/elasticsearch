@@ -33,7 +33,8 @@
  * <ul>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSource} - Main SPI interface (includes
  *       {@link org.elasticsearch.xpack.esql.datasource.spi.DataSource#capabilities() capabilities()})</li>
- *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSourcePlan} - Abstract base class for data source plan leaves (extends LeafPlan)</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSourcePlan} - Abstract base class for data source
+ *       plan leaves (extends LeafPlan)</li>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSourcePartition} - Interface for units of work in distributed execution</li>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSourceDescriptor} - Parsed data source reference</li>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.spi.DataSourceCapabilities} - Execution mode flag
@@ -81,7 +82,8 @@
  *
  * <h2>Design Principles</h2>
  *
- * <p><b>DataSource-specific plan nodes:</b> Each data source defines its own {@link org.elasticsearch.xpack.esql.datasource.spi.DataSourcePlan}
+ * <p><b>DataSource-specific plan nodes:</b> Each data source defines its own
+ * {@link org.elasticsearch.xpack.esql.datasource.spi.DataSourcePlan}
  * implementation that extends {@link org.elasticsearch.xpack.esql.plan.logical.LeafPlan}. This allows data sources to store
  * type-safe data source-specific state (e.g., Iceberg manifests, SQL fragments) without opaque state objects.
  *

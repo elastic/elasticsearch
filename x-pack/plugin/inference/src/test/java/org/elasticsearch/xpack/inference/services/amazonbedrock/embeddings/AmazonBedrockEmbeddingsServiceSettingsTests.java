@@ -51,8 +51,6 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
     private static final AmazonBedrockProvider INITIAL_TEST_PROVIDER = AmazonBedrockProvider.AI21LABS;
     private static final int TEST_DIMENSIONS = 1536;
     private static final int INITIAL_TEST_DIMENSIONS = 1536;
-    private static final boolean TEST_DIMENSIONS_SET_BY_USER = true;
-    private static final boolean INITIAL_TEST_DIMENSIONS_SET_BY_USER = false;
     private static final int TEST_MAX_INPUT_TOKENS = 512;
     private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
     private static final SimilarityMeasure TEST_SIMILARITY = SimilarityMeasure.COSINE;
@@ -60,13 +58,21 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
     private static final int TEST_RATE_LIMIT = 20;
     private static final int INITIAL_TEST_RATE_LIMIT = 30;
 
-    public void testUpdateServiceSettings_AllFields_Success() {
+    public void testUpdateServiceSettings_AllFields_DimensionsSetByUserFalse_Success() {
+        testUpdateServiceSettings_AllFields_Success(false);
+    }
+
+    public void testUpdateServiceSettings_AllFields_DimensionsSetByUserTrue_Success() {
+        testUpdateServiceSettings_AllFields_Success(true);
+    }
+
+    private static void testUpdateServiceSettings_AllFields_Success(boolean dimensionsSetByUser) {
         var newSettingsMap = createEmbeddingsRequestSettingsMap(
             TEST_REGION,
             TEST_MODEL_ID,
             TEST_PROVIDER.toString(),
             TEST_DIMENSIONS,
-            TEST_DIMENSIONS_SET_BY_USER,
+            null,
             TEST_MAX_INPUT_TOKENS,
             TEST_SIMILARITY,
             TEST_RATE_LIMIT
@@ -76,7 +82,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_PROVIDER,
             INITIAL_TEST_DIMENSIONS,
-            INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+            dimensionsSetByUser,
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_SIMILARITY,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
@@ -90,7 +96,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     TEST_MODEL_ID,
                     TEST_PROVIDER,
                     TEST_DIMENSIONS,
-                    TEST_DIMENSIONS_SET_BY_USER,
+                    true,
                     TEST_MAX_INPUT_TOKENS,
                     TEST_SIMILARITY,
                     new RateLimitSettings(TEST_RATE_LIMIT)
@@ -99,13 +105,53 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
         );
     }
 
-    public void testUpdateServiceSettings_EmptyMap_Success() {
+    public void testUpdateServiceSettings_DimensionsSetByUserPresentInRequestMap_ThrowsException() {
+        var newSettingsMap = createEmbeddingsRequestSettingsMap(
+            TEST_REGION,
+            TEST_MODEL_ID,
+            TEST_PROVIDER.toString(),
+            TEST_DIMENSIONS,
+            true,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY,
+            TEST_RATE_LIMIT
+        );
+
+        var exceptionThrown = assertThrows(
+            ValidationException.class,
+            () -> new AmazonBedrockEmbeddingsServiceSettings(
+                INITIAL_TEST_REGION,
+                INITIAL_TEST_MODEL_ID,
+                INITIAL_TEST_PROVIDER,
+                INITIAL_TEST_DIMENSIONS,
+                false,
+                INITIAL_TEST_MAX_INPUT_TOKENS,
+                INITIAL_TEST_SIMILARITY,
+                new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+            ).updateServiceSettings(newSettingsMap, TaskType.TEXT_EMBEDDING)
+        );
+
+        assertThat(
+            exceptionThrown.getMessage(),
+            is("Validation Failed: 1: [service_settings] does not allow the setting [dimensions_set_by_user];")
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DimensionsSetByUserFalse_Success() {
+        testUpdateServiceSettings_EmptyMap_Success(false);
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DimensionsSetByUserTrue_Success() {
+        testUpdateServiceSettings_EmptyMap_Success(true);
+    }
+
+    private static void testUpdateServiceSettings_EmptyMap_Success(boolean dimensionsSetByUser) {
         var serviceSettings = new AmazonBedrockEmbeddingsServiceSettings(
             INITIAL_TEST_REGION,
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_PROVIDER,
             INITIAL_TEST_DIMENSIONS,
-            INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+            dimensionsSetByUser,
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_SIMILARITY,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
@@ -119,7 +165,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     INITIAL_TEST_MODEL_ID,
                     INITIAL_TEST_PROVIDER,
                     INITIAL_TEST_DIMENSIONS,
-                    INITIAL_TEST_DIMENSIONS_SET_BY_USER,
+                    dimensionsSetByUser,
                     INITIAL_TEST_MAX_INPUT_TOKENS,
                     INITIAL_TEST_SIMILARITY,
                     new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
@@ -410,7 +456,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             TEST_MODEL_ID,
             TEST_PROVIDER,
             null,
-            TEST_DIMENSIONS_SET_BY_USER,
+            true,
             null,
             null,
             new RateLimitSettings(TEST_RATE_LIMIT)
@@ -431,7 +477,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                     TEST_MODEL_ID,
                     TEST_PROVIDER.name(),
                     TEST_RATE_LIMIT,
-                    TEST_DIMENSIONS_SET_BY_USER
+                    true
                 )
             )
         );

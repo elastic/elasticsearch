@@ -11,8 +11,10 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
@@ -184,13 +186,13 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
     }
 
     @Override
-    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+    public ElasticRerankerServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
         serviceSettings = new HashMap<>(serviceSettings);
-        ServiceSettings updated = super.updateServiceSettings(serviceSettings);
+        ServiceSettings updated = super.updateServiceSettings(serviceSettings, taskType);
         if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
             return new ElasticRerankerServiceSettings(esSettings, longDocumentStrategy, maxChunksPerDoc);
         } else {
-            throw new IllegalStateException("Unexpected service settings type [" + updated.getClass().getName() + "]");
+            throw new IllegalStateException(Strings.format("Unexpected service settings type [%s]", updated.getClass().getName()));
         }
     }
 }

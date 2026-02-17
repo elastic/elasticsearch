@@ -210,7 +210,6 @@ v:ul
 # Null comparison with unsigned_long
 ###############################################
 
-# unsigned_long field compared with null literal returns empty result
 compareUnsignedLongFieldWithNull
 required_capability: fix_null_comparison_type_check
 
@@ -221,7 +220,6 @@ id:integer | bytes_in:ul
 ;
 
 
-# unsigned_long field not equal to null with WHERE (null rows filtered out)
 compareUnsignedLongFieldNotEqualNull
 required_capability: fix_null_comparison_type_check
 
@@ -232,7 +230,6 @@ id:integer | bytes_in:ul
 ;
 
 
-# unsigned_long field greater than null evaluates to null, filtering all rows
 compareUnsignedLongFieldGreaterThanNull
 required_capability: fix_null_comparison_type_check
 
@@ -243,7 +240,6 @@ id:integer | bytes_in:ul
 ;
 
 
-# unsigned_long field less than null evaluates to null, filtering all rows
 compareUnsignedLongFieldLessThanNull
 required_capability: fix_null_comparison_type_check
 
@@ -254,7 +250,6 @@ id:integer | bytes_in:ul
 ;
 
 
-# EVAL unsigned_long == null produces null boolean
 evalUnsignedLongEqualsNull
 required_capability: fix_null_comparison_type_check
 
@@ -266,7 +261,6 @@ null
 ;
 
 
-# EVAL null == unsigned_long produces null boolean
 evalNullEqualsUnsignedLong
 required_capability: fix_null_comparison_type_check
 
@@ -278,7 +272,6 @@ null
 ;
 
 
-# EVAL unsigned_long > null produces null boolean
 evalUnsignedLongGreaterThanNull
 required_capability: fix_null_comparison_type_check
 
@@ -290,7 +283,6 @@ null
 ;
 
 
-# EVAL unsigned_long != null produces null boolean
 evalUnsignedLongNotEqualsNull
 required_capability: fix_null_comparison_type_check
 
@@ -306,14 +298,11 @@ null
 # Null in IN with unsigned_long
 ###############################################
 
-# IN with null in the list: rows matching other values still returned
 unsignedLongInWithNull
 required_capability: fix_null_comparison_type_check
 
 FROM ul_logs | WHERE bytes_in IN (to_ul(0), null) | SORT id | KEEP id, bytes_in
 ;
-warningRegex:Line 1:22: evaluation of [bytes_in IN (to_ul(0), null)] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:Line 1:22: java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 id:integer | bytes_in:ul
 70         | 0
@@ -323,7 +312,6 @@ id:integer | bytes_in:ul
 ;
 
 
-# IN with only null: no rows match
 unsignedLongInWithOnlyNull
 required_capability: fix_null_comparison_type_check
 
@@ -334,7 +322,6 @@ id:integer | bytes_in:ul
 ;
 
 
-# ROW unsigned_long IN with null evaluates correctly
 rowUnsignedLongInWithNull
 required_capability: fix_null_comparison_type_check
 
@@ -346,7 +333,6 @@ true
 ;
 
 
-# ROW unsigned_long IN with only null
 rowUnsignedLongInOnlyNull
 required_capability: fix_null_comparison_type_check
 
@@ -362,7 +348,6 @@ null
 # Null in boolean logical operations with unsigned_long
 ###############################################
 
-# null OR (unsigned_long comparison) — result depends on right side
 nullOrUnsignedLongComparison
 required_capability: fix_null_comparison_type_check
 
@@ -374,7 +359,6 @@ id:integer | x:boolean
 ;
 
 
-# null AND (unsigned_long comparison) — null AND true = null
 nullAndUnsignedLongComparison
 required_capability: fix_null_comparison_type_check
 
@@ -386,7 +370,6 @@ null
 ;
 
 
-# (unsigned_long > null) OR true — null OR true = true
 unsignedLongNullComparisonOrTrue
 required_capability: fix_null_comparison_type_check
 
@@ -398,7 +381,6 @@ true
 ;
 
 
-# (unsigned_long > null) AND true — null AND true = null
 unsignedLongNullComparisonAndTrue
 required_capability: fix_null_comparison_type_check
 
@@ -410,7 +392,6 @@ null
 ;
 
 
-# null OR (unsigned_long > literal) with index data (true case)
 nullOrUnsignedLongGtLiteral
 required_capability: fix_null_comparison_type_check
 
@@ -422,7 +403,6 @@ id:integer | bytes_in:ul        | x:boolean
 ;
 
 
-# null OR (unsigned_long > literal) with index data (false case → null)
 nullOrUnsignedLongGtLiteralFalse
 required_capability: fix_null_comparison_type_check
 
@@ -434,7 +414,6 @@ id:integer | bytes_in:ul | x:boolean
 ;
 
 
-# null field in logical operation: null_field OR (unsigned_long comparison)
 nullFieldOrUnsignedLongComparison
 required_capability: fix_null_comparison_type_check
 
@@ -446,7 +425,6 @@ id:integer | x:boolean
 ;
 
 
-# Derived null from unsigned_long arithmetic in boolean operation
 derivedNullUnsignedLongBooleanOp
 required_capability: fix_null_comparison_type_check
 

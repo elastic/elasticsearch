@@ -101,6 +101,22 @@ import java.util.List;
  *           \_ Aggregate[avg(sum_result), groupBy=[step]]
  *                 \_ TimeSeriesAggregate[sum(rate(value)), groupBy=[step, cluster]]
  * </pre>
+ *
+ * Translation mechanism:
+ *
+ * Recursive descent via {@code translateNode()}. Each node returns a {@code TranslationResult}:
+ * <ul>
+ *   <li>{@code plan} the LogicalPlan built so far</li>
+ *   <li>{@code expression} reference to this node's output, composed into parent expressions</li>
+ * </ul>
+ *
+ * Example translations:
+ * <ul>
+ *   <li>{@link Selector}: plan unchanged, expression = LastOverTime(field) or field reference</li>
+ *   <li>{@link AcrossSeriesAggregate}: plan = new Aggregate, expression = reference to aggregate output</li>
+ *   <li>{@link PromqlFunctionCall}: plan = Eval if child aggregated, expression = function(child expr)</li>
+ *   <li>{@link VectorBinaryOperator}: plan = merged from both sides, expression = left op right</li>
+ * </ul>
  */
 public final class TranslatePromqlToEsqlPlan extends OptimizerRules.ParameterizedOptimizerRule<PromqlCommand, LogicalOptimizerContext> {
 

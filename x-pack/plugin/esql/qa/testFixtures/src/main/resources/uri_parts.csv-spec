@@ -267,3 +267,55 @@ warningregex: Line 2:3: java.lang.IllegalArgumentException: This command doesn't
 parts.domain:keyword | parts.port:integer | parts.scheme:keyword
 null                 | null               | null
 ;
+
+
+promqlSourceWithGrok
+required_capability: uri_parts_command
+required_capability: promql_command_v0
+
+PROMQL index=k8s-downsampled step=1h oYJdEiiJ=(network.bytes_in{cluster!="qa",pod!="two"}) 
+| GROK _timeseries "%{WORD:zEyDkwmbYa} %{WORD:step} %{WORD:step}" 
+| URI_PARTS parts = _timeseries
+| DROP _timeseries, oYJdEiiJ, step, zEyDkwmbYa
+| LIMIT 1
+;
+warningregex: Line 3:3: evaluation of \[URI_PARTS parts = _timeseries\] failed, treating result as null. Only first 20 failures recorded.
+warningregex: Line 3:3: java.lang.IllegalArgumentException: unable to parse URI \[
+
+parts.domain:keyword | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.port:integer | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword
+null                 | null                   | null               | null                    | null               | null                | null                 | null                    | null                   | null
+;
+
+
+promqlSource
+required_capability: uri_parts_command
+required_capability: promql_command_v0
+
+PROMQL index=k8s step=1m increase_cost=(sum(increase(network.total_cost[1m])))
+| LIMIT 2
+| EVAL uri = "https://www.elastic.co:443/downloads/elasticsearch"
+| URI_PARTS parts = uri
+| KEEP parts.domain, parts.port, parts.scheme
+;
+
+parts.domain:keyword | parts.port:integer | parts.scheme:keyword
+www.elastic.co       | 443                | https
+www.elastic.co       | 443                | https
+;
+
+
+tsSource
+required_capability: uri_parts_command
+required_capability: ts_command_v0
+
+TS k8s
+| LIMIT 2
+| EVAL uri = "https://www.elastic.co:443/downloads/elasticsearch"
+| URI_PARTS parts = uri
+| KEEP parts.domain, parts.port, parts.scheme
+;
+
+parts.domain:keyword | parts.port:integer | parts.scheme:keyword
+www.elastic.co       | 443                | https
+www.elastic.co       | 443                | https
+;

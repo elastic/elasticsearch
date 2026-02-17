@@ -45,14 +45,16 @@ import java.util.function.Predicate;
 class FieldCapabilitiesFetcher {
     private final IndicesService indicesService;
     private final boolean includeEmptyFields;
+    private final boolean includeDocCount;
     private final Map<String, Map<String, IndexFieldCapabilities>> indexMappingHashToResponses = new HashMap<>();
     private static final boolean enableFieldHasValue = Booleans.parseBoolean(
         System.getProperty("es.field_caps_empty_fields_filter", Boolean.TRUE.toString())
     );
 
-    FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeEmptyFields) {
+    FieldCapabilitiesFetcher(IndicesService indicesService, boolean includeEmptyFields, boolean includeDocCount) {
         this.indicesService = indicesService;
         this.includeEmptyFields = includeEmptyFields;
+        this.includeDocCount = includeDocCount;
     }
 
     FieldCapabilitiesIndexResponse fetch(
@@ -118,6 +120,7 @@ class FieldCapabilitiesFetcher {
             return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), null, Collections.emptyMap(), false, indexMode);
         }
 
+        final long docCount = includeDocCount ? indexService.getShard(shardId.getId()).docStats().getCount() : -1;
         final MappingMetadata mapping = indexService.getMetadata().mapping();
         String indexMappingHash;
         if (includeEmptyFields || enableFieldHasValue == false) {
@@ -134,7 +137,7 @@ class FieldCapabilitiesFetcher {
             indexMappingHash = fieldPredicate.modifyHash(indexMappingHash);
             final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
             if (existing != null) {
-                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true, indexMode);
+                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true, indexMode, docCount, 1);
             }
         }
         task.ensureNotCancelled();
@@ -150,7 +153,7 @@ class FieldCapabilitiesFetcher {
         if (indexMappingHash != null) {
             indexMappingHashToResponses.put(indexMappingHash, responseMap);
         }
-        return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true, indexMode);
+        return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true, indexMode, docCount, 1);
     }
 
     static Map<String, IndexFieldCapabilities> retrieveFieldCaps(

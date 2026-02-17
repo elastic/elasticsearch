@@ -19,13 +19,28 @@ public record EsIndex(
     Map<String, IndexMode> indexNameWithModes,
     Map<String, List<String>> originalIndices, // keyed by cluster alias
     Map<String, List<String>> concreteIndices, // keyed by cluster alias
-    Set<String> partiallyUnmappedFields
+    Set<String> partiallyUnmappedFields,
+    long avgRowsPerShard // average document count per shard across all indices, or -1 if not available
 ) {
 
     public EsIndex {
         assert name != null;
         assert mapping != null;
         assert partiallyUnmappedFields != null;
+    }
+
+    /**
+     * Convenience constructor that defaults avgRowsPerShard to -1 (unknown).
+     */
+    public EsIndex(
+        String name,
+        Map<String, EsField> mapping,
+        Map<String, IndexMode> indexNameWithModes,
+        Map<String, List<String>> originalIndices,
+        Map<String, List<String>> concreteIndices,
+        Set<String> partiallyUnmappedFields
+    ) {
+        this(name, mapping, indexNameWithModes, originalIndices, concreteIndices, partiallyUnmappedFields, -1);
     }
 
     public boolean isPartiallyUnmappedField(String fieldName) {

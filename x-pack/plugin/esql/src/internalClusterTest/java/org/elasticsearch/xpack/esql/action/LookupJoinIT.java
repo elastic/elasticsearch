@@ -485,4 +485,22 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
             greaterThanOrEqualTo(1)
         );
     }
+
+    // Test ported from csv-spec:lookup-join.lookupJoinWithSemanticFilterDeduplication
+    // Tests that semantically contradictory filters after a LOOKUP JOIN correctly produce an empty result
+    public void testLookupJoinWithSemanticFilterDeduplication() throws IOException {
+        ensureIndices(List.of(LANGUAGES_INDEX, LANGUAGES_LOOKUP_INDEX));
+
+        String query = String.format(Locale.ROOT, """
+            FROM %s
+            | LOOKUP JOIN %s ON language_name
+            | WHERE NOT language_code <= 50 OR language_name == "English"
+            | WHERE language_code > 50
+            | WHERE language_name == "English"
+            """, LANGUAGES_INDEX, LANGUAGES_LOOKUP_INDEX);
+
+        try (EsqlQueryResponse response = runQuery(query)) {
+            assertValues(response.values(), List.of());
+        }
+    }
 }

@@ -27,6 +27,7 @@ import java.util.Set;
 public class EsRelation extends LeafPlan {
 
     private static final TransportVersion SPLIT_INDICES = TransportVersion.fromName("esql_es_relation_add_split_indices");
+    private static final TransportVersion AVG_ROWS_PER_SHARD_VERSION = TransportVersion.fromName("field_caps_include_doc_count");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -40,7 +41,11 @@ public class EsRelation extends LeafPlan {
     private final Map<String, List<String>> concreteIndices; // keyed by cluster alias
     private final Map<String, IndexMode> indexNameWithModes;
     private final List<Attribute> attrs;
+    private final long avgRowsPerShard;
 
+    /**
+     * Convenience constructor that defaults avgRowsPerShard to -1 (unknown).
+     */
     public EsRelation(
         Source source,
         String indexPattern,
@@ -50,6 +55,19 @@ public class EsRelation extends LeafPlan {
         Map<String, IndexMode> indexNameWithModes,
         List<Attribute> attributes
     ) {
+        this(source, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attributes, -1);
+    }
+
+    public EsRelation(
+        Source source,
+        String indexPattern,
+        IndexMode indexMode,
+        Map<String, List<String>> originalIndices,
+        Map<String, List<String>> concreteIndices,
+        Map<String, IndexMode> indexNameWithModes,
+        List<Attribute> attributes,
+        long avgRowsPerShard
+    ) {
         super(source);
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
@@ -57,6 +75,7 @@ public class EsRelation extends LeafPlan {
         this.concreteIndices = concreteIndices;
         this.indexNameWithModes = indexNameWithModes;
         this.attrs = attributes;
+        this.avgRowsPerShard = avgRowsPerShard;
     }
 
     private static EsRelation readFrom(StreamInput in) throws IOException {
@@ -74,7 +93,22 @@ public class EsRelation extends LeafPlan {
         Map<String, IndexMode> indexNameWithModes = in.readMap(IndexMode::readFrom);
         List<Attribute> attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         IndexMode indexMode = IndexMode.fromString(in.readString());
-        return new EsRelation(source, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attributes);
+        long avgRowsPerShard;
+        if (in.getTransportVersion().supports(AVG_ROWS_PER_SHARD_VERSION)) {
+            avgRowsPerShard = in.readLong();
+        } else {
+            avgRowsPerShard = -1;
+        }
+        return new EsRelation(
+            source,
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexNameWithModes,
+            attributes,
+            avgRowsPerShard
+        );
     }
 
     @Override
@@ -88,6 +122,9 @@ public class EsRelation extends LeafPlan {
         out.writeMap(indexNameWithModes, (o, v) -> IndexMode.writeTo(v, out));
         out.writeNamedWriteableCollection(attrs);
         out.writeString(indexMode.getName());
+        if (out.getTransportVersion().supports(AVG_ROWS_PER_SHARD_VERSION)) {
+            out.writeLong(avgRowsPerShard);
+        }
     }
 
     @Override
@@ -97,7 +134,17 @@ public class EsRelation extends LeafPlan {
 
     @Override
     protected NodeInfo<EsRelation> info() {
-        return NodeInfo.create(this, EsRelation::new, indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
+        return NodeInfo.create(
+            this,
+            EsRelation::new,
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexNameWithModes,
+            attrs,
+            avgRowsPerShard
+        );
     }
 
     public String indexPattern() {
@@ -125,6 +172,13 @@ public class EsRelation extends LeafPlan {
         return attrs;
     }
 
+    /**
+     * Returns the average number of rows per shard across all indices, or -1 if not available.
+     */
+    public long avgRowsPerShard() {
+        return avgRowsPerShard;
+    }
+
     public Set<String> concreteQualifiedIndices() {
         return indexNameWithModes.keySet();
     }
@@ -138,7 +192,7 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
+        return Objects.hash(indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs, avgRowsPerShard);
     }
 
     @Override
@@ -157,7 +211,8 @@ public class EsRelation extends LeafPlan {
             && Objects.equals(originalIndices, other.originalIndices)
             && Objects.equals(concreteIndices, other.concreteIndices)
             && Objects.equals(indexNameWithModes, other.indexNameWithModes)
-            && Objects.equals(attrs, other.attrs);
+            && Objects.equals(attrs, other.attrs)
+            && avgRowsPerShard == other.avgRowsPerShard;
     }
 
     @Override
@@ -171,7 +226,16 @@ public class EsRelation extends LeafPlan {
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {
-        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, newAttributes);
+        return new EsRelation(
+            source(),
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexNameWithModes,
+            newAttributes,
+            avgRowsPerShard
+        );
     }
 
     public EsRelation withAdditionalAttribute(Attribute additionalAttribute) {
@@ -182,6 +246,15 @@ public class EsRelation extends LeafPlan {
     }
 
     public EsRelation withIndexMode(IndexMode indexMode) {
-        return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
+        return new EsRelation(
+            source(),
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexNameWithModes,
+            attrs,
+            avgRowsPerShard
+        );
     }
 }

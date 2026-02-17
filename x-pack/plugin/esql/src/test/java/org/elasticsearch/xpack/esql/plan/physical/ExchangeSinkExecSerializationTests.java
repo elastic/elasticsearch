@@ -88,8 +88,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1026343b - added time series field type to EsField  #129649
          *  1033593b - added qualifier back to FieldAttribute #132925
          *  1033595b - added split indices to EsRelation #138396
+         *  1033603b - added avgRowsPerShard to EsRelation
          */
-        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1033595));
+        testManyTypeConflicts(false, ByteSizeValue.ofBytes(1033603));
     }
 
     /**
@@ -111,8 +112,9 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  1971523b - added time series field type to EsField  #129649
          *  1986023b - added qualifier back to FieldAttribute #132925
          *  1986025b - added split indices to EsRelation #138396
+         *  1986033b - added avgRowsPerShard to EsRelation
          */
-        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1986025));
+        testManyTypeConflicts(true, ByteSizeValue.ofBytes(1986033));
     }
 
     private void testManyTypeConflicts(boolean withParent, ByteSizeValue expected) throws IOException {
@@ -136,13 +138,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  43665025b - added time series field type to EsField  #129649
          *  43927169b - added qualifier back to FieldAttribute #132925
          *  43927171b - added split indices to EsRelation #138396
+         *  43927179b - added avgRowsPerShard to EsRelation
          */
 
         int depth = 6;
         int childrenPerLevel = 8;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43927171L));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(43927179L));
     }
 
     /**
@@ -161,13 +164,14 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          *  351b - added time series field type to EsField  #129649
          *  352b - added qualifier back to FieldAttribute #132925
          *  354b - added split indices to EsRelation #138396
+         *  362b - added avgRowsPerShard to EsRelation
          */
 
         int depth = 6;
         int childrenPerLevel = 9;
 
         EsIndex index = deeplyNestedIndex(depth, childrenPerLevel);
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(354), false);
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(362), false);
     }
 
     /**
@@ -180,6 +184,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
          * History:
          * 4996b - initial
          * 4998b - added split indices to EsRelation #138396
+         * 5006b - added avgRowsPerShard to EsRelation
          */
 
         var index = EsIndexGenerator.esIndex(
@@ -189,7 +194,7 @@ public class ExchangeSinkExecSerializationTests extends AbstractPhysicalPlanSeri
                 .mapToObj(i -> "partial-.ds-index-service-logs-2025.01.01-000" + i)
                 .collect(toMap(Function.identity(), i -> IndexMode.STANDARD))
         );
-        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(4998));
+        testSerializePlanWithIndex(index, ByteSizeValue.ofBytes(5006));
     }
 
     /**

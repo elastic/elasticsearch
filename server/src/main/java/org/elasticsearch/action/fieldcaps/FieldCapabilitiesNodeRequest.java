@@ -40,6 +40,7 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
     private final long nowInMillis;
     private final Map<String, Object> runtimeFields;
     private final boolean includeEmptyFields;
+    private final boolean includeDocCount;
 
     FieldCapabilitiesNodeRequest(StreamInput in) throws IOException {
         super(in);
@@ -52,6 +53,35 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
         nowInMillis = in.readLong();
         runtimeFields = in.readGenericMap();
         includeEmptyFields = in.readBoolean();
+        if (in.getTransportVersion().supports(FieldCapabilitiesRequest.FIELD_CAPS_INCLUDE_DOC_COUNT)) {
+            includeDocCount = in.readBoolean();
+        } else {
+            includeDocCount = false;
+        }
+    }
+
+    FieldCapabilitiesNodeRequest(
+        List<ShardId> shardIds,
+        String[] fields,
+        String[] filters,
+        String[] allowedTypes,
+        OriginalIndices originalIndices,
+        QueryBuilder indexFilter,
+        long nowInMillis,
+        Map<String, Object> runtimeFields,
+        boolean includeEmptyFields,
+        boolean includeDocCount
+    ) {
+        this.shardIds = Objects.requireNonNull(shardIds);
+        this.fields = fields;
+        this.filters = filters;
+        this.allowedTypes = allowedTypes;
+        this.originalIndices = originalIndices;
+        this.indexFilter = indexFilter;
+        this.nowInMillis = nowInMillis;
+        this.runtimeFields = runtimeFields;
+        this.includeEmptyFields = includeEmptyFields;
+        this.includeDocCount = includeDocCount;
     }
 
     FieldCapabilitiesNodeRequest(
@@ -65,15 +95,7 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
         Map<String, Object> runtimeFields,
         boolean includeEmptyFields
     ) {
-        this.shardIds = Objects.requireNonNull(shardIds);
-        this.fields = fields;
-        this.filters = filters;
-        this.allowedTypes = allowedTypes;
-        this.originalIndices = originalIndices;
-        this.indexFilter = indexFilter;
-        this.nowInMillis = nowInMillis;
-        this.runtimeFields = runtimeFields;
-        this.includeEmptyFields = includeEmptyFields;
+        this(shardIds, fields, filters, allowedTypes, originalIndices, indexFilter, nowInMillis, runtimeFields, includeEmptyFields, false);
     }
 
     public String[] fields() {
@@ -122,6 +144,10 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
         return includeEmptyFields;
     }
 
+    public boolean includeDocCount() {
+        return includeDocCount;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -134,6 +160,9 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
         out.writeLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
         out.writeBoolean(includeEmptyFields);
+        if (out.getTransportVersion().supports(FieldCapabilitiesRequest.FIELD_CAPS_INCLUDE_DOC_COUNT)) {
+            out.writeBoolean(includeDocCount);
+        }
     }
 
     @Override
@@ -190,12 +219,13 @@ class FieldCapabilitiesNodeRequest extends LegacyActionRequest implements Indice
             && Objects.equals(originalIndices, that.originalIndices)
             && Objects.equals(indexFilter, that.indexFilter)
             && Objects.equals(runtimeFields, that.runtimeFields)
-            && includeEmptyFields == that.includeEmptyFields;
+            && includeEmptyFields == that.includeEmptyFields
+            && includeDocCount == that.includeDocCount;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields, includeEmptyFields);
+        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields, includeEmptyFields, includeDocCount);
         result = 31 * result + shardIds.hashCode();
         result = 31 * result + Arrays.hashCode(fields);
         result = 31 * result + Arrays.hashCode(filters);

@@ -142,7 +142,134 @@ public final class BytesRefLongBlockHash extends BlockHash {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        throw new UnsupportedOperationException("TODO");
+        BytesRefBlock bytesBlock = page.getBlock(bytesChannel);
+        LongBlock longsBlock = page.getBlock(longsChannel);
+        BytesRefVector bytesVector = bytesBlock.asVector();
+        LongVector longsVector = longsBlock.asVector();
+        if (bytesVector != null && longsVector != null) {
+            return ReleasableIterator.single(lookupVectors(bytesVector, longsVector));
+        }
+        return ReleasableIterator.single(lookupBlocks(bytesBlock, longsBlock));
+    }
+
+    private IntBlock lookupVectors(BytesRefVector bytesVector, LongVector longsVector) {
+        BytesRef scratch = new BytesRef();
+        int positions = bytesVector.getPositionCount();
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                long foundBytes = bytesHash.hash.find(bytesVector.getBytesRef(i, scratch));
+                if (foundBytes < 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int bytesOrd = Math.toIntExact(hashOrdToGroupNullReserved(foundBytes));
+                long found = finalHash.find(bytesOrd, longsVector.getLong(i));
+                if (found < 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt(Math.toIntExact(found));
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private IntBlock lookupBlocks(BytesRefBlock bytesBlock, LongBlock longsBlock) {
+        BytesRef scratch = new BytesRef();
+        int positions = bytesBlock.getPositionCount();
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                int bytesCount = bytesBlock.getValueCount(i);
+                int longsCount = longsBlock.getValueCount(i);
+                if (longsCount == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int firstBytes = bytesBlock.getFirstValueIndex(i);
+                int firstLongs = longsBlock.getFirstValueIndex(i);
+                if (bytesCount <= 1 && longsCount == 1) {
+                    int bytesOrd;
+                    if (bytesCount == 0) {
+                        bytesOrd = 0;
+                    } else {
+                        long foundBytes = bytesHash.hash.find(bytesBlock.getBytesRef(firstBytes, scratch));
+                        if (foundBytes < 0) {
+                            builder.appendNull();
+                            continue;
+                        }
+                        bytesOrd = Math.toIntExact(hashOrdToGroupNullReserved(foundBytes));
+                    }
+                    long found = finalHash.find(bytesOrd, longsBlock.getLong(firstLongs));
+                    if (found < 0) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendInt(Math.toIntExact(found));
+                    }
+                } else {
+                    int maxResults = Math.max(1, bytesCount) * longsCount;
+                    int[] results = new int[maxResults];
+                    int resultCount = 0;
+                    if (bytesCount == 0) {
+                        for (int il = 0; il < longsCount; il++) {
+                            long found = finalHash.find(0, longsBlock.getLong(firstLongs + il));
+                            if (found >= 0) {
+                                results[resultCount++] = Math.toIntExact(found);
+                            }
+                        }
+                    } else {
+                        for (int ib = 0; ib < bytesCount; ib++) {
+                            long foundBytes = bytesHash.hash.find(bytesBlock.getBytesRef(firstBytes + ib, scratch));
+                            if (foundBytes < 0) {
+                                continue;
+                            }
+                            int bytesOrd = Math.toIntExact(hashOrdToGroupNullReserved(foundBytes));
+                            for (int il = 0; il < longsCount; il++) {
+                                long found = finalHash.find(bytesOrd, longsBlock.getLong(firstLongs + il));
+                                if (found >= 0) {
+                                    results[resultCount++] = Math.toIntExact(found);
+                                }
+                            }
+                        }
+                    }
+                    appendDeduplicated(builder, results, resultCount);
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private static void appendDeduplicated(IntBlock.Builder builder, int[] results, int resultCount) {
+        if (resultCount == 0) {
+            builder.appendNull();
+            return;
+        }
+        int uniqueCount = removeDuplicatesPreservingOrder(results, resultCount);
+        if (uniqueCount == 1) {
+            builder.appendInt(results[0]);
+        } else {
+            builder.beginPositionEntry();
+            for (int j = 0; j < uniqueCount; j++) {
+                builder.appendInt(results[j]);
+            }
+            builder.endPositionEntry();
+        }
+    }
+
+    private static int removeDuplicatesPreservingOrder(int[] array, int length) {
+        int unique = 0;
+        for (int i = 0; i < length; i++) {
+            boolean duplicate = false;
+            for (int j = 0; j < unique; j++) {
+                if (array[j] == array[i]) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (duplicate == false) {
+                array[unique++] = array[i];
+            }
+        }
+        return unique;
     }
 
     @Override

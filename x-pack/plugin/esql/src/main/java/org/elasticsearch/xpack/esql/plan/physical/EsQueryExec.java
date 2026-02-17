@@ -67,6 +67,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      */
     private final List<QueryBuilderAndTags> queryBuilderAndTags;
 
+    private final long avgRowsPerShard;
+
     public interface Sort {
         SortBuilder<?> sortBuilder();
 
@@ -135,6 +137,9 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
     };
 
+    /**
+     * Convenience constructor that defaults avgRowsPerShard to -1 (unknown).
+     */
     public EsQueryExec(
         Source source,
         String indexPattern,
@@ -145,6 +150,20 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         Integer estimatedRowSize,
         List<QueryBuilderAndTags> queryBuilderAndTags
     ) {
+        this(source, indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags, -1);
+    }
+
+    public EsQueryExec(
+        Source source,
+        String indexPattern,
+        IndexMode indexMode,
+        List<Attribute> attrs,
+        Expression limit,
+        List<Sort> sorts,
+        Integer estimatedRowSize,
+        List<QueryBuilderAndTags> queryBuilderAndTags,
+        long avgRowsPerShard
+    ) {
         super(source);
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
@@ -152,8 +171,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         this.limit = limit;
         this.sorts = sorts;
         this.estimatedRowSize = estimatedRowSize;
-        // cannot keep the ctor with QueryBuilder as it has the same number of arguments as this ctor, EsqlNodeSubclassTests will fail
         this.queryBuilderAndTags = queryBuilderAndTags;
+        this.avgRowsPerShard = avgRowsPerShard;
     }
 
     @Override
@@ -182,7 +201,18 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<EsQueryExec> info() {
-        return NodeInfo.create(this, EsQueryExec::new, indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
+        return NodeInfo.create(
+            this,
+            EsQueryExec::new,
+            indexPattern,
+            indexMode,
+            attrs,
+            limit,
+            sorts,
+            estimatedRowSize,
+            queryBuilderAndTags,
+            avgRowsPerShard
+        );
     }
 
     public String indexPattern() {
@@ -227,6 +257,13 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         return estimatedRowSize;
     }
 
+    /**
+     * Returns the average number of rows per shard, or -1 if not available.
+     */
+    public long avgRowsPerShard() {
+        return avgRowsPerShard;
+    }
+
     @Override
     public PhysicalPlan estimateRowSize(State state) {
         int size;
@@ -241,13 +278,23 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, size, queryBuilderAndTags);
+            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, size, queryBuilderAndTags, avgRowsPerShard);
     }
 
     public EsQueryExec withLimit(Expression limit) {
         return Objects.equals(this.limit, limit)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
+            : new EsQueryExec(
+                source(),
+                indexPattern,
+                indexMode,
+                attrs,
+                limit,
+                sorts,
+                estimatedRowSize,
+                queryBuilderAndTags,
+                avgRowsPerShard
+            );
     }
 
     public boolean canPushSorts() {
@@ -261,7 +308,17 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.sorts, sorts)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
+            : new EsQueryExec(
+                source(),
+                indexPattern,
+                indexMode,
+                attrs,
+                limit,
+                sorts,
+                estimatedRowSize,
+                queryBuilderAndTags,
+                avgRowsPerShard
+            );
     }
 
     /**
@@ -281,7 +338,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
                 limit,
                 sorts,
                 estimatedRowSize,
-                List.of(new QueryBuilderAndTags(query, List.of()))
+                List.of(new QueryBuilderAndTags(query, List.of())),
+                avgRowsPerShard
             );
     }
 
@@ -323,7 +381,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, attrs, limit, sorts, queryBuilderAndTags);
+        return Objects.hash(indexPattern, indexMode, attrs, limit, sorts, queryBuilderAndTags, avgRowsPerShard);
     }
 
     @Override
@@ -343,7 +401,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             && Objects.equals(limit, other.limit)
             && Objects.equals(sorts, other.sorts)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
-            && Objects.equals(queryBuilderAndTags, other.queryBuilderAndTags);
+            && Objects.equals(queryBuilderAndTags, other.queryBuilderAndTags)
+            && avgRowsPerShard == other.avgRowsPerShard;
     }
 
     @Override

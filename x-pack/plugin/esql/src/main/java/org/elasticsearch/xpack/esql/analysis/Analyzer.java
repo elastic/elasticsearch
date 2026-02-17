@@ -351,7 +351,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 esIndex.originalIndices(),
                 esIndex.concreteIndices(),
                 esIndex.indexNameWithModes(),
-                attributes.isEmpty() ? NO_FIELDS : attributes
+                attributes.isEmpty() ? NO_FIELDS : attributes,
+                esIndex.avgRowsPerShard()
             );
         }
 

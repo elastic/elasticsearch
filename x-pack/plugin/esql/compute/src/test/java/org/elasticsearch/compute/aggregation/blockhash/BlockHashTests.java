@@ -1857,9 +1857,7 @@ public class BlockHashTests extends BlockHashTestCase {
                 }
                 called[0] = true;
                 callback.accept(ordsAndKeys);
-                if (hash instanceof LongLongBlockHash == false
-                    && hash instanceof BytesRefLongBlockHash == false
-                    && hash instanceof BytesRef3BlockHash == false) {
+                if (hash instanceof TimeSeriesBlockHash == false) {
                     try (ReleasableIterator<IntBlock> lookup = hash.lookup(new Page(values), ByteSizeValue.ofKb(between(1, 100)))) {
                         assertThat(lookup.hasNext(), equalTo(true));
                         try (IntBlock ords = lookup.next()) {

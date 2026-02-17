@@ -204,7 +204,8 @@ final class RequestDispatcher {
             fieldCapsRequest.indexFilter(),
             nowInMillis,
             fieldCapsRequest.runtimeFields(),
-            fieldCapsRequest.includeEmptyFields()
+            fieldCapsRequest.includeEmptyFields(),
+            fieldCapsRequest.includeDocCount()
         );
         transportService.sendChildRequest(
             node,

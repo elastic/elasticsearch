@@ -142,7 +142,136 @@ final class BytesRef3BlockHash extends BlockHash {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        throw new UnsupportedOperationException("TODO");
+        BytesRefBlock b1 = page.getBlock(channel1);
+        BytesRefBlock b2 = page.getBlock(channel2);
+        BytesRefBlock b3 = page.getBlock(channel3);
+        BytesRefVector v1 = b1.asVector();
+        BytesRefVector v2 = b2.asVector();
+        BytesRefVector v3 = b3.asVector();
+        if (v1 != null && v2 != null && v3 != null) {
+            return ReleasableIterator.single(lookupVectors(v1, v2, v3));
+        }
+        return ReleasableIterator.single(lookupBlocks(b1, b2, b3));
+    }
+
+    private IntBlock lookupVectors(BytesRefVector v1, BytesRefVector v2, BytesRefVector v3) {
+        BytesRef scratch1 = new BytesRef();
+        BytesRef scratch2 = new BytesRef();
+        BytesRef scratch3 = new BytesRef();
+        int positions = v1.getPositionCount();
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                long found1 = hash1.hash.find(v1.getBytesRef(i, scratch1));
+                if (found1 < 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                long found2 = hash2.hash.find(v2.getBytesRef(i, scratch2));
+                if (found2 < 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                long found3 = hash3.hash.find(v3.getBytesRef(i, scratch3));
+                if (found3 < 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int k1 = Math.toIntExact(hashOrdToGroupNullReserved(found1));
+                int k2 = Math.toIntExact(hashOrdToGroupNullReserved(found2));
+                int k3 = Math.toIntExact(hashOrdToGroupNullReserved(found3));
+                long found = finalHash.find(k1, k2, k3);
+                if (found < 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt(Math.toIntExact(found));
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private IntBlock lookupBlocks(BytesRefBlock b1, BytesRefBlock b2, BytesRefBlock b3) {
+        BytesRef scratch1 = new BytesRef();
+        BytesRef scratch2 = new BytesRef();
+        BytesRef scratch3 = new BytesRef();
+        int positions = b1.getPositionCount();
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                int v1Count = b1.getValueCount(i);
+                int v2Count = b2.getValueCount(i);
+                int v3Count = b3.getValueCount(i);
+                if (v1Count == 0 || v2Count == 0 || v3Count == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int first1 = b1.getFirstValueIndex(i);
+                int first2 = b2.getFirstValueIndex(i);
+                int first3 = b3.getFirstValueIndex(i);
+                if (v1Count == 1 && v2Count == 1 && v3Count == 1) {
+                    long found1 = hash1.hash.find(b1.getBytesRef(first1, scratch1));
+                    if (found1 < 0) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    long found2 = hash2.hash.find(b2.getBytesRef(first2, scratch2));
+                    if (found2 < 0) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    long found3 = hash3.hash.find(b3.getBytesRef(first3, scratch3));
+                    if (found3 < 0) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    int k1 = Math.toIntExact(hashOrdToGroupNullReserved(found1));
+                    int k2 = Math.toIntExact(hashOrdToGroupNullReserved(found2));
+                    int k3 = Math.toIntExact(hashOrdToGroupNullReserved(found3));
+                    long found = finalHash.find(k1, k2, k3);
+                    if (found < 0) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendInt(Math.toIntExact(found));
+                    }
+                } else {
+                    boolean started = false;
+                    for (int i1 = 0; i1 < v1Count; i1++) {
+                        long found1 = hash1.hash.find(b1.getBytesRef(first1 + i1, scratch1));
+                        if (found1 < 0) {
+                            continue;
+                        }
+                        int k1 = Math.toIntExact(hashOrdToGroupNullReserved(found1));
+                        for (int i2 = 0; i2 < v2Count; i2++) {
+                            long found2 = hash2.hash.find(b2.getBytesRef(first2 + i2, scratch2));
+                            if (found2 < 0) {
+                                continue;
+                            }
+                            int k2 = Math.toIntExact(hashOrdToGroupNullReserved(found2));
+                            for (int i3 = 0; i3 < v3Count; i3++) {
+                                long found3 = hash3.hash.find(b3.getBytesRef(first3 + i3, scratch3));
+                                if (found3 < 0) {
+                                    continue;
+                                }
+                                int k3 = Math.toIntExact(hashOrdToGroupNullReserved(found3));
+                                long found = finalHash.find(k1, k2, k3);
+                                if (found >= 0) {
+                                    if (started == false) {
+                                        builder.beginPositionEntry();
+                                        started = true;
+                                    }
+                                    builder.appendInt(Math.toIntExact(found));
+                                }
+                            }
+                        }
+                    }
+                    if (started) {
+                        builder.endPositionEntry();
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+            }
+            return builder.build();
+        }
     }
 
     @Override

@@ -75,7 +75,101 @@ final class LongLongBlockHash extends BlockHash {
 
     @Override
     public ReleasableIterator<IntBlock> lookup(Page page, ByteSizeValue targetBlockSize) {
-        throw new UnsupportedOperationException("TODO");
+        LongBlock b1 = page.getBlock(channel1);
+        LongBlock b2 = page.getBlock(channel2);
+        LongVector v1 = b1.asVector();
+        LongVector v2 = b2.asVector();
+        if (v1 != null && v2 != null) {
+            return ReleasableIterator.single(lookupVectors(v1, v2));
+        }
+        return ReleasableIterator.single(lookupBlocks(b1, b2));
+    }
+
+    private IntBlock lookupVectors(LongVector v1, LongVector v2) {
+        int positions = v1.getPositionCount();
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                long found = hash.find(v1.getLong(i), v2.getLong(i));
+                if (found < 0) {
+                    builder.appendNull();
+                } else {
+                    builder.appendInt(Math.toIntExact(found));
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private IntBlock lookupBlocks(LongBlock b1, LongBlock b2) {
+        int positions = b1.getPositionCount();
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                int v1Count = b1.getValueCount(i);
+                int v2Count = b2.getValueCount(i);
+                if (v1Count == 0 || v2Count == 0) {
+                    builder.appendNull();
+                    continue;
+                }
+                int first1 = b1.getFirstValueIndex(i);
+                int first2 = b2.getFirstValueIndex(i);
+                if (v1Count == 1 && v2Count == 1) {
+                    long found = hash.find(b1.getLong(first1), b2.getLong(first2));
+                    if (found < 0) {
+                        builder.appendNull();
+                    } else {
+                        builder.appendInt(Math.toIntExact(found));
+                    }
+                } else {
+                    int[] results = new int[v1Count * v2Count];
+                    int resultCount = 0;
+                    for (int i1 = 0; i1 < v1Count; i1++) {
+                        long val1 = b1.getLong(first1 + i1);
+                        for (int i2 = 0; i2 < v2Count; i2++) {
+                            long found = hash.find(val1, b2.getLong(first2 + i2));
+                            if (found >= 0) {
+                                results[resultCount++] = Math.toIntExact(found);
+                            }
+                        }
+                    }
+                    appendDeduplicated(builder, results, resultCount);
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    private static void appendDeduplicated(IntBlock.Builder builder, int[] results, int resultCount) {
+        if (resultCount == 0) {
+            builder.appendNull();
+            return;
+        }
+        int uniqueCount = removeDuplicatesPreservingOrder(results, resultCount);
+        if (uniqueCount == 1) {
+            builder.appendInt(results[0]);
+        } else {
+            builder.beginPositionEntry();
+            for (int j = 0; j < uniqueCount; j++) {
+                builder.appendInt(results[j]);
+            }
+            builder.endPositionEntry();
+        }
+    }
+
+    private static int removeDuplicatesPreservingOrder(int[] array, int length) {
+        int unique = 0;
+        for (int i = 0; i < length; i++) {
+            boolean duplicate = false;
+            for (int j = 0; j < unique; j++) {
+                if (array[j] == array[i]) {
+                    duplicate = true;
+                    break;
+                }
+            }
+            if (duplicate == false) {
+                array[unique++] = array[i];
+            }
+        }
+        return unique;
     }
 
     @Override

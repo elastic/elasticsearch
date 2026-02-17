@@ -23,7 +23,8 @@ public class EsSourceExecSerializationTests extends AbstractPhysicalPlanSerializ
             randomIdentifier(),
             randomFrom(IndexMode.values()),
             randomFieldAttributes(1, 10, false),
-            new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5))
+            new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5)),
+            randomBoolean() ? -1 : randomLongBetween(0, 1_000_000)
         );
     }
 
@@ -38,14 +39,16 @@ public class EsSourceExecSerializationTests extends AbstractPhysicalPlanSerializ
         IndexMode indexMode = instance.indexMode();
         List<Attribute> attributes = instance.output();
         QueryBuilder query = instance.query();
-        switch (between(0, 3)) {
+        long avgRowsPerShard = instance.avgRowsPerShard();
+        switch (between(0, 4)) {
             case 0 -> indexPattern = randomValueOtherThan(indexPattern, ESTestCase::randomIdentifier);
             case 1 -> indexMode = randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
             case 2 -> attributes = randomValueOtherThan(attributes, () -> randomFieldAttributes(1, 10, false));
             case 3 -> query = randomValueOtherThan(query, () -> new TermQueryBuilder(randomAlphaOfLength(5), randomAlphaOfLength(5)));
+            case 4 -> avgRowsPerShard = randomValueOtherThan(avgRowsPerShard, () -> randomBoolean() ? -1 : randomLongBetween(0, 1_000_000));
             default -> throw new IllegalStateException();
         }
-        return new EsSourceExec(instance.source(), indexPattern, indexMode, attributes, query);
+        return new EsSourceExec(instance.source(), indexPattern, indexMode, attributes, query, avgRowsPerShard);
     }
 
     @Override

@@ -626,6 +626,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         batchToWorker.put(metadata.batchId(), worker);
         // Track the number of batches that have been sent
         startedBatchCount++;
+        page.allowPassingToDifferentDriver();
         worker.clientToServerSink.addPage(page);
         logger.trace(
             "[LookupJoinClient] Sent batch {} to worker {}, pending={}",
@@ -834,7 +835,11 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         int started = startedBatchCount;
         int completed = completedBatchCount;
         if (started > 0 && completed < started) {
-            logger.warn("[LookupJoinClient] Closing with incomplete batches: started={}, completed={}", started, completed);
+            logger.debug(
+                "[LookupJoinClient] Closing with incomplete batches (this is OK with LIMIT): started={}, completed={}",
+                started,
+                completed
+            );
         }
 
         // Finish the shared server-to-client source handler to signal completion

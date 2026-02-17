@@ -141,6 +141,7 @@ public class StreamingLookupFromIndexOperator implements Operator {
         this.matchFieldsMapping = LookupFromIndexOperator.buildMatchFieldsMapping(matchFields, joinOnConditions);
         this.profile = profile;
 
+        logger.info("Using INDEX JOIN strategy for lookup index [{}]", lookupIndex);
         // Initialize exchange client in constructor
         initializeClient();
     }

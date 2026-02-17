@@ -34,6 +34,8 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     private final boolean canMatch;
     private final transient TransportVersion originVersion;
     private final IndexMode indexMode;
+    private final long docCount;
+    private final int shardCount;
 
     public FieldCapabilitiesIndexResponse(
         String indexName,
@@ -42,12 +44,26 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         boolean canMatch,
         IndexMode indexMode
     ) {
+        this(indexName, indexMappingHash, responseMap, canMatch, indexMode, -1, 1);
+    }
+
+    public FieldCapabilitiesIndexResponse(
+        String indexName,
+        @Nullable String indexMappingHash,
+        Map<String, IndexFieldCapabilities> responseMap,
+        boolean canMatch,
+        IndexMode indexMode,
+        long docCount,
+        int shardCount
+    ) {
         this.indexName = indexName;
         this.indexMappingHash = indexMappingHash;
         this.responseMap = responseMap;
         this.canMatch = canMatch;
         this.originVersion = TransportVersion.current();
         this.indexMode = indexMode;
+        this.docCount = docCount;
+        this.shardCount = shardCount;
     }
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
@@ -57,6 +73,13 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         this.originVersion = in.getTransportVersion();
         this.indexMappingHash = in.readOptionalString();
         this.indexMode = IndexMode.readFrom(in);
+        if (in.getTransportVersion().supports(FieldCapabilitiesRequest.FIELD_CAPS_INCLUDE_DOC_COUNT)) {
+            this.docCount = in.readLong();
+            this.shardCount = in.readVInt();
+        } else {
+            this.docCount = -1;
+            this.shardCount = 1;
+        }
     }
 
     @Override
@@ -66,9 +89,20 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         out.writeBoolean(canMatch);
         out.writeOptionalString(indexMappingHash);
         IndexMode.writeTo(indexMode, out);
+        if (out.getTransportVersion().supports(FieldCapabilitiesRequest.FIELD_CAPS_INCLUDE_DOC_COUNT)) {
+            out.writeLong(docCount);
+            out.writeVInt(shardCount);
+        }
     }
 
-    private record CompressedGroup(String[] indices, IndexMode indexMode, String mappingHash, int[] fields) {}
+    private record CompressedGroup(
+        String[] indices,
+        IndexMode indexMode,
+        String mappingHash,
+        int[] fields,
+        long[] docCounts,
+        int[] shardCounts
+    ) {}
 
     static List<FieldCapabilitiesIndexResponse> readList(StreamInput input) throws IOException {
         final int ungrouped = input.readVInt();
@@ -83,12 +117,24 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
 
     private static void collectCompressedResponses(StreamInput input, int groups, ArrayList<FieldCapabilitiesIndexResponse> responses)
         throws IOException {
+        final boolean hasDocCounts = input.getTransportVersion().supports(FieldCapabilitiesRequest.FIELD_CAPS_INCLUDE_DOC_COUNT);
         final CompressedGroup[] compressedGroups = new CompressedGroup[groups];
         for (int i = 0; i < groups; i++) {
             final String[] indices = input.readStringArray();
             final IndexMode indexMode = IndexMode.readFrom(input);
             final String mappingHash = input.readString();
-            compressedGroups[i] = new CompressedGroup(indices, indexMode, mappingHash, input.readIntArray());
+            final int[] fields = input.readIntArray();
+            long[] docCounts = null;
+            int[] shardCounts = null;
+            if (hasDocCounts) {
+                docCounts = new long[indices.length];
+                shardCounts = new int[indices.length];
+                for (int j = 0; j < indices.length; j++) {
+                    docCounts[j] = input.readLong();
+                    shardCounts[j] = input.readVInt();
+                }
+            }
+            compressedGroups[i] = new CompressedGroup(indices, indexMode, mappingHash, fields, docCounts, shardCounts);
         }
         final IndexFieldCapabilities[] ifcLookup = input.readArray(IndexFieldCapabilities::readFrom, IndexFieldCapabilities[]::new);
         for (CompressedGroup compressedGroup : compressedGroups) {
@@ -97,8 +143,20 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
                 var val = ifcLookup[i];
                 ifc.put(val.name(), val);
             }
-            for (String index : compressedGroup.indices) {
-                responses.add(new FieldCapabilitiesIndexResponse(index, compressedGroup.mappingHash, ifc, true, compressedGroup.indexMode));
+            for (int j = 0; j < compressedGroup.indices.length; j++) {
+                long dc = compressedGroup.docCounts != null ? compressedGroup.docCounts[j] : -1;
+                int sc = compressedGroup.shardCounts != null ? compressedGroup.shardCounts[j] : 1;
+                responses.add(
+                    new FieldCapabilitiesIndexResponse(
+                        compressedGroup.indices[j],
+                        compressedGroup.mappingHash,
+                        ifc,
+                        true,
+                        compressedGroup.indexMode,
+                        dc,
+                        sc
+                    )
+                );
             }
         }
     }
@@ -144,6 +202,7 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
 
     private static void writeCompressedResponses(StreamOutput output, Map<String, List<FieldCapabilitiesIndexResponse>> groupedResponsesMap)
         throws IOException {
+        final boolean writeDocCounts = output.getTransportVersion().supports(FieldCapabilitiesRequest.FIELD_CAPS_INCLUDE_DOC_COUNT);
         final Map<IndexFieldCapabilities, Integer> fieldDedupMap = new LinkedHashMap<>();
         output.writeCollection(groupedResponsesMap.values(), (o, fieldCapabilitiesIndexResponses) -> {
             o.writeCollection(fieldCapabilitiesIndexResponses, (oo, r) -> oo.writeString(r.indexName));
@@ -155,6 +214,12 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
                 Integer offset = fieldDedupMap.size();
                 final Integer found = fieldDedupMap.putIfAbsent(ifc, offset);
                 o.writeInt(found == null ? offset : found);
+            }
+            if (writeDocCounts) {
+                for (var r : fieldCapabilitiesIndexResponses) {
+                    o.writeLong(r.docCount);
+                    o.writeVInt(r.shardCount);
+                }
             }
         });
         // this is a linked hash map so the key-set is written in insertion order, so we can just write it out in order and then read it
@@ -186,6 +251,20 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
     }
 
     /**
+     * Returns the document count for this index, or -1 if not requested.
+     */
+    public long getDocCount() {
+        return docCount;
+    }
+
+    /**
+     * Returns the number of shards that contributed to this response's doc count.
+     */
+    public int getShardCount() {
+        return shardCount;
+    }
+
+    /**
      * Get the field capabilities map
      */
     public Map<String, IndexFieldCapabilities> get() {
@@ -202,6 +281,8 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
         if (o == null || getClass() != o.getClass()) return false;
         FieldCapabilitiesIndexResponse that = (FieldCapabilitiesIndexResponse) o;
         return canMatch == that.canMatch
+            && docCount == that.docCount
+            && shardCount == that.shardCount
             && Objects.equals(indexName, that.indexName)
             && Objects.equals(indexMappingHash, that.indexMappingHash)
             && Objects.equals(responseMap, that.responseMap);
@@ -209,6 +290,6 @@ public final class FieldCapabilitiesIndexResponse implements Writeable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexName, indexMappingHash, responseMap, canMatch);
+        return Objects.hash(indexName, indexMappingHash, responseMap, canMatch, docCount, shardCount);
     }
 }

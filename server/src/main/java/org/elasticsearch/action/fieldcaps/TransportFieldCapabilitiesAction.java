@@ -309,7 +309,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                         curr.getIndexMappingHash(),
                         curr.get(),
                         true,
-                        curr.getIndexMode()
+                        curr.getIndexMode(),
+                        resp.getDocCount(),
+                        resp.getShardCount()
                     );
                 }
             }
@@ -322,12 +324,18 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                     }
                     Map<String, IndexFieldCapabilities> mergedCaps = new HashMap<>(a.get());
                     mergedCaps.putAll(b.get());
+                    long mergedDocCount = (a.getDocCount() >= 0 && b.getDocCount() >= 0)
+                        ? a.getDocCount() + b.getDocCount()
+                        : Math.max(a.getDocCount(), b.getDocCount());
+                    int mergedShardCount = a.getShardCount() + b.getShardCount();
                     return new FieldCapabilitiesIndexResponse(
                         a.getIndexName(),
                         a.getIndexMappingHash(),
                         mergedCaps,
                         true,
-                        a.getIndexMode()
+                        a.getIndexMode(),
+                        mergedDocCount,
+                        mergedShardCount
                     );
                 });
             }
@@ -439,7 +447,9 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                                 resp.getIndexMappingHash(),
                                 resp.get(),
                                 resp.canMatch(),
-                                resp.getIndexMode()
+                                resp.getIndexMode(),
+                                resp.getDocCount(),
+                                resp.getShardCount()
                             )
                         );
                     }
@@ -675,6 +685,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
         remoteRequest.includeEmptyFields(request.includeEmptyFields());
+        remoteRequest.includeDocCount(request.includeDocCount());
         remoteRequest.includeResolvedTo(request.includeResolvedTo() || resolveCrossProject);
         return remoteRequest;
     }
@@ -940,7 +951,11 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
                 final Map<String, List<ShardId>> groupedShardIds = request.shardIds()
                     .stream()
                     .collect(Collectors.groupingBy(ShardId::getIndexName));
-                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(indicesService, request.includeEmptyFields());
+                final FieldCapabilitiesFetcher fetcher = new FieldCapabilitiesFetcher(
+                    indicesService,
+                    request.includeEmptyFields(),
+                    request.includeDocCount()
+                );
                 Predicate<String> fieldNameFilter;
                 try {
                     fieldNameFilter = Regex.simpleMatcher(request.fields());

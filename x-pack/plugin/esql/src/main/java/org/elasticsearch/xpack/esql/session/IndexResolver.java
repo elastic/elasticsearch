@@ -350,11 +350,19 @@ public class IndexResolver {
         }
 
         boolean allEmpty = true;
+        long totalDocCount = 0;
+        int totalShardCount = 0;
+        boolean hasDocCount = false;
         Map<String, IndexMode> indexNameWithModes = Maps.newMapWithExpectedSize(fieldsInfo.caps.getIndexResponses().size());
         Map<String, List<String>> concreteIndices = Maps.newHashMapWithExpectedSize(8);
         for (FieldCapabilitiesIndexResponse ir : fieldsInfo.caps.getIndexResponses()) {
             allEmpty &= ir.get().isEmpty();
             indexNameWithModes.put(ir.getIndexName(), ir.getIndexMode());
+            if (ir.getDocCount() >= 0) {
+                totalDocCount += ir.getDocCount();
+                totalShardCount += ir.getShardCount();
+                hasDocCount = true;
+            }
             var parts = RemoteClusterAware.splitIndexName(ir.getIndexName());
             concreteIndices.computeIfAbsent(RemoteClusterAware.getClusterAlias(parts), k -> new ArrayList<>())
                 .add(RemoteClusterAware.getLocalIndexName(parts));
@@ -375,7 +383,8 @@ public class IndexResolver {
             // once all remotes support it (v9.3+)
             originalIndexExtractor.apply(indexPattern, fieldsInfo.caps),
             concreteIndices,
-            partiallyUnmappedFields
+            partiallyUnmappedFields,
+            hasDocCount && totalShardCount > 0 ? totalDocCount / totalShardCount : -1
         );
         var failures = EsqlCCSUtils.groupFailuresPerCluster(fieldsInfo.caps.getFailures());
         return IndexResolution.valid(index, indexNameWithModes.keySet(), failures);
@@ -540,6 +549,7 @@ public class IndexResolver {
         }
         request.setMergeResults(false);
         request.includeResolvedTo(includeResolvedTo);
+        request.includeDocCount(true);
         request.projectRouting(projectRouting);
         return request;
     }

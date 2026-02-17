@@ -42,6 +42,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
 
     private static final TransportVersion FIELD_CAPS_ADD_CLUSTER_ALIAS = TransportVersion.fromName("field_caps_add_cluster_alias");
     static final TransportVersion RESOLVED_FIELDS_CAPS = TransportVersion.fromName("resolved_fields_caps");
+    static final TransportVersion FIELD_CAPS_INCLUDE_DOC_COUNT = TransportVersion.fromName("field_caps_include_doc_count");
 
     private String clusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
 
@@ -63,6 +64,7 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
     private transient boolean includeIndices = false;
 
     private boolean includeResolvedTo = false;
+    private boolean includeDocCount = false;
     private String projectRouting;
 
     /**
@@ -100,6 +102,11 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
             includeResolvedTo = in.readBoolean();
         } else {
             includeResolvedTo = false;
+        }
+        if (in.getTransportVersion().supports(FIELD_CAPS_INCLUDE_DOC_COUNT)) {
+            includeDocCount = in.readBoolean();
+        } else {
+            includeDocCount = false;
         }
     }
 
@@ -151,6 +158,9 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         }
         if (out.getTransportVersion().supports(RESOLVED_FIELDS_CAPS)) {
             out.writeBoolean(includeResolvedTo);
+        }
+        if (out.getTransportVersion().supports(FIELD_CAPS_INCLUDE_DOC_COUNT)) {
+            out.writeBoolean(includeDocCount);
         }
     }
 
@@ -308,6 +318,15 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
         return includeEmptyFields;
     }
 
+    public FieldCapabilitiesRequest includeDocCount(boolean includeDocCount) {
+        this.includeDocCount = includeDocCount;
+        return this;
+    }
+
+    public boolean includeDocCount() {
+        return includeDocCount;
+    }
+
     /**
      * Allows to filter indices if the provided {@link QueryBuilder} rewrites to `match_none` on every shard.
      */
@@ -371,7 +390,8 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
             && Arrays.equals(filters, that.filters)
             && Arrays.equals(types, that.types)
             && Objects.equals(runtimeFields, that.runtimeFields)
-            && includeEmptyFields == that.includeEmptyFields;
+            && includeEmptyFields == that.includeEmptyFields
+            && includeDocCount == that.includeDocCount;
     }
 
     @Override
@@ -383,7 +403,8 @@ public final class FieldCapabilitiesRequest extends LegacyActionRequest implemen
             indexFilter,
             nowInMillis,
             runtimeFields,
-            includeEmptyFields
+            includeEmptyFields,
+            includeDocCount
         );
         result = 31 * result + Arrays.hashCode(indices);
         result = 31 * result + Arrays.hashCode(fields);

@@ -54,7 +54,8 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             null,
             null,
             null,
-            List.of(new EsQueryExec.QueryBuilderAndTags(plan.query(), List.of()))
+            List.of(new EsQueryExec.QueryBuilderAndTags(plan.query(), List.of())),
+            plan.avgRowsPerShard()
         );
     }
 

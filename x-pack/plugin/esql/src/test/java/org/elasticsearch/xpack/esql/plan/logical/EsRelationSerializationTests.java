@@ -28,7 +28,8 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
             randomRemotesWithIndices(),
             randomRemotesWithIndices(),
             randomIndexNameWithModes(),
-            randomFieldAttributes(0, 10, false)
+            randomFieldAttributes(0, 10, false),
+            randomBoolean() ? -1 : randomLongBetween(0, 1_000_000)
         );
     }
 
@@ -45,16 +46,27 @@ public class EsRelationSerializationTests extends AbstractLogicalPlanSerializati
         Map<String, List<String>> concreteIndices = instance.concreteIndices();
         Map<String, IndexMode> indexNameWithModes = instance.indexNameWithModes();
         List<Attribute> attributes = instance.output();
-        switch (between(0, 5)) {
+        long avgRowsPerShard = instance.avgRowsPerShard();
+        switch (between(0, 6)) {
             case 0 -> indexPattern = randomValueOtherThan(indexPattern, ESTestCase::randomIdentifier);
             case 1 -> indexMode = randomValueOtherThan(indexMode, () -> randomFrom(IndexMode.values()));
             case 2 -> indexNameWithModes = randomValueOtherThan(indexNameWithModes, EsIndexGenerator::randomIndexNameWithModes);
             case 3 -> originalIndices = randomValueOtherThan(originalIndices, EsIndexGenerator::randomRemotesWithIndices);
             case 4 -> concreteIndices = randomValueOtherThan(concreteIndices, EsIndexGenerator::randomRemotesWithIndices);
             case 5 -> attributes = randomValueOtherThan(attributes, () -> randomFieldAttributes(0, 10, false));
+            case 6 -> avgRowsPerShard = randomValueOtherThan(avgRowsPerShard, () -> randomBoolean() ? -1 : randomLongBetween(0, 1_000_000));
             default -> throw new IllegalArgumentException();
         }
-        return new EsRelation(instance.source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attributes);
+        return new EsRelation(
+            instance.source(),
+            indexPattern,
+            indexMode,
+            originalIndices,
+            concreteIndices,
+            indexNameWithModes,
+            attributes,
+            avgRowsPerShard
+        );
     }
 
     @Override

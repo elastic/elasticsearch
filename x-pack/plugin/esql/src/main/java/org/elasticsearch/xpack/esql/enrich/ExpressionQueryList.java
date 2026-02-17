@@ -11,6 +11,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.Warnings;
@@ -94,8 +95,10 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
         ClusterService clusterService,
         AliasFilter aliasFilter
     ) {
-        if (queryLists.size() < 2 && (rightPreJoinPlan instanceof FilterExec == false)) {
-            throw new IllegalArgumentException("ExpressionQueryList must have at least two QueryLists or a pre-join filter");
+        if (queryLists.size() == 1 && (rightPreJoinPlan instanceof FilterExec == false)) {
+            throw new IllegalArgumentException(
+                "Single QueryList without a pre-join filter should be used directly, not wrapped in ExpressionQueryList"
+            );
         }
         return new ExpressionQueryList(queryLists, context, rightPreJoinPlan, clusterService, aliasFilter);
     }
@@ -305,7 +308,12 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
                 throw new UncheckedIOException("Error while building query for Lucene pushable filter", e);
             }
         }
-        return builder.build();
+        BooleanQuery boolQuery = builder.build();
+        if (boolQuery.clauses().isEmpty()) {
+            // No match fields and no pre-join filter: broadcast mode, match all documents
+            return Queries.ALL_DOCS_INSTANCE;
+        }
+        return boolQuery;
     }
 
     /**
@@ -316,6 +324,10 @@ public class ExpressionQueryList implements LookupEnrichQueryGenerator {
      */
     @Override
     public int getPositionCount(Page inputPage) {
+        if (queryLists.isEmpty()) {
+            // Broadcast mode: no per-row match fields, position count comes from the input page
+            return inputPage.getPositionCount();
+        }
         int positionCount = queryLists.get(0).getPositionCount(inputPage);
         for (QueryList queryList : queryLists) {
             if (queryList.getPositionCount(inputPage) != positionCount) {

@@ -163,7 +163,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
     ) {
         PhysicalPlan lookupNodePlan = localLookupNodePlanning(request.rightPreJoinPlan);
         if (request.joinOnConditions == null) {
-            // this is a field based join
+            // Field-based join. When matchFields is empty this is a broadcast join:
+            // the loop below produces an empty queryLists, which causes ExpressionQueryList
+            // to emit MatchAllDocsQuery (possibly combined with the pre-join filter).
             List<QueryList> queryLists = new ArrayList<>();
             for (int i = 0; i < request.matchFields.size(); i++) {
                 MatchConfig matchField = request.matchFields.get(i);
@@ -228,7 +230,15 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             String serverToClientId,
             boolean profile
         ) {
-            super(sessionId, index, indexPattern, matchFields.get(0).type(), inputPage, extractFields, source);
+            super(
+                sessionId,
+                index,
+                indexPattern,
+                matchFields.isEmpty() ? null : matchFields.get(0).type(),
+                inputPage,
+                extractFields,
+                source
+            );
             this.matchFields = matchFields;
             this.rightPreJoinPlan = rightPreJoinPlan;
             this.joinOnConditions = joinOnConditions;
@@ -388,6 +398,9 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             if (out.getTransportVersion().supports(ESQL_LOOKUP_JOIN_ON_MANY_FIELDS) == false) {
                 // only write this for old versions
                 // older versions only support a single match field
+                if (matchFields.isEmpty()) {
+                    throw new EsqlIllegalArgumentException("Broadcast LOOKUP JOIN is not supported on older remote nodes");
+                }
                 if (matchFields.size() > 1) {
                     throw new EsqlIllegalArgumentException("LOOKUP JOIN on multiple fields is not supported on remote node");
                 }
@@ -402,6 +415,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             } else {
                 // older versions only support a single match field, we already checked this above when writing the datatype
                 // send the field name of the first and only match field here
+                // matchFields.isEmpty() case was already rejected above for old versions
                 out.writeString(matchFields.get(0).fieldName());
             }
             source.writeTo(planOut);

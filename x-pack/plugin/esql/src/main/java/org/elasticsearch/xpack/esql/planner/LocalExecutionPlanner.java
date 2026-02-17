@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
+import org.elasticsearch.xpack.esql.enrich.BroadcastLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
@@ -108,6 +109,8 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Foldables;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
@@ -118,6 +121,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
 import org.elasticsearch.xpack.esql.plan.physical.DissectExec;
 import org.elasticsearch.xpack.esql.plan.physical.EnrichExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
@@ -142,6 +146,7 @@ import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
@@ -243,7 +248,8 @@ public class LocalExecutionPlanner {
             foldCtx,
             plannerSettings,
             timeSeries,
-            shardContexts
+            shardContexts,
+            localPhysicalPlan
         );
 
         // workaround for https://github.com/elastic/elasticsearch/issues/99782
@@ -839,6 +845,68 @@ public class LocalExecutionPlanner {
             matchFields.add(new MatchConfig(fieldName, input));
         }
         boolean useStreamingOperator = shouldUseStreamingOperator(lookupFromIndexService, indexName);
+        boolean useBroadcast = context.queryPragmas().broadcastJoin()
+            && useStreamingOperator
+            && isBroadcastEligible(join)
+            && shouldUseBroadcastStrategy(join, esRelation, context);
+
+        if (useBroadcast) {
+            // Compute left join key channels from the source layout (one per join key)
+            int[] leftJoinKeyChannels = new int[join.leftFields().size()];
+            for (int i = 0; i < join.leftFields().size(); i++) {
+                Attribute leftKey = join.leftFields().get(i);
+                Layout.ChannelAndType leftKeyLayout = source.layout.get(leftKey.id());
+                leftJoinKeyChannels[i] = leftKeyLayout.channel();
+            }
+
+            // Build loadFields: start with addedFields, ensure all right join keys are present
+            List<NamedExpression> addedFieldsList = join.addedFields().stream().map(f -> (NamedExpression) f).toList();
+            List<NamedExpression> loadFields = new ArrayList<>(addedFieldsList);
+            int[] joinKeyColumnsInRight = new int[join.rightFields().size()];
+            for (int i = 0; i < join.rightFields().size(); i++) {
+                Attribute rightKey = join.rightFields().get(i);
+                int joinKeyIndexInLoadFields = -1;
+                for (int j = 0; j < loadFields.size(); j++) {
+                    if (loadFields.get(j).name().equals(rightKey.name())) {
+                        joinKeyIndexInLoadFields = j;
+                        break;
+                    }
+                }
+                if (joinKeyIndexInLoadFields == -1) {
+                    // Prepend the right join key field
+                    loadFields.add(0, (NamedExpression) rightKey);
+                    joinKeyIndexInLoadFields = 0;
+                    // Shift any previously computed indices since we prepended
+                    for (int k = 0; k < i; k++) {
+                        joinKeyColumnsInRight[k]++;
+                    }
+                }
+                // Column 0 in right pages from the server is positions; loadFields start at column 1
+                joinKeyColumnsInRight[i] = 1 + joinKeyIndexInLoadFields;
+            }
+
+            return source.with(
+                new BroadcastLookupFromIndexOperator.Factory(
+                    List.of(),  // empty matchFields for broadcast (triggers match_all on server)
+                    sessionId,
+                    parentTask,
+                    ctx -> lookupFromIndexService,
+                    esRelation.indexPattern(),
+                    indexName,
+                    loadFields,
+                    join.source(),
+                    join.right(),
+                    context.queryPragmas().exchangeBufferSize(),
+                    configuration.profile(),
+                    leftJoinKeyChannels,
+                    joinKeyColumnsInRight,
+                    join.addedFields().size()
+                ),
+                layout
+            );
+        }
+        useStreamingOperator = false; // do not use streaming operator, we need base/contender comparison with base
+
         return source.with(
             new LookupFromIndexOperator.Factory(
                 matchFields,
@@ -909,6 +977,187 @@ public class LocalExecutionPlanner {
             logger.debug("Failed to determine target node version for lookup, using non-streaming operator", e);
             return false;
         }
+    }
+
+    /**
+     * Determines whether a lookup join is eligible for the broadcast strategy.
+     * Broadcast is eligible when there is a single join key, the left and right key field names match
+     * (hash join uses exact value equality — different underlying ES types like float vs scaled_float
+     * can produce different double representations for the same logical value),
+     * and the join is either field-based or expression-based with all conditions being {@link Equals}.
+     */
+    private static boolean isBroadcastEligible(LookupJoinExec join) {
+        if (join.leftFields().isEmpty()) {
+            return false;
+        }
+        // Hash join uses exact value equality — when optimizer rewrites expose different field names
+        // (e.g. EVAL scaled_float_field = float_field), the underlying ES types may differ and cause
+        // precision mismatches. Only allow broadcast when both sides resolve to the same field names.
+        for (int i = 0; i < join.leftFields().size(); i++) {
+            if (join.leftFields().get(i).name().equals(join.rightFields().get(i).name()) == false) {
+                return false;
+            }
+        }
+        if (join.isOnJoinExpression() == false) {
+            return true; // field-based: always eligible
+        }
+        // expression-based: check all conditions are Equals
+        return Predicates.splitAnd(join.joinOnConditions()).stream().allMatch(e -> e instanceof Equals);
+    }
+
+    /**
+     * Maximum average rows per shard on the right (lookup) side before we fall back to index join.
+     */
+    static final long BROADCAST_JOIN_MAX_ROWS_PER_SHARD = 200_000;
+
+    /**
+     * Index join does a Lucene query per left row, which is roughly this many times slower per row
+     * than a broadcast hash join lookup. Used to compare the cost of index join ({@code expectedLeftRows * factor})
+     * against the cost of broadcast join ({@code rightAvgRowsPerShard}).
+     */
+    static final int INDEX_JOIN_SLOWER_FACTOR = 5;
+
+    /**
+     * Sentinel value meaning "no limit found" (unbounded). Chosen so that {@code NO_LIMIT * INDEX_JOIN_SLOWER_FACTOR}
+     * does not overflow, and is guaranteed to exceed any realistic {@code rightAvgRowsPerShard}.
+     * Distinct from {@code -1} which means "genuinely unknown" (e.g. output of an aggregation).
+     */
+    static final long NO_LIMIT = Long.MAX_VALUE / INDEX_JOIN_SLOWER_FACTOR - 1;
+
+    /**
+     * Decides whether broadcast join should be used based on cost heuristics.
+     * <p>
+     * Rules (applied in order):
+     * <ol>
+     *   <li>If right-side row count is unknown: use index join (safe default, avoids OOM).</li>
+     *   <li>If right-side row count exceeds threshold: use index join (too large to broadcast).</li>
+     *   <li>Estimate expected left rows as the minimum of the upstream estimate (walking the left subtree
+     *       bottom-up) and the downstream effective limit (walking top-down from root to join).
+     *       Broadcast wins when {@code expectedLeftRows * INDEX_JOIN_SLOWER_FACTOR > rightAvgRowsPerShard}.</li>
+     * </ol>
+     */
+    static boolean shouldUseBroadcastStrategy(LookupJoinExec join, EsRelation rightRelation, LocalExecutionPlannerContext context) {
+        long rightAvgRowsPerShard = rightRelation.avgRowsPerShard();
+
+        // Rule 1: unknown right-side size — play it safe
+        if (rightAvgRowsPerShard < 0) {
+            return false;
+        }
+
+        // Rule 2: right side too large to fit in memory
+        if (rightAvgRowsPerShard > BROADCAST_JOIN_MAX_ROWS_PER_SHARD) {
+            return false;
+        }
+
+        // Estimate expected left rows
+        long upstreamEstimate = estimateRows(join.left(), context);
+        long downstreamEstimate = estimateDownstreamRows(join, context);
+        long expectedLeftRows = Math.min(upstreamEstimate, downstreamEstimate);
+
+        // Rule 3: broadcast wins only when left side is large enough relative to right side
+        return expectedLeftRows * INDEX_JOIN_SLOWER_FACTOR > rightAvgRowsPerShard;
+    }
+
+    /**
+     * Estimates the upper bound of rows produced by a plan node by walking the subtree bottom-up.
+     * <ul>
+     *   <li>Source nodes: {@code avgRowsPerShard} if known, otherwise {@link #NO_LIMIT}.</li>
+     *   <li>{@link LimitExec}/{@link TopNExec}: {@code min(childEstimate, limitValue)}.</li>
+     *   <li>Other unary nodes (agg, filter, eval, etc.): pass through child estimate (output ≤ input).</li>
+     *   <li>Other leaves: {@link #NO_LIMIT}.</li>
+     * </ul>
+     */
+    static long estimateRows(PhysicalPlan plan, LocalExecutionPlannerContext context) {
+        if (plan instanceof EsQueryExec esQuery) {
+            long avg = esQuery.avgRowsPerShard();
+            return avg >= 0 ? avg : NO_LIMIT;
+        }
+        if (plan instanceof EsSourceExec esSource) {
+            long avg = esSource.avgRowsPerShard();
+            return avg >= 0 ? avg : NO_LIMIT;
+        }
+        if (plan instanceof LimitExec limitExec) {
+            long limitValue = extractLimitValue(limitExec.limit(), context);
+            long childEstimate = estimateRows(limitExec.child(), context);
+            return limitValue >= 0 ? Math.min(childEstimate, limitValue) : childEstimate;
+        }
+        if (plan instanceof TopNExec topNExec) {
+            long limitValue = extractLimitValue(topNExec.limit(), context);
+            long childEstimate = estimateRows(topNExec.child(), context);
+            return limitValue >= 0 ? Math.min(childEstimate, limitValue) : childEstimate;
+        }
+        if (plan instanceof UnaryExec unary) {
+            // Agg, Filter, Eval, etc. — output ≤ input
+            return estimateRows(unary.child(), context);
+        }
+        // For other nodes with children, recurse and take the maximum estimate (upper bound)
+        if (plan.children().isEmpty() == false) {
+            long estimate = 0;
+            for (PhysicalPlan child : plan.children()) {
+                estimate = Math.max(estimate, estimateRows(child, context));
+            }
+            return estimate;
+        }
+        return NO_LIMIT;
+    }
+
+    /**
+     * Estimates the effective downstream row limit for the given join node by walking top-down from the root.
+     * {@link LimitExec}/{@link TopNExec} tighten the effective limit. {@link AggregateExec} resets it to
+     * {@link #NO_LIMIT} because an aggregation consumes all its input regardless of any downstream limit.
+     */
+    static long estimateDownstreamRows(LookupJoinExec targetJoin, LocalExecutionPlannerContext context) {
+        long result = estimateDownstreamRowsRecursive(context.localPhysicalPlan(), targetJoin, NO_LIMIT, context);
+        return result >= 0 ? result : NO_LIMIT;
+    }
+
+    /**
+     * Recursively walks from the root toward the target join, carrying the effective limit top-down.
+     * Returns the effective limit when the join is found, or -1 if the join was not found in this subtree.
+     */
+    static long estimateDownstreamRowsRecursive(
+        PhysicalPlan current,
+        LookupJoinExec targetJoin,
+        long effectiveLimit,
+        LocalExecutionPlannerContext context
+    ) {
+        if (current == targetJoin) {
+            return effectiveLimit;
+        }
+
+        long newEffectiveLimit = effectiveLimit;
+        if (current instanceof LimitExec limitExec) {
+            long limitValue = extractLimitValue(limitExec.limit(), context);
+            if (limitValue >= 0) {
+                newEffectiveLimit = Math.min(effectiveLimit, limitValue);
+            }
+        } else if (current instanceof TopNExec topNExec) {
+            long limitValue = extractLimitValue(topNExec.limit(), context);
+            if (limitValue >= 0) {
+                newEffectiveLimit = Math.min(effectiveLimit, limitValue);
+            }
+        } else if (current instanceof AggregateExec) {
+            // Pipeline breaker — consumes all input, downstream limit doesn't constrain the join
+            newEffectiveLimit = NO_LIMIT;
+        }
+
+        for (PhysicalPlan child : current.children()) {
+            long result = estimateDownstreamRowsRecursive(child, targetJoin, newEffectiveLimit, context);
+            if (result >= 0) {
+                return result;
+            }
+        }
+
+        // Join not found in this subtree
+        return -1;
+    }
+
+    static long extractLimitValue(Expression limitExpr, LocalExecutionPlannerContext context) {
+        Object value = limitExpr.fold(context.foldCtx);
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return -1;
     }
 
     private static EsRelation findEsRelation(PhysicalPlan node) {
@@ -1267,7 +1516,8 @@ public class LocalExecutionPlanner {
         FoldContext foldCtx,
         PlannerSettings plannerSettings,
         boolean timeSeries,
-        IndexedByShardId<? extends ShardContext> shardContexts
+        IndexedByShardId<? extends ShardContext> shardContexts,
+        PhysicalPlan localPhysicalPlan
     ) {
         void addDriverFactory(DriverFactory driverFactory) {
             driverFactories.add(driverFactory);

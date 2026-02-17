@@ -28,6 +28,7 @@ import java.util.Objects;
 public class EsSourceExec extends LeafExec {
 
     private static final TransportVersion REMOVE_NAME_WITH_MODS = TransportVersion.fromName("esql_es_source_remove_name_with_mods");
+    private static final TransportVersion AVG_ROWS_PER_SHARD_VERSION = TransportVersion.fromName("field_caps_include_doc_count");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         PhysicalPlan.class,
@@ -39,17 +40,33 @@ public class EsSourceExec extends LeafExec {
     private final IndexMode indexMode;
     private final List<Attribute> attributes;
     private final QueryBuilder query;
+    private final long avgRowsPerShard;
 
     public EsSourceExec(EsRelation relation) {
-        this(relation.source(), relation.indexPattern(), relation.indexMode(), relation.output(), null);
+        this(relation.source(), relation.indexPattern(), relation.indexMode(), relation.output(), null, relation.avgRowsPerShard());
     }
 
+    /**
+     * Convenience constructor that defaults avgRowsPerShard to -1 (unknown).
+     */
     public EsSourceExec(Source source, String indexPattern, IndexMode indexMode, List<Attribute> attributes, QueryBuilder query) {
+        this(source, indexPattern, indexMode, attributes, query, -1);
+    }
+
+    public EsSourceExec(
+        Source source,
+        String indexPattern,
+        IndexMode indexMode,
+        List<Attribute> attributes,
+        QueryBuilder query,
+        long avgRowsPerShard
+    ) {
         super(source);
         this.indexPattern = indexPattern;
         this.indexMode = indexMode;
         this.attributes = attributes;
         this.query = query;
+        this.avgRowsPerShard = avgRowsPerShard;
     }
 
     private static EsSourceExec readFrom(StreamInput in) throws IOException {
@@ -61,7 +78,13 @@ public class EsSourceExec extends LeafExec {
         var attributes = in.readNamedWriteableCollectionAsList(Attribute.class);
         var query = in.readOptionalNamedWriteable(QueryBuilder.class);
         var indexMode = IndexMode.fromString(in.readString());
-        return new EsSourceExec(source, indexPattern, indexMode, attributes, query);
+        long avgRowsPerShard;
+        if (in.getTransportVersion().supports(AVG_ROWS_PER_SHARD_VERSION)) {
+            avgRowsPerShard = in.readLong();
+        } else {
+            avgRowsPerShard = -1;
+        }
+        return new EsSourceExec(source, indexPattern, indexMode, attributes, query, avgRowsPerShard);
     }
 
     @Override
@@ -74,6 +97,9 @@ public class EsSourceExec extends LeafExec {
         out.writeNamedWriteableCollection(output());
         out.writeOptionalNamedWriteable(query());
         out.writeString(indexMode().getName());
+        if (out.getTransportVersion().supports(AVG_ROWS_PER_SHARD_VERSION)) {
+            out.writeLong(avgRowsPerShard);
+        }
     }
 
     @Override
@@ -98,14 +124,21 @@ public class EsSourceExec extends LeafExec {
         return attributes;
     }
 
+    /**
+     * Returns the average number of rows per shard, or -1 if not available.
+     */
+    public long avgRowsPerShard() {
+        return avgRowsPerShard;
+    }
+
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
-        return NodeInfo.create(this, EsSourceExec::new, indexPattern, indexMode, attributes, query);
+        return NodeInfo.create(this, EsSourceExec::new, indexPattern, indexMode, attributes, query, avgRowsPerShard);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, attributes, query);
+        return Objects.hash(indexPattern, indexMode, attributes, query, avgRowsPerShard);
     }
 
     @Override
@@ -122,7 +155,8 @@ public class EsSourceExec extends LeafExec {
         return Objects.equals(indexPattern, other.indexPattern)
             && Objects.equals(indexMode, other.indexMode)
             && Objects.equals(attributes, other.attributes)
-            && Objects.equals(query, other.query);
+            && Objects.equals(query, other.query)
+            && avgRowsPerShard == other.avgRowsPerShard;
     }
 
     @Override

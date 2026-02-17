@@ -500,6 +500,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (argClass == int.class) {
             return randomInt();
         }
+        if (argClass == long.class) {
+            return randomLong();
+        }
         if (argClass == String.class) {
             // Nor strings
             return randomAlphaOfLength(5);

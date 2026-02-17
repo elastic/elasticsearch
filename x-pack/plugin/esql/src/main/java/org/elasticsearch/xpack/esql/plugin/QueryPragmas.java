@@ -96,6 +96,13 @@ public final class QueryPragmas implements Writeable {
 
     public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
 
+    /**
+     * When true, eligible LOOKUP JOINs use the broadcast strategy: fetch the entire (filtered) right-side
+     * dataset into memory and perform a local hash join, instead of sending per-row queries to the server.
+     * Eligible joins are field-based or expression-based with AND-of-equals conditions, limited to a single join key.
+     */
+    public static final Setting<Boolean> BROADCAST_JOIN = Setting.boolSetting("broadcast_join", true);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     private final Settings settings;
@@ -229,6 +236,13 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean forkImplicitLimit() {
         return FORK_IMPLICIT_LIMIT.get(settings);
+    }
+
+    /**
+     * Returns true if broadcast join strategy should be used for eligible LOOKUP JOINs.
+     */
+    public boolean broadcastJoin() {
+        return BROADCAST_JOIN.get(settings);
     }
 
     public int partialAggregationEmitKeysThreshold(int defaultThreshold) {

@@ -446,6 +446,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:subquery.SubqueryInFromWithRerankInSubquery}
   issue: https://github.com/elastic/elasticsearch/issues/142552
+- class: org.elasticsearch.index.IndexSettingsTests
+  method: testSyntheticIdBadVersion
+  issue: https://github.com/elastic/elasticsearch/issues/142508
+- class: org.elasticsearch.index.IndexSettingsTests
+  method: testSyntheticIdBadCodec
+  issue: https://github.com/elastic/elasticsearch/issues/142509
+- class: org.elasticsearch.index.IndexSettingsTests
+  method: testSyntheticIdBadMode
+  issue: https://github.com/elastic/elasticsearch/issues/142510
+- class: org.elasticsearch.index.IndexSettingsTests
+  method: testSyntheticIdCorrectSettings
+  issue: https://github.com/elastic/elasticsearch/issues/142507
+- class: org.elasticsearch.xpack.esql.datasources.GlobDiscoveryLocalTests
+  method: testRecursiveDoubleStarAllFiles
+  issue: https://github.com/elastic/elasticsearch/issues/142576
 
 # Examples:
 #

@@ -1283,7 +1283,7 @@ public class SnapshotResiliencyTestHelper {
                 deterministicTaskQueue.scheduleNow(runnable);
             }
 
-            private void scheduleSoon(Runnable runnable) {
+            protected void scheduleSoon(Runnable runnable) {
                 deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, 100L), runnable);
             }
         }

@@ -13,7 +13,27 @@ FROM --platform=${C2ID_PLATFORM} c2id/c2id-server-demo:16.1.1 AS c2id
 # No platform pin: uses build target so we get native arm64 or amd64 image.
 FROM eclipse-temurin:17-jdk AS extract
 COPY --from=c2id /c2id-server /c2id-server
+
+# Download Tomcat Jakarta EE migration tool to pre-migrate legacy Java EE WARs.
+# This avoids runtime migration overhead that can cause container startup timeouts.
+ARG MIGRATION_TOOL_VERSION=1.0.10
+ADD https://archive.apache.org/dist/tomcat/jakartaee-migration/v${MIGRATION_TOOL_VERSION}/binaries/jakartaee-migration-${MIGRATION_TOOL_VERSION}-shaded.jar /tmp/migrate.jar
+
+# Extract c2id.war to webapps directory
 RUN cd /c2id-server/tomcat/webapps && mkdir -p c2id && cd c2id && jar xf ../c2id.war && rm -f ../c2id.war
+
+# Pre-migrate legacy Java EE WARs from webapps-javaee to webapps at build time.
+# Tomcat 10+ normally does this at runtime which adds significant startup latency.
+# By doing it at build time, container startup is faster and more deterministic.
+RUN if [ -d /c2id-server/tomcat/webapps-javaee ]; then \
+      for war in /c2id-server/tomcat/webapps-javaee/*.war; do \
+        [ -f "$war" ] || continue; \
+        base=$(basename "$war"); \
+        echo "Pre-migrating $base from Java EE to Jakarta EE..."; \
+        java -jar /tmp/migrate.jar "$war" "/c2id-server/tomcat/webapps/$base"; \
+      done && \
+      rm -rf /c2id-server/tomcat/webapps-javaee; \
+    fi
 
 # JRE base for final image (multi-arch: arm64 and amd64).
 # Alpine variants don't support ARM64, so we use the standard JRE.

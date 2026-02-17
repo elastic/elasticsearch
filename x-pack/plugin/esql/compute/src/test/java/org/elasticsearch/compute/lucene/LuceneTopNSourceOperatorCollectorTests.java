@@ -67,7 +67,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
 
     public void testTopFieldCollectorManagerReuseForSameSort() throws IOException {
         List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
-        var factory = createFactory(false, sorts, DataPartitioning.SHARD);
+        var factory = createFactory(randomBoolean(), sorts, DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
         Sort fieldSort = new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
 
@@ -81,7 +81,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     public void testDifferentSortsGetDifferentManagers() throws IOException {
-        var factory = createFactory(false, List.of(), DataPartitioning.SHARD);
+        var factory = createFactory(randomBoolean(), List.of(), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
 
         Sort sort1 = new Sort(SortField.FIELD_SCORE);
@@ -107,7 +107,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     public void testLazyInitializationOfTopFieldCollectorManager() throws IOException {
-        var factory = createFactory(false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
+        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
         assertThat(provider.topFieldCollectorManagers.isEmpty(), equalTo(true));
         Sort sort = new Sort(SortField.FIELD_DOC);
@@ -162,8 +162,49 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
         }
     }
 
+    public void testConcurrentAccessToCollectors() throws Exception {
+        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
+        var provider = factory.perShardCollectorProvider;
+
+        int numThreads = 100;
+        var barrier = new CyclicBarrier(numThreads);
+        var errors = new ArrayList<Throwable>();
+
+        Sort sort = switch (randomInt(2)) {
+            case 0 -> Sort.RELEVANCE;
+            case 1 -> new Sort(SortField.FIELD_DOC, SortField.FIELD_SCORE);
+            case 2 -> new Sort(new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN));
+            default -> throw new IllegalStateException("Unexpected value");
+        };
+        Thread[] threads = new Thread[numThreads];
+        for (int i = 0; i < numThreads; i++) {
+            threads[i] = new Thread(() -> {
+                try {
+                    barrier.await();
+                    for (int j = 0; j < randomIntBetween(500, 1000); j++) {
+                        provider.newTopDocsCollector(sort);
+                    }
+                } catch (Exception e) {
+                    synchronized (errors) {
+                        errors.add(e);
+                    }
+                }
+            });
+            threads[i].start();
+        }
+
+        for (Thread thread : threads) {
+            thread.join();
+        }
+
+        // Check for errors
+        if (errors.isEmpty() == false) {
+            fail(errors.getFirst(), "Concurrent access failed");
+        }
+    }
+
     public void testConcurrentAccessToTopFieldCollectorManager() throws Exception {
-        var factory = createFactory(false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
+        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
 
         Sort sort = new Sort(SortField.FIELD_DOC);
@@ -219,7 +260,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     public void testProviderWithoutScoreDoesNotCreateTopScoreDocCollectorManagerEagerly() throws IOException {
-        var factory = createFactory(false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
+        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
         var provider = factory.perShardCollectorProvider;
 
         assertThat(provider.topScoreDocCollectorManager, nullValue());
@@ -258,7 +299,7 @@ public class LuceneTopNSourceOperatorCollectorTests extends ComputeTestCase {
     }
 
     public void testMultipleOperatorsShareProvider() throws Exception {
-        var factory = createFactory(false, List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
+        var factory = createFactory(randomBoolean(), List.of(new FieldSortBuilder("s")), DataPartitioning.SHARD);
 
         int numOperators = 4;
         var operators = new ArrayList<LuceneTopNSourceOperator>();

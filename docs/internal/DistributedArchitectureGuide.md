@@ -327,7 +327,8 @@ configurations.
 
 Every election takes place in a
 numbered [term](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationMetadata.java#L36).
-Terms are monotonically increasing `long` that act as logical clocks for the coordination layer, allowing the cluster to
+Terms are monotonically increasing `long`s that act as logical clocks for the coordination layer, allowing the cluster
+to
 distinguish between master mandates coming from distinct elections. They are persisted
 via [CoordinationState.PersistedState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L42).
 A term can have at most one master. A node will never vote in the same term twice.
@@ -462,10 +463,10 @@ master [has failed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/
 The follower will stop the periodic check and notify the [Coordinator],
 which will transition the node to `CANDIDATE` mode and start the election process.
 
-On the master side, the [FollowersChecker] class maintains a map of discovered node to [FollowerChecker]
-objects.
+On the master side, the [FollowersChecker] class maintains a map of nodes in the current cluster state
+to [FollowerChecker] objects.
 
-Each [FollowerChecker] periodically (by default every 10s) sends
+Each [FollowerChecker] periodically (by default every 1s) sends
 a [FollowerCheckRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L437)
 containing the current term and the identity of the master node.
 When receiving this request, each follower will
@@ -557,7 +558,7 @@ The pre-vote phase takes place before a candidate bumps the term. It is meant to
 disrupting a healthy term by forcing a re-election when it rejoins the cluster. It ensures that a candidate can only
 proceed to broadcast a higher term once a quorum of peers agrees that there is no active leader.
 
-When receiving a [PreVoteRequest] from another node, the receiver
+When receiving a [PreVoteRequest] from a candidate node, the receiver
 will [check](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/StatefulPreVoteCollector.java#L89)
 whether it currently knows of an active leader. If not, and if the receiver is healthy, it will reply with
 a [PreVoteResponse] containing its `currentTerm`, `lastAcceptedTerm`, and `lastAcceptedVersion`. If it still considers a
@@ -638,7 +639,7 @@ the [SingleNodeReconfigurator]). Committing and publishing a new cluster state t
 acknowledgment. Similarly, during elections, the pre-vote phase does not contact any peers. Instead,
 the [AtomicRegisterPreVoteCollector]
 solely [checks](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/AtomicRegisterPreVoteCollector.java#L35)
-the latest heartbeat from the blob store and starts the election if it's older the configured threshold (default 30
+the latest heartbeat from the blob store and starts the election if it's older than the configured threshold (default 30
 seconds). To become master, the candidate node will atomically override the current term in the blob store via a CAS
 operation.
 
@@ -646,7 +647,7 @@ operation.
 
 #### Cluster State Publication
 
-(Majority concensus to apply, what happens if a master-eligible node falls behind / is incommunicado.)
+(Majority consensus to apply, what happens if a master-eligible node falls behind / is incommunicado.)
 
 #### Cluster State Application
 

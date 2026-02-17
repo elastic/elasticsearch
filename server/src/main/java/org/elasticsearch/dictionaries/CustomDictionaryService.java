@@ -10,6 +10,9 @@
 package org.elasticsearch.dictionaries;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -43,6 +46,30 @@ public class CustomDictionaryService {
         .setSettings(settings())
         .setOrigin(CUSTOM_DICTIONARIES_ORIGIN)
         .build();
+
+    public enum DictionaryOperationResult {
+        CREATED,
+        UPDATED,
+        DELETED
+    }
+
+    private final Client client;
+
+    public CustomDictionaryService(Client client) {
+        this.client = new OriginSettingClient(client, CUSTOM_DICTIONARIES_ORIGIN);
+    }
+
+    public void getDictionary(String id, ActionListener<String> listener) {
+        // TODO: Implement
+    }
+
+    public void putDictionary(String id, String dictionary, ActionListener<DictionaryOperationResult> listener) {
+        // TODO: Implement
+    }
+
+    public void deleteDictionary(String id, ActionListener<DictionaryOperationResult> listener) {
+        // TODO: Implement
+    }
 
     private static XContentBuilder mappings() {
         try {

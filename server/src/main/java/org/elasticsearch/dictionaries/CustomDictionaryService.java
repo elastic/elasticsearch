@@ -132,9 +132,7 @@ public class CustomDictionaryService {
             }
             builder.endObject();
 
-            return new IndexRequest(CUSTOM_DICTIONARIES_ALIAS_NAME).id(id)
-                .opType(DocWriteRequest.OpType.INDEX)
-                .source(builder);
+            return new IndexRequest(CUSTOM_DICTIONARIES_ALIAS_NAME).id(id).opType(DocWriteRequest.OpType.INDEX).source(builder);
         }
     }
 

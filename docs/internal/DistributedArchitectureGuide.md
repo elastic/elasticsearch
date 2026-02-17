@@ -269,8 +269,9 @@ to communicate with Elasticsearch.
 
 ### Cluster State
 
-[ClusterState]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
-[Metadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
+[ClusterState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
+
+[Metadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
 
 (Detail the different components of the [ClusterState] and its persisted [Metadata])
 
@@ -282,28 +283,38 @@ an elasticsearch node can be assigned and their implication)
 
 ### Master Elections
 
-[Coordinator]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java
+[Coordinator]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java
 
-[CoordinationState]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java
+[CoordinationState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java
 
-[Join]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/Join.java
+[Join]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Join.java
 
-[JoinRequest]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/JoinRequest.java
+[JoinRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinRequest.java
 
-[CoordinationMetadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationMetadata.java
+[CoordinationMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationMetadata.java
 
 [VotingConfiguration]: https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationMetadata.java#L326
 
-The cluster maintains at most a single master at all times. If no master is
+[Reconfigurator]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Reconfigurator.java
+
+The master's core responsibility is updating the [ClusterState] and propagating the changes to other nodes.
+
+The cluster maintains (conceptually at least) at most a single master at all times. If no master is
 present, [master-eligible](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles#master-node-role)
 nodes will attempt to become the master by starting an election. The cluster will not be able to commit
 any [ClusterState] changes until a new master is elected.
 
 To elect a master, Elasticsearch uses a consensus algorithm derived
-from [Paxos](https://lamport.azurewebsites.net/pubs/lamport-paxos.pdf). This algorithm is formally defined in a TLA+
-specification referenced from the [CoordinationState] class. The [Coordinator] class handles the core logic of the
-election, and manages how nodes transition between `CANDIDATE`, `LEADER`, and
-`FOLLOWER` [modes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1794).
+from [Paxos](https://lamport.azurewebsites.net/pubs/lamport-paxos.pdf) (see
+also [Paxos Made Simple](https://lamport.azurewebsites.net/pubs/paxos-simple.pdf)
+and [Raft](https://raft.github.io/) for more approachable resources). This algorithm is formally defined in a TLA+
+specification referenced from the [CoordinationState] class. The [CoordinationState] class is responsible for
+maintaining the [safety](https://en.wikipedia.org/wiki/Safety_and_liveness_properties#Safety) property of the algorithm,
+whereas the [Coordinator] ensures [liveness](https://en.wikipedia.org/wiki/Safety_and_liveness_properties#Liveness),
+by guaranteeing progress in cases of timeouts, failures and/or conflicts. The [Coordinator] also manages a node's
+transition between `CANDIDATE`,`LEADER`, and
+`FOLLOWER` [modes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1794),
+and constructs the main data structures used for cluster state publication.
 
 The [CoordinationMetadata] instance stored in [ClusterState]::[Metadata], tracks the coordination-related state needed
 for subsequent master elections.
@@ -312,140 +323,161 @@ for subsequent master elections.
 
 A quorum is defined as a strict majority (`votedNodesCount * 2 > nodeIds.size()`) of the nodes listed in
 a [VotingConfiguration]. [CoordinationMetadata] maintains two such configurations: `lastCommittedConfiguration` and
-`lastAcceptedConfiguration`. To guarantee safety
-during [voting configuration changes](https://www.elastic.co/docs/deploy-manage/distributed-architecture/discovery-cluster-formation/modules-discovery-voting#_voting_configuration_updates),
-an election will only succeed if quorum is achieved
+`lastAcceptedConfiguration`. Most of the time, these two configurations are equal. They only diverge during
+[voting configuration changes](https://www.elastic.co/docs/deploy-manage/distributed-architecture/discovery-cluster-formation/modules-discovery-voting#_voting_configuration_updates).
+The [Reconfigurator] handles the logic for computing the voting configuration changes during the transition.
+
+To guarantee safety during voting configuration updates, an election will only succeed if quorum is achieved
 for [both](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ElectionStrategy.java#L61)
 configurations.
 
 #### Terms
 
 Every election takes place in a
-numbered [term](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationMetadata.java#L36).
+numbered [term](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationMetadata.java#L36).
 Terms are monotonically increasing `long`s that act as logical clocks for the coordination layer, allowing the cluster
-to
-distinguish between master mandates coming from distinct elections. They are persisted
+to distinguish between master mandates coming from distinct elections. They are persisted
 via [CoordinationState.PersistedState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L42).
-A term can have at most one master. A node will never vote in the same term twice.
+A term can have at most one master. A node will never vote in the same term twice. Note that nodes may not necessarily
+be aware of the same latest term at the same physical time.
 
 #### Election Flow
 
-The overall election flow looks like this:
+Below is an overview of the election process, including the main code components for each step. Subsequent sections
+provide more detailed explanations of the mechanics and rationale behind each step.
+
+1. Leader failure detected.
+
+A follower detects current master failure.
+
+``` 
+LeaderChecker
+Coordinator.onLeaderFailure()
+```
+
+2. Node becomes `CANDIDATE`.
+
+The node transitions to `CANDIDATE` mode and triggers the discovery process.
 
 ```
-    ┌───────────────────────────────────────────────┬──────────────────────────────────┐
-    │                     STEPS                     │       MAIN CODE COMPONENTS       │
-    ╞═══════════════════════════════════════════════╪══════════════════════════════════╡
-    │  1. Leader Failure Detected                   │  LeaderChecker                   │
-    │                                               │  Coordinator.onLeaderFailure()   │
-    │  Follower detects current master failure.     │                                  │
-    └───────────────────────────────────────────────┴──────────────────────────────────┘
-                                                    │
-                                                    ▼
-    ┌───────────────────────────────────────────────┬──────────────────────────────────┐
-    │  2. Node becomes `CANDIDATE`                  │  Coordinator.becomeCandidate()   │
-    │                                               │  Mode.CANDIDATE                  │
-    │  Follower transitions to `CANDIDATE` mode.    │  PeerFinder.activate(...)        │
-    │  Triggers the discovery process.              │                                  │
-    └───────────────────────────────────────────────┴──────────────────────────────────┘
-                                                    │
-                                                    ▼
-    ┌───────────────────────────────────────────────┬──────────────────────────────────┐
-    │  3. Peer Discovery                            │  PeerFinder.handleWakeUp()       │
-    │                                               │  ConfiguredHostsResolver         │
-    │  Candidate probes master-eligible nodes from  │  PeerFinder.startProbe(...)      │
-    │  lastAcceptedState & ConfiguredHostsResolver. │  PeersRequest                    │
-    │  Asks if there is a current master and what   │  PeersResponse                   │
-    │  other master-eligible nodes are in the       │                                  │
-    │  cluster.                                     │                                  │
-    └───────────────────────────────────────────────┴──────────────────────────────────┘
-                                                    │
-                                                    ▼
-    ┌───────────────────────────────────────────────┬──────────────────────────────────┐
-    │  4. Candidate schedules election              │  CoordinatorPeerFinder           │
-    │                                               │    .onFoundPeersUpdated()        │
-    │  No current master + enough master-           │  Coordinator                     │
-    │  eligible peers discovered to form a quorum?  │    .startElectionScheduler()     │
-    │  If yes, candidate schedules election (with   │  ElectionScheduler               │
-    │  randomized backoff to minimize conflicts     │    .scheduleNextElection()       │
-    │  with other potential candidates).            │                                  │
-    └───────────────────────────────────────────────┴──────────────────────────────────┘
-                                                    │
-                                                    ▼
-    ┌───────────────────────────────────────────────┬──────────────────────────────────┐
-    │  5. Pre-Vote Round                            │  NodeEligibility                 │
-    │                                               │  PreVoteCollector.start(...)     │
-    │  Election starts. Candidate double checks it  │  PreVoteRequest                  │
-    │  is healthy and eligible to be master.        │  PreVoteResponse                 │
-    │  Candidate sends pre-vote requests to         │                                  │
-    │  master-eligible peers.                       │                                  │
-    └───────────────────────────────────────────────┴──────────────────────────────────┘
-                                                    │
-                                                    ▼
-    ┌───────────────────────────────────────────────┬──────────────────────────────────┐
-    │  6. Pre-Vote Quorum Reached                   │  ElectionStrategy                │
-    │                                               │    .isElectionQuorum(...)        │
-    │  Enough pre-vote responses received?          │  Coordinator.startElection()     │
-    │  Proceed to the real election.                │                                  │
-    └───────────────────────────────────────────────┴──────────────────────────────────┘
-                                                    │
-                                                    ▼
-    ┌───────────────────────────────────────────────┬──────────────────────────────────┐
-    │  7. Candidate bumps term                      │  Coordinator                     │
-    │           & broadcasts StartJoinRequest       │    .getTermForNewElection()      │
-    │                                               │  Coordinator                     │
-    │  Computes new term: max(current, seen) + 1.   │    .broadcastStartJoinRequest(..)│
-    │  Sends StartJoinRequest with new term to all  │  StartJoinRequest                │
-    │  nodes discovered in previous step.           │                                  │
-    └───────────────────────────────────────────────┴──────────────────────────────────┘
-                                                    │
-                                                    ▼
-    ┌───────────────────────────────────────────────┬──────────────────────────────────┐
-    │  8. Other nodes start the Join process        │  CoordinationState               │
-    │                                               │    .handleStartJoin(...)         │
-    │  Master-eligible node acks the                │  CoordinationState               │
-    │  StartJoinRequest, persists the latest term,  │    .setCurrentTerm(...)          │
-    │  verifies it's healthy enough to cast a vote, │  JoinHelper                      │
-    │  and sends a JoinRequest to the candidate.    │    .sendJoinRequest(...)         │
-    └───────────────────────────────────────────────┴──────────────────────────────────┘
-                                                    │
-                                                    ▼
-    ┌───────────────────────────────────────────────┬──────────────────────────────────┐
-    │  9. Candidate becomes `LEADER`                │  Coordinator                     │
-    │                                               │    .processJoinRequest(...)      │
-    │  Enough JoinRequest received to satisfy       │  CoordinationState.handleJoin(..)│
-    │  quorum? Candidate becomes LEADER.            │  ElectionStrategy                │
-    │                                               │    .isElectionQuorum(...)        │
-    │                                               │  Coordinator.becomeLeader()      │
-    │                                               │  Mode.LEADER                     │
-    └───────────────────────────────────────────────┴──────────────────────────────────┘
-                                                    │
-                                                    ▼
-    ┌───────────────────────────────────────────────┬──────────────────────────────────┐
-    │  10. Leader completes election                │  CandidateJoinAccumulator        │
-    │                                               │    .close(...)                   │
-    │  Leader publishes state, cleans up discovery  │  JoinTask                        │
-    │  connections, starts heartbeating.            │  LeaderHeartbeatService          │
-    │                                               │    .start(...)                   │
-    └───────────────────────────────────────────────┴──────────────────────────────────┘
+Coordinator.becomeCandidate()
+Mode.CANDIDATE
+PeerFinder.activate(...)
+```
+
+3. Peer discovery
+
+The candidate probes master-eligible nodes from the last accepted state and the configured hosts resolver. It asks if
+there is a current master and what other master-eligible nodes are in the cluster.
+
+```
+PeerFinder.handleWakeUp()
+ConfiguredHostsResolver 
+PeerFinder.startProbe(...) 
+PeersRequest
+PeersResponse
+```
+
+4. Candidate schedules election.
+
+If no current master is discovered and the node has enough master-eligible peers to form a quorum, the
+candidate schedules an election (with randomized backoff to minimize conflicts with other potential
+candidates).
+
+```
+CoordinatorPeerFinder.onFoundPeersUpdated()
+Coordinator.startElectionScheduler()
+ElectionScheduler.scheduleNextElection()
+```
+
+5. Pre-vote round.
+
+The election starts. The candidate double checks it is healthy and eligible to be master. The candidate
+sends pre-vote requests to master-eligible peers.
+
+```
+NodeEligibility
+PreVoteCollector.start(...)
+PreVoteRequest
+PreVoteResponse
+```
+
+6. Pre-vote quorum reached
+
+If enough `PreVoteResponse`s are received to satisfy quorum, the candidate proceeds to the real election.
+
+```
+ElectionStrategy.isElectionQuorum(...)
+Coordinator.startElection()
+```
+
+7. Candidate bumps term and broadcasts `StartJoinRequest`.
+
+The candidate computes the new term: `max(current, seen) + 1` and sends `StartJoinRequest` with the new term to all
+nodes discovered in previous step.
+
+```
+Coordinator.getTermForNewElection()
+Coordinator.broadcastStartJoinRequest(...)
+StartJoinRequest
+```
+
+8. Other nodes start the join process
+
+Master-eligible nodes ack the `StartJoinRequest`, persist the latest term, verifies they are healthy enough to cast a
+vote, and send a `JoinRequest` to the candidate.
+
+```
+CoordinationState.handleStartJoin(...)
+CoordinationState.setCurrentTerm(...)
+JoinHelper.sendJoinRequest(...)
+```
+
+9. Candidate becomes `LEADER`
+
+If enough `JoinRequest`s are received to satisfy quorum, the candidate becomes `LEADER`.
+
+```
+Coordinator.processJoinRequest(...)
+CoordinationState.handleJoin(...)
+ElectionStrategy.isElectionQuorum(...)
+Coordinator.becomeLeader()
+Mode.LEADER
+```
+
+10. Leader completes election
+
+The leader publishes the cluster state, cleans up discovery connections, and starts heartbeating.
+
+```
+CandidateJoinAccumulator.close(...)
+JoinTask
+LeaderHeartbeatService.start(...)
 ```
 
 #### Failure Detection
 
-[LeaderChecker]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java
+[LeaderChecker]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java
 
-[FollowersChecker]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java
+[FollowersChecker]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java
 
 [FollowerChecker]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L274
+
+[FollowerCheckRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L437
+
+[LeaderCheckRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L399
 
 The cluster uses two complementary checks to detect node failures:
 the [LeaderChecker] (run by followers) and the [FollowersChecker] (run by the leader).
 
+Peer-to-peer communication in Elasticsearch typically involves two distinct TCP connections, so having both checks is
+necessary to ensure full connectivity. They also serve distinct conceptual purposes: when the leader becomes
+unreachable, followers must detect it and start an election, whereas when a follower becomes unreachable, the leader
+will remove it from the cluster so its shards can be reallocated.
+
 Each follower runs a [LeaderChecker]
 that [periodically sends](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L233)
-a [LeaderCheckRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L399)
-to the current master (every 1 second by default).
-Upon receiving the request, the
+a [LeaderCheckRequest] to the current master (every 1 second by default). Upon receiving the request, the
 master [will verify](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/LeaderChecker.java#L174)
 that its local node is healthy, that it is still the elected master, and that the requesting
 node is part of the current cluster state. If all conditions are met, it will
@@ -462,9 +494,8 @@ On the master side, the [FollowersChecker] class maintains a map of nodes in the
 to [FollowerChecker] objects.
 
 Each [FollowerChecker] periodically (by default every 1s) sends
-a [FollowerCheckRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L437)
-containing the current term and the identity of the master node.
-When receiving this request, each follower will
+a [FollowerCheckRequest] containing the current term and the identity of the master node. When receiving this request,
+each follower will
 first [verify](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FollowersChecker.java#L185)
 that its local node is healthy (and throw if not), and then check whether the request term matches its current term.
 If it does, then the follower
@@ -483,23 +514,23 @@ reallocated to other healthy nodes).
 
 #### Discovery
 
-[PeerFinder]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/discovery/PeerFinder.java
+[PeerFinder]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/PeerFinder.java
 
-[PeersRequest]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/discovery/PeersRequest.java
+[PeersRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/PeersRequest.java
 
-[PeersResponse]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/PeersResponse.java
+[PeersResponse]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PeersResponse.java
 
-[SeedHostsProvider]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/discovery/SeedHostsProvider.java
+[SeedHostsProvider]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/SeedHostsProvider.java
 
-[SeedHostsResolver]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/discovery/SeedHostsResolver.java
+[SeedHostsResolver]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/SeedHostsResolver.java
 
-[SettingsBasedSeedHostsProvider]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/discovery/SettingsBasedSeedHostsProvider.java
+[SettingsBasedSeedHostsProvider]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/SettingsBasedSeedHostsProvider.java
 
-[FileBasedSeedHostsProvider]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/discovery/FileBasedSeedHostsProvider.java
+[FileBasedSeedHostsProvider]: https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/FileBasedSeedHostsProvider.java
 
-[AwsEc2SeedHostsProvider]: https://github.com/elastic/elasticsearch/blob/main/plugins/discovery-ec2/src/main/java/org/elasticsearch/discovery/ec2/AwsEc2SeedHostsProvider.java
+[AwsEc2SeedHostsProvider]: https://github.com/elastic/elasticsearch/blob/v9.3.0/plugins/discovery-ec2/src/main/java/org/elasticsearch/discovery/ec2/AwsEc2SeedHostsProvider.java
 
-[DiscoveryPlugin]: https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/plugins/DiscoveryPlugin.java
+[DiscoveryPlugin]: https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/plugins/DiscoveryPlugin.java
 
 Discovery is a fast "gossip-like" protocol by which a node in `CANDIDATE` mode locates master-eligible nodes in the
 cluster and/or the master itself.
@@ -536,6 +567,10 @@ its local term
 and [try to join](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1817)
 the master.
 
+Because the node will eagerly reach out to every peer it learns about (both via the content of a [PeersResponse] or even
+when receiving a new [PeersRequest]), the discovery protocol will find every other master-eligible node in at most
+roughly `⌈log₂(D)+1⌉` steps, where D is the diameter of the graph of seed host configurations.
+
 Note that discovery connections are managed separately from the regular cluster transport connections:
 they are held by the [PeerFinder] and used only during discovery. Once a master is
 found or elected, all discovery connections
@@ -543,11 +578,11 @@ are [released](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/m
 
 #### Pre-Vote
 
-[PreVoteRequest]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/PreVoteRequest.java
+[PreVoteRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PreVoteRequest.java
 
-[PreVoteResponse]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/PreVoteResponse.java
+[PreVoteResponse]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PreVoteResponse.java
 
-[ElectionSchedulerFactory]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/ElectionSchedulerFactory.java
+[ElectionSchedulerFactory]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ElectionSchedulerFactory.java
 
 The pre-vote phase takes place before a candidate bumps the term. It is meant to prevent a partitioned node from
 disrupting a healthy term by forcing a re-election when it rejoins the cluster. It ensures that a candidate can only
@@ -572,7 +607,7 @@ liveness failure caused by this check being omitted.
 
 #### Join
 
-[JoinHelper]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/JoinHelper.java
+[JoinHelper]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinHelper.java
 
 [JoinTask]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinTask.java
 
@@ -610,15 +645,15 @@ all accumulated joins into a single [JoinTask] for the master queue to process.
 
 #### Serverless Elections
 
-[AtomicRegisterPreVoteCollector]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/AtomicRegisterPreVoteCollector.java
+[AtomicRegisterPreVoteCollector]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/AtomicRegisterPreVoteCollector.java
 
-[StoreHeartbeatService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/StoreHeartbeatService.java
+[StoreHeartbeatService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/StoreHeartbeatService.java
 
-[HeartbeatStore]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/HeartbeatStore.java
+[HeartbeatStore]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/HeartbeatStore.java
 
-[Heartbeat]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/Heartbeat.java
+[Heartbeat]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/Heartbeat.java
 
-[SingleNodeReconfigurator]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/SingleNodeReconfigurator.java
+[SingleNodeReconfigurator]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/stateless/SingleNodeReconfigurator.java
 
 Stateful and Serverless ES share the same [Coordinator] core logic, but they differ in how they check leader liveness,
 and define quorum.

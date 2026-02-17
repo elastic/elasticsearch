@@ -13,10 +13,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 
@@ -31,10 +30,9 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
     private static final int DOC_COUNT = 10;
 
     public void testRollingUpgrade() throws IOException {
-        IndexVersion oldClusterIndexVersion = getClusterIndexVersion();
         int numNodes = getCluster().getNumNodes();
 
-        if (hasSupportForSyntheticId(oldClusterIndexVersion)) {
+        if (oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID)) {
             // Should be able to create synthetic id index throughout the rolling upgrade
             for (int i = 0; i < numNodes; i++) {
                 assertWriteIndex(indexName(i));
@@ -48,9 +46,9 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
                 assertIndexRead(indexName(j));
             }
         } else {
-            // Cluster support synthetic id index after all nodes have been upgraded, not before
+            // Cluster supports synthetic id index after all nodes have been upgraded, not before
             for (int i = 0; i < numNodes; i++) {
-                assertNoWriteIndex(indexName(i), oldClusterIndexVersion);
+                assertNoWriteIndex(indexName(i));
                 upgradeNode(i);
             }
             assertWriteIndex(indexName(numNodes));
@@ -114,20 +112,16 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
             """, timestamp, randomByte()));
     }
 
-    private static void assertNoWriteIndex(String indexName, IndexVersion oldClusterIndexVersion) {
-        String setting = IndexSettings.SYNTHETIC_ID.getKey();
-        String unknownSetting = "unknown setting [" + setting + "]";
-        String versionTooLow = String.format(
-            Locale.ROOT,
-            "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
-            setting,
-            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
-            oldClusterIndexVersion
-        );
-
+    private static void assertNoWriteIndex(String indexName) {
         ResponseException e = assertThrows(ResponseException.class, () -> createSyntheticIdIndex(indexName));
-        assertThat(e.getMessage(), Matchers.either(Matchers.containsString(unknownSetting)).or(Matchers.containsString(versionTooLow)));
         assertThat(e.getMessage(), Matchers.containsString("illegal_argument_exception"));
+        // Old cluster rejects the setting (e.g. unknown setting or version too low)
+        String setting = IndexSettings.SYNTHETIC_ID.getKey();
+        assertThat(
+            e.getMessage(),
+            Matchers.either(Matchers.containsString("unknown setting [" + setting + "]"))
+                .or(Matchers.containsString("is only permitted for indexVersion"))
+        );
     }
 
     private static CreateIndexResponse createSyntheticIdIndex(String indexName) throws IOException {
@@ -162,10 +156,6 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
             }
             """;
         return createIndex(indexName, settings, mapping);
-    }
-
-    private static boolean hasSupportForSyntheticId(IndexVersion indexVersion) {
-        return indexVersion.onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
     }
 
     private static String indexName(int i) {

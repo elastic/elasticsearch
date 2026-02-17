@@ -8,19 +8,15 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.Before;
 import org.junit.ClassRule;
@@ -32,7 +28,6 @@ import java.util.Map;
 import java.util.function.BiFunction;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 
 public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCase {
     private static final String USER = "admin-user";
@@ -87,51 +82,6 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
 
     protected ElasticsearchCluster getCluster() {
         return cluster;
-    }
-
-    /**
-     * Get indexVersion for the cluster, assuming that all nodes are on the same version.
-     * If not, fail assertion. Logic copied from
-     * {@code org.elasticsearch.upgrades.ParameterizedRollingUpgradeTestCase#upgradeNode}
-     */
-    protected IndexVersion getClusterIndexVersion() throws IOException {
-        IndexVersion indexVersion = null;   // these should all be the same version
-
-        Request request = new Request("GET", "_nodes");
-        request.addParameter("filter_path", "nodes.*.index_version,nodes.*.name");
-        Response response = client().performRequest(request);
-        ObjectPath objectPath = ObjectPath.createFromResponse(response);
-        Map<String, Object> nodeMap = objectPath.evaluate("nodes");
-        for (String id : nodeMap.keySet()) {
-            Number ix = objectPath.evaluate("nodes." + id + ".index_version");
-            final IndexVersion version;
-            if (ix != null) {
-                version = IndexVersion.fromId(ix.intValue());
-            } else {
-                // it doesn't have index version (pre 8.11) - just infer it from the release version
-                version = parseLegacyVersion(getOldClusterVersion()).map(v -> IndexVersion.fromId(v.id))
-                    .orElse(IndexVersions.MINIMUM_COMPATIBLE);
-            }
-
-            if (indexVersion == null) {
-                indexVersion = version;
-            } else {
-                String name = objectPath.evaluate("nodes." + id + ".name");
-                assertThat("Node " + name + " has a different index version to other nodes", version, equalTo(indexVersion));
-            }
-        }
-
-        assertThat("Index version could not be read", indexVersion, notNullValue());
-        return indexVersion;
-    }
-
-    /**
-     * The version of the "old" (initial) cluster. It is an opaque string, do not even think about parsing it for version
-     * comparison. Use (test) cluster features instead.
-     */
-    private static String getOldClusterVersion() {
-        String oldClusterVersion = System.getProperty("tests.old_cluster_version");
-        return System.getProperty("tests.bwc.main.version", oldClusterVersion);
     }
 
     static String formatInstant(Instant instant) {

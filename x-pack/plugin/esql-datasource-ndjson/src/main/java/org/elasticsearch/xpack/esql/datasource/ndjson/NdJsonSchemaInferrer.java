@@ -147,25 +147,26 @@ public class NdJsonSchemaInferrer {
             DataType dataType = info.resolveType();
             if (dataType != DataType.UNSUPPORTED) {
                 // Unsupported is used for nested object properties
-                EsField esField = new EsField(name, dataType, Map.of(), false, null);
-                attributes.add(
-                    new FieldAttribute(
-                        Source.EMPTY,
-                        null,
-                        null,
-                        name,
-                        esField,
-                        info.types.contains(DataType.NULL) ? Nullability.TRUE : Nullability.UNKNOWN,
-                        null,
-                        false
-                    )
-                );
+                attributes.add(attribute(name, dataType, info.types.contains(DataType.NULL)));
             }
 
             if (info.children != null) {
                 buildSchema(info, name, attributes);
             }
         }
+    }
+
+    public static Attribute attribute(String name, DataType type, boolean nullable) {
+        return new FieldAttribute(
+            Source.EMPTY,
+            null,
+            null,
+            name,
+            new EsField(name, type, Map.of(), false, null),
+            nullable ? Nullability.TRUE : Nullability.UNKNOWN,
+            null,
+            false
+        );
     }
 
     /**

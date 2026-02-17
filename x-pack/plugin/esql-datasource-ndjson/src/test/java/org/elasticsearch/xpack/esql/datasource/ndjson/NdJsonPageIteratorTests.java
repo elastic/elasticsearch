@@ -14,12 +14,14 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -40,11 +42,18 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var object = new BytesStorageObject("classpath://employees.ndjson", IOUtils.resourceToByteArray("/employees.ndjson"));
 
         List<Integer> sizes = new ArrayList<>();
-        try (var iterator = reader.read(object, List.of("birth_date", "emp_no", "first_name"), 42)) {
+        try (var iterator = reader.read(object, List.of("still_hired", "emp_no", "birth_date", "non_existing_field"), 42)) {
             while (iterator.hasNext()) {
                 var page = iterator.next();
-                assertEquals(3, page.getBlockCount());
+                assertEquals(4, page.getBlockCount());
                 checkBlockSizes(page);
+
+                // Make sure blocks are returned in the order requested, with nulls for unknown columns
+                assertThat(page.getBlock(0), Matchers.instanceOf(BooleanBlock.class));
+                assertThat(page.getBlock(1), Matchers.instanceOf(LongBlock.class));
+                assertThat(page.getBlock(2), Matchers.instanceOf(BytesRefBlock.class));
+                assertThat(page.getBlock(3), Matchers.instanceOf(ConstantNullBlock.class));
+
                 sizes.add(page.getBlock(0).getPositionCount());
             }
         }

@@ -23,6 +23,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,14 +56,23 @@ public class NdJsonPageDecoder implements AutoCloseable {
         BlockFactory blockFactory
     ) throws IOException {
         this.input = input;
+
+        var projectedAttributes = attributes;
         if (projectedColumns.isEmpty() == false) {
-            attributes = attributes.stream().filter(a -> projectedColumns.contains(a.name())).toList();
+            // Keep projected columns in order, adding NULL for missing columns
+            projectedAttributes = projectedColumns.stream().map(col ->
+                attributes.stream()
+                    .filter(a -> a.name().equals(col))
+                    .findFirst()
+                    .orElseGet(() -> NdJsonSchemaInferrer.attribute(col, DataType.NULL, false))
+            ).toList();
         }
-        this.decoder = prepareSchema(attributes);
+
+        this.decoder = prepareSchema(projectedAttributes);
         this.batchSize = batchSize;
         this.blockFactory = blockFactory;
-        this.blockBuilders = new Block.Builder[attributes.size()];
-        this.blockTracker = new BitSet(attributes.size());
+        this.blockBuilders = new Block.Builder[projectedAttributes.size()];
+        this.blockTracker = new BitSet(projectedAttributes.size());
 
         this.parser = NdJsonUtils.JSON_FACTORY.createParser(input);
     }

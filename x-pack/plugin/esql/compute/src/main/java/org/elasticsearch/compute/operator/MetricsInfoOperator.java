@@ -335,30 +335,19 @@ public class MetricsInfoOperator implements Operator {
         for (Map.Entry<String, Object> entry : metadata.entrySet()) {
             String key = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
             Object value = entry.getValue();
-            if (value instanceof Map<?, ?> nested) {
+
+            // Check the metric lookup first, before inspecting the value type.
+            // Some metric types (histogram, exponential_histogram, tdigest) produce
+            // nested JSON in synthetic source. Without this early check, the method
+            // would recurse into the nested structure and misclassify internal fields
+            // (e.g. "values", "counts", "centroids") as dimension keys.
+            MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
+            if (fieldInfo != null) {
+                recordMetric(fieldInfo, dataStreamName, touchedMetrics);
+            } else if (value instanceof Map<?, ?> nested) {
                 collectAndAggregateFields((Map<String, Object>) nested, key, indexName, dataStreamName, dimensionKeys, touchedMetrics);
             } else {
-                MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
-                if (fieldInfo != null) {
-                    // Group by (metricName, dataStreamName) so that backing indices within the same
-                    // data stream share one MetricInfo entry. Conflicting unit/metric_type/field_type
-                    // across backing indices of the same data stream become multi-valued.
-                    MetricInfoKey infoKey = new MetricInfoKey(fieldInfo.name(), dataStreamName);
-                    MetricInfo info = metricsByKey.computeIfAbsent(infoKey, k -> new MetricInfo(k.metricName(), k.dataStreamName()));
-                    touchedMetrics.add(info);
-
-                    if (fieldInfo.unit() != null) {
-                        info.units.add(fieldInfo.unit());
-                    }
-                    if (fieldInfo.fieldType() != null) {
-                        info.fieldTypes.add(fieldInfo.fieldType());
-                    }
-                    if (fieldInfo.metricType() != null) {
-                        info.metricTypes.add(fieldInfo.metricType());
-                    }
-                } else {
-                    dimensionKeys.add(key);
-                }
+                dimensionKeys.add(key);
             }
         }
 
@@ -366,6 +355,28 @@ public class MetricsInfoOperator implements Operator {
             for (MetricInfo info : touchedMetrics) {
                 info.dimensionFieldKeys.addAll(dimensionKeys);
             }
+        }
+    }
+
+    /**
+     * Records a metric field into the per-key metric map, grouping by (metricName, dataStreamName)
+     * so that backing indices within the same data stream share one {@link MetricInfo} entry.
+     * Conflicting unit/metric_type/field_type across backing indices of the same data stream
+     * become multi-valued.
+     */
+    private void recordMetric(MetricFieldInfo fieldInfo, String dataStreamName, Set<MetricInfo> touchedMetrics) {
+        MetricInfoKey infoKey = new MetricInfoKey(fieldInfo.name(), dataStreamName);
+        MetricInfo info = metricsByKey.computeIfAbsent(infoKey, k -> new MetricInfo(k.metricName(), k.dataStreamName()));
+        touchedMetrics.add(info);
+
+        if (fieldInfo.unit() != null) {
+            info.units.add(fieldInfo.unit());
+        }
+        if (fieldInfo.fieldType() != null) {
+            info.fieldTypes.add(fieldInfo.fieldType());
+        }
+        if (fieldInfo.metricType() != null) {
+            info.metricTypes.add(fieldInfo.metricType());
         }
     }
 

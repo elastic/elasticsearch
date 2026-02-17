@@ -1109,6 +1109,201 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     /**
+     * A lookup that recognizes histogram-type fields in addition to scalar metrics.
+     */
+    private static final MetricsInfoOperator.MetricFieldLookup HISTOGRAM_LOOKUP = (indexName, fieldName) -> switch (fieldName) {
+        case "histogram.legacy" -> new MetricFieldInfo("histogram.legacy", indexName, "histogram", "histogram", null);
+        case "histogram.exponential" -> new MetricFieldInfo("histogram.exponential", indexName, "exponential_histogram", "histogram", null);
+        case "histogram.tdigest" -> new MetricFieldInfo("histogram.tdigest", indexName, "tdigest", "histogram", null);
+        case "cpu_usage" -> new MetricFieldInfo("cpu_usage", indexName, "double", "gauge", "percent");
+        default -> null;
+    };
+
+    /**
+     * A histogram metric whose synthetic source is a nested JSON object (values + counts)
+     * must be recognized as a single metric, not recursed into and misclassified as dimensions.
+     */
+    public void testHistogramMetricRecognizedFromNestedSyntheticSource() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, HISTOGRAM_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            String metadataJson = """
+                {"histogram": {"legacy": {"values": [1.0, 2.0, 3.0], "counts": [10, 20, 30]}}, "entity": {"id": "abc"}}""";
+            Page input = buildPage(blockFactory, metadataJson.trim(), ".ds-histograms-2026.02.16-000001");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+            assertThat(output.getBlockCount(), equalTo(MetricsInfoOperator.NUM_BLOCKS));
+
+            assertColumnValue(output, 0, 0, "histogram.legacy");   // metric_name
+            assertColumnValue(output, 3, 0, "histogram");           // metric_type
+            assertColumnValue(output, 4, 0, "histogram");           // field_type
+
+            // entity.id is the only dimension; histogram internal fields must not appear
+            Set<String> dimensions = collectMultiValues(output, 5, 0);
+            assertThat(dimensions, equalTo(Set.of("entity.id")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
+     * An exponential histogram metric whose synthetic source is a deeply nested JSON object
+     * (scale, sum, positive/negative buckets, etc.) must be recognized as a single metric.
+     */
+    public void testExponentialHistogramMetricRecognizedFromNestedSyntheticSource() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, HISTOGRAM_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            String metadataJson = """
+                {"histogram": {"exponential": {"scale": 3, "sum": 42.5, "min": 1.0, "max": 10.0,\
+                 "zero": {"count": 0, "threshold": 0.0},\
+                 "positive": {"indices": [1, 2, 3], "counts": [5, 10, 15]},\
+                 "negative": {"indices": [], "counts": []}}},\
+                 "entity": {"id": "xyz"}}""";
+            Page input = buildPage(blockFactory, metadataJson.trim(), ".ds-histograms-2026.02.16-000001");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "histogram.exponential"); // metric_name
+            assertColumnValue(output, 3, 0, "histogram");              // metric_type
+            assertColumnValue(output, 4, 0, "exponential_histogram");  // field_type
+
+            // Only entity.id should be a dimension; exponential histogram internals must not leak
+            Set<String> dimensions = collectMultiValues(output, 5, 0);
+            assertThat(dimensions, equalTo(Set.of("entity.id")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
+     * A tdigest metric whose synthetic source is a nested JSON object (centroids, counts, min, max, sum)
+     * must be recognized as a single metric.
+     */
+    public void testTdigestMetricRecognizedFromNestedSyntheticSource() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, HISTOGRAM_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            String metadataJson = """
+                {"histogram": {"tdigest": {"min": 0.5, "max": 99.5, "sum": 500.0,\
+                 "centroids": [1.0, 50.0, 99.0], "counts": [100, 200, 100]}},\
+                 "entity": {"id": "t1"}}""";
+            Page input = buildPage(blockFactory, metadataJson.trim(), ".ds-histograms-2026.02.16-000001");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            assertThat(output.getPositionCount(), equalTo(1));
+
+            assertColumnValue(output, 0, 0, "histogram.tdigest"); // metric_name
+            assertColumnValue(output, 3, 0, "histogram");          // metric_type
+            assertColumnValue(output, 4, 0, "tdigest");            // field_type
+
+            Set<String> dimensions = collectMultiValues(output, 5, 0);
+            assertThat(dimensions, equalTo(Set.of("entity.id")));
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
+     * When a document contains both scalar metrics and histogram metrics, both types
+     * are correctly recognized: scalar metrics as leaf values and histogram metrics
+     * from their nested synthetic source structure.
+     */
+    public void testMixedScalarAndHistogramMetrics() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, HISTOGRAM_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            // cpu_usage is a scalar metric (leaf), histogram.legacy is a complex metric (nested Map)
+            String metadataJson = """
+                {"cpu_usage": 0.75, "histogram": {"legacy": {"values": [1.0], "counts": [5]}}, "host": "srv1"}""";
+            Page input = buildPage(blockFactory, metadataJson.trim(), ".ds-mixed-2026.02.16-000001");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            // Two distinct metrics: cpu_usage and histogram.legacy
+            assertThat(output.getPositionCount(), equalTo(2));
+
+            Set<String> metricNames = collectColumnValues(output, 0);
+            assertThat(metricNames, equalTo(Set.of("cpu_usage", "histogram.legacy")));
+
+            // Both metrics share the same dimension
+            for (int row = 0; row < output.getPositionCount(); row++) {
+                Set<String> dimensions = collectMultiValues(output, 5, row);
+                assertThat(dimensions, equalTo(Set.of("host")));
+            }
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
+     * Dimensions coexisting with histogram metrics must still be correctly classified.
+     * The histogram's internal fields (values, counts, centroids, etc.) must not leak
+     * into the dimension_fields output.
+     */
+    public void testDimensionsNotContaminatedByHistogramInternalFields() {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        MetricsInfoOperator op = new MetricsInfoOperator(blockFactory, HISTOGRAM_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        try {
+            // All three histogram types in one document, plus a dimension
+            String metadataJson = """
+                {"histogram": {\
+                "legacy": {"values": [1.0], "counts": [10]},\
+                "exponential": {"scale": 2, "positive": {"indices": [1], "counts": [5]}},\
+                "tdigest": {"centroids": [50.0], "counts": [100]}},\
+                "entity": {"id": "all-types"}}""";
+            Page input = buildPage(blockFactory, metadataJson.trim(), ".ds-histograms-2026.02.16-000001");
+            op.addInput(input);
+            op.finish();
+
+            Page output = op.getOutput();
+            assertNotNull(output);
+            // Three histogram metrics
+            assertThat(output.getPositionCount(), equalTo(3));
+
+            Set<String> metricNames = collectColumnValues(output, 0);
+            assertThat(metricNames, equalTo(Set.of("histogram.legacy", "histogram.exponential", "histogram.tdigest")));
+
+            // Every row must have entity.id as the only dimension.
+            // None of the histogram internals (values, counts, centroids, scale, positive, etc.)
+            // should appear as dimension keys.
+            for (int row = 0; row < output.getPositionCount(); row++) {
+                Set<String> dimensions = collectMultiValues(output, 5, row);
+                assertThat(
+                    "row " + row + " should only have entity.id as dimension, got: " + dimensions,
+                    dimensions,
+                    equalTo(Set.of("entity.id"))
+                );
+            }
+
+            output.releaseBlocks();
+        } finally {
+            op.close();
+        }
+    }
+
+    /**
      * Build a single-row page with the given metadata JSON and index name.
      */
     private static Page buildPage(BlockFactory blockFactory, String metadataJson, String indexName) {

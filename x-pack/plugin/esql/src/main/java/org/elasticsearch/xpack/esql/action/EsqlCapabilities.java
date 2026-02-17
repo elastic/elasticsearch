@@ -1917,6 +1917,11 @@ public class EsqlCapabilities {
         PROMQL_TIME,
 
         /**
+         * Support for deriving PromQL time buckets from [start, end, buckets] when [step] is omitted.
+         */
+        PROMQL_BUCKETS_PARAMETER,
+
+        /**
          * Queries for unmapped fields return no data instead of an error.
          * Also filters out nulls from results.
          */

@@ -257,8 +257,7 @@ class AzureClientProvider extends AbstractLifecycleComponent {
     protected void doStop() {
         closed = true;
         connectionProvider.dispose();
-        eventLoopGroup.shutdownGracefully();
-        Schedulers.resetFactory();
+        eventLoopGroup.shutdownGracefully().addListener(f -> Schedulers.resetFactory());
     }
 
     @Override

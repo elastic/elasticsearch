@@ -522,3 +522,19 @@ setup:
   - match: {hits.hits.4.fields.name.0: "coyote"}
   - match: {hits.hits.4.fields.count.0: 10}
   - match: {hits.hits.4.fields.color.0: "gray"}
+
+---
+"standard retriever with empty body":
+
+  - do:
+      search:
+        index: animals
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          retriever:
+            standard: {}
+          size: 10
+
+  - match: { hits.total.value : 15 }
+  - length: { hits.hits: 10 }

@@ -454,22 +454,27 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         }
 
         TopDocsCollector<?> newTopDocsCollector(Sort sort) {
-            if (needsScore == false) {
-                return getTopFieldCollectorManager(sort).newCollector();
+            if (needsScore) {
+                if (Sort.RELEVANCE.equals(sort)) {
+                    // SORT _score DESC, use top score collector
+                    TopScoreDocCollectorManager manager = getTopScoreDocCollectorManager();
+                    return manager.newCollector();
+                } else {
+                    // Add doc and score to sort
+                    var l = new ArrayList<>(Arrays.asList(sort.getSort()));
+                    l.add(SortField.FIELD_DOC);
+                    l.add(SortField.FIELD_SCORE);
+                    sort = new Sort(l.toArray(SortField[]::new));
+                }
             }
 
-            if (Sort.RELEVANCE.equals(sort)) {
-                // SORT _score DESC
-                TopScoreDocCollectorManager manager = getTopScoreDocCollectorManager();
-                return manager.newCollector();
+            TopFieldCollectorManager topFieldCollectorManager = getTopFieldCollectorManager(sort);
+            synchronized (topFieldCollectorManager) {
+                // Need to synchronize on the manager to ensure that only one collector is created at a time for a given Sort,
+                // since TopFieldCollectorManager is not thread-safe.
+                return topFieldCollectorManager.newCollector();
             }
 
-            // SORT ..., _score, ...
-            var l = new ArrayList<>(Arrays.asList(sort.getSort()));
-            l.add(SortField.FIELD_DOC);
-            l.add(SortField.FIELD_SCORE);
-            sort = new Sort(l.toArray(SortField[]::new));
-            return getTopFieldCollectorManager(sort).newCollector();
         }
 
         PerShardCollector newPerShardCollector(ShardContext context) throws IOException {

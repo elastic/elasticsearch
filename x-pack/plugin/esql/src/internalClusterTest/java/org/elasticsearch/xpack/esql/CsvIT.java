@@ -138,7 +138,7 @@ public class CsvIT extends ESTestCase {
                     .admin()
                     .indices()
                     .prepareCreate(dataset.indexName())
-                    .setMapping(dataset.loadMappings())
+                    .setMapping(CsvTestsDataLoader.readMappingFile(dataset))
                     .setSettings(dataset.loadSettings())
             );
             if (dataset.dataFileName() != null) {

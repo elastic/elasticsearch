@@ -985,7 +985,7 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static String readMappingFile(TestDataset dataset) throws IOException {
+    static String readMappingFile(TestDataset dataset) throws IOException {
         String mappingJsonText = dataset.loadMappings();
         if (dataset.typeMapping == null || dataset.typeMapping.isEmpty()) {
             return mappingJsonText;

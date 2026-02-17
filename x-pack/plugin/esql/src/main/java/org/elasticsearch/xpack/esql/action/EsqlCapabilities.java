@@ -1934,6 +1934,11 @@ public class EsqlCapabilities {
         PROMQL_POST_PROCESSING_STATS,
 
         /**
+         * PromQL scalar() function support.
+         */
+        PROMQL_SCALAR,
+
+        /**
          * KNN function adds support for k and visit_percentage options
          */
         KNN_FUNCTION_OPTIONS_K_VISIT_PERCENTAGE,

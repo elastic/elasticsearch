@@ -35,4 +35,8 @@ public class ESSloppyMath {
     public static double asinh(double value) {
         return FastMath.asinh(value);
     }
+
+    public static double atanh(double value) {
+        return FastMath.atanh(value);
+    }
 }

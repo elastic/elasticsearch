@@ -1,5 +1,6 @@
 countryAddresses
 required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
 
 FROM country_addresses
 ;
@@ -12,6 +13,8 @@ count:long | country:keyword
 ;
 
 airports
+required_capability: views_crud_as_index_actions
+
 FROM airports
 | WHERE country IS NOT NULL
 | STATS count=COUNT() BY country
@@ -40,6 +43,7 @@ count:long | country:keyword
 
 countryAirports
 required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
 
 FROM country_airports
 ;
@@ -65,6 +69,7 @@ count:long | country:keyword
 
 countryAirportsFiltered
 required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
 
 FROM country_airports
 | WHERE count > 15
@@ -85,6 +90,7 @@ count:long | country:keyword
 
 countryAirportsAddresses
 required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
 
 FROM country_addresses, country_airports
 | STATS count=SUM(count) BY country
@@ -109,6 +115,7 @@ count:long | country:keyword
 
 countryAirportsAddressesWildcard
 required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
 
 FROM country_a*
 | STATS count=SUM(count) BY country
@@ -133,6 +140,7 @@ count:long | country:keyword
 
 countryAirportsAddressesUS
 required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
 
 FROM country_addresses, country_airports
 | WHERE country == "United States"
@@ -146,6 +154,7 @@ count:long | country:keyword
 
 languages
 required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
 
 FROM languages_lookup_non_unique_key
 | MV_EXPAND country
@@ -168,6 +177,7 @@ count:long | country:keyword
 
 countryLanguages
 required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
 
 FROM country_languages
 ;
@@ -185,6 +195,7 @@ count:long | country:keyword
 
 countryAirportsAddressesLanguages
 required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
 
 FROM country_addresses, country_airports, country_languages
 | STATS count=SUM(count) BY country
@@ -210,6 +221,7 @@ count:long | country:keyword
 
 countryAirportsAddressesLanguagesWildcard
 required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
 
 FROM country_*
 | STATS count=SUM(count) BY country
@@ -236,6 +248,7 @@ count:long | country:keyword
 airportsLookupJoin
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
+required_capability: views_crud_as_index_actions
 
 FROM airports
 | RENAME abbrev AS code
@@ -259,6 +272,7 @@ airportsLookupJoinView
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
 
 FROM airports_mp_filtered
 ;
@@ -277,6 +291,7 @@ airportsLookupJoinViewAirports
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
 
 FROM airports_mp_filtered, airports METADATA _index
 | WHERE abbrev == "LUH"
@@ -292,6 +307,7 @@ airportsLookupJoinViewAirportsStats
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
 
 FROM airports_mp_filtered, airports
 | STATS duplications=COUNT() BY abbrev
@@ -309,6 +325,7 @@ airportsLookupJoinViewAirportsStatsValues
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
 
 FROM airports_mp_filtered, airports METADATA _index
 | EVAL _index = CASE(_index IS NULL, "view", _index)
@@ -337,6 +354,7 @@ duplications:long | abbrev:keyword | indexes:keyword
 
 queryThatWillNotBeDeterministicWithViews
 required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
 
 FROM *
 | EVAL country=TO_STRING(country)
@@ -356,6 +374,8 @@ foo:long            | count:long | country:keyword
 // Testing edge cases with multi-value fields in views
 
 multiValueWarningsWithNoViews
+required_capability: views_crud_as_index_actions
+
 FROM employees
 | WHERE is_rehired == true
 | STATS rehired_count = COUNT()
@@ -369,11 +389,13 @@ rehired_count:long
 
 multiValueWarningsWithView
 required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
 FROM employees_rehired
 | STATS rehired_count = COUNT()
 ;
-warning:Line 1:23 (in view [employees_rehired]): evaluation of [is_rehired == true] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:23 (in view [employees_rehired]): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 rehired_count:long
 11
@@ -381,6 +403,8 @@ rehired_count:long
 
 multiValueWarningsWithBranchedView
 required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
 FROM employees_*rehired
 | STATS rehired_count = COUNT() by is_rehired
 | SORT is_rehired DESC

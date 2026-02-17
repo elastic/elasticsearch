@@ -7,13 +7,17 @@
 
 package org.elasticsearch.xpack.esql.generator.command.pipe;
 
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
@@ -31,8 +35,21 @@ public class UriPartsGenerator implements CommandGenerator {
     private static final String PREFIX = "prefix";
 
     /**
-     * Valid literal URIs used so that at least some generated commands parse real URIs (happy path).
+     * Expected URI_PARTS output field names and their ES|QL types. Computed once from
+     * {@link UriPartsFunctionBridge#getAllOutputFields()} and {@link DataType#fromJavaType}.
      */
+    private static final LinkedHashMap<String, String> URI_PARTS_OUTPUT_FIELDS;
+    static {
+        LinkedHashMap<String, Class<?>> outputFields = UriPartsFunctionBridge.getAllOutputFields();
+        URI_PARTS_OUTPUT_FIELDS = new LinkedHashMap<>(outputFields.size());
+        for (Map.Entry<String, Class<?>> e : outputFields.entrySet()) {
+            URI_PARTS_OUTPUT_FIELDS.putLast(e.getKey(), Objects.requireNonNull(DataType.fromJavaType(e.getValue())).typeName());
+        }
+    }
+
+    /**
+    * Valid literal URIs used so that at least some generated commands parse real URIs (happy path).
+    */
     private static final String[] LITERAL_URIS = new String[] {
         "http://myusername:mypassword@www.example.com:80/foo.gif?key1=val1&key2=val2#fragment",
         "https://www.elastic.co/downloads/elasticsearch",
@@ -108,9 +125,55 @@ public class UriPartsGenerator implements CommandGenerator {
         if (commandDescription == EMPTY_DESCRIPTION) {
             return VALIDATION_OK;
         }
-        if (previousColumns.size() > columns.size()) {
-            return new ValidationResult(false, "Expecting at least [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
+
+        String prefix = (String) commandDescription.context().get(PREFIX);
+        if (prefix == null) {
+            return new ValidationResult(false, "Missing prefix in command context");
         }
+
+        var actualColumnIterator = columns.iterator();
+        var uriPartsColumnIterator = URI_PARTS_OUTPUT_FIELDS.entrySet().iterator();
+
+        Map.Entry<String, String> uriPartColumnInfo = uriPartsColumnIterator.next();
+        Column actualOutputColumn = null;
+
+        while (actualColumnIterator.hasNext()) {
+            Column tmp = actualColumnIterator.next();
+            if (tmp.name().equals(prefix + "." + uriPartColumnInfo.getKey())) {
+                actualOutputColumn = tmp;
+                break;
+            }
+        }
+        if (actualOutputColumn == null) {
+            return new ValidationResult(false, "Missing URI_PARTS column [" + prefix + "." + uriPartColumnInfo.getKey() + "]");
+        }
+
+        do {
+            String expectedName = prefix + "." + uriPartColumnInfo.getKey();
+            if (actualOutputColumn.name().equals(expectedName) == false) {
+                return new ValidationResult(
+                    false,
+                    "URI_PARTS column [" + expectedName + "] expected, got [" + actualOutputColumn.name() + "]"
+                );
+            }
+            String expectedType = uriPartColumnInfo.getValue();
+            if (actualOutputColumn.type().equals(expectedType) == false) {
+                return new ValidationResult(
+                    false,
+                    "URI_PARTS column [" + expectedName + "] expected type [" + expectedType + "], got [" + actualOutputColumn.type() + "]"
+                );
+            }
+            uriPartColumnInfo = uriPartsColumnIterator.next();
+            actualOutputColumn = actualColumnIterator.next();
+        } while (uriPartsColumnIterator.hasNext() && actualColumnIterator.hasNext());
+
+        if (uriPartsColumnIterator.hasNext()) {
+            return new ValidationResult(false, "Not all URI_PARTS columns were generated");
+        }
+        if (actualColumnIterator.hasNext()) {
+            return new ValidationResult(false, "Unexpected column [" + actualColumnIterator.next().name() + "]");
+        }
+
         return CommandGenerator.expectSameRowCount(previousCommands, previousOutput, output);
     }
 }

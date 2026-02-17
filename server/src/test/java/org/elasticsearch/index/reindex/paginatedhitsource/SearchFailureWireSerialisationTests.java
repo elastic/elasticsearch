@@ -11,8 +11,8 @@ package org.elasticsearch.index.reindex.paginatedhitsource;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
+import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import static org.elasticsearch.index.reindex.paginatedhitsource.SearchFailureTests.randomException;
 
@@ -51,14 +51,8 @@ public class SearchFailureWireSerialisationTests extends AbstractWireSerializing
         assertEquals(expected.getStatus(), actual.getStatus());
 
         // Compare exception meaningfully, not by identity
-        assertEquals(
-            expected.getReason().getClass(),
-            actual.getReason().getClass()
-        );
-        assertEquals(
-            expected.getReason().getMessage(),
-            actual.getReason().getMessage()
-        );
+        assertEquals(expected.getReason().getClass(), actual.getReason().getClass());
+        assertEquals(expected.getReason().getMessage(), actual.getReason().getMessage());
     }
 
     public static SearchFailure mutateSearchFailure(SearchFailure instance) {
@@ -82,37 +76,19 @@ public class SearchFailureWireSerialisationTests extends AbstractWireSerializing
                 String newIndex = instance.getIndex() == null
                     ? randomAlphaOfLengthBetween(1, 10)
                     : randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(1, 10));
-                return new SearchFailure(
-                    instance.getReason(),
-                    newIndex,
-                    instance.getShardId(),
-                    instance.getNodeId(),
-                    instance.getStatus()
-                );
+                return new SearchFailure(instance.getReason(), newIndex, instance.getShardId(), instance.getNodeId(), instance.getStatus());
             }
             case 2 -> {
                 Integer newShardId = instance.getShardId() == null
                     ? randomIntBetween(0, 100)
                     : randomValueOtherThan(instance.getShardId(), () -> randomIntBetween(0, 100));
-                return new SearchFailure(
-                    instance.getReason(),
-                    instance.getIndex(),
-                    newShardId,
-                    instance.getNodeId(),
-                    instance.getStatus()
-                );
+                return new SearchFailure(instance.getReason(), instance.getIndex(), newShardId, instance.getNodeId(), instance.getStatus());
             }
             case 3 -> {
                 String newNodeId = instance.getNodeId() == null
                     ? randomAlphaOfLengthBetween(1, 10)
                     : randomValueOtherThan(instance.getNodeId(), () -> randomAlphaOfLengthBetween(1, 10));
-                return new SearchFailure(
-                    instance.getReason(),
-                    instance.getIndex(),
-                    instance.getShardId(),
-                    newNodeId,
-                    instance.getStatus()
-                );
+                return new SearchFailure(instance.getReason(), instance.getIndex(), instance.getShardId(), newNodeId, instance.getStatus());
             }
             default -> throw new AssertionError("Unknown field index [" + fieldToMutate + "]");
         }

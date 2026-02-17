@@ -499,19 +499,12 @@ public abstract class PaginatedHitSource {
             if (reason == null || that.reason == null) {
                 return false;
             }
-            return reason.getClass().equals(that.reason.getClass())
-                && Objects.equals(reason.getMessage(), that.reason.getMessage());
+            return reason.getClass().equals(that.reason.getClass()) && Objects.equals(reason.getMessage(), that.reason.getMessage());
         }
+
         @Override
         public int hashCode() {
-            return Objects.hash(
-                index,
-                shardId,
-                nodeId,
-                status,
-                reason.getClass(),
-                reason.getMessage()
-            );
+            return Objects.hash(index, shardId, nodeId, status, reason.getClass(), reason.getMessage());
         }
     }
 }

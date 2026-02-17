@@ -13,11 +13,12 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import java.util.Map;
-import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
 import org.elasticsearch.xcontent.XContentType;
+
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -56,13 +57,7 @@ public class SearchFailureTests extends ESTestCase {
         Integer shardId = randomIntBetween(0, 100);
         String nodeId = randomAlphaOfLengthBetween(3, 10);
         SearchFailure failure1 = new SearchFailure(reason, index, shardId, nodeId);
-        SearchFailure failure2 = new SearchFailure(
-            reason,
-            index,
-            shardId,
-            nodeId,
-            RestStatus.INTERNAL_SERVER_ERROR
-        );
+        SearchFailure failure2 = new SearchFailure(reason, index, shardId, nodeId, RestStatus.INTERNAL_SERVER_ERROR);
         assertEquals(failure1, failure2);
         assertEquals(failure1.hashCode(), failure2.hashCode());
     }
@@ -74,9 +69,15 @@ public class SearchFailureTests extends ESTestCase {
         String nodeId = randomAlphaOfLengthBetween(3, 10);
         SearchFailure base = new SearchFailure(reason, index, shardId, nodeId);
 
-        assertNotEquals(base, new SearchFailure(reason, randomValueOtherThan(index, () -> randomAlphaOfLengthBetween(3, 10)), shardId, nodeId));
+        assertNotEquals(
+            base,
+            new SearchFailure(reason, randomValueOtherThan(index, () -> randomAlphaOfLengthBetween(3, 10)), shardId, nodeId)
+        );
         assertNotEquals(base, new SearchFailure(reason, index, randomValueOtherThan(shardId, () -> randomIntBetween(0, 100)), nodeId));
-        assertNotEquals(base, new SearchFailure(reason, index, shardId, randomValueOtherThan(nodeId, () -> randomAlphaOfLengthBetween(3, 10))));
+        assertNotEquals(
+            base,
+            new SearchFailure(reason, index, shardId, randomValueOtherThan(nodeId, () -> randomAlphaOfLengthBetween(3, 10)))
+        );
     }
 
     public void testEqualsIsFalseForDifferentExceptionTypeOrMessage() {
@@ -95,11 +96,7 @@ public class SearchFailureTests extends ESTestCase {
         String nodeId = randomAlphaOfLengthBetween(3, 10);
         SearchFailure failure = new SearchFailure(reason, index, shardId, nodeId);
         String json = Strings.toString(failure);
-        Map<String, Object> map = XContentHelper.convertToMap(
-            XContentType.JSON.xContent(),
-            json,
-            false
-        );
+        Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), json, false);
         assertThat(map.get(SearchFailure.INDEX_FIELD), equalTo(index));
         assertThat(map.get(SearchFailure.SHARD_FIELD), equalTo(shardId));
         assertThat(map.get(SearchFailure.NODE_FIELD), equalTo(nodeId));
@@ -114,11 +111,7 @@ public class SearchFailureTests extends ESTestCase {
     public void testToXContentOmitsNullOptionalFields() {
         SearchFailure failure = new SearchFailure(randomException());
         String json = Strings.toString(failure);
-        Map<String, Object> map = XContentHelper.convertToMap(
-            XContentType.JSON.xContent(),
-            json,
-            false
-        );
+        Map<String, Object> map = XContentHelper.convertToMap(XContentType.JSON.xContent(), json, false);
         assertThat(map, not(hasKey(SearchFailure.INDEX_FIELD)));
         assertThat(map, not(hasKey(SearchFailure.SHARD_FIELD)));
         assertThat(map, not(hasKey(SearchFailure.NODE_FIELD)));
@@ -131,10 +124,6 @@ public class SearchFailureTests extends ESTestCase {
     }
 
     public static Throwable randomException(String message) {
-        return randomFrom(
-            new IllegalArgumentException(message),
-            new IllegalStateException(message),
-            new ElasticsearchException(message)
-        );
+        return randomFrom(new IllegalArgumentException(message), new IllegalStateException(message), new ElasticsearchException(message));
     }
 }

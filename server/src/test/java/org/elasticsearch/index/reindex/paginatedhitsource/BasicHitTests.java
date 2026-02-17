@@ -16,7 +16,6 @@ import org.elasticsearch.index.reindex.PaginatedHitSource.BasicHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
 
-
 public class BasicHitTests extends ESTestCase {
 
     /**
@@ -45,11 +44,7 @@ public class BasicHitTests extends ESTestCase {
      * Verifies that setSource returns the same instance, allowing fluent-style method chaining.
      */
     public void testSetSource() {
-        BasicHit hit = new BasicHit(
-            randomAlphaOfLengthBetween(3, 10),
-            randomAlphaOfLengthBetween(3, 10),
-            randomNonNegativeLong()
-        );
+        BasicHit hit = new BasicHit(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomNonNegativeLong());
         BytesReference source = new BytesArray(randomAlphaOfLengthBetween(5, 50));
         XContentType xContentType = randomFrom(XContentType.values());
 
@@ -64,11 +59,7 @@ public class BasicHitTests extends ESTestCase {
      * Verifies that setRouting returns the same instance, allowing fluent-style chaining.
      */
     public void testSetRouting() {
-        BasicHit hit = new BasicHit(
-            randomAlphaOfLengthBetween(3, 10),
-            randomAlphaOfLengthBetween(3, 10),
-            randomNonNegativeLong()
-        );
+        BasicHit hit = new BasicHit(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomNonNegativeLong());
         String routing = randomAlphaOfLengthBetween(3, 20);
         BasicHit returned = hit.setRouting(routing);
         assertEquals(routing, hit.getRouting());
@@ -79,11 +70,7 @@ public class BasicHitTests extends ESTestCase {
      * Verifies that sequence number can be set and retrieved correctly.
      */
     public void testSetSeqNo() {
-        BasicHit hit = new BasicHit(
-            randomAlphaOfLengthBetween(3, 10),
-            randomAlphaOfLengthBetween(3, 10),
-            randomNonNegativeLong()
-        );
+        BasicHit hit = new BasicHit(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomNonNegativeLong());
         long seqNo = randomNonNegativeLong();
         hit.setSeqNo(seqNo);
         assertEquals(seqNo, hit.getSeqNo());
@@ -93,11 +80,7 @@ public class BasicHitTests extends ESTestCase {
      * Verifies that primary term can be set and retrieved correctly.
      */
     public void testSetPrimaryTerm() {
-        BasicHit hit = new BasicHit(
-            randomAlphaOfLengthBetween(3, 10),
-            randomAlphaOfLengthBetween(3, 10),
-            randomNonNegativeLong()
-        );
+        BasicHit hit = new BasicHit(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomNonNegativeLong());
         long primaryTerm = randomNonNegativeLong();
         hit.setPrimaryTerm(primaryTerm);
         assertEquals(primaryTerm, hit.getPrimaryTerm());
@@ -115,10 +98,7 @@ public class BasicHitTests extends ESTestCase {
         hit.setRouting(randomAlphaOfLengthBetween(3, 20));
         hit.setSeqNo(randomNonNegativeLong());
         hit.setPrimaryTerm(randomNonNegativeLong());
-        hit.setSource(
-            new BytesArray(randomAlphaOfLengthBetween(5, 50)),
-            randomFrom(XContentType.values())
-        );
+        hit.setSource(new BytesArray(randomAlphaOfLengthBetween(5, 50)), randomFrom(XContentType.values()));
 
         assertEquals(index, hit.getIndex());
         assertEquals(id, hit.getId());

@@ -15,10 +15,10 @@ import org.elasticsearch.index.reindex.PaginatedHitSource.Hit;
 import org.elasticsearch.index.reindex.PaginatedHitSource.Response;
 import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
 import org.elasticsearch.test.ESTestCase;
+
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-
 
 public class ResponseTests extends ESTestCase {
 
@@ -123,13 +123,7 @@ public class ResponseTests extends ESTestCase {
     public void testNullCollectionsArePreserved() {
         List<SearchFailure> failures = null;
         List<Hit> hits = null;
-        Response response = new Response(
-            randomBoolean(),
-            failures,
-            randomNonNegativeLong(),
-            hits,
-            randomAlphaOfLengthBetween(3, 20)
-        );
+        Response response = new Response(randomBoolean(), failures, randomNonNegativeLong(), hits, randomAlphaOfLengthBetween(3, 20));
         assertNull(response.getFailures());
         assertNull(response.getHits());
     }
@@ -154,13 +148,7 @@ public class ResponseTests extends ESTestCase {
         int size = randomIntBetween(1, 5);
         List<Hit> hits = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            hits.add(
-                new BasicHit(
-                    randomAlphaOfLengthBetween(3, 10),
-                    randomAlphaOfLengthBetween(3, 10),
-                    randomNonNegativeLong()
-                )
-            );
+            hits.add(new BasicHit(randomAlphaOfLengthBetween(3, 10), randomAlphaOfLengthBetween(3, 10), randomNonNegativeLong()));
         }
         return hits;
     }

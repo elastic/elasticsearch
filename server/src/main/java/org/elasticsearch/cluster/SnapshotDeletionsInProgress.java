@@ -107,6 +107,35 @@ public class SnapshotDeletionsInProgress extends AbstractNamedDiffable<Custom> i
     }
 
     /**
+     * Returns a {@link SnapshotDeletionsInProgress} that has the entry with a UUID that matches that of {@code newEntry} replaced with
+     * {@code newEntry}. Returns {@code this} if the new entry is already present. It is invalid to call this if no entry with the given
+     * UUID exists.
+     */
+    public SnapshotDeletionsInProgress withReplacedEntry(Entry newEntry) {
+        List<Entry> updatedEntries = new ArrayList<>(entries.size());
+        boolean replaced = false;
+        for (Entry entry : entries) {
+            if (entry.uuid().equals(newEntry.uuid())) {
+                if (newEntry == entry) {
+                    return this;
+                }
+                assert Set.copyOf(newEntry.snapshots()).containsAll(entry.snapshots()) : "unexpected removal";
+                assert newEntry.snapshots().size() > entry.snapshots().size() : "unexpected no-add replacement";
+                replaced = true;
+                updatedEntries.add(newEntry);
+            } else {
+                updatedEntries.add(entry);
+            }
+        }
+        if (replaced) {
+            return SnapshotDeletionsInProgress.of(updatedEntries);
+        } else {
+            assert false : "nothing replaced with " + newEntry;
+            return this;
+        }
+    }
+
+    /**
      * Returns an unmodifiable list of snapshot deletion entries.
      */
     public List<Entry> getEntries() {

@@ -40,7 +40,6 @@ import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.io.IOException;
-import java.net.URL;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -160,39 +159,19 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
             }
 
             if (indexExists(indexName) == false) {
-                // Read mapping file
-                URL mappingResource = CsvTestsDataLoader.class.getResource("/" + dataset.mappingFileName());
-                if (mappingResource == null) {
-                    throw new IllegalArgumentException("Cannot find mapping resource for " + indexName + ": " + dataset.mappingFileName());
-                }
-                String mappingContent = CsvTestsDataLoader.readTextFile(mappingResource);
-
-                // Read settings file (same logic as TestDataset.readSettingsFile())
-                Settings indexSettings = Settings.EMPTY;
-                String settingFileName = dataset.settingFileName();
-                if (settingFileName != null) {
-                    String settingName = "/" + settingFileName;
-                    indexSettings = Settings.builder()
-                        .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
-                        .build();
-                }
                 // Ensure standard settings for test indices
-                indexSettings = Settings.builder()
-                    .put(indexSettings)
+                var indexSettings = Settings.builder()
+                    .put(dataset.loadSettings())
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
                     .build();
 
                 // Create index - let exceptions propagate so test fails immediately
-                ESRestTestCase.createIndex(restClient, indexName, indexSettings, mappingContent, null);
+                ESRestTestCase.createIndex(restClient, indexName, indexSettings, dataset.loadMappings(), null);
 
                 // Load CSV data if available
                 if (dataset.dataFileName() != null) {
-                    URL csvResource = CsvTestsDataLoader.class.getResource("/data/" + dataset.dataFileName());
-                    if (csvResource == null) {
-                        throw new IllegalArgumentException("Cannot find CSV resource for " + indexName + ": " + dataset.dataFileName());
-                    }
-                    CsvTestsDataLoader.loadCsvData(restClient, indexName, csvResource, dataset.allowSubFields(), logger);
+                    CsvTestsDataLoader.loadCsvData(restClient, indexName, dataset.streamData(), dataset.allowSubFields());
                 }
 
                 refresh(indexName);
@@ -235,7 +214,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
 
             if (policyExists == false) {
                 // Use CsvTestsDataLoader to load the enrich policy (it handles both creation and execution)
-                CsvTestsDataLoader.loadEnrichPolicy(restClient, policyName, config.policyFileName(), logger);
+                CsvTestsDataLoader.loadEnrichPolicy(restClient, config);
                 ensureGreen(); // Wait for enrich index to be ready
             }
             if (enrichIndexExists == false) {

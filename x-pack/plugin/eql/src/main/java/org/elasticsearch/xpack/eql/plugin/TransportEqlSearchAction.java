@@ -17,11 +17,14 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.injection.guice.Inject;
@@ -43,6 +46,9 @@ import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 import org.elasticsearch.xpack.eql.action.EqlSearchTask;
 import org.elasticsearch.xpack.eql.execution.PlanExecutor;
+import org.elasticsearch.xpack.eql.logging.EqlLogContext;
+import org.elasticsearch.xpack.eql.logging.EqlLogContextBuilder;
+import org.elasticsearch.xpack.eql.logging.EqlLogProducer;
 import org.elasticsearch.xpack.eql.parser.ParserParams;
 import org.elasticsearch.xpack.eql.session.EqlConfiguration;
 import org.elasticsearch.xpack.eql.session.Results;
@@ -71,6 +77,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
     private final PlanExecutor planExecutor;
     private final TransportService transportService;
     private final AsyncTaskManagementService<EqlSearchRequest, EqlSearchResponse, EqlSearchTask> asyncTaskManagementService;
+    private final ActivityLogger<EqlLogContext> activityLogger;
 
     @Inject
     public TransportEqlSearchAction(
@@ -82,7 +89,9 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         PlanExecutor planExecutor,
         NamedWriteableRegistry registry,
         Client client,
-        BigArrays bigArrays
+        BigArrays bigArrays,
+        ActionLoggingFieldsProvider fieldProvider,
+        ActivityLogWriterProvider logWriterProvider
     ) {
         super(EqlSearchAction.NAME, transportService, actionFilters, EqlSearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
@@ -105,6 +114,13 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             clusterService,
             threadPool,
             bigArrays
+        );
+        this.activityLogger = new ActivityLogger<>(
+            EqlLogContext.TYPE,
+            clusterService.getClusterSettings(),
+            new EqlLogProducer(),
+            logWriterProvider,
+            fieldProvider
         );
     }
 
@@ -157,6 +173,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
 
     @Override
     protected void doExecute(Task task, EqlSearchRequest request, ActionListener<EqlSearchResponse> listener) {
+        listener = activityLogger.wrap(listener, new EqlLogContextBuilder(task, request));
         if (requestIsAsync(request)) {
             asyncTaskManagementService.asyncExecute(
                 request,

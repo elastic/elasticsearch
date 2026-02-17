@@ -31,6 +31,7 @@ import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.coordination.CoordinationState;
@@ -41,6 +42,8 @@ import org.elasticsearch.cluster.coordination.Reconfigurator;
 import org.elasticsearch.cluster.coordination.stateless.AtomicRegisterPreVoteCollector;
 import org.elasticsearch.cluster.coordination.stateless.SingleNodeReconfigurator;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
+import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -240,19 +243,20 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
 
     @Override
     protected void disconnectOrRestartMasterNode() {
-        // Disconnect current master does not lead to master failover in stateless, so we always restart
-        // The restart will wait for the master to failover. Otherwise, it could reclaim the master and leave other nodes masterless
         testClusterNodes.randomMasterNode().ifPresent(masterNode -> {
-            masterNode.restart(() -> {
-                final var currentMasterNodeIds = testClusterNodes.nodes()
-                    .values()
-                    .stream()
-                    .map(n -> n.clusterService().state().nodes().getMasterNodeId())
-                    .collect(Collectors.toSet());
-                return currentMasterNodeIds.contains(null) == false
-                    && currentMasterNodeIds.size() == 1
-                    && currentMasterNodeIds.iterator().next().equals(masterNode.node().getName()) == false;
-            });
+            final String electedMasterId = masterNode.clusterService().state().nodes().getMasterNodeId();
+            if (masterNode.node().getId().equals(electedMasterId)) {
+                // In stateless, ungraceful master failover is effectively a full cluster restart which does not
+                // preserve the non-persisted part of the cluster state (e.g. SnapshotsInProgress). Use graceful abdication
+                // instead. It is triggered by a shutdown marker which is removed when the master failover completes.
+                ((StatelessNodes.StatelessNode) masterNode).gracefullyAbdicate();
+            } else {
+                if (randomBoolean()) {
+                    testClusterNodes.disconnectNode(masterNode);
+                } else {
+                    masterNode.restart();
+                }
+            }
         });
     }
 
@@ -593,6 +597,77 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         (StoreHeartbeatService) leaderHeartbeatService,
                         startElection
                     );
+            }
+
+            void gracefullyAbdicate() {
+                final String masterNodeId = node().getId();
+
+                // Submit a cluster state update to put the master node in shutdown mode, triggering abdication
+                clusterService().submitUnbatchedStateUpdateTask("add shutdown for test", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return currentState.copyAndUpdateMetadata(
+                            metadata -> metadata.putCustom(
+                                NodesShutdownMetadata.TYPE,
+                                new NodesShutdownMetadata(
+                                    Map.of(
+                                        masterNodeId,
+                                        SingleNodeShutdownMetadata.builder()
+                                            .setNodeId(masterNodeId)
+                                            .setType(SingleNodeShutdownMetadata.Type.RESTART)
+                                            .setStartedAtMillis(0L)
+                                            .setReason("master failover for test")
+                                            .build()
+                                    )
+                                )
+                            )
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        throw new AssertionError("failed to add shutdown metadata", e);
+                    }
+                });
+
+                // Schedule removal of the shutdown metadata once a different master has been elected
+                scheduleRemoveShutdownMetadata(masterNodeId);
+            }
+
+            private void scheduleRemoveShutdownMetadata(String oldMasterNodeId) {
+                scheduleSoon(new Runnable() {
+                    @Override
+                    public void run() {
+                        // Wait until all nodes agree on a new master that is not the old one
+                        String newMasterName = null;
+                        for (TestClusterNode node : nodes().values()) {
+                            final String masterNodeId = node.clusterService().state().nodes().getMasterNodeId();
+                            if (masterNodeId == null || masterNodeId.equals(oldMasterNodeId)) {
+                                scheduleSoon(this);
+                                return;
+                            }
+                            if (newMasterName == null) {
+                                newMasterName = node.clusterService().state().nodes().getMasterNode().getName();
+                            }
+                        }
+                        // All nodes agree on the new master, submit task to remove shutdown metadata
+                        nodes().get(newMasterName)
+                            .clusterService()
+                            .submitUnbatchedStateUpdateTask("remove shutdown for test", new ClusterStateUpdateTask() {
+                                @Override
+                                public ClusterState execute(ClusterState currentState) {
+                                    return currentState.copyAndUpdateMetadata(
+                                        metadata -> metadata.putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(Map.of()))
+                                    );
+                                }
+
+                                @Override
+                                public void onFailure(Exception e) {
+                                    throw new AssertionError("failed to remove shutdown metadata", e);
+                                }
+                            });
+                    }
+                });
             }
         }
     }

@@ -141,9 +141,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * Matches FIRST(...) or LAST(...) function calls where the second argument is the literal {@code null}.
      * See https://github.com/elastic/elasticsearch/issues/142180#issuecomment-3913054718
      */
-    private static final Pattern FIRST_LAST_NULL_ARG_PATTERN = Pattern.compile(
-        "(?i)\\b(?:first|last)\\s*\\([^,()]+,\\s*null\\s*\\)"
-    );
+    private static final Pattern FIRST_LAST_NULL_ARG_PATTERN = Pattern.compile("(?i)\\b(?:first|last)\\s*\\([^,()]+,\\s*null\\s*\\)");
     /**
      * Matches FIRST(...) or LAST(...) function calls and captures both arguments.
      * Used to detect when the same field is passed as both the search and sort parameters.

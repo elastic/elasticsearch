@@ -547,8 +547,32 @@ are [released](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/m
 
 #### Pre-Vote
 
-https://davecturner.github.io/2017/08/17/paxos-pre-voting.html
-(Explain why the pre-voting phase is essential to ensure liveness)
+[PreVoteRequest]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/PreVoteRequest.java
+
+[PreVoteResponse]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/PreVoteResponse.java
+
+[ElectionSchedulerFactory]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/ElectionSchedulerFactory.java
+
+The pre-vote phase takes place before a candidate bumps the term. It is meant to prevent a partitioned node from
+disrupting a healthy term by forcing a re-election when it rejoins the cluster. It ensures that a candidate can only
+proceed to broadcast a higher term once a quorum of peers agrees that there is no active leader.
+
+When receiving a [PreVoteRequest] from another node, the receiver
+will [check](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/StatefulPreVoteCollector.java#L89)
+whether it currently knows of an active leader. If not, and if the receiver is healthy, it will reply with
+a [PreVoteResponse] containing its `currentTerm`, `lastAcceptedTerm`, and `lastAcceptedVersion`. If it still considers a
+different node to be the leader, it will reject the request.
+
+Pre-vote rounds are triggered by the [ElectionSchedulerFactory],
+which schedules each attempt after a random delay that grows linearly with the number of failed attempts (up to a
+configured [maximum](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ElectionSchedulerFactory.java#L45)).
+This randomized backoff reduces the chances that two candidates will run pre-vote rounds simultaneously, avoiding
+conflicts and giving each attempt enough time to complete before the next one begins.
+
+For additional details on the theory behind the pre-voting phase, see
+the [Pre-voting in distributed consensus](https://davecturner.github.io/2017/08/17/paxos-pre-voting.html) article. This
+[blog post](https://blog.cloudflare.com/a-byzantine-failure-in-the-real-world/) also describes a real-world example of a
+liveness failure caused by this check being omitted.
 
 #### Join
 

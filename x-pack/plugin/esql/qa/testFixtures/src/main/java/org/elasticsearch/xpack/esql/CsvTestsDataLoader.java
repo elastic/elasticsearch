@@ -95,7 +95,6 @@ public class CsvTestsDataLoader {
     ).withSetting("lookup-settings.json");
     private static final TestDataset LANGUAGES = new TestDataset("languages");
     private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");
-    private static final TestDataset LANGUAGES_NON_UNIQUE_KEY = new TestDataset("languages_non_unique_key");
     private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
         .withData("languages_non_unique_key.csv")
         .withDynamicTypeMapping(Map.of("country", "text"));
@@ -1011,7 +1010,50 @@ public class CsvTestsDataLoader {
         return mappingJsonText;
     }
 
-    record ColumnHeader(String name, String type) {}
+    record Column(String name, String type) {}
+
+    public record Document(String id, StringBuilder json) {}
+
+    public static List<Document> readCsvDocuments(InputStream resource, boolean allowSubFields) {
+        try (BufferedReader reader = reader(resource)) {
+            var documents = new ArrayList<Document>();
+            String line;
+            int lineNumber = 1;
+            Column[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
+            List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
+            while ((line = reader.readLine()) != null) {
+                line = line.trim();
+                // ignore comments
+                if (line.isEmpty() || line.startsWith("//")) {
+                    continue;
+                }
+                String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
+                // the schema row
+                if (columns == null) {
+                    columns = parseHeaders(entries, allowSubFields, subFieldsIndices);
+                }
+                // data rows
+                else {
+                    if (entries.length != columns.length) {
+                        throw new IllegalArgumentException(
+                            format(
+                                null,
+                                "Error line [{}]: Incorrect number of entries; expected [{}] but found [{}]",
+                                lineNumber,
+                                columns.length,
+                                entries.length
+                            )
+                        );
+                    }
+                    documents.add(parseDocument(columns, entries, lineNumber, subFieldsIndices));
+                }
+                lineNumber++;
+            }
+            return documents;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
 
     /**
      * Loads a classic csv file in an ES cluster using a RestClient.
@@ -1028,105 +1070,47 @@ public class CsvTestsDataLoader {
      *   - commas inside multivalue fields can be escaped with \ (backslash) character
      */
     public static void loadCsvData(RestClient client, String indexName, InputStream resource, boolean allowSubFields) throws IOException {
-
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
         try (BufferedReader reader = reader(resource)) {
             String line;
             int lineNumber = 1;
-            ColumnHeader[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
+            Column[] columns = null; // Column info. If one column name contains dot, it is a subfield and its value will be null
             List<Integer> subFieldsIndices = new ArrayList<>(); // list containing the index of a subfield in "columns" String[]
-
             while ((line = reader.readLine()) != null) {
                 line = line.trim();
                 // ignore comments
-                if (line.isEmpty() == false && line.startsWith("//") == false) {
-                    String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
-                    // the schema row
-                    if (columns == null) {
-                        columns = new ColumnHeader[entries.length];
-                        for (int i = 0; i < entries.length; i++) {
-                            int split = entries[i].indexOf(':');
-                            if (split < 0) {
-                                columns[i] = new ColumnHeader(entries[i].trim(), null);
-                            } else {
-                                String name = entries[i].substring(0, split).trim();
-                                String type = entries[i].substring(split + 1).trim();
-                                if (allowSubFields || name.contains(".") == false) {
-                                    columns[i] = new ColumnHeader(name, type);
-                                } else {// if it's a subfield, ignore it in the _bulk request
-                                    columns[i] = null;
-                                    subFieldsIndices.add(i);
-                                }
-                            }
-                        }
+                if (line.isEmpty() || line.startsWith("//")) {
+                    continue;
+                }
+                String[] entries = multiValuesAwareCsvToStringArray(line, lineNumber);
+                // the schema row
+                if (columns == null) {
+                    columns = parseHeaders(entries, allowSubFields, subFieldsIndices);
+                }
+                // data rows
+                else {
+                    if (entries.length != columns.length) {
+                        throw new IllegalArgumentException(
+                            format(
+                                null,
+                                "Error line [{}]: Incorrect number of entries; expected [{}] but found [{}]",
+                                lineNumber,
+                                columns.length,
+                                entries.length
+                            )
+                        );
                     }
-                    // data rows
-                    else {
-                        if (entries.length != columns.length) {
-                            throw new IllegalArgumentException(
-                                format(
-                                    null,
-                                    "Error line [{}]: Incorrect number of entries; expected [{}] but found [{}]",
-                                    lineNumber,
-                                    columns.length,
-                                    entries.length
-                                )
-                            );
-                        }
-                        StringBuilder row = new StringBuilder();
-                        String idField = null;
-                        for (int i = 0; i < entries.length; i++) {
-                            // ignore values that belong to subfields and don't add them to the bulk request
-                            if (subFieldsIndices.contains(i) == false) {
-                                if ("".equals(entries[i])) {
-                                    // Value is null, skip
-                                    continue;
-                                }
-                                if (columns[i] != null && "_id".equals(columns[i].name)) {
-                                    // Value is an _id
-                                    idField = entries[i];
-                                    continue;
-                                }
-                                try {
-                                    // add a comma after the previous value, only when there was actually a value before
-                                    if (i > 0 && row.length() > 0) {
-                                        row.append(",");
-                                    }
-                                    // split on comma ignoring escaped commas
-                                    String[] multiValues = entries[i].split(COMMA_ESCAPING_REGEX);
-                                    if (multiValues.length > 1) {
-                                        StringBuilder rowStringValue = new StringBuilder("[");
-                                        for (String s : multiValues) {
-                                            rowStringValue.append(toJson(columns[i].type, s)).append(",");
-                                        }
-                                        // remove the last comma and put a closing bracket instead
-                                        rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
-                                        entries[i] = rowStringValue.toString();
-                                    } else {
-                                        entries[i] = toJson(columns[i].type, entries[i]);
-                                    }
-                                    // replace any escaped commas with single comma
-                                    entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
-                                    row.append("\"").append(columns[i].name).append("\":").append(entries[i]);
-                                } catch (Exception e) {
-                                    throw new IllegalArgumentException(
-                                        format(
-                                            null,
-                                            "Error line [{}]: Cannot parse entry [{}] with value [{}]",
-                                            lineNumber,
-                                            i + 1,
-                                            entries[i]
-                                        ),
-                                        e
-                                    );
-                                }
-                            }
-                        }
-                        String idPart = idField != null ? "\", \"_id\": \"" + idField : "";
-                        builder.append("{\"index\": {\"_index\":\"" + indexName + idPart + "\"}}\n");
-                        builder.append("{" + row + "}\n");
-                    }
+                    // id, document
+                    var document = parseDocument(columns, entries, lineNumber, subFieldsIndices);
+                    builder.append(
+                        "{\"index\": {\"_index\":\""
+                            + indexName
+                            + "\""
+                            + (document.id() != null ? ", \"_id\": \"" + document.id() + "\"" : "")
+                            + "}}\n"
+                    );
+                    builder.append(document.json());
                 }
                 lineNumber++;
                 if (builder.length() > BULK_DATA_SIZE) {
@@ -1144,6 +1128,74 @@ public class CsvTestsDataLoader {
             }
             throw new IOException("Data loading failed with " + failures.size() + " errors: " + failures.get(0));
         }
+    }
+
+    private static Column[] parseHeaders(String[] entries, boolean allowSubFields, List<Integer> subFieldsIndices) {
+        var columns = new Column[entries.length];
+        for (int i = 0; i < entries.length; i++) {
+            int split = entries[i].indexOf(':');
+            if (split < 0) {
+                columns[i] = new Column(entries[i].trim(), null);
+            } else {
+                String name = entries[i].substring(0, split).trim();
+                String type = entries[i].substring(split + 1).trim();
+                if (allowSubFields || name.contains(".") == false) {
+                    columns[i] = new Column(name, type);
+                } else {// if it's a subfield, ignore it in the _bulk request
+                    columns[i] = null;
+                    subFieldsIndices.add(i);
+                }
+            }
+        }
+        return columns;
+    }
+
+    private static Document parseDocument(Column[] columns, String[] entries, int lineNumber, List<Integer> subFieldsIndices) {
+        StringBuilder row = new StringBuilder("{");
+        String id = null;
+        for (int i = 0; i < entries.length; i++) {
+            // ignore values that belong to subfields and don't add them to the bulk request
+            if (subFieldsIndices.contains(i) == false) {
+                if ("".equals(entries[i])) {
+                    // Value is null, skip
+                    continue;
+                }
+                if (columns[i] != null && "_id".equals(columns[i].name)) {
+                    // Value is an _id
+                    id = entries[i];
+                    continue;
+                }
+                try {
+                    // add a comma after the previous value, only when there was actually a value before
+                    if (i > 0 && row.length() > 1) {
+                        row.append(",");
+                    }
+                    // split on comma ignoring escaped commas
+                    String[] multiValues = entries[i].split(COMMA_ESCAPING_REGEX);
+                    if (multiValues.length > 1) {
+                        StringBuilder rowStringValue = new StringBuilder("[");
+                        for (String s : multiValues) {
+                            rowStringValue.append(toJson(columns[i].type, s)).append(",");
+                        }
+                        // remove the last comma and put a closing bracket instead
+                        rowStringValue.replace(rowStringValue.length() - 1, rowStringValue.length(), "]");
+                        entries[i] = rowStringValue.toString();
+                    } else {
+                        entries[i] = toJson(columns[i].type, entries[i]);
+                    }
+                    // replace any escaped commas with single comma
+                    entries[i] = entries[i].replace(ESCAPED_COMMA_SEQUENCE, ",");
+                    row.append("\"").append(columns[i].name).append("\":").append(entries[i]);
+                } catch (Exception e) {
+                    throw new IllegalArgumentException(
+                        format(null, "Error line [{}]: Cannot parse entry [{}] with value [{}]", lineNumber, i + 1, entries[i]),
+                        e
+                    );
+                }
+            }
+        }
+        row.append("}\n");
+        return new Document(id, row);
     }
 
     private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");

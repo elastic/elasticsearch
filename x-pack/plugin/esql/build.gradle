@@ -81,6 +81,13 @@ dependencies {
   internalClusterTestImplementation project(xpackModule('inference:qa:test-service-plugin'))
   internalClusterTestImplementation(testArtifact(project(xpackModule('inference'))))
   internalClusterTestImplementation project(path: xpackModule('mapper-constant-keyword'))
+  internalClusterTestImplementation project(xpackModule('analytics'))
+  internalClusterTestImplementation project(xpackModule('spatial'))
+  internalClusterTestImplementation project(xpackModule('mapper-unsigned-long'))
+  internalClusterTestImplementation project(xpackModule('wildcard'))
+  internalClusterTestImplementation project(xpackModule('mapper-version'))
+  internalClusterTestImplementation project(xpackModule('mapper-aggregate-metric'))
+  internalClusterTestImplementation project(xpackModule('mapper-exponential-histogram'))
 }
 
 tasks.named('splitPackagesAudit').configure {

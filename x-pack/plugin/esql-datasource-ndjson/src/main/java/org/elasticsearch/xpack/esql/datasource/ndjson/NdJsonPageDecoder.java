@@ -60,12 +60,14 @@ public class NdJsonPageDecoder implements AutoCloseable {
         var projectedAttributes = attributes;
         if (projectedColumns.isEmpty() == false) {
             // Keep projected columns in order, adding NULL for missing columns
-            projectedAttributes = projectedColumns.stream().map(col ->
-                attributes.stream()
-                    .filter(a -> a.name().equals(col))
-                    .findFirst()
-                    .orElseGet(() -> NdJsonSchemaInferrer.attribute(col, DataType.NULL, false))
-            ).toList();
+            projectedAttributes = projectedColumns.stream()
+                .map(
+                    col -> attributes.stream()
+                        .filter(a -> a.name().equals(col))
+                        .findFirst()
+                        .orElseGet(() -> NdJsonSchemaInferrer.attribute(col, DataType.NULL, false))
+                )
+                .toList();
         }
 
         this.decoder = prepareSchema(projectedAttributes);

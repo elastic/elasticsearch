@@ -291,8 +291,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         void sameSegment(int firstDoc) {
             if (columnAtATime != null && columnAtATime.canReuse(firstDoc) == false) {
-                columnAtATime.close();
                 // TODO count the number of times we can't reuse?
+                columnAtATime.close();
                 columnAtATime = null;
             }
             if (rowStride != null && rowStride.canReuse(firstDoc) == false) {
@@ -352,7 +352,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         }
 
         private void closeReaders() {
-            Releasables.close(rowStride, columnAtATime);
+            Releasables.close(columnAtATime, rowStride);
             columnAtATime = null;
             rowStride = null;
         }

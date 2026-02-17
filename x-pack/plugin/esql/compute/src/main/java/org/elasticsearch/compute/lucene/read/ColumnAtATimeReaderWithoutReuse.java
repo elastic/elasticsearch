@@ -25,9 +25,10 @@ public record ColumnAtATimeReaderWithoutReuse(
     @Override
     public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
         throws IOException {
-        BlockLoader.ColumnAtATimeReader reader = fn.apply(breaker);
-        track.accept(reader);
-        return reader.read(factory, docs, offset, nullsFiltered);
+        try (BlockLoader.ColumnAtATimeReader reader = fn.apply(breaker)) {
+            track.accept(reader);
+            return reader.read(factory, docs, offset, nullsFiltered);
+        }
     }
 
     @Override

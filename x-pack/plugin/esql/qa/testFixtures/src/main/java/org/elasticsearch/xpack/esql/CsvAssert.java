@@ -89,7 +89,14 @@ public final class CsvAssert {
         Logger logger
     ) {
         assertMetadata(expected, actualColumnNames, actualColumnTypes, List.of(), logger);
-        assertData(expected, actualValues, ignoreOrder, ignoreValueOrder, logger, new AssertedValueTransformer(enableRoundingDoubleValuesOnAsserting));
+        assertData(
+            expected,
+            actualValues,
+            ignoreOrder,
+            ignoreValueOrder,
+            logger,
+            new AssertedValueTransformer(enableRoundingDoubleValuesOnAsserting)
+        );
     }
 
     static void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {

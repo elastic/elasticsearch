@@ -57,8 +57,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
-import static org.elasticsearch.xpack.esql.CsvAssert.assertData;
-import static org.elasticsearch.xpack.esql.CsvAssert.assertMetadata;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertResultsWithTransformer;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
@@ -494,7 +492,16 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     ) {
         var actualColumnNames = actualColumns.stream().map(c -> c.get("name")).toList();
         var actualColumnTypes = actualColumns.stream().map(c -> CsvTestUtils.Type.asType(c.get("type"))).toList();
-        assertResultsWithTransformer(expected, actualColumnNames, actualColumnTypes, actualValues, testCase.ignoreOrder, ignoreValueOrder(), enableRoundingDoubleValuesOnAsserting(), logger);
+        assertResultsWithTransformer(
+            expected,
+            actualColumnNames,
+            actualColumnTypes,
+            actualValues,
+            testCase.ignoreOrder,
+            ignoreValueOrder(),
+            enableRoundingDoubleValuesOnAsserting(),
+            logger
+        );
     }
 
     /**

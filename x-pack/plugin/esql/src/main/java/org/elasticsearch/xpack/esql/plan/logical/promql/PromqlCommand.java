@@ -156,7 +156,19 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     }
 
     public PromqlCommand withStartEnd(Literal start, Literal end) {
-        return new PromqlCommand(source(), child(), promqlPlan(), start, end, step(), valueColumnName(), valueId(), stepId(), timestamp());
+        return new PromqlCommand(
+            source(),
+            child(),
+            promqlPlan(),
+            start,
+            end,
+            step(),
+            buckets(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
     }
 
     @Override

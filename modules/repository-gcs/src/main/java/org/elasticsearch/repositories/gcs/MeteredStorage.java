@@ -33,6 +33,7 @@ import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.repositories.gcs.StorageOperation.DELETE;
 import static org.elasticsearch.repositories.gcs.StorageOperation.GET;
 import static org.elasticsearch.repositories.gcs.StorageOperation.INSERT;
 import static org.elasticsearch.repositories.gcs.StorageOperation.LIST;
@@ -80,6 +81,10 @@ public class MeteredStorage {
 
     public Blob meteredGet(OperationPurpose purpose, BlobId blobId) throws IOException {
         return statsCollector.collectIOSupplier(purpose, GET, () -> storage.get(blobId));
+    }
+
+    public void delete(OperationPurpose purpose, BlobId blobId) {
+        statsCollector.skipCollectRunnable(purpose, DELETE, () -> storage.delete(blobId));
     }
 
     public void meteredCreate(

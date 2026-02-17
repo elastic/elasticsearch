@@ -15,7 +15,7 @@ We don't recommend this legacy query type for _new_ projects. Use the match quer
 
 The `semantic` query type enables you to perform [semantic search](docs-content://solutions/search/semantic-search.md) on data stored in a [`semantic_text`](/reference/elasticsearch/mapping-reference/semantic-text.md) field. This query accepts natural-language text and uses the field’s configured inference endpoint to generate a query embedding and match documents.
 
-For an overview of all query options available for `semantic_text` fields, see [Querying `semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text.md#querying-semantic-text-fields).
+For an overview of all query options available for `semantic_text` fields, see [Querying `semantic_text` fields](/reference/elasticsearch/mapping-reference/semantic-text-search-retrieval.md#querying-semantic-text-fields).
 
 ## Inference endpoint selection
 
@@ -39,7 +39,7 @@ GET my-index-000001/_search
   }
 }
 ```
-%  TEST[skip: Requires inference endpoints]
+% TEST[skip: Requires inference endpoints]
 
 
 ## Top-level parameters for `semantic` [semantic-query-params]
@@ -84,7 +84,7 @@ POST my-index/_search
   }
 }
 ```
-%  TEST[skip: Requires inference endpoints]
+% TEST[skip: Requires inference endpoints]
 
 You can also use semantic_text as part of [Reciprocal Rank Fusion](/reference/elasticsearch/rest-apis/reciprocal-rank-fusion.md) to make ranking relevant results easier:
 
@@ -120,5 +120,5 @@ GET my-index/_search
   }
 }
 ```
-%  TEST[skip: Requires inference endpoints]
+% TEST[skip: Requires inference endpoints]
 

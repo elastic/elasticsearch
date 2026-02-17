@@ -16,6 +16,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +49,11 @@ public class Utils {
         && m.contains(".internal.") == false
         && m.contains(".incubator.") == false;
 
-    public static Map<String, Set<String>> findModuleExports() throws IOException {
+    public static final Predicate<String> modulePredicate(boolean includeIncubator) {
+        return includeIncubator == false ? DEFAULT_MODULE_PREDICATE : DEFAULT_MODULE_PREDICATE.or(m -> m.contains(".incubator."));
+    }
+
+    public static Map<String, Set<String>> loadExportsByModule() throws IOException {
         var modulesExports = new HashMap<String, Set<String>>();
         try (var stream = Files.walk(JRT_FS.getPath("modules"))) {
             stream.filter(p -> p.getFileName().toString().equals("module-info.class")).forEach(x -> {
@@ -67,7 +72,20 @@ public class Utils {
                 }
             });
         }
-        return modulesExports;
+        return Collections.unmodifiableMap(modulesExports);
+    }
+
+    public static Map<String, String> loadClassToModuleMapping() throws IOException {
+        Map<String, String> moduleNameByClass = new HashMap<>();
+        Utils.walkJdkModules(m -> true, Collections.emptyMap(), (moduleName, moduleClasses, moduleExports) -> {
+            for (var classFile : moduleClasses) {
+                String prev = moduleNameByClass.put(internalClassName(classFile, moduleName), moduleName);
+                if (prev != null) {
+                    throw new IllegalStateException("Class " + classFile + " is in both modules " + prev + " and " + moduleName);
+                }
+            }
+        });
+        return Collections.unmodifiableMap(moduleNameByClass);
     }
 
     public interface JdkModuleConsumer {
@@ -75,7 +93,7 @@ public class Utils {
     }
 
     public static void walkJdkModules(JdkModuleConsumer c) throws IOException {
-        walkJdkModules(DEFAULT_MODULE_PREDICATE, Utils.findModuleExports(), c);
+        walkJdkModules(DEFAULT_MODULE_PREDICATE, Utils.loadExportsByModule(), c);
     }
 
     public static void walkJdkModules(Predicate<String> modulePredicate, Map<String, Set<String>> exportsByModule, JdkModuleConsumer c)
@@ -88,10 +106,16 @@ public class Utils {
             for (var kv : modules.entrySet()) {
                 var moduleName = kv.getKey();
                 if (modulePredicate.test(moduleName)) {
-                    var thisModuleExports = exportsByModule.get(moduleName);
+                    var thisModuleExports = exportsByModule.getOrDefault(moduleName, Collections.emptySet());
                     c.accept(moduleName, kv.getValue(), thisModuleExports);
                 }
             }
         }
+    }
+
+    public static String internalClassName(Path clazz, String moduleName) {
+        Path modulePath = clazz.getFileSystem().getPath("modules", moduleName);
+        String relativePath = modulePath.relativize(clazz).toString();
+        return relativePath.substring(0, relativePath.length() - ".class".length());
     }
 }

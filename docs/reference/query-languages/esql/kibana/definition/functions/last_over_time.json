@@ -10,7 +10,13 @@
           "name" : "field",
           "type" : "counter_double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
         }
       ],
       "variadic" : false,
@@ -22,7 +28,13 @@
           "name" : "field",
           "type" : "counter_integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
         }
       ],
       "variadic" : false,
@@ -34,7 +46,13 @@
           "name" : "field",
           "type" : "counter_long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
         }
       ],
       "variadic" : false,
@@ -46,7 +64,13 @@
           "name" : "field",
           "type" : "double",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
         }
       ],
       "variadic" : false,
@@ -56,9 +80,33 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "exponential_histogram",
+          "optional" : false,
+          "description" : "the metric field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "exponential_histogram"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "integer",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
         }
       ],
       "variadic" : false,
@@ -70,7 +118,13 @@
           "name" : "field",
           "type" : "long",
           "optional" : false,
-          "description" : ""
+          "description" : "the metric field to calculate the latest value for"
+        },
+        {
+          "name" : "window",
+          "type" : "time_duration",
+          "optional" : true,
+          "description" : "the time window over which to find the latest value"
         }
       ],
       "variadic" : false,

@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -25,7 +25,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 
-public class IbmWatsonxRerankTaskSettings implements TaskSettings {
+public class IbmWatsonxRerankTaskSettings implements TaskSettings, TopNProvider {
 
     public static final String NAME = "ibm_watsonx_rerank_task_settings";
     public static final String RETURN_DOCUMENTS = "return_documents";
@@ -137,7 +137,7 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_18_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -168,6 +168,11 @@ public class IbmWatsonxRerankTaskSettings implements TaskSettings {
 
     public Integer getTopNDocumentsOnly() {
         return topNDocumentsOnly;
+    }
+
+    @Override
+    public Integer getTopN() {
+        return getTopNDocumentsOnly();
     }
 
     public Boolean getReturnDocuments() {

@@ -1,5 +1,0 @@
-pr: 134152
-summary: Correctly update SLM stats with master shutdown
-area: ILM+SLM
-type: bug
-issues: []

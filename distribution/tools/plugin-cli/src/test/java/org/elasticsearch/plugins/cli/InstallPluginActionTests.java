@@ -17,7 +17,6 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.bcpg.BCPGOutputStream;
 import org.bouncycastle.bcpg.HashAlgorithmTags;
-import org.bouncycastle.jcajce.provider.BouncyCastleFipsProvider;
 import org.bouncycastle.openpgp.PGPEncryptedData;
 import org.bouncycastle.openpgp.PGPException;
 import org.bouncycastle.openpgp.PGPKeyPair;
@@ -66,18 +65,18 @@ import org.junit.Before;
 import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
-import java.net.MalformedURLException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.GroupPrincipal;
@@ -98,6 +97,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -117,9 +117,7 @@ import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
-import static org.mockito.Mockito.doCallRealMethod;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.spy;
 
@@ -480,6 +478,21 @@ public class InstallPluginActionTests extends ESTestCase {
             + ".zip";
         final MessageDigest digest = MessageDigest.getInstance("SHA-512");
 
+        // Control for timeout on waiting for signature verification to complete
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+
+        AtomicBoolean called = new AtomicBoolean(false);
+
+        Runnable callback = () -> {
+            if (called.compareAndSet(false, true)) {
+                try {
+                    countDownLatch.await(); // wait until we trip the timer
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+
         InstallPluginAction action = makeActionPluginThatDownloads(
             "analysis-icu",
             url,
@@ -488,13 +501,11 @@ public class InstallPluginActionTests extends ESTestCase {
             ".sha512",
             checksumAndFilename(digest, url),
             newSecretKey(),
-            this::signature
+            this::signature,
+            callback
         );
 
         final InstallPluginAction spied = spy(action);
-
-        // Control for timeout on waiting for signature verification to complete
-        CountDownLatch countDownLatch = new CountDownLatch(1);
 
         doAnswer(i -> {
             i.callRealMethod();
@@ -504,12 +515,6 @@ public class InstallPluginActionTests extends ESTestCase {
 
         // Make the slow verification acceptable delay artificially low for testing
         doReturn(100L).when(spied).acceptableSignatureVerificationDelay();
-
-        doAnswer(i -> {
-            countDownLatch.await(); // wait until we trip the timer
-            i.callRealMethod();
-            return null;
-        }).when(spied).computeSignatureForDownloadedPlugin(any(InputStream.class), any(InputStream.class), any(PGPSignature.class));
 
         installPlugin(new InstallablePlugin("analysis-icu", null), env.v1(), spied);
         assertThat(terminal.getOutput(), containsString("The plugin installer is trying to verify the signature "));
@@ -521,10 +526,6 @@ public class InstallPluginActionTests extends ESTestCase {
         // Make the timer wait practically indefinitely, probably an overkill, but avoid flaky tests.
         // Divide by two to meet the limitation of the Timer.schedule API.
         doReturn(Long.MAX_VALUE / 2).when(spied).acceptableSignatureVerificationDelay();
-
-        // Make sure we don't see any slow error messages when the signature verification is fast
-        doCallRealMethod().when(spied)
-            .computeSignatureForDownloadedPlugin(any(InputStream.class), any(InputStream.class), any(PGPSignature.class));
 
         terminal.reset();
 
@@ -552,8 +553,8 @@ public class InstallPluginActionTests extends ESTestCase {
             pluginZip.getId() + "-does-not-exist",
             pluginZip.getLocation() + "-does-not-exist"
         );
-        final FileNotFoundException e = expectThrows(
-            FileNotFoundException.class,
+        final NoSuchFileException e = expectThrows(
+            NoSuchFileException.class,
             () -> installPlugins(List.of(pluginZip, nonexistentPluginZip), env.v1())
         );
         assertThat(e.getMessage(), containsString("does-not-exist"));
@@ -586,11 +587,27 @@ public class InstallPluginActionTests extends ESTestCase {
         assertPlugin("fake", pluginDir, env.v2());
     }
 
+    public void testCannotInstallFromInsidePluginsDirectory() throws Exception {
+        InstallablePlugin pluginZip = createPluginZip("fake", pluginDir);
+        Path pluginZipInsidePlugins = env.v2().pluginsDir().resolve("fake.zip");
+        try (InputStream in = FileSystemUtils.openFileURLStream(new URL(pluginZip.getLocation()))) {
+            Files.copy(in, pluginZipInsidePlugins, StandardCopyOption.REPLACE_EXISTING);
+        }
+        String location = pluginZipInsidePlugins.toUri().toURL().toString();
+        assumeTrue("requires file URL scheme", location.startsWith("file:"));
+        InstallablePlugin modifiedPlugin = new InstallablePlugin("fake", location);
+        UserException e = expectThrows(UserException.class, () -> installPlugin(modifiedPlugin));
+        assertThat(
+            e.getMessage(),
+            startsWith("Installation of plugin in location [" + location + "] from inside the plugins directory is not permitted.")
+        );
+    }
+
     public void testMalformedUrlNotMaven() {
         // has two colons, so it appears similar to maven coordinates
         InstallablePlugin plugin = new InstallablePlugin("fake", "://host:1234");
-        MalformedURLException e = expectThrows(MalformedURLException.class, () -> installPlugin(plugin));
-        assertThat(e.getMessage(), containsString("no protocol"));
+        URISyntaxException e = expectThrows(URISyntaxException.class, () -> installPlugin(plugin));
+        assertThat(e.getMessage(), containsString("Expected scheme name"));
     }
 
     public void testFileNotMaven() {
@@ -1004,7 +1021,8 @@ public class InstallPluginActionTests extends ESTestCase {
             shaExtension,
             shaCalculator,
             secretKey,
-            signature
+            signature,
+            () -> {}
         );
         installPlugin(new InstallablePlugin(pluginId, pluginUrl), env.v1(), action);
         assertPlugin(pluginId, pluginDir, env.v2());
@@ -1019,7 +1037,8 @@ public class InstallPluginActionTests extends ESTestCase {
         final String shaExtension,
         final Function<byte[], String> shaCalculator,
         final PGPSecretKey secretKey,
-        final BiFunction<byte[], PGPSecretKey, String> signature
+        final BiFunction<byte[], PGPSecretKey, String> signature,
+        final Runnable onReadPluginZip
     ) throws Exception {
         InstallablePlugin pluginZip = createPlugin(pluginId, pluginDir);
         Path pluginZipPath = Path.of(URI.create(pluginZip.getLocation()));
@@ -1052,7 +1071,7 @@ public class InstallPluginActionTests extends ESTestCase {
             }
 
             @Override
-            void verifySignature(Path zip, String urlString) throws IOException, PGPException {
+            void verifySignature(Path zip, String urlString) throws IOException {
                 if (InstallPluginAction.OFFICIAL_PLUGINS.contains(pluginId)) {
                     super.verifySignature(zip, urlString);
                 } else {
@@ -1062,7 +1081,13 @@ public class InstallPluginActionTests extends ESTestCase {
 
             @Override
             InputStream pluginZipInputStream(Path zip) throws IOException {
-                return new ByteArrayInputStream(Files.readAllBytes(zip));
+                return new ByteArrayInputStream(Files.readAllBytes(zip)) {
+                    @Override
+                    public int read(byte[] b) throws IOException {
+                        onReadPluginZip.run();
+                        return super.read(b);
+                    }
+                };
             }
 
             @Override
@@ -1447,8 +1472,7 @@ public class InstallPluginActionTests extends ESTestCase {
             null,
             null,
             new JcaPGPContentSignerBuilder(pkp.getPublicKey().getAlgorithm(), HashAlgorithmTags.SHA256),
-            new JcePBESecretKeyEncryptorBuilder(PGPEncryptedData.AES_192, sha1Calc).setProvider(new BouncyCastleFipsProvider())
-                .build("passphrase".toCharArray())
+            new JcePBESecretKeyEncryptorBuilder(PGPEncryptedData.AES_192, sha1Calc).build("passphrase".toCharArray())
         );
     }
 

@@ -7,10 +7,10 @@
     {
       "params" : [
         {
-          "name" : "base",
+          "name" : "number",
           "type" : "double",
-          "optional" : true,
-          "description" : "Base of logarithm. If `null`, the function returns `null`. If not provided, this function returns the natural logarithm (base e) of a value."
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -91,10 +91,10 @@
     {
       "params" : [
         {
-          "name" : "base",
+          "name" : "number",
           "type" : "integer",
-          "optional" : true,
-          "description" : "Base of logarithm. If `null`, the function returns `null`. If not provided, this function returns the natural logarithm (base e) of a value."
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -175,10 +175,10 @@
     {
       "params" : [
         {
-          "name" : "base",
+          "name" : "number",
           "type" : "long",
-          "optional" : true,
-          "description" : "Base of logarithm. If `null`, the function returns `null`. If not provided, this function returns the natural logarithm (base e) of a value."
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -259,10 +259,10 @@
     {
       "params" : [
         {
-          "name" : "base",
+          "name" : "number",
           "type" : "unsigned_long",
-          "optional" : true,
-          "description" : "Base of logarithm. If `null`, the function returns `null`. If not provided, this function returns the natural logarithm (base e) of a value."
+          "optional" : false,
+          "description" : "Numeric expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,

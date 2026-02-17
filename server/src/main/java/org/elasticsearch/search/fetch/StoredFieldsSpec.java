@@ -9,7 +9,7 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.elasticsearch.index.mapper.IgnoredFieldsSpec;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper.IgnoredSourceFormat;
 
 import java.util.Collection;
@@ -26,22 +26,19 @@ public record StoredFieldsSpec(
     boolean requiresSource,
     boolean requiresMetadata,
     Set<String> requiredStoredFields,
-    IgnoredFieldsSpec ignoredFieldsSpec,
+    IgnoredSourceFormat ignoredSourceFormat,
     Set<String> sourcePaths
 ) {
     public StoredFieldsSpec(boolean requiresSource, boolean requiresMetadata, Set<String> requiredStoredFields) {
-        this(requiresSource, requiresMetadata, requiredStoredFields, IgnoredFieldsSpec.NONE, Set.of());
+        this(requiresSource, requiresMetadata, requiredStoredFields, IgnoredSourceFormat.NO_IGNORED_SOURCE, Set.of());
     }
 
     public boolean noRequirements() {
-        return requiresSource == false && requiresMetadata == false && requiredStoredFields.isEmpty() && ignoredFieldsSpec.noRequirements();
+        return requiresSource == false && requiresMetadata == false && requiredStoredFields.isEmpty() && sourcePaths.isEmpty();
     }
 
-    public boolean onlyRequiresIgnoredFields() {
-        return requiresSource == false
-            && requiresMetadata == false
-            && requiredStoredFields.isEmpty()
-            && ignoredFieldsSpec.noRequirements() == false;
+    public boolean onlyRequiresSourcePaths() {
+        return requiresSource && requiresMetadata == false && requiredStoredFields.isEmpty() && sourcePaths.isEmpty() == false;
     }
 
     /**
@@ -59,11 +56,7 @@ public record StoredFieldsSpec(
      *         This is more efficient than using {@link #NEEDS_SOURCE}.
      */
     public static StoredFieldsSpec withSourcePaths(IgnoredSourceFormat ignoredSourceFormat, Set<String> sourcePaths) {
-        // The fields in source paths might also be in ignored source, so include source paths there as well.
-        IgnoredFieldsSpec ignoredFieldsSpec = ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE
-            ? IgnoredFieldsSpec.NONE
-            : new IgnoredFieldsSpec(sourcePaths, ignoredSourceFormat);
-        return new StoredFieldsSpec(true, false, Set.of(), ignoredFieldsSpec, sourcePaths);
+        return new StoredFieldsSpec(true, false, Set.of(), ignoredSourceFormat, sourcePaths);
     }
 
     /**
@@ -84,35 +77,69 @@ public record StoredFieldsSpec(
             mergedFields = new HashSet<>(this.requiredStoredFields);
             mergedFields.addAll(other.requiredStoredFields);
         }
+        Set<String> mergedSourcePaths = mergeSourcePaths(other);
+        IgnoredSourceFormat mergedFormat;
+        if (this.ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE) {
+            mergedFormat = other.ignoredSourceFormat;
+        } else if (other.ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE) {
+            mergedFormat = this.ignoredSourceFormat;
+        } else if (this.ignoredSourceFormat != other.ignoredSourceFormat) {
+            throw new IllegalStateException(
+                "failed to merge IgnoredFieldsSpec with differing formats ["
+                    + this.ignoredSourceFormat.name()
+                    + ","
+                    + other.ignoredSourceFormat.name()
+                    + "]"
+            );
+        } else {
+            mergedFormat = this.ignoredSourceFormat;
+        }
+
+        return new StoredFieldsSpec(
+            this.requiresSource || other.requiresSource,
+            this.requiresMetadata || other.requiresMetadata,
+            mergedFields,
+            mergedFormat,
+            mergedSourcePaths
+        );
+    }
+
+    /**
+     * Returns the unique source paths that should be loaded from source. Other source paths may be filtered out.
+     * If an empty set is returned, then all source paths need to be loaded.
+     */
+    private Set<String> mergeSourcePaths(StoredFieldsSpec other) {
         Set<String> mergedSourcePaths;
         if (this.sourcePaths.isEmpty() == false && other.sourcePaths.isEmpty() == false) {
             mergedSourcePaths = new HashSet<>(this.sourcePaths);
             mergedSourcePaths.addAll(other.sourcePaths);
         } else if (this.sourcePaths.isEmpty() == false) {
-            mergedSourcePaths = this.sourcePaths;
+            if (other.requiresSource) {
+                mergedSourcePaths = Set.of();
+            } else {
+                mergedSourcePaths = this.sourcePaths;
+            }
         } else if (other.sourcePaths.isEmpty() == false) {
-            mergedSourcePaths = other.sourcePaths;
+            if (this.requiresSource) {
+                mergedSourcePaths = Set.of();
+            } else {
+                mergedSourcePaths = other.sourcePaths;
+            }
         } else {
             mergedSourcePaths = Set.of();
         }
-        return new StoredFieldsSpec(
-            this.requiresSource || other.requiresSource,
-            this.requiresMetadata || other.requiresMetadata,
-            mergedFields,
-            ignoredFieldsSpec.merge(other.ignoredFieldsSpec),
-            mergedSourcePaths
-        );
+        return mergedSourcePaths;
     }
 
     public Set<String> requiredStoredFields() {
-        if (ignoredFieldsSpec.noRequirements()) {
+        if (sourcePaths.isEmpty() || ignoredSourceFormat == IgnoredSourceFormat.NO_IGNORED_SOURCE) {
             return requiredStoredFields;
         }
         if (requiredStoredFields.isEmpty()) {
-            return ignoredFieldsSpec.requiredStoredFields();
+            return Set.of(IgnoredSourceFieldMapper.NAME);
         }
         Set<String> mergedFields = new HashSet<>(requiredStoredFields);
-        mergedFields.addAll(ignoredFieldsSpec.requiredStoredFields());
+        mergedFields.add(IgnoredSourceFieldMapper.NAME);
         return mergedFields;
     }
 

@@ -11,17 +11,18 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -43,6 +44,7 @@ public class ReplicationSplitHelper<
     ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
     Response extends ReplicationResponse> {
 
+    public static TransportVersion STALE_REQUEST_EXCEPTION_VERSION = TransportVersion.fromName("stale_request_exception");
     private final Logger logger;
     private final ClusterService clusterService;
     private final TimeValue initialRetryBackoffBound;
@@ -67,14 +69,50 @@ public class ReplicationSplitHelper<
     }
 
     public static <Request extends ReplicationRequest<Request>> boolean needsSplitCoordination(
+        final Logger logger,
         final Request primaryRequest,
         final IndexMetadata indexMetadata
-    ) {
+    ) throws Exception {
         SplitShardCountSummary requestSplitSummary = primaryRequest.reshardSplitShardCountSummary();
-        // TODO: We currently only set the request split summary transport shard bulk. Only evaluate this at the moment or else every
+        // TODO: We currently only set the request split summary for certain Replication Requests
+        // like refresh, flush and shard bulk requests. Only evaluate this when set or else every
         // request would say it needs a split.
-        return requestSplitSummary.isUnset() == false
-            && requestSplitSummary.equals(SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.shardId().getId())) == false;
+        if (requestSplitSummary.isUnset()) { // no split coordination required
+            return false;
+        }
+
+        SplitShardCountSummary latestSplitSummary = SplitShardCountSummary.forIndexing(indexMetadata, primaryRequest.shardId().getId());
+        if (requestSplitSummary.equals(latestSplitSummary)) {  // no split coordination required
+            return false;
+        } else {  // check that resharding is ongoing and the latest shard count is exactly 2 times the shard count in the request
+            if (indexMetadata.getReshardingMetadata() == null
+                || latestSplitSummary.asInt() != IndexReshardingMetadata.RESHARD_SPLIT_FACTOR * requestSplitSummary.asInt()) {
+                if (indexMetadata.getReshardingMetadata() == null) {
+                    logger.debug("Request is stale, expected resharding metadata but none found");
+                } else {
+                    logger.debug(
+                        "Request is stale due to concurrent reshard operation, expected shardCountSummary [{}] but found [{}]",
+                        requestSplitSummary.asInt(),
+                        latestSplitSummary.asInt()
+                    );
+                }
+                throw new StaleRequestException(primaryRequest.index());
+            }
+            return true;
+        }
+
+    }
+
+    @FunctionalInterface
+    public interface PrimaryRequestExecutor<
+        Request extends ReplicationRequest<Request>,
+        ReplicaRequest extends ReplicationRequest<ReplicaRequest>,
+        Response extends ReplicationResponse> {
+        void execute(
+            TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
+            Request request,
+            ActionListener<Response> listener
+        ) throws Exception;
     }
 
     public SplitCoordinator newSplitRequest(
@@ -83,10 +121,7 @@ public class ReplicationSplitHelper<
         ProjectMetadata project,
         TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
         Request primaryRequest,
-        CheckedBiConsumer<
-            TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference,
-            ActionListener<Response>,
-            Exception> executePrimaryRequest,
+        PrimaryRequestExecutor<Request, ReplicaRequest, Response> executePrimaryRequest,
         ActionListener<Response> onCompletionListener
     ) {
         return new SplitCoordinator(
@@ -107,10 +142,7 @@ public class ReplicationSplitHelper<
         private final ProjectMetadata project;
         private final TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference;
         private final Request originalRequest;
-        private final CheckedBiConsumer<
-            TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference,
-            ActionListener<Response>,
-            Exception> doPrimaryRequest;
+        private final PrimaryRequestExecutor<Request, ReplicaRequest, Response> doPrimaryRequest;
         private final ActionListener<Response> onCompletionListener;
 
         public SplitCoordinator(
@@ -119,10 +151,7 @@ public class ReplicationSplitHelper<
             ProjectMetadata project,
             TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference primaryShardReference,
             Request originalRequest,
-            CheckedBiConsumer<
-                TransportReplicationAction<Request, ReplicaRequest, Response>.PrimaryShardReference,
-                ActionListener<Response>,
-                Exception> doPrimaryRequest,
+            PrimaryRequestExecutor<Request, ReplicaRequest, Response> doPrimaryRequest,
             ActionListener<Response> onCompletionListener
         ) {
             this.action = action;
@@ -135,7 +164,7 @@ public class ReplicationSplitHelper<
         }
 
         public void coordinate() throws Exception {
-            Map<ShardId, Request> splitRequests = action.splitRequestOnPrimary(originalRequest);
+            Map<ShardId, Request> splitRequests = action.splitRequestOnPrimary(originalRequest, project);
 
             int numSplitRequests = splitRequests.size();
 
@@ -147,7 +176,7 @@ public class ReplicationSplitHelper<
                 // If the request is for source, same behavior as before
                 if (splitRequests.containsKey(originalRequest.shardId())) {
                     TransportReplicationAction.setPhase(task, "primary");
-                    doPrimaryRequest.accept(primaryShardReference, onCompletionListener);
+                    doPrimaryRequest.execute(primaryShardReference, originalRequest, onCompletionListener);
                 } else {
                     // If the request is for target, forward request to target.
                     primaryShardReference.close(); // release shard operation lock as soon as possible
@@ -210,7 +239,7 @@ public class ReplicationSplitHelper<
                     }
                 };
                 if (splitRequest.getKey().equals(originalRequest.shardId())) {
-                    doPrimaryRequest.accept(primaryShardReference, listener);
+                    doPrimaryRequest.execute(primaryShardReference, splitRequest.getValue(), listener);
                 } else {
                     delegateToTarget(splitRequest.getKey(), splitRequest.getValue(), clusterService::state, project, listener);
                 }

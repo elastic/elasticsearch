@@ -1,0 +1,35 @@
+{
+  "esql.delete_view": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-esql-view-delete",
+      "description": "Delete a non-materialized VIEW for ESQL."
+    },
+    "stability": "experimental",
+    "visibility": "feature_flag",
+    "feature_flag": "esql_views",
+    "headers": {
+      "accept": [
+        "application/json"
+      ],
+      "content_type": [
+        "application/json"
+      ]
+    },
+    "url": {
+      "paths": [
+        {
+          "path": "/_query/view/{name}",
+          "methods": [
+            "DELETE"
+          ],
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "The name of the view to delete"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

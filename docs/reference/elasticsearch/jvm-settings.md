@@ -141,8 +141,8 @@ If you are running {{es}} as a Windows service, you can change the heap size usi
 
 Depending on your stack version, {{es}} configures the JVM to dump the heap on out of memory exceptions to the following location by default:
 
-* {applies_to}`stack: ga 9.1` The default logs directory 
-* {applies_to}`stack: ga 9.0` The default data directory
+* {applies_to}`stack: ga 9.1+` The default logs directory 
+* {applies_to}`stack: ga =9.0` The default data directory
 
 Directory location:
 

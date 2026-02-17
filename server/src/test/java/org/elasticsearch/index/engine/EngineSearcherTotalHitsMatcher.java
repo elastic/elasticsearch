@@ -54,6 +54,6 @@ public final class EngineSearcherTotalHitsMatcher extends TypeSafeMatcher<Engine
     }
 
     public static Matcher<Engine.Searcher> engineSearcherTotalHits(int totalHits) {
-        return new EngineSearcherTotalHitsMatcher(Queries.newMatchAllQuery(), totalHits);
+        return new EngineSearcherTotalHitsMatcher(Queries.ALL_DOCS_INSTANCE, totalHits);
     }
 }

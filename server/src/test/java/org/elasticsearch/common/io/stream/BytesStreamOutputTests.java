@@ -13,7 +13,13 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.junit.Before;
+
+import java.io.IOException;
+
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
+import static org.elasticsearch.common.io.stream.AbstractStreamTests.randomString;
 
 public class BytesStreamOutputTests extends ESTestCase {
 
@@ -28,7 +34,7 @@ public class BytesStreamOutputTests extends ESTestCase {
     public void testDefaultConstructor() {
         assertEquals(0, stream.size());
         assertEquals(0, stream.position());
-        assertEquals(BytesArray.EMPTY, stream.bytes());
+        assertThat(stream.bytes(), equalBytes(BytesArray.EMPTY));
     }
 
     public void testConstructorWithExpectedSize() {
@@ -175,5 +181,35 @@ public class BytesStreamOutputTests extends ESTestCase {
         stream.flush(); // should do nothing
         stream.close(); // should do nothing
         assertEquals(1, stream.size());
+    }
+
+    public void testString() throws IOException {
+        final var s = randomString();
+        stream.setTransportVersion(TransportVersionUtils.randomVersion());
+        stream.writeString(s);
+        try (var in = stream.bytes().streamInput()) {
+            in.setTransportVersion(TransportVersionUtils.randomVersion()); // string format is the same in all known versions
+            assertEquals(s, in.readString());
+        }
+    }
+
+    public void testOptionalString() throws IOException {
+        final var s = randomBoolean() ? null : randomString();
+        stream.setTransportVersion(TransportVersionUtils.randomVersion());
+        stream.writeOptionalString(s);
+        try (var in = stream.bytes().streamInput()) {
+            in.setTransportVersion(TransportVersionUtils.randomVersion()); // string format is the same in all known versions
+            assertEquals(s, in.readOptionalString());
+        }
+    }
+
+    public void testGenericString() throws IOException {
+        final var s = randomString();
+        stream.setTransportVersion(TransportVersionUtils.randomVersion());
+        stream.writeGenericValue(s);
+        try (var in = stream.bytes().streamInput()) {
+            in.setTransportVersion(TransportVersionUtils.randomVersion()); // string format is the same in all known versions
+            assertEquals(s, in.readGenericValue());
+        }
     }
 }

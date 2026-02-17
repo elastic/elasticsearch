@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -68,6 +69,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         public Writeable.Reader<RemoteConnectionInfo.ModeInfo> getReader() {
             return reader.get();
         }
+    }
+
+    enum ConnectionAttempt {
+        initial,
+        reconnect
     }
 
     private final int maxPendingConnectionListeners;
@@ -220,8 +226,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         if (e == null) {
             logger.debug(msgSupplier);
         } else {
-            logger.warn(msgSupplier, e);
-            // TODO: ES-12695: Increment either the initial or retry connection failure metric.
+            logger.log(isClosed() ? Level.DEBUG : Level.WARN, msgSupplier, e);
         }
     }
 

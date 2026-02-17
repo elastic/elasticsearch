@@ -34,6 +34,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
@@ -245,11 +246,17 @@ public final class FieldPermissions implements Accountable, CacheKey {
     }
 
     /** Return a wrapped reader that only exposes allowed fields. */
-    public DirectoryReader filter(DirectoryReader reader, IndexVersion indexVersionCreated) throws IOException {
+    public DirectoryReader filter(DirectoryReader reader, IndexVersion indexVersionCreated, Function<String, Boolean> isMapped)
+        throws IOException {
         if (hasFieldLevelSecurity() == false) {
             return reader;
         }
-        return FieldSubsetReader.wrap(reader, permittedFieldsAutomaton, IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersionCreated));
+        return FieldSubsetReader.wrap(
+            reader,
+            permittedFieldsAutomaton,
+            IgnoredSourceFieldMapper.ignoredSourceFormat(indexVersionCreated),
+            isMapped
+        );
     }
 
     Automaton getIncludeAutomaton() {

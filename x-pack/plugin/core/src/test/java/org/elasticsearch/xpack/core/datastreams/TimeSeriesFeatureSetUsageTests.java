@@ -87,6 +87,9 @@ public class TimeSeriesFeatureSetUsageTests extends AbstractWireSerializingTestC
             randomIntBetween(1, 100),
             randomIntBetween(1, 10),
             randomDoubleBetween(1.0, 10.0, true),
+            randomIntBetween(1, 10),
+            randomIntBetween(1, 10),
+            randomIntBetween(1, 10),
             randomIntBetween(1, 10)
         );
     }

@@ -10,14 +10,21 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.ingest.SamplingService.SampleStats;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.Map;
 
+import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertNotSame;
 
 public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTestCase<SampleStats> {
@@ -122,5 +129,65 @@ public class SamplingServiceSampleStatsTests extends AbstractWireSerializingTest
             stats1CombineStats2.getTimeCompilingCondition(),
             equalTo(TimeValue.timeValueNanos(stats1.getTimeCompilingCondition().nanos() + stats2.getTimeCompilingCondition().nanos()))
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testToXContent() throws IOException {
+        /*
+         * SampleStats class is only used in the user response, so there is no parser for it, meaning it can't be tested with
+         * AbstractXContentSerializingTestCase.
+         */
+        SampleStats sampleStats = createTestInstance();
+        boolean humanReadable = randomBoolean();
+        try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)) {
+            builder.humanReadable(humanReadable);
+            sampleStats.toXContent(builder, EMPTY_PARAMS);
+            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                Map<String, Object> parserMap = parser.map();
+                assertThat(parserMap.get("potential_samples"), equalTo(sampleStats.getPotentialSamples()));
+                assertThat(
+                    parserMap.get("samples_rejected_for_max_samples_exceeded"),
+                    equalTo(sampleStats.getSamplesRejectedForMaxSamplesExceeded())
+                );
+                assertNumberEqualsLong(parserMap.get("samples_rejected_for_condition"), sampleStats.getSamplesRejectedForCondition());
+                assertNumberEqualsLong(parserMap.get("samples_rejected_for_rate"), sampleStats.getSamplesRejectedForRate());
+                assertNumberEqualsLong(parserMap.get("samples_rejected_for_exception"), sampleStats.getSamplesRejectedForException());
+                assertNumberEqualsLong(parserMap.get("samples_rejected_for_size"), sampleStats.getSamplesRejectedForSize());
+                assertNumberEqualsLong(parserMap.get("samples_accepted"), sampleStats.getSamples());
+                assertNumberEqualsLong(
+                    ((Number) parserMap.get("time_sampling_millis")).longValue(),
+                    sampleStats.getTimeSampling().millis()
+                );
+                assertNumberEqualsLong(
+                    ((Number) parserMap.get("time_compiling_condition_millis")).longValue(),
+                    sampleStats.getTimeCompilingCondition().millis()
+                );
+                if (humanReadable) {
+                    assertThat(parserMap.get("time_sampling"), equalTo(sampleStats.getTimeSampling().toHumanReadableString(1)));
+                    assertThat(
+                        parserMap.get("time_compiling_condition"),
+                        equalTo(sampleStats.getTimeCompilingCondition().toHumanReadableString(1))
+                    );
+                } else {
+                    assertThat(parserMap.containsKey("time_sampling"), equalTo(false));
+                    assertThat(parserMap.containsKey("time_compiling_condition"), equalTo(false));
+                }
+                if (sampleStats.getLastException() == null) {
+                    assertThat(parserMap.containsKey("last_exception"), equalTo(false));
+                } else {
+                    Map<String, Object> exceptionMap = (Map<String, Object>) parserMap.get("last_exception");
+                    assertThat(exceptionMap.get("message"), equalTo(sampleStats.getLastException().getMessage()));
+                }
+            }
+        }
+    }
+
+    /*
+     * The XContentParser::map will return numbers as Integers if they are small enough. In that case, the actual and expected will not be
+     * equal if the expected is a long. This method gets the long value of the actual result before asserting that they are equal.
+     */
+    private void assertNumberEqualsLong(Object actual, long expected) {
+        assertThat(actual, instanceOf(Number.class));
+        assertThat(((Number) actual).longValue(), equalTo(expected));
     }
 }

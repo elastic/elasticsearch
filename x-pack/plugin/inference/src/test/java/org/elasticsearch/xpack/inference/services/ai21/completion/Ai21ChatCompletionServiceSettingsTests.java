@@ -30,8 +30,8 @@ import static org.hamcrest.Matchers.is;
 
 public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<Ai21ChatCompletionServiceSettings> {
 
-    public static final String MODEL_ID = "some model";
-    public static final int RATE_LIMIT = 2;
+    private static final String MODEL_ID = "some model";
+    private static final int RATE_LIMIT = 2;
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = Ai21ChatCompletionServiceSettings.fromMap(
@@ -135,7 +135,17 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCWireSeria
 
     @Override
     protected Ai21ChatCompletionServiceSettings mutateInstance(Ai21ChatCompletionServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, Ai21ChatCompletionServiceSettingsTests::createRandom);
+        if (randomBoolean()) {
+            return new Ai21ChatCompletionServiceSettings(
+                randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(8)),
+                instance.rateLimitSettings()
+            );
+        } else {
+            return new Ai21ChatCompletionServiceSettings(
+                instance.modelId(),
+                randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom)
+            );
+        }
     }
 
     @Override

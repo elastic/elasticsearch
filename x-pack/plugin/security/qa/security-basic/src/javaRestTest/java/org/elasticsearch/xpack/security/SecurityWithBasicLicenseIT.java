@@ -145,7 +145,7 @@ public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
               "remote_indices": [
                 {
                   "names": ["index-*"],
-                  "privileges": ["read", "read_cross_cluster"],
+                  "privileges": ["read"],
                   "clusters": ["my_remote"]
                 }
               ]

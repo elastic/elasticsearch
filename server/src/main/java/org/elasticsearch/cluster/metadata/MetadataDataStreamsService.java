@@ -519,7 +519,7 @@ public class MetadataDataStreamsService {
         CompressedXContent effectiveMappings,
         ProjectMetadata projectMetadata,
         Settings settings
-    ) throws IOException {
+    ) {
         Settings.Builder additionalSettings = Settings.builder();
         IndexMode indexMode = projectMetadata.dataStreams().get(dataStreamName).getIndexMode();
         Set<String> overrulingSettings = new HashSet<>();
@@ -572,8 +572,56 @@ public class MetadataDataStreamsService {
             dataStream.getWriteIndex(),
             indicesService
         );
-        MetadataIndexTemplateService.validateTemplate(dataStream.getEffectiveSettings(projectMetadata), effectiveMappings, indicesService);
+        MetadataIndexTemplateService.validateTemplate(
+            getEffectiveSettings(projectMetadata, dataStream, mappingsOverrides),
+            effectiveMappings,
+            indicesService
+        );
         return dataStream.copy().setMappings(mappingsOverrides).build();
+    }
+
+    /**
+     * This method gets the effective settings for the given data stream. The effective settings include the combination of template
+     * settings, data stream settings overrides, and the implicit settings provide by IndexSettingsProviders.
+     * @param projectMetadata The project metadata
+     * @param dataStream The data stream
+     * @return The effective settings for the data stream, which are a the combination of template settings, data stream settings overrides,
+     * and the implicit settings provide by IndexSettingsProviders
+     * @throws IOException
+     */
+    public Settings getEffectiveSettings(ProjectMetadata projectMetadata, DataStream dataStream) throws IOException {
+        return getEffectiveSettings(projectMetadata, dataStream, dataStream.getMappings());
+    }
+
+    /**
+     * This method gets the effective settings for the given data stream, using the passed-in mappingOverrides rather than the data stream's
+     * mapping overrides. This can be used to evaluate the validity of the settings and mappings before applying the mapping overrides to
+     * the data stream. The effective settings include the combination of template settings, data stream settings overrides, and the
+     * implicit settings provide by IndexSettingsProviders.
+     * @param projectMetadata The project metadata
+     * @param dataStream The data stream
+     * @param mappingOverrides The mapping overrides to be used in place of the mapping overrides on the data stream currently
+     * @return The effective settings for the data stream, which are a the combination of template settings, data stream settings overrides,
+     * and the implicit settings provide by IndexSettingsProviders
+     * @throws IOException
+     */
+    public Settings getEffectiveSettings(ProjectMetadata projectMetadata, DataStream dataStream, CompressedXContent mappingOverrides)
+        throws IOException {
+        ComposableIndexTemplate template = lookupTemplateForDataStream(dataStream.getName(), projectMetadata);
+        Settings templateSettings = MetadataIndexTemplateService.resolveSettings(template, projectMetadata.componentTemplates());
+        CompressedXContent effectiveMappings = DataStream.getEffectiveMappings(
+            projectMetadata,
+            template,
+            mappingOverrides,
+            dataStream.getWriteIndex(),
+            indicesService
+        );
+        return addSettingsFromIndexSettingProviders(
+            dataStream.getName(),
+            effectiveMappings,
+            projectMetadata,
+            templateSettings.merge(dataStream.getSettings())
+        );
     }
 
     public void updateMappings(

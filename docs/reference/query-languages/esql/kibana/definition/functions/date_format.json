@@ -7,10 +7,10 @@
     {
       "params" : [
         {
-          "name" : "dateFormat",
+          "name" : "date",
           "type" : "date",
-          "optional" : true,
-          "description" : "Date format (optional).  If no format is specified, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used. If `null`, the function returns `null`."
+          "optional" : false,
+          "description" : "Date expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -19,10 +19,10 @@
     {
       "params" : [
         {
-          "name" : "dateFormat",
+          "name" : "date",
           "type" : "date_nanos",
-          "optional" : true,
-          "description" : "Date format (optional).  If no format is specified, the `yyyy-MM-dd'T'HH:mm:ss.SSSZ` format is used. If `null`, the function returns `null`."
+          "optional" : false,
+          "description" : "Date expression. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,

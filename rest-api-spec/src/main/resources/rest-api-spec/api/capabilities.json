@@ -36,20 +36,28 @@
       },
       "path": {
         "type": "string",
+        "default": "/",
         "description": "API path to check"
       },
       "parameters": {
-        "type": "string",
+        "type": "list",
+        "default": [],
         "description": "Comma-separated list of API parameters to check"
       },
       "capabilities": {
-        "type": "string",
+        "type": "list",
+        "default": [],
         "description": "Comma-separated list of arbitrary API capabilities to check"
       },
       "local_only": {
         "type": "boolean",
         "description": "True if only the node being called should be considered",
-        "visibility": "private"
+        "default": false
+      },
+      "timeout": {
+        "type": "time",
+        "description": "Period to wait for a response. If no response is received before the timeout expires, the request fails and returns an error.",
+        "default": "30s"
       }
     }
   }

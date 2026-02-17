@@ -71,4 +71,16 @@ public abstract class XPackFeatureUsage implements ToXContentObject, VersionedNa
         builder.field(AVAILABLE_XFIELD, available);
         builder.field(ENABLED_XFIELD, enabled);
     }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        XPackFeatureUsage that = (XPackFeatureUsage) o;
+        return available == that.available && enabled == that.enabled && Objects.equals(name, that.name);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, available, enabled);
+    }
 }

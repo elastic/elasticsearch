@@ -51,6 +51,7 @@ public class S3ClientSettingsTests extends ESTestCase {
         assertThat(defaultSettings.maxConnections, is(S3ClientSettings.Defaults.MAX_CONNECTIONS));
         assertThat(defaultSettings.maxRetries, is(S3ClientSettings.Defaults.RETRY_COUNT));
         assertThat(defaultSettings.connectionMaxIdleTimeMillis, is(S3ClientSettings.Defaults.CONNECTION_MAX_IDLE_TIME.millis()));
+        assertThat(defaultSettings.apiCallTimeout, is(TimeValue.MINUS_ONE));
     }
 
     public void testDefaultClientSettingsCanBeSet() {

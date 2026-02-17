@@ -392,3 +392,78 @@
   - match: { action_results.1.status: 404 }
   - match: { action_results.1.action: { 'type': 'remove', 'indices': ['log-test-1', 'log-test-2'], 'aliases': ['test_non_existing'] } }
   - match: { action_results.1.error.type: aliases_not_found_exception }
+
+---
+"Ensure filtered data stream alias is properly removed":
+  - requires:
+      reason: "Bug was fixed in 9.3"
+      test_runner_features: [ "allowed_warnings", "capabilities" ]
+      capabilities:
+        - method: POST
+          path: /_aliases
+          capabilities: [ fix_filtered_data_stream_alias_removal ]
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [log-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: [ log-* ]
+          template:
+            settings:
+              index.number_of_replicas: 0
+          data_stream: { }
+
+  - do:
+      indices.create_data_stream:
+        name: log-test-1
+  - is_true: acknowledged
+  - do:
+      indices.create_data_stream:
+        name: log-test-2
+  - is_true: acknowledged
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: log-test-1
+                aliases: filtered-alias
+                filter:
+                  term:
+                    env: production
+            - add:
+                index: log-test-2
+                aliases: filtered-alias
+                filter:
+                  term:
+                    env: production
+  - is_true: acknowledged
+  - is_false: errors
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - remove:
+                index: log-test-1
+                aliases: filtered-alias
+  - is_true: acknowledged
+  - is_false: errors
+
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: log-test-1
+                aliases: filtered-alias
+  - is_true: acknowledged
+  - is_false: errors
+
+  - do:
+      indices.get_alias: { }
+
+  - is_false: log-test-1.aliases.filtered-alias.filter
+  - is_true: log-test-2.aliases.filtered-alias.filter

@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJobTestUtils;
 
 import java.io.IOException;
+import java.util.Map;
 
 public class ClaimConnectorSyncJobActionRequestBWCSerializingTests extends AbstractBWCSerializationTestCase<
     ClaimConnectorSyncJobAction.Request> {
@@ -34,7 +35,16 @@ public class ClaimConnectorSyncJobActionRequestBWCSerializingTests extends Abstr
 
     @Override
     protected ClaimConnectorSyncJobAction.Request mutateInstance(ClaimConnectorSyncJobAction.Request instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        String jobId = instance.getConnectorSyncJobId();
+        String workerHostname = instance.getWorkerHostname();
+        Object syncCursor = instance.getSyncCursor();
+        switch (randomIntBetween(0, 2)) {
+            case 0 -> jobId = randomValueOtherThan(jobId, () -> randomAlphaOfLength(10));
+            case 1 -> workerHostname = randomValueOtherThan(workerHostname, () -> randomAlphaOfLengthBetween(10, 100));
+            case 2 -> syncCursor = randomValueOtherThan(syncCursor, () -> randomBoolean() ? Map.of("test", "123") : null);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new ClaimConnectorSyncJobAction.Request(jobId, workerHostname, syncCursor);
     }
 
     protected ClaimConnectorSyncJobAction.Request doParseInstance(XContentParser parser) throws IOException {

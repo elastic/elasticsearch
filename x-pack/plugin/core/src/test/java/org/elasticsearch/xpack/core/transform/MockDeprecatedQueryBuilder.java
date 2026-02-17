@@ -72,7 +72,7 @@ public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDepreca
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) throws IOException {
-        return Queries.newMatchAllQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     @Override

@@ -14,12 +14,17 @@ import com.carrotsearch.randomizedtesting.ThreadFilter;
 /**
  * test container spawns extra threads, which causes our thread leak
  * detection to fail. Filter these threads out since we can't clean them up.
+ *
+ * This also filters the "JNA Cleaner" thread since TestContainers uses JNA
+ * internally for Docker communication, and the JNA cleaner is a static
+ * JVM-level thread that cleans up native memory references.
  */
 public class TestContainersThreadFilter implements ThreadFilter {
     @Override
     public boolean reject(Thread t) {
         return t.getName().startsWith("testcontainers-")
             || t.getName().startsWith("ducttape")
-            || t.getName().startsWith("ForkJoinPool.commonPool-worker-");
+            || t.getName().startsWith("ForkJoinPool.commonPool-worker-")
+            || t.getName().equals("JNA Cleaner");
     }
 }

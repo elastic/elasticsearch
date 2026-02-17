@@ -17,7 +17,6 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopScoreDocCollector;
 import org.apache.lucene.search.TopScoreDocCollectorManager;
@@ -25,6 +24,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.DummyTotalHitCountCollector;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -124,14 +124,14 @@ public class ProfileCollectorManagerTests extends ESTestCase {
     public void testManagerWithSearcher() throws IOException {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(10, null, 1000);
-            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), topDocsManager);
+            TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, topDocsManager);
             assertEquals(numDocs, topDocs.totalHits.value());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(10, null, 1000);
             String profileReason = "profiler_reason";
             ProfileCollectorManager<TopDocs> profileCollectorManager = new ProfileCollectorManager<>(topDocsManager, profileReason);
-            TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), profileCollectorManager);
+            TopDocs topDocs = searcher.search(Queries.ALL_DOCS_INSTANCE, profileCollectorManager);
             assertEquals(numDocs, topDocs.totalHits.value());
             CollectorResult result = profileCollectorManager.getCollectorTree();
             assertEquals("profiler_reason", result.getReason());

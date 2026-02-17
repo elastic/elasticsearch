@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.datastreams;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -133,9 +132,9 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
             this(
                 in.readVLong(),
                 in.readVLong(),
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
-                in.getTransportVersion().supports(TransportVersions.V_8_18_0) ? in.readVLong() : 0,
-                in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0) ? in.readVLong() : 0,
+                in.readVLong(),
+                in.readVLong(),
+                in.readVLong(),
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE) ? in.readVLong() : 0,
                 in.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)
@@ -154,13 +153,9 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(this.totalDataStreamCount);
             out.writeVLong(this.indicesBehindDataStream);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                out.writeVLong(this.failureStoreExplicitlyEnabledDataStreamCount);
-                if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-                    out.writeVLong(failureStoreEffectivelyEnabledDataStreamCount);
-                }
-                out.writeVLong(this.failureStoreIndicesCount);
-            }
+            out.writeVLong(this.failureStoreExplicitlyEnabledDataStreamCount);
+            out.writeVLong(this.failureStoreEffectivelyEnabledDataStreamCount);
+            out.writeVLong(this.failureStoreIndicesCount);
             if (out.getTransportVersion().supports(INTRODUCE_FAILURES_LIFECYCLE)) {
                 out.writeVLong(failuresLifecycleExplicitlyEnabledCount);
                 out.writeVLong(failuresLifecycleEffectivelyEnabledCount);

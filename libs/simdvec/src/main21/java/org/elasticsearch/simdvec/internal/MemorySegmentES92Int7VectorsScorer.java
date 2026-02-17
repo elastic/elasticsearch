@@ -17,8 +17,8 @@ import java.lang.foreign.MemorySegment;
 /** Panamized scorer for 7-bit quantized vectors stored as an {@link IndexInput}. **/
 public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92PanamaInt7VectorsScorer {
 
-    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, MemorySegment memorySegment) {
-        super(in, dimensions, memorySegment);
+    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize, MemorySegment memorySegment) {
+        super(in, dimensions, bulkSize, memorySegment);
     }
 
     @Override
@@ -45,9 +45,10 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
-        int7DotProductBulk(q, BULK_SIZE, scores);
+        int7DotProductBulk(q, bulkSize, scores);
         applyCorrectionsBulk(
             queryLowerInterval,
             queryUpperInterval,
@@ -55,7 +56,8 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
             queryAdditionalCorrection,
             similarityFunction,
             centroidDp,
-            scores
+            scores,
+            bulkSize
         );
     }
 }

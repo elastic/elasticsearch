@@ -12,6 +12,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.FilteredAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.WindowAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.AggregationOperator;
@@ -36,7 +37,9 @@ import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.PhysicalOperation;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -175,11 +178,14 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     context
                 );
             } else {
+                QueryPragmas pragmas = context.queryPragmas();
                 operatorFactory = new HashAggregationOperatorFactory(
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorMode,
                     aggregatorFactories,
                     context.pageSize(aggregateExec, aggregateExec.estimatedRowSize()),
+                    pragmas.partialAggregationEmitKeysThreshold(context.plannerSettings().partialEmitKeysThreshold()),
+                    pragmas.partialAggregationEmitUniquenessThreshold(context.plannerSettings().partialEmitUniquenessThreshold()),
                     analysisRegistry
                 );
             }
@@ -329,6 +335,11 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                             context.shardContexts()
                         );
                         aggSupplier = new FilteredAggregatorFunctionSupplier(aggSupplier, evalFactory);
+                    }
+                    // apply the grouping window in the final phase
+                    if (mode.isOutputPartial() == false && aggregateFunction.hasWindow()) {
+                        Duration windowInterval = (Duration) aggregateFunction.window().fold(foldContext);
+                        aggSupplier = new WindowAggregatorFunctionSupplier(aggSupplier, windowInterval);
                     }
                     consumer.accept(new AggFunctionSupplierContext(aggSupplier, inputChannels, mode));
                 }

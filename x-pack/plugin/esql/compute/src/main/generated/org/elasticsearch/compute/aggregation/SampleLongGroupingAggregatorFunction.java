@@ -157,7 +157,7 @@ public final class SampleLongGroupingAggregatorFunction implements GroupingAggre
       return;
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -220,7 +220,7 @@ public final class SampleLongGroupingAggregatorFunction implements GroupingAggre
       return;
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -269,7 +269,7 @@ public final class SampleLongGroupingAggregatorFunction implements GroupingAggre
       return;
     }
     BytesRefBlock sample = (BytesRefBlock) sampleUncast;
-    BytesRef scratch = new BytesRef();
+    BytesRef sampleScratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       int valuesPosition = groupPosition + positionOffset;

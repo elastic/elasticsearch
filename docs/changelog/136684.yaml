@@ -1,5 +1,0 @@
-pr: 136684
-summary: Lazy compute and cache `grantsAll` per privilege
-area: Authorization
-type: enhancement
-issues: []

@@ -64,7 +64,7 @@ public class TransportResolveIndexActionTests extends ESTestCase {
                 @Override
                 public void writeTo(StreamOutput out) throws IOException {
                     super.writeTo(out);
-                    if (out.getTransportVersion().before(transportVersion)) {
+                    if (out.getTransportVersion().supports(transportVersion) == false) {
                         throw new IllegalArgumentException("This request isn't serializable before transport version " + transportVersion);
                     }
                 }

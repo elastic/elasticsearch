@@ -24,6 +24,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -31,6 +32,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -43,10 +45,13 @@ import org.elasticsearch.index.mapper.RootObjectMapper;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -61,7 +66,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -110,6 +118,17 @@ public class SearchServiceTests extends IndexShardTestCase {
         SortField sortField = new SortField("field", SortField.Type.STRING);
         MinAndMax<BytesRef> expectedMinAndMax = new MinAndMax<>(new BytesRef("value"), new BytesRef("value"));
         doTestCanMatch(searchRequest, sortField, true, expectedMinAndMax, false);
+    }
+
+    public void testCanMatchTimeRangeFilter() throws IOException {
+        SearchRequest searchRequest = new SearchRequest().allowPartialSearchResults(false)
+            .source(new SearchSourceBuilder().query(new RangeQueryBuilder("@timestamp").from("2025-12-15")));
+        SearchService.CanMatchContext canMatchContext = doTestCanMatch(searchRequest, null, false, null, false);
+        LocalDateTime localDateTime = LocalDateTime.of(2025, 12, 15, 0, 0);
+        assertEquals(
+            localDateTime.atZone(ZoneOffset.UTC).toInstant().toEpochMilli(),
+            canMatchContext.getTimeRangeFilterFromMillis().longValue()
+        );
     }
 
     public void testCanMatchKeywordSortedQueryMatchNoneWithException() throws IOException {
@@ -370,7 +389,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         }
     }
 
-    private void doTestCanMatch(
+    private SearchService.CanMatchContext doTestCanMatch(
         SearchRequest searchRequest,
         SortField sortField,
         boolean expectedCanMatch,
@@ -392,7 +411,7 @@ public class SearchServiceTests extends IndexShardTestCase {
         IndexShard indexShard = newShard(true);
         try {
             recoverShardFromStore(indexShard);
-            assertTrue(indexDoc(indexShard, "_doc", "id", "{\"field\":\"value\"}").isCreated());
+            assertTrue(indexDoc(indexShard, "_doc", "id", "{\"field\":\"value\", \"@timestamp\":\"2025-12-09\"}").isCreated());
             assertTrue(indexShard.refresh("test").refreshed());
             try (Engine.Searcher searcher = indexShard.acquireSearcher("test")) {
                 SearchExecutionContext searchExecutionContext = createSearchExecutionContext(
@@ -416,7 +435,7 @@ public class SearchServiceTests extends IndexShardTestCase {
                     assertEquals(expectedMinAndMax.getMin(), minAndMax.getMin());
                     assertEquals(expectedMinAndMax.getMin(), minAndMax.getMax());
                 }
-
+                return canMatchContext;
             }
         } finally {
             closeShards(indexShard);
@@ -442,11 +461,19 @@ public class SearchServiceTests extends IndexShardTestCase {
             new MetadataFieldMapper[0],
             Collections.emptyMap()
         );
-        KeywordFieldMapper keywordFieldMapper = new KeywordFieldMapper.Builder("field", IndexVersion.current()).build(root);
+        KeywordFieldMapper keywordFieldMapper = new KeywordFieldMapper.Builder("field", indexSettings).build(root);
+        DateFieldMapper dateFieldMapper = new DateFieldMapper.Builder(
+            "@timestamp",
+            DateFieldMapper.Resolution.MILLISECONDS,
+            null,
+            ScriptCompiler.NONE,
+            indexSettings
+        ).build(root);
         MappingLookup mappingLookup = MappingLookup.fromMappers(
             mapping,
-            Collections.singletonList(keywordFieldMapper),
-            Collections.emptyList()
+            List.of(keywordFieldMapper, dateFieldMapper),
+            Collections.emptyList(),
+            IndexMode.STANDARD
         );
         return new SearchExecutionContext(
             0,
@@ -468,7 +495,9 @@ public class SearchServiceTests extends IndexShardTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 

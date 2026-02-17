@@ -29,10 +29,13 @@ public class AggregateWritables {
             Idelta.ENTRY,
             Increase.ENTRY,
             Delta.ENTRY,
+            Deriv.ENTRY,
             Sample.ENTRY,
+            Scalar.ENTRY,
             SpatialCentroid.ENTRY,
             SpatialExtent.ENTRY,
             StdDev.ENTRY,
+            Variance.ENTRY,
             Sum.ENTRY,
             Top.ENTRY,
             Values.ENTRY,
@@ -50,7 +53,9 @@ public class AggregateWritables {
             PresentOverTime.ENTRY,
             Absent.ENTRY,
             AbsentOverTime.ENTRY,
-            DimensionValues.ENTRY
+            DimensionValues.ENTRY,
+            HistogramMerge.ENTRY,
+            HistogramMergeOverTime.ENTRY
         );
     }
 }

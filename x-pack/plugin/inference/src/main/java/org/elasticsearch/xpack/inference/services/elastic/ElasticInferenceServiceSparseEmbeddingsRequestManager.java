@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
 import org.elasticsearch.xpack.inference.external.http.sender.ExecutableInferenceRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMAuthenticationApplierFactory;
 import org.elasticsearch.xpack.inference.services.elastic.request.ElasticInferenceServiceSparseEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceSparseEmbeddingsResponseEntity;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -39,10 +40,9 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
     private static final ResponseHandler HANDLER = createSparseEmbeddingsHandler();
 
     private final ElasticInferenceServiceSparseEmbeddingsModel model;
-
     private final Truncator truncator;
-
     private final TraceContext traceContext;
+    private final CCMAuthenticationApplierFactory.AuthApplier authApplier;
 
     private static ResponseHandler createSparseEmbeddingsHandler() {
         return new ElasticInferenceServiceResponseHandler(
@@ -54,12 +54,14 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
     public ElasticInferenceServiceSparseEmbeddingsRequestManager(
         ElasticInferenceServiceSparseEmbeddingsModel model,
         ServiceComponents serviceComponents,
-        TraceContext traceContext
+        TraceContext traceContext,
+        CCMAuthenticationApplierFactory.AuthApplier authApplier
     ) {
         super(serviceComponents.threadPool(), model);
         this.model = model;
         this.truncator = serviceComponents.truncator();
         this.traceContext = traceContext;
+        this.authApplier = authApplier;
     }
 
     @Override
@@ -70,7 +72,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
         ActionListener<InferenceServiceResults> listener
     ) {
         EmbeddingsInput input = inferenceInputs.castTo(EmbeddingsInput.class);
-        List<String> docsInput = input.getInputs();
+        List<String> docsInput = input.getTextInputs();
         InputType inputType = input.getInputType();
 
         var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
@@ -81,7 +83,8 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
             model,
             traceContext,
             requestMetadata(),
-            inputType
+            inputType,
+            authApplier
         );
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));

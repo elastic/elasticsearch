@@ -11,6 +11,7 @@ apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-test-artifact' // needed to run logsdb rest tests in serverless
 
 esplugin {
   name = 'logsdb'
@@ -33,6 +34,7 @@ dependencies {
   implementation project(':modules:mapper-extras')
   testImplementation project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation("commons-io:commons-io:2.15.1")
   javaRestTestImplementation(testArtifact(project(xpackModule('spatial'))))
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }

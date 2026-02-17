@@ -24,11 +24,7 @@ public class StartDataFrameAnalyticsActionTaskParamsTests extends AbstractXConte
 
     @Override
     protected StartDataFrameAnalyticsAction.TaskParams createTestInstance() {
-        return new StartDataFrameAnalyticsAction.TaskParams(
-            randomAlphaOfLength(10),
-            MlConfigVersionUtils.randomVersion(random()),
-            randomBoolean()
-        );
+        return new StartDataFrameAnalyticsAction.TaskParams(randomAlphaOfLength(10), MlConfigVersionUtils.randomVersion(), randomBoolean());
     }
 
     @Override

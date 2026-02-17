@@ -16,13 +16,16 @@ import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
+import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -39,6 +42,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FuseScoreEvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -60,6 +64,12 @@ public class MapperUtils {
     static PhysicalPlan mapLeaf(LeafPlan p) {
         if (p instanceof LocalRelation local) {
             return new LocalSourceExec(local.source(), local.output(), local.supplier());
+        }
+
+        // External data sources (Iceberg, Parquet, etc.)
+        // These are executed on the coordinator only, bypassing FragmentExec/ExchangeExec dispatch
+        if (p instanceof ExternalRelation external) {
+            return external.toPhysicalExec();
         }
 
         // Commands
@@ -103,7 +113,14 @@ public class MapperUtils {
         }
 
         if (p instanceof Completion completion) {
-            return new CompletionExec(completion.source(), child, completion.inferenceId(), completion.prompt(), completion.targetField());
+            return new CompletionExec(
+                completion.source(),
+                child,
+                completion.inferenceId(),
+                completion.prompt(),
+                completion.targetField(),
+                completion.taskSettings()
+            );
         }
 
         if (p instanceof Enrich enrich) {
@@ -118,6 +135,10 @@ public class MapperUtils {
                 enrich.concreteIndices(),
                 enrich.enrichFields()
             );
+        }
+
+        if (p instanceof MMR mmr) {
+            return new MMRExec(mmr.source(), child, mmr.diversifyField(), mmr.limit(), mmr.queryVector(), mmr.options());
         }
 
         if (p instanceof MvExpand mvExpand) {
@@ -141,6 +162,11 @@ public class MapperUtils {
 
         if (p instanceof Sample sample) {
             return new SampleExec(sample.source(), child, sample.probability());
+        }
+
+        if (p instanceof Subquery) {
+            // A Subquery node is just a placeholder for the subquery plan, so we just return the child plan
+            return child;
         }
 
         return unsupported(p);

@@ -40,7 +40,7 @@ import static org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapsh
 public abstract class AbstractTransportSearchableSnapshotsAction<
     Request extends BroadcastRequest<Request>,
     Response extends BaseBroadcastResponse,
-    ShardOperationResult extends Writeable> extends TransportBroadcastByNodeAction<Request, Response, ShardOperationResult> {
+    ShardOperationResult extends Writeable> extends TransportBroadcastByNodeAction<Request, Response, ShardOperationResult, Void> {
 
     private final IndicesService indicesService;
     private final XPackLicenseState licenseState;
@@ -106,7 +106,13 @@ public abstract class AbstractTransportSearchableSnapshotsAction<
     }
 
     @Override
-    protected void shardOperation(Request request, ShardRouting shardRouting, Task task, ActionListener<ShardOperationResult> listener) {
+    protected void shardOperation(
+        Request request,
+        ShardRouting shardRouting,
+        Task task,
+        Void nodeContext,
+        ActionListener<ShardOperationResult> listener
+    ) {
         ActionListener.completeWith(listener, () -> {
             SearchableSnapshots.ensureValidLicense(licenseState);
             final IndexShard indexShard = indicesService.indexServiceSafe(shardRouting.index()).getShard(shardRouting.id());

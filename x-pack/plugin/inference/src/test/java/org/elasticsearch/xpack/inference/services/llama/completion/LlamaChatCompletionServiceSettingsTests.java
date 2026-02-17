@@ -18,7 +18,6 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
@@ -26,14 +25,15 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCWireSerializationTestCase<LlamaChatCompletionServiceSettings> {
 
-    public static final String MODEL_ID = "some model";
-    public static final String CORRECT_URL = "https://www.elastic.co";
-    public static final int RATE_LIMIT = 2;
+    private static final String MODEL_ID = "some model";
+    private static final String CORRECT_URL = "https://www.elastic.co";
+    private static final int RATE_LIMIT = 2;
 
     public void testFromMap_AllFields_Success() {
         var serviceSettings = LlamaChatCompletionServiceSettings.fromMap(
@@ -170,7 +170,17 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCWireSeri
 
     @Override
     protected LlamaChatCompletionServiceSettings mutateInstance(LlamaChatCompletionServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, LlamaChatCompletionServiceSettingsTests::createRandom);
+        var modelId = instance.modelId();
+        var uri = instance.uri();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(2)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
+            case 1 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(5)));
+            case 2 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new LlamaChatCompletionServiceSettings(modelId, uri, rateLimitSettings);
     }
 
     @Override
@@ -184,7 +194,7 @@ public class LlamaChatCompletionServiceSettingsTests extends AbstractBWCWireSeri
     private static LlamaChatCompletionServiceSettings createRandom() {
         var modelId = randomAlphaOfLength(8);
         var url = randomAlphaOfLength(15);
-        return new LlamaChatCompletionServiceSettings(modelId, ServiceUtils.createUri(url), RateLimitSettingsTests.createRandom());
+        return new LlamaChatCompletionServiceSettings(modelId, createUri(url), RateLimitSettingsTests.createRandom());
     }
 
     public static Map<String, Object> getServiceSettingsMap(String model, String url) {

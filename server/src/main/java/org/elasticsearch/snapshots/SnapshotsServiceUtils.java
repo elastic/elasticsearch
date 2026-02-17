@@ -12,7 +12,6 @@ package org.elasticsearch.snapshots;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -50,7 +49,6 @@ import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
-import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.repositories.ShardGeneration;
@@ -127,7 +125,7 @@ public class SnapshotsServiceUtils {
     public static void ensureNotReadOnly(final ProjectMetadata projectMetadata, final String repositoryName) {
         final var repositoryMetadata = RepositoriesMetadata.get(projectMetadata).repository(repositoryName);
         if (RepositoriesService.isReadOnly(repositoryMetadata.settings())) {
-            throw new RepositoryException(repositoryMetadata.name(), "repository is readonly");
+            throw new IllegalArgumentException("[" + repositoryMetadata.name() + "] repository is readonly");
         }
     }
 
@@ -256,10 +254,6 @@ public class SnapshotsServiceUtils {
 
     public static boolean includeFileInfoWriterUUID(IndexVersion repositoryMetaVersion) {
         return repositoryMetaVersion.onOrAfter(FILE_INFO_WRITER_UUIDS_IN_SHARD_DATA_VERSION);
-    }
-
-    public static boolean supportsNodeRemovalTracking(ClusterState clusterState) {
-        return clusterState.getMinTransportVersion().onOrAfter(TransportVersions.V_8_13_0);
     }
 
     /**

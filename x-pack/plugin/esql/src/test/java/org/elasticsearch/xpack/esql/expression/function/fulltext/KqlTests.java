@@ -58,7 +58,7 @@ public class KqlTests extends NoneFieldFullTextFunctionTestCase {
                     ).forceLiteral()
                 );
 
-                return new TestCaseSupplier.TestCase(values, equalTo("KqlEvaluator"), BOOLEAN, equalTo(true));
+                return new TestCaseSupplier.TestCase(values, "", BOOLEAN, equalTo(true));
             }));
         }
         return result;
@@ -66,7 +66,7 @@ public class KqlTests extends NoneFieldFullTextFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        Kql kql = new Kql(source, args.get(0), args.size() > 1 ? args.get(1) : null);
+        Kql kql = new Kql(source, args.get(0), args.size() > 1 ? args.get(1) : null, testCase.getConfiguration());
         // We need to add the QueryBuilder to the kql expression, as it is used to implement equals() and hashCode() and
         // thus test the serialization methods. But we can only do this if the parameters make sense.
         if (args.get(0).foldable()) {

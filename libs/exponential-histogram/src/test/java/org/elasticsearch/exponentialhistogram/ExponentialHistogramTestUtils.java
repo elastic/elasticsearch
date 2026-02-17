@@ -24,6 +24,7 @@ package org.elasticsearch.exponentialhistogram;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomDouble;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
@@ -35,6 +36,10 @@ public abstract class ExponentialHistogramTestUtils {
     }
 
     public static ReleasableExponentialHistogram randomHistogram(ExponentialHistogramCircuitBreaker breaker) {
+        return randomHistogram(randomIntBetween(4, 300), breaker);
+    }
+
+    public static ReleasableExponentialHistogram randomHistogram(int numBuckets, ExponentialHistogramCircuitBreaker breaker) {
         boolean hasNegativeValues = randomBoolean();
         boolean hasPositiveValues = randomBoolean();
         boolean hasZeroValues = randomBoolean();
@@ -46,16 +51,30 @@ public abstract class ExponentialHistogramTestUtils {
             hasZeroValues ? IntStream.range(0, randomIntBetween(1, 100)).map(i1 -> 0) : IntStream.empty()
         ).mapToDouble(sign -> sign * (Math.pow(1_000_000, randomDouble()))).toArray();
 
-        int numBuckets = randomIntBetween(4, 300);
         ReleasableExponentialHistogram histo = ExponentialHistogram.create(numBuckets, breaker, rawValues);
         // Setup a proper zeroThreshold based on a random chance
         if (histo.zeroBucket().count() > 0 && randomBoolean()) {
             double smallestNonZeroValue = DoubleStream.of(rawValues).map(Math::abs).filter(val -> val != 0).min().orElse(0.0);
             double zeroThreshold = smallestNonZeroValue * randomDouble();
             try (ReleasableExponentialHistogram releaseAfterCopy = histo) {
-                histo = ExponentialHistogram.builder(histo, breaker)
-                    .zeroBucket(ZeroBucket.create(zeroThreshold, histo.zeroBucket().count()))
-                    .build();
+                ZeroBucket zeroBucket;
+                if (zeroThreshold == 0 || randomBoolean()) {
+                    zeroBucket = ZeroBucket.create(zeroThreshold, histo.zeroBucket().count());
+                } else {
+                    // define the zero bucket using index and scale as it can have an impact on serialization
+                    int scale = randomIntBetween(0, MAX_SCALE);
+                    long index = ExponentialScaleUtils.computeIndex(zeroThreshold, scale) - 1;
+                    zeroBucket = ZeroBucket.create(index, scale, histo.zeroBucket().count());
+                }
+                ExponentialHistogramBuilder builder = ExponentialHistogram.builder(histo, breaker).zeroBucket(zeroBucket);
+
+                if ((Double.isNaN(histo.min()) || histo.min() > -zeroThreshold)) {
+                    builder.min(-zeroThreshold);
+                }
+                if ((Double.isNaN(histo.max()) || histo.max() < zeroThreshold)) {
+                    builder.max(zeroThreshold);
+                }
+                histo = builder.build();
             }
         }
         return histo;

@@ -152,13 +152,18 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
         return MMapDirectory.NO_FILES;
     }
 
-    private static BiFunction<String, IOContext, Optional<ReadAdvice>> getReadAdviceFunc() {
+    public static BiFunction<String, IOContext, Optional<ReadAdvice>> getReadAdviceFunc() {
         return (name, context) -> {
             if (context.hints().contains(StandardIOBehaviorHint.INSTANCE)) {
                 return Optional.of(ReadAdvice.NORMAL);
             }
             if (name.endsWith(".cfs")) {
                 return Optional.of(ReadAdvice.NORMAL);
+            }
+            // Bloom filter files are accessed randomly during point lookups,
+            // so sequential pre-fetching would not be beneficial
+            if (name.endsWith(".sfbf")) {
+                return Optional.of(ReadAdvice.RANDOM);
             }
             return MMapDirectory.ADVISE_BY_CONTEXT.apply(name, context);
         };
@@ -290,28 +295,30 @@ public class FsDirectoryFactory implements IndexStorePlugin.DirectoryFactory {
          * mmap-ing that should still be ok even is memory is scarce.
          * The fdt file is large and tends to cause more page faults when memory is scarce.
          *
-         * For disi and address-data files, in es819 tsdb doc values codec, docids and offsets are first written to a tmp file and
-         * read and written into new segment.
+         * For disi, address-data, block-addresses, and block-doc-ranges files, in es819 tsdb doc values codec,
+         * docids and offsets are first written to a tmp file and read and written into new segment.
          *
          * @param name      The name of the file in Lucene index
          * @param extension The extension of the in Lucene index
          * @return whether to avoid using delegate if the file is a tmp fdt file.
          */
         static boolean avoidDelegateForFdtTempFiles(String name, LuceneFilesExtensions extension) {
-            return extension == LuceneFilesExtensions.TMP
-                && (name.contains("fdt") || name.contains("disi") || name.contains("address-data"));
+            return extension == LuceneFilesExtensions.TMP && NO_MMAP_FILE_SUFFIXES.stream().anyMatch(name::contains);
         }
+
+        static final Set<String> NO_MMAP_FILE_SUFFIXES = Set.of("fdt", "disi", "address-data", "block-addresses", "block-doc-ranges");
 
         MMapDirectory getDelegate() {
             return delegate;
         }
     }
 
-    static final class AlwaysDirectIODirectory extends DirectIODirectory {
+    public static final class AlwaysDirectIODirectory extends DirectIODirectory {
         private final int blockSize;
         private final int asyncPrefetchLimit;
 
-        AlwaysDirectIODirectory(FSDirectory delegate, int mergeBufferSize, long minBytesDirect, int asyncPrefetchLimit) throws IOException {
+        public AlwaysDirectIODirectory(FSDirectory delegate, int mergeBufferSize, long minBytesDirect, int asyncPrefetchLimit)
+            throws IOException {
             super(delegate, mergeBufferSize, minBytesDirect);
             blockSize = getBlockSize(delegate.getDirectory());
             this.asyncPrefetchLimit = asyncPrefetchLimit;

@@ -12,6 +12,8 @@ package org.elasticsearch.index.mapper.vectors;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.elasticsearch.index.IndexSettings;
 
+import java.util.concurrent.ExecutorService;
+
 /**
  * A service provider interface for obtaining Lucene {@link KnnVectorsFormat} instances.
  * Plugins can implement this interface to provide custom vector formats
@@ -24,7 +26,16 @@ public interface VectorsFormatProvider {
      *
      * @param indexSettings The index settings.
      * @param indexOptions The dense vector index options.
+     * @param similarity The vector similarity function.
+     * @param elementType The type of elements in the vector.
      * @return A KnnVectorsFormat instance.
      */
-    KnnVectorsFormat getKnnVectorsFormat(IndexSettings indexSettings, DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions);
+    KnnVectorsFormat getKnnVectorsFormat(
+        IndexSettings indexSettings,
+        DenseVectorFieldMapper.DenseVectorIndexOptions indexOptions,
+        DenseVectorFieldMapper.VectorSimilarity similarity,
+        DenseVectorFieldMapper.ElementType elementType,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers
+    );
 }

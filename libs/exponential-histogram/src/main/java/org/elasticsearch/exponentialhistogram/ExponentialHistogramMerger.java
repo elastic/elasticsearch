@@ -36,22 +36,61 @@ import static org.elasticsearch.exponentialhistogram.ExponentialScaleUtils.getMa
  * while keeping the bucket count in the result below a given limit.
  */
 public class ExponentialHistogramMerger implements Accountable, Releasable {
+    // OpenTelemetry SDK default, we might make this configurable later
+    public static final int DEFAULT_MAX_HISTOGRAM_BUCKETS = 320;
 
     private static final long BASE_SIZE = RamUsageEstimator.shallowSizeOfInstance(ExponentialHistogramMerger.class) + DownscaleStats.SIZE;
 
+    public interface Factory extends Accountable, Releasable {
+
+        /**
+         * Creates a new {@link ExponentialHistogramMerger}.
+         * All mergers created by this factory must not be used concurrently.
+         */
+        ExponentialHistogramMerger createMerger();
+
+    }
+
+    /**
+     * The factory that created this merger.
+     */
+    private final MergerFactoryImpl factory;
+
     // Our algorithm is not in-place, therefore we use two histograms and ping-pong between them
+    // The temporary buffer is managed by the factory to allow sharing between multiple mergers
     @Nullable
     private FixedCapacityExponentialHistogram result;
-    @Nullable
-    private FixedCapacityExponentialHistogram buffer;
-
-    private final int bucketLimit;
-    private final int maxScale;
-
-    private final DownscaleStats downscaleStats;
-
-    private final ExponentialHistogramCircuitBreaker circuitBreaker;
     private boolean closed = false;
+
+    /**
+     * Creates a new factory with the OpenTelemetry SDK default bucket limit of
+     * {@link ExponentialHistogramMerger#DEFAULT_MAX_HISTOGRAM_BUCKETS}.
+     *
+     * @param circuitBreaker the circuit breaker to use to limit memory allocations
+     */
+    public static Factory createFactory(ExponentialHistogramCircuitBreaker circuitBreaker) {
+        return MergerFactoryImpl.create(DEFAULT_MAX_HISTOGRAM_BUCKETS, ExponentialHistogram.MAX_SCALE, circuitBreaker);
+    }
+
+    /**
+     * Creates a new factory with the specified bucket limit.
+     *
+     * @param bucketLimit the maximum number of buckets the result histogram is allowed to have, must be at least 4
+     * @param circuitBreaker the circuit breaker to use to limit memory allocations
+     */
+    public static Factory createFactory(int bucketLimit, ExponentialHistogramCircuitBreaker circuitBreaker) {
+        return MergerFactoryImpl.create(bucketLimit, ExponentialHistogram.MAX_SCALE, circuitBreaker);
+    }
+
+    /**
+     * Creates a new instance with the OpenTelemetry SDK default bucket limit of
+     * {@link ExponentialHistogramMerger#DEFAULT_MAX_HISTOGRAM_BUCKETS}.
+     *
+     * @param circuitBreaker the circuit breaker to use to limit memory allocations
+     */
+    public static ExponentialHistogramMerger create(ExponentialHistogramCircuitBreaker circuitBreaker) {
+        return create(DEFAULT_MAX_HISTOGRAM_BUCKETS, circuitBreaker);
+    }
 
     /**
      * Creates a new instance with the specified bucket limit.
@@ -60,33 +99,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
      * @param circuitBreaker the circuit breaker to use to limit memory allocations
      */
     public static ExponentialHistogramMerger create(int bucketLimit, ExponentialHistogramCircuitBreaker circuitBreaker) {
-        circuitBreaker.adjustBreaker(BASE_SIZE);
-        boolean success = false;
-        try {
-            ExponentialHistogramMerger result = new ExponentialHistogramMerger(bucketLimit, circuitBreaker);
-            success = true;
-            return result;
-        } finally {
-            if (success == false) {
-                circuitBreaker.adjustBreaker(-BASE_SIZE);
-            }
-        }
-    }
-
-    private ExponentialHistogramMerger(int bucketLimit, ExponentialHistogramCircuitBreaker circuitBreaker) {
-        this(bucketLimit, ExponentialHistogram.MAX_SCALE, circuitBreaker);
-    }
-
-    // Only intended for testing, using this in production means an unnecessary reduction of precision
-    private ExponentialHistogramMerger(int bucketLimit, int maxScale, ExponentialHistogramCircuitBreaker circuitBreaker) {
-        // We need at least four buckets to represent any possible distribution
-        if (bucketLimit < 4) {
-            throw new IllegalArgumentException("The bucket limit must be at least 4");
-        }
-        this.bucketLimit = bucketLimit;
-        this.maxScale = maxScale;
-        this.circuitBreaker = circuitBreaker;
-        downscaleStats = new DownscaleStats();
+        return createWithMaxScale(bucketLimit, ExponentialHistogram.MAX_SCALE, circuitBreaker);
     }
 
     public static ExponentialHistogramMerger createWithMaxScale(
@@ -94,8 +107,28 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         int maxScale,
         ExponentialHistogramCircuitBreaker circuitBreaker
     ) {
-        circuitBreaker.adjustBreaker(BASE_SIZE);
-        return new ExponentialHistogramMerger(bucketLimit, maxScale, circuitBreaker);
+        try (var factory = MergerFactoryImpl.create(bucketLimit, maxScale, circuitBreaker)) {
+            return factory.createMerger();
+        }
+    }
+
+    static ExponentialHistogramMerger create(MergerFactoryImpl owningFactory) {
+        owningFactory.circuitBreaker.adjustBreaker(BASE_SIZE);
+        boolean success = false;
+        ExponentialHistogramMerger merger = null;
+        try {
+            merger = new ExponentialHistogramMerger(owningFactory);
+            success = true;
+            return merger;
+        } finally {
+            if (success == false) {
+                owningFactory.circuitBreaker.adjustBreaker(-BASE_SIZE);
+            }
+        }
+    }
+
+    private ExponentialHistogramMerger(MergerFactoryImpl owningFactory) {
+        this.factory = owningFactory;
     }
 
     @Override
@@ -105,14 +138,11 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         } else {
             closed = true;
             if (result != null) {
-                result.close();
+                factory.releaseBuffer(result);
                 result = null;
             }
-            if (buffer != null) {
-                buffer.close();
-                buffer = null;
-            }
-            circuitBreaker.adjustBreaker(-BASE_SIZE);
+            factory.circuitBreaker.adjustBreaker(-BASE_SIZE);
+            factory.notifyMergerClosed();
         }
     }
 
@@ -121,9 +151,6 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         long size = BASE_SIZE;
         if (result != null) {
             size += result.ramBytesUsed();
-        }
-        if (buffer != null) {
-            size += buffer.ramBytesUsed();
         }
         return size;
     }
@@ -154,6 +181,25 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         return (result == null) ? ExponentialHistogram.empty() : result;
     }
 
+    /**
+     * Merges the given histogram into the current result, not upscaling it.
+     * This should be used when merging intermediate results to prevent accumulating errors.
+     *
+     * @param toAdd the histogram to merge
+     */
+    public void addWithoutUpscaling(ExponentialHistogram toAdd) {
+        add(toAdd, false);
+    }
+
+    /**
+     * Merges the given histogram into the current result. The histogram might be upscaled if needed.
+     *
+     * @param toAdd the histogram to merge
+     */
+    public void add(ExponentialHistogram toAdd) {
+        add(toAdd, true);
+    }
+
     // This algorithm is very efficient if B has roughly as many buckets as A.
     // However, if B is much smaller we still have to iterate over all buckets of A.
     // This can be optimized by buffering the buckets of small histograms and only merging them when we have enough buckets.
@@ -165,12 +211,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
     // It would be possible to only enable the buffering for small histograms,
     // but the optimization seems not worth the added complexity at this point.
 
-    /**
-     * Merges the given histogram into the current result.
-     *
-     * @param toAdd the histogram to merge
-     */
-    public void add(ExponentialHistogram toAdd) {
+    private void add(ExponentialHistogram toAdd, boolean allowUpscaling) {
         ExponentialHistogram a = result == null ? ExponentialHistogram.empty() : result;
         ExponentialHistogram b = toAdd;
 
@@ -182,63 +223,77 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
         ZeroBucket zeroBucket = a.zeroBucket().merge(b.zeroBucket());
         zeroBucket = zeroBucket.collapseOverlappingBucketsForAll(posBucketsA, negBucketsA, posBucketsB, negBucketsB);
 
-        if (buffer == null) {
-            buffer = FixedCapacityExponentialHistogram.create(bucketLimit, circuitBreaker);
-        }
-        buffer.setZeroBucket(zeroBucket);
-        buffer.setSum(a.sum() + b.sum());
-        buffer.setMin(nanAwareAggregate(a.min(), b.min(), Math::min));
-        buffer.setMax(nanAwareAggregate(a.max(), b.max(), Math::max));
-        // We attempt to bring everything to the scale of A.
-        // This might involve increasing the scale for B, which would increase its indices.
-        // We need to ensure that we do not exceed MAX_INDEX / MIN_INDEX in this case.
-        int targetScale = Math.min(maxScale, a.scale());
-        if (targetScale > b.scale()) {
-            if (negBucketsB.hasNext()) {
-                long smallestIndex = negBucketsB.peekIndex();
-                OptionalLong maximumIndex = b.negativeBuckets().maxBucketIndex();
-                assert maximumIndex.isPresent()
-                    : "We checked that the negative bucket range is not empty, therefore the maximum index should be present";
-                int maxScaleIncrease = Math.min(getMaximumScaleIncrease(smallestIndex), getMaximumScaleIncrease(maximumIndex.getAsLong()));
-                targetScale = Math.min(targetScale, b.scale() + maxScaleIncrease);
+        DownscaleStats downscaleStats = factory.downscaleStats;
+        FixedCapacityExponentialHistogram buffer = factory.acquireBuffer();
+        try {
+
+            buffer.setZeroBucket(zeroBucket);
+            buffer.setSum(a.sum() + b.sum());
+            buffer.setMin(nanAwareAggregate(a.min(), b.min(), Math::min));
+            buffer.setMax(nanAwareAggregate(a.max(), b.max(), Math::max));
+            // We attempt to bring everything to the scale of A.
+            // This might involve increasing the scale for B, which would increase its indices.
+            // We need to ensure that we do not exceed MAX_INDEX / MIN_INDEX in this case.
+            int targetScale = Math.min(factory.maxScale, a.scale());
+            if (allowUpscaling == false) {
+                targetScale = Math.min(targetScale, b.scale());
             }
-            if (posBucketsB.hasNext()) {
-                long smallestIndex = posBucketsB.peekIndex();
-                OptionalLong maximumIndex = b.positiveBuckets().maxBucketIndex();
-                assert maximumIndex.isPresent()
-                    : "We checked that the positive bucket range is not empty, therefore the maximum index should be present";
-                int maxScaleIncrease = Math.min(getMaximumScaleIncrease(smallestIndex), getMaximumScaleIncrease(maximumIndex.getAsLong()));
-                targetScale = Math.min(targetScale, b.scale() + maxScaleIncrease);
+
+            if (targetScale > b.scale()) {
+                if (negBucketsB.hasNext()) {
+                    long smallestIndex = negBucketsB.peekIndex();
+                    OptionalLong maximumIndex = b.negativeBuckets().maxBucketIndex();
+                    assert maximumIndex.isPresent()
+                        : "We checked that the negative bucket range is not empty, therefore the maximum index should be present";
+                    int maxScaleIncrease = Math.min(
+                        getMaximumScaleIncrease(smallestIndex),
+                        getMaximumScaleIncrease(maximumIndex.getAsLong())
+                    );
+                    targetScale = Math.min(targetScale, b.scale() + maxScaleIncrease);
+                }
+                if (posBucketsB.hasNext()) {
+                    long smallestIndex = posBucketsB.peekIndex();
+                    OptionalLong maximumIndex = b.positiveBuckets().maxBucketIndex();
+                    assert maximumIndex.isPresent()
+                        : "We checked that the positive bucket range is not empty, therefore the maximum index should be present";
+                    int maxScaleIncrease = Math.min(
+                        getMaximumScaleIncrease(smallestIndex),
+                        getMaximumScaleIncrease(maximumIndex.getAsLong())
+                    );
+                    targetScale = Math.min(targetScale, b.scale() + maxScaleIncrease);
+                }
             }
-        }
 
-        // Now we are sure that everything fits numerically into targetScale.
-        // However, we might exceed our limit for the total number of buckets.
-        // Therefore, we try the merge optimistically. If we fail, we reduce the target scale to make everything fit.
+            // Now we are sure that everything fits numerically into targetScale.
+            // However, we might exceed our limit for the total number of buckets.
+            // Therefore, we try the merge optimistically. If we fail, we reduce the target scale to make everything fit.
 
-        MergingBucketIterator positiveMerged = new MergingBucketIterator(posBucketsA.copy(), posBucketsB.copy(), targetScale);
-        MergingBucketIterator negativeMerged = new MergingBucketIterator(negBucketsA.copy(), negBucketsB.copy(), targetScale);
+            MergingBucketIterator positiveMerged = new MergingBucketIterator(posBucketsA.copy(), posBucketsB.copy(), targetScale);
+            MergingBucketIterator negativeMerged = new MergingBucketIterator(negBucketsA.copy(), negBucketsB.copy(), targetScale);
 
-        buffer.resetBuckets(targetScale);
-        downscaleStats.reset();
-        int overflowCount = putBuckets(buffer, negativeMerged, false, downscaleStats);
-        overflowCount += putBuckets(buffer, positiveMerged, true, downscaleStats);
-
-        if (overflowCount > 0) {
-            // UDD-sketch approach: decrease the scale and retry.
-            int reduction = downscaleStats.getRequiredScaleReductionToReduceBucketCountBy(overflowCount);
-            targetScale -= reduction;
             buffer.resetBuckets(targetScale);
-            positiveMerged = new MergingBucketIterator(posBucketsA, posBucketsB, targetScale);
-            negativeMerged = new MergingBucketIterator(negBucketsA, negBucketsB, targetScale);
-            overflowCount = putBuckets(buffer, negativeMerged, false, null);
-            overflowCount += putBuckets(buffer, positiveMerged, true, null);
+            downscaleStats.reset();
+            int overflowCount = putBuckets(buffer, negativeMerged, false, downscaleStats);
+            overflowCount += putBuckets(buffer, positiveMerged, true, downscaleStats);
 
-            assert overflowCount == 0 : "Should never happen, the histogram should have had enough space";
+            if (overflowCount > 0) {
+                // UDD-sketch approach: decrease the scale and retry.
+                int reduction = downscaleStats.getRequiredScaleReductionToReduceBucketCountBy(overflowCount);
+                targetScale -= reduction;
+                buffer.resetBuckets(targetScale);
+                positiveMerged = new MergingBucketIterator(posBucketsA, posBucketsB, targetScale);
+                negativeMerged = new MergingBucketIterator(negBucketsA, negBucketsB, targetScale);
+                overflowCount = putBuckets(buffer, negativeMerged, false, null);
+                overflowCount += putBuckets(buffer, positiveMerged, true, null);
+
+                assert overflowCount == 0 : "Should never happen, the histogram should have had enough space";
+            }
+            FixedCapacityExponentialHistogram temp = result;
+            result = buffer;
+            buffer = temp;
+        } finally {
+            factory.releaseBuffer(buffer);
         }
-        FixedCapacityExponentialHistogram temp = result;
-        result = buffer;
-        buffer = temp;
     }
 
     private static int putBuckets(

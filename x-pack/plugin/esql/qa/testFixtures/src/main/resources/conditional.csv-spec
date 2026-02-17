@@ -389,3 +389,18 @@ emp_no:integer | gender:keyword | g:double
 10009          | F              | null
 10010          | null           | null
 ;
+
+caseWithTemporalAmount
+required_capability: case_fold_temporal_amount
+
+ROW d = "2025-01-15T00:00:00.000Z"::DATETIME
+| EVAL duration_true = d + CASE(true, 1 DAY, 10 DAYS),
+       duration_false = d + CASE(false, 1 DAY, 10 DAYS),
+       period_true = d + CASE(true, 1 MONTH, 1 YEAR),
+       period_false = d + CASE(false, 1 MONTH, 1 YEAR)
+| KEEP duration_true, duration_false, period_true, period_false
+;
+
+duration_true:datetime      | duration_false:datetime     | period_true:datetime        | period_false:datetime
+2025-01-16T00:00:00.000Z    | 2025-01-25T00:00:00.000Z    | 2025-02-15T00:00:00.000Z    | 2026-01-15T00:00:00.000Z
+;

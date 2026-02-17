@@ -17,6 +17,9 @@ Refer to [*Retrievers*](docs-content://solutions/search/retrievers-overview.md) 
 
 The following retrievers are available:
 
+`diversify` {applies_to}`serverless: preview` {applies_to}`stack: preview 9.3`
+:   The [diversify](retrievers/diversify-retriever.md) retriever reduces the results from another retriever by applying a diversification strategy to the top-N results.
+
 `knn`
 :   The [knn](retrievers/knn-retriever.md) retriever replaces the functionality of a [knn search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search#search-api-knn).
 
@@ -53,6 +56,16 @@ The [`from`](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operati
 
 [Aggregations](/reference/aggregations/index.md) are globally specified as part of a search request. The query used for an aggregation is the combination of all leaf retrievers as `should` clauses in a [boolean query](/reference/query-languages/query-dsl/query-dsl-bool-query.md).
 
+
+### Using `min_score` with compound retrievers [retriever-min-score-compound]
+
+When using `min_score` with compound retrievers (such as [`rrf`](retrievers/rrf-retriever.md) or [`linear`](retrievers/linear-retriever.md)), documents are filtered **after** the compound scoring has been applied. This is important to understand because:
+
+1. **Document collection**: Each child retriever collects documents up to its `rank_window_size` limit.
+2. **Score computation**: The compound retriever computes final scores (e.g., RRF ranking, linear combination with normalization).
+3. **Threshold filtering**: Documents with a final score below `min_score` are excluded from the results.
+
+Because `min_score` is applied after score normalization or RRF computation, the `total_hits` value reflects only the documents that pass the threshold after the compound scoring, not the total number of documents matched by the child retrievers.
 
 ### Restrictions on search parameters when specifying a retriever [retriever-restrictions]
 

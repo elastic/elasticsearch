@@ -19,6 +19,8 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.slice.SliceBuilder;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -34,6 +36,7 @@ import java.util.Map;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
@@ -162,7 +165,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         );
     }
 
-    public void testReindexFromRemoteDoesNotSupportSlices() {
+    public void testReindexFromRemoteDoesNotSupportSlicesParameterGreaterThan1() {
         ReindexRequest reindex = newRequest();
         reindex.setRemoteInfo(
             new RemoteInfo(
@@ -178,10 +181,65 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
                 RemoteInfo.DEFAULT_CONNECT_TIMEOUT
             )
         );
+        // Enable automatic slicing with a random number of slices greater than 1 (like setting the slices URL parameter):
         reindex.setSlices(between(2, Integer.MAX_VALUE));
         ActionRequestValidationException e = reindex.validate();
         assertEquals(
             "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
+            e.getMessage()
+        );
+    }
+
+    public void testReindexFromRemoteDoesNotSupportSlicesParameterSetToAuto() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        // Enable automatic slicing with an automatically chosen number of slices (like setting the slices URL parameter to "auto"):
+        reindex.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals(
+            "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
+            e.getMessage()
+        );
+    }
+
+    public void testReindexFromRemoteDoesNotSupportSlicesSourceField() {
+        ReindexRequest reindex = newRequest();
+        reindex.setRemoteInfo(
+            new RemoteInfo(
+                randomAlphaOfLength(5),
+                randomAlphaOfLength(5),
+                between(1, Integer.MAX_VALUE),
+                null,
+                matchAll,
+                null,
+                null,
+                emptyMap(),
+                RemoteInfo.DEFAULT_SOCKET_TIMEOUT,
+                RemoteInfo.DEFAULT_CONNECT_TIMEOUT
+            )
+        );
+        // Enable manual slicing (like setting source.slice.max and source.slice.id in the request body):
+        int numSlices = randomIntBetween(2, Integer.MAX_VALUE);
+        int sliceId = randomIntBetween(0, numSlices - 1);
+        reindex.getSearchRequest().source().slice(new SliceBuilder(sliceId, numSlices));
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals(
+            "Validation Failed: 1: reindex from remote sources doesn't support source.slice but was ["
+                + reindex.getSearchRequest().source().slice()
+                + "];",
             e.getMessage()
         );
     }
@@ -461,6 +519,26 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         ActionRequestValidationException validationException = r.validate();
         assertNotNull(validationException);
         assertEquals(List.of("use _all if you really want to copy from all existing indexes"), validationException.validationErrors());
+    }
+
+    public void testValidateGivenRemoteIndex() throws IOException {
+        ReindexRequest r = parseRequestWithSourceIndices("remote:index");
+        assertArrayEquals(new String[] { "remote:index" }, r.getSearchRequest().indices());
+        ActionRequestValidationException validationException = r.validate();
+        assertNull(validationException);
+    }
+
+    public void testCreateTask_notEligibleForRelocationOnShutdown() throws IOException {
+        ReindexRequest request = parseRequestWithSourceIndices("source");
+        Task task = request.createTask(randomLong(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        assertThat(asInstanceOf(BulkByScrollTask.class, task).isEligibleForRelocationOnShutdown(), is(false));
+    }
+
+    public void testCreateTask_eligibleForRelocationOnShutdown() throws IOException {
+        ReindexRequest request = parseRequestWithSourceIndices("source");
+        request.setEligibleForRelocationOnShutdown(true);
+        Task task = request.createTask(randomLong(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
+        assertThat(asInstanceOf(BulkByScrollTask.class, task).isEligibleForRelocationOnShutdown(), is(true));
     }
 
     private ReindexRequest parseRequestWithSourceIndices(Object sourceIndices) throws IOException {

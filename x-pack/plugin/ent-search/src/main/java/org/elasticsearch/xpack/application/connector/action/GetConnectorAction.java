@@ -125,6 +125,10 @@ public class GetConnectorAction {
             this.connector = new ConnectorSearchResult(in);
         }
 
+        ConnectorSearchResult getConnector() {
+            return connector;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             connector.writeTo(out);

@@ -35,6 +35,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -97,8 +98,12 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         final NodeUsageStatsForThreadPoolsCollector nodeUsageStatsForThreadPoolsCollector = spy(
             new NodeUsageStatsForThreadPoolsCollector()
         );
+        final WriteLoadConstraintSettings writeLoadConstraintSettings = new WriteLoadConstraintSettings(
+            clusterService.getClusterSettings()
+        );
         final InternalClusterInfoService clusterInfoService = new InternalClusterInfoService(
             settings,
+            writeLoadConstraintSettings,
             clusterService,
             threadPool,
             client,
@@ -107,13 +112,14 @@ public class InternalClusterInfoServiceSchedulingTests extends ESTestCase {
         );
         final WriteLoadConstraintMonitor usageMonitor = spy(
             new WriteLoadConstraintMonitor(
-                clusterService.getClusterSettings(),
+                writeLoadConstraintSettings,
                 threadPool.relativeTimeInMillisSupplier(),
                 clusterService::state,
                 new RerouteService() {
                     @Override
                     public void reroute(String reason, Priority priority, ActionListener<Void> listener) {}
-                }
+                },
+                MeterRegistry.NOOP
             )
         );
         clusterInfoService.addListener(usageMonitor::onNewInfo);

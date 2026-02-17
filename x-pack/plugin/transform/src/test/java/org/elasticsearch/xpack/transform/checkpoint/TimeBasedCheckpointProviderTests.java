@@ -94,7 +94,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             0,
             false,
             TransformCheckpoint.EMPTY,
-            TransformConfigVersionUtils.randomVersionBetween(random(), TransformConfigVersion.V_7_15_0, TransformConfigVersion.CURRENT),
+            TransformConfigVersionUtils.randomVersionBetween(TransformConfigVersion.V_7_15_0, TransformConfigVersion.CURRENT),
             TIMESTAMP_FIELD,
             TimeValue.timeValueMinutes(10),
             TimeValue.ZERO,

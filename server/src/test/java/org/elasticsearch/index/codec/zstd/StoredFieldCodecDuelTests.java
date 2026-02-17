@@ -35,14 +35,19 @@ public class StoredFieldCodecDuelTests extends ESTestCase {
     private static final String DOUBLE_FIELD = "double_field_5";
 
     public void testDuelBestSpeed() throws IOException {
-        var baseline = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, null, BigArrays.NON_RECYCLING_INSTANCE);
-        var contender = new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, null, BigArrays.NON_RECYCLING_INSTANCE);
+        var baseline = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, null, BigArrays.NON_RECYCLING_INSTANCE, null);
+        var contender = new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, null, BigArrays.NON_RECYCLING_INSTANCE, null);
         doTestDuel(baseline, contender);
     }
 
     public void testDuelBestCompression() throws IOException {
-        var baseline = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_COMPRESSION, null, BigArrays.NON_RECYCLING_INSTANCE);
-        var contender = new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION, null, BigArrays.NON_RECYCLING_INSTANCE);
+        var baseline = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_COMPRESSION, null, BigArrays.NON_RECYCLING_INSTANCE, null);
+        var contender = new PerFieldMapperCodec(
+            Zstd814StoredFieldsFormat.Mode.BEST_COMPRESSION,
+            null,
+            BigArrays.NON_RECYCLING_INSTANCE,
+            null
+        );
         doTestDuel(baseline, contender);
     }
 

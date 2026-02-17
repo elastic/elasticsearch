@@ -46,7 +46,7 @@ public final class CountDistinctFloatAggregatorFunction implements AggregatorFun
 
   public static CountDistinctFloatAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels, int precision) {
-    return new CountDistinctFloatAggregatorFunction(driverContext, channels, CountDistinctFloatAggregator.initSingle(driverContext.bigArrays(), precision), precision);
+    return new CountDistinctFloatAggregatorFunction(driverContext, channels, CountDistinctFloatAggregator.initSingle(driverContext, precision), precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -149,8 +149,8 @@ public final class CountDistinctFloatAggregatorFunction implements AggregatorFun
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
     assert hll.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    CountDistinctFloatAggregator.combineIntermediate(state, hll.getBytesRef(0, scratch));
+    BytesRef hllScratch = new BytesRef();
+    CountDistinctFloatAggregator.combineIntermediate(state, hll.getBytesRef(0, hllScratch));
   }
 
   @Override

@@ -1,6 +1,0 @@
-pr: 131531
-summary: Integrate LIKE/RLIKE LIST with `ReplaceStringCasingWithInsensitiveRegexMatch`
-  rule
-area: ES|QL
-type: enhancement
-issues: []

@@ -1,5 +1,0 @@
-pr: 134178
-summary: Return 429 status when `RequestExecutorService` queue full
-area: Machine Learning
-type: bug
-issues: []

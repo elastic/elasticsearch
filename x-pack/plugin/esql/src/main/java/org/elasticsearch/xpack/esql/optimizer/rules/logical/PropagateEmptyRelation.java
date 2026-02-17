@@ -18,18 +18,22 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.LocalPropagateEmptyRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
+import org.elasticsearch.xpack.esql.rule.Rule;
 
 import java.util.ArrayList;
 import java.util.List;
 
 @SuppressWarnings("removal")
-public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimizerRule<UnaryPlan, LogicalOptimizerContext> {
+public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimizerRule<UnaryPlan, LogicalOptimizerContext>
+    implements
+        OptimizerRules.LocalAware<UnaryPlan> {
     public PropagateEmptyRelation() {
         super(OptimizerRules.TransformDirection.DOWN);
     }
@@ -86,5 +90,10 @@ public class PropagateEmptyRelation extends OptimizerRules.ParameterizedOptimize
 
     private static LogicalPlan replacePlanByRelation(UnaryPlan plan, LocalSupplier supplier) {
         return new LocalRelation(plan.source(), plan.output(), supplier);
+    }
+
+    @Override
+    public Rule<UnaryPlan, LogicalPlan> local() {
+        return new LocalPropagateEmptyRelation();
     }
 }

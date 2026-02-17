@@ -120,6 +120,17 @@ public class GoogleCloudStorageClientSettings {
         () -> PROXY_HOST_SETTING
     );
 
+    /**
+     * The maximum number of retries to use when a GCS request fails.
+     * <p>
+     * Default to 5 to match {@link com.google.cloud.ServiceOptions#getDefaultRetrySettings()}
+     */
+    static final Setting.AffixSetting<Integer> MAX_RETRIES_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "max_retries",
+        (key) -> Setting.intSetting(key, 5, 0, Setting.Property.NodeScope)
+    );
+
     /** The credentials used by the client to connect to the Storage endpoint. */
     private final ServiceAccountCredentials credential;
 
@@ -144,6 +155,8 @@ public class GoogleCloudStorageClientSettings {
     @Nullable
     private final Proxy proxy;
 
+    private final int maxRetries;
+
     GoogleCloudStorageClientSettings(
         final ServiceAccountCredentials credential,
         final String endpoint,
@@ -152,7 +165,8 @@ public class GoogleCloudStorageClientSettings {
         final TimeValue readTimeout,
         final String applicationName,
         final URI tokenUri,
-        final Proxy proxy
+        final Proxy proxy,
+        final int maxRetries
     ) {
         this.credential = credential;
         this.endpoint = endpoint;
@@ -162,6 +176,7 @@ public class GoogleCloudStorageClientSettings {
         this.applicationName = applicationName;
         this.tokenUri = tokenUri;
         this.proxy = proxy;
+        this.maxRetries = maxRetries;
     }
 
     public ServiceAccountCredentials getCredential() {
@@ -197,6 +212,10 @@ public class GoogleCloudStorageClientSettings {
         return proxy;
     }
 
+    public int getMaxRetries() {
+        return maxRetries;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -208,12 +227,13 @@ public class GoogleCloudStorageClientSettings {
             && Objects.equals(readTimeout, that.readTimeout)
             && Objects.equals(applicationName, that.applicationName)
             && Objects.equals(tokenUri, that.tokenUri)
-            && Objects.equals(proxy, that.proxy);
+            && Objects.equals(proxy, that.proxy)
+            && maxRetries == that.maxRetries;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(credential, endpoint, projectId, connectTimeout, readTimeout, applicationName, tokenUri, proxy);
+        return Objects.hash(credential, endpoint, projectId, connectTimeout, readTimeout, applicationName, tokenUri, proxy, maxRetries);
     }
 
     public static Map<String, GoogleCloudStorageClientSettings> load(final Settings settings) {
@@ -249,7 +269,8 @@ public class GoogleCloudStorageClientSettings {
             getConfigValue(settings, clientName, READ_TIMEOUT_SETTING),
             getConfigValue(settings, clientName, APPLICATION_NAME_SETTING),
             getConfigValue(settings, clientName, TOKEN_URI_SETTING),
-            proxy
+            proxy,
+            getConfigValue(settings, clientName, MAX_RETRIES_SETTING)
         );
     }
 

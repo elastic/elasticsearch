@@ -179,7 +179,8 @@ public class RankVectorsScoreScriptUtils {
 
         public MaxSimInvHamming(ScoreScript scoreScript, Object queryVector, String fieldName) {
             RankVectorsDocValuesField field = (RankVectorsDocValuesField) scoreScript.field(fieldName);
-            if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT) {
+            if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT
+                || field.getElementType() == DenseVectorFieldMapper.ElementType.BFLOAT16) {
                 throw new IllegalArgumentException("hamming distance is only supported for byte or bit vectors");
             }
             BytesOrList bytesOrList = parseBytes(queryVector);
@@ -351,7 +352,7 @@ public class RankVectorsScoreScriptUtils {
                         yield new MaxSimByteDotProduct(scoreScript, field, bytesOrList.list);
                     }
                 }
-                case FLOAT -> {
+                case FLOAT, BFLOAT16 -> {
                     if (queryVector instanceof List) {
                         yield new MaxSimFloatDotProduct(scoreScript, field, (List<List<Number>>) queryVector);
                     }

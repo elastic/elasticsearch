@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 
 import java.io.IOException;
@@ -79,19 +80,9 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                     int numDocs = ctx.reader().numDocs();
                     while (start < numDocs) {
                         int end = start + randomIntBetween(1, numDocs - start);
-                        BlockLoader.Docs docs = new BlockLoader.Docs() {
-                            @Override
-                            public int count() {
-                                return end;
-                            }
-
-                            @Override
-                            public int get(int i) {
-                                return i;
-                            }
-                        };
+                        BlockLoader.Docs docs = TestBlock.docsUpTo(end);
                         var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx);
-                        try (BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)) {
+                        try (BlockLoader.Block block = columnAtATimeReader.get().read(blockFactory, docs, start, false)) {
                             BytesRefBlock result = (BytesRefBlock) block;
                             BytesRef scratch = new BytesRef();
                             for (int i = 0; i < result.getPositionCount(); i++) {
@@ -191,8 +182,8 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                         var b2 = new SingletonOrdinalsBuilder(factory, ctx.reader().getSortedDocValues("f"), batchSize, randomBoolean())
                     ) {
                         for (int i = 0; i < batchSize; i++) {
-                            b1.appendOrd(ord);
-                            b2.appendOrd(ord);
+                            appendOrd(b1, ord);
+                            appendOrd(b2, ord);
                         }
                         try (BytesRefBlock block1 = b1.build(); BytesRefBlock block2 = b2.buildRegularBlock()) {
                             assertThat(block1, equalTo(block2));
@@ -201,6 +192,20 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                     }
                 }
             }
+        }
+    }
+
+    private void appendOrd(SingletonOrdinalsBuilder builder, int ord) {
+        if (randomBoolean()) {
+            builder.appendOrd(ord);
+        } else if (randomBoolean()) {
+            int prefix = between(0, 2);
+            int suffix = between(0, 2);
+            int[] ords = new int[prefix + 1 + suffix];
+            ords[prefix] = ord;
+            builder.appendOrds(ords, prefix, 1, ord, ord);
+        } else {
+            builder.appendOrds(ord, 1);
         }
     }
 
@@ -229,19 +234,9 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                     int numDocs = ctx.reader().numDocs();
                     while (start < numDocs) {
                         int end = start + randomIntBetween(1, numDocs - start);
-                        BlockLoader.Docs docs = new BlockLoader.Docs() {
-                            @Override
-                            public int count() {
-                                return end;
-                            }
-
-                            @Override
-                            public int get(int i) {
-                                return i;
-                            }
-                        };
+                        BlockLoader.Docs docs = TestBlock.docsUpTo(end);
                         var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx);
-                        try (BlockLoader.Block block = columnAtATimeReader.read(blockFactory, docs, start, false)) {
+                        try (BlockLoader.Block block = columnAtATimeReader.get().read(blockFactory, docs, start, false)) {
                             BytesRefBlock result = (BytesRefBlock) block;
                             assertNotNull(result.asVector());
                             boolean enclosedInSingleRange = false;

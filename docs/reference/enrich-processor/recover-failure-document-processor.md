@@ -69,8 +69,10 @@ POST _ingest/pipeline/_simulate
     ]
 }
 ```
+
 Which produces the following response:
-```console
+
+```console-result
 {
     "docs": [
         {
@@ -110,11 +112,12 @@ Which produces the following response:
     ]
 }
 ```
+% TESTRESPONSE[s/"timestamp": "2025-10-22T00:08:54.934231755Z"/"timestamp": $body.docs.0.doc._ingest.timestamp/]
 
 Documents which do not match the failure store document format result in errors:
+
 ```console
 POST _ingest/pipeline/_simulate
-
 {
     "pipeline": {
         "processors": [
@@ -147,7 +150,8 @@ POST _ingest/pipeline/_simulate
 }
 ```
 Which produces the following response:
-```console
+
+```console-result
 {
     "docs": [
         {

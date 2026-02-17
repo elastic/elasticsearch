@@ -1,13 +1,18 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-regexes.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
 
 # Regexes [painless-regexes]
 
-Regular expression constants are directly supported. To ensure fast performance, this is the only mechanism for creating patterns. Regular expressions are always constants and compiled efficiently a single time.
+Regular expression constants are directly supported. To ensure fast performance, this is the only mechanism for creating patterns. Regular expressions are always constants and are compiled a single time for efficiency.
+
+You can check the [regular expressions tutorial](docs-content://explore-analyze/scripting/modules-scripting-regular-expressions-tutorial.md) for related examples, and for help with any required debugging, refer to [Debug regex pattern matching failures in Painless](docs-content://explore-analyze/scripting/painless-regex-pattern-matching-failures.md).
 
 ```painless
 Pattern p = /[aeiou]/
@@ -16,7 +21,6 @@ Pattern p = /[aeiou]/
 ::::{warning}
 A poorly written regular expression can significantly slow performance. If possible, avoid using regular expressions, particularly in frequently run scripts.
 ::::
-
 
 ## Pattern flags [pattern-flags]
 
@@ -32,5 +36,3 @@ You can define flags on patterns in Painless by adding characters after the trai
 | `U` | UNICODE_CHARACTER_CLASS | `'Ɛ' ==~ /\\w/U` |
 | `u` | UNICODE_CASE | `'Ɛ' ==~ /ɛ/iu` |
 | `x` | COMMENTS (aka extended) | `'a' ==~ /a #comment/x` |
-
-

@@ -1,5 +1,0 @@
-pr: 132243
-summary: Fix `NullPointerException` in transport trace logger
-area: Network
-type: bug
-issues: []

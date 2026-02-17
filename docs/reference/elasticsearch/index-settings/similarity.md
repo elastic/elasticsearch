@@ -279,8 +279,8 @@ Which yields:
   }
 }
 ```
-%  TESTRESPONSE[s/"took": 12/"took" : $body.took/]
-%  TESTRESPONSE[s/OzrdjxNtQGaqs4DmioFw9A/$body.hits.hits.0._node/]
+% TESTRESPONSE[s/"took": 12/"took" : $body.took/]
+% TESTRESPONSE[s/OzrdjxNtQGaqs4DmioFw9A/$body.hits.hits.0._node/]
 
 ::::{warning}
 While scripted similarities provide a lot of flexibility, there is a set of rules that they need to satisfy. Failing to do so could make Elasticsearch silently return wrong top hits or fail with internal errors at search time:

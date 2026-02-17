@@ -105,6 +105,14 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
         assertThat(posBuckets.hasNext(), equalTo(false));
     }
 
+    public void testMergeWithoutUpscaling() {
+        ExponentialHistogram histo = createAutoReleasedHistogram(b -> b.scale(0).setPositiveBucket(2, 42));
+        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(100, breaker())) {
+            merger.addWithoutUpscaling(histo);
+            assertThat(merger.get(), equalTo(histo));
+        }
+    }
+
     public void testAggregatesCorrectness() {
         double[] firstValues = randomDoubles(100).map(val -> val * 2 - 1).toArray();
         double[] secondValues = randomDoubles(50).map(val -> val * 2 - 1).toArray();
@@ -199,27 +207,30 @@ public class ExponentialHistogramMergerTests extends ExponentialHistogramTestCas
 
     public void testMemoryAccounting() {
         CircuitBreaker esBreaker = newLimitedBreaker(ByteSizeValue.ofMb(100));
-        try (ExponentialHistogramMerger merger = ExponentialHistogramMerger.create(100, breaker(esBreaker))) {
+        try (
+            ExponentialHistogramMerger.Factory factory = ExponentialHistogramMerger.createFactory(100, breaker(esBreaker));
+            ExponentialHistogramMerger merger = factory.createMerger()
+        ) {
 
-            long emptyMergerSize = merger.ramBytesUsed();
+            long emptyMergerSize = merger.ramBytesUsed() + factory.ramBytesUsed();
             assertThat(emptyMergerSize, greaterThan(0L));
             assertThat(esBreaker.getUsed(), equalTo(emptyMergerSize));
 
             merger.add(createAutoReleasedHistogram(10, 1.0, 2.0, 3.0));
 
-            long singleBufferSize = merger.ramBytesUsed();
+            long singleBufferSize = merger.ramBytesUsed() + factory.ramBytesUsed();
             assertThat(singleBufferSize, greaterThan(emptyMergerSize));
             assertThat(esBreaker.getUsed(), equalTo(singleBufferSize));
 
             merger.add(createAutoReleasedHistogram(10, 1.0, 2.0, 3.0));
 
-            long doubleBufferSize = merger.ramBytesUsed();
+            long doubleBufferSize = merger.ramBytesUsed() + factory.ramBytesUsed();
             assertThat(doubleBufferSize, greaterThan(singleBufferSize));
             assertThat(esBreaker.getUsed(), equalTo(doubleBufferSize));
 
             ReleasableExponentialHistogram result = merger.getAndClear();
 
-            assertThat(merger.ramBytesUsed(), equalTo(singleBufferSize));
+            assertThat(merger.ramBytesUsed() + factory.ramBytesUsed(), equalTo(singleBufferSize));
             assertThat(esBreaker.getUsed(), equalTo(doubleBufferSize));
 
             result.close();

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.job.process.autodetect.output;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -66,20 +65,14 @@ public class FlushAcknowledgement implements ToXContentObject, Writeable {
     public FlushAcknowledgement(StreamInput in) throws IOException {
         id = in.readString();
         lastFinalizedBucketEnd = in.readOptionalInstant();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            refreshRequired = in.readBoolean();
-        } else {
-            refreshRequired = true;
-        }
+        refreshRequired = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
         out.writeOptionalInstant(lastFinalizedBucketEnd);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            out.writeBoolean(refreshRequired);
-        }
+        out.writeBoolean(refreshRequired);
     }
 
     public String getId() {

@@ -35,6 +35,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.ScriptEngine;
@@ -183,14 +184,22 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
     }
 
     protected final SearchExecutionContext createMockSearchExecutionContext() {
-        return createMockSearchExecutionContext(null);
+        return createMockSearchExecutionContext(null, IndexVersion.current());
+    }
+
+    protected final SearchExecutionContext createMockSearchExecutionContext(IndexVersion indexVersion) {
+        return createMockSearchExecutionContext(null, indexVersion);
     }
 
     protected final SearchExecutionContext createMockSearchExecutionContext(IndexSearcher searcher) {
+        return createMockSearchExecutionContext(searcher, IndexVersion.current());
+    }
+
+    protected final SearchExecutionContext createMockSearchExecutionContext(IndexSearcher searcher, IndexVersion indexVersion) {
         Index index = new Index(randomAlphaOfLengthBetween(1, 10), "_na_");
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
             index,
-            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()).build()
+            Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, indexVersion).build()
         );
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, mock(BitsetFilterCache.Listener.class));
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (fieldType, fdc) -> {
@@ -220,7 +229,9 @@ public abstract class AbstractSortTestCase<T extends SortBuilder<T>> extends EST
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
 
             @Override

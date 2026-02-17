@@ -1,5 +1,0 @@
-pr: 135873
-summary: Convert `BytesTransportResponse` when proxying response from/to local node
-area: "Network"
-type: bug
-issues: []

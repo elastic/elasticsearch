@@ -251,7 +251,13 @@ public class CompletionFieldMapper extends FieldMapper {
         private ContextMappings contextMappings = null;
 
         public CompletionFieldType(String name, NamedAnalyzer searchAnalyzer, Map<String, String> meta) {
-            super(name, true, false, false, new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer), meta);
+            super(
+                name,
+                IndexType.terms(true, false),
+                false,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, searchAnalyzer, searchAnalyzer),
+                meta
+            );
         }
 
         public void setContextMappings(ContextMappings contextMappings) {

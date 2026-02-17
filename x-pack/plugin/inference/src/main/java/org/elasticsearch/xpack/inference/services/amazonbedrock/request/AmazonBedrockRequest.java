@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockMod
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 
 import java.net.URI;
+import java.util.Objects;
 
 public abstract class AmazonBedrockRequest implements Request {
 
@@ -24,7 +25,7 @@ public abstract class AmazonBedrockRequest implements Request {
     protected final TimeValue timeout;
 
     protected AmazonBedrockRequest(AmazonBedrockModel model, @Nullable TimeValue timeout) {
-        this.amazonBedrockModel = model;
+        this.amazonBedrockModel = Objects.requireNonNull(model);
         this.inferenceId = model.getInferenceEntityId();
         this.timeout = timeout;
     }

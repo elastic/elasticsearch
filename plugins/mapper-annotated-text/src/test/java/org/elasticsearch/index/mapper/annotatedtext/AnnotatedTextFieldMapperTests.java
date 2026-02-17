@@ -692,7 +692,8 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport(boolean ignoreMalformed) {
         assumeFalse("ignore_malformed not supported", ignoreMalformed);
-        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("annotated_text", false);
+        // annotated_text uses stored fields for fallback (not binary doc values), so ignored values are not sorted
+        return TextFieldFamilySyntheticSourceTestSetup.syntheticSourceSupport("annotated_text", false, false);
     }
 
     @Override
@@ -703,5 +704,15 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

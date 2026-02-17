@@ -18,9 +18,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.net.InetAddress;
-import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -161,7 +160,9 @@ public class RoutingNodeTests extends ESTestCase {
     }
 
     private static Set<ShardId> startedShardsSet(RoutingNode routingNode) {
-        return Arrays.stream(routingNode.started()).map(ShardRouting::shardId).collect(Collectors.toSet());
+        final var result = new HashSet<ShardId>();
+        routingNode.started().forEach(shardRouting -> result.add(shardRouting.shardId()));
+        return result;
     }
 
 }

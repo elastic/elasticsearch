@@ -104,23 +104,28 @@ public class CollectionUtils {
      *                    more context to the handler of the exception
      */
     public static void ensureNoSelfReferences(final Object value, final String messageHint) {
-        ensureNoSelfReferences(value, Collections.newSetFromMap(new IdentityHashMap<>()), messageHint);
+        ensureNoSelfReferences(value, null, messageHint);
     }
 
-    private static void ensureNoSelfReferences(final Object value, final Set<Object> ancestors, final String messageHint) {
+    private static void ensureNoSelfReferences(final Object value, Set<Object> ancestors, final String messageHint) {
         // these instanceof checks are a bit on the ugly side, but it's important for performance that we have
         // a separate dispatch point for Maps versus for Iterables. a polymorphic version of this code would
         // be prettier, but it would also likely be quite a bit slower. this is a hot path for ingest pipelines,
         // and performance here is important.
         if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) {
             // noop
-        } else if (value instanceof Map<?, ?> m && m.isEmpty() == false) {
-            ensureNoSelfReferences(m, ancestors, messageHint);
-        } else if ((value instanceof Iterable<?> i) && (value instanceof Path == false)) {
-            ensureNoSelfReferences(i, i, ancestors, messageHint);
-        } else if (value instanceof Object[]) {
-            // note: the iterable and reference arguments are different
-            ensureNoSelfReferences(Arrays.asList((Object[]) value), value, ancestors, messageHint);
+        } else {
+            // defer allocating an ancestors set until necessary
+            ancestors = ancestors != null ? ancestors : Collections.newSetFromMap(new IdentityHashMap<>());
+
+            if (value instanceof Map<?, ?> m && m.isEmpty() == false) {
+                ensureNoSelfReferences(m, ancestors, messageHint);
+            } else if ((value instanceof Iterable<?> i) && (value instanceof Path == false)) {
+                ensureNoSelfReferences(i, i, ancestors, messageHint);
+            } else if (value instanceof Object[]) {
+                // note: the iterable and reference arguments are different
+                ensureNoSelfReferences(Arrays.asList((Object[]) value), value, ancestors, messageHint);
+            }
         }
     }
 

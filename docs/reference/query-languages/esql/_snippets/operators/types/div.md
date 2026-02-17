@@ -4,6 +4,7 @@
 
 | lhs | rhs | result |
 | --- | --- | --- |
+| dense_vector | dense_vector | dense_vector |
 | double | double | double |
 | double | integer | double |
 | double | long | double |

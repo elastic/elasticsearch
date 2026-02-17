@@ -25,6 +25,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
@@ -1005,8 +1006,14 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             | FORK
                ( WHERE content:"fox" )
             """;
-        var e = expectThrows(ParsingException.class, () -> run(query));
-        assertTrue(e.getMessage().contains("Fork requires at least 2 branches"));
+        try (var resp = run(query)) {
+            assertColumnTypes(resp.columns(), List.of("text", "integer", "keyword"));
+            assertColumnNames(resp.columns(), List.of("content", "id", "_fork"));
+            Iterable<Iterable<Object>> expectedValues = List.of(
+                Arrays.stream(new Object[] { "The quick brown fox jumps over the lazy dog", 6, "fork1" }).toList()
+            );
+            assertValues(resp.values(), expectedValues);
+        }
     }
 
     public void testForkWithinFork() {
@@ -1029,13 +1036,7 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
             | KEEP _fork, id, content
             """;
 
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-
-        request.pragmas(randomPragmas());
-        request.query(query);
-        request.profile(true);
-
-        try (var resp = run(request)) {
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(randomPragmas()).profile(true))) {
             EsqlQueryResponse.Profile profile = resp.profile();
             assertNotNull(profile);
 

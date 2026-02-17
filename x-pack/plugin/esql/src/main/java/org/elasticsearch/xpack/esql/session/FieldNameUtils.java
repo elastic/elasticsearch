@@ -16,12 +16,14 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedPattern;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedStar;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -39,6 +41,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
@@ -56,7 +59,10 @@ import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 
 public class FieldNameUtils {
 
-    private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(TBucket.NAME.toLowerCase(Locale.ROOT));
+    private static final Set<String> FUNCTIONS_REQUIRING_TIMESTAMP = Set.of(
+        TBucket.NAME.toLowerCase(Locale.ROOT),
+        TRange.NAME.toLowerCase(Locale.ROOT)
+    );
 
     public static PreAnalysisResult resolveFieldNames(LogicalPlan parsed, boolean hasEnriches) {
 
@@ -96,6 +102,7 @@ public class FieldNameUtils {
         // NOTE: the grammar allows wildcards to be used in other commands as well, but these are forbidden in the LogicalPlanBuilder
         // Except in KEEP and DROP.
         var keepRefs = AttributeSet.builder();
+        var currentBranchKeepRefs = new Holder<>(AttributeSet.builder());
         var dropWildcardRefs = AttributeSet.builder();
         // fields required to request for lookup joins to work
         var joinRefs = AttributeSet.builder();
@@ -105,22 +112,62 @@ public class FieldNameUtils {
         var canRemoveAliases = new Holder<>(true);
 
         var forEachDownProcessor = new Holder<BiConsumer<LogicalPlan, Holder<Boolean>>>();
+        Holder<LogicalPlan> lastSeenFork = new Holder<>(null);
+        // Track if there are plans after FORK that reduce columns to a known set (e.g., Project, Aggregate)
+        Holder<Boolean> reduceColumnsAfterFork = new Holder<>(false);
         forEachDownProcessor.set((LogicalPlan p, Holder<Boolean> breakEarly) -> {// go over each plan top-down
+            // Check if we see a column-reducing plan before encountering a Fork
+            if (lastSeenFork.get() == null && shouldCollectReferencedFields(p, inlinestatsAggs)) {
+                reduceColumnsAfterFork.set(true);
+            }
+
             if (p instanceof Fork fork) {
+                lastSeenFork.set(fork);
+
                 // Early return from forEachDown. We will iterate over the children manually and end the recursion via forEachDown early.
                 var forkRefsResult = AttributeSet.builder();
                 forkRefsResult.addAll(referencesBuilder.get());
+                var parentKeepRefs = AttributeSet.builder();
+                parentKeepRefs.addAll(keepRefs);
 
                 for (var forkBranch : fork.children()) {
+                    // Reset branch-specific state for each fork branch
+                    currentBranchKeepRefs.set(AttributeSet.builder());
+                    currentBranchKeepRefs.get().addAll(parentKeepRefs);
                     referencesBuilder.set(AttributeSet.builder());
+
                     var isNestedFork = forkBranch.forEachDownMayReturnEarly(forEachDownProcessor.get());
+
                     // This assert is just for good measure. FORKs within FORKs is yet not supported.
-                    assert isNestedFork == false : "Nested FORKs are not yet supported";
-                    // This is a safety measure for fork where the list of fields returned is empty.
-                    // It can be empty for a branch that does need all the fields. For example "fork (where true) (where a is not null)"
-                    // but it can also be empty for queries where NO fields are needed from ES,
-                    // for example "fork (eval x = 1 | keep x) (eval y = 1 | keep y)" but we cannot establish this yet.
-                    if (referencesBuilder.get().isEmpty()) {
+                    LogicalPlan lastFork = lastSeenFork.get();
+                    if (lastFork != null && fork instanceof UnionAll == false && lastFork instanceof UnionAll == false) {
+                        // UnionAll is a special case of FORK, fork inside subquery or fork after subquery or nested subqueries can
+                        // be flattened and supported by LogicalPlanOptimizer and ComputeService in the future, defer this assertion
+                        // LogicalPlanOptimizer verifier. Add the check here to avoid assertion on subqueries nested with fork.
+                        // TODO consider deferring the nested fork check to Analyzer verifier or LogicalPlanOptimizer verifier.
+                        assert isNestedFork == false : "Nested FORKs are not yet supported";
+                    }
+
+                    // Determine if this fork branch requires all fields from the index (projectAll = true).
+                    // This happens when a branch has no explicit field selection and no KEEP constraints.
+                    //
+                    // We trigger projectAll when ALL the following conditions are met:
+                    // 1. No KEEP commands in this branch (currentBranchKeepRefs is empty)
+                    // 2. AND either:
+                    // a) No field references were collected (referencesBuilder is empty), OR
+                    // b) The branch contains no commands that require explicit field collection
+                    // (e.g., no PROJECT or STATS commands that would limit field selection)
+                    //
+                    // Examples:
+                    // - "fork (where true) (where a is not null)" → needs all fields (no KEEP, only filters)
+                    // - "fork (eval x = 1 | keep x) (where true)" → needs all fields (second branch has no KEEP)
+                    // UNLESS there's a column-reducing command after FORK (e.g., stats)
+                    // - "fork (eval x = 1 | keep x) (eval y = 2 | keep y)" → specific fields only (both branches have KEEP)
+                    // - "fork (eval x = 1 | keep x) (where true) | stats c = count(*)" → specific fields (stats reduces columns)
+                    if (currentBranchKeepRefs.get().isEmpty()
+                        && (referencesBuilder.get().isEmpty()
+                            || false == forkBranch.anyMatch(forkPlan -> shouldCollectReferencedFields(forkPlan, inlinestatsAggs)))
+                        && false == reduceColumnsAfterFork.get()) {
                         projectAll.set(true);
                         // Return early, we'll be returning all references no matter what the remainder of the query is.
                         breakEarly.set(true);
@@ -147,6 +194,9 @@ public class FieldNameUtils {
                 referencesBuilder.get().addAll(enrichRefs);
             } else if (p instanceof LookupJoin join) {
                 joinRefs.addAll(join.config().leftFields());
+                if (join.config().joinOnConditions() != null) {
+                    joinRefs.addAll(join.config().joinOnConditions().references());
+                }
                 if (keepRefs.isEmpty()) {
                     // No KEEP commands after the JOIN, so we need to mark this index for "*" field resolution
                     wildcardJoinIndices.add(((UnresolvedRelation) join.right()).indexPattern().indexPattern());
@@ -158,21 +208,22 @@ public class FieldNameUtils {
                 referencesBuilder.get().addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.isTimeSeriesMode()) {
                     // METRICS aggs generally rely on @timestamp without the user having to mention it.
-                    referencesBuilder.get().add(new UnresolvedAttribute(ur.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                    referencesBuilder.get().add(UnresolvedTimestamp.withSource(ur.source()));
                 }
 
                 p.forEachExpression(UnresolvedFunction.class, uf -> {
                     if (FUNCTIONS_REQUIRING_TIMESTAMP.contains(uf.name().toLowerCase(Locale.ROOT))) {
-                        referencesBuilder.get().add(new UnresolvedAttribute(uf.source(), MetadataAttribute.TIMESTAMP_FIELD));
+                        referencesBuilder.get().add(UnresolvedTimestamp.withSource(uf.source()));
                     }
                 });
 
                 // special handling for UnresolvedPattern (which is not an UnresolvedAttribute)
                 p.forEachExpression(UnresolvedNamePattern.class, up -> {
-                    var ua = new UnresolvedAttribute(up.source(), up.name());
+                    var ua = new UnresolvedPattern(up.source(), up.name());
                     referencesBuilder.get().add(ua);
                     if (p instanceof Keep) {
                         keepRefs.add(ua);
+                        currentBranchKeepRefs.get().add(ua);
                     } else if (p instanceof Drop) {
                         dropWildcardRefs.add(ua);
                     } else {
@@ -181,6 +232,7 @@ public class FieldNameUtils {
                 });
                 if (p instanceof Keep) {
                     keepRefs.addAll(p.references());
+                    currentBranchKeepRefs.get().addAll(p.references());
                 }
             }
 

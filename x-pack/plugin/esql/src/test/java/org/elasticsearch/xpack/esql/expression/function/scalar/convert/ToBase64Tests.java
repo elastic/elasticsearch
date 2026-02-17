@@ -48,11 +48,27 @@ public class ToBase64Tests extends AbstractScalarFunctionTestCase {
             }));
         }
 
+        suppliers.add(new TestCaseSupplier(List.of(DataType.TSID_DATA_TYPE), () -> {
+            BytesRef input = (BytesRef) randomLiteral(DataType.TSID_DATA_TYPE).value();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(input, DataType.TSID_DATA_TYPE, "string")),
+                "ToBase64Evaluator[field=Attribute[channel=0]]",
+                DataType.KEYWORD,
+                equalTo(new BytesRef(base64Encode(input).getBytes(StandardCharsets.UTF_8)))
+            );
+        }));
+
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new ToBase64(source, args.get(0));
+    }
+
+    private static String base64Encode(final BytesRef bytesRef) {
+        byte[] bytes = new byte[bytesRef.length];
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, bytes, 0, bytesRef.length);
+        return Base64.getEncoder().encodeToString(bytes);
     }
 }

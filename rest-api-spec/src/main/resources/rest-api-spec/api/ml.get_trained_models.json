@@ -20,8 +20,8 @@
           ],
           "parts": {
             "model_id": {
-              "type": "string",
-              "description": "The ID of the trained models to fetch"
+              "type": "list",
+              "description": "The unique identifier of the trained model or a model alias.  You can get information for multiple trained models in a single API request by using a comma-separated list of model IDs or a wildcard expression."
             }
           }
         },
@@ -40,8 +40,15 @@
         "default": true
       },
       "include": {
-        "type": "string",
-        "description": "A comma-separate list of fields to optionally include. Valid options are 'definition' and 'total_feature_importance'. Default is none."
+        "type": "enum",
+        "description": "A comma delimited string of optional fields to include in the response\nbody.",
+        "options": [
+          "definition",
+          "feature_importance_baseline",
+          "hyperparameters",
+          "total_feature_importance",
+          "definition_status"
+        ]
       },
       "decompress_definition": {
         "type": "boolean",

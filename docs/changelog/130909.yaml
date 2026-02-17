@@ -1,5 +1,0 @@
-pr: 130909
-summary: Allow adjustment of transport TLS handshake timeout
-area: Network
-type: enhancement
-issues: []

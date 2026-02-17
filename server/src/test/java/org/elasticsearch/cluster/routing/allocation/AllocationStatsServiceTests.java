@@ -21,12 +21,14 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardAssignment;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardRelocationOrder;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -177,7 +179,9 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                     (innerState, strategy) -> innerState,
                     EMPTY_NODE_ALLOCATION_STATS,
                     TEST_ONLY_EXPLAINER,
-                    DesiredBalanceMetrics.NOOP
+                    DesiredBalanceMetrics.NOOP,
+                    AllocationBalancingRoundMetrics.NOOP,
+                    new ShardRelocationOrder.DefaultOrder()
                 ) {
                     @Override
                     public DesiredBalance getDesiredBalance() {
@@ -215,7 +219,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
             }
 
             @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+            public ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
                 return null;
             }
         };

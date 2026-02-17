@@ -1,6 +1,0 @@
-pr: 134941
-summary: "DLM: Better `max_age` rollover for tiny retentions"
-area: Data streams
-type: enhancement
-issues:
- - 130960

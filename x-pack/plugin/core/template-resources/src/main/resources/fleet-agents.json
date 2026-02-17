@@ -349,6 +349,20 @@
         },
         "audit_unenrolled_reason": {
           "type": "keyword"
+        },
+        "upgrade": {
+          "properties":{
+            "rollbacks":{
+              "properties": {
+                "valid_until": {
+                  "type": "date"
+                },
+                "version": {
+                  "type": "version"
+                }
+              }
+            }
+          }
         }
       }
     }

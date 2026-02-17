@@ -1,5 +1,0 @@
-pr: 135342
-summary: Add 'profile' support for knn query on HNSW with early termination
-area: Vector Search
-type: enhancement
-issues: []

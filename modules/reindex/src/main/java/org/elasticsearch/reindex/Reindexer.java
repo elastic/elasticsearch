@@ -47,12 +47,12 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
-import org.elasticsearch.reindex.remote.RemoteScrollableHitSource;
+import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
@@ -69,6 +69,7 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
@@ -109,13 +110,13 @@ public class Reindexer {
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
-        BulkByScrollParallelizationHelper.initTaskState(task, request, client, listener);
+        BulkByPaginatedSearchParallelizationHelper.initTaskState(task, request, client, listener);
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
         long startTime = System.nanoTime();
 
-        BulkByScrollParallelizationHelper.executeSlicedAction(
+        BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
             task,
             request,
             ReindexAction.INSTANCE,
@@ -135,16 +136,61 @@ public class Reindexer {
                     projectResolver.getProjectState(clusterService.state()),
                     reindexSslConfig,
                     request,
-                    ActionListener.runAfter(listener, () -> {
-                        long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
-                        if (reindexMetrics != null) {
-                            reindexMetrics.recordTookTime(elapsedTime);
-                        }
-                    })
+                    wrapWithMetrics(listener, reindexMetrics, startTime, request.getRemoteInfo() != null)
                 );
                 searchAction.start();
             }
         );
+    }
+
+    // Visible for testing
+    static ActionListener<BulkByScrollResponse> wrapWithMetrics(
+        ActionListener<BulkByScrollResponse> listener,
+        @Nullable ReindexMetrics metrics,
+        long startTime,
+        boolean isRemote
+    ) {
+        if (metrics == null) {
+            return listener;
+        }
+
+        // add completion metrics
+        var withCompletionMetrics = new ActionListener<BulkByScrollResponse>() {
+            @Override
+            public void onResponse(BulkByScrollResponse bulkByScrollResponse) {
+                var searchExceptionSample = Optional.ofNullable(bulkByScrollResponse.getSearchFailures())
+                    .stream()
+                    .flatMap(List::stream)
+                    .map(PaginatedHitSource.SearchFailure::getReason)
+                    .findFirst();
+                var bulkExceptionSample = Optional.ofNullable(bulkByScrollResponse.getBulkFailures())
+                    .stream()
+                    .flatMap(List::stream)
+                    .map(BulkItemResponse.Failure::getCause)
+                    .findFirst();
+                if (searchExceptionSample.isPresent() || bulkExceptionSample.isPresent()) {
+                    // record only the first sample error in metric
+                    Throwable e = searchExceptionSample.orElseGet(bulkExceptionSample::get);
+                    metrics.recordFailure(isRemote, e);
+                    listener.onResponse(bulkByScrollResponse);
+                } else {
+                    metrics.recordSuccess(isRemote);
+                    listener.onResponse(bulkByScrollResponse);
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                metrics.recordFailure(isRemote, e);
+                listener.onFailure(e);
+            }
+        };
+
+        // add duration metric
+        return ActionListener.runAfter(withCompletionMetrics, () -> {
+            long elapsedTime = TimeUnit.NANOSECONDS.toSeconds(System.nanoTime() - startTime);
+            metrics.recordTookTime(elapsedTime, isRemote);
+        });
     }
 
     /**
@@ -262,18 +308,17 @@ public class Reindexer {
             }
             Settings settings = MetadataIndexTemplateService.resolveSettings(projectMetadata, template);
             // We retrieve the setting without performing any validation because that the template has already been validated
-            String indexMode = settings.get(IndexSettings.MODE.getKey());
-            return indexMode == null ? IndexMode.STANDARD : IndexMode.fromString(indexMode);
+            return IndexMode.fromIndexSettingsWithoutValidation(settings);
         }
 
         @Override
-        protected ScrollableHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
+        protected PaginatedHitSource buildScrollableResultSource(BackoffPolicy backoffPolicy, SearchRequest searchRequest) {
             if (mainRequest.getRemoteInfo() != null) {
                 RemoteInfo remoteInfo = mainRequest.getRemoteInfo();
                 createdThreads = synchronizedList(new ArrayList<>());
                 assert sslConfig != null : "Reindex ssl config must be set";
                 RestClient restClient = buildRestClient(remoteInfo, sslConfig, task.getId(), createdThreads);
-                return new RemoteScrollableHitSource(
+                return new RemoteScrollablePaginatedHitSource(
                     logger,
                     backoffPolicy,
                     threadPool,
@@ -292,7 +337,7 @@ public class Reindexer {
         protected void finishHim(
             Exception failure,
             List<BulkItemResponse.Failure> indexingFailures,
-            List<ScrollableHitSource.SearchFailure> searchFailures,
+            List<PaginatedHitSource.SearchFailure> searchFailures,
             boolean timedOut
         ) {
             super.finishHim(failure, indexingFailures, searchFailures, timedOut);
@@ -306,7 +351,7 @@ public class Reindexer {
         }
 
         @Override
-        public BiFunction<RequestWrapper<?>, ScrollableHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
+        public BiFunction<RequestWrapper<?>, PaginatedHitSource.Hit, RequestWrapper<?>> buildScriptApplier() {
             Script script = mainRequest.getScript();
             if (script != null) {
                 assert scriptService != null : "Script service must be set";
@@ -316,7 +361,7 @@ public class Reindexer {
         }
 
         @Override
-        protected RequestWrapper<IndexRequest> buildRequest(ScrollableHitSource.Hit doc) {
+        protected RequestWrapper<IndexRequest> buildRequest(PaginatedHitSource.Hit doc) {
             IndexRequest index = new IndexRequest();
 
             // Copy the index from the request so we always write where it asked to write
@@ -411,7 +456,7 @@ public class Reindexer {
             }
 
             @Override
-            protected CtxMap<ReindexMetadata> execute(ScrollableHitSource.Hit doc, Map<String, Object> source) {
+            protected CtxMap<ReindexMetadata> execute(PaginatedHitSource.Hit doc, Map<String, Object> source) {
                 if (reindex == null) {
                     reindex = scriptService.compile(script, ReindexScript.CONTEXT);
                 }

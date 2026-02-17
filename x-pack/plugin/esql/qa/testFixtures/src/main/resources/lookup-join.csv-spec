@@ -37,6 +37,7 @@ language_code:integer  | language_name:keyword
 
 basicOnTheCoordinator
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -45,6 +46,8 @@ FROM employees
 | LOOKUP JOIN languages_lookup ON language_code
 | KEEP emp_no, language_code, language_name
 ;
+
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
 
 emp_no:integer | language_code:integer | language_name:keyword
 10001          | 2                     | French
@@ -72,6 +75,7 @@ emp_no:integer | language_code:integer | language_name:keyword | language_code_x
 
 subsequentEvalOnTheCoordinator
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -82,6 +86,8 @@ FROM employees
 | EVAL language_name = TO_LOWER(language_name), language_code_x2 = 2*language_code
 ;
 
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
+
 emp_no:integer | language_code:integer | language_name:keyword | language_code_x2:integer
 10001          | 2                     | french                |                        4
 10002          | 5                     | null                  |                       10
@@ -90,6 +96,7 @@ emp_no:integer | language_code:integer | language_name:keyword | language_code_x
 
 sortEvalBeforeLookup
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -98,6 +105,8 @@ FROM employees
 | KEEP emp_no, language_code, language_name
 | LIMIT 3
 ;
+
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
 
 emp_no:integer | language_code:integer | language_name:keyword
 10001          | 2                     | French
@@ -247,11 +256,12 @@ FROM employees
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | WHERE emp_no > 10090 AND emp_no < 10096
+| EVAL country = MV_SORT(country)
 | SORT emp_no, country
 | KEEP emp_no, language_code, language_name, country
 ;
 
-emp_no:integer | language_code:integer | language_name:keyword | country:text
+emp_no:integer | language_code:integer | language_name:keyword | country:keyword
     10091      | 1                     | English               | Canada
     10091      | 1                     | null                  | United Kingdom
     10091      | 1                     | English               | United States of America
@@ -266,17 +276,21 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
 
 nonUniqueRightKeyOnTheCoordinator
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
 | LIMIT 5
 | EVAL language_code = emp_no % 10
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
+| EVAL country = MV_SORT(country)
 | KEEP emp_no, language_code, language_name, country
 ;
 
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
+
 ignoreOrder:true
-emp_no:integer | language_code:integer | language_name:keyword | country:text
+emp_no:integer | language_code:integer | language_name:keyword | country:keyword
 10001          | 1                     | English               | Canada
 10001          | 1                     | English               | null
 10001          | 1                     | null                  | United Kingdom
@@ -292,6 +306,7 @@ emp_no:integer | language_code:integer | language_name:keyword | country:text
 nonUniqueRightKeyOnTheCoordinatorCorrectOrdering
 // Same as above, but don't ignore the order completely. At least the emp_no col must remain correctly ordered.
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -300,6 +315,8 @@ FROM employees
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
 | KEEP emp_no, language_code
 ;
+
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
 
 emp_no:integer | language_code:integer
 10001          | 1
@@ -316,6 +333,7 @@ emp_no:integer | language_code:integer
 
 nonUniqueRightKeyFromRow
 required_capability: join_lookup_v12
+required_capability: conditional_block_loader_for_text_fields
 
 ROW language_code = 2
 | LOOKUP JOIN languages_lookup_non_unique_key ON language_code
@@ -683,6 +701,7 @@ emp_no:integer | language_code:integer | language_name:keyword
 
 filterOnRightSideOnTheCoordinator
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -693,12 +712,15 @@ FROM employees
 | KEEP emp_no, language_code, language_name
 ;
 
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
+
 emp_no:integer | language_code:integer | language_name:keyword
 10005          | 1                     | English
 ;
 
 filterOnJoinKeyOnTheCoordinator
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -709,12 +731,15 @@ FROM employees
 | KEEP emp_no, language_code, language_name
 ;
 
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
+
 emp_no:integer | language_code:integer | language_name:keyword
 10005          | 1                     | English
 ;
 
 filterOnJoinKeyAndRightSideOnTheCoordinator
 required_capability: join_lookup_v12
+required_capability: lookup_join_sort_warning
 
 FROM employees
 | SORT emp_no
@@ -724,6 +749,8 @@ FROM employees
 | WHERE language_code > 1 AND language_name IS NOT NULL
 | KEEP emp_no, language_code, language_name
 ;
+
+warning:Line 2:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
 
 emp_no:integer | language_code:integer | language_name:keyword
 10001          | 2                     | French
@@ -1795,6 +1822,7 @@ joinMaskingRegex
 required_capability: union_types
 required_capability: join_lookup_v12
 required_capability: fix_join_masking_regex_extract
+required_capability: lookup_join_sort_warning
 from books,message_*,ul*
 | enrich languages_policy on status
 | drop `language_name`, `bytes_out`, `id`, id
@@ -1815,6 +1843,8 @@ from books,message_*,ul*
 | stats  `type` = count(type), `ratings` = count(*)
 | keep `ratings`, ratings
 ;
+
+warning:Line 7:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
 
 ratings:long
 1
@@ -1890,6 +1920,24 @@ ROW somefield = 0, type = "Production"
 
 type:keyword | language_code:integer | language_name:keyword
 Production   | 3                     | Spanish
+;
+
+lookupJoinOnSameFieldTwiceValues
+required_capability: join_lookup_v12
+required_capability: attribute_equals_respects_name_id
+
+ROW a = 1, b = 2
+| EVAL language_code = a
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS language_name_a
+| EVAL language_code = b
+| LOOKUP JOIN languages_lookup ON language_code
+| RENAME language_name AS language_name_b
+| STATS values(language_name_a), values(language_name_b)
+;
+
+values(language_name_a):keyword | values(language_name_b):keyword
+English                         | French
 ;
 
 ###############################################
@@ -5643,4 +5691,49 @@ from sample_data,languages_mixed_numerics,apps
 @timestamp:datetime|client_ip:ip|event_duration:l| language_code:i | language_code_double:d | language_code_float:d  |language_code_half_float:d|language_code_integer:i| language_code_long:l |language_code_scaled_float:d|language_code_short:i|       message:keyword       |     name:keyword      |    version:version    | language_name:keyword
 null           |null           |null           |null           |32767.0               |32767.0               |32768.0                 |32767                |32767               |32767.0                   |32767              |null                 |null           |null           |null
 null           |null           |null           |null           |128.0                 |128.0                 |128.0                   |128                  |128                 |128.0                     |128                |null                 |null           |null           |null
+;
+
+
+lookupJoinWithSemanticFilterDeduplication
+required_capability: join_lookup_v12
+required_capability: lookup_join_semantic_filter_dedup
+
+from languages
+| lookup join languages_lookup on language_name 
+| where NOT language_code <= 50 OR language_name == "English"
+| where language_code > 50 
+| where language_name == "English"
+;
+
+language_name:keyword | language_code:integer 
+;
+
+
+// https://github.com/elastic/elasticsearch/issues/136599
+lookupJoinWithSemanticFilterDeduplicationComplex
+required_capability: join_lookup_v12
+required_capability: lookup_join_semantic_filter_dedup
+required_capability: lookup_join_sort_warning
+
+from languages_lookup_non_unique_ke* 
+| enrich languages_policy on language_name 
+| sort country DESC, language_code ASC NULLS LAST, language_name NULLS FIRST 
+| limit 14081 
+| keep `language_name`, `country`, *, `country.keyword` 
+| mv_expand country.keyword 
+| grok language_name "%{WORD:YEcxuCOHsGzb} %{WORD:country.keyword}"
+| rename country.keyword as other1
+| rename language_code as other2 
+| lookup join multi_column_joinable_lookup on other1, other2 
+| where  NOT id_int <= 50 OR  NOT false AND  NOT other2 == 50 
+| where false AND  NOT true OR id_int > 50 AND true 
+| where  NOT false AND other2 == 50
+;
+
+warning:Line 3:3: SORT is followed by a LOOKUP JOIN which does not preserve order; add another SORT after the LOOKUP JOIN if order is required
+warning:Line 13:24: evaluation of [other2 == 50] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 13:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+language_name:keyword | country:text | other2:integer | YEcxuCOHsGzb:keyword | other1:keyword | date:datetime | date_nanos:date_nanos | id_int:integer | ip_addr:ip | is_active_bool:boolean | name_str:keyword
+
 ;

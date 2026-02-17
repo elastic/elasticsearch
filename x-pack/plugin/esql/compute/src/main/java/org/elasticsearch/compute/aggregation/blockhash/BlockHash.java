@@ -110,6 +110,11 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      */
     public abstract IntVector nonEmpty();
 
+    /**
+     * The number of unique keys in the hash.
+     */
+    public abstract int numKeys();
+
     // TODO merge with nonEmpty
     @Override
     public abstract BitArray seenGroupIds(BigArrays bigArrays);
@@ -183,17 +188,25 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
                     );
             }
         }
-        if (allowBrokenOptimizations && groups.size() == 2) {
+        if (groups.size() == 2) {
             var g1 = groups.get(0);
             var g2 = groups.get(1);
-            if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {
-                return new LongLongBlockHash(blockFactory, g1.channel(), g2.channel(), emitBatchSize);
+            if (g1.elementType == ElementType.LONG && g2.elementType == ElementType.INT) {
+                return new LongIntAdaptiveBlockHash(groups, blockFactory, emitBatchSize, false);
+            } else if (g1.elementType == ElementType.INT && g2.elementType == ElementType.LONG) {
+                return new LongIntAdaptiveBlockHash(groups, blockFactory, emitBatchSize, true);
             }
-            if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
-                return new BytesRefLongBlockHash(blockFactory, g1.channel(), g2.channel(), false, emitBatchSize);
-            }
-            if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
-                return new BytesRefLongBlockHash(blockFactory, g2.channel(), g1.channel(), true, emitBatchSize);
+            // TODO: wire these with adaptive
+            if (allowBrokenOptimizations) {
+                if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.LONG) {
+                    return new LongLongBlockHash(blockFactory, g1.channel(), g2.channel(), emitBatchSize);
+                }
+                if (g1.elementType() == ElementType.BYTES_REF && g2.elementType() == ElementType.LONG) {
+                    return new BytesRefLongBlockHash(blockFactory, g1.channel(), g2.channel(), false, emitBatchSize);
+                }
+                if (g1.elementType() == ElementType.LONG && g2.elementType() == ElementType.BYTES_REF) {
+                    return new BytesRefLongBlockHash(blockFactory, g2.channel(), g1.channel(), true, emitBatchSize);
+                }
             }
         }
         return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);

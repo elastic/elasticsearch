@@ -73,6 +73,14 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             );
         }
 
+        /**
+         * Add a new resolved expression.
+         * @param expression       the expression you want to add.
+         */
+        public void addExpression(ResolvedIndexExpression expression) {
+            expressions.add(expression);
+        }
+
         public void addRemoteExpressions(String original, Set<String> remoteExpressions) {
             Objects.requireNonNull(original);
             Objects.requireNonNull(remoteExpressions);
@@ -85,8 +93,14 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         public void excludeFromLocalExpressions(Set<String> expressionsToExclude) {
             Objects.requireNonNull(expressionsToExclude);
             if (expressionsToExclude.isEmpty() == false) {
-                for (ResolvedIndexExpression prior : expressions) {
-                    final Set<String> localExpressions = prior.localExpressions().indices();
+                final var iter = expressions.iterator();
+                while (iter.hasNext()) {
+                    final ResolvedIndexExpression current = iter.next();
+                    if (expressionsToExclude.contains(current.original())) {
+                        iter.remove();
+                        continue;
+                    }
+                    final Set<String> localExpressions = current.localExpressions().indices();
                     if (localExpressions.isEmpty()) {
                         continue;
                     }

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingBitResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingByteResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingResults;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.services.sagemaker.SageMakerInferenceRequest;
 import org.elasticsearch.xpack.inference.services.sagemaker.model.SageMakerModel;
 import org.elasticsearch.xpack.inference.services.sagemaker.schema.SageMakerStoredServiceSchema;
@@ -58,7 +59,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSim
  */
 public class ElasticTextEmbeddingPayload implements ElasticPayload {
     private static final EnumSet<TaskType> SUPPORTED_TASKS = EnumSet.of(TaskType.TEXT_EMBEDDING);
-    private static final ParseField EMBEDDING = new ParseField("embedding");
+    private static final ParseField EMBEDDING = new ParseField(EmbeddingResults.EMBEDDING);
 
     private static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC = TransportVersion.fromName("ml_inference_sagemaker_elastic");
 
@@ -98,6 +99,7 @@ public class ElasticTextEmbeddingPayload implements ElasticPayload {
                 case BIT -> TextEmbeddingBinary.PARSER.apply(p, null);
                 case BYTE -> TextEmbeddingBytes.PARSER.apply(p, null);
                 case FLOAT -> TextEmbeddingFloat.PARSER.apply(p, null);
+                case BFLOAT16 -> throw new UnsupportedOperationException("Bfloat16 not supported");
             };
         }
     }

@@ -49,7 +49,10 @@ public class BlockMultiValuedTests extends ESTestCase {
                 || e == ElementType.NULL
                 || e == ElementType.DOC
                 || e == ElementType.COMPOSITE
-                || e == ElementType.AGGREGATE_METRIC_DOUBLE) {
+                || e == ElementType.EXPONENTIAL_HISTOGRAM // TODO(b/133393): Enable tests once the block supports lookup
+                || e == ElementType.TDIGEST
+                || e == ElementType.AGGREGATE_METRIC_DOUBLE
+                || e == ElementType.LONG_RANGE) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {
@@ -210,7 +213,7 @@ public class BlockMultiValuedTests extends ESTestCase {
         var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
         try {
             int[] positions = randomFilterPositions(b.block(), all, shuffled);
-            Block filtered = b.block().filter(positions);
+            Block filtered = b.block().filter(false, positions);
             try {
                 assertThat(filtered.getPositionCount(), equalTo(positions.length));
 
@@ -279,7 +282,7 @@ public class BlockMultiValuedTests extends ESTestCase {
         var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
         try {
             int[] positions = randomFilterPositions(b.block(), all, shuffled);
-            assertExpanded(b.block().filter(positions));
+            assertExpanded(b.block().filter(false, positions));
         } finally {
             b.block().close();
         }

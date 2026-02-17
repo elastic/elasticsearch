@@ -33,7 +33,7 @@ public class UpdateConnectorActiveFilteringActionRequestBWCSerializingTests exte
     @Override
     protected UpdateConnectorActiveFilteringAction.Request mutateInstance(UpdateConnectorActiveFilteringAction.Request instance)
         throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new UpdateConnectorActiveFilteringAction.Request(randomValueOtherThan(instance.getConnectorId(), () -> randomUUID()));
     }
 
     @Override

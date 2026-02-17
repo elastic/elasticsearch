@@ -46,7 +46,7 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
 
   public static CountDistinctLongAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels, int precision) {
-    return new CountDistinctLongAggregatorFunction(driverContext, channels, CountDistinctLongAggregator.initSingle(driverContext.bigArrays(), precision), precision);
+    return new CountDistinctLongAggregatorFunction(driverContext, channels, CountDistinctLongAggregator.initSingle(driverContext, precision), precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -149,8 +149,8 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
     assert hll.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    CountDistinctLongAggregator.combineIntermediate(state, hll.getBytesRef(0, scratch));
+    BytesRef hllScratch = new BytesRef();
+    CountDistinctLongAggregator.combineIntermediate(state, hll.getBytesRef(0, hllScratch));
   }
 
   @Override

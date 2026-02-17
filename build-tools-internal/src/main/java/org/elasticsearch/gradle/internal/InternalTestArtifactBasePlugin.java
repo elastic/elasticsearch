@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.provider.ProviderFactory;
 
 import javax.inject.Inject;
@@ -25,6 +26,7 @@ public class InternalTestArtifactBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
+        project.getPlugins().apply(JavaPlugin.class);
         project.getPlugins().apply(ElasticsearchJavaBasePlugin.class);
         project.getExtensions().create("testArtifacts", InternalTestArtifactExtension.class, project, providerFactory);
     }

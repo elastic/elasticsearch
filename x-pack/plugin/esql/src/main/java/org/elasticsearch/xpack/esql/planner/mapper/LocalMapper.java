@@ -41,6 +41,10 @@ import java.util.List;
  */
 public class LocalMapper {
 
+    public static LocalMapper INSTANCE = new LocalMapper();
+
+    private LocalMapper() {}
+
     public PhysicalPlan map(LogicalPlan p) {
 
         if (p instanceof LeafPlan leaf) {
@@ -63,6 +67,8 @@ public class LocalMapper {
             return new EsSourceExec(esRelation);
         }
 
+        // ExternalRelation is handled by MapperUtils.mapLeaf()
+        // via its toPhysicalExec() method, bypassing FragmentExec/ExchangeExec dispatch
         return MapperUtils.mapLeaf(leaf);
     }
 

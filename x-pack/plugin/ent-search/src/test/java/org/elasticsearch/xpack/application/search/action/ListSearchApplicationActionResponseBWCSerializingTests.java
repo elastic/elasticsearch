@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.application.search.SearchApplication;
 import org.elasticsearch.xpack.application.search.SearchApplicationListItem;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
+import java.util.List;
+
 public class ListSearchApplicationActionResponseBWCSerializingTests extends AbstractBWCWireSerializationTestCase<
     ListSearchApplicationAction.Response> {
 
@@ -22,21 +24,28 @@ public class ListSearchApplicationActionResponseBWCSerializingTests extends Abst
         return ListSearchApplicationAction.Response::new;
     }
 
-    private static ListSearchApplicationAction.Response randomSearchApplicationListItem() {
-        return new ListSearchApplicationAction.Response(randomList(10, () -> {
+    private static List<SearchApplicationListItem> randomSearchApplicationList() {
+        return randomList(10, () -> {
             SearchApplication app = EnterpriseSearchModuleTestUtils.randomSearchApplication();
             return new SearchApplicationListItem(app.name(), app.analyticsCollectionName(), app.updatedAtMillis());
-        }), randomLongBetween(0, 1000));
+        });
     }
 
     @Override
     protected ListSearchApplicationAction.Response mutateInstance(ListSearchApplicationAction.Response instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        List<SearchApplicationListItem> searchApplicationListItems = instance.queryPage.results();
+        long count = instance.queryPage.count();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> searchApplicationListItems = randomValueOtherThan(searchApplicationListItems, () -> randomSearchApplicationList());
+            case 1 -> count = randomValueOtherThan(count, () -> randomLongBetween(0, 1000));
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new ListSearchApplicationAction.Response(searchApplicationListItems, count);
     }
 
     @Override
     protected ListSearchApplicationAction.Response createTestInstance() {
-        return randomSearchApplicationListItem();
+        return new ListSearchApplicationAction.Response(randomSearchApplicationList(), randomLongBetween(0, 1000));
     }
 
     @Override

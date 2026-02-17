@@ -9,10 +9,6 @@ mapped_pages:
 
 The *Elastic Salesforce connector* is a [connector](/reference/search-connectors/index.md) for [Salesforce](https://www.salesforce.com/) data sources.
 
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
-
 ## **Self-managed connector reference** [es-connectors-salesforce-connector-client-reference]
 
 ### Availability and prerequisites [es-connectors-salesforce-client-availability-prerequisites]
@@ -35,7 +31,7 @@ This connector is compatible with the following:
 
 To create a new Salesforce connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **Salesforce** self-managed connector.
 
 
@@ -53,7 +49,7 @@ PUT _connector/my-salesforce-connector
   "service_type": "salesforce"
 }
 ```
-%  TEST[skip:can’t test in isolation]
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -191,9 +187,9 @@ You can deploy the Salesforce connector as a self-managed connector using Docker
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -365,7 +361,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-query-language$$$
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 **Example**: Fetch documents using SOSL query.
 
@@ -377,7 +373,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-query-language$$$
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-objects$$$
 **Fetch standard and custom objects using SOQL and SOSL queries**
@@ -396,7 +392,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-objects$$$
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 **Example**: Fetch documents for custom objects via SOQL and SOSL query.
 
@@ -412,7 +408,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-objects$$$
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fields$$$
 **Fetch documents with standard and custom fields**
@@ -427,7 +423,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fie
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 **Example**: Fetch documents with all custom fields for Connector object.
 
@@ -439,7 +435,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fie
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 **Example**: Fetch documents with all standard fields for Account object.
 
@@ -451,7 +447,7 @@ $$$es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fie
   }
 ]
 ```
-%  NOTCONSOLE
+% NOTCONSOLE
 
 
 ### Documents and syncs [es-connectors-salesforce-client-documents-syncs]
@@ -518,4 +514,4 @@ See [connectors security](/reference/search-connectors/es-connectors-security.md
 
 This connector is built with the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [source code for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/salesforce.py) (branch *main*, compatible with Elastic *9.0*).
+View the [source code for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/salesforce) (branch *main*, compatible with Elastic *9.0*).

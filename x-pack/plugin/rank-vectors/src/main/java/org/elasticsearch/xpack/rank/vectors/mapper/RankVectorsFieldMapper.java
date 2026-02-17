@@ -15,6 +15,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.ArraySourceValueFetcher;
@@ -342,7 +343,7 @@ public class RankVectorsFieldMapper extends FieldMapper {
         ByteBuffer buffer = ByteBuffer.allocate(bufferSize).order(ByteOrder.LITTLE_ENDIAN);
         ByteBuffer magnitudeBuffer = ByteBuffer.allocate(vectors.size() * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
         for (VectorData vector : vectors) {
-            vector.addToBuffer(buffer);
+            vector.addToBuffer(element, buffer);
             magnitudeBuffer.putFloat((float) Math.sqrt(element.computeSquaredMagnitude(vector)));
         }
         String vectorFieldName = fieldType().name();
@@ -491,6 +492,13 @@ public class RankVectorsFieldMapper extends FieldMapper {
                         List<Float> vec = new ArrayList<>(dims);
                         for (int dim = 0; dim < dims; dim++) {
                             vec.add(byteBuffer.getFloat());
+                        }
+                        vectors.add(vec);
+                    }
+                    case BFLOAT16 -> {
+                        List<Float> vec = new ArrayList<>(dims);
+                        for (int dim = 0; dim < dims; dim++) {
+                            vec.add(BFloat16.bFloat16ToFloat(byteBuffer.getShort()));
                         }
                         vectors.add(vec);
                     }

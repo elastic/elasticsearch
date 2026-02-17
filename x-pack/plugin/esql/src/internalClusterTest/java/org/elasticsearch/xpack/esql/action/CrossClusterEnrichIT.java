@@ -402,6 +402,61 @@ public class CrossClusterEnrichIT extends AbstractEnrichBasedCrossClusterTestCas
             assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
             assertCCSExecutionInfoDetails(executionInfo);
         }
+
+        // No renames, no KEEP - this is required to verify that ENRICH does not break sort with fields it overrides
+        query = """
+            FROM *:events,events
+            | eval ip= TO_STR(host)
+            | SORT timestamp, user, ip
+            | LIMIT 5
+            | ENRICH _remote:hosts
+            """;
+        try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+            assertThat(
+                getValuesList(resp),
+                equalTo(
+                    List.of(
+                        List.of("192.168.1.2", 1L, "andres", "192.168.1.2", "Windows"),
+                        List.of("192.168.1.3", 1L, "matthew", "192.168.1.3", "MacOS"),
+                        Arrays.asList("192.168.1.25", 1L, "park", (String) null, (String) null),
+                        List.of("192.168.1.5", 2L, "akio", "192.168.1.5", "Android"),
+                        List.of("192.168.1.6", 2L, "sergio", "192.168.1.6", "iOS")
+                    )
+                )
+            );
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of("", "c1", "c2")));
+            assertCCSExecutionInfoDetails(executionInfo);
+        }
+    }
+
+    public void testLimitWithCardinalityChange() {
+        String query = String.format(Locale.ROOT, """
+            FROM *:events,events
+            | eval ip= TO_STR(host)
+            | LIMIT 10
+            | WHERE user != "andres"
+            | %s
+            """, enrichHosts(Enrich.Mode.REMOTE));
+        // This is currently not supported, because WHERE is not cardinality preserving
+        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after [LIMIT 10]@3:3"));
+    }
+
+    public void testTopNTwiceThenEnrichRemote() {
+        String query = String.format(Locale.ROOT, """
+            FROM *:events,events
+            | eval ip= TO_STR(host)
+            | SORT timestamp
+            | LIMIT 9
+            | SORT ip, user
+            | LIMIT 5
+            | ENRICH _remote:hosts
+            """, enrichHosts(Enrich.Mode.REMOTE));
+        // This is currently not supported, because we can not handle double topN with remote enrich
+        var error = expectThrows(VerificationException.class, () -> runQuery(query, randomBoolean()).close());
+        assertThat(error.getMessage(), containsString("ENRICH with remote policy can't be executed after [SORT timestamp]"));
     }
 
     public void testLimitThenEnrichRemote() {

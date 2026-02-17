@@ -33,8 +33,17 @@
         "description": "specifies a max number of results to get (default: 100)"
       },
       "status": {
-        "type": "string",
-        "description": "Sync job status, which sync jobs are fetched for"
+        "type": "enum",
+        "description": "A sync job status to fetch connector sync jobs for",
+        "options": [
+          "canceling",
+          "canceled",
+          "completed",
+          "error",
+          "in_progress",
+          "pending",
+          "suspended"
+        ]
       },
       "connector_id": {
         "type": "string",
@@ -42,7 +51,12 @@
       },
       "job_type": {
         "type": "list",
-        "description": "A comma-separated list of job types"
+        "description": "A comma-separated list of job types",
+        "options": [
+          "full",
+          "incremental",
+          "access_control"
+        ]
       }
     }
   }

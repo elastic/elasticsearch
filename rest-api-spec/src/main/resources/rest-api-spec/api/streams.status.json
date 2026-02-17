@@ -1,10 +1,10 @@
 {
   "streams.status": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/streams-status.html",
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch#TODO",
       "description": "Return the current status of the streams feature for each streams type"
     },
-    "stability": "stable",
+    "stability": "experimental",
     "visibility": "feature_flag",
     "feature_flag": "logs_stream",
     "headers": {

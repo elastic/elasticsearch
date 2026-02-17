@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -47,11 +46,7 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
         public Request(StreamInput in) throws IOException {
             super(in);
             this.taskParams = new StartTrainedModelDeploymentAction.TaskParams(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
-            } else {
-                this.adaptiveAllocationsSettings = null;
-            }
+            this.adaptiveAllocationsSettings = in.readOptionalWriteable(AdaptiveAllocationsSettings::new);
         }
 
         @Override
@@ -63,9 +58,7 @@ public class CreateTrainedModelAssignmentAction extends ActionType<CreateTrained
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             taskParams.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeOptionalWriteable(adaptiveAllocationsSettings);
-            }
+            out.writeOptionalWriteable(adaptiveAllocationsSettings);
         }
 
         @Override

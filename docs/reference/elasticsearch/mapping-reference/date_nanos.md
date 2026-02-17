@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Date nanoseconds"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/date_nanos.html
@@ -74,7 +77,7 @@ GET my-index-000001/_search
 You can also specify multiple date formats separated by `||`. The same mapping parameters than with the `date` field can be used.
 
 ::::{warning}
-Date nanoseconds will accept numbers with a decimal point like `{"date": 1618249875.123456}` but there are some cases ({{es-issue}}70085[#70085]) where we’ll lose precision on those dates so they should be avoided.
+Date nanoseconds will accept numbers with a decimal point like `{"date": 1618249875.123456}` but there are some cases ([#70085]({{es-issue}}70085)) where we’ll lose precision on those dates so they should be avoided.
 
 ::::
 

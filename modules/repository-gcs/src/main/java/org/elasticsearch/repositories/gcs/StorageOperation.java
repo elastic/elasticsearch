@@ -12,7 +12,8 @@ package org.elasticsearch.repositories.gcs;
 public enum StorageOperation {
     INSERT("InsertObject"),
     GET("GetObject"),
-    LIST("ListObjects");
+    LIST("ListObjects"),
+    DELETE("DeleteObject");
 
     final String key;
 

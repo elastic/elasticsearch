@@ -1,0 +1,449 @@
+---
+"Test get sample stats for basic sample config":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [sample_test]
+          template:
+            settings:
+              index.number_of_shards: 1
+              index.number_of_replicas: 0
+            mappings:
+              dynamic: strict
+              properties:
+                animal:
+                  type: text
+                foo:
+                  type: text
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: sample_test
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: sample_test
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 100
+
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+        human: true
+  - match: { potential_samples: 0 }
+  - match: { samples_rejected_for_max_samples_exceeded: 0 }
+  - match: { samples_rejected_for_condition: 0 }
+  - match: { samples_rejected_for_rate: 0 }
+  - match: { samples_rejected_for_exception: 0 }
+  - match: { samples_rejected_for_size: 0 }
+  - match: { samples_accepted: 0 }
+  - match: { time_sampling_millis: 0 }
+  - match: { time_sampling: "0s" }
+  - match: { time_evaluating_condition_millis: 0 }
+  - match: { time_evaluating_condition: "0s" }
+  - match: { time_compiling_condition_millis: 0 }
+  - match: { time_compiling_condition: "0s" }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "cat", "foo": "baz"}'
+
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+        human: true
+  - match: { potential_samples: 2 }
+  - match: { samples_rejected_for_max_samples_exceeded: 0 }
+  - match: { samples_rejected_for_condition: 0 }
+  - match: { samples_rejected_for_rate: 0 }
+  - match: { samples_rejected_for_exception: 0 }
+  - match: { samples_rejected_for_size: 0 }
+  - match: { samples_accepted: 2 }
+  - match: { time_evaluating_condition_millis: 0 }
+  - match: { time_evaluating_condition: "0s" }
+  - match: { time_compiling_condition_millis: 0 }
+  - match: { time_compiling_condition: "0s" }
+  - match: { last_exception: null }
+
+---
+"Test get sample stats for conditional sample config":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [sample_test]
+          template:
+            settings:
+              index.number_of_shards: 1
+              index.number_of_replicas: 0
+            mappings:
+              dynamic: strict
+              properties:
+                animal:
+                  type: text
+                foo:
+                  type: text
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: sample_test
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: sample_test
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 100
+          if: "ctx?.animal == 'dog'"
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "cat", "foo": "baz"}'
+
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+        human: true
+  - match: { potential_samples: 2 }
+  - match: { samples_rejected_for_max_samples_exceeded: 0 }
+  - match: { samples_rejected_for_condition: 1 }
+  - match: { samples_rejected_for_rate: 0 }
+  - match: { samples_rejected_for_exception: 0 }
+  - match: { samples_rejected_for_size: 0 }
+  - match: { samples_accepted: 1 }
+  - match: { last_exception: null }
+
+---
+"Test that deleting sample config deletes sample stats":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [sample_test]
+          template:
+            settings:
+              index.number_of_shards: 1
+              index.number_of_replicas: 0
+            mappings:
+              dynamic: strict
+              properties:
+                animal:
+                  type: text
+                foo:
+                  type: text
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: sample_test
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: sample_test
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 100
+
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+        human: true
+  - match: { potential_samples: 0 }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+        human: true
+  - match: { potential_samples: 1 }
+
+  - do:
+      indices.delete_sample_configuration:
+        index: sample_test
+
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+      catch: missing
+
+---
+"Test that deleting index deletes sample stats":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [sample_test]
+          template:
+            settings:
+              index.number_of_shards: 1
+              index.number_of_replicas: 0
+            mappings:
+              dynamic: strict
+              properties:
+                animal:
+                  type: text
+                foo:
+                  type: text
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: sample_test
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: sample_test
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 100
+
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+        human: true
+  - match: { potential_samples: 0 }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "cat", "foo": "baz"}'
+
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+        human: true
+  - match: { potential_samples: 2 }
+
+  - do:
+      indices.delete_data_stream:
+        name: sample_test
+
+  - do:
+      indices.get_sample:
+        index: sample_test
+      catch: missing
+
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+      catch: missing
+
+---
+"Test get sample stats for exceeds size":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [sample_test]
+          template:
+            settings:
+              index.number_of_shards: 1
+              index.number_of_replicas: 0
+            mappings:
+              dynamic: strict
+              properties:
+                animal:
+                  type: text
+                foo:
+                  type: text
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: sample_test
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: sample_test
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 1
+
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+        human: true
+  - match: { potential_samples: 0 }
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "cat", "foo": "baz"}'
+
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+        human: true
+  - match: { potential_samples: 2 }
+  - match: { samples_rejected_for_max_samples_exceeded: 1 }
+  - match: { samples_rejected_for_condition: 0 }
+  - match: { samples_rejected_for_rate: 0 }
+  - match: { samples_rejected_for_exception: 0 }
+  - match: { samples_rejected_for_size: 0 }
+  - match: { samples_accepted: 1 }
+  - match: { time_evaluating_condition_millis: 0 }
+  - match: { time_evaluating_condition: "0s" }
+  - match: { time_compiling_condition_millis: 0 }
+  - match: { time_compiling_condition: "0s" }
+
+---
+"Test get sample stats for conditional with exception":
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.put_index_template:
+        name: my-template1
+        body:
+          index_patterns: [sample_test]
+          template:
+            settings:
+              index.number_of_shards: 1
+              index.number_of_replicas: 0
+            mappings:
+              dynamic: strict
+              properties:
+                animal:
+                  type: text
+                foo:
+                  type: text
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: sample_test
+  - is_true: acknowledged
+
+  - do:
+      indices.rollover:
+        alias: sample_test
+        wait_for_active_shards: 1
+  - match: { rolled_over: true }
+
+  - do:
+      indices.put_sample_configuration:
+        index: sample_test
+        body:
+          rate: 1.0
+          max_samples: 100
+          if: "ctx?.animal > 0"
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "dog", "foo": "bar"}'
+          - '{"index": {"_index": "sample_test"}}'
+          - '{"animal": "cat", "foo": "baz"}'
+
+  - do:
+      indices.get_sample_stats:
+        index: sample_test
+        human: true
+  - match: { potential_samples: 2 }
+  - match: { samples_rejected_for_max_samples_exceeded: 0 }
+  - match: { samples_rejected_for_condition: 0 }
+  - match: { samples_rejected_for_rate: 0 }
+  - match: { samples_rejected_for_exception: 2 }
+  - match: { samples_rejected_for_size: 0 }
+  - match: { samples_accepted: 0 }
+  - match: { last_exception.type: "script_exception" }
+
+---
+teardown:
+  - requires:
+      cluster_features: [ "random_sampling" ]
+      reason: requires feature 'random_sampling' to get random samples
+
+  - do:
+      indices.delete_data_stream:
+        name: sample_test*
+
+  - do:
+      indices.get_all_sample_configuration: {}
+  - length: { configurations: 0 }

@@ -12,7 +12,6 @@ package org.elasticsearch.action.bulk;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
@@ -107,14 +106,8 @@ public class BulkRequest extends LegacyActionRequest
         for (DocWriteRequest<?> request : requests) {
             indices.add(Objects.requireNonNull(request.index(), "request index must not be null"));
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            incrementalState = new BulkRequest.IncrementalState(in);
-        } else {
-            incrementalState = BulkRequest.IncrementalState.EMPTY;
-        }
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            includeSourceOnError = in.readBoolean();
-        } // else default value is true
+        incrementalState = new BulkRequest.IncrementalState(in);
+        includeSourceOnError = in.readBoolean();
         if (in.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
             paramsUsed = in.readCollectionAsImmutableSet(StreamInput::readString);
         }
@@ -478,12 +471,8 @@ public class BulkRequest extends LegacyActionRequest
         out.writeCollection(requests, DocWriteRequest::writeDocumentRequest);
         refreshPolicy.writeTo(out);
         out.writeTimeValue(timeout);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            incrementalState.writeTo(out);
-        }
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeBoolean(includeSourceOnError);
-        }
+        incrementalState.writeTo(out);
+        out.writeBoolean(includeSourceOnError);
         if (out.getTransportVersion().supports(STREAMS_ENDPOINT_PARAM_RESTRICTIONS)) {
             out.writeCollection(paramsUsed, StreamOutput::writeString);
         }

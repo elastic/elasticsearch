@@ -1,0 +1,251 @@
+//
+// PromQL queries that the parser should be able to process
+//
+
+//
+// PromQL Documentation examples
+//
+http_requests_total;
+http_requests_total{job="apiserver", handler="/api/comments"};
+http_requests_total{job="apiserver", handler="/api/comments"}[5m];
+http_requests_total{job=~".*server"};
+http_requests_total{status!~"4.."};
+rate(http_requests_total[5m])[30m:1m];
+//max_over_time(deriv(rate(distance_covered_total[5s])[30s:5s])[10m:]);
+rate(http_requests_total[5m]);
+sum by (job) (
+  rate(http_requests_total[5m])
+);
+//(instance_memory_limit_bytes - instance_memory_usage_bytes) / 1024 / 1024;
+sum by (app, proc) (
+  instance_memory_limit_bytes - instance_memory_usage_bytes
+) / 1024 / 1024;
+//topk(3, sum by (app, proc) (rate(instance_cpu_time_ns[5m])));
+count by (app) (instance_cpu_time_ns);
+
+//
+// Queries inspired by https://github.com/prometheus/prometheus/blob/v3.5.0/promql/parser/parse_test.go
+//
+
+// scalars
+1;
++Inf;
+-Inf;
++inf;
+-inf;
+.5;
+5.;
+123.4567;
+5e-3;
+5e3;
+0xc;
+0755;
++5.5e-3;
+-0755;
+1 + 1;
+1 - 1;
+1 * 1;
+1 % 1;
+1 / 1;
+1 == bool 1;
+1 != bool 1;
+1 > bool 1;
+1 >= bool 1;
+1 < bool 1;
+1 <= bool 1;
+-1^2;
+-1*2;
+-1+2;
+-1^-2;
++1 + -2 * 1;
+1 + 2 / (3 * 1);
+1 < bool 2 - 1 * 2;
+
+//
+// metrics
+//
+-some_metric;
++some_metric;
+ +some_metric;
+ +{"some_metric"};
+foo * bar;
+foo * sum;
+foo == 1;
+foo == bool 1;
+2.5 / bar;
+foo and bar;
+foo or bar;
+foo unless bar;
+foo + bar or bla and blub;
+foo and bar unless baz or qux;
+bar + on(foo) bla / on(baz, buz) group_right(test) blub;
+foo * on(test,blub) bar;
+foo * on(test,blub) group_left bar;
+foo and on(test,blub) bar;
+foo and on() bar;
+foo and ignoring(test,blub) bar;
+foo and ignoring() bar;
+foo unless on(bar) baz;
+foo / on(test,blub) group_left(bar) bar;
+foo / ignoring(test,blub) group_left(blub) bar;
+foo / ignoring(test,blub) group_left(bar) bar;
+foo - on(test,blub) group_right(bar,foo) bar;
+foo - ignoring(test,blub) group_right(bar,foo) bar;
+
+//
+// evaluation
+//
+foo;
+min;
+foo offset 5m;
+foo offset -7m;
+foo OFFSET 1h30m;
+foo OFFSET 1m30ms;
+foo @ 1603774568;
+foo @ -100;
+foo @ .3;
+foo @ 3.;
+foo @ 3.33;
+foo @ 3.3333;
+foo @ 3.3335;
+foo @ 3e2;
+foo @ 3e-1;
+foo @ 0xA;
+foo @ -3.3e1;
+
+//
+// selector
+//
+foo:bar{a="bc"};
+{"foo"};
+{'foo\'bar', 'a\\dos\\path'='boo\\urns'};
+{'foo\'bar', `a\dos\path`="boo"};
+{"foo", a="bc"};
+foo{NaN='bc'};
+foo{bar='}'};
+foo{a="b", foo!="bar", test=~"test", bar!~"baz"};
+{a="b", foo!="bar", "foo", test=~"test", bar!~"baz"};
+foo{a="b", foo!="bar", test=~"test", bar!~"baz",};
+{__name__=~"bar", __name__!~"baz"};
+{__name__="bar", __name__="baz"};
+{"bar", __name__="baz"};
+//
+// range selector
+//
+test[1000ms];
+test[1001ms];
+test[1002ms];
+test[5s];
+test[5m];
+foo[5m30s];
+test[5h] OFFSET 5m;
+test[5d] OFFSET 10s;
+test[5w] offset 2w;
+test{a="b"}[5y] OFFSET 3d;
+test{a="b"}[5m] OFFSET 3600;
+foo[3ms] @ 2.345;
+foo[4s180ms] @ 2.345;
+foo[4.18] @ 2.345;
+foo[4s18ms] @ 2.345;
+foo[4.018] @ 2.345;
+test{a="b"}[5y] @ 1603774699;
+test[5];
+some_metric[5m] @ 1m;
+
+//
+// aggregations
+//
+sum by (foo)(some_metric);
+sum by ("foo bar")({"some.metric"});
+sum by ("foo", bar, 'baz')({"some.metric"});
+avg by (foo)(some_metric);
+max by (foo)(some_metric);
+// sum without (foo) (some_metric);
+// sum (some_metric) without (foo);
+stddev(some_metric);
+stdvar by (foo)(some_metric);
+sum by ()(some_metric);
+sum by (foo,bar,)(some_metric);
+sum by (foo,)(some_metric);
+//topk(5, some_metric);
+//count_values("value", some_metric);
+//sum without(and, by, avg, count, alert, annotations)(some_metric);
+
+//
+// functions
+//
+//time();
+//floor(some_metric{foo!="bar"});
+rate(some_metric[5m]);
+//round(some_metric);
+//round(some_metric, 5);
+sum(sum);
+a + sum;
+
+//
+// strings
+//
+"double-quoted string \" with escaped quote";
+'single-quoted string \' with escaped quote';
+`backtick-quoted string`;
+//"\a\b\f\n\r\t\v\\\" - \xFF\377\u1234\U00010111\U0001011111â˜º";
+//'\a\b\f\n\r\t\v\\\' - \xFF\377\u1234\U00010111\U0001011111â˜º';
+//`\a\b\f\n\r\t\v\\\"\' - \xFF\377\u1234\U00010111\U0001011111â˜º`;
+
+//
+// subqueries
+//
+foo{bar="baz"}[10m:6s];
+foo{bar="baz"}[10m5s:1h6ms];
+foo[10m:];
+min_over_time(rate(foo{bar="baz"}[2s])[5m:5s]);
+min_over_time(rate(foo{bar="baz"}[2s])[5m:])[4m:3s];
+min_over_time(rate(foo{bar="baz"}[2s])[5m:] offset 4m)[4m:3s];
+min_over_time(rate(foo{bar="baz"}[2s])[5m:] @ 1603775091)[4m:3s];
+min_over_time(rate(foo{bar="baz"}[2s])[5m:] @ -160377509)[4m:3s];
+//sum without(and, by, avg, count, alert, annotations)(some_metric) [30m:10s];
+//some_metric OFFSET 1m [10m:5s];
+some_metric @ 123 [10m:5s];
+//some_metric @ 123 offset 1m [10m:5s];
+some_metric offset 1m @ 123 [10m:5s];
+some_metric[10m:5s] offset 1m @ 123;
+(foo + bar{nm="val"})[5m:];
+(foo + bar{nm="val"})[5m:] offset 10m;
+(foo + bar{nm="val"} @ 1234)[5m:] @ 1603775019;
+
+//
+// preprocessor
+//
+foo @ start();
+foo @ end();
+test[5y] @ start();
+test[5y] @ end();
+foo[10m:6s] @ start();
+foo[10m:6s] @ end();
+
+// check defined functions don't mask metrics
+start;
+end;
+start{end="foo"};
+end{start="foo"};
+foo unless on(start) bar;
+foo unless on(end) bar;
+//info(rate(http_request_counter_total{}[5m]));
+//info(http_request_counter_total{namespace="zzz"}, {foo="bar", bar="baz"});
+
+// nested math, added in Prometheus 3.4.0 / May 2025
+// https://github.com/prometheus/prometheus/pull/16249
+foo[11s+10s-5*2^2];
+//foo[-(10s-5s)+20s];
+//foo[-10s+15s];
+foo[4s+4s:1s*2] offset (5s-8);
+foo offset 5s-8;
+rate(foo[2m+2m]);
+foo offset -1^1;
+foo offset -(1^2);
+//foo offset (-1^2);
+//foo[-2^2];
+//foo[0+-2^2];
+(sum(foo));
+(sum(foo) by (bar));
+(sum by (bar) (foo));

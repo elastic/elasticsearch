@@ -10,7 +10,6 @@ package org.elasticsearch.action.admin.indices.shrink;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -19,11 +18,11 @@ import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -34,10 +33,11 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request class to shrink an index into a single shard
  */
-public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest, ToXContentObject {
+public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements IndicesRequest {
 
     public static final ObjectParser<ResizeRequest, Void> PARSER = new ObjectParser<>("resize_request");
-    private static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
+    public static final ParseField MAX_PRIMARY_SHARD_SIZE = new ParseField("max_primary_shard_size");
+
     static {
         PARSER.declareField(
             (parser, request, context) -> request.getTargetIndexRequest().settings(parser.map()),
@@ -58,8 +58,8 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     }
 
     private CreateIndexRequest targetIndexRequest;
-    private String sourceIndex;
-    private ResizeType type = ResizeType.SHRINK;
+    private final String sourceIndex;
+    private final ResizeType type;
     private Boolean copySettings = true;
     private ByteSizeValue maxPrimaryShardSize;
 
@@ -74,14 +74,11 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         }
     }
 
-    ResizeRequest() {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
-    }
-
-    public ResizeRequest(String targetIndex, String sourceIndex) {
-        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+    public ResizeRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, ResizeType resizeType, String sourceIndex, String targetIndex) {
+        super(masterNodeTimeout, ackTimeout);
         this.targetIndexRequest = new CreateIndexRequest(targetIndex);
         this.sourceIndex = sourceIndex;
+        this.type = resizeType;
     }
 
     @Override
@@ -104,10 +101,6 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         }
         assert copySettings == null || copySettings;
         return validationException;
-    }
-
-    public void setSourceIndex(String index) {
-        this.sourceIndex = index;
     }
 
     @Override
@@ -176,13 +169,6 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     }
 
     /**
-     * The type of the resize operation
-     */
-    public void setResizeType(ResizeType type) {
-        this.type = Objects.requireNonNull(type);
-    }
-
-    /**
      * Returns the type of the resize operation
      */
     public ResizeType getResizeType() {
@@ -219,30 +205,6 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
         return maxPrimaryShardSize;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
-            builder.startObject(CreateIndexRequest.SETTINGS.getPreferredName());
-            {
-                targetIndexRequest.settings().toXContent(builder, params);
-            }
-            builder.endObject();
-            builder.startObject(CreateIndexRequest.ALIASES.getPreferredName());
-            {
-                for (Alias alias : targetIndexRequest.aliases()) {
-                    alias.toXContent(builder, params);
-                }
-            }
-            builder.endObject();
-            if (maxPrimaryShardSize != null) {
-                builder.field(MAX_PRIMARY_SHARD_SIZE.getPreferredName(), maxPrimaryShardSize);
-            }
-        }
-        builder.endObject();
-        return builder;
-    }
-
     public void fromXContent(XContentParser parser) throws IOException {
         PARSER.parse(parser, this, null);
     }
@@ -262,5 +224,9 @@ public class ResizeRequest extends AcknowledgedRequest<ResizeRequest> implements
     @Override
     public int hashCode() {
         return Objects.hash(targetIndexRequest, sourceIndex, type, copySettings, maxPrimaryShardSize);
+    }
+
+    public void setTargetIndexSettings(Settings.Builder settings) {
+        targetIndexRequest.settings(settings);
     }
 }

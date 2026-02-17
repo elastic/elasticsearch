@@ -281,6 +281,10 @@ Some concepts are applicable to both cluster and project scopes, e.g. [persisten
 
 ### Node Roles
 
+(Explain the
+distinct [node roles](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles)
+an elasticsearch node can be assigned and their implication)
+
 ### Master Elections
 
 [Coordinator]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java
@@ -295,9 +299,10 @@ Some concepts are applicable to both cluster and project scopes, e.g. [persisten
 
 [VotingConfiguration]: https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationMetadata.java#L326
 
-The cluster maintains *at most* a single active master at all times. If no master is present, master-eligible nodes will
-attempt to become the master by starting an election. The cluster will not be able to commit any [ClusterState] changes
-until a new master is elected.
+The cluster maintains at most a single master at all times. If no master is
+present, [master-eligible](https://www.elastic.co/docs/deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles#master-node-role)
+nodes will attempt to become the master by starting an election. The cluster will not be able to commit
+any [ClusterState] changes until a new master is elected.
 
 To elect a master, Elasticsearch uses a consensus algorithm derived
 from [Paxos](https://lamport.azurewebsites.net/pubs/lamport-paxos.pdf). This algorithm is formally defined in a TLA+
@@ -310,18 +315,21 @@ for subsequent master elections.
 
 #### Quorum
 
-A quorum is defined as a strict majority `(votedNodesCount * 2 > nodeIds.size())` of the nodes listed in
+A quorum is defined as a strict majority (`votedNodesCount * 2 > nodeIds.size()`) of the nodes listed in
 a [VotingConfiguration]. [CoordinationMetadata] maintains two such configurations: `lastCommittedConfiguration` and
-`lastAcceptedConfiguration`. Recording both is necessary to guarantee safety
-during [voting configuration changes](https://www.elastic.co/docs/deploy-manage/distributed-architecture/discovery-cluster-formation/modules-discovery-voting#_voting_configuration_updates).
+`lastAcceptedConfiguration`. To guarantee safety
+during [voting configuration changes](https://www.elastic.co/docs/deploy-manage/distributed-architecture/discovery-cluster-formation/modules-discovery-voting#_voting_configuration_updates),
+an election will only succeed if quorum is achieved
+for [both](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ElectionStrategy.java#L61)
+configurations.
 
 #### Terms
 
 Every election takes place in a
 numbered [term](https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationMetadata.java#L36).
 Terms are monotonically increasing `long` that act as logical clocks for the coordination layer, allowing the cluster to
-distinguish between master mandates coming from distinct elections. They are persisted (
-via [CoordinationState.PersistedState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L42)).
+distinguish between master mandates coming from distinct elections. They are persisted
+via [CoordinationState.PersistedState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L42).
 A term can have at most one master. A node will never vote in the same term twice.
 
 #### Election Flow
@@ -371,8 +379,8 @@ The overall election flow looks like this:
     ┌───────────────────────────────────────────────┬──────────────────────────────────┐
     │  5. Pre-Vote Round                            │  NodeEligibility                 │
     │                                               │  PreVoteCollector.start(...)     │
-    │  Election starts. Candidate double checks it  │  PreVoteResponse                 │
-    │  is healthy and eligible to be master.        │                                  │
+    │  Election starts. Candidate double checks it  │  PreVoteRequest                  │
+    │  is healthy and eligible to be master.        │  PreVoteResponse                 │
     │  Candidate sends pre-vote requests to         │                                  │
     │  master-eligible peers.                       │                                  │
     └───────────────────────────────────────────────┴──────────────────────────────────┘
@@ -454,7 +462,7 @@ master [has failed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/
 The follower will stop the periodic check and notify the [Coordinator],
 which will transition the node to `CANDIDATE` mode and start the election process.
 
-On the other end, the leader's [FollowersChecker] maintains a map of discovered node to [FollowerChecker]
+On the master side, the [FollowersChecker] class maintains a map of discovered node to [FollowerChecker]
 objects.
 
 Each [FollowerChecker] periodically (by default every 10s) sends
@@ -526,7 +534,7 @@ and [schedule](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/m
 the next `handleWakeUp` iteration
 
 When [receiving](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/discovery/PeerFinder.java#L534)
-a [PeersResponse], PeerFinder will reach out to all peers specified in the response, including a potential master. If
+a [PeersResponse], [PeerFinder] will reach out to all peers specified in the response, including a potential master. If
 the peer node reports itself as the master and its term is greater or equal to the local one, then the node will update
 its local term
 and [try to join](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1817)
@@ -544,8 +552,41 @@ https://davecturner.github.io/2017/08/17/paxos-pre-voting.html
 
 #### Join
 
-(Description about the Join process, both during a master election and when a node joins a cluster with an existing
-master)
+[JoinHelper]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/coordination/JoinHelper.java
+
+[JoinTask]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinTask.java
+
+The Join process is the mechanism by which a node is added to the [ClusterState] by the master.
+Most of the join-related logic is located in the [Coordinator] class, which still delegates specific components to
+its [JoinHelper] [instance](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L153).
+
+Within a master term, a node that starts up
+will [send](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1820)
+a [JoinRequest] to the discovered master (see [Discovery](#discovery) section for more details) so it can get added
+(back) to the cluster. The master
+will [handle](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L651)
+the incoming join request by
+first [validating](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L678)
+that it can connect back to the joining node, that the joining node is able to deserialize the
+current [ClusterState], and that the request's term and
+version [match](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L253)
+its local ones. Then, the master
+will [trigger](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1516)
+voting reconfiguration if needed,
+and [submit](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinHelper.java#L479)
+a [JoinTask] to the master queue
+to [add](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/NodeJoinExecutor.java)
+the new node to the [ClusterState].
+
+During a master election, [JoinRequest]s from peer nodes also act as votes (via the
+optional [Join](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinRequest.java#L52)
+field) for the candidate that started the election. The join requests are then processed slightly differently by the
+candidate node. Rather than being submitted immediately to the master queue, incoming joins are buffered by
+the [joinAccumulator](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinHelper.java#L523).
+Each [Join] vote is recorded in [CoordinationState]. Once quorum is reached, the candidate
+will [become leader](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L889),
+and [flush](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/JoinHelper.java#L545)
+all accumulated joins into a single [JoinTask] for the master queue to process.
 
 #### Serverless Elections
 
@@ -576,8 +617,6 @@ solely [checks](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/
 the latest heartbeat from the blob store and starts the election if it's older the configured threshold (default 30
 seconds). To become master, the candidate node will atomically override the current term in the blob store via a CAS
 operation.
-
-(Flush out the serverless election a little more)
 
 ### Master Service
 

@@ -48,10 +48,14 @@ import org.apache.lucene.analysis.sv.SwedishAnalyzer;
 import org.apache.lucene.analysis.th.ThaiAnalyzer;
 import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.apache.lucene.analysis.util.CSVUtil;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.dictionary.CustomDictionaryService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.synonyms.PagedResult;
 import org.elasticsearch.synonyms.SynonymRule;
@@ -79,6 +83,15 @@ import static java.util.Map.entry;
 public class Analysis {
 
     private static final Logger logger = LogManager.getLogger(Analysis.class);
+
+    private static CustomDictionaryService customDictionaryService = null;
+
+    // TODO: Need thread safety?
+    public static void initialize(Client client) {
+        if (customDictionaryService == null) {
+            customDictionaryService = new CustomDictionaryService(client);
+        }
+    }
 
     public static CharArraySet parseStemExclusion(Settings settings, CharArraySet defaultStemExclusion) {
         String value = settings.get("stem_exclusion");
@@ -205,7 +218,7 @@ public class Analysis {
      *          If the word list cannot be found at either key.
      */
     public static List<String> getWordList(Environment env, Settings settings, String settingPrefix) {
-        return getWordList(env, settings, settingPrefix + "_path", settingPrefix, true);
+        return getWordList(env, settings, settingPrefix + "_path", settingPrefix, settingPrefix + "_dictionary", true);
     }
 
     /**
@@ -220,38 +233,53 @@ public class Analysis {
         Settings settings,
         String settingPath,
         String settingList,
+        String settingDictionary,
         boolean removeComments
     ) {
         String wordListPath = settings.get(settingPath, null);
 
-        if (wordListPath == null) {
-            List<String> explicitWordList = settings.getAsList(settingList, null);
-            if (explicitWordList == null) {
-                return null;
-            } else {
-                return explicitWordList;
+        String wordListDictionaryId = null;
+        if (settingDictionary != null) {
+            wordListDictionaryId = settings.get(settingDictionary, null);
+        }
+
+        final List<String> wordList;
+        if (wordListPath != null) {
+            final Path path = env.configDir().resolve(wordListPath);
+
+            try {
+                wordList = loadWordList(path, removeComments);
+            } catch (CharacterCodingException ex) {
+                String message = Strings.format(
+                    "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
+                    settingPath,
+                    path
+                );
+                throw new IllegalArgumentException(message, ex);
+            } catch (IOException ioe) {
+                String message = Strings.format("IOException while reading %s: %s", settingPath, path);
+                throw new IllegalArgumentException(message, ioe);
+            } catch (SecurityException ace) {
+                throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ace);
             }
+        } else if (wordListDictionaryId != null) {
+            try {
+                wordList = getWordListFromDictionary(wordListDictionaryId, removeComments);
+            } catch (Exception e) {
+                throw new ElasticsearchStatusException(
+                    Strings.format("Failed to load custom dictionary [%s]", wordListDictionaryId),
+                    ExceptionsHelper.status(e),
+                    e
+                );
+            }
+        } else {
+            wordList = settings.getAsList(settingList, null);
         }
 
-        final Path path = env.configDir().resolve(wordListPath);
-
-        try {
-            return loadWordList(path, removeComments);
-        } catch (CharacterCodingException ex) {
-            String message = Strings.format(
-                "Unsupported character encoding detected while reading %s: %s - files must be UTF-8 encoded",
-                settingPath,
-                path
-            );
-            throw new IllegalArgumentException(message, ex);
-        } catch (IOException ioe) {
-            String message = Strings.format("IOException while reading %s: %s", settingPath, path);
-            throw new IllegalArgumentException(message, ioe);
-        } catch (SecurityException ace) {
-            throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ace);
-        }
+        return wordList;
     }
 
+    // TODO: Update method to set dictionary setting name
     public static List<String> getWordList(
         Environment env,
         Settings settings,
@@ -262,7 +290,7 @@ public class Analysis {
         boolean checkDuplicate
     ) {
         boolean deduplicateDictionary = settings.getAsBoolean(settingLenient, false);
-        final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments);
+        final List<String> ruleList = getWordList(env, settings, settingPath, settingList, null, removeComments);
         if (ruleList != null && ruleList.isEmpty() == false && checkDuplicate) {
             return deDuplicateRules(ruleList, deduplicateDictionary == false);
         }
@@ -313,18 +341,26 @@ public class Analysis {
     }
 
     private static List<String> loadWordList(Path path, boolean removeComments) throws IOException {
-        final List<String> result = new ArrayList<>();
+        final List<String> result;
         try (BufferedReader br = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
-            String word;
-            while ((word = br.readLine()) != null) {
-                if (Strings.hasText(word) == false) {
-                    continue;
-                }
-                if (removeComments == false || word.startsWith("#") == false) {
-                    result.add(word.trim());
-                }
+            result = parseWordList(br, removeComments);
+        }
+        return result;
+    }
+
+    private static List<String> parseWordList(BufferedReader reader, boolean removeComments) throws IOException {
+        final List<String> result = new ArrayList<>();
+
+        String word;
+        while ((word = reader.readLine()) != null) {
+            if (Strings.hasText(word) == false) {
+                continue;
+            }
+            if (removeComments == false || word.startsWith("#") == false) {
+                result.add(word.trim());
             }
         }
+
         return result;
     }
 
@@ -396,4 +432,29 @@ public class Analysis {
         return new StringReader(sb.toString());
     }
 
+    /**
+     * Retrieves a word list from the custom dictionary system index.
+     *
+     * @param dictionaryId The ID of the custom dictionary to load
+     * @param removeComments Whether to remove comment lines (starting with #)
+     * @return List of words from the dictionary
+     * @throws IllegalStateException if customDictionaryService is not initialized
+     * @throws IOException if the dictionary content cannot be parsed
+     */
+    private static List<String> getWordListFromDictionary(String dictionaryId, boolean removeComments) throws IOException {
+        if (customDictionaryService == null) {
+            throw new IllegalStateException("Custom dictionary service not initialized");
+        }
+
+        PlainActionFuture<String> dictionaryLoadingFuture = new PlainActionFuture<>();
+        customDictionaryService.getDictionary(dictionaryId, dictionaryLoadingFuture);
+        String dictionaryContent = dictionaryLoadingFuture.actionGet();
+
+        final List<String> words;
+        try (BufferedReader reader = new BufferedReader(new StringReader(dictionaryContent))) {
+            words = parseWordList(reader, removeComments);
+        }
+
+        return words;
+    }
 }

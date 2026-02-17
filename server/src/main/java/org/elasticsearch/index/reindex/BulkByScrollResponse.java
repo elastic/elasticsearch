@@ -34,7 +34,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     private final TimeValue took;
     private final BulkByScrollTask.Status status;
     private final List<Failure> bulkFailures;
-    private final List<ScrollableHitSource.SearchFailure> searchFailures;
+    private final List<PaginatedHitSource.SearchFailure> searchFailures;
     private boolean timedOut;
 
     static final String TOOK_FIELD = "took";
@@ -45,7 +45,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         took = in.readTimeValue();
         status = new BulkByScrollTask.Status(in);
         bulkFailures = in.readCollectionAsList(Failure::new);
-        searchFailures = in.readCollectionAsList(ScrollableHitSource.SearchFailure::new);
+        searchFailures = in.readCollectionAsList(PaginatedHitSource.SearchFailure::new);
         timedOut = in.readBoolean();
     }
 
@@ -53,7 +53,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         TimeValue took,
         BulkByScrollTask.Status status,
         List<Failure> bulkFailures,
-        List<ScrollableHitSource.SearchFailure> searchFailures,
+        List<PaginatedHitSource.SearchFailure> searchFailures,
         boolean timedOut
     ) {
         this.took = took;
@@ -146,7 +146,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
     /**
      * All search failures.
      */
-    public List<ScrollableHitSource.SearchFailure> getSearchFailures() {
+    public List<PaginatedHitSource.SearchFailure> getSearchFailures() {
         return searchFailures;
     }
 
@@ -177,7 +177,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
             failure.toXContent(builder, params);
             builder.endObject();
         }
-        for (ScrollableHitSource.SearchFailure failure : searchFailures) {
+        for (PaginatedHitSource.SearchFailure failure : searchFailures) {
             failure.toXContent(builder, params);
         }
         builder.endArray();

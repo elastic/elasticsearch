@@ -571,6 +571,77 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(bucketAlias.id(), equalTo(step.id()));
     }
 
+    /**
+     * Project[[result, step]]
+     * \_Limit
+     *   \_Filter[ISNOTNULL(result)]
+     *     \_Eval[[CASE(count == 1, TODOUBLE(max), NaN) AS result, TODOUBLE(result) AS result]]
+     *       \_Aggregate[[step],[COUNT(result) AS $$COUNT$result$0, MAX(result) AS $$MAX$result$1, step]]
+     *         \_Aggregate[[step, pack_cluster],[SUM(...) AS result, step]]
+     *           \_Eval[[PACKDIMENSION(cluster) AS pack_cluster]]
+     *             \_TimeSeriesAggregate
+     *               \_Eval[[BUCKET(@timestamp, PT1H) AS step]]
+     *                 \_EsRelation[k8s]
+     */
+    public void testScalarInnerAggregate() {
+        var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in)))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var project = as(plan, Project.class);
+        var filter = project.collect(Filter.class).getFirst();
+
+        var eval = as(filter.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+
+        var scalarAgg = as(eval.child(), Aggregate.class);
+        assertThat(scalarAgg.groupings(), hasSize(1));
+        assertThat(Expressions.attribute(scalarAgg.groupings().getFirst()).name(), equalTo("step"));
+
+        assertThat(scalarAgg.aggregates(), hasSize(3));
+
+        var sumAgg = as(scalarAgg.child(), Aggregate.class);
+        assertThat(sumAgg.groupings(), hasSize(2));
+        assertThat(sumAgg.aggregates().getFirst().collect(Sum.class), not(empty()));
+
+        var tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));
+    }
+
+    /**
+     * Project[[result, step]]
+     * \_Limit
+     *   \_Filter[ISNOTNULL(result)]
+     *     \_Eval[[CASE(count == 1, TODOUBLE(max), NaN) AS result, TODOUBLE(result) AS result]]
+     *       \_Aggregate[[step],[COUNT(...) AS $$COUNT$result$0, MAX(...) AS $$MAX$result$1, step]]
+     *         \_TimeSeriesAggregate[[_tsid, step],[LASTOVERTIME(...) AS LASTOVERTIME_$1, step], BUCKET(@timestamp, PT1H)]
+     *           \_Eval[[BUCKET(@timestamp, PT1H) AS step]]
+     *             \_EsRelation[k8s]
+     */
+    public void testScalar() {
+        var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(network.bytes_in))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var project = as(plan, Project.class);
+        var filter = project.collect(Filter.class).getFirst();
+        as(filter.condition(), IsNotNull.class);
+
+        var eval = as(filter.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+
+        var scalarAgg = as(eval.child(), Aggregate.class);
+        assertThat(scalarAgg.groupings(), hasSize(1));
+        assertThat(Expressions.attribute(scalarAgg.groupings().getFirst()).name(), equalTo("step"));
+        assertThat(scalarAgg.aggregates(), hasSize(3));
+
+        var tsAgg = as(scalarAgg.child(), TimeSeriesAggregate.class);
+        assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));
+
+        var bucketEval = as(tsAgg.child(), Eval.class);
+        var bucketAlias = as(bucketEval.fields().getFirst(), Alias.class);
+        var bucket = as(bucketAlias.child(), Bucket.class);
+        assertThat(bucket.buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+    }
+
     protected LogicalPlan planPromql(String query) {
         return planPromql(query, false);
     }
@@ -580,8 +651,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     protected LogicalPlan planPromql(String query, boolean allowEmptyReferences) {
-        query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');
-        query = query.replace("$now", '"' + Instant.now().toString() + '"');
+        var now = Instant.now();
+        query = query.replace("$now-1h", "\"" + now.minus(1, ChronoUnit.HOURS) + "\"");
+        query = query.replace("$now", "\"" + now + "\"");
         var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
         AttributeSet.Builder references = AttributeSet.builder();
         analyzed.forEachDown(lp -> references.addAll(lp.references()));

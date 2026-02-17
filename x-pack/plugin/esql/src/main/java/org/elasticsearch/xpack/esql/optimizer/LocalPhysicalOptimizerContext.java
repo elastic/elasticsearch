@@ -24,17 +24,3 @@ public record LocalPhysicalOptimizerContext(
     SearchStats searchStats,
     FilterPushdownRegistry filterPushdownRegistry
 ) {}
-    /**
-     * Convenience constructor without filter pushdown registry (for backward compatibility).
-     */
-    public LocalPhysicalOptimizerContext(
-        PlannerSettings plannerSettings,
-        EsqlFlags flags,
-        Configuration configuration,
-        FoldContext foldCtx,
-        CircuitBreaker globalBreaker,
-        SearchStats searchStats
-    ) {
-        this(plannerSettings, flags, configuration, foldCtx, searchStats, FilterPushdownRegistry.empty());
-    }
-}

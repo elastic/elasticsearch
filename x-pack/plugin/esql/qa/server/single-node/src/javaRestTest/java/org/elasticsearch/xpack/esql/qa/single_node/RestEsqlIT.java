@@ -1236,7 +1236,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
     }
 
-    private String signature(Map<String, Object> o) {
+    static String signature(Map<String, Object> o) {
         String name = (String) o.get("operator");
         return name.replaceAll("\\[.+", "");
     }

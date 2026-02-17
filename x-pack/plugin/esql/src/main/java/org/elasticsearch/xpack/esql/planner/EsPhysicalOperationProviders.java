@@ -42,6 +42,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -445,10 +446,20 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         if (minBlock.getValueCount(0) != 1) {
             throw new IllegalStateException("expected single value");
         }
-        long min = minBlock.getLong(0);
+        long minCompetitive = minBlock.getLong(0);
 
-        boolean includeLower = setup.minCompetitive().keyConfigs().size() > 1;
-        return queryHelper.greaterThanMinCompetitive(ft.rangeQuery(min, null, includeLower, true, null, null, null, ctx.ctx));
+        boolean includeMinCompetitive = setup.minCompetitive().keyConfigs().size() > 1;
+        // NOCOMMIT this should only work for ASC, right? isn't this wrong?
+        if (setup.minCompetitive().keyConfigs().getFirst().asc()) {
+            System.err.println("<" + DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(minCompetitive));
+            return queryHelper.greaterThanMinCompetitive(
+                ft.rangeQuery(null, minCompetitive, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx.ctx)
+            );
+        }
+        System.err.println(">" + DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(minCompetitive));
+        return queryHelper.greaterThanMinCompetitive(
+            ft.rangeQuery(minCompetitive, null, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx.ctx)
+        );
     }
 
     /**

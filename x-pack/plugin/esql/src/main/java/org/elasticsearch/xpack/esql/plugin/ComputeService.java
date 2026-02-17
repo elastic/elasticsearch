@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
@@ -819,7 +820,15 @@ public class ComputeService {
                 // so essentially we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other
                 // aggregations, we also need the original plan, since we add the project in the reduction node.
                 LateMaterializationPlanner.planReduceDriverTopN(
-                    stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, globalBreaker, stats),
+                    stats -> new LocalPhysicalOptimizerContext(
+                        plannerSettings,
+                        flags,
+                        configuration,
+                        foldCtx,
+                        globalBreaker,
+                        stats,
+                        FilterPushdownRegistry.empty()
+                    ),
                     originalPlan
                 )
                     // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.

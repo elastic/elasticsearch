@@ -92,7 +92,8 @@ public class MinCompetitiveQuery implements Releasable {
      * The actual {@link DocIdSetIterator} matching min_competitive docs.
      */
     public DocIdSetIterator disi() {
-        return disi;
+        return disi; // NOCOMMIT the lucene implementations return a constant from this.
+        // That constant closes over a mutable disi and delegates.
     }
 
     /**

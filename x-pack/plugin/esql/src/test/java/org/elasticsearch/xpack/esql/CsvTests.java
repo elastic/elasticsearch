@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -914,7 +915,8 @@ public class CsvTests extends ESTestCase {
                     configuration,
                     foldCtx,
                     newLimitedBreaker(ByteSizeValue.ofMb(1)),
-                    searchStats
+                    searchStats,
+                    FilterPushdownRegistry.empty()
                 )
             );
 

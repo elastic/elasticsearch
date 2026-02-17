@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -426,7 +427,8 @@ public class PushTopNToSourceTests extends ESTestCase {
             configuration,
             FoldContext.small(),
             newLimitedBreaker(ByteSizeValue.ofMb(1)),
-            SearchStats.EMPTY
+            SearchStats.EMPTY,
+            FilterPushdownRegistry.empty()
         );
         var pushTopNToSource = new PushTopNToSource();
         return pushTopNToSource.rule(topNExec, ctx);

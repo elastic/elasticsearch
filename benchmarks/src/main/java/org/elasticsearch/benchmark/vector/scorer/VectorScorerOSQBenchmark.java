@@ -55,7 +55,6 @@ public class VectorScorerOSQBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
-        LogConfigurator.loadLog4jPlugins();
     }
 
     public enum DirectoryType {
@@ -141,7 +140,6 @@ public class VectorScorerOSQBenchmark {
             }
             CodecUtil.writeFooter(output);
         }
-
         input = directory.openInput("vectors", IOContext.DEFAULT);
         int binaryQueryLength = switch (bits) {
             case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getQueryPackedLength(dims);
@@ -196,7 +194,6 @@ public class VectorScorerOSQBenchmark {
     @TearDown
     public void teardown() throws Exception {
         IOUtils.close(input, directory);
-        IOUtils.rm(tempDir);
     }
 
     @Benchmark

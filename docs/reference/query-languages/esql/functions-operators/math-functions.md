@@ -36,6 +36,9 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/atan2.md
 :::
 
+:::{include} ../_snippets/functions/layout/atanh.md
+:::
+
 :::{include} ../_snippets/functions/layout/cbrt.md
 :::
 

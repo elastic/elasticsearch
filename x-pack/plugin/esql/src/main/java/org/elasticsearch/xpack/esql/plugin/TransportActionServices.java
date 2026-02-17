@@ -29,6 +29,6 @@ public record TransportActionServices(
     UsageService usageService,
     InferenceService inferenceService,
     BlockFactoryProvider blockFactoryProvider,
-    PlannerSettings plannerSettings,
+    PlannerSettings.Holder plannerSettings,
     CrossProjectModeDecider crossProjectModeDecider
 ) {}

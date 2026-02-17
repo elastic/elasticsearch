@@ -1,5 +1,0 @@
-pr: 137622
-summary: Add support for merges in ES93BloomFilterStoredFieldsFormat
-area: TSDB
-type: enhancement
-issues: []

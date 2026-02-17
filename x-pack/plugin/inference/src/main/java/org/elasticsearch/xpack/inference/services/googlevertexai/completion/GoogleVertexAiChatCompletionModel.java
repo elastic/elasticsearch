@@ -51,6 +51,7 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         );
     }
 
+    // should be used directly only for testing
     GoogleVertexAiChatCompletionModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -59,12 +60,13 @@ public class GoogleVertexAiChatCompletionModel extends GoogleVertexAiModel {
         GoogleVertexAiChatCompletionTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
-        );
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public GoogleVertexAiChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (GoogleVertexAiRateLimitServiceSettings) modelConfigurations.getServiceSettings());
         try {
+            var serviceSettings = (GoogleVertexAiChatCompletionServiceSettings) modelConfigurations.getServiceSettings();
             var uri = serviceSettings.uri();
             var streamingUri = serviceSettings.streamingUri();
             // For Google Model Garden uri or streamingUri must be set. If not - location, projectId and modelId must be set

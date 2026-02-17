@@ -21,12 +21,12 @@ import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.LuceneCountOperator;
-import org.elasticsearch.compute.lucene.LuceneOperator;
-import org.elasticsearch.compute.lucene.LuceneSliceQueue;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
-import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -59,6 +59,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.search.NestedHelper;
+import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -100,7 +101,7 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
-import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
+import static org.elasticsearch.compute.lucene.query.LuceneSourceOperator.NO_LIMIT;
 import static org.elasticsearch.index.get.ShardGetService.maybeExcludeVectorFields;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
@@ -169,7 +170,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     }
 
     @Override
-    public final PhysicalOperation fieldExtractPhysicalOperation(FieldExtractExec fieldExtractExec, PhysicalOperation source) {
+    public final PhysicalOperation fieldExtractPhysicalOperation(
+        FieldExtractExec fieldExtractExec,
+        PhysicalOperation source,
+        LocalExecutionPlannerContext context
+    ) {
         Layout.Builder layout = source.layout.builder();
         var sourceAttr = fieldExtractExec.sourceAttribute();
         int docChannel = source.layout.get(sourceAttr.id()).channel();
@@ -184,8 +189,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 s.storedFieldsSequentialProportion()
             )
         );
+        boolean reuseColumnLoaders = fieldExtractExec.attributesToExtract().size() <= context.plannerSettings()
+            .reuseColumnLoadersThreshold();
         return source.with(
-            new ValuesSourceReaderOperator.Factory(plannerSettings.valuesLoadingJumboSize(), fields, readers, docChannel),
+            new ValuesSourceReaderOperator.Factory(
+                plannerSettings.valuesLoadingJumboSize(),
+                fields,
+                readers,
+                reuseColumnLoaders,
+                docChannel
+            ),
             layout.build()
         );
     }
@@ -459,6 +472,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         private final SearchExecutionContext ctx;
         private final AliasFilter aliasFilter;
         private final String shardIdentifier;
+        private final ShardSearchStats shardSearchStats;
 
         public DefaultShardContext(int index, Releasable releasable, SearchExecutionContext ctx, AliasFilter aliasFilter) {
             this.index = index;
@@ -467,6 +481,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             this.aliasFilter = aliasFilter;
             // Build the shardIdentifier once up front so we can reuse references to it in many places.
             this.shardIdentifier = this.ctx.getFullyQualifiedIndex().getName() + ":" + this.ctx.getShardId();
+            this.shardSearchStats = ctx.stats();
         }
 
         @Override
@@ -592,6 +607,11 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         @Override
         public @Nullable MappedFieldType fieldType(String name) {
             return ctx.getFieldType(name);
+        }
+
+        @Override
+        public ShardSearchStats stats() {
+            return shardSearchStats;
         }
 
         @Override

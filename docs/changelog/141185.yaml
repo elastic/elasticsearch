@@ -1,5 +1,0 @@
-pr: 141185
-summary: Add `max_batch_size` setting to EIS dense and sparse service settings
-area: Inference
-type: enhancement
-issues: []

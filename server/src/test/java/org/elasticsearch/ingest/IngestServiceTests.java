@@ -3525,8 +3525,7 @@ public class IngestServiceTests extends ESTestCase {
         });
         processors.put("remove", (factories, tag, description, config, projectId) -> {
             String field = (String) config.remove("field");
-            return new WrappingProcessorImpl("remove", tag, description, (ingestDocument -> ingestDocument.removeField(field))) {
-            };
+            return new WrappingProcessorImpl("remove", tag, description, (ingestDocument -> ingestDocument.removeField(field))) {};
         });
         return createWithProcessors(processors);
     }

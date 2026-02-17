@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -33,15 +32,6 @@ import static org.elasticsearch.common.unit.ByteSizeUnit.PB;
 import static org.elasticsearch.common.unit.ByteSizeUnit.TB;
 
 public class ByteSizeValue implements Writeable, Comparable<ByteSizeValue>, ToXContentFragment {
-
-    /**
-     * We have to lazy initialize the deprecation logger as otherwise a static logger here would be constructed before logging is configured
-     * leading to a runtime failure (see {@code LogConfigurator.checkErrorListener()} ). The premature construction would come from any
-     * {@link ByteSizeValue} object constructed in, for example, settings in {@link org.elasticsearch.common.network.NetworkService}.
-     */
-    static class DeprecationLoggerHolder {
-        static DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(ByteSizeValue.class);
-    }
 
     public static final ByteSizeValue ZERO = new ByteSizeValue(0, BYTES);
     public static final ByteSizeValue ONE = new ByteSizeValue(1, BYTES);

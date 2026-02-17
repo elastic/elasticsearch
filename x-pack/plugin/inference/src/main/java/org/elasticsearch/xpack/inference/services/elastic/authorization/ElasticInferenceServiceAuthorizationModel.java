@@ -10,19 +10,20 @@ package org.elasticsearch.xpack.inference.services.elastic.authorization;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.common.parser.DateParser;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionModel;
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsModel;
-import org.elasticsearch.xpack.inference.services.elastic.densetextembeddings.ElasticInferenceServiceDenseTextEmbeddingsServiceSettings;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity;
@@ -39,6 +40,10 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint.END_OF_LIFE_DATE;
+import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint.RELEASE_DATE;
 
 /**
  * Transforms the response from {@link ElasticInferenceServiceAuthorizationRequestHandler} into a format
@@ -85,12 +90,17 @@ public class ElasticInferenceServiceAuthorizationModel {
                 return null;
             }
 
+            var endpointMetadata = getEndpointMetadata(authorizedEndpoint);
+            if (endpointMetadata == null) {
+                return null;
+            }
+
             return switch (taskType) {
-                case CHAT_COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.CHAT_COMPLETION, components);
-                case COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.COMPLETION, components);
-                case SPARSE_EMBEDDING -> createSparseTextEmbeddingsModel(authorizedEndpoint, components);
-                case TEXT_EMBEDDING -> createDenseTextEmbeddingsModel(authorizedEndpoint, components);
-                case RERANK -> createRerankModel(authorizedEndpoint, components);
+                case CHAT_COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.CHAT_COMPLETION, components, endpointMetadata);
+                case COMPLETION -> createCompletionModel(authorizedEndpoint, TaskType.COMPLETION, components, endpointMetadata);
+                case SPARSE_EMBEDDING -> createSparseTextEmbeddingsModel(authorizedEndpoint, components, endpointMetadata);
+                case TEXT_EMBEDDING, EMBEDDING -> createDenseEmbeddingsModel(authorizedEndpoint, components, taskType, endpointMetadata);
+                case RERANK -> createRerankModel(authorizedEndpoint, components, endpointMetadata);
                 default -> {
                     logger.info(UNSUPPORTED_TASK_TYPE_LOG_MESSAGE, authorizedEndpoint.id(), taskType);
                     yield null;
@@ -116,35 +126,68 @@ public class ElasticInferenceServiceAuthorizationModel {
         }
     }
 
+    private static EndpointMetadata getEndpointMetadata(
+        ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint
+    ) {
+        try {
+            var kibanaConnectorName = authorizedEndpoint.displayName();
+            return new EndpointMetadata(
+                getHeuristics(authorizedEndpoint),
+                getInternalFields(authorizedEndpoint),
+                new EndpointMetadata.Display(kibanaConnectorName)
+            );
+        } catch (IllegalArgumentException e) {
+            logger.atWarn()
+                .withThrowable(e)
+                .log("Failed to parse endpoint metadata for authorized endpoint id [{}], skipping", authorizedEndpoint.id());
+            return null;
+        }
+    }
+
+    private static EndpointMetadata.Heuristics getHeuristics(
+        ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint
+    ) {
+        return new EndpointMetadata.Heuristics(
+            authorizedEndpoint.properties() != null ? List.copyOf(authorizedEndpoint.properties()) : List.of(),
+            StatusHeuristic.fromString(authorizedEndpoint.status()),
+            DateParser.parseLocalDate(authorizedEndpoint.releaseDate(), RELEASE_DATE, ""),
+            DateParser.parseLocalDate(authorizedEndpoint.endOfLifeDate(), END_OF_LIFE_DATE, "")
+        );
+    }
+
+    private static EndpointMetadata.Internal getInternalFields(
+        ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint
+    ) {
+        return new EndpointMetadata.Internal(authorizedEndpoint.fingerprint(), ENDPOINT_SCHEMA_VERSION);
+    }
+
     private static ElasticInferenceServiceCompletionModel createCompletionModel(
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
         TaskType taskType,
-        ElasticInferenceServiceComponents components
+        ElasticInferenceServiceComponents components,
+        EndpointMetadata endpointMetadata
     ) {
         return new ElasticInferenceServiceCompletionModel(
             authorizedEndpoint.id(),
             taskType,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceCompletionServiceSettings(authorizedEndpoint.modelName()),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
-            components
+            components,
+            endpointMetadata
         );
     }
 
     private static ElasticInferenceServiceSparseEmbeddingsModel createSparseTextEmbeddingsModel(
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
-        ElasticInferenceServiceComponents components
+        ElasticInferenceServiceComponents components,
+        EndpointMetadata endpointMetadata
     ) {
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             authorizedEndpoint.id(),
             TaskType.SPARSE_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(authorizedEndpoint.modelName(), null, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             components,
-            ChunkingSettingsBuilder.fromMap(getChunkingSettingsMap(getConfigurationOrEmpty(authorizedEndpoint)))
+            ChunkingSettingsBuilder.fromMap(getChunkingSettingsMap(getConfigurationOrEmpty(authorizedEndpoint))),
+            endpointMetadata
         );
     }
 
@@ -166,46 +209,37 @@ public class ElasticInferenceServiceAuthorizationModel {
         return Objects.requireNonNullElse(configuration.chunkingSettings(), new HashMap<>());
     }
 
-    private static ElasticInferenceServiceDenseTextEmbeddingsModel createDenseTextEmbeddingsModel(
+    private static ElasticInferenceServiceDenseEmbeddingsModel createDenseEmbeddingsModel(
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
-        ElasticInferenceServiceComponents components
+        ElasticInferenceServiceComponents components,
+        TaskType taskType,
+        EndpointMetadata endpointMetadata
     ) {
         var config = getConfigurationOrEmpty(authorizedEndpoint);
-        validateConfigurationForTextEmbedding(config);
+        validateConfigurationForDenseEmbedding(config, taskType);
 
-        return new ElasticInferenceServiceDenseTextEmbeddingsModel(
+        return new ElasticInferenceServiceDenseEmbeddingsModel(
             authorizedEndpoint.id(),
-            TaskType.TEXT_EMBEDDING,
-            ElasticInferenceService.NAME,
-            new ElasticInferenceServiceDenseTextEmbeddingsServiceSettings(
+            taskType,
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
                 authorizedEndpoint.modelName(),
                 getSimilarityMeasure(config),
                 config.dimensions(),
                 null
             ),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             components,
-            ChunkingSettingsBuilder.fromMap(getChunkingSettingsMap(config))
+            ChunkingSettingsBuilder.fromMap(getChunkingSettingsMap(config)),
+            endpointMetadata
         );
     }
 
-    private static void validateConfigurationForTextEmbedding(ElasticInferenceServiceAuthorizationResponseEntity.Configuration config) {
-        validateFieldPresent(
-            ElasticInferenceServiceAuthorizationResponseEntity.Configuration.ELEMENT_TYPE,
-            config.elementType(),
-            TaskType.TEXT_EMBEDDING
-        );
-        validateFieldPresent(
-            ElasticInferenceServiceAuthorizationResponseEntity.Configuration.DIMENSIONS,
-            config.dimensions(),
-            TaskType.TEXT_EMBEDDING
-        );
-        validateFieldPresent(
-            ElasticInferenceServiceAuthorizationResponseEntity.Configuration.SIMILARITY,
-            config.similarity(),
-            TaskType.TEXT_EMBEDDING
-        );
+    private static void validateConfigurationForDenseEmbedding(
+        ElasticInferenceServiceAuthorizationResponseEntity.Configuration config,
+        TaskType taskType
+    ) {
+        validateFieldPresent(ElasticInferenceServiceAuthorizationResponseEntity.Configuration.ELEMENT_TYPE, config.elementType(), taskType);
+        validateFieldPresent(ElasticInferenceServiceAuthorizationResponseEntity.Configuration.DIMENSIONS, config.dimensions(), taskType);
+        validateFieldPresent(ElasticInferenceServiceAuthorizationResponseEntity.Configuration.SIMILARITY, config.similarity(), taskType);
 
         var configElementType = config.elementType().toLowerCase(Locale.ROOT);
         var supportedElementTypes = getSupportedElementTypes();
@@ -218,7 +252,7 @@ public class ElasticInferenceServiceAuthorizationModel {
     }
 
     private static Set<String> getSupportedElementTypes() {
-        return Set.of(ElasticInferenceServiceDenseTextEmbeddingsServiceSettings.SUPPORTED_ELEMENT_TYPE.toString().toLowerCase(Locale.ROOT));
+        return Set.of(ElasticInferenceServiceDenseEmbeddingsServiceSettings.SUPPORTED_ELEMENT_TYPE.toString().toLowerCase(Locale.ROOT));
     }
 
     private static void validateFieldPresent(String field, Object fieldValue, TaskType taskType) {
@@ -235,16 +269,15 @@ public class ElasticInferenceServiceAuthorizationModel {
 
     private static ElasticInferenceServiceRerankModel createRerankModel(
         ElasticInferenceServiceAuthorizationResponseEntity.AuthorizedEndpoint authorizedEndpoint,
-        ElasticInferenceServiceComponents components
+        ElasticInferenceServiceComponents components,
+        EndpointMetadata endpointMetadata
     ) {
         return new ElasticInferenceServiceRerankModel(
             authorizedEndpoint.id(),
             TaskType.RERANK,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceRerankServiceSettings(authorizedEndpoint.modelName()),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
-            components
+            components,
+            endpointMetadata
         );
     }
 

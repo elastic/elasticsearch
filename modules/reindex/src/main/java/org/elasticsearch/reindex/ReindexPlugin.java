@@ -25,6 +25,9 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
+import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
+import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
+import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -40,8 +43,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
-import static java.util.Collections.singletonList;
 
 public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin {
     public static final String NAME = "reindex";
@@ -63,6 +64,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
     public List<ActionHandler> getActions() {
         return Arrays.asList(
             new ActionHandler(ReindexAction.INSTANCE, TransportReindexAction.class),
+            new ActionHandler(ResumeReindexAction.INSTANCE, TransportResumeReindexAction.class),
             new ActionHandler(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
             new ActionHandler(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
             new ActionHandler(RETHROTTLE_ACTION, TransportRethrottleAction.class)
@@ -71,8 +73,9 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
 
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return singletonList(
-            new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new)
+        return List.of(
+            new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new),
+            new NamedWriteableRegistry.Entry(WorkerResumeInfo.class, ScrollWorkerResumeInfo.NAME, ScrollWorkerResumeInfo::new)
         );
     }
 
@@ -92,7 +95,8 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
             new RestReindexAction(clusterSupportsFeature),
             new RestUpdateByQueryAction(clusterSupportsFeature),
             new RestDeleteByQueryAction(clusterSupportsFeature),
-            new RestRethrottleAction(nodesInCluster)
+            new RestUpdateAndDeleteByQueryRethrottleAction(nodesInCluster),
+            new RestReindexRethrottleAction(nodesInCluster)
         );
     }
 

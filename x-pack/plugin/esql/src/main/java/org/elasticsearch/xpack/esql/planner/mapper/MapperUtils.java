@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -65,6 +66,12 @@ public class MapperUtils {
             return new LocalSourceExec(local.source(), local.output(), local.supplier());
         }
 
+        // External data sources (Iceberg, Parquet, etc.)
+        // These are executed on the coordinator only, bypassing FragmentExec/ExchangeExec dispatch
+        if (p instanceof ExternalRelation external) {
+            return external.toPhysicalExec();
+        }
+
         // Commands
         if (p instanceof ShowInfo showInfo) {
             return new ShowExec(showInfo.source(), showInfo.output(), showInfo.values());
@@ -106,7 +113,14 @@ public class MapperUtils {
         }
 
         if (p instanceof Completion completion) {
-            return new CompletionExec(completion.source(), child, completion.inferenceId(), completion.prompt(), completion.targetField());
+            return new CompletionExec(
+                completion.source(),
+                child,
+                completion.inferenceId(),
+                completion.prompt(),
+                completion.targetField(),
+                completion.taskSettings()
+            );
         }
 
         if (p instanceof Enrich enrich) {

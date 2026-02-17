@@ -45,6 +45,7 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
+    | {this.isDevVersion()}? externalCommand
     ;
 
 processingCommand
@@ -102,6 +103,10 @@ timeSeriesCommand
     : TS indexPatternAndMetadataFields
     ;
 
+externalCommand
+    : EXTERNAL stringOrParameter commandNamedParameters
+    ;
+
 indexPatternAndMetadataFields
     : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* metadata?
     ;
@@ -116,8 +121,7 @@ subquery
     ;
 
 indexPattern
-    : clusterString COLON unquotedIndexString
-    | unquotedIndexString CAST_OP selectorString
+    : (clusterString COLON)? unquotedIndexString (CAST_OP selectorString)?
     | indexString
     ;
 
@@ -369,15 +373,10 @@ setField
     ;
 
 mmrCommand
-    : DEV_MMR queryVector=mmrOptionalQueryVector diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    :  DEV_MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
     ;
 
 mmrQueryVectorParams
     : parameter                           # mmrQueryVectorParameter
     | primaryExpression                   # mmrQueryVectorExpression
     ;
-
-mmrOptionalQueryVector
-    : (mmrQueryVectorParams ON)?
-    ;
-

@@ -13,6 +13,8 @@ import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldSyntheticWriterHelper;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper;
+import org.elasticsearch.xpack.analytics.mapper.HistogramFieldMapper;
+import org.elasticsearch.xpack.core.analytics.mapper.TDigestFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -37,7 +39,9 @@ class LastValueFieldProducer extends AbstractDownsampleFieldProducer<FormattedDo
             : "field type cannot be aggregate metric double: " + fieldType + " for field " + name;
         assert ExponentialHistogramFieldProducer.TYPE.equals(fieldType) == false
             : "field type cannot be exponential histogram: " + fieldType + " for field " + name;
-        assert TDigestHistogramFieldProducer.TYPE.equals(fieldType) == false
+        assert HistogramFieldMapper.CONTENT_TYPE.equals(fieldType) == false
+            : "field type cannot be histogram: " + fieldType + " for field " + name;
+        assert TDigestFieldMapper.CONTENT_TYPE.equals(fieldType) == false
             : "field type cannot be histogram: " + fieldType + " for field " + name;
         if ("flattened".equals(fieldType)) {
             return new LastValueFieldProducer.FlattenedFieldProducer(name);

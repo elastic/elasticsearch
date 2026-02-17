@@ -146,11 +146,6 @@ changelogs:
     area: ES|QL
     type: enhancement
     issues: []
-  - pr: 135744
-    summary: Non-Correlated Subquery in FROM command
-    area: ES|QL
-    type: enhancement
-    issues: []
   - pr: 135765
     summary: Add deprecation notice for `max_size` rollover condition
     area: ILM
@@ -349,7 +344,7 @@ changelogs:
     type: enhancement
     issues: []
   - pr: 136438
-    summary: '`BlockSourceReader` should always apply source filtering'
+    summary: "`BlockSourceReader` should always apply source filtering"
     area: ES|QL
     type: enhancement
     issues: []
@@ -658,7 +653,7 @@ changelogs:
     type: enhancement
     issues: []
   - pr: 137567
-    summary: '`TransportGetBasicStatusAction` runs on local'
+    summary: "`TransportGetBasicStatusAction` runs on local"
     area: Distributed
     type: enhancement
     issues: []
@@ -729,11 +724,6 @@ changelogs:
     summary: Set CPS index options only when not using PIT
     area: CCS
     type: bug
-    issues: []
-  - pr: 137776
-    summary: Enable CCS tests for subqueries
-    area: ES|QL
-    type: enhancement
     issues: []
   - pr: 137830
     summary: Release decay function
@@ -930,7 +920,7 @@ changelogs:
     type: bug
     issues: []
   - pr: 138316
-    summary: '`DateDiff` timezone support'
+    summary: "`DateDiff` timezone support"
     area: ES|QL
     type: feature
     issues: []
@@ -1187,7 +1177,7 @@ changelogs:
         to `false`.
       pr: 138723
   - pr: 138724
-    summary: '`AggregateMetricDouble` fields should not build BKD indexes'
+    summary: "`AggregateMetricDouble` fields should not build BKD indexes"
     area: Mapping
     type: feature
     issues: []

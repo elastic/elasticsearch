@@ -1,0 +1,18 @@
+{
+  "comment" : "PromQL function definition for Kibana. See https://prometheus.io/docs/prometheus/latest/querying/functions/",
+  "type" : "scalar",
+  "name" : "pi",
+  "description" : "Returns the value of pi.",
+  "signatures" : [
+    {
+      "params" : [ ],
+      "variadic" : false,
+      "returnType" : "scalar"
+    }
+  ],
+  "examples" : [
+    "pi()"
+  ],
+  "preview" : true,
+  "snapshot_only" : false
+}

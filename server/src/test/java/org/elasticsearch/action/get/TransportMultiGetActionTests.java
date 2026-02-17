@@ -244,7 +244,7 @@ public class TransportMultiGetActionTests extends ESTestCase {
                 assertEquals(2, responses.length());
                 assertNull(responses.get(0));
                 assertThat(responses.get(1).getFailure().getFailure(), instanceOf(RoutingMissingException.class));
-                assertThat(responses.get(1).getFailure().getFailure().getMessage(), equalTo("routing is required for [index2]/[_doc]/[2]"));
+                assertThat(responses.get(1).getFailure().getFailure().getMessage(), equalTo("routing is required for [index2]/[2]"));
             }
         };
 

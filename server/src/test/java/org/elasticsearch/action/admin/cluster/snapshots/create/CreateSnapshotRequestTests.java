@@ -86,7 +86,8 @@ public class CreateSnapshotRequestTests extends ESTestCase {
                             randomBoolean(),
                             randomBoolean(),
                             defaultResolveAliasForThisRequest,
-                            randomBoolean()
+                            randomBoolean(),
+                            false  // Specifying views in the create snapshot request is not supported
                         )
                     )
                     .gatekeeperOptions(IndicesOptions.GatekeeperOptions.builder().allowSelectors(false).includeFailureIndices(true).build())

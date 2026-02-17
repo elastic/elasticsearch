@@ -11,7 +11,6 @@ package org.elasticsearch.simdvec.internal;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.nativeaccess.NativeAccess;
-import org.elasticsearch.simdvec.internal.IndexInputSegments.SegmentSlice;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -23,10 +22,6 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
 
     public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize, MemorySegment memorySegment) {
         super(in, dimensions, bulkSize, memorySegment);
-    }
-
-    private SegmentSlice getMemorySegment(long length) throws IOException {
-        return IndexInputSegments.sliceOrCopy(in, memorySegment, length);
     }
 
     @Override
@@ -47,20 +42,19 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
     }
 
     private long nativeInt7DotProduct(byte[] q) throws IOException {
-        try (var slice = getMemorySegment(dimensions)) {
-            final MemorySegment segment = slice.segment();
+        return IndexInputSegments.withSlice(in, memorySegment, dimensions, segment -> {
             final MemorySegment querySegment = MemorySegment.ofArray(q);
             return Similarities.dotProductI7u(segment, querySegment, dimensions);
-        }
+        });
     }
 
     private void nativeInt7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
-        try (var slice = getMemorySegment((long) dimensions * count)) {
+        IndexInputSegments.withSlice(in, memorySegment, (long) dimensions * count, segment -> {
             final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
-            final MemorySegment segment = slice.segment();
             final MemorySegment querySegment = MemorySegment.ofArray(q);
             Similarities.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
-        }
+            return null;
+        });
     }
 
     @Override

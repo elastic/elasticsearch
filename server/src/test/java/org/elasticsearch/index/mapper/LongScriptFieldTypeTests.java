@@ -404,9 +404,7 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
-                    assertThat(columnAtATimeLoader, nullValue());
-                }
+                assertThat(loader.columnAtATimeReader(reader.leaves().getFirst()), nullValue());
                 try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
                     assertThat(
                         rowStrideReader.getClass().getName(),

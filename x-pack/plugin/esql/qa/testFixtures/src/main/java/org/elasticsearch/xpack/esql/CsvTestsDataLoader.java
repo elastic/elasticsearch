@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentType;
@@ -193,7 +194,9 @@ public class CsvTestsDataLoader {
     private static final TestDataset DENSE_VECTOR_TEXT = new TestDataset("dense_vector_text");
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
-    private static final TestDataset DENSE_VECTOR_BFLOAT16 = new TestDataset("dense_vector_bfloat16");
+    private static final TestDataset DENSE_VECTOR_BFLOAT16 = new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(
+        List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT)
+    );
     private static final TestDataset DENSE_VECTOR_ARITHMETIC = new TestDataset("dense_vector_arithmetic");
     private static final TestDataset COLORS = new TestDataset("colors");
     private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
@@ -202,19 +205,26 @@ public class CsvTestsDataLoader {
         "exp_histo_sample",
         "exp_histo_sample-mappings.json",
         "exp_histo_sample.csv"
-    ).withSetting("exp_histo_sample-settings.json");
-    private static final TestDataset TDIGEST_STANDARD_INDEX = new TestDataset("tdigest_standard_index");
-    private static final TestDataset HISTOGRAM_STANDARD_INDEX = new TestDataset("histogram_standard_index");
+    ).withSetting("exp_histo_sample-settings.json")
+        .withRequiredCapabilities(List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW));
+    private static final TestDataset TDIGEST_STANDARD_INDEX = new TestDataset("tdigest_standard_index").withRequiredCapabilities(
+        List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW)
+    );
+    private static final TestDataset HISTOGRAM_STANDARD_INDEX = new TestDataset("histogram_standard_index").withRequiredCapabilities(
+        List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION)
+    );
     private static final TestDataset TDIGEST_TIMESERIES_INDEX = new TestDataset(
         "tdigest_timeseries_index",
         "tdigest_timeseries_index-mappings.json",
         "tdigest_standard_index.csv"
-    ).withSetting("tdigest_timeseries_index-settings.json");
+    ).withSetting("tdigest_timeseries_index-settings.json")
+        .withRequiredCapabilities(List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW, EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC));
     private static final TestDataset HISTOGRAM_TIMESERIES_INDEX = new TestDataset(
         "histogram_timeseries_index",
         "mapping-histogram_time_series_index.json",
         "histogram_standard_index.csv"
-    ).withSetting("settings-histogram_time_series_index.json");
+    ).withSetting("settings-histogram_time_series_index.json")
+        .withRequiredCapabilities(List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION));
     private static final TestDataset MANY_NUMBERS = new TestDataset("many_numbers");
     private static final TestDataset MMR_TEXT_VECTOR_KEYWORD = new TestDataset("mmr_text_vector_keyword");
 
@@ -1228,14 +1238,15 @@ public class CsvTestsDataLoader {
         boolean allowSubFields,
         @Nullable Map<String, String> typeMapping, // Override mappings read from mappings file
         @Nullable Map<String, String> dynamicTypeMapping, // Define mappings not in the mapping files, but available from field-caps
-        boolean requiresInferenceEndpoint
+        boolean requiresInferenceEndpoint,
+        List<EsqlCapabilities.Cap> requiredCapabilities
     ) {
         public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, null, false);
+            this(indexName, mappingFileName, dataFileName, null, true, null, null, false, List.of());
         }
 
         public TestDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, false);
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, false, List.of());
         }
 
         public TestDataset withIndex(String indexName) {
@@ -1247,7 +1258,8 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                requiresInferenceEndpoint,
+                requiredCapabilities
             );
         }
 
@@ -1260,7 +1272,8 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                requiresInferenceEndpoint,
+                requiredCapabilities
             );
         }
 
@@ -1273,7 +1286,8 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                requiresInferenceEndpoint,
+                requiredCapabilities
             );
         }
 
@@ -1286,7 +1300,8 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                requiresInferenceEndpoint,
+                requiredCapabilities
             );
         }
 
@@ -1299,7 +1314,8 @@ public class CsvTestsDataLoader {
                 false,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                requiresInferenceEndpoint,
+                requiredCapabilities
             );
         }
 
@@ -1312,7 +1328,8 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                requiresInferenceEndpoint,
+                requiredCapabilities
             );
         }
 
@@ -1325,7 +1342,8 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                requiresInferenceEndpoint,
+                requiredCapabilities
             );
         }
 
@@ -1338,7 +1356,22 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                needsInference
+                needsInference,
+                requiredCapabilities
+            );
+        }
+
+        public TestDataset withRequiredCapabilities(List<EsqlCapabilities.Cap> requiredCapabilities) {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                dataFileName,
+                settingFileName,
+                allowSubFields,
+                typeMapping,
+                dynamicTypeMapping,
+                requiresInferenceEndpoint,
+                requiredCapabilities
             );
         }
 

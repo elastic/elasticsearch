@@ -1297,11 +1297,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
         }
 
         private boolean getSnapshotInfoStateInvariant(SnapshotInfo snapshotInfo) {
-            if (Assertions.ENABLED == false) return true;
+            if (Assertions.ENABLED == false) {
+                return true;
+            }
             final var state = snapshotInfo.state();
-            assert state != null;
-            if (state == SnapshotState.SUCCESS) return true;
-            if (state == SnapshotState.PARTIAL) return true;
+            if (state == SnapshotState.SUCCESS || state == SnapshotState.PARTIAL) {
+                return true;
+            }
             assert state == SnapshotState.FAILED : state;
             assert SnapshotsInProgress.ABORTED_FAILURE_TEXT.equals(snapshotInfo.reason()) : snapshotInfo.reason();
             // Cannot assert this right now - if there has been a master failover then the new master can in theory have finalized the

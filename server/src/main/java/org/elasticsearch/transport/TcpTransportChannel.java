@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 public final class TcpTransportChannel implements TransportChannel {
 
@@ -53,20 +54,30 @@ public final class TcpTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(TransportResponse response) {
-        try {
-            outboundHandler.sendResponse(
-                version,
-                channel,
-                requestId,
-                action,
-                response,
-                compressionScheme,
-                isHandshake,
-                responseStatsConsumer
-            );
-        } finally {
-            breakerRelease.close();
-        }
+        sendResponseInternal(response, null);
+    }
+
+    @Override
+    public void sendResponse(TransportResponse response, Releasable onSendComplete) {
+        sendResponseInternal(response, onSendComplete);
+    }
+
+    private void sendResponseInternal(TransportResponse response, Releasable onSendComplete) {
+        // Combine the in-flight requests breaker release with any additional releasable (e.g., response circuit breaker)
+        // Both will be released after the response is actually written to the network
+        Releasable combinedRelease = onSendComplete != null ? Releasables.wrap(breakerRelease, onSendComplete) : breakerRelease;
+
+        outboundHandler.sendResponse(
+            version,
+            channel,
+            requestId,
+            action,
+            response,
+            compressionScheme,
+            isHandshake,
+            responseStatsConsumer,
+            combinedRelease
+        );
     }
 
     @Override

@@ -11,6 +11,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 public class TaskTransportChannel implements TransportChannel {
 
@@ -31,11 +32,16 @@ public class TaskTransportChannel implements TransportChannel {
 
     @Override
     public void sendResponse(TransportResponse response) {
-        try {
-            channel.sendResponse(response);
-        } finally {
-            onTaskFinished.close();
-        }
+        // Delegate to the underlying channel with onTaskFinished as the releasable
+        // This ensures onTaskFinished is called after the response is sent
+        channel.sendResponse(response, onTaskFinished);
+    }
+
+    @Override
+    public void sendResponse(TransportResponse response, Releasable onSendComplete) {
+        // Combine both releasables and delegate to the underlying channel
+        Releasable combined = Releasables.wrap(onTaskFinished, onSendComplete);
+        channel.sendResponse(response, combined);
     }
 
     @Override

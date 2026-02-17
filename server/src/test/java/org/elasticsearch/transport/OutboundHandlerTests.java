@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class OutboundHandlerTests extends ESTestCase {
 
@@ -270,6 +271,89 @@ public class OutboundHandlerTests extends ESTestCase {
 
         assertEquals(value, message.value);
         assertEquals("header_value", header.getHeaders().v1().get("header"));
+    }
+
+    public void testSendResponseWithDeferredRelease() throws IOException {
+        String action = "test-action";
+        long requestId = randomLongBetween(0, 300);
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+        String value = "message";
+        TestResponse response = new TestResponse(value);
+
+        AtomicBoolean onSendCompleteCalled = new AtomicBoolean(false);
+
+        AtomicLong requestIdRef = new AtomicLong();
+        AtomicReference<String> actionRef = new AtomicReference<>();
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action) {
+                requestIdRef.set(requestId);
+                actionRef.set(action);
+            }
+        });
+
+        handler.sendResponse(
+            version,
+            channel,
+            requestId,
+            action,
+            response,
+            null,
+            false,
+            ResponseStatsConsumer.NONE,
+            () -> onSendCompleteCalled.set(true)
+        );
+
+        // response was queued but onSendComplete was NOT called yet
+        BytesReference reference = channel.getMessageCaptor().get();
+        assertNotNull("Response should be queued", reference);
+        assertFalse("onSendComplete should NOT be called until network send completes", onSendCompleteCalled.get());
+
+        // simulate network send completion
+        ActionListener<Void> sendListener = channel.getListenerCaptor().get();
+        sendListener.onResponse(null);
+
+        // onSendComplete should be called as we wrote on the wire
+        assertTrue("onSendComplete should be called after network send completes", onSendCompleteCalled.get());
+        assertEquals(requestId, requestIdRef.get());
+        assertEquals(action, actionRef.get());
+    }
+
+    public void testSendResponseWithDeferredReleaseOnFailure() throws IOException {
+        String action = "test-action";
+        long requestId = randomLongBetween(0, 300);
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+        String value = "message";
+        TestResponse response = new TestResponse(value);
+
+        AtomicBoolean onSendCompleteCalled = new AtomicBoolean(false);
+
+        handler.setMessageListener(new TransportMessageListener() {
+            @Override
+            public void onResponseSent(long requestId, String action) {
+                // expected
+            }
+        });
+
+        handler.sendResponse(
+            version,
+            channel,
+            requestId,
+            action,
+            response,
+            null,
+            false,
+            ResponseStatsConsumer.NONE,
+            () -> onSendCompleteCalled.set(true)
+        );
+
+        assertThat(onSendCompleteCalled.get(), is(false));
+
+        // simulate network send failure
+        ActionListener<Void> sendListener = channel.getListenerCaptor().get();
+        sendListener.onFailure(new IOException("network error"));
+
+        assertThat(onSendCompleteCalled.get(), is(true));
     }
 
     public void testErrorResponse() throws IOException {

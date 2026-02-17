@@ -12,6 +12,8 @@ package org.elasticsearch.action.support;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.transport.DeferredCircuitBreakerRelease;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 
@@ -30,7 +32,17 @@ public final class ChannelActionListener<Response extends TransportResponse> imp
     @Override
     public void onResponse(Response response) {
         try {
-            channel.sendResponse(response);
+            // Check if the response has circuit breaker bytes that should be released after send
+            Releasable onSendComplete = null;
+            if (response instanceof DeferredCircuitBreakerRelease deferredRelease) {
+                onSendComplete = deferredRelease.takeCircuitBreakerRelease();
+            }
+
+            if (onSendComplete != null) {
+                channel.sendResponse(response, onSendComplete);
+            } else {
+                channel.sendResponse(response);
+            }
         } catch (RuntimeException e) {
             final String message = format("channel [%s] threw exceptions on sendResponse", channel);
             assert false : new AssertionError(message, e);

@@ -728,16 +728,14 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
 
-        ActionListener<SearchPhaseResult> wrappedListener = releaseCircuitBreakerOnResponse(
-            listener,
-            result -> result instanceof QueryFetchSearchResult qfr ? qfr.fetchResult() : null
-        );
+        // Note: circuit breaker release for QueryFetchSearchResult is handled via DeferredCircuitBreakerRelease
+        // which is set on the FetchSearchResult and passed through to the transport channel
 
         rewriteAndFetchShardRequest(
             shard,
             request,
             wrapListenerForErrorHandling(
-                wrappedListener,
+                listener,
                 request.getChannelVersion(),
                 clusterService.localNode().getId(),
                 request.shardId(),
@@ -1213,13 +1211,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 // we handle the failure in the failure listener below
                 throw e;
             }
-        },
-            wrapFailureListener(
-                releaseCircuitBreakerOnResponse(listener, result -> result.result().fetchResult()),
-                readerContext,
-                markAsUsed
-            )
-        );
+        }, wrapFailureListener(listener, readerContext, markAsUsed));
     }
 
     public void executeFetchPhase(ShardFetchRequest request, CancellableTask task, ActionListener<FetchSearchResult> listener) {
@@ -1258,7 +1250,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     // we handle the failure in the failure listener below
                     throw e;
                 }
-            }, wrapFailureListener(releaseCircuitBreakerOnResponse(listener, result -> result), readerContext, markAsUsed));
+            }, wrapFailureListener(listener, readerContext, markAsUsed));
         }));
     }
 
@@ -1634,27 +1626,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     + "] cluster level setting."
             );
         }
-    }
-
-    /**
-     * Wraps a listener to release circuit breaker bytes from a FetchSearchResult after the response is sent.
-     * The fetchResultExtractor function extracts the FetchSearchResult from the response type.
-     */
-    private <T> ActionListener<T> releaseCircuitBreakerOnResponse(
-        ActionListener<T> listener,
-        Function<T, FetchSearchResult> fetchResultExtractor
-    ) {
-        return ActionListener.wrap(response -> {
-            try {
-                listener.onResponse(response);
-            } finally {
-                // Release bytes after the response handler completes
-                FetchSearchResult fetchResult = fetchResultExtractor.apply(response);
-                if (fetchResult != null) {
-                    fetchResult.releaseCircuitBreakerBytes(circuitBreaker);
-                }
-            }
-        }, listener::onFailure);
     }
 
     private <T> ActionListener<T> wrapFailureListener(ActionListener<T> listener, ReaderContext context, Releasable releasable) {

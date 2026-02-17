@@ -12,16 +12,18 @@ package org.elasticsearch.search.fetch;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.transport.DeferredCircuitBreakerRelease;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 
-public final class QueryFetchSearchResult extends SearchPhaseResult {
+public final class QueryFetchSearchResult extends SearchPhaseResult implements DeferredCircuitBreakerRelease {
 
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
@@ -112,5 +114,11 @@ public final class QueryFetchSearchResult extends SearchPhaseResult {
     @Override
     public boolean hasReferences() {
         return refCounted.hasReferences();
+    }
+
+    @Override
+    public Releasable takeCircuitBreakerRelease() {
+        // Delegate to the fetch result which holds the circuit breaker bytes
+        return fetchResult.takeCircuitBreakerRelease();
     }
 }

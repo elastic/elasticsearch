@@ -144,9 +144,35 @@ public final class OutboundHandler {
         final boolean isHandshake,
         final ResponseStatsConsumer responseStatsConsumer
     ) {
+        sendResponse(transportVersion, channel, requestId, action, response, compressionScheme, isHandshake, responseStatsConsumer, null);
+    }
+
+    /**
+     * Sends the response to the given channel with an optional releasable that will be released after the
+     * response has been fully written to the network.
+     *
+     * @param onSendComplete optional releasable that will be released after the response is written to the network.
+     *                       This is useful for deferring circuit breaker release until the response bytes have
+     *                       actually been sent, preventing memory accumulation when responses are queued.
+     * @see #sendErrorResponse for sending error responses
+     */
+    void sendResponse(
+        final TransportVersion transportVersion,
+        final TcpChannel channel,
+        final long requestId,
+        final String action,
+        final TransportResponse response,
+        final Compression.Scheme compressionScheme,
+        final boolean isHandshake,
+        final ResponseStatsConsumer responseStatsConsumer,
+        final Releasable onSendComplete
+    ) {
         assert assertValidTransportVersion(transportVersion);
         assert response.hasReferences();
         try {
+            Releasable onAfter = onSendComplete != null
+                ? Releasables.wrap(() -> messageListener.onResponseSent(requestId, action), onSendComplete)
+                : () -> messageListener.onResponseSent(requestId, action);
             sendMessage(
                 channel,
                 MessageDirection.RESPONSE,
@@ -157,9 +183,11 @@ public final class OutboundHandler {
                 compressionScheme,
                 transportVersion,
                 responseStatsConsumer,
-                () -> messageListener.onResponseSent(requestId, action)
+                onAfter
             );
         } catch (Exception ex) {
+            // Release immediately on exception since the message won't be sent
+            Releasables.closeExpectNoException(onSendComplete);
             if (isHandshake) {
                 logger.error(
                     () -> format(

@@ -10,6 +10,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Releasable;
 
 /**
  * A transport channel allows to send a response to a request on the channel.
@@ -21,6 +22,22 @@ public interface TransportChannel {
     void sendResponse(TransportResponse response);
 
     void sendResponse(Exception exception);
+
+    /**
+     * Sends a response with an associated releasable that will be released after the response
+     * has been fully written to the network. This is useful for deferring circuit breaker
+     * release until the response bytes have actually been sent, preventing memory accumulation
+     * when responses are queued faster than they can be transmitted.
+     *
+     * @param response the response to send
+     * @param onSendComplete released after the response is written to the network, not just queued.
+     *                       For non-TCP channels, this may be released immediately after queuing.
+     */
+    default void sendResponse(TransportResponse response, Releasable onSendComplete) {
+        try (onSendComplete) {
+            sendResponse(response);
+        }
+    }
 
     /**
      * Returns the version of the data to communicate in this channel.

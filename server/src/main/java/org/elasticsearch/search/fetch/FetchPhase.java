@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
@@ -112,7 +113,13 @@ public final class FetchPhase {
                 // Only set the shardResults if building search hits was successful
                 if (hits != null) {
                     context.fetchResult().shardResult(hits, profileResult);
-                    context.fetchResult().setSearchHitsSizeBytes(searchHitsBytesSize);
+                    // Set up deferred circuit breaker release - bytes will be released after network send
+                    if (searchHitsBytesSize > 0L) {
+                        final long bytesToRelease = searchHitsBytesSize;
+                        final CircuitBreaker circuitBreaker = context.circuitBreaker();
+                        // avoid capturing the entire context in the lambda
+                        context.fetchResult().setDeferredCircuitBreakerRelease(() -> circuitBreaker.addWithoutBreaking(-bytesToRelease));
+                    }
                     hits = null;
                 } else {
                     assert searchHitsBytesSize == 0L

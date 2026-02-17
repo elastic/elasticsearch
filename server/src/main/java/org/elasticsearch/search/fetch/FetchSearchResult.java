@@ -9,10 +9,10 @@
 
 package org.elasticsearch.search.fetch;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -20,15 +20,20 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.transport.DeferredCircuitBreakerRelease;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
 
-public final class FetchSearchResult extends SearchPhaseResult {
+public final class FetchSearchResult extends SearchPhaseResult implements DeferredCircuitBreakerRelease {
 
     private SearchHits hits;
 
-    private transient long searchHitsSizeBytes = 0L;
+    /**
+     * Releasable that releases circuit breaker bytes when the response is sent over the network.
+     * This is set by FetchPhase and taken by ChannelActionListener to pass to TransportChannel.
+     */
+    private transient Releasable circuitBreakerRelease;
 
     // client side counter
     private transient int counter;
@@ -87,19 +92,19 @@ public final class FetchSearchResult extends SearchPhaseResult {
         return hits;
     }
 
-    public void setSearchHitsSizeBytes(long bytes) {
-        this.searchHitsSizeBytes = bytes;
+    /**
+     * Sets a releasable to be called when the response has been sent over the network.
+     * Usually used to defer circuit breaker release until the response bytes are actually sent.
+     */
+    public void setDeferredCircuitBreakerRelease(Releasable release) {
+        this.circuitBreakerRelease = release;
     }
 
-    public long getSearchHitsSizeBytes() {
-        return searchHitsSizeBytes;
-    }
-
-    public void releaseCircuitBreakerBytes(CircuitBreaker circuitBreaker) {
-        if (searchHitsSizeBytes > 0L) {
-            circuitBreaker.addWithoutBreaking(-searchHitsSizeBytes);
-            searchHitsSizeBytes = 0L;
-        }
+    @Override
+    public Releasable takeCircuitBreakerRelease() {
+        Releasable release = this.circuitBreakerRelease;
+        this.circuitBreakerRelease = null;
+        return release;
     }
 
     public FetchSearchResult initCounter() {

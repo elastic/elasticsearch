@@ -33,9 +33,7 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
 
     private static final ByteBuffer EMPTY_BYTEBUFFER = ByteBuffer.allocate(0).order(ByteOrder.LITTLE_ENDIAN);
 
-    /** Default buffer size. */
-    // Temporarily restrict the 4K default to snapshot builds to enable a gradual rollout to non-snapshot builds
-    public static final int BUFFER_SIZE = Build.current().isSnapshot() ? 4096 : 1024;
+    public static final int BUFFER_SIZE = 1024;
 
     /** Minimum buffer size allowed */
     public static final int MIN_BUFFER_SIZE = 8;

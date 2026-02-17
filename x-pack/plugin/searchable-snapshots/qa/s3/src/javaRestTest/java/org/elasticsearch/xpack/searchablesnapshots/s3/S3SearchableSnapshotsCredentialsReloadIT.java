@@ -189,7 +189,6 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
     private class TestHarness {
         private final String mountedIndexName = randomIdentifier();
         private final String repositoryName = randomIdentifier();
-        private final String fieldValue = randomAlphaOfLength(128);
 
         @Nullable // to use the default
         WarningsHandler warningsHandler;
@@ -218,8 +217,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
         }
 
         void createFrozenSearchableSnapshotIndex() throws IOException {
-            // Create an index, large enough that its data is not all captured in the blob store cache headers
-            // (each blob caches up to DEFAULT_CACHED_BLOB_SIZE bytes, currently up to 4KB)
+            // Create an index, large enough that its data is not all captured in the file headers
             final String indexName = randomValueOtherThan(mountedIndexName, ESTestCase::randomIdentifier);
             createIndex(indexName, indexSettings(1, 0).build());
             try (var bodyStream = new ByteArrayOutputStream()) {
@@ -229,7 +227,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
                     }
                     bodyStream.write(0x0a);
                     try (XContentBuilder bodyLineBuilder = new XContentBuilder(XContentType.JSON.xContent(), bodyStream)) {
-                        bodyLineBuilder.startObject().field("foo", fieldValue).endObject();
+                        bodyLineBuilder.startObject().field("foo", "bar").endObject();
                     }
                     bodyStream.write(0x0a);
                 }
@@ -264,7 +262,7 @@ public class S3SearchableSnapshotsCredentialsReloadIT extends ESRestTestCase {
             final Request searchRequest = new Request("GET", mountedIndexName + "/_search");
             searchRequest.addParameter("size", "10000");
             assertEquals(
-                fieldValue,
+                "bar",
                 ObjectPath.createFromResponse(assertOK(client().performRequest(searchRequest))).evaluate("hits.hits.0._source.foo")
             );
         }

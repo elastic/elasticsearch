@@ -144,7 +144,6 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.VIEW_CONFIGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.emptyInferenceResolution;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
@@ -153,8 +152,6 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -373,6 +370,10 @@ public class CsvTests extends ESTestCase {
                 "CSV tests cannot currently handle views with branching",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.capabilityName())
             );
+            assumeFalseLogging(
+                "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
+                testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
+            );
 
             if (Build.current().isSnapshot()) {
                 assertThat(
@@ -487,7 +488,7 @@ public class CsvTests extends ESTestCase {
     }
 
     private static Map<String, EsField> createMappingForIndex(CsvTestsDataLoader.TestDataset dataset) {
-        var mapping = new TreeMap<>(loadMapping(dataset.mappingFileName()));
+        var mapping = new TreeMap<>(LoadMapping.loadMapping(dataset.streamMapping()));
         if (dataset.typeMapping() != null) {
             for (var entry : dataset.typeMapping().entrySet()) {
                 if (mapping.containsKey(entry.getKey())) {
@@ -560,7 +561,7 @@ public class CsvTests extends ESTestCase {
     private static EnrichResolution loadEnrichPolicies() {
         EnrichResolution enrichResolution = new EnrichResolution();
         for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES) {
-            EnrichPolicy policy = loadEnrichPolicyMapping(policyConfig.policyFileName());
+            EnrichPolicy policy = loadEnrichPolicyMapping(policyConfig);
             CsvTestsDataLoader.TestDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
             // this could practically work, but it's wrong:
             // EnrichPolicyResolution should contain the policy (system) index, not the source index
@@ -584,14 +585,11 @@ public class CsvTests extends ESTestCase {
         return enrichResolution;
     }
 
-    private static EnrichPolicy loadEnrichPolicyMapping(String policyFileName) {
-        URL policyMapping = CsvTestsDataLoader.class.getResource("/" + policyFileName);
-        assertThat(policyMapping, is(notNullValue()));
+    private static EnrichPolicy loadEnrichPolicyMapping(CsvTestsDataLoader.EnrichConfig p) {
         try {
-            String fileContent = CsvTestsDataLoader.readTextFile(policyMapping);
-            return EnrichPolicy.fromXContent(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, fileContent));
+            return EnrichPolicy.fromXContent(JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, p.streamPolicy()));
         } catch (IOException e) {
-            throw new IllegalArgumentException("Cannot read resource " + policyFileName);
+            throw new IllegalArgumentException("Cannot parse resource " + p.policyName());
         }
     }
 
@@ -714,8 +712,8 @@ public class CsvTests extends ESTestCase {
         var indexPages = new ArrayList<TestPhysicalOperationProviders.IndexPage>();
         for (CsvTestsDataLoader.MultiIndexTestDataset datasets : allDatasets.values()) {
             for (CsvTestsDataLoader.TestDataset dataset : datasets.datasets()) {
-                var testData = loadPageFromCsv(CsvTests.class.getResource("/data/" + dataset.dataFileName()), dataset.typeMapping());
-                Set<String> mappedFields = loadMapping(dataset.mappingFileName()).keySet();
+                var testData = loadPageFromCsv(dataset.streamData(), dataset.typeMapping());
+                Set<String> mappedFields = LoadMapping.loadMapping(dataset.streamMapping()).keySet();
                 indexPages.add(
                     new TestPhysicalOperationProviders.IndexPage(dataset.indexName(), testData.v1(), testData.v2(), mappedFields)
                 );
@@ -748,6 +746,7 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
+            new PreAnalyzer(),
             functionRegistry,
             mapper,
             TEST_VERIFIER,
@@ -888,7 +887,8 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
-            physicalOperationProviders
+            physicalOperationProviders,
+            null  // OperatorFactoryRegistry - not needed for CSV tests
         );
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());

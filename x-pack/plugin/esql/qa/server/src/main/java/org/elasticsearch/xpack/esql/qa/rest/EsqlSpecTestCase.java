@@ -366,27 +366,32 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
+    /**
+     * Returns true if the cluster under test supports the given ESQL capability.
+     * Subclasses may override this to check additional clusters (e.g. remote clusters in CCS).
+     */
+    protected boolean clusterHasCapability(EsqlCapabilities.Cap capability) {
+        return hasCapabilities(client(), List.of(capability.capabilityName()));
+    }
+
     protected boolean supportsExponentialHistograms() {
-        return RestEsqlTestCase.hasCapabilities(
-            client(),
-            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.capabilityName())
-        );
+        return clusterHasCapability(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW);
     }
 
     protected boolean supportsTDigestField() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName()));
+        return clusterHasCapability(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW);
     }
 
     protected boolean supportsTDigestFieldAsMetric() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC.capabilityName()));
+        return clusterHasCapability(EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC);
     }
 
     protected boolean supportsHistogramDataType() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION.capabilityName()));
+        return clusterHasCapability(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION);
     }
 
     protected boolean supportsBFloat16ElementType() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName()));
+        return clusterHasCapability(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT);
     }
 
     protected void doTest() throws Throwable {

@@ -876,6 +876,9 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         var nodeSettings = Settings.builder()
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), maxNonUploadedCommits)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            // This test expects a flush on the target node to happen after relocation,
+            // if hollow shards are enabled, that flush won't happen.
+            .put(STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.getKey(), false)
             .build();
 
         final var indexNodeSource = startIndexNode(nodeSettings);

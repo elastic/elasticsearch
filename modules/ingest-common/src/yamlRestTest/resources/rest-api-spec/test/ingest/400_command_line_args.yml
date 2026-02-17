@@ -213,7 +213,7 @@ teardown:
   - match: { acknowledged: true }
 
   - do:
-      catch: /field \[process.command_line\] not present/
+      catch: /not present as part of path \[process.command_line\]/
       index:
         index: test
         id: "1"

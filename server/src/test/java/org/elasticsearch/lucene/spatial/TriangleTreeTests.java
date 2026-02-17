@@ -45,12 +45,13 @@ public class TriangleTreeTests extends ESTestCase {
         TriangleTreeWriter.writeTo(output, fieldList, vtBuilder);
         VertexLookupTable vertexTable = vtBuilder.build();
 
-        // Read tree
+        // Read tree (extent → treeLength → tree)
         ByteArrayStreamInput input = new ByteArrayStreamInput();
         BytesRef bytesRef = output.bytes().toBytesRef();
         input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         Extent extent = new Extent();
         Extent.readFromCompressed(input, extent);
+        input.readVInt(); // skip tree length
         TriangleCounterVisitor visitor = new TriangleCounterVisitor();
         TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY(), vertexTable);
         assertThat(fieldList.size(), equalTo(visitor.counter));

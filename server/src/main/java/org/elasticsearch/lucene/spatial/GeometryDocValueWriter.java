@@ -33,12 +33,12 @@ import java.util.List;
  * -----------------------------------------------
  * |   Extent (var-encoding)                     |
  * -----------------------------------------------
- * |   Vertex Lookup Table                       |
- * |   numVertices(VInt) + [x(4),y(4)]...        |
- * -----------------------------------------------
  * |   Triangle Tree Length (VInt)                |
  * -----------------------------------------------
  * |   Triangle Tree (ordinal-based)             |
+ * -----------------------------------------------
+ * |   Vertex Lookup Table                       |
+ * |   numVertices(VInt) + [x(4),y(4)]...        |
  * -----------------------------------------------
  * |   Vertex Connectivity                       |
  * -----------------------------------------------
@@ -61,9 +61,11 @@ import java.util.List;
  * -----------------------------------------------
  * </pre>
  *
- * <p>The vertex lookup table is placed between the extent and the tree so that reading
- * just the centroid and/or extent (common for analytics) does not require loading it,
- * while it is available before both the tree and the connectivity section that need it.
+ * <p>The vertex lookup table is placed after the tree so that the writer can stream
+ * extent, tree length, and tree data directly without buffering. The reader uses the
+ * tree length to skip past the tree to reach the vertex table and connectivity sections.
+ * Reading just the centroid and/or extent (common for analytics) does not require loading
+ * the vertex table.
  *
  * <p>The {@link #write} method automatically selects the optimal format: point-only
  * geometries (Point, MultiPoint) use the legacy format since vertex ordering is irrelevant
@@ -119,24 +121,14 @@ public class GeometryDocValueWriter {
         centroidCalculator.getDimensionalShapeType().writeV2To(out);
         out.writeVLong(Double.doubleToLongBits(centroidCalculator.sumWeight()));
 
-        // 2. Build the triangle tree into a temp buffer, collecting unique vertices
+        // 2. Build and write extent + treeLength + tree (vertex table builder is populated during tree build)
         final VertexLookupTable.Builder vertexTableBuilder = VertexLookupTable.builder();
-        final Extent extent = new Extent();
-        final BytesStreamOutput treeBuffer = new BytesStreamOutput();
-        TriangleTreeWriter.buildExtentAndWriteTree(fields, vertexTableBuilder, extent, treeBuffer);
+        TriangleTreeWriter.writeTo(out, fields, vertexTableBuilder);
 
-        // 3. Write extent
-        extent.writeCompressed(out);
-
-        // 4. Write vertex lookup table (before tree, since both tree and connectivity need it)
+        // 3. Write vertex lookup table (after tree; reader uses treeLength to skip past the tree)
         vertexTableBuilder.build().writeTo(out);
 
-        // 5. Write tree length + tree data
-        BytesRef treeBytes = treeBuffer.bytes().toBytesRef();
-        out.writeVInt(treeBytes.length);
-        out.write(treeBytes.bytes, treeBytes.offset, treeBytes.length);
-
-        // 6. Write vertex connectivity (geometry structure with ordinals for reconstruction)
+        // 4. Write vertex connectivity (geometry structure with ordinals for reconstruction)
         GeometryConnectivityWriter.writeTo(out, normalizedGeometries, coordinateEncoder, vertexTableBuilder);
 
         return out.bytes().toBytesRef();

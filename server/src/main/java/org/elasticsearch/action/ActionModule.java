@@ -182,6 +182,12 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.bulk.TransportSimulateBulkAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
+import org.elasticsearch.action.dictionary.DeleteCustomDictionaryAction;
+import org.elasticsearch.action.dictionary.GetCustomDictionaryAction;
+import org.elasticsearch.action.dictionary.PutCustomDictionaryAction;
+import org.elasticsearch.action.dictionary.TransportDeleteCustomDictionaryAction;
+import org.elasticsearch.action.dictionary.TransportGetCustomDictionaryAction;
+import org.elasticsearch.action.dictionary.TransportPutCustomDictionaryAction;
 import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.get.TransportGetAction;
@@ -396,6 +402,9 @@ import org.elasticsearch.rest.action.cat.RestSnapshotAction;
 import org.elasticsearch.rest.action.cat.RestTasksAction;
 import org.elasticsearch.rest.action.cat.RestTemplatesAction;
 import org.elasticsearch.rest.action.cat.RestThreadPoolAction;
+import org.elasticsearch.rest.action.dictionary.RestDeleteCustomDictionaryAction;
+import org.elasticsearch.rest.action.dictionary.RestGetCustomDictionaryAction;
+import org.elasticsearch.rest.action.dictionary.RestPutCustomDictionaryAction;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
@@ -841,6 +850,11 @@ public class ActionModule extends AbstractModule {
         actions.register(GetSynonymRuleAction.INSTANCE, TransportGetSynonymRuleAction.class);
         actions.register(DeleteSynonymRuleAction.INSTANCE, TransportDeleteSynonymRuleAction.class);
 
+        // Custom Dictionaries
+        actions.register(GetCustomDictionaryAction.INSTANCE, TransportGetCustomDictionaryAction.class);
+        actions.register(PutCustomDictionaryAction.INSTANCE, TransportPutCustomDictionaryAction.class);
+        actions.register(DeleteCustomDictionaryAction.INSTANCE, TransportDeleteCustomDictionaryAction.class);
+
         if (RANDOM_SAMPLING_FEATURE_FLAG) {
             actions.register(GetSampleAction.INSTANCE, TransportGetSampleAction.class);
             actions.register(PutSampleConfigurationAction.INSTANCE, TransportPutSampleConfigurationAction.class);
@@ -1078,6 +1092,11 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestPutSynonymRuleAction());
         registerHandler.accept(new RestGetSynonymRuleAction());
         registerHandler.accept(new RestDeleteSynonymRuleAction());
+
+        // Custom Dictionaries
+        registerHandler.accept(new RestGetCustomDictionaryAction());
+        registerHandler.accept(new RestPutCustomDictionaryAction());
+        registerHandler.accept(new RestDeleteCustomDictionaryAction());
 
         if (RANDOM_SAMPLING_FEATURE_FLAG) {
             registerHandler.accept(new RestGetSampleAction());

@@ -65,11 +65,7 @@ public class ColumnValueXContentParser extends AbstractXContentParser {
      * @param childColumns the corresponding FieldColumn for each child
      * @param docIndex    the document index
      */
-    public static ColumnValueXContentParser forCompositeObject(
-        List<String> childNames,
-        List<FieldColumn> childColumns,
-        int docIndex
-    ) {
+    public static ColumnValueXContentParser forCompositeObject(List<String> childNames, List<FieldColumn> childColumns, int docIndex) {
         return new ColumnValueXContentParser(null, docIndex, childNames, childColumns);
     }
 
@@ -96,12 +92,7 @@ public class ColumnValueXContentParser extends AbstractXContentParser {
     private int compositePos; // -1 = before START_OBJECT, 0..2*N-1 = field name/value pairs, 2*N = END_OBJECT
     private String currentFieldName;
 
-    private ColumnValueXContentParser(
-        FieldColumn column,
-        int docIndex,
-        List<String> childNames,
-        List<FieldColumn> childColumns
-    ) {
+    private ColumnValueXContentParser(FieldColumn column, int docIndex, List<String> childNames, List<FieldColumn> childColumns) {
         super(NamedXContentRegistry.EMPTY, DeprecationHandler.IGNORE_DEPRECATIONS, RestApiVersion.current());
         this.column = column;
         this.docIndex = docIndex;

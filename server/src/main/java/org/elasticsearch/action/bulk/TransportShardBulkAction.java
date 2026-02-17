@@ -293,10 +293,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     try {
                         var batchResult = performBatchOnPrimary(request, primary, postWriteRefresh, postWriteAction);
                         if (batchResult != null) {
-                            primary.getBulkOperationListener().afterBulk(
-                                request.totalSizeInBytes(),
-                                System.nanoTime() - startBulkTime
-                            );
+                            primary.getBulkOperationListener().afterBulk(request.totalSizeInBytes(), System.nanoTime() - startBulkTime);
                             listener.onResponse(batchResult);
                             return;
                         }
@@ -532,22 +529,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     result.isCreated(),
                     indexRequest.getExecutedPipelines()
                 );
-                indexResponse.setShardInfo(
-                    org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo.EMPTY
-                );
+                indexResponse.setShardInfo(org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo.EMPTY);
                 responses[itemIndex] = BulkItemResponse.success(item.id(), item.request().opType(), indexResponse);
                 locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
             } else {
                 responses[itemIndex] = BulkItemResponse.failure(
                     item.id(),
                     item.request().opType(),
-                    new BulkItemResponse.Failure(
-                        request.index(),
-                        result.getId(),
-                        result.getFailure(),
-                        result.getSeqNo(),
-                        result.getTerm()
-                    )
+                    new BulkItemResponse.Failure(request.index(), result.getId(), result.getFailure(), result.getSeqNo(), result.getTerm())
                 );
             }
             item.setPrimaryResponse(responses[itemIndex]);

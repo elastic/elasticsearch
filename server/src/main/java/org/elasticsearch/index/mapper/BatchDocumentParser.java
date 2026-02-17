@@ -277,11 +277,7 @@ public final class BatchDocumentParser {
         setPathForField(fieldPath, context.path());
 
         try {
-            XContentParser binaryParser = ColumnValueXContentParser.forBinary(
-                column,
-                docIndex,
-                context.sourceToParse().getXContentType()
-            );
+            XContentParser binaryParser = ColumnValueXContentParser.forBinary(column, docIndex, context.sourceToParse().getXContentType());
             try {
                 // Advance to the first token
                 binaryParser.nextToken();
@@ -392,11 +388,7 @@ public final class BatchDocumentParser {
         private long numNestedDocs;
         private boolean docsReversed = false;
 
-        BatchDocumentParserContext(
-            MappingLookup mappingLookup,
-            MappingParserContext mappingParserContext,
-            SourceToParse source
-        ) {
+        BatchDocumentParserContext(MappingLookup mappingLookup, MappingParserContext mappingParserContext, SourceToParse source) {
             super(
                 mappingLookup,
                 mappingParserContext,

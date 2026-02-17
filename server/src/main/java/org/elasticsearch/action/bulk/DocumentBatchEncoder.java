@@ -545,9 +545,7 @@ public class DocumentBatchEncoder {
             if (stringValues != null) {
                 for (int i = 0; i < present.length; i++) {
                     if (present[i] && stringValues[i] != null) {
-                        binaryValues[i] = new org.elasticsearch.common.bytes.BytesArray(
-                            stringValues[i].getBytes(StandardCharsets.UTF_8)
-                        );
+                        binaryValues[i] = new org.elasticsearch.common.bytes.BytesArray(stringValues[i].getBytes(StandardCharsets.UTF_8));
                     }
                 }
                 stringValues = null;

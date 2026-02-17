@@ -1459,7 +1459,8 @@ public class InternalEngine extends Engine {
                 for (int i = 0; i < batchSize; i++) {
                     Index op = updatedOps.get(i);
                     IndexResult result = results.get(i);
-                    if (op.origin().isFromTranslog() == false && result.getResultType() != Result.Type.SUCCESS
+                    if (op.origin().isFromTranslog() == false
+                        && result.getResultType() != Result.Type.SUCCESS
                         && result.getSeqNo() != SequenceNumbers.UNASSIGNED_SEQ_NO) {
                         final NoOp noOp = new NoOp(
                             result.getSeqNo(),
@@ -1480,9 +1481,7 @@ public class InternalEngine extends Engine {
                     IndexResult result = results.get(i);
 
                     if (plan.indexIntoLucene && result.getResultType() == Result.Type.SUCCESS) {
-                        final Translog.Location translogLocation = trackTranslogLocation.get()
-                            ? result.getTranslogLocation()
-                            : null;
+                        final Translog.Location translogLocation = trackTranslogLocation.get() ? result.getTranslogLocation() : null;
                         versionMap.maybePutIndexUnderLock(
                             op.uid(),
                             new IndexVersionValue(translogLocation, plan.versionForIndexing, op.seqNo(), op.primaryTerm())

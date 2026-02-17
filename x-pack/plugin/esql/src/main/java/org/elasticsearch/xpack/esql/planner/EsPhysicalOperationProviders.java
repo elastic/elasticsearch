@@ -16,7 +16,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -101,7 +100,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.function.IntFunction;
 
@@ -413,29 +411,35 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         if (minCompetitive == null) {
             return null;
         }
-        BiFunction<org.elasticsearch.compute.lucene.ShardContext, Page, Query> queryFn = (ctx, page) -> minCompetitiveQuery(
+        MinCompetitiveQuery.BuildMinCompetitiveQuery buildMinCompetitiveQuery = (ctx, page, queryHelper) -> buildMinCompetitiveQuery(
             (DefaultShardContext) ctx,
             page,
-            minCompetitive
+            minCompetitive,
+            queryHelper
         );
-        return new MinCompetitiveQuery.Factory(minCompetitive.minCompetitive(), queryFn);
+        return new MinCompetitiveQuery.Factory(minCompetitive.minCompetitive(), buildMinCompetitiveQuery);
     }
 
-    private static Query minCompetitiveQuery(DefaultShardContext ctx, Page page, EsQueryExec.MinCompetitiveSetup setup) {
+    private static Query buildMinCompetitiveQuery(
+        DefaultShardContext ctx,
+        Page page,
+        EsQueryExec.MinCompetitiveSetup setup,
+        MinCompetitiveQuery.QueryHelper queryHelper
+    ) {
         if (page == null) {
-            return Queries.ALL_DOCS_INSTANCE;
+            return queryHelper.matchAll();
         }
         LongBlock minBlock = page.getBlock(0);
         if (minBlock.isNull(0)) {
             // NOCOMMIT is this backwards?
             if (setup.minCompetitive().keyConfigs().getFirst().nullsFirst()) {
-                return Queries.ALL_DOCS_INSTANCE;
+                return queryHelper.matchAll();
             }
-            return Queries.NO_DOCS_INSTANCE;
+            return queryHelper.matchNone();
         }
         MappedFieldType ft = ctx.fieldType(setup.firstFieldName());
         if (ft == null) {
-            return Queries.NO_DOCS_INSTANCE;
+            return queryHelper.matchNone();
         }
 
         if (minBlock.getValueCount(0) != 1) {
@@ -444,7 +448,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         long min = minBlock.getLong(0);
 
         boolean includeLower = setup.minCompetitive().keyConfigs().size() > 1;
-        return ft.rangeQuery(min, null, includeLower, true, null, null, null, ctx.ctx);
+        return queryHelper.greaterThanMinCompetitive(ft.rangeQuery(min, null, includeLower, true, null, null, null, ctx.ctx));
     }
 
     /**

@@ -389,6 +389,11 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
     }
 
+    @Override
+    protected MinCompetitiveQuery.Status minCompetitiveStatus() {
+        return minCompetitiveQuery == null ? null : minCompetitiveQuery.status();
+    }
+
     private IntVector buildDocsVector(int upToPositions) {
         final IntVector docs = docsBuilder.build();
         assert docs.getPositionCount() >= upToPositions : docs.getPositionCount() + " < " + upToPositions;

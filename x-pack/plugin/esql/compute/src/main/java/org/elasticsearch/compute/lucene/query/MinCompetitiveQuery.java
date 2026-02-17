@@ -14,6 +14,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -21,8 +25,11 @@ import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -35,26 +42,51 @@ import java.util.function.BiFunction;
 public class MinCompetitiveQuery implements Releasable {
     private static final Logger log = LogManager.getLogger(MinCompetitiveQuery.class);
 
-    public record Factory(SharedMinCompetitive.Supplier minCompetitive, BiFunction<ShardContext, Page, Query> queryFunction) {
+    public record Factory(SharedMinCompetitive.Supplier minCompetitive, BuildMinCompetitiveQuery queryFunction) {
         public MinCompetitiveQuery build(BlockFactory blockFactory) {
             return new MinCompetitiveQuery(blockFactory, minCompetitive.get(), queryFunction);
         }
     }
 
+    @FunctionalInterface
+    public interface BuildMinCompetitiveQuery {
+        Query build(ShardContext ctx, Page page, QueryHelper helper);
+    }
+
     private final BlockFactory blockFactory;
     private final SharedMinCompetitive minCompetitive;
-    private final BiFunction<ShardContext, Page, Query> queryFunction;
+    private final BuildMinCompetitiveQuery buildMinCompetitiveQuery;
     private PerIndex perIndex;
     private DocIdSetIterator disi;
+
+    /**
+     * Number of times the min competitive changed, forcing the query to rebuild.
+     * We still rebuild the query when the index re
+     */
+    private int changedValue;
+    /**
+     * Number of times the {@code min_competitive} query produced a {@code match_all}.
+     */
+    private int matchAll;
+    /**
+     * Number of times the {@code min_competitive} query produced a {@code match_none}.
+     */
+    private int matchNone;
+    /**
+     * Number of times this produced a query bigger that isn't {@code match_all} or {@code match_none}.
+     */
+    private int greaterThanMinCompetitive;
+
+    private long updateNanos;
 
     private MinCompetitiveQuery(
         BlockFactory blockFactory,
         SharedMinCompetitive minCompetitive,
-        BiFunction<ShardContext, Page, Query> queryFunction
+        BuildMinCompetitiveQuery buildMinCompetitiveQuery
     ) {
         this.blockFactory = blockFactory;
         this.minCompetitive = minCompetitive;
-        this.queryFunction = queryFunction;
+        this.buildMinCompetitiveQuery = buildMinCompetitiveQuery;
     }
 
     /**
@@ -75,7 +107,9 @@ public class MinCompetitiveQuery implements Releasable {
      * </p>
      */
     public void update(ShardContext ctx, LeafReaderContext leaf) throws IOException {
+        long start = System.nanoTime();
         this.disi = updatedDisi(ctx, leaf);
+        updateNanos += System.nanoTime() - start;
     }
 
     private DocIdSetIterator updatedDisi(ShardContext ctx, LeafReaderContext leaf) throws IOException {
@@ -87,6 +121,10 @@ public class MinCompetitiveQuery implements Releasable {
             perIndex = new PerIndex(ctx);
         }
         return perIndex;
+    }
+
+    public Status status() {
+        return new Status(changedValue, matchAll, matchNone, greaterThanMinCompetitive, updateNanos);
     }
 
     @Override
@@ -114,8 +152,9 @@ public class MinCompetitiveQuery implements Releasable {
 
         private PerMinValue newPerMinValue(Page value) throws IOException {
             try {
-                Query query = queryFunction.apply(ctx, value);
+                Query query = buildMinCompetitiveQuery.build(ctx, value, new QueryHelper());
                 log.debug("updating min competitive to {} {}", value, query);
+                changedValue++;
                 Weight weight = query.createWeight(ctx.searcher(), ScoreMode.COMPLETE_NO_SCORES, 0.0F);
                 PerMinValue result = new PerMinValue(value, weight);
                 value = null;
@@ -169,6 +208,57 @@ public class MinCompetitiveQuery implements Releasable {
 
         public DocIdSetIterator disi() {
             return disi;
+        }
+    }
+
+    public record Status(int changedValue, int matchAll, int matchNone, int greaterThanMinCompetitive, long updateNanos)
+        implements
+            Writeable,
+            ToXContentObject {
+        // NOCOMMIT round trip tests
+
+        public static Status readFrom(StreamInput in) throws IOException {
+            return new Status(in.readVInt(), in.readVInt(), in.readVInt(), in.readVInt(), in.readVLong());
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeVInt(changedValue);
+            out.writeVInt(matchAll);
+            out.writeVInt(matchNone);
+            out.writeVInt(greaterThanMinCompetitive);
+            out.writeVLong(updateNanos);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.field("changed_value", changedValue);
+            builder.field("match_all", matchAll);
+            builder.field("match_none", matchNone);
+            builder.field("greater_than_min_competitive", greaterThanMinCompetitive);
+            builder.field("update_nanos", updateNanos);
+            if (builder.humanReadable()) {
+                builder.field("update_time", TimeValue.timeValueNanos(updateNanos));
+            }
+            return builder.endObject();
+        }
+    }
+
+    public class QueryHelper {
+        public Query matchAll() {
+            matchAll++;
+            return Queries.ALL_DOCS_INSTANCE;
+        }
+
+        public Query matchNone() {
+            matchNone++;
+            return Queries.NO_DOCS_INSTANCE;
+        }
+
+        public Query greaterThanMinCompetitive(Query query) {
+            greaterThanMinCompetitive++;
+            return query;
         }
     }
 }

@@ -5,7 +5,7 @@ set -euo pipefail
 # cursor did most of this. It's weird looking but who cares.
 
 ES_URL="${ES_URL:-http://localhost:9200}"
-INDEX="sample-logs"
+INDEX="sample-logs-sorted"
 TOTAL=100000000
 BATCH=10000
 
@@ -20,7 +20,15 @@ SPAN=$((30 * 24 * 3600))
 echo "Creating index '$INDEX' with explicit mapping..."
 curl -uelastic:password -s -X DELETE "$ES_URL/$INDEX" > /dev/null 2>&1 || true
 curl -uelastic:password -s -X PUT "$ES_URL/$INDEX" -H 'Content-Type: application/json' -d '{
-  "settings": { "number_of_shards": 1, "number_of_replicas": 0, "refresh_interval": "-1" },
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0,
+    "refresh_interval": "-1",
+    "index": {
+      "sort.field" : "@timestamp",
+      "sort.order" : "asc"
+    }
+  },
   "mappings": {
     "properties": {
       "@timestamp": { "type": "date" },

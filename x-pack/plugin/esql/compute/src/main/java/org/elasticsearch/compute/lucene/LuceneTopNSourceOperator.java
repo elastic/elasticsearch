@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.query.MinCompetitiveQuery;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -358,6 +359,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         sb.append(", needsScore = ").append(needsScore);
         String notPrettySorts = sorts.stream().map(Strings::toString).collect(Collectors.joining(","));
         sb.append(", sorts = [").append(notPrettySorts).append("]");
+    }
+
+    @Override
+    protected MinCompetitiveQuery.Status minCompetitiveStatus() {
+        return null;
     }
 
     @Override

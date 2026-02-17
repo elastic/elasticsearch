@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.query.MinCompetitiveQuery;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -219,6 +220,11 @@ public class LuceneCountOperator extends LuceneOperator {
         } finally {
             Releasables.closeExpectNoException(Releasables.wrap(builders), blocks == null ? () -> {} : Releasables.wrap(blocks));
         }
+    }
+
+    @Override
+    protected MinCompetitiveQuery.Status minCompetitiveStatus() {
+        return null;
     }
 
     @Override

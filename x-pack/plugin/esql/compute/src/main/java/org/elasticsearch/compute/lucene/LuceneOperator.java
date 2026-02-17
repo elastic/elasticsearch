@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.query.MinCompetitiveQuery;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.RefCounted;
@@ -146,6 +147,12 @@ public abstract class LuceneOperator extends SourceOperator {
     }
 
     protected abstract Page getCheckedOutput() throws IOException;
+
+    protected abstract MinCompetitiveQuery.Status minCompetitiveStatus();
+
+    LuceneSliceQueue getSliceQueue() {
+        return sliceQueue;
+    }
 
     @Override
     public final void close() {
@@ -285,6 +292,8 @@ public abstract class LuceneOperator extends SourceOperator {
             Status::new
         );
 
+        public static final TransportVersion HAS_MIN_COMPETITIVE = TransportVersion.fromName("esql.lucene_source.from_min_competitive");
+
         private static final TransportVersion ESQL_REPORT_SHARD_PARTITIONING = TransportVersion.fromName("esql_report_shard_partitioning");
 
         private final int processedSlices;
@@ -299,6 +308,7 @@ public abstract class LuceneOperator extends SourceOperator {
         private final int current;
         private final long rowsEmitted;
         private final Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies;
+        private final MinCompetitiveQuery.Status minCompetitive;
 
         protected Status(LuceneOperator operator) {
             processedSlices = operator.processedSlices;
@@ -325,6 +335,7 @@ public abstract class LuceneOperator extends SourceOperator {
             pagesEmitted = operator.pagesEmitted;
             rowsEmitted = operator.rowsEmitted;
             partitioningStrategies = operator.sliceQueue.partitioningStrategies();
+            minCompetitive = operator.minCompetitiveStatus();
         }
 
         Status(
@@ -339,7 +350,8 @@ public abstract class LuceneOperator extends SourceOperator {
             int sliceMax,
             int current,
             long rowsEmitted,
-            Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies
+            Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies,
+            MinCompetitiveQuery.Status minCompetitive
         ) {
             this.processedSlices = processedSlices;
             this.processedQueries = processedQueries;
@@ -353,6 +365,7 @@ public abstract class LuceneOperator extends SourceOperator {
             this.current = current;
             this.rowsEmitted = rowsEmitted;
             this.partitioningStrategies = partitioningStrategies;
+            this.minCompetitive = minCompetitive;
         }
 
         Status(StreamInput in) throws IOException {
@@ -370,6 +383,9 @@ public abstract class LuceneOperator extends SourceOperator {
             partitioningStrategies = serializeShardPartitioning(in.getTransportVersion())
                 ? in.readMap(LuceneSliceQueue.PartitioningStrategy::readFrom)
                 : Map.of();
+            minCompetitive = in.getTransportVersion().supports(HAS_MIN_COMPETITIVE) && in.readBoolean()
+                ? MinCompetitiveQuery.Status.readFrom(in)
+                : null;
         }
 
         @Override
@@ -387,6 +403,9 @@ public abstract class LuceneOperator extends SourceOperator {
             out.writeVLong(rowsEmitted);
             if (serializeShardPartitioning(out.getTransportVersion())) {
                 out.writeMap(partitioningStrategies, StreamOutput::writeString, StreamOutput::writeWriteable);
+            }
+            if (out.getTransportVersion().supports(HAS_MIN_COMPETITIVE)) {
+                out.writeOptionalWriteable(minCompetitive);
             }
         }
 
@@ -455,11 +474,11 @@ public abstract class LuceneOperator extends SourceOperator {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            toXContentFields(builder, params);
+            toXContentFields(builder);
             return builder.endObject();
         }
 
-        protected void toXContentFields(XContentBuilder builder, Params params) throws IOException {
+        protected void toXContentFields(XContentBuilder builder) throws IOException {
             builder.field("processed_slices", processedSlices);
             builder.field("processed_queries", processedQueries);
             builder.field("processed_shards", processedShards);
@@ -475,25 +494,29 @@ public abstract class LuceneOperator extends SourceOperator {
             builder.field("current", current);
             builder.field("rows_emitted", rowsEmitted);
             builder.field("partitioning_strategies", new TreeMap<>(this.partitioningStrategies));
+            if (minCompetitive != null) {
+                builder.field("min_competitive", minCompetitive);
+            }
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            Status status = (Status) o;
-            return processedSlices == status.processedSlices
-                && processedQueries.equals(status.processedQueries)
-                && processedShards.equals(status.processedShards)
-                && processNanos == status.processNanos
-                && sliceIndex == status.sliceIndex
-                && totalSlices == status.totalSlices
-                && pagesEmitted == status.pagesEmitted
-                && sliceMin == status.sliceMin
-                && sliceMax == status.sliceMax
-                && current == status.current
-                && rowsEmitted == status.rowsEmitted
-                && partitioningStrategies.equals(status.partitioningStrategies);
+            Status other = (Status) o;
+            return processedSlices == other.processedSlices
+                && processedQueries.equals(other.processedQueries)
+                && processedShards.equals(other.processedShards)
+                && processNanos == other.processNanos
+                && sliceIndex == other.sliceIndex
+                && totalSlices == other.totalSlices
+                && pagesEmitted == other.pagesEmitted
+                && sliceMin == other.sliceMin
+                && sliceMax == other.sliceMax
+                && current == other.current
+                && rowsEmitted == other.rowsEmitted
+                && partitioningStrategies.equals(other.partitioningStrategies)
+                && Objects.equals(minCompetitive, other.minCompetitive);
         }
 
         @Override
@@ -507,7 +530,8 @@ public abstract class LuceneOperator extends SourceOperator {
                 sliceMax,
                 current,
                 rowsEmitted,
-                partitioningStrategies
+                partitioningStrategies,
+                minCompetitive
             );
         }
 
@@ -520,9 +544,5 @@ public abstract class LuceneOperator extends SourceOperator {
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.minimumCompatible();
         }
-    }
-
-    LuceneSliceQueue getSliceQueue() {
-        return sliceQueue;
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.query.MinCompetitiveQuery;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.MultiValueMode;
@@ -174,6 +175,11 @@ final class LuceneMinMaxOperator extends LuceneOperator {
         } finally {
             processingNanos += System.nanoTime() - start;
         }
+    }
+
+    @Override
+    protected MinCompetitiveQuery.Status minCompetitiveStatus() {
+        return null;
     }
 
     @Override

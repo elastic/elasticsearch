@@ -576,32 +576,32 @@ public final class DocumentParser {
                 skipChildren(context);
             }
         } else {
-            Mapper dynamicObjectMapper;
+            Mapper.Builder dynamicObjectBuilder;
             if (context.dynamic() == ObjectMapper.Dynamic.RUNTIME) {
                 // with dynamic:runtime all leaf fields will be runtime fields unless explicitly mapped,
                 // hence we don't dynamically create empty objects under properties, but rather carry around an artificial object mapper
-                dynamicObjectMapper = new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
+                dynamicObjectBuilder = null;
                 if (context.canAddIgnoredField()) {
                     context = context.addIgnoredFieldFromContext(
                         IgnoredSourceFieldMapper.NameValue.fromContext(context, context.path().pathAsText(currentFieldName), null)
                     );
                 }
             } else {
-                dynamicObjectMapper = DynamicFieldsBuilder.createDynamicObjectMapper(context, currentFieldName);
+                dynamicObjectBuilder = DynamicFieldsBuilder.createDynamicObjectMapperBuilder(context, currentFieldName);
             }
             if (context.parent().subobjects() == ObjectMapper.Subobjects.DISABLED) {
-                if (dynamicObjectMapper instanceof NestedObjectMapper) {
+                if (dynamicObjectBuilder instanceof NestedObjectMapper.Builder) {
                     throw new DocumentParsingException(
                         context.parser().getTokenLocation(),
                         "Tried to add nested object ["
-                            + dynamicObjectMapper.leafName()
+                            + dynamicObjectBuilder.leafName()
                             + "] to object ["
                             + context.parent().fullPath()
                             + "] which does not support subobjects"
                     );
                 }
-                if (dynamicObjectMapper instanceof ObjectMapper) {
-                    // We have an ObjectMapper but subobjects are disallowed
+                if (dynamicObjectBuilder == null || dynamicObjectBuilder instanceof ObjectMapper.Builder) {
+                    // We have an ObjectMapper builder (or a RUNTIME no-op) but subobjects are disallowed
                     // therefore we create a new DocumentParserContext that
                     // prepends currentFieldName to any immediate children.
                     parseObjectOrNested(context.createFlattenContext(currentFieldName));
@@ -610,12 +610,16 @@ public final class DocumentParser {
 
             }
             if (context.dynamic() != ObjectMapper.Dynamic.RUNTIME) {
-                if (context.addDynamicMapper(dynamicObjectMapper) == false) {
+                String fullPath = context.path().pathAsText(currentFieldName);
+                if (context.addDynamicMapper(dynamicObjectBuilder, fullPath) == false) {
                     failIfMatchesRoutingPath(context, currentFieldName);
                     skipChildren(context);
                     return;
                 }
             }
+            Mapper dynamicObjectMapper = dynamicObjectBuilder != null
+                ? dynamicObjectBuilder.build(context.createDynamicMapperBuilderContext())
+                : new NoOpObjectMapper(currentFieldName, context.path().pathAsText(currentFieldName));
             if (dynamicObjectMapper instanceof NestedObjectMapper && context.isWithinCopyTo()) {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper, context);
             }
@@ -670,8 +674,8 @@ public final class DocumentParser {
             }
             return;
         }
-        Mapper objectMapperFromTemplate = DynamicFieldsBuilder.createObjectMapperFromTemplate(context, currentFieldName);
-        if (objectMapperFromTemplate == null) {
+        Mapper.Builder builderFromTemplate = DynamicFieldsBuilder.createObjectMapperBuilderFromTemplate(context, currentFieldName);
+        if (builderFromTemplate == null) {
             if (context.indexSettings().isIgnoreDynamicFieldsBeyondLimit()
                 && context.mappingLookup().exceedsLimit(context.indexSettings().getMappingTotalFieldsLimit(), 1)) {
                 if (context.canAddIgnoredField()) {
@@ -710,10 +714,12 @@ public final class DocumentParser {
                 return;
             }
 
-            parseNonDynamicArray(context, objectMapperFromTemplate, currentFieldName, currentFieldName);
+            parseNonDynamicArray(context, null, currentFieldName, currentFieldName);
         } else {
+            Mapper objectMapperFromTemplate = builderFromTemplate.build(context.createDynamicMapperBuilderContext());
             if (parsesArrayValue(objectMapperFromTemplate)) {
-                if (context.addDynamicMapper(objectMapperFromTemplate) == false) {
+                String fullPath = context.path().pathAsText(currentFieldName);
+                if (context.addDynamicMapper(builderFromTemplate, fullPath) == false) {
                     skipChildren(context);
                     return;
                 }
@@ -830,8 +836,7 @@ public final class DocumentParser {
                 context.getVectorFormatProviders()
             );
             builder.dimensions(builders.size());
-            DenseVectorFieldMapper denseVectorFieldMapper = builder.build(builderContext);
-            context.updateDynamicMappers(fullFieldName, List.of(denseVectorFieldMapper));
+            context.updateDynamicMappers(fullFieldName, List.of(builder));
         }
     }
 

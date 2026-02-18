@@ -102,6 +102,21 @@ public class NestedObjectMapper extends ObjectMapper {
         }
 
         @Override
+        ObjectMapper.Builder newEmptyBuilder() {
+            NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(
+                leafName(),
+                indexCreatedVersion,
+                bitSetProducer,
+                indexSettings
+            );
+            builder.enabled = this.enabled;
+            builder.dynamic = this.dynamic;
+            builder.includeInRoot = this.includeInRoot;
+            builder.includeInParent = this.includeInParent;
+            return builder;
+        }
+
+        @Override
         public NestedObjectMapper build(MapperBuilderContext context) {
             boolean parentIncludedInRoot = this.includeInRoot.value();
             final Query parentTypeFilter;

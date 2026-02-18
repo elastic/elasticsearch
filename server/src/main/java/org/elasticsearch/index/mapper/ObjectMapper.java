@@ -194,6 +194,16 @@ public class ObjectMapper extends Mapper {
             }
         }
 
+        /**
+         * @return a new builder with the same settings (subobjects, enabled, dynamic) but no children
+         */
+        Builder newEmptyBuilder() {
+            Builder builder = new Builder(leafName(), subobjects);
+            builder.enabled = this.enabled;
+            builder.dynamic = this.dynamic;
+            return builder;
+        }
+
         private static Builder findObjectBuilder(String fullName, DocumentParserContext context) {
             // does the object mapper already exist? if so, use that
             ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullName);
@@ -201,9 +211,9 @@ public class ObjectMapper extends Mapper {
                 return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
             }
             // has the object mapper been added as a dynamic update already?
-            objectMapper = context.getDynamicObjectMapper(fullName);
-            if (objectMapper != null) {
-                return objectMapper.newBuilder(context.indexSettings().getIndexVersionCreated());
+            Builder dynamicBuilder = context.getDynamicObjectBuilder(fullName);
+            if (dynamicBuilder != null) {
+                return dynamicBuilder.newEmptyBuilder();
             }
             // no object mapper found
             return null;

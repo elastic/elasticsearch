@@ -809,15 +809,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 try {
                     var parentMapper = ((FieldMapper) context.mappingLookup().getMapper(context.mappingLookup().parentField(fullPath())))
                         .getMergeBuilder();
-                    context.addDynamicMapper(parentMapper.addMultiField(builder).build(context.createDynamicMapperBuilderContext()));
+                    String parentFullPath = context.mappingLookup().parentField(fullPath());
+                    context.addDynamicMapper(parentMapper.addMultiField(builder), parentFullPath);
                     return builder.build(context.createDynamicMapperBuilderContext());
                 } finally {
                     context.path().add(fieldName);
                 }
             } else {
-                var mapper = builder.build(context.createDynamicMapperBuilderContext());
-                context.addDynamicMapper(mapper);
-                return mapper;
+                context.addDynamicMapper(builder, fullPath());
+                return builder.build(context.createDynamicMapperBuilderContext());
             }
         } finally {
             context.path().add(leafName());

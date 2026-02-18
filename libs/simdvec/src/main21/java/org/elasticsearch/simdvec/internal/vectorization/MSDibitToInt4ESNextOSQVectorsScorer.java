@@ -595,6 +595,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                 res = res.add(queryAdditionalCorrection).add(additionalCorrections).sub(centroidDp);
                 if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
                     res.intoArray(scores, i);
+                    // not sure how to do it better
                     for (int j = 0; j < FLOAT_SPECIES_256.length(); j++) {
                         scores[i + j] = VectorUtil.scaleMaxInnerProductScore(scores[i + j]);
                         maxScore = Math.max(maxScore, scores[i + j]);
@@ -607,6 +608,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
             }
         }
         if (limit < bulkSize) {
+            // missing vectors to score
             maxScore = applyCorrectionsIndividually(
                 memorySegment,
                 queryAdditionalCorrection,

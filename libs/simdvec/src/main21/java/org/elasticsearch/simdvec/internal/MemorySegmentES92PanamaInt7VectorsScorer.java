@@ -72,13 +72,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
      */
     protected MemorySegmentES92PanamaInt7VectorsScorer(IndexInput in, int dimensions, int bulkSize, boolean allowAnyInputType) {
         super(in, dimensions, bulkSize);
-        if (allowAnyInputType == false && (in instanceof MemorySegmentAccessInput || in instanceof DirectAccessInput) == false) {
-            throw new IllegalArgumentException(
-                "Expected MemorySegmentAccessInput or DirectAccessInput but got "
-                    + in.getClass().getName()
-                    + ". Ensure the IndexInput is properly unwrapped before constructing the scorer."
-            );
-        }
+        checkInputType(in, allowAnyInputType);
     }
 
     protected long panamaInt7DotProduct(byte[] q) throws IOException {
@@ -114,11 +108,11 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         return res;
     }
 
-    private static int dotProductBody512Impl(byte[] q, MemorySegment segment, long baseOffset, int limit) {
+    private static int dotProductBody512Impl(byte[] q, MemorySegment memorySegment, long offset, int limit) {
         IntVector acc = IntVector.zero(INT_SPECIES_512);
         for (int i = 0; i < limit; i += BYTE_SPECIES_128.length()) {
             ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_128, q, i);
-            ByteVector vb8 = ByteVector.fromMemorySegment(BYTE_SPECIES_128, segment, baseOffset + i, LITTLE_ENDIAN);
+            ByteVector vb8 = ByteVector.fromMemorySegment(BYTE_SPECIES_128, memorySegment, offset + i, LITTLE_ENDIAN);
 
             // 16-bit multiply: avoid AVX-512 heavy multiply on zmm
             Vector<Short> va16 = va8.convertShape(B2S, SHORT_SPECIES_256, 0);
@@ -132,11 +126,11 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         return acc.reduceLanes(ADD);
     }
 
-    private static int dotProductBody256Impl(byte[] q, MemorySegment segment, long baseOffset, int limit) {
+    private static int dotProductBody256Impl(byte[] q, MemorySegment memorySegment, long offset, int limit) {
         IntVector acc = IntVector.zero(INT_SPECIES_256);
         for (int i = 0; i < limit; i += BYTE_SPECIES_64.length()) {
             ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_64, q, i);
-            ByteVector vb8 = ByteVector.fromMemorySegment(BYTE_SPECIES_64, segment, baseOffset + i, LITTLE_ENDIAN);
+            ByteVector vb8 = ByteVector.fromMemorySegment(BYTE_SPECIES_64, memorySegment, offset + i, LITTLE_ENDIAN);
 
             // 32-bit multiply and add into accumulator
             Vector<Integer> va32 = va8.convertShape(B2I, INT_SPECIES_256, 0);
@@ -146,13 +140,13 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         return acc.reduceLanes(ADD);
     }
 
-    private static int dotProductBody128Impl(byte[] q, MemorySegment segment, long baseOffset, int limit) {
+    private static int dotProductBody128Impl(byte[] q, MemorySegment memorySegment, long offset, int limit) {
         IntVector acc = IntVector.zero(IntVector.SPECIES_128);
         // 4 bytes at a time (re-loading half the vector each time!)
         for (int i = 0; i < limit; i += ByteVector.SPECIES_64.length() >> 1) {
             // load 8 bytes
             ByteVector va8 = ByteVector.fromArray(BYTE_SPECIES_64, q, i);
-            ByteVector vb8 = ByteVector.fromMemorySegment(BYTE_SPECIES_64, segment, baseOffset + i, LITTLE_ENDIAN);
+            ByteVector vb8 = ByteVector.fromMemorySegment(BYTE_SPECIES_64, memorySegment, offset + i, LITTLE_ENDIAN);
 
             // process first "half" only: 16-bit multiply
             Vector<Short> va16 = va8.convert(B2S, 0);
@@ -173,58 +167,60 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         });
     }
 
-    private static void panamaInt7DotProductBulkImpl(byte[] q, MemorySegment segment, int dimensions, int count, float[] scores) {
+    private static void panamaInt7DotProductBulkImpl(byte[] q, MemorySegment memorySegment, int dimensions, int count, float[] scores) {
         if (dimensions >= 16) {
+            // compute vectorized dot product consistent with VPDPBUSD instruction
             if (VECTOR_BITSIZE >= 512) {
-                dotProductBulkVectorized512(q, segment, dimensions, count, scores);
+                dotProductBulkVectorized512(q, memorySegment, dimensions, count, scores);
             } else if (VECTOR_BITSIZE == 256) {
-                dotProductBulkVectorized256(q, segment, dimensions, count, scores);
+                dotProductBulkVectorized256(q, memorySegment, dimensions, count, scores);
             } else {
-                dotProductBulkVectorized128(q, segment, dimensions, count, scores);
+                // tricky: we don't have SPECIES_32, so we workaround with "overlapping read"
+                dotProductBulkVectorized128(q, memorySegment, dimensions, count, scores);
             }
         } else {
             for (int iter = 0; iter < count; iter++) {
                 long base = (long) iter * dimensions;
                 long res = 0;
                 for (int i = 0; i < dimensions; i++) {
-                    res += segment.get(ValueLayout.JAVA_BYTE, base + i) * q[i];
+                    res += memorySegment.get(ValueLayout.JAVA_BYTE, base + i) * q[i];
                 }
                 scores[iter] = res;
             }
         }
     }
 
-    private static void dotProductBulkVectorized512(byte[] q, MemorySegment segment, int dimensions, int count, float[] scores) {
+    private static void dotProductBulkVectorized512(byte[] q, MemorySegment memorySegment, int dimensions, int count, float[] scores) {
         int limit = BYTE_SPECIES_128.loopBound(dimensions);
         for (int iter = 0; iter < count; iter++) {
             long base = (long) iter * dimensions;
-            long res = dotProductBody512Impl(q, segment, base, limit);
+            long res = dotProductBody512Impl(q, memorySegment, base, limit);
             for (int i = limit; i < dimensions; i++) {
-                res += segment.get(ValueLayout.JAVA_BYTE, base + i) * q[i];
+                res += memorySegment.get(ValueLayout.JAVA_BYTE, base + i) * q[i];
             }
             scores[iter] = res;
         }
     }
 
-    private static void dotProductBulkVectorized256(byte[] q, MemorySegment segment, int dimensions, int count, float[] scores) {
+    private static void dotProductBulkVectorized256(byte[] q, MemorySegment memorySegment, int dimensions, int count, float[] scores) {
         int limit = BYTE_SPECIES_128.loopBound(dimensions);
         for (int iter = 0; iter < count; iter++) {
             long base = (long) iter * dimensions;
-            long res = dotProductBody256Impl(q, segment, base, limit);
+            long res = dotProductBody256Impl(q, memorySegment, base, limit);
             for (int i = limit; i < dimensions; i++) {
-                res += segment.get(ValueLayout.JAVA_BYTE, base + i) * q[i];
+                res += memorySegment.get(ValueLayout.JAVA_BYTE, base + i) * q[i];
             }
             scores[iter] = res;
         }
     }
 
-    private static void dotProductBulkVectorized128(byte[] q, MemorySegment segment, int dimensions, int count, float[] scores) {
+    private static void dotProductBulkVectorized128(byte[] q, MemorySegment memorySegment, int dimensions, int count, float[] scores) {
         int limit = BYTE_SPECIES_64.loopBound(dimensions - BYTE_SPECIES_64.length());
         for (int iter = 0; iter < count; iter++) {
             long base = (long) iter * dimensions;
-            long res = dotProductBody128Impl(q, segment, base, limit);
+            long res = dotProductBody128Impl(q, memorySegment, base, limit);
             for (int i = limit; i < dimensions; i++) {
-                res += segment.get(ValueLayout.JAVA_BYTE, base + i) * q[i];
+                res += memorySegment.get(ValueLayout.JAVA_BYTE, base + i) * q[i];
             }
             scores[iter] = res;
         }
@@ -240,9 +236,9 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         float[] scores,
         int bulkSize
     ) throws IOException {
-        IndexInputSegments.withSlice(in, 16L * bulkSize, segment -> {
+        IndexInputSegments.withSlice(in, 16L * bulkSize, memorySegment -> {
             applyCorrectionsBulkImpl(
-                segment,
+                memorySegment,
                 queryAdditionalCorrection,
                 similarityFunction,
                 centroidDp,
@@ -258,7 +254,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
     }
 
     private static void applyCorrectionsBulkImpl(
-        MemorySegment segment,
+        MemorySegment memorySegment,
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
@@ -275,19 +271,19 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         float ly = (queryUpperInterval - ay) * SEVEN_BIT_SCALE;
         float y1 = queryComponentSum;
         for (; i < limit; i += FLOAT_SPECIES.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES, segment, i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
-            var lx = FloatVector.fromMemorySegment(FLOAT_SPECIES, segment, 4 * bulkSize + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN)
+            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES, memorySegment, i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            var lx = FloatVector.fromMemorySegment(FLOAT_SPECIES, memorySegment, 4 * bulkSize + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN)
                 .sub(ax)
                 .mul(SEVEN_BIT_SCALE);
             var targetComponentSums = IntVector.fromMemorySegment(
                 INT_SPECIES,
-                segment,
+                memorySegment,
                 8 * bulkSize + i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES,
-                segment,
+                memorySegment,
                 12 * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
@@ -326,10 +322,10 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
             var floatVectorMask = FLOAT_SPECIES.indexInRange(i, bulkSize);
             var intVectorMask = INT_SPECIES.indexInRange(i, bulkSize);
 
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES, segment, (long) i * Float.BYTES, LITTLE_ENDIAN, floatVectorMask);
+            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES, memorySegment, (long) i * Float.BYTES, LITTLE_ENDIAN, floatVectorMask);
             var upper = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES,
-                segment,
+                memorySegment,
                 4L * bulkSize + (long) i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN,
                 floatVectorMask
@@ -338,7 +334,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
 
             var targetComponentSums = IntVector.fromMemorySegment(
                 INT_SPECIES,
-                segment,
+                memorySegment,
                 8L * bulkSize + (long) i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN,
                 intVectorMask
@@ -346,7 +342,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
 
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES,
-                segment,
+                memorySegment,
                 12L * bulkSize + (long) i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN,
                 floatVectorMask
@@ -376,6 +372,19 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
                     res.intoArray(scores, i, floatVectorMask);
                 }
             }
+        }
+    }
+
+    private static void checkInputType(IndexInput in, boolean allowAnyInputType) {
+        if (allowAnyInputType) {
+            return;
+        }
+        if ((in instanceof MemorySegmentAccessInput || in instanceof DirectAccessInput) == false) {
+            throw new IllegalArgumentException(
+                "Expected MemorySegmentAccessInput or DirectAccessInput but got "
+                    + in.getClass().getName()
+                    + ". Ensure the IndexInput is properly unwrapped before constructing the scorer."
+            );
         }
     }
 }

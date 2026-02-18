@@ -612,6 +612,7 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
             }
         }
         if (limit < bulkSize) {
+            // missing vectors to score
             maxScore = applyCorrectionsIndividually(
                 memorySegment,
                 queryAdditionalCorrection,

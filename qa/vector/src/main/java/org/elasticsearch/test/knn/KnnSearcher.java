@@ -176,124 +176,122 @@ class KnnSearcher {
             );
             KnnIndexer.VectorReader targetReader = KnnIndexer.VectorReader.create(input, dim, vectorEncoding, offsetByteSize);
             long startNS;
-            {
-                try (DirectoryReader reader = DirectoryReader.open(dir)) {
-                    IndexSearcher searcher = searchParameters.searchThreads() > 1
-                        ? new IndexSearcher(reader, executorService)
-                        : new IndexSearcher(reader);
-                    byte[] targetBytes = new byte[dim];
-                    float[] target = new float[dim];
-                    // warm up
-                    for (int i = 0; i < numQueryVectors; i++) {
-                        if (vectorEncoding.equals(VectorEncoding.BYTE)) {
-                            targetReader.next(targetBytes);
-                            doVectorQuery(targetBytes, searcher, filterQuery, searchParameters);
-                        } else {
-                            targetReader.next(target);
-                            doVectorQuery(target, searcher, filterQuery, searchParameters);
-                        }
-                    }
-                    targetReader.reset();
-                    final IntConsumer[] queryConsumers = new IntConsumer[searchParameters.numSearchers()];
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                IndexSearcher searcher = searchParameters.searchThreads() > 1
+                    ? new IndexSearcher(reader, executorService)
+                    : new IndexSearcher(reader);
+                byte[] targetBytes = new byte[dim];
+                float[] target = new float[dim];
+                // warm up
+                for (int i = 0; i < numQueryVectors; i++) {
                     if (vectorEncoding.equals(VectorEncoding.BYTE)) {
-                        byte[][] queries = new byte[numQueryVectors][dim];
-                        for (int i = 0; i < numQueryVectors; i++) {
-                            targetReader.next(queries[i]);
-                        }
-                        for (int s = 0; s < searchParameters.numSearchers(); s++) {
-                            queryConsumers[s] = i -> {
-                                try {
-                                    results[i] = doVectorQuery(queries[i], searcher, filterQuery, searchParameters);
-                                } catch (IOException e) {
-                                    throw new UncheckedIOException(e);
-                                }
-                            };
-                        }
+                        targetReader.next(targetBytes);
+                        doVectorQuery(targetBytes, searcher, filterQuery, searchParameters);
                     } else {
-                        float[][] queries = new float[numQueryVectors][dim];
-                        for (int i = 0; i < numQueryVectors; i++) {
-                            targetReader.next(queries[i]);
-                        }
-                        for (int s = 0; s < searchParameters.numSearchers(); s++) {
-                            queryConsumers[s] = i -> {
-                                try {
-                                    results[i] = doVectorQuery(queries[i], searcher, filterQuery, searchParameters);
-                                } catch (IOException e) {
-                                    throw new UncheckedIOException(e);
-                                }
-                            };
-                        }
+                        targetReader.next(target);
+                        doVectorQuery(target, searcher, filterQuery, searchParameters);
                     }
-                    int[][] querySplits = new int[searchParameters.numSearchers()][];
-                    int queriesPerSearcher = numQueryVectors / searchParameters.numSearchers();
-                    for (int s = 0; s < searchParameters.numSearchers(); s++) {
-                        int start = s * queriesPerSearcher;
-                        int end = (s == searchParameters.numSearchers() - 1) ? numQueryVectors : (s + 1) * queriesPerSearcher;
-                        querySplits[s] = new int[end - start];
-                        for (int i = start; i < end; i++) {
-                            querySplits[s][i - start] = i;
-                        }
-                    }
-                    targetReader.reset();
-                    startNS = System.nanoTime();
-                    KnnIndexTester.ThreadDetails startThreadDetails = new KnnIndexTester.ThreadDetails();
-                    if (numSearchersExecutor != null) {
-                        // use multiple searchers
-                        var futures = new ArrayList<Future<Void>>();
-                        for (int s = 0; s < searchParameters.numSearchers(); s++) {
-                            int[] split = querySplits[s];
-                            IntConsumer queryConsumer = queryConsumers[s];
-                            futures.add(numSearchersExecutor.submit(() -> {
-                                for (int j : split) {
-                                    queryConsumer.accept(j);
-                                }
-                                return null;
-                            }));
-                        }
-                        for (Future<Void> future : futures) {
-                            try {
-                                future.get();
-                            } catch (Exception e) {
-                                throw new RuntimeException("Error executing searcher thread", e);
-                            }
-                        }
-                    } else {
-                        // use a single searcher
-                        for (int i = 0; i < numQueryVectors; i++) {
-                            queryConsumers[0].accept(i);
-                        }
-                    }
-                    KnnIndexTester.ThreadDetails endThreadDetails = new KnnIndexTester.ThreadDetails();
-                    elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNS);
-                    long startCPUTimeNS = 0;
-                    long endCPUTimeNS = 0;
-                    for (int i = 0; i < startThreadDetails.threadInfos.length; i++) {
-                        if (startThreadDetails.threadInfos[i].getThreadName().startsWith("KnnSearcher")) {
-                            startCPUTimeNS += startThreadDetails.cpuTimesNS[i];
-                        }
-                    }
-
-                    for (int i = 0; i < endThreadDetails.threadInfos.length; i++) {
-                        if (endThreadDetails.threadInfos[i].getThreadName().startsWith("KnnSearcher")) {
-                            endCPUTimeNS += endThreadDetails.cpuTimesNS[i];
-                        }
-                    }
-                    totalCpuTimeMS = TimeUnit.NANOSECONDS.toMillis(endCPUTimeNS - startCPUTimeNS);
-
-                    // Fetch, validate and write result document ids.
-                    StoredFields storedFields = reader.storedFields();
-                    for (int i = 0; i < numQueryVectors; i++) {
-                        totalVisited += results[i].totalHits.value();
-                        resultIds[i] = getResultIds(results[i], storedFields);
-                    }
-                    logger.info(
-                        "completed {} searches in {} ms: {} QPS CPU time={}ms",
-                        numQueryVectors,
-                        elapsed,
-                        (1000L * numQueryVectors) / elapsed,
-                        totalCpuTimeMS
-                    );
                 }
+                targetReader.reset();
+                final IntConsumer[] queryConsumers = new IntConsumer[searchParameters.numSearchers()];
+                if (vectorEncoding.equals(VectorEncoding.BYTE)) {
+                    byte[][] queries = new byte[numQueryVectors][dim];
+                    for (int i = 0; i < numQueryVectors; i++) {
+                        targetReader.next(queries[i]);
+                    }
+                    for (int s = 0; s < searchParameters.numSearchers(); s++) {
+                        queryConsumers[s] = i -> {
+                            try {
+                                results[i] = doVectorQuery(queries[i], searcher, filterQuery, searchParameters);
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        };
+                    }
+                } else {
+                    float[][] queries = new float[numQueryVectors][dim];
+                    for (int i = 0; i < numQueryVectors; i++) {
+                        targetReader.next(queries[i]);
+                    }
+                    for (int s = 0; s < searchParameters.numSearchers(); s++) {
+                        queryConsumers[s] = i -> {
+                            try {
+                                results[i] = doVectorQuery(queries[i], searcher, filterQuery, searchParameters);
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        };
+                    }
+                }
+                int[][] querySplits = new int[searchParameters.numSearchers()][];
+                int queriesPerSearcher = numQueryVectors / searchParameters.numSearchers();
+                for (int s = 0; s < searchParameters.numSearchers(); s++) {
+                    int start = s * queriesPerSearcher;
+                    int end = (s == searchParameters.numSearchers() - 1) ? numQueryVectors : (s + 1) * queriesPerSearcher;
+                    querySplits[s] = new int[end - start];
+                    for (int i = start; i < end; i++) {
+                        querySplits[s][i - start] = i;
+                    }
+                }
+                targetReader.reset();
+                startNS = System.nanoTime();
+                KnnIndexTester.ThreadDetails startThreadDetails = new KnnIndexTester.ThreadDetails();
+                if (numSearchersExecutor != null) {
+                    // use multiple searchers
+                    var futures = new ArrayList<Future<Void>>();
+                    for (int s = 0; s < searchParameters.numSearchers(); s++) {
+                        int[] split = querySplits[s];
+                        IntConsumer queryConsumer = queryConsumers[s];
+                        futures.add(numSearchersExecutor.submit(() -> {
+                            for (int j : split) {
+                                queryConsumer.accept(j);
+                            }
+                            return null;
+                        }));
+                    }
+                    for (Future<Void> future : futures) {
+                        try {
+                            future.get();
+                        } catch (Exception e) {
+                            throw new RuntimeException("Error executing searcher thread", e);
+                        }
+                    }
+                } else {
+                    // use a single searcher
+                    for (int i = 0; i < numQueryVectors; i++) {
+                        queryConsumers[0].accept(i);
+                    }
+                }
+                KnnIndexTester.ThreadDetails endThreadDetails = new KnnIndexTester.ThreadDetails();
+                elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startNS);
+                long startCPUTimeNS = 0;
+                long endCPUTimeNS = 0;
+                for (int i = 0; i < startThreadDetails.threadInfos.length; i++) {
+                    if (startThreadDetails.threadInfos[i].getThreadName().startsWith("KnnSearcher")) {
+                        startCPUTimeNS += startThreadDetails.cpuTimesNS[i];
+                    }
+                }
+
+                for (int i = 0; i < endThreadDetails.threadInfos.length; i++) {
+                    if (endThreadDetails.threadInfos[i].getThreadName().startsWith("KnnSearcher")) {
+                        endCPUTimeNS += endThreadDetails.cpuTimesNS[i];
+                    }
+                }
+                totalCpuTimeMS = TimeUnit.NANOSECONDS.toMillis(endCPUTimeNS - startCPUTimeNS);
+
+                // Fetch, validate and write result document ids.
+                StoredFields storedFields = reader.storedFields();
+                for (int i = 0; i < numQueryVectors; i++) {
+                    totalVisited += results[i].totalHits.value();
+                    resultIds[i] = getResultIds(results[i], storedFields);
+                }
+                logger.info(
+                    "completed {} searches in {} ms: {} QPS CPU time={}ms",
+                    numQueryVectors,
+                    elapsed,
+                    (1000L * numQueryVectors) / elapsed,
+                    totalCpuTimeMS
+                );
             }
         }
         logger.info("checking results");

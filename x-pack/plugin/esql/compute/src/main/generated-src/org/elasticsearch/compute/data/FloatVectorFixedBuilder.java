@@ -67,7 +67,8 @@ public final class FloatVectorFixedBuilder implements FloatVector.FixedBuilder {
         closed = true;
         FloatVector vector;
         if (values.length == 1) {
-            vector = blockFactory.newConstantFloatBlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = new ConstantFloatVector(values[0], 1, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - preAdjustedBytes);
         } else {
             vector = blockFactory.newFloatArrayVector(values, values.length, preAdjustedBytes);
         }

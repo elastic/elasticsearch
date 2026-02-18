@@ -67,7 +67,8 @@ public final class BooleanVectorFixedBuilder implements BooleanVector.FixedBuild
         closed = true;
         BooleanVector vector;
         if (values.length == 1) {
-            vector = blockFactory.newConstantBooleanBlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = new ConstantBooleanVector(values[0], 1, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - preAdjustedBytes);
         } else {
             vector = blockFactory.newBooleanArrayVector(values, values.length, preAdjustedBytes);
         }

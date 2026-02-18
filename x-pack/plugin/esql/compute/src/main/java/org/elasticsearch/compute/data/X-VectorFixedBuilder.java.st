@@ -67,7 +67,8 @@ public final class $Type$VectorFixedBuilder implements $Type$Vector.FixedBuilder
         closed = true;
         $Type$Vector vector;
         if (values.length == 1) {
-            vector = blockFactory.newConstant$Type$BlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = new Constant$Type$Vector(values[0], 1, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - preAdjustedBytes);
         } else {
             vector = blockFactory.new$Type$ArrayVector(values, values.length, preAdjustedBytes);
         }

@@ -67,7 +67,8 @@ public final class LongVectorFixedBuilder implements LongVector.FixedBuilder {
         closed = true;
         LongVector vector;
         if (values.length == 1) {
-            vector = blockFactory.newConstantLongBlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = new ConstantLongVector(values[0], 1, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - preAdjustedBytes);
         } else {
             vector = blockFactory.newLongArrayVector(values, values.length, preAdjustedBytes);
         }

@@ -67,7 +67,8 @@ public final class DoubleVectorFixedBuilder implements DoubleVector.FixedBuilder
         closed = true;
         DoubleVector vector;
         if (values.length == 1) {
-            vector = blockFactory.newConstantDoubleBlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = new ConstantDoubleVector(values[0], 1, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - preAdjustedBytes);
         } else {
             vector = blockFactory.newDoubleArrayVector(values, values.length, preAdjustedBytes);
         }

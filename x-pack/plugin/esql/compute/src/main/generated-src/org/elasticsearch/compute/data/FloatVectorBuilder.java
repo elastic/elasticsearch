@@ -52,7 +52,8 @@ final class FloatVectorBuilder extends AbstractVectorBuilder implements FloatVec
         finish();
         FloatVector vector;
         if (valueCount == 1) {
-            vector = blockFactory.newConstantFloatBlockWith(values[0], 1, estimatedBytes).asVector();
+            vector = new ConstantFloatVector(values[0], 1, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes);
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);

@@ -67,7 +67,8 @@ public final class IntVectorFixedBuilder implements IntVector.FixedBuilder {
         closed = true;
         IntVector vector;
         if (values.length == 1) {
-            vector = blockFactory.newConstantIntBlockWith(values[0], 1, preAdjustedBytes).asVector();
+            vector = new ConstantIntVector(values[0], 1, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - preAdjustedBytes);
         } else {
             vector = blockFactory.newIntArrayVector(values, values.length, preAdjustedBytes);
         }

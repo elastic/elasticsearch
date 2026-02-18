@@ -52,7 +52,8 @@ final class LongVectorBuilder extends AbstractVectorBuilder implements LongVecto
         finish();
         LongVector vector;
         if (valueCount == 1) {
-            vector = blockFactory.newConstantLongBlockWith(values[0], 1, estimatedBytes).asVector();
+            vector = new ConstantLongVector(values[0], 1, blockFactory);
+            blockFactory.adjustBreaker(vector.ramBytesUsed() - estimatedBytes);
         } else {
             if (values.length - valueCount > 1024 || valueCount < (values.length / 2)) {
                 values = Arrays.copyOf(values, valueCount);

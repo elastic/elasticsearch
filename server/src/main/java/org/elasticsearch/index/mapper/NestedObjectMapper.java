@@ -89,14 +89,10 @@ public class NestedObjectMapper extends ObjectMapper {
                     }
                 } else {
                     if (this.includeInParent.value() != nestedMergeWith.includeInParent.value()) {
-                        throw new MapperException(
-                            "the [include_in_parent] parameter can't be updated on a nested object mapping"
-                        );
+                        throw new MapperException("the [include_in_parent] parameter can't be updated on a nested object mapping");
                     }
                     if (this.includeInRoot.value() != nestedMergeWith.includeInRoot.value()) {
-                        throw new MapperException(
-                            "the [include_in_root] parameter can't be updated on a nested object mapping"
-                        );
+                        throw new MapperException("the [include_in_root] parameter can't be updated on a nested object mapping");
                     }
                 }
                 super.merge(mergeWith, objectMergeContext, fullPath);

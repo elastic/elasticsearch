@@ -144,8 +144,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
             // Build both for dynamic conflict check and actual merge
             Mapper existingMapper = this.build(builderContext);
             Mapper incomingMapper = incoming.build(builderContext);
-            if (builderContext.getMergeReason().isAutoUpdate()
-                && existingMapper.typeName().equals(incomingMapper.typeName()) == false) {
+            if (builderContext.getMergeReason().isAutoUpdate() && existingMapper.typeName().equals(incomingMapper.typeName()) == false) {
                 return this;
             }
             Mapper merged = existingMapper.merge(incomingMapper, mergeContext);

@@ -647,11 +647,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (currentMapper == null) {
             return applyFieldsBudget(buildMapping(incomingBuilder, reason), newFieldsBudget);
         }
-        MappingBuilder existingBuilder = mappingParser.parseToBuilder(
-            currentMapper.type(),
-            reason,
-            currentMapper.mappingSource()
-        );
+        MappingBuilder existingBuilder = mappingParser.parseToBuilder(currentMapper.type(), reason, currentMapper.mappingSource());
         try {
             existingBuilder.merge(incomingBuilder, reason, newFieldsBudget);
         } catch (MapperParsingException e) {

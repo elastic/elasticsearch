@@ -46,11 +46,7 @@ public class MappingBuilder {
      * and all its children into builder form.
      */
     public static MappingBuilder fromMapping(Mapping mapping) {
-        return new MappingBuilder(
-            mapping.getRoot().toBuilder(),
-            new HashMap<>(mapping.getMetadataMappersMap()),
-            mapping.getMeta()
-        );
+        return new MappingBuilder(mapping.getRoot().toBuilder(), new HashMap<>(mapping.getMetadataMappersMap()), mapping.getMeta());
     }
 
     /**

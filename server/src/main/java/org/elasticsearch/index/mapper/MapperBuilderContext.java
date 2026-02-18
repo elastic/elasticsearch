@@ -101,7 +101,15 @@ public class MapperBuilderContext {
         if (this.dynamic == dynamic) {
             return this;
         }
-        return new MapperBuilderContext(path, isSourceSynthetic, isDataStream, parentObjectContainsDimensions, dynamic, mergeReason, inNestedContext);
+        return new MapperBuilderContext(
+            path,
+            isSourceSynthetic,
+            isDataStream,
+            parentObjectContainsDimensions,
+            dynamic,
+            mergeReason,
+            inNestedContext
+        );
     }
 
     /**

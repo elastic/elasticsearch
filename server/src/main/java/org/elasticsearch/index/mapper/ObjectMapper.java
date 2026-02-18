@@ -162,28 +162,19 @@ public class ObjectMapper extends Mapper {
             return this;
         }
 
-        private void add(String name, Mapper mapper) {
-            add(new Mapper.Builder(name) {
-                @Override
-                public Mapper build(MapperBuilderContext context) {
-                    return mapper;
-                }
-            });
-        }
-
         /**
-         * Adds a dynamically created {@link Mapper} to this builder.
+         * Adds a dynamically created {@link Mapper.Builder} to this builder.
          *
-         * @param name      the name of the Mapper, including object prefixes
-         * @param prefix    the object prefix of this mapper
-         * @param mapper    the mapper to add
-         * @param context   the DocumentParserContext in which the mapper has been built
+         * @param name           the name of the Mapper, including object prefixes
+         * @param prefix         the object prefix of this mapper
+         * @param mapperBuilder  the builder to add
+         * @param context        the DocumentParserContext in which the mapper has been built
          */
-        public final void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
+        public final void addDynamic(String name, String prefix, Mapper.Builder mapperBuilder, DocumentParserContext context) {
             // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
             // we just add it as it is for sure a leaf mapper
             if (name.contains(".") == false || subobjects.value() == Subobjects.DISABLED) {
-                add(name, mapper);
+                add(mapperBuilder);
             } else {
                 // We strip off the first object path of the mapper name, load or create
                 // the relevant object mapper, and then recurse down into it, passing the remainder
@@ -194,7 +185,7 @@ public class ObjectMapper extends Mapper {
                 String immediateChildFullName = prefix == null ? immediateChild : prefix + "." + immediateChild;
                 Builder parentBuilder = findObjectBuilder(immediateChildFullName, context);
                 if (parentBuilder != null) {
-                    parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapper, context);
+                    parentBuilder.addDynamic(name.substring(firstDotIndex + 1), immediateChildFullName, mapperBuilder, context);
                     add(parentBuilder);
                 } else {
                     // Expected to find a matching parent object but got null.
@@ -245,18 +236,14 @@ public class ObjectMapper extends Mapper {
         Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext parentContext) {
             if (incoming instanceof ObjectMapper.Builder incomingObj) {
                 if (incoming instanceof NestedObjectMapper.Builder && this instanceof NestedObjectMapper.Builder == false) {
-                    MapperErrors.throwNestedMappingConflictError(
-                        parentContext.getMapperBuilderContext().buildFullName(leafName())
-                    );
+                    MapperErrors.throwNestedMappingConflictError(parentContext.getMapperBuilderContext().buildFullName(leafName()));
                 }
                 if (incoming instanceof PassThroughObjectMapper.Builder ptIncoming
                     && this instanceof PassThroughObjectMapper.Builder == false) {
                     // ObjectMapper -> PassThrough conversion: check eligibility
                     String fullPath = parentContext.getMapperBuilderContext().buildFullName(leafName());
                     if (this instanceof RootObjectMapper.Builder
-                        || (this.subobjects != null
-                            && this.subobjects.explicit()
-                            && this.subobjects.value() != Subobjects.DISABLED)) {
+                        || (this.subobjects != null && this.subobjects.explicit() && this.subobjects.value() != Subobjects.DISABLED)) {
                         MapperErrors.throwPassThroughMappingConflictError(fullPath);
                     }
                     PassThroughObjectMapper.Builder ptBuilder = new PassThroughObjectMapper.Builder(leafName());
@@ -274,9 +261,7 @@ public class ObjectMapper extends Mapper {
                 return this;
             }
             // Incoming is not an ObjectMapper - type conflict
-            MapperErrors.throwObjectMappingConflictError(
-                parentContext.getMapperBuilderContext().buildFullName(incoming.leafName())
-            );
+            MapperErrors.throwObjectMappingConflictError(parentContext.getMapperBuilderContext().buildFullName(incoming.leafName()));
             return null; // unreachable
         }
 
@@ -295,9 +280,7 @@ public class ObjectMapper extends Mapper {
                 if (reason == MergeReason.INDEX_TEMPLATE) {
                     this.enabled = mergeWith.enabled;
                 } else if (this.enabled.value() != mergeWith.enabled.value()) {
-                    throw new MapperException(
-                        "the [enabled] parameter can't be updated for the object mapping [" + fullPath + "]"
-                    );
+                    throw new MapperException("the [enabled] parameter can't be updated for the object mapping [" + fullPath + "]");
                 }
             }
 
@@ -305,9 +288,7 @@ public class ObjectMapper extends Mapper {
                 if (reason == MergeReason.INDEX_TEMPLATE) {
                     this.subobjects = mergeWith.subobjects;
                 } else if (this.subobjects.value() != mergeWith.subobjects.value()) {
-                    throw new MapperException(
-                        "the [subobjects] parameter can't be updated for the object mapping [" + fullPath + "]"
-                    );
+                    throw new MapperException("the [subobjects] parameter can't be updated for the object mapping [" + fullPath + "]");
                 }
             }
 
@@ -338,10 +319,14 @@ public class ObjectMapper extends Mapper {
             // their dotted field names align between existing and incoming builders during the merge.
             // We use this.subobjects (the merged value) for both sides.
             Map<String, Mapper.Builder> existingBuilders = flattenBuildersIfNeeded(
-                this.mappersBuilders, builderContext, objectMergeContext
+                this.mappersBuilders,
+                builderContext,
+                objectMergeContext
             );
             Map<String, Mapper.Builder> incomingBuilders = flattenBuildersIfNeeded(
-                mergeWith.mappersBuilders, builderContext, objectMergeContext
+                mergeWith.mappersBuilders,
+                builderContext,
+                objectMergeContext
             );
             Map<String, Mapper.Builder> merged = mergeChildMappers(existingBuilders, incomingBuilders, objectMergeContext);
 
@@ -490,10 +475,7 @@ public class ObjectMapper extends Mapper {
             shallowBuilder.enabled = incomingBuilder.enabled;
             shallowBuilder.dynamic = incomingBuilder.dynamic;
             shallowBuilder.sourceKeepMode = incomingBuilder.sourceKeepMode;
-            MapperMergeContext childContext = parentContext.createChildContext(
-                incomingBuilder.leafName(),
-                incomingBuilder.dynamic
-            );
+            MapperMergeContext childContext = parentContext.createChildContext(incomingBuilder.leafName(), incomingBuilder.dynamic);
             String fullPath = parentContext.getMapperBuilderContext().buildFullName(incomingBuilder.leafName());
             shallowBuilder.merge(incomingBuilder, childContext, fullPath);
             return shallowBuilder;

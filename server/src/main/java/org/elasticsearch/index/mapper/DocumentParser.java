@@ -288,13 +288,26 @@ public final class DocumentParser {
             return null;
         }
         RootObjectMapper.Builder rootBuilder = context.updateRoot();
-        context.getDynamicMappers().forEach(mapper -> rootBuilder.addDynamic(mapper.fullPath(), null, mapper, context));
+        context.getDynamicMappers().forEach(mapper -> rootBuilder.addDynamic(mapper.fullPath(), null, mapperToBuilder(mapper), context));
 
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
         RootObjectMapper root = rootBuilder.build(MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic(), false));
         return context.mappingLookup().getMapping().mappingUpdate(root);
+    }
+
+    private static Mapper.Builder mapperToBuilder(Mapper mapper) {
+        if (mapper instanceof ObjectMapper objectMapper) {
+            return objectMapper.toBuilder();
+        }
+        if (mapper instanceof FieldMapper fieldMapper) {
+            Mapper.Builder mergeBuilder = fieldMapper.getMergeBuilder();
+            if (mergeBuilder != null) {
+                return mergeBuilder;
+            }
+        }
+        return ObjectMapper.Builder.wrapMapper(mapper);
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {

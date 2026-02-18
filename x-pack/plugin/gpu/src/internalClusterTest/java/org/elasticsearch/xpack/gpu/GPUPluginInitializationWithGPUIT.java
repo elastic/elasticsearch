@@ -17,6 +17,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
@@ -56,6 +57,12 @@ public class GPUPluginInitializationWithGPUIT extends ESIntegTestCase {
         @Override
         protected boolean isGpuIndexingFeatureAllowed() {
             return GPUPluginInitializationWithGPUIT.isGpuIndexingFeatureAllowed;
+        }
+
+        @Override
+        public List<ActionPlugin.ActionHandler> getActions() {
+            // Skip registering xpack usage/info actions in this test as they require XPackLicenseState
+            return List.of();
         }
     }
 

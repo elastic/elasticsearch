@@ -44,10 +44,11 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
      * Test case: Verifies the correct schema inference for lines containing valid flat JSON objects.
      */
     public void testInferSchemaForFlatJson() throws IOException {
+        assertTrue(12345678901234L > Integer.MAX_VALUE);
         check("""
             {"name": "John", "age": 30}
             {"name": "Jane", "age": 25}
-            """, field("name", DataType.KEYWORD), field("age", DataType.LONG));
+            """, field("name", DataType.KEYWORD), field("age", DataType.INTEGER));
     }
 
     /**
@@ -55,9 +56,9 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
      */
     public void testInferSchemaForNestedJson() throws IOException {
         check("""
-            {"user": {"name": "John", "age": 30}}
+            {"user": {"name": "John", "age": 30, "long_value": 12345678901234}}
             {"user": {"name": "Jane", "age": 25}}
-            """, field("user.name", DataType.KEYWORD), field("user.age", DataType.LONG));
+            """, field("user.name", DataType.KEYWORD), field("user.age", DataType.INTEGER), field("user.long_value", DataType.LONG));
     }
 
     /**
@@ -69,7 +70,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             not_json
 
             {"name": "Jane", "age": null}
-            """, field("name", DataType.KEYWORD), field("age", DataType.LONG, true));
+            """, field("name", DataType.KEYWORD), field("age", DataType.INTEGER, true));
     }
 
     /**
@@ -79,7 +80,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
         check("""
             {"scores": [85, 90, 95]}
             {"scores": [70, null]}
-            """, field("scores", DataType.LONG, true));
+            """, field("scores", DataType.INTEGER, true));
     }
 
     /**
@@ -100,7 +101,7 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
             {"name": "John", "age": 30}
             {"name": "Jane", "age": 25}
             {"name": "Smith", "age": 40}
-            """, field("name", DataType.KEYWORD), field("age", DataType.LONG));
+            """, field("name", DataType.KEYWORD), field("age", DataType.INTEGER));
     }
 
     /**

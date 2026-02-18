@@ -13,9 +13,9 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ConstantNullBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,8 +51,8 @@ public class NdJsonPageIteratorTests extends ESTestCase {
 
                 // Make sure blocks are returned in the order requested, with nulls for unknown columns
                 assertThat(page.getBlock(0), Matchers.instanceOf(BooleanBlock.class));
-                assertThat(page.getBlock(1), Matchers.instanceOf(LongBlock.class));
-                assertThat(page.getBlock(2), Matchers.instanceOf(BytesRefBlock.class));
+                assertThat(page.getBlock(1), Matchers.instanceOf(IntBlock.class));
+                assertThat(page.getBlock(2), Matchers.instanceOf(LongBlock.class));
                 assertThat(page.getBlock(3), Matchers.instanceOf(ConstantNullBlock.class));
 
                 sizes.add(page.getBlock(0).getPositionCount());
@@ -69,10 +70,10 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         var schema = metadata.schema();
 
         assertEquals("birth_date", schema.get(0).name());
-        assertEquals(DataType.KEYWORD, schema.get(0).dataType()); // FIXME: must be DATE at some point
+        assertEquals(DataType.DATETIME, schema.get(0).dataType());
 
         assertEquals("emp_no", schema.get(1).name());
-        assertEquals(DataType.LONG, schema.get(1).dataType());
+        assertEquals(DataType.INTEGER, schema.get(1).dataType());
 
         assertEquals("still_hired", schema.get(9).name());
         assertEquals(DataType.BOOLEAN, schema.get(9).dataType());
@@ -81,15 +82,15 @@ public class NdJsonPageIteratorTests extends ESTestCase {
             var page = iterator.next();
             checkBlockSizes(page);
 
-            BytesRefBlock birthDate = page.getBlock(blockIdx(metadata, "birth_date"));
-            LongBlock empNo = page.getBlock(blockIdx(metadata, "emp_no"));
+            LongBlock birthDate = page.getBlock(blockIdx(metadata, "birth_date"));
+            IntBlock empNo = page.getBlock(blockIdx(metadata, "emp_no"));
             BooleanBlock stillHired = page.getBlock(blockIdx(metadata, "still_hired"));
             DoubleBlock height = page.getBlock(blockIdx(metadata, "height"));
 
             var bytesRef = new BytesRef();
 
-            assertEquals("1963-06-01T00:00:00Z", birthDate.getBytesRef(9, bytesRef).utf8ToString());
-            assertEquals(10010, empNo.getLong(9));
+            assertEquals("1963-06-01T00:00:00Z", Instant.ofEpochMilli(birthDate.getLong(9)).toString());
+            assertEquals(10010, empNo.getInt(9));
             assertFalse(stillHired.getBoolean(9));
             assertEquals(1.70, height.getDouble(9), 0.0001);
         }

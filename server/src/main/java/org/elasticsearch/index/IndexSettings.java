@@ -657,6 +657,13 @@ public final class IndexSettings {
         Property.Final
     );
 
+    public static final Setting<Boolean> COLUMN_BATCH_INDEX = Setting.boolSetting(
+        "index.column_batch_index",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final Setting<Boolean> LOGSDB_ADD_HOST_NAME_FIELD = Setting.boolSetting(
         "index.logsdb.add_host_name_field",
         false,
@@ -1034,6 +1041,7 @@ public final class IndexSettings {
     private final boolean es87TSDBCodecEnabled;
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
+    private final boolean columnBatchIndex;
     private final boolean logsdbAddHostNameField;
     private volatile long retentionLeaseMillis;
 
@@ -1166,6 +1174,10 @@ public final class IndexSettings {
         return logsdbRouteOnSortFields;
     }
 
+    public boolean isColumnBatchIndex() {
+        return columnBatchIndex;
+    }
+
     /**
      * Returns <code>true</code> if the index is in logsdb mode and needs a [host.name] keyword field. The default is <code>false</code>
      */
@@ -1268,6 +1280,7 @@ public final class IndexSettings {
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
         logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
         logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);
+        columnBatchIndex = scopedSettings.get(COLUMN_BATCH_INDEX);
         logsdbAddHostNameField = scopedSettings.get(LOGSDB_ADD_HOST_NAME_FIELD);
         skipIgnoredSourceWrite = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING);
         skipIgnoredSourceRead = scopedSettings.get(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_READ_SETTING);

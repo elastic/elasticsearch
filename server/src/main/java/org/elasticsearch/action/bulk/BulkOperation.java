@@ -51,6 +51,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
@@ -427,7 +428,7 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                 }
 
                 // Try to encode as a batch for the batch execution path
-                if (isBatchEligible(requests)) {
+                if (isBatchEligible(indexMetadata, requests)) {
                     try {
                         List<IndexRequest> indexRequests = new ArrayList<>(requests.size());
                         for (BulkItemRequest r : requests) {
@@ -448,10 +449,13 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
 
     /**
      * Checks whether a shard's requests are eligible for batch encoding on the coordinating node.
-     * This only checks request-level criteria (all IndexRequest, no conditional writes, no duplicate IDs).
-     * Mapping-level checks (dynamic: strict/false) are deferred to the primary shard.
+     * Requires that the index has the column_batch_index setting enabled and that all requests are
+     * IndexRequests with no conditional writes and no duplicate IDs.
      */
-    private static boolean isBatchEligible(List<BulkItemRequest> requests) {
+    private static boolean isBatchEligible(IndexMetadata indexMetadata, List<BulkItemRequest> requests) {
+        if (IndexSettings.COLUMN_BATCH_INDEX.get(indexMetadata.getSettings()) == false) {
+            return false;
+        }
         if (requests.size() <= 1) {
             return false;
         }

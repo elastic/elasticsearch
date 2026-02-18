@@ -288,8 +288,8 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
             @Override
             protected void doRun() throws Exception {
-                // Try batch path first if eligible
-                if (isBatchEligibleOnPrimary(request, primary)) {
+                // Try batch path if the coordinating node determined this request is batch-eligible
+                if (request.isBatchMode()) {
                     try {
                         var batchResult = performBatchOnPrimary(request, primary, postWriteRefresh, postWriteAction);
                         if (batchResult != null) {
@@ -297,13 +297,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                             listener.onResponse(batchResult);
                             return;
                         }
-                        // null = fallback to serial (e.g., mapping update needed)
                     } catch (Exception e) {
                         // Batch failed entirely — fall through to serial path
                         logger.debug("Batch execution failed, falling back to serial path", e);
                     }
                 }
-                // Existing serial loop (unchanged)
+                // Serial loop
                 while (context.hasMoreOperationsToExecute()) {
                     if (executeBulkItemRequest(
                         context,
@@ -377,31 +376,9 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     /**
-     * Checks whether the batch mode can be used on the primary shard.
-     * Requires that the request carries a DocumentBatch and that the index mapping is strict or false
-     * (no dynamic mapping updates will be needed).
-     */
-    static boolean isBatchEligibleOnPrimary(BulkShardRequest request, IndexShard primary) {
-        if (request.isBatchMode() == false) {
-            return false;
-        }
-        MapperService mapperService = primary.mapperService();
-        if (mapperService.documentMapper() == null) {
-            return false;
-        }
-        MappingLookup mappingLookup = mapperService.mappingLookup();
-        var rootDynamic = mappingLookup.getMapping().getRoot().dynamic();
-        if (rootDynamic == null) {
-            return false; // default is TRUE which does not support batch
-        }
-        return rootDynamic == org.elasticsearch.index.mapper.ObjectMapper.Dynamic.STRICT
-            || rootDynamic == org.elasticsearch.index.mapper.ObjectMapper.Dynamic.FALSE;
-    }
-
-    /**
      * Attempts batch execution of all items on the primary shard.
      * Returns a WritePrimaryResult on success, or null if the batch should fall back to the serial path
-     * (e.g., because a dynamic mapping update is needed).
+     * (e.g., because an item was already aborted).
      */
     @Nullable
     static WritePrimaryResult<BulkShardRequest, BulkShardResponse> performBatchOnPrimary(
@@ -438,17 +415,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         var batchParser = mapperService.createBatchDocumentParser();
         var parseResult = batchParser.parseBatch(batch, mappingLookup);
 
-        // Phase 3: Check for dynamic mapping updates — if any, fall back to serial
-        for (int i = 0; i < batchDocCount; i++) {
-            if (parseResult.isSuccess(i)) {
-                var parsedDoc = parseResult.getDocument(i);
-                if (parsedDoc.dynamicMappingsUpdate() != null) {
-                    return null; // fall back to serial path
-                }
-            }
-        }
-
-        // Phase 4: Build Engine.Index operations for successfully parsed documents
+        // Phase 3: Build Engine.Index operations for successfully parsed documents
         final java.util.List<Engine.Index> engineOps = new java.util.ArrayList<>(batchDocCount);
         final long startTimeNanos = primary.getRelativeTimeInNanos();
         final long operationPrimaryTerm = primary.getOperationPrimaryTerm();
@@ -479,10 +446,10 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             engineOps.add(engineIndex);
         }
 
-        // Phase 5: Execute on engine
+        // Phase 4: Execute on engine
         final java.util.List<Engine.IndexResult> engineResults = primary.indexBatch(engineOps);
 
-        // Phase 6: Build BulkItemResponse for each item
+        // Phase 5: Build BulkItemResponse for each item
         final BulkItemResponse[] responses = new BulkItemResponse[items.length];
         Translog.Location locationToSync = null;
 

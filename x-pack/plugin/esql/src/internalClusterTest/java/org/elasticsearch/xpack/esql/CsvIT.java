@@ -275,18 +275,16 @@ public class CsvIT extends ESTestCase {
     }
 
     private static void loadIndices(FieldCapabilitiesRequest request) {
-        Stream.of(request.indices())
-            .flatMap(pattern -> {
-                assert pattern.contains("<") == false : "Date-math is not supported in test";
-                if (pattern.contains("*")) {
-                    assert pattern.endsWith("*") : "Only suffix patterns are supported in test";
-                    var prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
-                    return CsvTestsDataLoader.CSV_DATASET_MAP.values().stream().filter(ds -> ds.indexName().startsWith(prefix));
-                } else {
-                    return Stream.of(CsvTestsDataLoader.CSV_DATASET_MAP.get(pattern));
-                }
-            })
-            .forEach(resource -> indices.maybeLoad(resource));
+        Stream.of(request.indices()).flatMap(pattern -> {
+            assert pattern.contains("<") == false : "Date-math is not supported in test";
+            if (pattern.contains("*")) {
+                assert pattern.endsWith("*") : "Only suffix patterns are supported in test";
+                var prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
+                return CsvTestsDataLoader.CSV_DATASET_MAP.values().stream().filter(ds -> ds.indexName().startsWith(prefix));
+            } else {
+                return Stream.of(CsvTestsDataLoader.CSV_DATASET_MAP.get(pattern));
+            }
+        }).forEach(resource -> indices.maybeLoad(resource));
     }
 
     private static ResourceLoader<CsvTestsDataLoader.TestDataset> indices = new ResourceLoader<>() {

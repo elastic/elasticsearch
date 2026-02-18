@@ -21,14 +21,15 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
@@ -37,7 +38,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class NdJsonPageDecoder implements Releasable {
+public class NdJsonPageDecoder implements Closeable {
 
     private static final Logger LOGGER = LogManager.getLogger(NdJsonPageDecoder.class);
 
@@ -46,8 +47,7 @@ public class NdJsonPageDecoder implements Releasable {
     private final int batchSize;
     private final BlockFactory blockFactory;
     private JsonParser parser;
-
-    private final Block.Builder[] blockBuilders;
+    private final List<Attribute> projectedAttributes;
 
     // What blocks got a value on the current line? Needed because Block.Builder doesn't provide
     // the number of positions that were added.
@@ -78,58 +78,73 @@ public class NdJsonPageDecoder implements Releasable {
         this.decoder = prepareSchema(projectedAttributes);
         this.batchSize = batchSize;
         this.blockFactory = blockFactory;
-        this.blockBuilders = new Block.Builder[projectedAttributes.size()];
+        this.projectedAttributes = projectedAttributes;
         this.blockTracker = new BitSet(projectedAttributes.size());
 
         this.parser = NdJsonUtils.JSON_FACTORY.createParser(input);
     }
 
     Page decodePage() throws IOException {
-        this.decoder.setupBuilders();
+        var blockBuilders = new Block.Builder[this.projectedAttributes.size()];
+        // Setting up builders may trip the circuit breaker. Make sure they're all always closed
+        try {
+            this.decoder.setupBuilders(blockBuilders);
 
-        int lineCount = 0;
-        while (lineCount < batchSize) {
-            try {
-                if (parser.nextToken() == null) {
-                    break; // End of stream
+            int lineCount = 0;
+            while (lineCount < batchSize) {
+                try {
+                    if (parser.nextToken() == null) {
+                        break; // End of stream
+                    }
+                } catch (JsonParseException e) {
+                    LOGGER.warn("Malformed NDJSON at line {}: {}", lineCount, e);
+                    this.input = NdJsonUtils.moveToNextLine(parser, this.input);
+                    parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
+                    continue;
                 }
-            } catch (JsonParseException e) {
-                LOGGER.warn("Malformed NDJSON at line {}: {}", lineCount, e);
-                this.input = NdJsonUtils.moveToNextLine(parser, this.input);
-                parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
-                continue;
-            }
 
-            lineCount++;
-            this.blockTracker.clear();
+                lineCount++;
+                this.blockTracker.clear();
 
-            try {
-                decoder.decodeObject(parser, lineCount);
-            } catch (JsonParseException e) {
-                LOGGER.warn("Malformed NDJSON at line {}: {}", lineCount, e);
-                this.input = NdJsonUtils.moveToNextLine(parser, this.input);
-                parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
-            }
+                try {
+                    decoder.decodeObject(parser, lineCount);
+                } catch (JsonParseException e) {
+                    LOGGER.warn("Malformed NDJSON at line {}: {}", lineCount, e);
+                    this.input = NdJsonUtils.moveToNextLine(parser, this.input);
+                    parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
+                }
 
-            // Make sure every block got moved forward
-            for (int i = 0; i < blockBuilders.length; i++) {
-                if (blockTracker.get(i) == false) {
-                    blockBuilders[i].appendNull();
+                // Make sure every block got moved forward
+                for (int i = 0; i < blockBuilders.length; i++) {
+                    if (blockTracker.get(i) == false) {
+                        blockBuilders[i].appendNull();
+                    }
                 }
             }
-        }
 
-        if (lineCount == 0) {
-            // Done
-            return null;
-        }
+            if (lineCount == 0) {
+                // Done
+                return null;
+            }
 
-        Block[] blocks = new Block[blockBuilders.length];
-        for (int i = 0; i < blockBuilders.length; i++) {
-            blocks[i] = blockBuilders[i].build();
-            blockBuilders[i].close();
+            var blocks = new Block[this.projectedAttributes.size()];
+            var success = false;
+            try {
+                for (int i = 0; i < blockBuilders.length; i++) {
+                    blocks[i] = blockBuilders[i].build();
+                }
+                success = true;
+            } finally {
+                if (success == false) {
+                    // Some blocks may have been created
+                    Releasables.close(blocks);
+                }
+            }
+            return new Page(blocks);
+
+        } finally {
+            Releasables.close(blockBuilders);
         }
-        return new Page(blocks);
     }
 
     // Prepare the tree of property decoders and return the root decoder.
@@ -152,8 +167,9 @@ public class NdJsonPageDecoder implements Releasable {
     }
 
     @Override
-    public void close() {
-        Releasables.close(blockBuilders);
+    public void close() throws IOException {
+        IOUtils.close(input);
+        input = null;
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -171,7 +187,7 @@ public class NdJsonPageDecoder implements Releasable {
         }
 
         // Builders setup independently as we need to create new ones for each page.
-        void setupBuilders() {
+        void setupBuilders(Block.Builder[] blockBuilders) {
             if (attribute != null) {
                 blockBuilder = switch (attribute.dataType()) {
                     // Keep in sync with NdJsonSchemaInferrer.inferValueSchema
@@ -189,7 +205,7 @@ public class NdJsonPageDecoder implements Releasable {
 
             if (children != null) {
                 for (var child : children.values()) {
-                    child.setupBuilders();
+                    child.setupBuilders(blockBuilders);
                 }
             }
         }

@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.List;
 import java.util.NoSuchElementException;
 
@@ -27,7 +26,6 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     private final NdJsonPageDecoder pageDecoder;
     private boolean endOfFile = false;
     private Page nextPage;
-    private final InputStream inputStream;
 
     NdJsonPageIterator(StorageObject object, List<String> projectedColumns, int batchSize, BlockFactory blockFactory) throws IOException {
         // FIXME: either read schema ahead of time, of buffer the stream and replay it to avoid opening it twice.
@@ -36,7 +34,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             attributes = NdJsonSchemaInferrer.inferSchema(stream);
         }
 
-        this.inputStream = object.newStream();
+        var inputStream = object.newStream();
         this.pageDecoder = new NdJsonPageDecoder(inputStream, attributes, projectedColumns, batchSize, blockFactory);
     }
 
@@ -69,6 +67,6 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
 
     @Override
     public void close() throws IOException {
-        IOUtils.close(inputStream, pageDecoder);
+        IOUtils.close(pageDecoder);
     }
 }

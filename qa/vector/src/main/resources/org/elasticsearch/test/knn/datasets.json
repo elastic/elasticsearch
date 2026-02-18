@@ -21,7 +21,7 @@
     "queries": "gs://knnindextester/glove-200/queries-glove-200.fvec",
     "dimensions": 200,
     "vector_encoding": "float32",
-    "vector_space": "euclidean",
+    "vector_space": "cosine",
     "num_doc_vectors": 1183514,
     "num_query_vectors": 10000
   },

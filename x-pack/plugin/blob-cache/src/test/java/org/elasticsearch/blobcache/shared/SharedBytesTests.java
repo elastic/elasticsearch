@@ -124,6 +124,8 @@ public class SharedBytesTests extends ESTestCase {
         }
     }
 
+    // Verifies that byteBufferSlice returns a read-only buffer with correct content when mmap
+    // is enabled. Randomized region count (1-4) and region size (1-16 pages).
     public void testByteBufferSliceMmap() throws Exception {
         int regions = randomIntBetween(1, 4);
         int regionSize = randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE;
@@ -168,6 +170,8 @@ public class SharedBytesTests extends ESTestCase {
         }
     }
 
+    // Verifies that byteBufferSlice returns null when mmap is disabled.
+    // Randomized region count (1-4) and region size (1-16 pages), mmap=false.
     public void testByteBufferSliceNoMmap() throws Exception {
         int regions = randomIntBetween(1, 4);
         int regionSize = randomIntBetween(1, 16) * SharedBytes.PAGE_SIZE;
@@ -192,6 +196,8 @@ public class SharedBytesTests extends ESTestCase {
         }
     }
 
+    // Verifies that byteBufferSlice rejects out-of-bounds requests: offset+length exceeding
+    // region size, and negative offset. Single region of 4 pages, mmap=true.
     public void testByteBufferSliceBoundsCheck() throws Exception {
         int regions = 1;
         int regionSize = 4 * SharedBytes.PAGE_SIZE;

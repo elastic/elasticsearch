@@ -83,12 +83,12 @@ final class SnapshotExternalChangesBatcher {
         }
     }
 
-    private State state = State.IDLE;
     private final MasterServiceTaskQueue<Task> taskQueue;
     private final Predicate<Snapshot> isInitializingClone;
     private final SnapshotFinalizer snapshotFinalizer;
     private final ClonesStarter clonesStarter;
     private final DeletionStarter deletionStarter;
+    private State state = State.IDLE;
 
     SnapshotExternalChangesBatcher(
         ClusterService clusterService,
@@ -140,7 +140,6 @@ final class SnapshotExternalChangesBatcher {
     }
 
     /**
-     * visible for testing
      * @return true if node changes are pending (both {@code STARTED} and {@code ABORTED} snapshots need updating)
      *         false if only shard-routing changes are pending (only need to update {@code STARTED} snapshots)
      */
@@ -152,8 +151,8 @@ final class SnapshotExternalChangesBatcher {
     }
 
     /**
-     * Called after successful execution (including publication) of a task. Transitions back to {@link State#IDLE} if no new changes
-     * arrived during execution, or re-enqueues a new task if they did.
+     * Called after successful execution (including publication) of a task. Transitions state back to
+     * {@link State#IDLE} if no new changes arrived during execution, re-enqueues a new task otherwise.
      */
     void onTaskSuccess() {
         boolean enqueueTask = false;
@@ -219,9 +218,9 @@ final class SnapshotExternalChangesBatcher {
             // a node leaving or shard becoming unassigned for one snapshot, we will also fail it for all subsequent enqueued
             // snapshots for the same repository.
             //
-            // TODO: the code in this state update duplicates large chunks of the logic in #SHARD_STATE_EXECUTOR.
-            // We should refactor it to ideally also go through #SHARD_STATE_EXECUTOR by hand-crafting shard state updates
-            // that encapsulate nodes leaving or indices having been deleted and passing them to the executor instead.
+            // TODO: this code duplicates large chunks of the logic in {@link SnapshotsService.SnapshotShardsUpdateContext}.
+            // We should refactor it to ideally also go through SnapshotShardsUpdateContext by hand-crafting shard state updates that
+            // encapsulate nodes leaving or indices having been deleted and passing them to the executor instead.
             SnapshotsInProgress updatedSnapshots = snapshotsInProgress;
 
             Collection<SnapshotsInProgress.Entry> finishedSnapshots = new ArrayList<>();
@@ -235,7 +234,6 @@ final class SnapshotExternalChangesBatcher {
                     if (statesToUpdate.contains(snapshotEntry.state())) {
                         if (snapshotEntry.isClone()) {
                             if (snapshotEntry.shardSnapshotStatusByRepoShardId().isEmpty()) {
-                                // Currently initializing clone
                                 if (isInitializingClone.test(snapshotEntry.snapshot())) {
                                     updatedEntriesForRepo.add(snapshotEntry);
                                 } else {
@@ -349,10 +347,8 @@ final class SnapshotExternalChangesBatcher {
         private void clusterStateProcessed(ClusterState newState, Collection<SnapshotsInProgress.Entry> finishedSnapshots) {
             final SnapshotDeletionsInProgress snapshotDeletionsInProgress = SnapshotDeletionsInProgress.get(newState);
             if (finishedSnapshots.isEmpty() == false) {
-                // If we found snapshots that should be finalized as a result of the CS update we try to initiate finalization for
-                // them unless there is an executing snapshot delete already.
-                // If there is an executing snapshot delete we don't have to enqueue the snapshot finalizations here because the ongoing
-                // delete will take care of that when removing the delete from the cluster state.
+                // Skip finalization for repos with an active delete, because it will trigger finalization
+                // for any completed snapshots when it removes itself from the cluster state.
                 final Set<String> reposWithRunningDeletes = snapshotDeletionsInProgress.getEntries()
                     .stream()
                     .filter(entry -> entry.state() == SnapshotDeletionsInProgress.State.STARTED)

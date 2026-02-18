@@ -222,7 +222,7 @@ PUT my-index-000003
 stack: ga 9.2
 ```
 
-Configuring `index_options` for [sparse vector fields](/reference/elasticsearch/mapping-reference/sparse-vector.md) lets you configure [token pruning](/reference/elasticsearch/mapping-reference/sparse-vector.md#token-pruning), which controls whether non-significant or overly frequent tokens are omitted to reduce index size and improve query performance.
+Configuring `index_options` for [sparse vector fields](/reference/elasticsearch/mapping-reference/sparse-vector.md) lets you configure [token pruning](/reference/elasticsearch/mapping-reference/sparse-vector.md#token-pruning), which controls whether non-significant or overly frequent tokens are omitted to improve query performance.
 
 The following example enables token pruning and sets pruning thresholds for a `sparse_vector` field:
 
@@ -284,5 +284,5 @@ PUT semantic-embeddings
 1. (Optional) Selects the `int8_hnsw` vector quantization strategy. Learn about [default quantization types](/reference/elasticsearch/mapping-reference/dense-vector.md#default-quantization-types).
 2. (Optional) Sets `m` to 15 to control how many neighbors each node connects to in the HNSW graph. Default is `16`.
 3. (Optional) Sets `ef_construction` to 90 to control how many candidate neighbors are considered during graph construction. Default is `100`.
-4. (Optional) Sets `confidence_interval` to 0.95 to limit the value range used during quantization and balance accuracy with memory efficiency. Default is `100`.
+4. (Optional) Sets `confidence_interval` to 0.95 to limit the value range used during quantization and balance accuracy with memory efficiency.
 

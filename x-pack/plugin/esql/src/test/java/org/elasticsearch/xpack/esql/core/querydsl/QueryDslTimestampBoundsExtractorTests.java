@@ -5,14 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.optimizer.promql;
+package org.elasticsearch.xpack.esql.core.querydsl;
 
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.plan.logical.promql.QueryDslTimestampBoundsExtractor;
-import org.elasticsearch.xpack.esql.plan.logical.promql.QueryDslTimestampBoundsExtractor.TimestampBounds;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 
 import java.time.Instant;
 

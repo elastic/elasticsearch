@@ -85,7 +85,7 @@ import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
-import org.elasticsearch.xpack.esql.plan.logical.promql.QueryDslTimestampBoundsExtractor;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;

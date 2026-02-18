@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.plan.logical.promql;
+package org.elasticsearch.xpack.esql.core.querydsl;
 
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;

@@ -82,6 +82,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
     }
 
     protected long panamaInt7DotProduct(byte[] q) throws IOException {
+        assert dimensions == q.length;
         return IndexInputSegments.withSlice(in, dimensions, segment -> panamaInt7DotProductImpl(q, segment, dimensions));
     }
 
@@ -165,6 +166,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
     }
 
     protected void panamaInt7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
+        assert dimensions == q.length;
         IndexInputSegments.withSlice(in, (long) dimensions * count, segment -> {
             panamaInt7DotProductBulkImpl(q, segment, dimensions, count, scores);
             return null;

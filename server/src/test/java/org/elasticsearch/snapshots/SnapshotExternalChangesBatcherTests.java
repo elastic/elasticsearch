@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
@@ -48,6 +49,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -58,10 +60,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptySet;
-import static org.elasticsearch.snapshots.SnapshotServiceTestHelper.discoveryNodes;
-import static org.elasticsearch.snapshots.SnapshotServiceTestHelper.snapshot;
-import static org.elasticsearch.snapshots.SnapshotServiceTestHelper.snapshotEntry;
-import static org.elasticsearch.snapshots.SnapshotServiceTestHelper.uuid;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -439,5 +437,40 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         masterService.start();
         threadPool.getThreadContext().markAsSystemContext();
         return masterService;
+    }
+
+    static String uuid() {
+        return UUIDs.randomBase64UUID(random());
+    }
+
+    static Snapshot snapshot(String repoName, String name) {
+        return new Snapshot(ProjectId.DEFAULT, repoName, new SnapshotId(name, uuid()));
+    }
+
+    static SnapshotsInProgress.Entry snapshotEntry(
+        Snapshot snapshot,
+        Map<String, IndexId> indexIds,
+        Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards
+    ) {
+        return SnapshotsInProgress.startedEntry(
+            snapshot,
+            random().nextBoolean(),
+            random().nextBoolean(),
+            indexIds,
+            Collections.emptyList(),
+            1L,
+            randomNonNegativeLong(),
+            shards,
+            Collections.emptyMap(),
+            IndexVersion.current(),
+            Collections.emptyList()
+        );
+    }
+
+    private static DiscoveryNodes discoveryNodes(String localNodeId) {
+        return DiscoveryNodes.builder()
+            .add(DiscoveryNodeUtils.builder(localNodeId).roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
+            .localNodeId(localNodeId)
+            .build();
     }
 }

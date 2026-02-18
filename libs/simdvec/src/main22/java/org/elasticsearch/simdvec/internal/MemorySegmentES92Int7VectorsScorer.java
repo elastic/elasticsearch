@@ -20,8 +20,8 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
 
     private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
-    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize, MemorySegment memorySegment) {
-        super(in, dimensions, bulkSize, memorySegment);
+    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
+        super(in, dimensions, bulkSize);
     }
 
     @Override
@@ -34,22 +34,20 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         assert q.length == dimensions;
         if (NATIVE_SUPPORTED) {
             return nativeInt7DotProduct(q);
-        } else if (memorySegment != null) {
-            return panamaInt7DotProduct(q);
         } else {
-            return super.int7DotProduct(q);
+            return panamaInt7DotProduct(q);
         }
     }
 
     private long nativeInt7DotProduct(byte[] q) throws IOException {
-        return IndexInputSegments.withSlice(in, memorySegment, dimensions, segment -> {
+        return IndexInputSegments.withSlice(in, dimensions, segment -> {
             final MemorySegment querySegment = MemorySegment.ofArray(q);
             return Similarities.dotProductI7u(segment, querySegment, dimensions);
         });
     }
 
     private void nativeInt7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
-        IndexInputSegments.withSlice(in, memorySegment, (long) dimensions * count, segment -> {
+        IndexInputSegments.withSlice(in, (long) dimensions * count, segment -> {
             final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
             final MemorySegment querySegment = MemorySegment.ofArray(q);
             Similarities.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
@@ -62,10 +60,8 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         assert q.length == dimensions;
         if (NATIVE_SUPPORTED) {
             nativeInt7DotProductBulk(q, count, scores);
-        } else if (memorySegment != null) {
-            panamaInt7DotProductBulk(q, count, scores);
         } else {
-            super.int7DotProductBulk(q, count, scores);
+            panamaInt7DotProductBulk(q, count, scores);
         }
     }
 
@@ -81,30 +77,16 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         float[] scores,
         int bulkSize
     ) throws IOException {
-        if (memorySegment != null) {
-            int7DotProductBulk(q, bulkSize, scores);
-            applyCorrectionsBulk(
-                queryLowerInterval,
-                queryUpperInterval,
-                queryComponentSum,
-                queryAdditionalCorrection,
-                similarityFunction,
-                centroidDp,
-                scores,
-                bulkSize
-            );
-        } else {
-            super.scoreBulk(
-                q,
-                queryLowerInterval,
-                queryUpperInterval,
-                queryComponentSum,
-                queryAdditionalCorrection,
-                similarityFunction,
-                centroidDp,
-                scores,
-                bulkSize
-            );
-        }
+        int7DotProductBulk(q, bulkSize, scores);
+        applyCorrectionsBulk(
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            scores,
+            bulkSize
+        );
     }
 }

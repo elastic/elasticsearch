@@ -65,15 +65,9 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
     }
 
     @Override
-    public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
+    public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) {
         IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
         unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
-        MemorySegment ms = segmentSliceOrNull(unwrappedInput);
-        return new MemorySegmentES92Int7VectorsScorer(input, dimension, bulkSize, ms);
-    }
-
-    /** Returns the memory segment backing the whole index input, or null. */
-    private static MemorySegment segmentSliceOrNull(IndexInput input) throws IOException {
-        return input instanceof MemorySegmentAccessInput msai ? msai.segmentSliceOrNull(0L, input.length()) : null;
+        return new MemorySegmentES92Int7VectorsScorer(unwrappedInput, dimension, bulkSize);
     }
 }

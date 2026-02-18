@@ -12,35 +12,27 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 
 import java.io.IOException;
-import java.lang.foreign.MemorySegment;
 
 /** Panamized scorer for 7-bit quantized vectors stored as an {@link IndexInput}. **/
 public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92PanamaInt7VectorsScorer {
 
-    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize, MemorySegment memorySegment) {
-        super(in, dimensions, bulkSize, memorySegment);
+    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
+        super(in, dimensions, bulkSize);
     }
 
     @Override
     public boolean hasNativeAccess() {
-        return false; // This class does not support native access
+        return false;
     }
 
     @Override
     public long int7DotProduct(byte[] q) throws IOException {
-        if (memorySegment != null) {
-            return panamaInt7DotProduct(q);
-        }
-        return super.int7DotProduct(q);
+        return panamaInt7DotProduct(q);
     }
 
     @Override
     public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
-        if (memorySegment != null) {
-            panamaInt7DotProductBulk(q, count, scores);
-        } else {
-            super.int7DotProductBulk(q, count, scores);
-        }
+        panamaInt7DotProductBulk(q, count, scores);
     }
 
     @Override
@@ -55,30 +47,16 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         float[] scores,
         int bulkSize
     ) throws IOException {
-        if (memorySegment != null) {
-            int7DotProductBulk(q, bulkSize, scores);
-            applyCorrectionsBulk(
-                queryLowerInterval,
-                queryUpperInterval,
-                queryComponentSum,
-                queryAdditionalCorrection,
-                similarityFunction,
-                centroidDp,
-                scores,
-                bulkSize
-            );
-        } else {
-            super.scoreBulk(
-                q,
-                queryLowerInterval,
-                queryUpperInterval,
-                queryComponentSum,
-                queryAdditionalCorrection,
-                similarityFunction,
-                centroidDp,
-                scores,
-                bulkSize
-            );
-        }
+        int7DotProductBulk(q, bulkSize, scores);
+        applyCorrectionsBulk(
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            similarityFunction,
+            centroidDp,
+            scores,
+            bulkSize
+        );
     }
 }

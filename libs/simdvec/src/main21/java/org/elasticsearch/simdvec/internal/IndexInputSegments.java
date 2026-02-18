@@ -74,26 +74,6 @@ public final class IndexInputSegments {
     }
 
     /**
-     * Variant of {@link #withSlice(IndexInput, long, CheckedFunction)}
-     * that accepts an explicit pre-obtained memory segment for the whole
-     * file. If {@code rawSegment} is non-null, it is sliced directly;
-     * otherwise the method delegates to the 3-arg overload.
-     */
-    public static <R> R withSlice(
-        IndexInput in,
-        MemorySegment rawSegment,
-        long length,
-        CheckedFunction<MemorySegment, R, IOException> action
-    ) throws IOException {
-        if (rawSegment != null) {
-            long offset = in.getFilePointer();
-            in.skipBytes(length);
-            return action.apply(rawSegment.asSlice(offset, length));
-        }
-        return withSlice(in, length, action);
-    }
-
-    /**
      * Reads the given number of bytes from the current position of the
      * given IndexInput into a heap-backed memory segment.
      */

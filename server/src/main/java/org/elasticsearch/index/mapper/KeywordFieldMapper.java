@@ -1019,7 +1019,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return new SortedSetOrdinalsIndexFieldData.Builder(
                     name(),
                     CoreValuesSourceType.KEYWORD,
-                    useTimeSeriesDocValuesSkippers(fieldDataContext.indexSettings(), isDimension),
+                    indexType.hasOnlyDocValues() && indexType.hasDocValuesSkipper(),
                     (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
                 );
             }

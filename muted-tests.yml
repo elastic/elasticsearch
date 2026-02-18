@@ -448,6 +448,9 @@ tests:
   method: test {yaml=tsdb/25_id_generation/create operation on top of old document fails over bulk}
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/delete}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   method: test {yaml=tsdb/25_id_generation/delete over _bulk}
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
@@ -494,6 +497,9 @@ tests:
   method: test {yaml=tsdb/25_id_generation/create operation on top of old document fails over bulk}
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/delete}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
   method: test {yaml=tsdb/25_id_generation/delete over _bulk}
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
@@ -531,6 +537,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=tsdb/25_id_generation/create operation on top of old document fails over bulk}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/delete}
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=tsdb/25_id_generation/delete over _bulk}

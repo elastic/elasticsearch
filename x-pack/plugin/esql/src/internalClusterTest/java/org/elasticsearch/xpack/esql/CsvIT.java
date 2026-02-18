@@ -10,9 +10,16 @@ package org.elasticsearch.xpack.esql;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
+import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
@@ -26,8 +33,9 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.action.EsqlPluginWithEnterpriseOrTrialLicense;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramMapperPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -40,10 +48,14 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.URL;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.CsvAssert.assertResultsWithTransformer;
@@ -60,6 +72,7 @@ public class CsvIT extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
 
     private static InternalTestCluster cluster;
+    private static ResourceLoader indices = new ResourceLoader();
 
     private final String fileName;
     private final String groupName;
@@ -93,6 +106,7 @@ public class CsvIT extends ESTestCase {
 
     @BeforeClass
     public static void setupCluster() throws Exception {
+        long start = System.currentTimeMillis();
         logger.info("Creating test cluster");
         cluster = new InternalTestCluster(
             randomLong(),
@@ -107,7 +121,7 @@ public class CsvIT extends ESTestCase {
             "node_",
             List.of(
                 getTestTransportPlugin(),
-                EsqlPluginWithEnterpriseOrTrialLicense.class,
+                EsqlTestPlugin.class,
                 AggregateMetricMapperPlugin.class,
                 AnalyticsPlugin.class,
                 ConstantKeywordMapperPlugin.class,
@@ -125,42 +139,8 @@ public class CsvIT extends ESTestCase {
         );
         cluster.beforeTest(random());
 
-        // setup data
-        long start = System.currentTimeMillis();
-
-        // TODO populate data lazily
-        for (var dataset : CsvTestsDataLoader.CSV_DATASET_MAP.values()) {
-            if (dataset.requiresInferenceEndpoint()) {
-                continue;// TODO inference endpoint
-            }
-            logger.info("Creating dataset [{}]", dataset.indexName());
-            assertAcked(
-                cluster.client()
-                    .admin()
-                    .indices()
-                    .prepareCreate(dataset.indexName())
-                    .setMapping(CsvTestsDataLoader.readMappingFile(dataset))
-                    .setSettings(dataset.loadSettings())
-            );
-            if (dataset.dataFileName() != null) {
-                var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-                for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
-                    bulk.add(
-                        cluster.client()
-                            .prepareIndex(dataset.indexName())
-                            .setId(document.id())
-                            .setSource(document.json().toString(), XContentType.JSON)
-                    );
-                }
-                if (bulk.numberOfActions() > 0) {
-                    var result = bulk.get();
-                    assertFalse(
-                        "Must load dataset [" + dataset.indexName() + "] successfully: " + result.buildFailureMessage(),
-                        result.hasFailures()
-                    );
-                }
-            }
-        }
+        long stop = System.currentTimeMillis();
+        logger.info("Started test cluster in {} ms", stop - start);
 
         // TODO enrich?
         // for (var policy : CsvTestsDataLoader.ENRICH_POLICIES) {
@@ -194,9 +174,6 @@ public class CsvIT extends ESTestCase {
                     )
             );
         }
-
-        long stop = System.currentTimeMillis();
-        logger.info("Created datasets in {} ms", stop - start);
     }
 
     @AfterClass
@@ -206,6 +183,8 @@ public class CsvIT extends ESTestCase {
 
     public final void test() throws Throwable {
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+
+        indices.ensureNoFailures();
 
         skipUnsupportedCapability(EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS);
         skipUnsupportedCapability(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION);
@@ -265,5 +244,94 @@ public class CsvIT extends ESTestCase {
 
     public boolean logResults() {
         return false;
+    }
+
+    public static class EsqlTestPlugin extends EsqlPlugin {
+        protected XPackLicenseState getLicenseState() {
+            return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
+        }
+
+        @Override
+        public Collection<ActionFilter> getActionFilters() {
+            return List.of(new ActionFilter.Simple() {
+                @Override
+                public int order() {
+                    return Integer.MAX_VALUE;
+                }
+
+                @Override
+                protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
+                    switch (action) {
+                        case EsqlResolveFieldsAction.NAME -> loadIndices((FieldCapabilitiesRequest) request);
+                        // TODO view
+                        // TODO enrich
+                    }
+                    return true;
+                }
+            });
+        }
+    }
+
+    private static void loadIndices(FieldCapabilitiesRequest request) {
+        Stream.of(request.indices())
+            .flatMap(pattern -> pattern.contains("*") || pattern.startsWith("-") || pattern.contains("<")
+                ? CsvTestsDataLoader.CSV_DATASET_MAP.values().stream() // load all when using pattern, exclusion or date-math
+                : Stream.of(CsvTestsDataLoader.CSV_DATASET_MAP.get(pattern)))
+            .distinct()
+            .forEach(resource -> indices.maybeLoad(resource.indexName(), () -> loadDataset(resource)));
+    }
+
+    private static void loadDataset(CsvTestsDataLoader.TestDataset dataset) throws IOException {
+        if (dataset.requiresInferenceEndpoint()) {
+            return;// TODO inference endpoint
+        }
+        logger.info("Loading dataset [{}]", dataset.indexName());
+        assertAcked(
+            cluster.client()
+                .admin()
+                .indices()
+                .prepareCreate(dataset.indexName())
+                .setMapping(CsvTestsDataLoader.readMappingFile(dataset))
+                .setSettings(dataset.loadSettings())
+        );
+        if (dataset.dataFileName() != null) {
+            var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
+                bulk.add(
+                    cluster.client()
+                        .prepareIndex(dataset.indexName())
+                        .setId(document.id())
+                        .setSource(document.json().toString(), XContentType.JSON)
+                );
+            }
+            if (bulk.numberOfActions() > 0) {
+                var result = bulk.get();
+                assertFalse(
+                    "Must load dataset [" + dataset.indexName() + "] successfully: " + result.buildFailureMessage(),
+                    result.hasFailures()
+                );
+            }
+        }
+    }
+
+    private static class ResourceLoader {
+        private final Set<String> loaded = new HashSet<>();
+        private Throwable failure = null;
+
+        public void maybeLoad(String resource, ThrowingRunnable loader) {
+            if (failure == null && loaded.add(resource)) {
+                try {
+                    loader.run();
+                } catch (Throwable t) {
+                    failure = t;
+                }
+            }
+        }
+
+        public void ensureNoFailures() {
+            if (failure != null) {
+                throw new RuntimeException("Resource loading failure", failure);
+            }
+        }
     }
 }

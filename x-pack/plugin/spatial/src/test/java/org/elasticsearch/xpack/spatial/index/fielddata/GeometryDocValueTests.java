@@ -7,14 +7,18 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.apache.lucene.geo.Circle;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.SpatialPoint;
+import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
+import org.elasticsearch.geometry.GeometryVisitor;
+import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiLine;
+import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
@@ -28,7 +32,9 @@ import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
+import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 
 import java.io.BufferedReader;
@@ -143,6 +149,9 @@ public class GeometryDocValueTests extends ESTestCase {
             double labelY = ((double) minY + maxY) / 2;
             assertEquals(labelX, labelPosition.getX(), 0.0000001);
             assertEquals(labelY, labelPosition.getY(), 0.0000001);
+
+            // Assert that we can extract the original geometry from the doc-values
+            assertThat("Expect equivalent geometry", reader.getGeometry(CoordinateEncoder.GEO), equivalentTo(rectangle));
         }
     }
 
@@ -166,6 +175,9 @@ public class GeometryDocValueTests extends ESTestCase {
             new GeoPoint(labelPosition),
             isRectangleLabelPosition(r1, r2)
         );
+
+        Geometry extracted = reader.getGeometry(CoordinateEncoder.GEO);
+        assertThat("Expect equivalent geometry", extracted, equivalentTo(geometry));
     }
 
     public void testAntarcticaLabelPosition() throws Exception {
@@ -187,8 +199,11 @@ public class GeometryDocValueTests extends ESTestCase {
         double centroidY = CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
         assertEquals(centroidX, labelPosition.getX(), 0.0000001);
         assertEquals(centroidY, labelPosition.getY(), 0.0000001);
-        Circle tolerance = new Circle(centroidY, centroidX, 1);
+        org.apache.lucene.geo.Circle tolerance = new org.apache.lucene.geo.Circle(centroidY, centroidX, 1);
         assertTrue("Expect label position to be within the geometry", shapeValue.relate(tolerance) != GeoRelation.QUERY_DISJOINT);
+
+        // Assert that we can extract the original geometry from the doc-values
+        assertThat("Expect equivalent geometry", reader.getGeometry(CoordinateEncoder.GEO), equivalentTo(geometry));
     }
 
     public void testFranceLabelPosition() throws Exception {
@@ -202,8 +217,11 @@ public class GeometryDocValueTests extends ESTestCase {
         double centroidY = CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
         assertEquals(centroidX, labelPosition.getX(), 0.0000001);
         assertEquals(centroidY, labelPosition.getY(), 0.0000001);
-        Circle tolerance = new Circle(centroidY, centroidX, 1);
+        org.apache.lucene.geo.Circle tolerance = new org.apache.lucene.geo.Circle(centroidY, centroidX, 1);
         assertTrue("Expect label position to be within the geometry", shapeValue.relate(tolerance) != GeoRelation.QUERY_DISJOINT);
+
+        // Assert that we can extract the original geometry from the doc-values
+        assertThat("Expect equivalent geometry", reader.getGeometry(CoordinateEncoder.GEO), equivalentTo(geometry));
     }
 
     private Geometry loadResourceAsGeometry(String filename) throws IOException, ParseException {
@@ -282,5 +300,219 @@ public class GeometryDocValueTests extends ESTestCase {
     private static void assertDimensionalShapeType(Geometry geometry, DimensionalShapeType expected) throws IOException {
         GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(geometry, CoordinateEncoder.GEO);
         assertThat(reader.getDimensionalShapeType(), equalTo(expected));
+    }
+
+    private Matcher<? super Geometry> equivalentTo(Geometry geometry) {
+        return new TestGeometryEquivalence(geometry, CoordinateEncoder.GEO);
+    }
+
+    /**
+     * Hamcrest matcher that checks two geometries are structurally identical (same topology)
+     * with coordinates equivalent within the Lucene quantization tolerance. Coordinates are
+     * compared by encoding both sides to the integer grid and checking equality, so any
+     * difference smaller than one quantization step is accepted.
+     */
+    private static class TestGeometryEquivalence extends BaseMatcher<Geometry> {
+
+        private final Geometry expected;
+        private final CoordinateEncoder encoder;
+        private String mismatch;
+
+        private TestGeometryEquivalence(Geometry expected, CoordinateEncoder encoder) {
+            this.expected = expected;
+            this.encoder = encoder;
+        }
+
+        @Override
+        public boolean matches(Object o) {
+            if (o instanceof Geometry actual) {
+                mismatch = checkEquivalent(expected, actual, "");
+                return mismatch == null;
+            }
+            mismatch = "not a Geometry: " + (o == null ? "null" : o.getClass().getName());
+            return false;
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("geometry equivalent (within quantization) to ").appendValue(WellKnownText.toWKT(expected));
+        }
+
+        @Override
+        public void describeMismatch(Object item, Description description) {
+            if (mismatch != null) {
+                description.appendText(mismatch);
+            }
+        }
+
+        private String checkEquivalent(Geometry expected, Geometry actual, String path) {
+            return expected.visit(new EquivalenceVisitor(actual, path));
+        }
+
+        private class EquivalenceVisitor implements GeometryVisitor<String, RuntimeException> {
+            private final Geometry actual;
+            private final String path;
+
+            EquivalenceVisitor(Geometry actual, String path) {
+                this.actual = actual;
+                this.path = path;
+            }
+
+            @Override
+            public String visit(Circle circle) {
+                return path + ": Circle comparison not supported";
+            }
+
+            @Override
+            public String visit(GeometryCollection<?> expected) {
+                if (actual instanceof GeometryCollection<?> a) {
+                    if (expected.size() != a.size()) return sizeMismatch(expected.size(), a.size());
+                    for (int i = 0; i < expected.size(); i++) {
+                        String r = checkEquivalent(expected.get(i), a.get(i), path + "[" + i + "]");
+                        if (r != null) return r;
+                    }
+                    return null;
+                }
+                return typeMismatch(expected);
+            }
+
+            @Override
+            public String visit(Line expected) {
+                if (actual instanceof Line a) {
+                    return compareLineCoords(path, expected, a);
+                }
+                return typeMismatch(expected);
+            }
+
+            @Override
+            public String visit(LinearRing expected) {
+                if (actual instanceof LinearRing a) {
+                    return compareLineCoords(path, expected, a);
+                }
+                return typeMismatch(expected);
+            }
+
+            @Override
+            public String visit(MultiLine expected) {
+                if (actual instanceof MultiLine a) {
+                    if (expected.size() != a.size()) return sizeMismatch(expected.size(), a.size());
+                    for (int i = 0; i < expected.size(); i++) {
+                        String r = checkEquivalent(expected.get(i), a.get(i), path + "[" + i + "]");
+                        if (r != null) return r;
+                    }
+                    return null;
+                }
+                return typeMismatch(expected);
+            }
+
+            @Override
+            public String visit(MultiPoint expected) {
+                if (actual instanceof MultiPoint a) {
+                    if (expected.size() != a.size()) return sizeMismatch(expected.size(), a.size());
+                    for (int i = 0; i < expected.size(); i++) {
+                        String r = checkEquivalent(expected.get(i), a.get(i), path + "[" + i + "]");
+                        if (r != null) return r;
+                    }
+                    return null;
+                }
+                return typeMismatch(expected);
+            }
+
+            @Override
+            public String visit(MultiPolygon expected) {
+                if (actual instanceof MultiPolygon a) {
+                    if (expected.size() != a.size()) return sizeMismatch(expected.size(), a.size());
+                    for (int i = 0; i < expected.size(); i++) {
+                        String r = checkEquivalent(expected.get(i), a.get(i), path + "[" + i + "]");
+                        if (r != null) return r;
+                    }
+                    return null;
+                }
+                return typeMismatch(expected);
+            }
+
+            @Override
+            public String visit(Point expected) {
+                if (actual instanceof Point a) {
+                    return compareCoord(path, expected.getX(), expected.getY(), a.getX(), a.getY());
+                }
+                return typeMismatch(expected);
+            }
+
+            @Override
+            public String visit(Polygon expected) {
+                if (actual instanceof Polygon a) {
+                    if (expected.getNumberOfHoles() != a.getNumberOfHoles()) {
+                        return path + ": expected " + expected.getNumberOfHoles() + " holes but got " + a.getNumberOfHoles();
+                    }
+                    String r = compareLineCoords(path + ".shell", expected.getPolygon(), a.getPolygon());
+                    if (r != null) return r;
+                    for (int i = 0; i < expected.getNumberOfHoles(); i++) {
+                        r = compareLineCoords(path + ".hole[" + i + "]", expected.getHole(i), a.getHole(i));
+                        if (r != null) return r;
+                    }
+                    return null;
+                }
+                return typeMismatch(expected);
+            }
+
+            @Override
+            public String visit(Rectangle expected) {
+                // Reconstructed geometries produce Polygons, not Rectangles
+                if (actual instanceof Polygon a) {
+                    Polygon poly = new Polygon(
+                        new LinearRing(
+                            new double[] {
+                                expected.getMinX(),
+                                expected.getMaxX(),
+                                expected.getMaxX(),
+                                expected.getMinX(),
+                                expected.getMinX() },
+                            new double[] {
+                                expected.getMinY(),
+                                expected.getMinY(),
+                                expected.getMaxY(),
+                                expected.getMaxY(),
+                                expected.getMinY() }
+                        )
+                    );
+                    return checkEquivalent(poly, a, path);
+                }
+                return typeMismatch(expected);
+            }
+
+            private String typeMismatch(Geometry expectedNode) {
+                return path + ": expected type " + expectedNode.type() + " but got " + actual.type();
+            }
+
+            private String sizeMismatch(int expectedSize, int actualSize) {
+                return path + ": expected " + expectedSize + " elements but got " + actualSize;
+            }
+        }
+
+        private String compareLineCoords(String path, Line expected, Line actual) {
+            if (expected.length() != actual.length()) {
+                return path + ": expected " + expected.length() + " vertices but got " + actual.length();
+            }
+            for (int i = 0; i < expected.length(); i++) {
+                String r = compareCoord(path + "[" + i + "]", expected.getX(i), expected.getY(i), actual.getX(i), actual.getY(i));
+                if (r != null) return r;
+            }
+            return null;
+        }
+
+        private String compareCoord(String path, double expectedX, double expectedY, double actualX, double actualY) {
+            int ex = encoder.encodeX(encoder.normalizeX(expectedX));
+            int ax = encoder.encodeX(actualX);
+            if (ex != ax) {
+                return path + ".x: " + expectedX + " (enc:" + ex + ") != " + actualX + " (enc:" + ax + ")";
+            }
+            int ey = encoder.encodeY(encoder.normalizeY(expectedY));
+            int ay = encoder.encodeY(actualY);
+            if (ey != ay) {
+                return path + ".y: " + expectedY + " (enc:" + ey + ") != " + actualY + " (enc:" + ay + ")";
+            }
+            return null;
+        }
     }
 }

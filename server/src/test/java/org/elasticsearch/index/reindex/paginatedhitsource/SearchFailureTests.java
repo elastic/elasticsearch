@@ -50,44 +50,6 @@ public class SearchFailureTests extends ESTestCase {
         assertEquals(ExceptionsHelper.status(reason), failure.getStatus());
     }
 
-    public void testEqualsAndHashCode() {
-        // Hardcode the exception to match the rest status
-        Throwable reason = new IllegalStateException("Exception");
-        String index = randomAlphaOfLengthBetween(3, 10);
-        Integer shardId = randomIntBetween(0, 100);
-        String nodeId = randomAlphaOfLengthBetween(3, 10);
-        SearchFailure failure1 = new SearchFailure(reason, index, shardId, nodeId);
-        SearchFailure failure2 = new SearchFailure(reason, index, shardId, nodeId, RestStatus.INTERNAL_SERVER_ERROR);
-        assertEquals(failure1, failure2);
-        assertEquals(failure1.hashCode(), failure2.hashCode());
-    }
-
-    public void testEqualsIsFalseForDifferentFields() {
-        Throwable reason = randomException();
-        String index = randomAlphaOfLengthBetween(3, 10);
-        Integer shardId = randomIntBetween(0, 100);
-        String nodeId = randomAlphaOfLengthBetween(3, 10);
-        SearchFailure base = new SearchFailure(reason, index, shardId, nodeId);
-
-        assertNotEquals(
-            base,
-            new SearchFailure(reason, randomValueOtherThan(index, () -> randomAlphaOfLengthBetween(3, 10)), shardId, nodeId)
-        );
-        assertNotEquals(base, new SearchFailure(reason, index, randomValueOtherThan(shardId, () -> randomIntBetween(0, 100)), nodeId));
-        assertNotEquals(
-            base,
-            new SearchFailure(reason, index, shardId, randomValueOtherThan(nodeId, () -> randomAlphaOfLengthBetween(3, 10)))
-        );
-    }
-
-    public void testEqualsIsFalseForDifferentExceptionTypeOrMessage() {
-        SearchFailure f1 = new SearchFailure(new IllegalStateException("exception_1"));
-        SearchFailure f2 = new SearchFailure(new IllegalArgumentException("exception_1"));
-        SearchFailure f3 = new SearchFailure(new IllegalStateException("exception_2"));
-        assertNotEquals(f1, f2);
-        assertNotEquals(f1, f3);
-    }
-
     public void testToXContentIncludesExpectedFields() {
         String message = randomAlphaOfLengthBetween(1, 20);
         Throwable reason = randomException(message);

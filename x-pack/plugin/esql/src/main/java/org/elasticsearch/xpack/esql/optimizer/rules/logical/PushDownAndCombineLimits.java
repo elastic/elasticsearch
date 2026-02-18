@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Score;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -52,7 +53,11 @@ public final class PushDownAndCombineLimits extends OptimizerRules.Parameterized
         if (limit.child() instanceof Limit childLimit) {
             return combineLimits(limit, childLimit, ctx.foldCtx());
         } else if (limit.child() instanceof UnaryPlan unary) {
-            if (unary instanceof Eval || unary instanceof Project || unary instanceof RegexExtract || unary instanceof InferencePlan<?>) {
+            if (unary instanceof Eval
+                || unary instanceof Project
+                || unary instanceof RegexExtract
+                || unary instanceof CompoundOutputEval<?>
+                || unary instanceof InferencePlan<?>) {
                 if (false == local && unary instanceof Eval && evalAliasNeedsData((Eval) unary)) {
                     // do not push down the limit through an eval that needs data (e.g. a score function) during initial planning
                     return limit;

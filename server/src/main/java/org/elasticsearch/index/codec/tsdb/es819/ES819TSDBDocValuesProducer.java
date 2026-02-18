@@ -1330,7 +1330,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             this.entry = entry;
             RandomAccessInput addressesSlice = data.randomAccessSlice(entry.termsAddressesOffset, entry.termsAddressesLength);
             blockAddresses = DirectMonotonicReader.getInstance(entry.termsAddressesMeta, addressesSlice, merging);
-            bytes = data.slice("terms", entry.termsDataOffset, entry.termsDataLength);
+            //  Use a buffered index input here, since LZ#decompress(...) does many individual readByte() invocations and
+            //  using a buffered index put better amortizes i/o overhead across readByte() invocations.
+            bytes = new BufferedFilterIndexInput(data.slice("terms", entry.termsDataOffset, entry.termsDataLength));
             blockMask = (1L << TERMS_DICT_BLOCK_LZ4_SHIFT) - 1;
             RandomAccessInput indexAddressesSlice = data.randomAccessSlice(
                 entry.termsIndexAddressesOffset,

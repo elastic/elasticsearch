@@ -122,6 +122,7 @@ public class VectorScorerOSQBenchmark {
         binaryVectors = new byte[numVectors][length];
         for (byte[] binaryVector : binaryVectors) {
             random.nextBytes(binaryVector);
+            if (bits == 7) clampTo7Bit(binaryVector);
         }
 
         directory = switch (directoryType) {
@@ -153,6 +154,7 @@ public class VectorScorerOSQBenchmark {
         binaryQueries = new byte[numVectors][binaryQueryLength];
         for (byte[] binaryQuery : binaryQueries) {
             random.nextBytes(binaryQuery);
+            if (bits == 7) clampTo7Bit(binaryQuery);
         }
         result = new OptimizedScalarQuantizer.QuantizationResult(
             random.nextFloat(),
@@ -190,6 +192,12 @@ public class VectorScorerOSQBenchmark {
         };
         scratchScores = new float[bulkSize];
         corrections = new float[3];
+    }
+
+    private static void clampTo7Bit(byte[] vector) {
+        for (int i = 0; i < vector.length; i++) {
+            vector[i] = (byte) (vector[i] & 0x7F);
+        }
     }
 
     Path createTempDirectory(String name) throws IOException {

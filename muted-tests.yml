@@ -470,6 +470,15 @@ tests:
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
   method: testBulkScalarVsVectorized {p0=768 p1=4 p2=MMAP p3=DOT_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/142589
+- class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
+  method: testFatalFailureDuringFetch
+  issue: https://github.com/elastic/elasticsearch/issues/142626
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/suggested_type}
+  issue: https://github.com/elastic/elasticsearch/issues/142525
+- class: org.elasticsearch.xpack.logsdb.RandomizedRollingUpgradeIT
+  method: testIndexingSyntheticSource
+  issue: https://github.com/elastic/elasticsearch/issues/142230
 
 # Examples:
 #

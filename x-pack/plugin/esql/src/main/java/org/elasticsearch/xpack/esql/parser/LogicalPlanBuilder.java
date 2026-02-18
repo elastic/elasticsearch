@@ -123,8 +123,9 @@ import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private static final String TIME = "time", START = "start", END = "end", STEP = "step", INDEX = "index";
-    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, INDEX);
+    private static final String TIME = "time", START = "start", END = "end", STEP = "step", BUCKETS = "buckets", INDEX = "index";
+    private static final int DEFAULT_PROMQL_BUCKETS = 100;
+    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, INDEX);
 
     /**
      * Maximum number of commands allowed per query
@@ -1314,6 +1315,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             params.startLiteral(),
             params.endLiteral(),
             params.stepLiteral(),
+            params.bucketsLiteral(),
             valueColumnName,
             new UnresolvedTimestamp(source)
         );
@@ -1336,6 +1338,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Instant start = null;
         Instant end = null;
         Duration step = null;
+        Integer buckets = null;
         IndexPattern indexPattern = new IndexPattern(source, "*");
 
         Set<String> paramsSeen = new HashSet<>();
@@ -1350,13 +1353,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 case TIME -> time = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
                 case START -> start = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
                 case END -> end = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
-                case STEP -> {
-                    try {
-                        step = Duration.ofSeconds(Integer.parseInt(parseParamValueString(paramCtx.value)));
-                    } catch (NumberFormatException ignore) {
-                        step = PromqlParserUtils.parseDuration(valueSource, parseParamValueString(paramCtx.value));
-                    }
-                }
+                case STEP -> step = parsePositivePromqlDuration(valueSource, parseParamValueString(paramCtx.value), STEP);
+                case BUCKETS -> buckets = parsePositiveInteger(valueSource, parseParamValueString(paramCtx.value), BUCKETS);
                 case INDEX -> indexPattern = parseIndexPattern(paramCtx.value);
                 default -> {
                     String message = "Unknown parameter [{}]";
@@ -1371,19 +1369,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         // Validation logic for time parameters
         if (time != null) {
-            if (start != null || end != null || step != null) {
+            // instant query
+            if (step != null || buckets != null || start != null || end != null) {
                 throw new ParsingException(
                     source,
-                    "Specify either [{}] for instant query or [{}], [{}] or [{}] for a range query",
+                    "Specify either [{}] for instant query or any of [{}], [{}], [{}], [{}] for a range query",
                     TIME,
                     STEP,
+                    BUCKETS,
                     START,
                     END
                 );
             }
             start = time;
             end = time;
-        } else if (step != null || start != null || end != null) {
+        } else {
+            // range query
             if (start != null || end != null) {
                 if (start == null || end == null) {
                     throw new ParsingException(
@@ -1402,21 +1403,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     );
                 }
             }
-            if (step == null) {
-                throw new ParsingException(source, "Parameter [{}] must be specified for a range query", STEP);
-            } else if (step.isPositive() == false) {
-                throw new ParsingException(
-                    source,
-                    "invalid parameter \"step\": zero or negative query resolution step widths are not accepted. "
-                        + "Try a positive integer",
-                    step
-                );
+            if (step != null && buckets != null) {
+                throw new ParsingException(source, "Parameters [{}] and [{}] are mutually exclusive for a range query", STEP, BUCKETS);
             }
-        } else {
-            start = Instant.now();
-            end = start;
+            if (step == null && buckets == null) {
+                buckets = DEFAULT_PROMQL_BUCKETS;
+            }
         }
-        return new PromqlParams(source, start, end, step, indexPattern);
+        return new PromqlParams(source, start, end, step, buckets, indexPattern);
+    }
+
+    private Duration parsePositivePromqlDuration(Source source, String value, String parameterName) {
+        Duration parsedValue;
+        try {
+            parsedValue = Duration.ofSeconds(Integer.parseInt(value));
+        } catch (NumberFormatException ignore) {
+            try {
+                parsedValue = PromqlParserUtils.parseDuration(source, value);
+            } catch (ParsingException e) {
+                throw new ParsingException(source, "Invalid value [{}] for parameter [{}]", value, parameterName);
+            }
+        }
+        if (parsedValue.isPositive() == false) {
+            throw new ParsingException(source, "Invalid value [{}] for parameter [{}], expected a positive duration", value, parameterName);
+        }
+        return parsedValue;
     }
 
     private String parseParamName(EsqlBaseParser.PromqlParamNameContext ctx) {
@@ -1455,6 +1466,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         } else {
             return new IndexPattern(source(ctx), visitPromqlIndexPattern(ctx.promqlIndexPattern()));
         }
+    }
+
+    private Integer parsePositiveInteger(Source source, String value, String parameterName) {
+        int parsedValue;
+        try {
+            parsedValue = Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw new ParsingException(source, "Invalid value [{}] for parameter [{}], expected a positive integer", value, parameterName);
+        }
+        if (parsedValue <= 0) {
+            throw new ParsingException(source, "Invalid value [{}] for parameter [{}], expected a positive integer", value, parameterName);
+        }
+        return parsedValue;
     }
 
     public PlanFactory visitMmrCommand(EsqlBaseParser.MmrCommandContext ctx) {
@@ -1503,7 +1527,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      *
      * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#expression-queries">PromQL API documentation</a>
      */
-    public record PromqlParams(Source source, Instant start, Instant end, Duration step, IndexPattern indexPattern) {
+    public record PromqlParams(Source source, Instant start, Instant end, Duration step, Integer buckets, IndexPattern indexPattern) {
 
         public Literal startLiteral() {
             if (start == null) {
@@ -1524,6 +1548,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 return Literal.NULL;
             }
             return Literal.timeDuration(source, step);
+        }
+
+        public Literal bucketsLiteral() {
+            if (buckets == null) {
+                return Literal.NULL;
+            }
+            return Literal.integer(source, buckets);
         }
     }
 }

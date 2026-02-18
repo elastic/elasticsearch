@@ -973,14 +973,14 @@ public final class KeywordFieldMapper extends FieldMapper {
 
             if (operation == FielddataOperation.SEARCH) {
                 failIfNoDocValues();
-                return fieldDataFromDocValues();
+                return fieldDataFromDocValues(fieldDataContext);
             }
             if (operation != FielddataOperation.SCRIPT) {
                 throw new IllegalStateException("unknown operation [" + operation.name() + "]");
             }
 
             if (hasDocValues()) {
-                return fieldDataFromDocValues();
+                return fieldDataFromDocValues(fieldDataContext);
             }
             if (isSyntheticSourceEnabled()) {
                 if (false == isStored()) {
@@ -1012,13 +1012,14 @@ public final class KeywordFieldMapper extends FieldMapper {
             );
         }
 
-        private IndexFieldData.Builder fieldDataFromDocValues() {
+        private IndexFieldData.Builder fieldDataFromDocValues(FieldDataContext fieldDataContext) {
             if (usesBinaryDocValues) {
                 return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, KeywordDocValuesField::new);
             } else {
                 return new SortedSetOrdinalsIndexFieldData.Builder(
                     name(),
                     CoreValuesSourceType.KEYWORD,
+                    useTimeSeriesDocValuesSkippers(fieldDataContext.indexSettings(), isDimension),
                     (dv, n) -> new KeywordDocValuesField(FieldData.toString(dv), n)
                 );
             }

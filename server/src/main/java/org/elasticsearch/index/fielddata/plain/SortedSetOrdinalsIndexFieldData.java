@@ -38,18 +38,40 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
         private final String name;
         private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
         private final ValuesSourceType valuesSourceType;
+        private final boolean shouldNotUseCompetitiveIterator;
 
         public Builder(String name, ValuesSourceType valuesSourceType, ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
             this.name = name;
             this.toScriptFieldFactory = toScriptFieldFactory;
             this.valuesSourceType = valuesSourceType;
+            this.shouldNotUseCompetitiveIterator = false;
+        }
+
+        public Builder(
+            String name,
+            ValuesSourceType valuesSourceType,
+            boolean shouldNotUseCompetitiveIterator,
+            ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
+            this.name = name;
+            this.toScriptFieldFactory = toScriptFieldFactory;
+            this.valuesSourceType = valuesSourceType;
+            this.shouldNotUseCompetitiveIterator = shouldNotUseCompetitiveIterator;
         }
 
         @Override
         public SortedSetOrdinalsIndexFieldData build(IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-            return new SortedSetOrdinalsIndexFieldData(cache, name, valuesSourceType, breakerService, toScriptFieldFactory);
+            return new SortedSetOrdinalsIndexFieldData(
+                cache,
+                name,
+                valuesSourceType,
+                shouldNotUseCompetitiveIterator,
+                breakerService,
+                toScriptFieldFactory
+            );
         }
     }
+
+    private final boolean shouldNotUseCompetitiveIterator;
 
     public SortedSetOrdinalsIndexFieldData(
         IndexFieldDataCache cache,
@@ -58,7 +80,20 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
         CircuitBreakerService breakerService,
         ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
     ) {
+        this(cache, fieldName, valuesSourceType, false, breakerService, toScriptFieldFactory);
+    }
+
+
+    public SortedSetOrdinalsIndexFieldData(
+        IndexFieldDataCache cache,
+        String fieldName,
+        ValuesSourceType valuesSourceType,
+        boolean shouldNotUseCompetitiveIterator,
+        CircuitBreakerService breakerService,
+        ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
+    ) {
         super(fieldName, valuesSourceType, cache, breakerService, toScriptFieldFactory);
+        this.shouldNotUseCompetitiveIterator = shouldNotUseCompetitiveIterator;
     }
 
     @Override
@@ -76,11 +111,13 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
         SortField sortField = new SortedSetSortField(
             getFieldName(),
             reverse,
-            sortMode == MultiValueMode.MAX ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN
-        );
-        sortField.setMissingValue(
+            sortMode == MultiValueMode.MAX ? SortedSetSelector.Type.MAX : SortedSetSelector.Type.MIN,
             sortMissingLast(missingValue) ^ reverse ? SortedSetSortField.STRING_LAST : SortedSetSortField.STRING_FIRST
         );
+        // TODO Remove once doc value skippers actually support competitive iterators
+        if (shouldNotUseCompetitiveIterator) {
+            sortField.setOptimizeSortWithIndexedData(false);
+        }
         return sortField;
     }
 

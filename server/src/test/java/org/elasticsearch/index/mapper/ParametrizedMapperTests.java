@@ -172,6 +172,11 @@ public class ParametrizedMapperTests extends MapperServiceTestCase {
         }
 
         @Override
+        public String contentType() {
+            return "test_mapper";
+        }
+
+        @Override
         public FieldMapper build(MapperBuilderContext context) {
             return new TestMapper(leafName(), context.buildFullName(leafName()), builderParams(this, context), this);
         }

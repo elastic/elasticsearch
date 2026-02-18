@@ -452,6 +452,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
             if (useLegacyFormat && copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");

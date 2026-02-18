@@ -211,6 +211,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public SourceFieldMapper build() {
             if (enabled.getValue().explicit()) {
                 if (mode.get() != null) {

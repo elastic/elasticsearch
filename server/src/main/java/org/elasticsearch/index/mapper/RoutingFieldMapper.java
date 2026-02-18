@@ -50,6 +50,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public RoutingFieldMapper build() {
             return RoutingFieldMapper.get(required.getValue());
         }

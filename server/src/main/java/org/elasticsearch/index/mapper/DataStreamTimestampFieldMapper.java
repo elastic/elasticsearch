@@ -93,6 +93,11 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return NAME;
+        }
+
+        @Override
         public MetadataFieldMapper build() {
             return enabled.getValue() ? ENABLED_INSTANCE : DISABLED_INSTANCE;
         }

@@ -88,6 +88,11 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return type;
+        }
+
+        @Override
         public PlaceHolderFieldMapper build(MapperBuilderContext context) {
             PlaceHolderFieldType mappedFieldType = new PlaceHolderFieldType(context.buildFullName(leafName()), type, Map.of());
             return new PlaceHolderFieldMapper(leafName(), mappedFieldType, builderParams(this, context), unknownParams);

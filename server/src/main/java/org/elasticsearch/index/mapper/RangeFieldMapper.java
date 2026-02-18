@@ -176,6 +176,11 @@ public class RangeFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return type.name;
+        }
+
+        @Override
         public RangeFieldMapper build(MapperBuilderContext context) {
             RangeFieldType ft = setupFieldType(context);
             return new RangeFieldMapper(leafName(), ft, builderParams(this, context), type, this);

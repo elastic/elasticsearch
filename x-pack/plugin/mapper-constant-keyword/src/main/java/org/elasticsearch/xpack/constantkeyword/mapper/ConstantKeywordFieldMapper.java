@@ -103,6 +103,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public ConstantKeywordFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
                 DEPRECATION_LOGGER.warn(

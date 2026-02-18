@@ -283,6 +283,11 @@ public class NumberFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return type.typeName();
+        }
+
+        @Override
         public NumberFieldMapper build(MapperBuilderContext context) {
             if (inheritDimensionParameterFromParentObject(context)) {
                 dimension.setValue(true);

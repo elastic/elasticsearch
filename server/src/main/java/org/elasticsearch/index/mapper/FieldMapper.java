@@ -991,7 +991,15 @@ public abstract class FieldMapper extends Mapper {
         }
 
         private void merge(FieldMapper toMerge, Conflicts conflicts) {
-            T value = initializer.apply(toMerge);
+            mergeValue(initializer.apply(toMerge), conflicts);
+        }
+
+        @SuppressWarnings("unchecked")
+        void mergeFrom(Parameter<?> other, Conflicts conflicts) {
+            mergeValue((T) other.getValue(), conflicts);
+        }
+
+        private void mergeValue(T value, Conflicts conflicts) {
             T current = getValue();
             if (mergeValidator.canMerge(current, value, conflicts)) {
                 setValue(value);
@@ -1593,6 +1601,12 @@ public abstract class FieldMapper extends Mapper {
          * @return the list of parameters defined for this mapper
          */
         protected abstract Parameter<?>[] getParameters();
+
+        /**
+         * @return the content type name for this field mapper builder, matching the value
+         *         returned by {@link FieldMapper#contentType()} on the built mapper
+         */
+        public abstract String contentType();
 
         @Override
         public abstract FieldMapper build(MapperBuilderContext context);

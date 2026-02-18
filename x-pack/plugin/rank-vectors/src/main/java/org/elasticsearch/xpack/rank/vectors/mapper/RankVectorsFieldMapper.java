@@ -136,6 +136,11 @@ public class RankVectorsFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public RankVectorsFieldMapper build(MapperBuilderContext context) {
             // Validate on Mapping creation
             if (RANK_VECTORS_FEATURE.check(licenseState) == false) {

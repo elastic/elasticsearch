@@ -127,6 +127,11 @@ public class SparseVectorFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public SparseVectorFieldMapper build(MapperBuilderContext context) {
             SparseVectorIndexOptions builderIndexOptions = indexOptions.getValue();
             if (builderIndexOptions == null) {

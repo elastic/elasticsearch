@@ -80,6 +80,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public FieldNamesFieldMapper build() {
             if (enabled.getValue().explicit()) {
                 if (createdOnOrAfterV8) {

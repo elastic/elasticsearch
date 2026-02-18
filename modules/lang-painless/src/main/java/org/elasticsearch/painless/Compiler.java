@@ -220,7 +220,7 @@ final class Compiler {
         ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).irNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
-        new DefaultConstantListOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantListOptimizationPhase(scriptScope).visitClass(classNode, null);
         new DefaultEqualityMethodOptimizationPhase(scriptScope).visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
         new DefaultIRTreeToASMBytesPhase().visitScript(classNode);
@@ -257,7 +257,7 @@ final class Compiler {
         ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).irNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
-        new DefaultConstantListOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantListOptimizationPhase(scriptScope).visitClass(classNode, null);
         new DefaultEqualityMethodOptimizationPhase(scriptScope).visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
         classNode.setDebugStream(debugStream);
@@ -297,7 +297,7 @@ final class Compiler {
         ClassNode classNode = (ClassNode) scriptScope.getDecoration(root, IRNodeDecoration.class).irNode();
         new DefaultStringConcatenationOptimizationPhase().visitClass(classNode, null);
         new DefaultConstantFoldingOptimizationPhase().visitClass(classNode, null);
-        new DefaultConstantListOptimizationPhase().visitClass(classNode, null);
+        new DefaultConstantListOptimizationPhase(scriptScope).visitClass(classNode, null);
         new DefaultEqualityMethodOptimizationPhase(scriptScope).visitClass(classNode, null);
         new DefaultStaticConstantExtractionPhase().visitClass(classNode, scriptScope);
         classNode.setDebugStream(debugStream);

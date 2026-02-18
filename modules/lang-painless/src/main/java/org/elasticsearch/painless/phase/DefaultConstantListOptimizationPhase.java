@@ -15,21 +15,25 @@ import org.elasticsearch.painless.ir.ConstantNode;
 import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.ListInitializationNode;
+import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDConstant;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDExpressionType;
+import org.elasticsearch.painless.symbol.ScriptScope;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 
 /**
  * Optimizes constant list literals that are immediately consumed by a read-only method call
- * (e.g. {@code ['a','b','c'].contains(x)}) by hoisting the list into a static constant field.
+ * (e.g. {@code ['a','b','c'].contains(x)}) by hoisting the collection into a static constant
+ * {@link HashSet} field, turning the {@code .contains()} check from O(N) to O(1).
  * <p>
- * This avoids allocating and populating a new {@link ArrayList} on every invocation. The
- * optimization is only applied when the list is provably never escaped — it is used inline
- * as the receiver of a single qualifying method call.
+ * This avoids allocating and populating a new {@link ArrayList} on every invocation, and
+ * replaces the linear scan with a hash lookup. The optimization is only applied when the list
+ * is provably never escaped — it is used inline as the receiver of a single qualifying method call.
  * <p>
  * Bare list literals assigned to variables (e.g. {@code def x = [1, 2, 3]}) are left untouched
  * because the user may later mutate the list.
@@ -37,6 +41,12 @@ import java.util.function.Consumer;
 public class DefaultConstantListOptimizationPhase extends IRExpressionModifyingVisitor {
 
     private static final Set<String> QUALIFYING_METHODS = Set.of("contains");
+
+    private final ScriptScope scriptScope;
+
+    public DefaultConstantListOptimizationPhase(final ScriptScope scriptScope) {
+        this.scriptScope = scriptScope;
+    }
 
     @Override
     public void visitBinaryImpl(final BinaryImplNode irBinaryImplNode, final Consumer<ExpressionNode> scope) {
@@ -56,13 +66,16 @@ public class DefaultConstantListOptimizationPhase extends IRExpressionModifyingV
                 return;
             }
 
-            final List<Object> constantList = new ArrayList<>(constants);
+            final Set<Object> constantSet = new HashSet<>(constants);
 
             final ConstantNode replacement = new ConstantNode(listInitNode.getLocation());
-            replacement.attachDecoration(new IRDConstant(constantList));
-            replacement.attachDecoration(new IRDExpressionType(ArrayList.class));
-
+            replacement.attachDecoration(new IRDConstant(constantSet));
+            replacement.attachDecoration(new IRDExpressionType(HashSet.class));
             irBinaryImplNode.setLeftNode(replacement);
+
+            final PainlessMethod hashSetMethod = scriptScope.getPainlessLookup().lookupPainlessMethod(HashSet.class, false, methodName, 1);
+            invokeCallNode.setMethod(hashSetMethod);
+            invokeCallNode.setBox(HashSet.class);
         }
     }
 

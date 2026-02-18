@@ -7,9 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.nativeaccess;
-
-import org.elasticsearch.core.CheckedConsumer;
+package org.elasticsearch.core;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -19,8 +17,8 @@ import java.nio.ByteBuffer;
  * access to the underlying data as a {@link ByteBuffer}. This enables
  * zero-copy access to memory-mapped data for SIMD-accelerated vector scoring.
  *
- * <p>The byte buffer is passed to the caller's action and is only valid for
- * the duration of that call. All ref-counting and resource release, if any,
+ * <p> The byte buffer is passed to the caller's action and is only valid for
+ * the duration of that call. All ref-counting and resource releases, if any,
  * is handled internally.
  */
 public interface DirectAccessInput {

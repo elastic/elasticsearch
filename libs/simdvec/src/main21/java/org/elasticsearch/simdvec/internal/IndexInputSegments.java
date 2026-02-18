@@ -10,7 +10,7 @@ package org.elasticsearch.simdvec.internal;
 
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.nativeaccess.DirectAccessInput;
+import org.elasticsearch.core.DirectAccessInput;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;

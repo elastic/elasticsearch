@@ -14,7 +14,7 @@ import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.nativeaccess.DirectAccessInput;
+import org.elasticsearch.core.DirectAccessInput;
 
 import java.io.EOFException;
 import java.io.IOException;

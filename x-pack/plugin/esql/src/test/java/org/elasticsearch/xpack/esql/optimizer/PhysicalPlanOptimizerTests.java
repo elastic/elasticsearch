@@ -9184,6 +9184,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var metricsInfoExec = as(reducedPlan.plan(), MetricsInfoExec.class);
         assertThat(metricsInfoExec.mode(), equalTo(MetricsInfoExec.Mode.INTERMEDIATE));
 
+        assertThat(metricsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
         assertThat(metricsInfoExec.output(), equalTo(dataPlan.output()));
     }
 

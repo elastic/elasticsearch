@@ -17,6 +17,7 @@ import org.hamcrest.Matcher;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -106,7 +107,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testAllUniqueValues() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0)) {
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(3)) {
                 builder.appendBytesRef(new BytesRef("a"));
                 builder.appendBytesRef(new BytesRef("b"));
@@ -114,7 +115,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
                 Page input = new Page(builder.build());
                 op.addInput(input);
                 Page output = op.getOutput();
-                assertThat(output.getPositionCount(), equalTo(3));
+                assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(3));
                 output.releaseBlocks();
             }
         }
@@ -122,7 +123,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testAllSameValues() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0)) {
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(3)) {
                 builder.appendBytesRef(new BytesRef("same"));
                 builder.appendBytesRef(new BytesRef("same"));
@@ -130,7 +131,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
                 Page input = new Page(builder.build());
                 op.addInput(input);
                 Page output = op.getOutput();
-                assertThat(output.getPositionCount(), equalTo(1));
+                assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(1));
                 output.releaseBlocks();
             }
         }
@@ -138,7 +139,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testNullsAreSkipped() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0)) {
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(4)) {
                 builder.appendBytesRef(new BytesRef("a"));
                 builder.appendNull();
@@ -147,7 +148,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
                 Page input = new Page(builder.build());
                 op.addInput(input);
                 Page output = op.getOutput();
-                assertThat(output.getPositionCount(), equalTo(2));
+                assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(2));
                 output.releaseBlocks();
             }
         }
@@ -155,7 +156,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testDeduplicationAcrossPages() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0)) {
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
             // First page: a, b, c
             try (BytesRefBlock.Builder builder1 = blockFactory.newBytesRefBlockBuilder(3)) {
                 builder1.appendBytesRef(new BytesRef("a"));
@@ -164,7 +165,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
                 Page input1 = new Page(builder1.build());
                 op.addInput(input1);
                 Page output1 = op.getOutput();
-                assertThat(output1.getPositionCount(), equalTo(3));
+                assertThat(Objects.requireNonNull(output1).getPositionCount(), equalTo(3));
                 output1.releaseBlocks();
             }
 
@@ -187,14 +188,14 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testAllDuplicatesReturnsNull() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0)) {
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
             // First page introduces "a"
             try (BytesRefBlock.Builder builder1 = blockFactory.newBytesRefBlockBuilder(1)) {
                 builder1.appendBytesRef(new BytesRef("a"));
                 Page input1 = new Page(builder1.build());
                 op.addInput(input1);
                 Page output1 = op.getOutput();
-                assertThat(output1.getPositionCount(), equalTo(1));
+                assertThat(Objects.requireNonNull(output1).getPositionCount(), equalTo(1));
                 output1.releaseBlocks();
             }
 
@@ -213,7 +214,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testPreservesOtherColumns() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0)) {
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
             // Page with key column (0) and value column (1)
             try (
                 BytesRefBlock.Builder keyBuilder = blockFactory.newBytesRefBlockBuilder(4);
@@ -236,7 +237,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
                 Page output = op.getOutput();
 
                 // Should have 3 rows: a, b, c (first occurrence of each)
-                assertThat(output.getPositionCount(), equalTo(3));
+                assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(3));
 
                 // Verify values correspond to first occurrences
                 LongBlock outputValues = output.getBlock(1);
@@ -251,7 +252,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testEmptyPage() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0)) {
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(0)) {
                 Page input = new Page(builder.build());
                 op.addInput(input);
@@ -269,14 +270,15 @@ public class DistinctByOperatorTests extends OperatorTestCase {
     }
 
     public void testToString() {
-        try (DistinctByOperator op = new DistinctByOperator(3)) {
+        BlockFactory blockFactory = driverContext().blockFactory();
+        try (DistinctByOperator op = new DistinctByOperator(3, blockFactory)) {
             assertThat(op.toString(), equalTo("DistinctByOperator[keyChannel=3, seenKeys=0]"));
         }
     }
 
     public void testToStringAfterProcessing() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0)) {
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(3)) {
                 builder.appendBytesRef(new BytesRef("a"));
                 builder.appendBytesRef(new BytesRef("b"));
@@ -284,7 +286,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
                 Page input = new Page(builder.build());
                 op.addInput(input);
                 Page output = op.getOutput();
-                output.releaseBlocks();
+                Objects.requireNonNull(output).releaseBlocks();
             }
             assertThat(op.toString(), equalTo("DistinctByOperator[keyChannel=0, seenKeys=2]"));
         }
@@ -292,7 +294,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testConstantVectorNewKey() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0)) {
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
             // A constant block with 100 positions all having the same value
             BytesRefBlock constantBlock = blockFactory.newConstantBytesRefBlockWith(new BytesRef("constant_key"), 100);
             assertTrue("Block should be constant", constantBlock.asVector() != null && constantBlock.asVector().isConstant());
@@ -302,7 +304,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
             Page output = op.getOutput();
 
             // Should output 1 row (the first occurrence)
-            assertThat(output.getPositionCount(), equalTo(1));
+            assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(1));
 
             BytesRefBlock keyBlock = output.getBlock(0);
             assertThat(keyBlock.getBytesRef(0, new BytesRef()).utf8ToString(), equalTo("constant_key"));
@@ -313,13 +315,13 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testConstantVectorSeenKey() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0)) {
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
             try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(1)) {
                 builder.appendBytesRef(new BytesRef("seen_key"));
                 Page input1 = new Page(builder.build());
                 op.addInput(input1);
                 Page output1 = op.getOutput();
-                assertThat(output1.getPositionCount(), equalTo(1));
+                assertThat(Objects.requireNonNull(output1).getPositionCount(), equalTo(1));
                 output1.releaseBlocks();
             }
 
@@ -336,7 +338,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testConstantVectorWithOtherColumns() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0)) {
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
             BytesRefBlock constantKey = blockFactory.newConstantBytesRefBlockWith(new BytesRef("key"), 5);
             try (LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(5)) {
                 for (int i = 0; i < 5; i++) {
@@ -346,7 +348,7 @@ public class DistinctByOperatorTests extends OperatorTestCase {
                 op.addInput(input);
                 Page output = op.getOutput();
 
-                assertThat(output.getPositionCount(), equalTo(1));
+                assertThat(Objects.requireNonNull(output).getPositionCount(), equalTo(1));
 
                 LongBlock outputValues = output.getBlock(1);
                 assertThat(outputValues.getLong(0), equalTo(0L));
@@ -358,12 +360,12 @@ public class DistinctByOperatorTests extends OperatorTestCase {
 
     public void testConstantVectorAcrossPages() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        try (DistinctByOperator op = new DistinctByOperator(0)) {
+        try (DistinctByOperator op = new DistinctByOperator(0, blockFactory)) {
             // First constant page with "a"
             BytesRefBlock constantA = blockFactory.newConstantBytesRefBlockWith(new BytesRef("a"), 10);
             op.addInput(new Page(constantA));
             Page output1 = op.getOutput();
-            assertThat(output1.getPositionCount(), equalTo(1));
+            assertThat(Objects.requireNonNull(output1).getPositionCount(), equalTo(1));
             output1.releaseBlocks();
 
             // Second constant page with "b" - should pass (new key)

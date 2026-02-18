@@ -157,7 +157,13 @@ public class PlannerUtils {
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
                 estimatedRowSize,
-                new MetricsInfoExec(metricsInfoExec.source(), metricsInfoExec.child(), plan.output(), MetricsInfoExec.Mode.INTERMEDIATE)
+                new MetricsInfoExec(
+                    metricsInfoExec.source(),
+                    metricsInfoExec.child(),
+                    metricsInfoExec.outputAttrs(),
+                    plan.output(),
+                    MetricsInfoExec.Mode.INTERMEDIATE
+                )
             );
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };

@@ -157,7 +157,13 @@ public class Mapper {
         // metric metadata from shards, FINAL on the coordinator merges rows from all data nodes.
         if (unary instanceof MetricsInfo metricsInfo) {
             mappedChild = addExchangeForFragment(metricsInfo, mappedChild);
-            return new MetricsInfoExec(metricsInfo.source(), mappedChild, metricsInfo.output(), MetricsInfoExec.Mode.FINAL);
+            return new MetricsInfoExec(
+                metricsInfo.source(),
+                mappedChild,
+                metricsInfo.output(),
+                metricsInfo.output(),
+                MetricsInfoExec.Mode.FINAL
+            );
         }
 
         //

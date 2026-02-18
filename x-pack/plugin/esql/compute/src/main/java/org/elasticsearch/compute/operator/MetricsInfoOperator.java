@@ -8,6 +8,8 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -168,10 +170,22 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    private final Map<MetricInfoKey, MetricInfo> metricsByKey = new LinkedHashMap<>();
-    private final Map<MetricInfoKey, MetricInfo> finalMetricsByKey;
+    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MetricInfoKey.class) + RamUsageEstimator.shallowSizeOfInstance(
+        MetricInfo.class
+    );
 
+    public enum Mode {
+        INITIAL,
+        FINAL
+    }
+
+    private final Map<MetricInfoKey, MetricInfo> metricsByKey = new LinkedHashMap<>();
+
+    private final Mode mode;
     private final BlockFactory blockFactory;
+    private final CircuitBreaker breaker;
+    private long trackedBytes;
+
     /** INITIAL-mode fields (null in FINAL mode). */
     private final MetricFieldLookup fieldLookup;
     private final int metadataSourceChannel;
@@ -186,12 +200,13 @@ public class MetricsInfoOperator implements Operator {
      * Creates an INITIAL-mode operator (data nodes).
      */
     public MetricsInfoOperator(BlockFactory blockFactory, MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel) {
+        this.mode = Mode.INITIAL;
         this.blockFactory = blockFactory;
+        this.breaker = blockFactory.breaker();
         this.fieldLookup = fieldLookup;
         this.metadataSourceChannel = metadataSourceChannel;
         this.indexChannel = indexChannel;
         this.finalChannels = null;
-        this.finalMetricsByKey = null;
     }
 
     /**
@@ -201,16 +216,13 @@ public class MetricsInfoOperator implements Operator {
      *                 [metric_name, data_stream, unit, metric_type, field_type, dimension_fields]
      */
     public MetricsInfoOperator(BlockFactory blockFactory, int[] channels) {
+        this.mode = Mode.FINAL;
         this.blockFactory = blockFactory;
+        this.breaker = blockFactory.breaker();
         this.fieldLookup = null;
         this.metadataSourceChannel = -1;
         this.indexChannel = -1;
         this.finalChannels = channels;
-        this.finalMetricsByKey = new LinkedHashMap<>();
-    }
-
-    private boolean isFinalMode() {
-        return finalChannels != null;
     }
 
     @Override
@@ -220,7 +232,7 @@ public class MetricsInfoOperator implements Operator {
 
     @Override
     public void addInput(Page page) {
-        if (isFinalMode()) {
+        if (mode == Mode.FINAL) {
             addInputFinal(page);
         } else {
             addInputInitial(page);
@@ -229,82 +241,89 @@ public class MetricsInfoOperator implements Operator {
 
     /** INITIAL mode: extract metric metadata from _timeseries_metadata and _index blocks. */
     private void addInputInitial(Page page) {
-        BytesRefBlock metadataSource = metadataSourceChannel >= 0 ? (BytesRefBlock) page.getBlock(metadataSourceChannel) : null;
-        BytesRefBlock indexBlock = indexChannel >= 0 ? (BytesRefBlock) page.getBlock(indexChannel) : null;
+        try {
+            BytesRefBlock metadataSource = page.getBlock(metadataSourceChannel);
+            BytesRefBlock indexBlock = page.getBlock(indexChannel);
 
-        BytesRef indexScratch = new BytesRef();
+            BytesRef indexScratch = new BytesRef();
 
-        for (int p = 0; p < page.getPositionCount(); p++) {
-            if (metadataSource == null || metadataSource.isNull(p)) {
-                continue;
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                if (metadataSource.isNull(p)) {
+                    continue;
+                }
+                if (indexBlock.isNull(p)) {
+                    continue;
+                }
+
+                String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
+                String dataStreamName = resolveDataStreamName(indexName);
+                Map<String, Object> metadata = parseMetadataSource(metadataSource, p);
+                if (metadata == null) {
+                    continue;
+                }
+
+                collectAndAggregateFields(metadata, null, indexName, dataStreamName, new HashSet<>(), new HashSet<>());
             }
-            if (indexBlock == null || indexBlock.isNull(p)) {
-                continue;
-            }
-
-            String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
-            String dataStreamName = resolveDataStreamName(indexName);
-            Map<String, Object> metadata = parseMetadataSource(metadataSource, p);
-            if (metadata == null) {
-                continue;
-            }
-
-            collectAndAggregateFields(metadata, null, indexName, dataStreamName, new HashSet<>(), new HashSet<>());
+        } finally {
+            page.releaseBlocks();
         }
-
-        page.releaseBlocks();
     }
 
     private void addInputFinal(Page page) {
-        BytesRefBlock nameBlock = page.getBlock(finalChannels[COL_METRIC_NAME]);
-        BytesRefBlock dsBlock = page.getBlock(finalChannels[COL_DATA_STREAM]);
-        BytesRefBlock unitBlock = page.getBlock(finalChannels[COL_UNIT]);
-        BytesRefBlock mtBlock = page.getBlock(finalChannels[COL_METRIC_TYPE]);
-        BytesRefBlock ftBlock = page.getBlock(finalChannels[COL_FIELD_TYPE]);
-        BytesRefBlock dfBlock = page.getBlock(finalChannels[COL_DIMENSION_FIELDS]);
+        try {
+            BytesRefBlock nameBlock = page.getBlock(finalChannels[COL_METRIC_NAME]);
+            BytesRefBlock dsBlock = page.getBlock(finalChannels[COL_DATA_STREAM]);
+            BytesRefBlock unitBlock = page.getBlock(finalChannels[COL_UNIT]);
+            BytesRefBlock mtBlock = page.getBlock(finalChannels[COL_METRIC_TYPE]);
+            BytesRefBlock ftBlock = page.getBlock(finalChannels[COL_FIELD_TYPE]);
+            BytesRefBlock dfBlock = page.getBlock(finalChannels[COL_DIMENSION_FIELDS]);
 
-        for (int pos = 0; pos < page.getPositionCount(); pos++) {
-            String metricName = readSingleValue(nameBlock, pos);
-            if (metricName == null) {
-                continue;
+            BytesRef scratch = new BytesRef();
+            for (int pos = 0; pos < page.getPositionCount(); pos++) {
+                String metricName = readSingleValue(nameBlock, pos, scratch);
+                if (metricName == null) {
+                    continue;
+                }
+
+                Set<String> dataStreams = readMultiValue(dsBlock, pos, scratch);
+                Set<String> units = readMultiValue(unitBlock, pos, scratch);
+                Set<String> fieldTypes = readMultiValue(ftBlock, pos, scratch);
+                Set<String> metricTypes = readMultiValue(mtBlock, pos, scratch);
+                Set<String> dimensionFields = readMultiValue(dfBlock, pos, scratch);
+
+                for (String ds : dataStreams) {
+                    MetricInfoKey key = new MetricInfoKey(metricName, ds);
+                    MetricInfo info = metricsByKey.get(key);
+                    if (info == null) {
+                        trackNewEntry();
+                        info = new MetricInfo(key.metricName(), key.dataStreamName());
+                        metricsByKey.put(key, info);
+                    }
+                    info.units.addAll(units);
+                    info.fieldTypes.addAll(fieldTypes);
+                    info.metricTypes.addAll(metricTypes);
+                    info.dimensionFieldKeys.addAll(dimensionFields);
+                }
             }
-
-            // A row can have multi-valued data_stream (already merged on a data node).
-            // Accumulate into a MetricInfo per (metricName, dataStream) pair.
-            Set<String> dataStreams = readMultiValue(dsBlock, pos);
-            Set<String> units = readMultiValue(unitBlock, pos);
-            Set<String> fieldTypes = readMultiValue(ftBlock, pos);
-            Set<String> metricTypes = readMultiValue(mtBlock, pos);
-            Set<String> dimensionFields = readMultiValue(dfBlock, pos);
-
-            for (String ds : dataStreams) {
-                MetricInfoKey key = new MetricInfoKey(metricName, ds);
-                MetricInfo info = finalMetricsByKey.computeIfAbsent(key, k -> new MetricInfo(k.metricName(), k.dataStreamName()));
-                info.units.addAll(units);
-                info.fieldTypes.addAll(fieldTypes);
-                info.metricTypes.addAll(metricTypes);
-                info.dimensionFieldKeys.addAll(dimensionFields);
-            }
+        } finally {
+            page.releaseBlocks();
         }
-
-        page.releaseBlocks();
     }
 
-    private static String readSingleValue(BytesRefBlock block, int position) {
+    private static String readSingleValue(BytesRefBlock block, int position, BytesRef scratch) {
         if (block.isNull(position)) {
             return null;
         }
-        return block.getBytesRef(position, new BytesRef()).utf8ToString();
+        return block.getBytesRef(position, scratch).utf8ToString();
     }
 
-    private static Set<String> readMultiValue(BytesRefBlock block, int position) {
+    private static Set<String> readMultiValue(BytesRefBlock block, int position, BytesRef scratch) {
         Set<String> values = new HashSet<>();
         if (block.isNull(position)) {
             return values;
         }
         int start = block.getFirstValueIndex(position);
         int count = block.getValueCount(position);
-        BytesRef scratch = new BytesRef();
         for (int i = 0; i < count; i++) {
             values.add(block.getBytesRef(start + i, scratch).utf8ToString());
         }
@@ -368,7 +387,12 @@ public class MetricsInfoOperator implements Operator {
      */
     private void recordMetric(MetricFieldInfo fieldInfo, String dataStreamName, Set<MetricInfo> touchedMetrics) {
         MetricInfoKey infoKey = new MetricInfoKey(fieldInfo.name(), dataStreamName);
-        MetricInfo info = metricsByKey.computeIfAbsent(infoKey, k -> new MetricInfo(k.metricName(), k.dataStreamName()));
+        MetricInfo info = metricsByKey.get(infoKey);
+        if (info == null) {
+            trackNewEntry();
+            info = new MetricInfo(infoKey.metricName(), infoKey.dataStreamName());
+            metricsByKey.put(infoKey, info);
+        }
         touchedMetrics.add(info);
 
         if (fieldInfo.unit() != null) {
@@ -443,10 +467,6 @@ public class MetricsInfoOperator implements Operator {
 
         outputProduced = true;
 
-        if (isFinalMode()) {
-            return finalMetricsByKey.isEmpty() ? createEmptyPage() : createOutputPageFromRows(mergeRowsBySignature(finalMetricsByKey));
-        }
-
         if (metricsByKey.isEmpty()) {
             return createEmptyPage();
         }
@@ -456,21 +476,23 @@ public class MetricsInfoOperator implements Operator {
 
     private Page createEmptyPage() {
         Block[] blocks = new Block[NUM_BLOCKS];
+        boolean success = false;
         try {
             for (int i = 0; i < blocks.length; i++) {
                 blocks[i] = blockFactory.newConstantBytesRefBlockWith(new BytesRef(""), 0);
             }
-            return new Page(0, blocks);
-        } catch (Exception e) {
-            Releasables.closeExpectNoException(blocks);
-            throw e;
+            Page page = new Page(0, blocks);
+            success = true;
+            return page;
+        } finally {
+            if (success == false) {
+                Releasables.closeExpectNoException(blocks);
+            }
         }
     }
 
     private Page createOutputPageFromRows(List<MetricInfoRow> rows) {
         int rowCount = rows.size();
-
-        Block[] blocks = new Block[NUM_BLOCKS];
 
         try (
             BytesRefBlock.Builder nameBuilder = blockFactory.newBytesRefBlockBuilder(rowCount);
@@ -490,17 +512,7 @@ public class MetricsInfoOperator implements Operator {
                 appendMultiValued(dfBuilder, row.dimensionFieldKeys);
             }
 
-            blocks[0] = nameBuilder.build();
-            blocks[1] = dsBuilder.build();
-            blocks[2] = unitBuilder.build();
-            blocks[3] = mtBuilder.build();
-            blocks[4] = ftBuilder.build();
-            blocks[5] = dfBuilder.build();
-
-            return new Page(rowCount, blocks);
-        } catch (Exception e) {
-            Releasables.closeExpectNoException(blocks);
-            throw e;
+            return new Page(rowCount, Block.Builder.buildAll(nameBuilder, dsBuilder, unitBuilder, mtBuilder, ftBuilder, dfBuilder));
         }
     }
 
@@ -534,11 +546,18 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
+    private void trackNewEntry() {
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "MetricsInfoOperator");
+        trackedBytes += SHALLOW_SIZE;
+    }
+
     @Override
-    public void close() {}
+    public void close() {
+        breaker.addWithoutBreaking(-trackedBytes);
+    }
 
     @Override
     public String toString() {
-        return "MetricsInfoOperator[mode=" + (isFinalMode() ? "FINAL" : "INITIAL") + "]";
+        return "MetricsInfoOperator[mode=" + mode + "]";
     }
 }

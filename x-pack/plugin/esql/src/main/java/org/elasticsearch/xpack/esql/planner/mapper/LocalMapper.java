@@ -94,7 +94,13 @@ public class LocalMapper {
         }
 
         if (unary instanceof MetricsInfo metricsInfo) {
-            return new MetricsInfoExec(metricsInfo.source(), mappedChild, metricsInfo.output(), MetricsInfoExec.Mode.INITIAL);
+            return new MetricsInfoExec(
+                metricsInfo.source(),
+                mappedChild,
+                metricsInfo.output(),
+                metricsInfo.output(),
+                MetricsInfoExec.Mode.INITIAL
+            );
         }
 
         //

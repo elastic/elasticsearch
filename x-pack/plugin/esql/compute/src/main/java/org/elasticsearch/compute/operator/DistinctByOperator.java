@@ -8,9 +8,15 @@
 package org.elasticsearch.compute.operator;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefHash;
+import org.elasticsearch.common.util.BytesRefHashTable;
+import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 
 import java.util.Arrays;
@@ -27,7 +33,7 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
     public record Factory(int keyChannel) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new DistinctByOperator(keyChannel);
+            return new DistinctByOperator(keyChannel, driverContext.blockFactory());
         }
 
         @Override
@@ -37,11 +43,11 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
     }
 
     private final int keyChannel;
-    private final BytesRefHash seenKeys;
+    private final BytesRefHashTable seenKeys;
 
-    public DistinctByOperator(int keyChannel) {
+    public DistinctByOperator(int keyChannel, BlockFactory blockFactory) {
         this.keyChannel = keyChannel;
-        this.seenKeys = new BytesRefHash();
+        this.seenKeys = HashImplFactory.newBytesRefHash(blockFactory);
     }
 
     @Override
@@ -49,8 +55,6 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
         BytesRefBlock keyBlock = page.getBlock(keyChannel);
         BytesRef scratch = new BytesRef();
 
-        // If the block is a constant vector, all values are the same
-        // We only need to check once instead of iterating through all positions
         BytesRefVector vector = keyBlock.asVector();
         if (vector != null && vector.isConstant()) {
             BytesRef key = vector.getBytesRef(0, scratch);
@@ -60,6 +64,18 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
             } else {
                 page.releaseBlocks();
                 return null;
+            }
+        }
+
+        if (vector != null) {
+            OrdinalBytesRefVector ordinals = vector.asOrdinals();
+            if (ordinals != null) {
+                return processOrdinalsVector(page, ordinals);
+            }
+        } else {
+            OrdinalBytesRefBlock ordinals = keyBlock.asOrdinals();
+            if (ordinals != null) {
+                return processOrdinalsBlock(page, ordinals);
             }
         }
 
@@ -77,6 +93,64 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
             }
         }
 
+        return filteredPage(page, positions, rowCount);
+    }
+
+    /**
+     * Fast path for ordinal vectors (no nulls): hash only the dictionary entries,
+     * then filter positions using cheap integer ordinal lookups.
+     */
+    private Page processOrdinalsVector(Page page, OrdinalBytesRefVector ordinals) {
+        boolean[] skipOrdinal = hashDictionary(ordinals.getDictionaryVector());
+        IntVector ords = ordinals.getOrdinalsVector();
+        int rowCount = 0;
+        int[] positions = new int[page.getPositionCount()];
+        for (int p = 0; p < ords.getPositionCount(); p++) {
+            int ord = ords.getInt(p);
+            if (skipOrdinal[ord] == false) {
+                positions[rowCount++] = p;
+                skipOrdinal[ord] = true;
+            }
+        }
+        return filteredPage(page, positions, rowCount);
+    }
+
+    /**
+     * Fast path for ordinal blocks (may contain nulls): hash only the dictionary entries,
+     * then filter positions using cheap integer ordinal lookups, skipping null positions.
+     */
+    private Page processOrdinalsBlock(Page page, OrdinalBytesRefBlock ordinals) {
+        boolean[] skipOrdinal = hashDictionary(ordinals.getDictionaryVector());
+        IntBlock ords = ordinals.getOrdinalsBlock();
+        int rowCount = 0;
+        int[] positions = new int[page.getPositionCount()];
+        for (int p = 0; p < ords.getPositionCount(); p++) {
+            if (ords.isNull(p)) {
+                continue;
+            }
+            int ord = ords.getInt(ords.getFirstValueIndex(p));
+            if (skipOrdinal[ord] == false) {
+                positions[rowCount++] = p;
+                skipOrdinal[ord] = true;
+            }
+        }
+        return filteredPage(page, positions, rowCount);
+    }
+
+    /**
+     * Adds all dictionary entries to {@link #seenKeys} and returns a boolean array
+     * indexed by ordinal: {@code true} means the key was already present (skip it).
+     */
+    private boolean[] hashDictionary(BytesRefVector dictionary) {
+        BytesRef scratch = new BytesRef();
+        boolean[] skip = new boolean[dictionary.getPositionCount()];
+        for (int d = 0; d < dictionary.getPositionCount(); d++) {
+            skip[d] = seenKeys.add(dictionary.getBytesRef(d, scratch)) < 0;
+        }
+        return skip;
+    }
+
+    private static Page filteredPage(Page page, int[] positions, int rowCount) {
         if (rowCount == 0) {
             page.releaseBlocks();
             return null;
@@ -84,8 +158,7 @@ public class DistinctByOperator extends AbstractPageMappingOperator {
         if (rowCount == page.getPositionCount()) {
             return page;
         }
-        positions = Arrays.copyOf(positions, rowCount);
-        return page.filter(false, positions);
+        return page.filter(false, Arrays.copyOf(positions, rowCount));
     }
 
     @Override

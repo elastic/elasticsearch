@@ -44,19 +44,50 @@ public class MetricsInfoExec extends UnaryExec {
      */
     public enum Mode {
         /** Data-node phase: full shard extraction → per-node metric rows. */
-        INITIAL,
-        /** Node-level reduction: merges INITIAL results from multiple shards on the same data node. */
-        INTERMEDIATE,
+        INITIAL(false, true),
         /** Coordinator phase: merge rows from all data nodes by metric signature. */
-        FINAL
+        FINAL(true, false),
+        /** Node-level reduction: merges INITIAL results from multiple shards on the same data node. */
+        INTERMEDIATE(true, true);
+
+        private final boolean inputPartial;
+        private final boolean outputPartial;
+
+        Mode(boolean inputPartial, boolean outputPartial) {
+            this.inputPartial = inputPartial;
+            this.outputPartial = outputPartial;
+        }
+
+        /** True when this mode consumes the intermediate wire format (INTERMEDIATE, FINAL). */
+        public boolean isInputPartial() {
+            return inputPartial;
+        }
+
+        /** True when this mode produces the intermediate wire format (INITIAL, INTERMEDIATE). */
+        public boolean isOutputPartial() {
+            return outputPartial;
+        }
     }
 
+    /**
+     * The output attributes of {@link Mode#INITIAL} and {@link Mode#INTERMEDIATE}, resp.
+     * the input attributes of {@link Mode#FINAL} and {@link Mode#INTERMEDIATE}.
+     * Analogous to {@link AggregateExec#intermediateAttributes()}.
+     */
+    private final List<Attribute> intermediateAttributes;
     private final List<Attribute> outputAttrs;
     private final Mode mode;
 
-    public MetricsInfoExec(Source source, PhysicalPlan child, List<Attribute> output, Mode mode) {
+    public MetricsInfoExec(
+        Source source,
+        PhysicalPlan child,
+        List<Attribute> outputAttrs,
+        List<Attribute> intermediateAttributes,
+        Mode mode
+    ) {
         super(source, child);
-        this.outputAttrs = output;
+        this.outputAttrs = outputAttrs;
+        this.intermediateAttributes = intermediateAttributes;
         this.mode = mode;
     }
 
@@ -64,6 +95,7 @@ public class MetricsInfoExec extends UnaryExec {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(PhysicalPlan.class),
+            in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readNamedWriteableCollectionAsList(Attribute.class),
             in.readEnum(Mode.class)
         );
@@ -74,6 +106,7 @@ public class MetricsInfoExec extends UnaryExec {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(outputAttrs);
+        out.writeNamedWriteableCollection(intermediateAttributes);
         out.writeEnum(mode);
     }
 
@@ -86,32 +119,40 @@ public class MetricsInfoExec extends UnaryExec {
         return mode;
     }
 
+    public List<Attribute> outputAttrs() {
+        return outputAttrs;
+    }
+
+    public List<Attribute> intermediateAttributes() {
+        return intermediateAttributes;
+    }
+
     @Override
     protected NodeInfo<MetricsInfoExec> info() {
-        return NodeInfo.create(this, MetricsInfoExec::new, child(), outputAttrs, mode);
+        return NodeInfo.create(this, MetricsInfoExec::new, child(), outputAttrs, intermediateAttributes, mode);
     }
 
     @Override
     public MetricsInfoExec replaceChild(PhysicalPlan newChild) {
-        return new MetricsInfoExec(source(), newChild, outputAttrs, mode);
+        return new MetricsInfoExec(source(), newChild, outputAttrs, intermediateAttributes, mode);
     }
 
     @Override
     public List<Attribute> output() {
-        return outputAttrs;
+        return mode.isOutputPartial() ? intermediateAttributes : outputAttrs;
     }
 
     @Override
     protected AttributeSet computeReferences() {
-        if (mode == Mode.FINAL || mode == Mode.INTERMEDIATE) {
-            return AttributeSet.builder().addAll(outputAttrs).build();
+        if (mode.isInputPartial()) {
+            return AttributeSet.of(intermediateAttributes);
         }
         return AttributeSet.EMPTY;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), outputAttrs, mode);
+        return Objects.hash(child(), outputAttrs, intermediateAttributes, mode);
     }
 
     @Override
@@ -124,6 +165,9 @@ public class MetricsInfoExec extends UnaryExec {
         }
 
         MetricsInfoExec other = (MetricsInfoExec) obj;
-        return mode == other.mode && Objects.equals(child(), other.child()) && Objects.equals(outputAttrs, other.outputAttrs);
+        return mode == other.mode
+            && Objects.equals(child(), other.child())
+            && Objects.equals(outputAttrs, other.outputAttrs)
+            && Objects.equals(intermediateAttributes, other.intermediateAttributes);
     }
 }

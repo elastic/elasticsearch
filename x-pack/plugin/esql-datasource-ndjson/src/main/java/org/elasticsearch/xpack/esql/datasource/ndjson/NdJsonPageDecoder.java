@@ -22,6 +22,8 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -35,7 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-public class NdJsonPageDecoder implements AutoCloseable {
+public class NdJsonPageDecoder implements Releasable {
 
     private static final Logger LOGGER = LogManager.getLogger(NdJsonPageDecoder.class);
 
@@ -151,11 +153,7 @@ public class NdJsonPageDecoder implements AutoCloseable {
 
     @Override
     public void close() {
-        for (var blockBuilder : blockBuilders) {
-            if (blockBuilder != null) {
-                blockBuilder.close();
-            }
-        }
+        Releasables.close(blockBuilders);
     }
 
     // ---------------------------------------------------------------------------------------------

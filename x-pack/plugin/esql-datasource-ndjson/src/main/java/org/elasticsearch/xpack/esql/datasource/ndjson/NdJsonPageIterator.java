@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -68,7 +69,6 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
 
     @Override
     public void close() throws IOException {
-        pageDecoder.close();
-        inputStream.close();
+        IOUtils.close(inputStream, pageDecoder);
     }
 }

@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -733,6 +734,58 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     public void testSerializationOfSimple() {
         assumeTrue("can't serialize function", canSerialize());
         assertSerialization(buildFieldExpression(testCase), testCase.getConfiguration());
+    }
+
+    /**
+     * Validates co- and contra-variance: if a function accepts certain input types, it should also accept strictly narrower types
+     * (as defined by {@link DataType#strictlyNarrowerTypes()}) and produce an output type that is the same or narrower than before
+     * (as defined by {@link DataType#canWidenTo(DataType)}).
+     */
+    public void testCoAndContraVariance() {
+        assumeTrue("test case expects a type error", testCase.getExpectedTypeError() == null);
+
+        List<TestCaseSupplier.TypedData> data = testCase.getData();
+
+        List<Integer> narrowablePositions = new ArrayList<>();
+        for (int i = 0; i < data.size(); i++) {
+            TestCaseSupplier.TypedData td = data.get(i);
+            if (td.isForceLiteral() == false && td.type().strictlyNarrowerTypes().isEmpty() == false) {
+                narrowablePositions.add(i);
+            }
+        }
+        assumeTrue("no parameters can be narrowed", narrowablePositions.isEmpty() == false);
+
+        Expression original = build(testCase.getSource(), data.stream().map(TestCaseSupplier.TypedData::asReference).toList());
+        assertTrue("original expression should resolve", original.typeResolved().resolved());
+        DataType originalOutputType = original.dataType();
+
+        Collections.shuffle(narrowablePositions, random());
+        int count = randomIntBetween(1, narrowablePositions.size());
+        Set<Integer> positionsToNarrow = new HashSet<>(narrowablePositions.subList(0, count));
+
+        List<Expression> args = new ArrayList<>(data.size());
+        for (int i = 0; i < data.size(); i++) {
+            TestCaseSupplier.TypedData td = data.get(i);
+            if (positionsToNarrow.contains(i)) {
+                DataType narrowerType = randomFrom(td.type().strictlyNarrowerTypes());
+                args.add(new ReferenceAttribute(Source.synthetic(td.name()), td.name(), narrowerType));
+            } else {
+                args.add(td.asReference());
+            }
+        }
+
+        Expression narrowed = build(testCase.getSource(), args);
+
+        assertTrue(
+            "expression should resolve with narrower input types, but got: " + narrowed.typeResolved().message(),
+            narrowed.typeResolved().resolved()
+        );
+
+        DataType narrowedOutputType = narrowed.dataType();
+        assertTrue(
+            "output type [" + narrowedOutputType + "] should be the same as or widen to [" + originalOutputType + "]",
+            narrowedOutputType.canWidenTo(originalOutputType)
+        );
     }
 
     /**

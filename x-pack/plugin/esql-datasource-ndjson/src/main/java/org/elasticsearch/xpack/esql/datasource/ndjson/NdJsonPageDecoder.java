@@ -107,7 +107,7 @@ public class NdJsonPageDecoder implements Closeable {
                 this.blockTracker.clear();
 
                 try {
-                    decoder.decodeObject(parser, lineCount);
+                    decoder.decodeObject(parser);
                 } catch (JsonParseException e) {
                     LOGGER.warn("Malformed NDJSON at line {}: {}", lineCount, e);
                     this.input = NdJsonUtils.moveToNextLine(parser, this.input);
@@ -210,7 +210,7 @@ public class NdJsonPageDecoder implements Closeable {
             }
         }
 
-        private void decodeObject(JsonParser parser, int position) throws IOException {
+        private void decodeObject(JsonParser parser) throws IOException {
             JsonToken token = parser.currentToken();
             if (token != JsonToken.START_OBJECT) {
                 throw new NdJsonParseException(parser, "Expected JSON object");
@@ -225,18 +225,18 @@ public class NdJsonPageDecoder implements Closeable {
                     // Unknown field, skip it
                     parser.skipChildren();
                 } else {
-                    childDecoder.decodeValue(parser, position);
+                    childDecoder.decodeValue(parser);
                 }
             }
         }
 
-        private void decodeValue(JsonParser parser, int position) throws IOException {
+        private void decodeValue(JsonParser parser) throws IOException {
             JsonToken token = parser.currentToken();
             blockTracker.set(blockIdx);
             if (token == JsonToken.START_ARRAY) {
                 this.blockBuilder.beginPositionEntry();
-                while ((token = parser.nextToken()) != JsonToken.END_ARRAY) {
-                    decodeValue(parser, position);
+                while (parser.nextToken() != JsonToken.END_ARRAY) {
+                    decodeValue(parser);
                 }
                 this.blockBuilder.endPositionEntry();
                 return;

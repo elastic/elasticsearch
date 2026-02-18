@@ -60,7 +60,7 @@ public class NdJsonSchemaInferrer {
      * Infers schema from an NDJSON input stream, reading up to maxLines.
      */
     public static List<Attribute> inferSchema(InputStream inputStream, int maxLines) throws IOException {
-        FieldInfo root = new FieldInfo(null);
+        FieldInfo root = new FieldInfo();
         JsonParser parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
         try {
             int lineCount = 0;
@@ -93,13 +93,6 @@ public class NdJsonSchemaInferrer {
         List<Attribute> attributes = new ArrayList<>();
         buildSchema(root, null, attributes);
         return attributes;
-    }
-
-    private static void inferLineSchema(String json, FieldInfo root) throws IOException {
-        try (JsonParser parser = NdJsonUtils.JSON_FACTORY.createParser(json)) {
-            parser.nextToken();
-            inferObjectSchema(parser, root);
-        }
     }
 
     private static void inferObjectSchema(JsonParser parser, FieldInfo object) throws IOException {
@@ -189,21 +182,16 @@ public class NdJsonSchemaInferrer {
      * Field type information collected during schema inference.
      */
     private static class FieldInfo {
-        String name;
         final EnumSet<DataType> types = EnumSet.noneOf(DataType.class);
         boolean isArray = false;
         Map<String, FieldInfo> children = null;
-
-        FieldInfo(String name) {
-            this.name = name;
-        }
 
         FieldInfo getChild(String name) {
             // TODO: limit depth
             if (children == null) {
                 children = new LinkedHashMap<>();
             }
-            return children.computeIfAbsent(name, FieldInfo::new);
+            return children.computeIfAbsent(name, (_name) -> new FieldInfo());
         }
 
         void addType(DataType type) {

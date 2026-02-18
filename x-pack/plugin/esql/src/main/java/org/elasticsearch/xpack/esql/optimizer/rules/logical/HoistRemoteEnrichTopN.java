@@ -71,7 +71,7 @@ public final class HoistRemoteEnrichTopN extends OptimizerRules.OptimizerRule<En
                             rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
                                 if (missingNames.contains(attr.name())) {
                                     Alias renamedAttribute = aliasesForReplacedAttributesBuilder.computeIfAbsent(attr, a -> {
-                                        String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name());
+                                        String tempName = TemporaryNameGenerator.locallyUniqueTemporaryName(a.name());
                                         return new Alias(a.source(), tempName, a, null, true);
                                     });
                                     return renamedAttribute.toAttribute();

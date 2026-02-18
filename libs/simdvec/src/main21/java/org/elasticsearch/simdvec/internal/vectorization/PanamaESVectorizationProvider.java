@@ -67,7 +67,7 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         int bulkSize,
         boolean allowAnyInputType
     ) {
-        if (queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) {
+        if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS && queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             return new MemorySegmentESNextOSQVectorsScorer(

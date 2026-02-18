@@ -36,6 +36,7 @@ import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.index.mapper.RangeFieldMapper.ESQL_LONG_RANGES;
+import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.areTypesCompatible;
 
 /**
  * This enum represents data types the ES|QL query processing layer is able to
@@ -671,7 +672,7 @@ public enum DataType implements Writeable {
         if (left == right) {
             return true;
         } else {
-            return (left == NULL || right == NULL) || (isString(left) && isString(right)) || (left.isNumeric() && right.isNumeric());
+            return areTypesCompatible(left, right);
         }
     }
 

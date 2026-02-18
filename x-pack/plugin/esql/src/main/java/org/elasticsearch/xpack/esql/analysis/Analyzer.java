@@ -466,7 +466,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             // Get pre-resolved source (metadata + file set) from context
-            var resolvedSource = context.externalSourceResolution().get(tablePath);
+            var resolvedSource = context.externalSourceResolution().resolvedSource(tablePath);
             if (resolvedSource == null) {
                 // Still unresolved - return as-is to keep the error message
                 return plan;

@@ -13,16 +13,23 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 
-class TemporaryNameUtils {
-    static int TO_STRING_LIMIT = 16;
+import java.util.HashMap;
+import java.util.Map;
 
-    public static String temporaryName(Expression inner, Expression outer, int suffix) {
+/**
+ * Utility class for generating temporary and unique names for query expressions.
+ */
+public interface TemporaryNameGenerator {
+
+    int TO_STRING_LIMIT = 16;
+
+    static String temporaryName(Expression inner, Expression outer, int suffix) {
         String in = toString(inner);
         String out = toString(outer);
         return Attribute.rawTemporaryName(in, out, String.valueOf(suffix));
     }
 
-    public static String locallyUniqueTemporaryName(String inner) {
+    static String locallyUniqueTemporaryName(String inner) {
         return Attribute.rawTemporaryName(inner, "temp_name", (new NameId()).toString());
     }
 
@@ -36,5 +43,20 @@ class TemporaryNameUtils {
 
     static String limitToString(String string) {
         return string.length() > TO_STRING_LIMIT ? string.substring(0, TO_STRING_LIMIT - 1) + ">" : string;
+    }
+
+    String next(String prefix);
+
+    /**
+     * Generates names with a monotonically increasing numeric suffix.
+     */
+    final class Monotonic implements TemporaryNameGenerator {
+        private final Map<String, Integer> counters = new HashMap<>();
+
+        @Override
+        public String next(String prefix) {
+            int id = counters.compute(prefix, (k, v) -> v == null ? 1 : v + 1);
+            return prefix + "_$" + id;
+        }
     }
 }

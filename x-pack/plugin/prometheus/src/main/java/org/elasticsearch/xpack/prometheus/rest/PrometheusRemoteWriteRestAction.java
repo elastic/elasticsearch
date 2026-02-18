@@ -47,9 +47,9 @@ public class PrometheusRemoteWriteRestAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) {
+        String dataset = request.param(DataStream.DATASET, "generic");
+        String namespace = request.param(DataStream.NAMESPACE, "default");
         if (request.hasContent()) {
-            String dataset = request.param(DataStream.DATASET, "generic");
-            String namespace = request.param(DataStream.NAMESPACE, "default");
             DataStream.validateDataset(dataset);
             DataStream.validateNamespace(namespace);
             var transportRequest = new PrometheusRemoteWriteTransportAction.RemoteWriteRequest(

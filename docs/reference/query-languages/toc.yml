@@ -129,6 +129,7 @@ toc:
                   - file: esql/commands/sample.md
                   - file: esql/commands/sort.md
                   - file: esql/commands/stats-by.md
+                  - file: esql/commands/uri-parts.md
                   - file: esql/commands/where.md
           - file: esql/esql-functions-operators.md
             children:

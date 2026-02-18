@@ -408,7 +408,7 @@ public class CsvIT extends ESTestCase {
         private final ThreadPool threadPool;
         private List<String> warnings;
 
-        public ResponseListener(ThreadPool threadPool) {
+        ResponseListener(ThreadPool threadPool) {
             this.threadPool = threadPool;
         }
 

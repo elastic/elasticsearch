@@ -374,6 +374,7 @@
           "type": "keyword"
         },
         "identifying_attributes": {
+          "type": "passthrough",
           "properties": {
             "service": {
               "properties": {
@@ -395,6 +396,7 @@
           }
         },
         "non_identifying_attributes": {
+           "type": "passthrough",
            "properties": {
               "host": {
                 "properties": {

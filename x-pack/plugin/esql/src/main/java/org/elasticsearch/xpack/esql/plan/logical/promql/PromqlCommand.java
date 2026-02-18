@@ -171,6 +171,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
             end,
             step(),
             buckets(),
+            scrapeInterval(),
             valueColumnName(),
             valueId(),
             stepId(),

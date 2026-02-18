@@ -10,11 +10,13 @@
 package org.elasticsearch.windows.service;
 
 /**
- * Removes the Elasticsearch Windows service, first stopping it if it is running.
+ * Removes the Elasticsearch Windows service.
+ *
+ * <p>Uses {@code sc.exe delete} to remove the service registration from the Windows Service Control Manager.
  */
-class WindowsServiceRemoveCommand extends ProcrunCommand {
+class WindowsServiceRemoveCommand extends ScCommand {
     WindowsServiceRemoveCommand() {
-        super("Remove the Elasticsearch Windows Service", "DS");
+        super("Remove the Elasticsearch Windows Service", "delete");
     }
 
     @Override

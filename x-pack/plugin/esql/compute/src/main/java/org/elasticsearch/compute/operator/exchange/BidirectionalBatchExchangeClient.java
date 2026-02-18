@@ -10,12 +10,13 @@ package org.elasticsearch.compute.operator.exchange;
 import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.support.RefCountingRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.compute.EsqlRefCountingListener;
 import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -83,7 +85,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private ExchangeSourceHandler serverToClientSourceHandler;
     private BatchSortedExchangeSource sortedSource; // Wraps ExchangeSource with sorting
 
-    private final AtomicReference<Exception> failureRef = new AtomicReference<>();
+    private final AtomicReference<Exception> primaryFailure = new AtomicReference<>();
+    private final AtomicBoolean failureTriggered = new AtomicBoolean(false);
     private final Object sendFinishLock = new Object(); // Synchronizes finish() with transport callbacks
     private ActionListener<Void> batchExchangeStatusListener; // Listener for batch exchange status completion
     private volatile boolean closed = false; // Track if close() has been called (for idempotency)
@@ -96,15 +99,15 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     private final AtomicInteger pendingWorkerConnections = new AtomicInteger(0);
     private volatile boolean finishRequested = false;
 
-    // Global response coordinator using FailureCollector to pick the best error across all worker
-    // channels (sink failures + batch status responses). Acquires 2 refs per worker (sinkRef +
-    // statusRef). The initial ref is released by finish() when no more workers will be created.
-    private EsqlRefCountingListener responseCoordinator;
+    // Tracks completion of all worker channels (sink + status refs, 2 per worker).
+    // The initial ref is released by finish() when no more workers will be created.
+    // Error prioritization is handled by setPrimaryFailure/notifyFailure, not here.
+    private RefCountingRunnable responseRefs;
     // Resolves when notifyFailure() has set the operator's failure and shut down the exchange.
     // Used by pollPage()/waitForPage()/etc. to block the driver after catching TaskCancelledException
     // from the aborted exchange source, preventing spin-waiting until the real error is available.
     private final SubscribableListener<Void> failureNotified = new SubscribableListener<>();
-    // Set to true when the response coordinator fires (success or failure)
+    // Set to true when all worker channel refs have been released
     private volatile boolean coordinatorDone = false;
 
     // Server setup callback - called lazily when first page is sent
@@ -179,18 +182,14 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         sortedSource = new BatchSortedExchangeSource(exchangeSource);
         logger.debug("[LookupJoinClient] Created shared server-to-client sorted source: exchangeId={}", sharedExchangeId);
 
-        // Create global response coordinator. Uses FailureCollector to pick the best error
-        // (e.g. CircuitBreakingException) over generic TaskCancelledException across all workers.
-        // The initial ref is released by finish() when no more workers will be created.
-        responseCoordinator = new EsqlRefCountingListener(ActionListener.wrap(v -> {
+        // Tracks completion of all worker channels. The initial ref is released by finish().
+        // On completion: if no failure was recorded, notify success; otherwise it was already handled.
+        responseRefs = new RefCountingRunnable(() -> {
             coordinatorDone = true;
-            if (failureRef.get() == null) {
+            if (primaryFailure.get() == null) {
                 batchExchangeStatusListener.onResponse(null);
             }
-        }, e -> {
-            coordinatorDone = true;
-            notifyFailure(e);
-        }));
+        });
     }
 
     /**
@@ -245,11 +244,15 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         // Increment pending connections to prevent finishing client-to-server exchanges
         // until this connection is fully established (addRemoteSink called)
         pendingWorkerConnections.incrementAndGet();
-        // Acquire refs from the global response coordinator for this worker's error channels.
+        // Acquire completion-tracking refs for this worker's channels (sink + status).
         // Must be acquired here (on the Driver thread, before the async setup) so the refs
         // are visible before any transport callback can release them.
-        worker.sinkRef = responseCoordinator.acquire();
-        worker.statusRef = responseCoordinator.acquire();
+        ActionListener<Void> sinkCompletionRef = responseRefs.acquireListener();
+        worker.sinkRef = ActionListener.wrap(sinkCompletionRef::onResponse, e -> {
+            notifyFailure(e);
+            sinkCompletionRef.onFailure(e);
+        });
+        worker.statusRef = responseRefs.acquireListener();
         initializeWorker(worker);
         logger.debug(
             "[LookupJoinClient] Created new worker: workerId={}, serverNode={}, totalWorkers={}",
@@ -277,9 +280,8 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         worker.clientToServerSink = worker.clientToServerSinkHandler.createExchangeSink(() -> {});
 
         // When handler completes (buffer finished), clean up the sink handler.
-        // Client-to-server exchange failures are handled independently — they don't go through
-        // the responseCoordinator. The error will also propagate through the server's status
-        // response channel, where the FailureCollector picks the best error.
+        // Client-to-server exchange failures call notifyFailure directly. The error will also
+        // propagate through the server's status response channel.
         worker.clientToServerSinkHandler.addCompletionListener(
             ActionListener.wrap(v -> exchangeService.finishSinkHandler(worker.clientToServerId, null), e -> {
                 notifyFailure(e);
@@ -307,8 +309,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                 } catch (Exception e) {
                     logger.error("[LookupJoinClient] Server setup callback failed for worker={}: {}", worker.workerId, e.getMessage());
                     onWorkerConnectionComplete(worker, "Setup callback failed");
-                    // Release both refs with the setup error so the coordinator's FailureCollector
-                    // can pick the best error. connectToServerSink was never called for this worker.
+                    // Release both refs. connectToServerSink was never called for this worker.
                     worker.sinkRef.onFailure(e);
                     worker.statusRef.onFailure(e);
                     worker.setupReadyListener.onFailure(e);
@@ -336,9 +337,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         );
         // Each worker connects to its own server's sink, all feeding into the shared serverToClientSourceHandler.
         // Use failFast=true so the exchange source aborts immediately on sink failure. The sinkRef
-        // feeds the real error (e.g. CircuitBreakingException) into the global responseCoordinator's
-        // FailureCollector. The FailureCollector picks it over the generic TaskCancelledException
-        // that ExchangeSourceHandler throws from pollPage()/isFinished() when aborted.
+        // wrapper calls notifyFailure directly with the real error (e.g. CircuitBreakingException).
         // TaskCancelledException from the aborted source is caught at the client boundary methods
         // (pollPage, isExchangeDone, etc.) and converted to a block on failureNotified.
         connectRemoteSink(worker.serverNode, worker.serverToClientId, serverToClientSourceHandler, worker.sinkRef, "server sink handler");
@@ -407,13 +406,15 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     /**
-     * Notify the operator of a failure and shut down the exchange. Called from the response
-     * coordinator's delegate (with the best error from the FailureCollector) or from the
-     * client-to-server exchange failure handler. Only the first call has effect; subsequent
-     * calls are logged and ignored.
+     * Notify the operator of a failure and shut down the exchange. May be called from multiple
+     * sources: the response coordinator, the client-to-server sink handler, the status response
+     * handler, or directly from a server-to-client sink failure. The highest-priority error is
+     * kept via {@link #setPrimaryFailure}. Only the first call triggers the one-time shutdown
+     * (drain exchange, unblock driver); subsequent calls only upgrade the error if better.
      */
     private void notifyFailure(Exception failure) {
-        if (failureRef.compareAndSet(null, failure)) {
+        setPrimaryFailure(failure);
+        if (failureTriggered.compareAndSet(false, true)) {
             logger.error("[LookupJoinClient] Notifying failure: {}", failure.getMessage());
             // Notify the operator's failure listener FIRST, before unblocking the driver.
             // This ensures that when the driver thread unblocks, the operator's failure field
@@ -426,12 +427,40 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
             // proceed to checkFailureAndMaybeThrow() which will see the real error.
             failureNotified.onResponse(null);
         } else {
-            logger.warn(
-                "[LookupJoinClient] Additional failure ignored: {}. Already reporting: {}",
-                failure.getMessage(),
-                failureRef.get() != null ? failureRef.get().getMessage() : "unknown"
-            );
+            logger.warn("[LookupJoinClient] Additional failure (primary={}): {}", primaryFailure.get() == failure, failure.getMessage());
         }
+    }
+
+    /**
+     * CAS loop that keeps the higher-priority error in {@link #primaryFailure}.
+     * Uses {@link FailureCollector} to determine priority (CLIENT > SERVER > CANCELLATION).
+     */
+    private void setPrimaryFailure(Exception failure) {
+        while (true) {
+            Exception current = primaryFailure.get();
+            if (current == null) {
+                if (primaryFailure.compareAndSet(null, failure)) {
+                    return;
+                }
+                continue;
+            }
+            Exception best = betterException(current, failure);
+            if (best == current) {
+                return;
+            }
+            if (primaryFailure.compareAndSet(current, best)) {
+                return;
+            }
+            // otherwise the primaryFailure is updated during our processing by another thread
+            // rerun the loop
+        }
+    }
+
+    private static Exception betterException(Exception a, Exception b) {
+        FailureCollector collector = new FailureCollector(1);
+        collector.unwrapAndCollect(a);
+        collector.unwrapAndCollect(b);
+        return collector.getFailure();
     }
 
     /**
@@ -455,7 +484,14 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * @return true if a failure has occurred, false otherwise
      */
     public boolean hasFailed() {
-        return failureRef.get() != null;
+        return primaryFailure.get() != null;
+    }
+
+    /**
+     * Returns the highest-priority failure, or null if no failure has occurred.
+     */
+    public Exception getPrimaryFailure() {
+        return primaryFailure.get();
     }
 
     /**
@@ -544,7 +580,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
      * If any worker failed, hasFailed() will return true and the failure can be retrieved.
      */
     public boolean isFinished() {
-        // Check if the response coordinator has fired (all sink + status refs released)
+        // Check if all worker channels have completed (all sink + status refs released)
         if (coordinatorDone == false) {
             return false;
         }
@@ -688,11 +724,10 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         synchronized (sendFinishLock) {
             if (finishRequested == false) {
                 finishRequested = true;
-                // Release the initial ref of the response coordinator. All worker refs have been
-                // acquired (workers are created on the Driver thread before finish() is called).
-                // The coordinator will fire when all remaining refs (sink + status per worker)
-                // are released from transport callback threads.
-                responseCoordinator.close();
+                // Release the initial ref. All worker refs have been acquired (workers are
+                // created on the Driver thread before finish() is called). The callback fires
+                // when all remaining refs (sink + status per worker) are released.
+                responseRefs.close();
             }
             if (pendingWorkerConnections.get() > 0) {
                 // Don't finish yet - wait for all pending connections to be established
@@ -743,7 +778,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
     }
 
     private void checkFailure() {
-        Exception failure = failureRef.get();
+        Exception failure = primaryFailure.get();
         if (failure != null) {
             // Rethrow RuntimeExceptions directly (e.g., CircuitBreakingException) for proper test handling
             if (failure instanceof RuntimeException rte) {
@@ -777,7 +812,11 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         for (Worker worker : workers) {
             try {
                 if (worker.clientToServerSinkHandler != null) {
-                    logger.debug("[LookupJoinClient] Draining sink handler buffer for worker={}", worker.workerId);
+                    logger.debug(
+                        "[LookupJoinClient] Draining sink handler buffer for worker={}, isFinished={}",
+                        worker.workerId,
+                        worker.clientToServerSinkHandler.isFinished()
+                    );
                     worker.clientToServerSinkHandler.onFailure(new TaskCancelledException("client closed"));
                 }
             } catch (Exception e) {
@@ -891,7 +930,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         int pendingBatches = 0;
         volatile boolean requestSent = false;
         volatile boolean finished = false;
-        // Refs acquired from the global responseCoordinator. Both are released when the
+        // Completion-tracking refs from responseRefs. Both are released when the
         // corresponding channel completes (success or failure). On setup failure before
         // connectToServerSink is reached, both are released with the setup error.
         ActionListener<Void> sinkRef;

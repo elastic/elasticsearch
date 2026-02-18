@@ -19,11 +19,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BatchMetadata;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.exchange.BidirectionalBatchExchangeClient;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.lookup.RightChunkedLeftJoin;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -474,13 +476,25 @@ public class StreamingLookupFromIndexOperator implements Operator {
      */
     private void checkFailureAndMaybeThrow() {
         Exception ex = failure.get();
-        if (ex != null) {
+        Exception clientEx = (client != null) ? client.getPrimaryFailure() : null;
+        Exception best = bestError(ex, clientEx);
+        if (best != null) {
             cleanupBatchResources();
-            if (ex instanceof RuntimeException rte) {
+            if (best instanceof RuntimeException rte) {
                 throw rte;
             }
-            throw new IllegalStateException("Batch exchange failed", ex);
+            throw new IllegalStateException("Batch exchange failed", best);
         }
+    }
+
+    private static Exception bestError(@Nullable Exception a, @Nullable Exception b) {
+        if (a == null) return b;
+        if (b == null) return a;
+        if (a == b) return a;
+        FailureCollector collector = new FailureCollector(1);
+        collector.unwrapAndCollect(a);
+        collector.unwrapAndCollect(b);
+        return collector.getFailure();
     }
 
     /**
@@ -558,6 +572,9 @@ public class StreamingLookupFromIndexOperator implements Operator {
         }
 
         Exception ex = failure.get();
+        if (ex == null && client != null) {
+            ex = client.getPrimaryFailure();
+        }
         if (ex != null) {
             // it will throw in getOutput() with the exception
             return NOT_BLOCKED;

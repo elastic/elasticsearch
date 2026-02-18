@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -1372,17 +1373,8 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
     /*
      * Project[[salary{f}#16, emp_no{f}#11]]
      * \_Limit[1000[INTEGER],false,false]
-     *   \_InlineJoin[LEFT,[salary{f}#16],[salary{r}#16]]
-     *     |_Filter[salary{f}#16 < 10000[INTEGER] AND salary{f}#16 > 10000[INTEGER]]
-     *     | \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
-     *     \_Aggregate[[salary{f}#16],[salary{f}#16]]
-     *       \_StubRelation[[_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, gender{f}#13, hire_date{f}#18, job{f}#19, job.raw{f}#20, l
-     * anguages{f}#14, last_name{f}#15, long_noidx{f}#21, salary{f}#16]]
-     *
-     * stubReplacedSubPlan:
-     * Aggregate[[salary{f}#16],[salary{f}#16]]
-     * \_Filter[salary{f}#16 < 10000[INTEGER] AND salary{f}#16 > 10000[INTEGER]]
-     *   \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
+     *   \_Filter[salary{f}#16 < 10000[INTEGER] AND salary{f}#16 > 10000[INTEGER]]
+     *     \_EsRelation[employees][_meta_field{f}#17, emp_no{f}#11, first_name{f}#12, ..]
      */
     public void testPushDown_ImpossibleFilter_PastInlineJoin() {
         var plan = plan("""
@@ -1392,40 +1384,26 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
             | WHERE salary > 10000
             | KEEP salary, emp_no
             """);
-        var subPlansResults = new HashSet<LocalRelation>();
-        var firstSubPlan = InlineJoin.firstSubPlan(plan, subPlansResults).stubReplacedSubPlan();
 
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
-        // InlineJoin
-        var ij = as(limit.child(), InlineJoin.class);
+        var filter = as(limit.child(), Filter.class);
+        assertThat(filter.condition(), instanceOf(And.class));
+        var and = as(filter.condition(), And.class);
+        var left = as(and.left(), LessThan.class);
+        var leftField = as(left.left(), FieldAttribute.class);
+        assertEquals("salary", leftField.name());
+        var leftRight = as(left.right(), Literal.class);
+        assertEquals(10000, leftRight.value());
+        var right = as(and.right(), GreaterThan.class);
+        var rightField = as(right.left(), FieldAttribute.class);
+        assertEquals("salary", rightField.name());
 
-        // InlineJoin left side
-        var left = as(ij.left(), Filter.class);
-        // Filter[salary{f}#16 < 10000[INTEGER] AND salary{f}#16 > 10000[INTEGER]]
-        assertThat(left.condition(), instanceOf(And.class));
-        var and = as(left.condition(), And.class);
-        var andLeft = as(and.left(), LessThan.class);
-        var andLeftField = as(andLeft.left(), FieldAttribute.class);
-        assertEquals("salary", andLeftField.name());
-        var andLeftRight = as(andLeft.right(), Literal.class);
-        assertEquals(10000, andLeftRight.value());
-        var andRight = as(and.right(), GreaterThan.class);
-        var andRightField = as(andRight.left(), FieldAttribute.class);
-        assertEquals("salary", andRightField.name());
-        var andRightRight = as(andRight.right(), Literal.class);
-        assertEquals(10000, andRightRight.value());
-        as(left.child(), EsRelation.class);
+        assertEquals(leftField, rightField);
 
-        // InlineJoin right side
-        var right = as(ij.right(), Aggregate.class);
-
-        // What EsqlSession is doing
-        var firstSubPlanAggregate = as(firstSubPlan, Aggregate.class);
-        assertEquals(right.output(), firstSubPlanAggregate.output());
-        var firstSubPlanFilter = as(firstSubPlanAggregate.child(), Filter.class);
-        // important bit below: the filter that is executed in the right hand side is the same as the one in the left hand side
-        assertEquals(left, firstSubPlanFilter);
+        var rightRight = as(right.right(), Literal.class);
+        assertEquals(10000, rightRight.value());
+        as(filter.child(), EsRelation.class);
 
         assertWarnings("Line 3:16: Field 'salary' shadowed by field at line 3:40", "No limit defined, adding default limit of [1000]");
     }
@@ -2401,5 +2379,43 @@ public class PushDownAndCombineFiltersTests extends AbstractLogicalPlanOptimizer
         var firstSubPlanFilter = as(firstSubPlanAggregate.child(), Filter.class);
         // important bit below: the filter that is executed in the right hand side is the same as the one in the left hand side
         assertEquals(left, firstSubPlanFilter);
+    }
+
+    public void testPushDownFilterPastUriParts() {
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        String query = """
+            FROM test
+            | WHERE emp_no > 10000
+            | uri_parts u = first_name
+            | WHERE u.domain == "elastic.co" AND salary > 5000
+            """;
+        LogicalPlan plan = optimizedPlan(query);
+
+        // 1. The top level plan should be a Limit (can't be pushed down past filters)
+        var limit = as(plan, Limit.class);
+
+        // 2. Top filter should be the non-pushable filter that depends on the UriParts output
+        var topFilter = as(limit.child(), Filter.class);
+        assertThat(topFilter.condition(), instanceOf(Equals.class));
+        var topEquals = as(topFilter.condition(), Equals.class);
+        assertThat(as(topEquals.left(), ReferenceAttribute.class).name(), is("u.domain"));
+
+        // 3. Then the UriParts node
+        var uriParts = as(topFilter.child(), UriParts.class);
+
+        // 4. Below UriParts should be the combined pushable filters
+        var bottomFilter = as(uriParts.child(), Filter.class);
+        assertThat(bottomFilter.condition(), instanceOf(And.class));
+        var bottomAnd = as(bottomFilter.condition(), And.class);
+
+        // Check that both the original filter and the pushed-down filters are present
+        var condition1 = as(bottomAnd.left(), GreaterThan.class);
+        assertThat(as(condition1.left(), FieldAttribute.class).name(), is("emp_no"));
+
+        var condition2 = as(bottomAnd.right(), GreaterThan.class);
+        assertThat(as(condition2.left(), FieldAttribute.class).name(), is("salary"));
+
+        // 5. Finally, the relation
+        as(bottomFilter.child(), EsRelation.class);
     }
 }

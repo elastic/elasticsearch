@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.search.TaskExecutor;
 
 import java.io.IOException;
@@ -112,11 +111,11 @@ public class HierarchicalKMeans {
      * @return the centroids and the vectors assignments and SOAR (spilled from nearby neighborhoods) assignments
      * @throws IOException is thrown if vectors is inaccessible
      */
-    public KMeansResult cluster(FloatVectorValues vectors, int targetSize) throws IOException {
+    public KMeansResult cluster(ClusteringFloatVectorValues vectors, int targetSize) throws IOException {
         return cluster(vectors, targetSize, null);
     }
 
-    public KMeansResult cluster(FloatVectorValues vectors, int targetSize, Consumer<NeighborHood[]> neighborhoodsConsumer)
+    public KMeansResult cluster(ClusteringFloatVectorValues vectors, int targetSize, Consumer<NeighborHood[]> neighborhoodsConsumer)
         throws IOException {
         if (vectors.size() == 0) {
             return new KMeansIntermediate();
@@ -154,7 +153,7 @@ public class HierarchicalKMeans {
         return kMeansIntermediate;
     }
 
-    private KMeansIntermediate clusterAndSplit(final FloatVectorValues vectors, final int targetSize) throws IOException {
+    private KMeansIntermediate clusterAndSplit(final ClusteringFloatVectorValues vectors, final int targetSize) throws IOException {
         if (vectors.size() <= targetSize) {
             return new KMeansIntermediate();
         }
@@ -201,7 +200,7 @@ public class HierarchicalKMeans {
             final int count = centroidVectorCount[c];
             final int adjustedCentroid = c + centroidIndexOffset;
             if (100 * count > 134 * targetSize) {
-                final FloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
+                final ClusteringFloatVectorValues sample = createClusterSlice(count, adjustedCentroid, vectors, assignments);
 
                 // TODO: consider iterative here instead of recursive
                 // recursive call to build out the sub partitions around this centroid c
@@ -244,7 +243,12 @@ public class HierarchicalKMeans {
             : new KMeansLocalConcurrent(executor, numWorkers, localSampleSize, maxIterations);
     }
 
-    static FloatVectorValues createClusterSlice(int clusterSize, int cluster, FloatVectorValues vectors, int[] assignments) {
+    static ClusteringFloatVectorValues createClusterSlice(
+        int clusterSize,
+        int cluster,
+        ClusteringFloatVectorValues vectors,
+        int[] assignments
+    ) {
         assert assignments.length == vectors.size();
         int[] slice = new int[clusterSize];
         int idx = 0;
@@ -256,7 +260,7 @@ public class HierarchicalKMeans {
         }
         assert idx == clusterSize;
 
-        return new FloatVectorValuesSlice(vectors, slice);
+        return new ClusteringFloatVectorValuesSlice(vectors, slice);
     }
 
     /**

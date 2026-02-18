@@ -2737,16 +2737,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
+        public VectorData resolveQueryVector(VectorData queryVector) {
+            if (queryVector == null || queryVector.isStringVector() == false) {
+                return queryVector;
+            }
+            return VectorData.decodeQueryVector(queryVector.stringVector(), element.elementType(), dims);
+        }
+
         public Query createExactKnnQuery(VectorData queryVector, Float vectorSimilarity) {
             if (indexType() == IndexType.NONE) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
+            if (dims == null) {
+                return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
+            }
+            VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             Query knnQuery = switch (element.elementType()) {
-                case BYTE -> createExactKnnByteQuery(queryVector.asByteVector());
-                case FLOAT, BFLOAT16 -> createExactKnnFloatQuery(queryVector.asFloatVector());
-                case BIT -> createExactKnnBitQuery(queryVector.asByteVector());
+                case BYTE -> createExactKnnByteQuery(resolvedQueryVector.asByteVector());
+                case FLOAT, BFLOAT16 -> createExactKnnFloatQuery(resolvedQueryVector.asFloatVector());
+                case BIT -> createExactKnnBitQuery(resolvedQueryVector.asByteVector());
             };
             if (vectorSimilarity != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2813,11 +2824,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (dims == null) {
                 return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
             }
+            VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             KnnSearchStrategy knnSearchStrategy = heuristic.getKnnSearchStrategy();
             hnswEarlyTermination &= canApplyPatienceQuery();
             return switch (getElementType()) {
                 case BYTE -> createKnnByteQuery(
-                    queryVector.asByteVector(),
+                    resolvedQueryVector.asByteVector(),
                     k,
                     numCands,
                     filter,
@@ -2827,7 +2839,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     hnswEarlyTermination
                 );
                 case FLOAT, BFLOAT16 -> createKnnFloatQuery(
-                    queryVector.asFloatVector(),
+                    resolvedQueryVector.asFloatVector(),
                     k,
                     numCands,
                     visitPercentage,
@@ -2839,7 +2851,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     hnswEarlyTermination
                 );
                 case BIT -> createKnnBitQuery(
-                    queryVector.asByteVector(),
+                    resolvedQueryVector.asByteVector(),
                     k,
                     numCands,
                     filter,

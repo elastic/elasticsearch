@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -274,6 +274,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         private final int fieldIdx;
 
         BlockLoader loader;
+        // TODO rework this bit of mutable state into something harder to forget
+        // Seriously, I've tripped over this twice.
         @Nullable
         ConverterEvaluator converter;
         @Nullable
@@ -288,6 +290,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         void sameSegment(int firstDoc) {
             if (columnAtATime != null && columnAtATime.canReuse(firstDoc) == false) {
+                // TODO count the number of times we can't reuse?
                 columnAtATime = null;
             }
             if (rowStride != null && rowStride.canReuse(firstDoc) == false) {

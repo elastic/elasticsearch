@@ -1062,9 +1062,14 @@ public class FSST {
     // require that output buffer has 7 bytes more than required
     // return output length
     public static int decompress(byte[] in, int startOffset, int lenToConsume, Decoder decoder, byte[] output) throws IOException {
+        return decompress(in, startOffset, lenToConsume, decoder, output, 0);
+    }
+
+    public static int decompress(byte[] in, int startOffset, int lenToConsume, Decoder decoder, byte[] output, int outOffset)
+        throws IOException {
         int code;
 
-        int outIdx = 0;
+        int outIdx = outOffset;
         int inIdx = startOffset;
         int limit = startOffset + lenToConsume;
         while (inIdx < limit) {
@@ -1078,7 +1083,7 @@ public class FSST {
             }
         }
 
-        return outIdx;
+        return outIdx - outOffset;
     }
 
     @SuppressWarnings({ "fallthrough", "checkstyle:OneStatementPerLine" })

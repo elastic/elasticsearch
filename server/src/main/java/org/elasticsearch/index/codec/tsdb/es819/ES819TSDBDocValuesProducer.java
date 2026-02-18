@@ -45,6 +45,7 @@ import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.compress.fsst.FSST;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -1310,7 +1311,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     }
 
     private static class TermsDict extends BaseTermsEnum {
-        static final int LZ4_DECOMPRESSOR_PADDING = 7;
 
         final TermsDictEntry entry;
         final LongValues blockAddresses;
@@ -1319,12 +1319,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final LongValues indexAddresses;
         final RandomAccessInput indexBytes;
         final BytesRef term;
+        final FSST.Decoder fsstDecoder;
         long ord = -1;
 
         BytesRef blockBuffer = null;
         ByteArrayDataInput blockInput = null;
         long currentCompressedBlockStart = -1;
         long currentCompressedBlockEnd = -1;
+        byte[] compressedBuf;
 
         TermsDict(TermsDictEntry entry, IndexInput data, boolean merging) throws IOException {
             this.entry = entry;
@@ -1340,10 +1342,15 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             indexBytes = data.randomAccessSlice(entry.termsIndexOffset, entry.termsIndexLength);
             term = new BytesRef(entry.maxTermLength);
 
-            // add the max term length for the dictionary
-            // add 7 padding bytes can help decompression run faster.
-            int bufferSize = entry.maxBlockLength + entry.maxTermLength + LZ4_DECOMPRESSOR_PADDING;
+            // Read the FSST symbol table from the start of terms data
+            int symbolTableLen = bytes.readVInt();
+            byte[] symbolTableBytes = new byte[symbolTableLen];
+            bytes.readBytes(symbolTableBytes, 0, symbolTableLen);
+            fsstDecoder = FSST.Decoder.readFrom(symbolTableBytes);
+
+            int bufferSize = entry.maxBlockLength + entry.maxTermLength + 8;
             blockBuffer = new BytesRef(new byte[bufferSize], 0, bufferSize);
+            compressedBuf = new byte[bufferSize];
         }
 
         @Override
@@ -1490,27 +1497,27 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         private void decompressBlock() throws IOException {
-            // The first term is kept uncompressed, so no need to decompress block if only
-            // look up the first term when doing seek block.
             term.length = bytes.readVInt();
             bytes.readBytes(term.bytes, 0, term.length);
             long offset = bytes.getFilePointer();
             if (offset < entry.termsDataLength - 1) {
-                // Avoid decompress again if we are reading a same block.
                 if (currentCompressedBlockStart != offset) {
+                    int uncompressedLength = bytes.readVInt();
+                    int compressedLength = bytes.readVInt();
+                    if (compressedBuf.length < compressedLength) {
+                        compressedBuf = new byte[compressedLength];
+                    }
+                    bytes.readBytes(compressedBuf, 0, compressedLength);
                     blockBuffer.offset = term.length;
-                    blockBuffer.length = bytes.readVInt();
-                    // Decompress the remaining of current block, using the first term as a dictionary
                     System.arraycopy(term.bytes, 0, blockBuffer.bytes, 0, blockBuffer.offset);
-                    LZ4.decompress(bytes, blockBuffer.length, blockBuffer.bytes, blockBuffer.offset);
+                    int decompressedLen = FSST.decompress(compressedBuf, 0, compressedLength, fsstDecoder, blockBuffer.bytes, blockBuffer.offset);
+                    blockBuffer.length = decompressedLen;
                     currentCompressedBlockStart = offset;
                     currentCompressedBlockEnd = bytes.getFilePointer();
                 } else {
-                    // Skip decompression but need to re-seek to block end.
                     bytes.seek(currentCompressedBlockEnd);
                 }
 
-                // Reset the buffer.
                 blockInput = new ByteArrayDataInput(blockBuffer.bytes, blockBuffer.offset, blockBuffer.length);
             }
         }

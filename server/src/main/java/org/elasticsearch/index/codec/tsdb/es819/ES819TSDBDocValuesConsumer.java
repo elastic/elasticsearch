@@ -43,6 +43,8 @@ import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.packed.PackedInts;
+import org.elasticsearch.common.compress.fsst.FSST;
+import org.elasticsearch.common.compress.fsst.ReservoirSampler;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
@@ -709,6 +711,16 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         int blockMask = ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_MASK;
         int shift = ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
 
+        // First pass: sample terms for FSST training
+        ReservoirSampler sampler = new ReservoirSampler();
+        TermsEnum sampleIterator = values.termsEnum();
+        for (BytesRef term = sampleIterator.next(); term != null; term = sampleIterator.next()) {
+            sampler.processLine(term.bytes, term.offset, term.length);
+        }
+
+        FSST.SymbolTable symbolTable = FSST.SymbolTable.buildSymbolTable(sampler.getSample());
+        byte[] symbolTableBytes = symbolTable.exportToBytes();
+
         meta.writeInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
         ByteBuffersDataOutput addressBuffer = new ByteBuffersDataOutput();
         ByteBuffersIndexOutput addressOutput = new ByteBuffersIndexOutput(addressBuffer, "temp", "temp");
@@ -719,24 +731,36 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         long ord = 0;
         long start = data.getFilePointer();
         int maxLength = 0, maxBlockLength = 0;
-        TermsEnum iterator = values.termsEnum();
 
-        LZ4.FastCompressionHashTable ht = new LZ4.FastCompressionHashTable();
+        // Write FSST symbol table at the start of terms data
+        data.writeVInt(symbolTableBytes.length);
+        data.writeBytes(symbolTableBytes, 0, symbolTableBytes.length);
+
+        byte[] fsstOutBuf = new byte[1 << 14];
+        int[] fsstInOffsets = new int[2];
+        int[] fsstOutOffsets = new int[2];
+
+        // Second pass: write blocks
+        TermsEnum iterator = values.termsEnum();
         ByteArrayDataOutput bufferedOutput = new ByteArrayDataOutput(termsDictBuffer);
         int dictLength = 0;
 
         for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
             if ((ord & blockMask) == 0) {
                 if (ord != 0) {
-                    // flush the previous block
-                    final int uncompressedLength = compressAndGetTermsDictBlockLength(bufferedOutput, dictLength, ht);
+                    final int uncompressedLength = fsstCompressAndWriteBlock(
+                        bufferedOutput,
+                        dictLength,
+                        symbolTable,
+                        fsstOutBuf,
+                        fsstInOffsets,
+                        fsstOutOffsets
+                    );
                     maxBlockLength = Math.max(maxBlockLength, uncompressedLength);
                     bufferedOutput.reset(termsDictBuffer);
                 }
 
                 writer.add(data.getFilePointer() - start);
-                // Write the first term both to the index output, and to the buffer where we'll use it as a
-                // dictionary for compression
                 data.writeVInt(term.length);
                 data.writeBytes(term.bytes, term.offset, term.length);
                 bufferedOutput = maybeGrowBuffer(bufferedOutput, term.length);
@@ -746,7 +770,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
                 final int prefixLength = StringHelper.bytesDifference(previous.get(), term);
                 final int suffixLength = term.length - prefixLength;
                 assert suffixLength > 0; // terms are unique
-                // Will write (suffixLength + 1 byte + 2 vint) bytes. Grow the buffer in need.
                 bufferedOutput = maybeGrowBuffer(bufferedOutput, suffixLength + 11);
                 bufferedOutput.writeByte((byte) (Math.min(prefixLength, 15) | (Math.min(15, suffixLength - 1) << 4)));
                 if (prefixLength >= 15) {
@@ -763,13 +786,19 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         }
         // Compress and write out the last block
         if (bufferedOutput.getPosition() > dictLength) {
-            final int uncompressedLength = compressAndGetTermsDictBlockLength(bufferedOutput, dictLength, ht);
+            final int uncompressedLength = fsstCompressAndWriteBlock(
+                bufferedOutput,
+                dictLength,
+                symbolTable,
+                fsstOutBuf,
+                fsstInOffsets,
+                fsstOutOffsets
+            );
             maxBlockLength = Math.max(maxBlockLength, uncompressedLength);
         }
 
         writer.finish();
         meta.writeInt(maxLength);
-        // Write one more int for storing max block length.
         meta.writeInt(maxBlockLength);
         meta.writeLong(start);
         meta.writeLong(data.getFilePointer() - start);
@@ -778,15 +807,29 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         meta.writeLong(start);
         meta.writeLong(data.getFilePointer() - start);
 
-        // Now write the reverse terms index
         writeTermsIndex(values);
     }
 
-    private int compressAndGetTermsDictBlockLength(ByteArrayDataOutput bufferedOutput, int dictLength, LZ4.FastCompressionHashTable ht)
-        throws IOException {
+    private int fsstCompressAndWriteBlock(
+        ByteArrayDataOutput bufferedOutput,
+        int dictLength,
+        FSST.SymbolTable symbolTable,
+        byte[] fsstOutBuf,
+        int[] fsstInOffsets,
+        int[] fsstOutOffsets
+    ) throws IOException {
         int uncompressedLength = bufferedOutput.getPosition() - dictLength;
+        fsstInOffsets[0] = dictLength;
+        fsstInOffsets[1] = dictLength + uncompressedLength;
+        // Ensure output buffer is large enough (worst case: 2x expansion for all escape codes)
+        if (fsstOutBuf.length < 2 * uncompressedLength + 8) {
+            fsstOutBuf = new byte[2 * uncompressedLength + 8];
+        }
+        symbolTable.compressBulk(1, termsDictBuffer, fsstInOffsets, fsstOutBuf, fsstOutOffsets);
+        int compressedLength = fsstOutOffsets[1] - fsstOutOffsets[0];
         data.writeVInt(uncompressedLength);
-        LZ4.compressWithDictionary(termsDictBuffer, 0, dictLength, uncompressedLength, data, ht);
+        data.writeVInt(compressedLength);
+        data.writeBytes(fsstOutBuf, fsstOutOffsets[0], compressedLength);
         return uncompressedLength;
     }
 

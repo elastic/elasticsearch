@@ -565,6 +565,74 @@ tests:
 - class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
   method: test {yaml=tsdb/25_id_generation/routing_path matches object}
   issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=delete/70_tsdb/basic tsdb delete}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/create operation on top of old document fails}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/create operation on top of old document fails over bulk}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/delete}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/delete over _bulk}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/generates a consistent id}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/get}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/ids query}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/index a new document on top of an old one}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/index a new document on top of an old one over bulk}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/routing_path matches deep object}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=tsdb/25_id_generation/routing_path matches object}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.index.mapper.SourceFieldMapperTests
+  methods:
+  - testRecoverySourceWithTimeSeriesCustom
+  - testRecoverySourceWithTimeSeries
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.cluster.routing.IndexRoutingTests
+  methods:
+  - testRoutingPathNumbersInSource
+  - testRoutingPathManyTopLevel
+  - testRoutingPathDotInName
+  - testRoutingPathBwc
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.index.codec.PerFieldMapperCodecTests
+  methods:
+  - testUseEs812PostingsFormatForIdField
+  - testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter
+  - testUseBloomFilterWithTimestampFieldEnabled
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.index.mapper.TextFieldMapperTests
+  method: testNormsDisabledWhenIndexModeIsTsdb
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.index.mapper.BinaryFieldMapperTests
+  method: testDefaultsForTimeSeriesIndex
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
+  issue: https://github.com/elastic/elasticsearch/pull/142366
 
 # Examples:
 #

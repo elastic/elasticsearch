@@ -245,6 +245,11 @@ public class EsqlCapabilities {
         FN_IP_PREFIX,
 
         /**
+         * Fix a bug leading to the scratch leaking data to other rows.
+         */
+        FN_IP_PREFIX_FIX_DIRTY_SCRATCH_LEAK,
+
+        /**
          * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
          */
         FN_SUBSTRING_EMPTY_NULL,
@@ -419,6 +424,9 @@ public class EsqlCapabilities {
 
         /** Optimization of ST_EXTENT_AGG with doc-values as IntBlock. */
         ST_EXTENT_AGG_DOCVALUES,
+
+        /** Fix to bug with spatial aggregations not properly supporting the WHERE clause. Fixes #142329. */
+        SPATIAL_AGGS_FILTERING,
 
         /**
          * Fix determination of CRS types in spatial functions when folding.
@@ -1862,6 +1870,21 @@ public class EsqlCapabilities {
          */
         RATE_FIX_RESETS_MULTIPLE_SEGMENTS,
 
+        /**
+         * Fix for <a href="https://github.com/elastic/elasticsearch/issues/141627">141627</a>,
+         * TO_IP with leading_zeros=octal generates proper warning and returns null when given invalid input.
+         */
+        FIX_TO_IP_LEADING_ZEROS_OCTAL,
+
+        /**
+         * Fix bug with TS command where you can't group on aliases (i.e. `by c = cluster`)
+         */
+        TS_COMMAND_GROUP_ON_ALIASES,
+
+        /**
+         * Fixes https://github.com/elastic/elasticsearch/issues/139359
+         */
+        INLINE_STATS_DROP_GROUPINGS_FIX(INLINE_STATS.enabled),
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

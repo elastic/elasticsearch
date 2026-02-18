@@ -162,16 +162,17 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         assertLeftJoinConfig(join.config(), "languages", mainRel.outputSet(), "language_code", lookupRel.outputSet());
     }
 
-    // Expects
-    //
-    // Project[[$$emp_no$temp_name$48{r$}#49 AS languages#16, emp_no{f}#37,
-    // salary{f}#42, $$salary$temp_name$50{r$}#51 AS salary2#7, last_name{f}#30 AS ln#19]]
-    // \_Limit[1000[INTEGER],true]
-    // \_Join[LEFT,[emp_no{f}#26],[emp_no{f}#26],[languages{f}#40]]
-    // |_Eval[[emp_no{f}#26 AS $$emp_no$temp_name$48#49, salary{f}#31 AS $$salary$temp_name$50#51]]
-    // | \_Limit[1000[INTEGER],false]
-    // | \_EsRelation[test][_meta_field{f}#32, emp_no{f}#26, first_name{f}#27, ..]
-    // \_EsRelation[test_lookup][LOOKUP][emp_no{f}#37, languages{f}#40, salary{f}#42]
+    /*
+     * Expects
+     * Project[[$$emp_no$temp_name$51{r$}#52 AS languages#17, emp_no{f}#38, salary{f}#43, $$salary$temp_name$49{r$}#50 AS salary2#8,
+     * last_name{f}#31 AS ln#20]]
+     * \_Limit[1000[INTEGER],true,false]
+     *   \_Join[LEFT,[emp_no{f}#27],[languages{f}#41],null]
+     *     |_Eval[[salary{f}#32 AS $$salary$temp_name$49#50, emp_no{f}#27 AS $$emp_no$temp_name$51#52]]
+     *     | \_Limit[1000[INTEGER],false,false]
+     *     |   \_EsRelation[test][_meta_field{f}#33, emp_no{f}#27, first_name{f}#28, ..]
+     *     \_EsRelation[test_lookup][LOOKUP][emp_no{f}#38, languages{f}#41, salary{f}#43]
+     */
     public void testShadowingAfterPushdown2() {
         String query = """
             FROM test
@@ -217,17 +218,17 @@ public class PushDownJoinPastProjectTests extends AbstractLogicalPlanOptimizerTe
         assertTrue(mainRel.outputSet().contains(lastName));
 
         var evalExprs = eval.fields();
-        assertThat(Expressions.names(evalExprs), contains(empNoTempName.name(), salaryTempName.name()));
+        assertThat(Expressions.names(evalExprs), contains(salaryTempName.name(), empNoTempName.name()));
 
-        var originalEmpNo = unwrapAlias(evalExprs.get(0), FieldAttribute.class);
-        assertTrue(evalExprs.get(0).toAttribute().semanticEquals(empNoTempName));
-        assertEquals("emp_no", originalEmpNo.fieldName().string());
-        assertTrue(mainRel.outputSet().contains(originalEmpNo));
-
-        var originalSalary = unwrapAlias(evalExprs.get(1), FieldAttribute.class);
-        assertTrue(evalExprs.get(1).toAttribute().semanticEquals(salaryTempName));
+        var originalSalary = unwrapAlias(evalExprs.get(0), FieldAttribute.class);
+        assertTrue(evalExprs.get(0).toAttribute().semanticEquals(salaryTempName));
         assertEquals("salary", originalSalary.fieldName().string());
         assertTrue(mainRel.outputSet().contains(originalSalary));
+
+        var originalEmpNo = unwrapAlias(evalExprs.get(1), FieldAttribute.class);
+        assertTrue(evalExprs.get(1).toAttribute().semanticEquals(empNoTempName));
+        assertEquals("emp_no", originalEmpNo.fieldName().string());
+        assertTrue(mainRel.outputSet().contains(originalEmpNo));
 
         assertLeftJoinConfig(join.config(), "emp_no", mainRel.outputSet(), "languages", lookupRel.outputSet());
     }

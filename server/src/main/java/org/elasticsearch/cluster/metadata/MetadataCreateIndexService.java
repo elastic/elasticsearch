@@ -159,7 +159,7 @@ public class MetadataCreateIndexService {
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ThreadPool threadPool;
-    private final ClusterBlocksTransformer blocksTransformerUponIndexCreation;
+    private final org.elasticsearch.cluster.metadata.MetadataCreateIndexService.ClusterBlocksTransformer blocksTransformerUponIndexCreation;
     private final Priority clusterStateUpdateTaskPriority;
 
     public MetadataCreateIndexService(
@@ -571,7 +571,8 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
                     temporaryIndexMeta.isSystem(),
-                    temporaryIndexMeta.getCustomData()
+                    temporaryIndexMeta.getCustomData(),
+                    currentState.getMinTransportVersion()
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -632,7 +633,6 @@ public class MetadataCreateIndexService {
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
-        tmpImdBuilder.transportVersion(TransportVersion.current());
         tmpImdBuilder.system(isSystem);
 
         // Set up everything, now locally create the index to see that things are ok, and apply
@@ -1460,7 +1460,7 @@ public class MetadataCreateIndexService {
         ProjectId projectId,
         IndexMetadata indexMetadata,
         BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
-        ClusterBlocksTransformer blocksTransformer,
+        org.elasticsearch.cluster.metadata.MetadataCreateIndexService.ClusterBlocksTransformer blocksTransformer,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
         ProjectMetadata currentProjectMetadata = currentState.metadata().getProject(projectId);
@@ -1498,10 +1498,12 @@ public class MetadataCreateIndexService {
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
         boolean isSystem,
-        Map<String, DiffableStringMap> customData
+        Map<String, DiffableStringMap> customData,
+        TransportVersion minClusterTransportVersion
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
+        indexMetadataBuilder.transportVersion(minClusterTransportVersion);
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
         DocumentMapper docMapper = documentMapperSupplier.get();
@@ -1937,7 +1939,9 @@ public class MetadataCreateIndexService {
         return DiscoveryNode.isStateless(settings) && settings.getAsBoolean(USE_INDEX_REFRESH_BLOCK_SETTING_NAME, false);
     }
 
-    static ClusterBlocksTransformer createClusterBlocksTransformerForIndexCreation(Settings settings) {
+    static
+        org.elasticsearch.cluster.metadata.MetadataCreateIndexService.ClusterBlocksTransformer
+        createClusterBlocksTransformerForIndexCreation(Settings settings) {
         if (useRefreshBlock(settings) == false) {
             return (clusterBlocks, projectId, indexMetadata) -> {};
         }

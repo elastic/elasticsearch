@@ -9,8 +9,14 @@ package org.elasticsearch.xpack.sql.qa.jdbc;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -19,6 +25,9 @@ import org.junit.After;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -157,5 +166,76 @@ public abstract class JdbcIntegrationTestCase extends ESRestTestCase {
                 assertEquals(index + " should have no search contexts", 0, getOpenContexts(stats, index));
             }
         }
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return getCluster().getHttpAddresses();
+    }
+
+    public abstract ElasticsearchCluster getCluster();
+
+    protected static ElasticsearchCluster singleNodeCluster() {
+        return ElasticsearchCluster.local()
+            .module("x-pack-sql")
+            .module("constant-keyword")
+            .module("wildcard")
+            .module("unsigned-long")
+            .module("mapper-version")
+            .module("rest-root")
+            .setting("xpack.security.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial")
+            .build();
+    }
+
+    protected static ElasticsearchCluster multiNodeCluster() {
+        return ElasticsearchCluster.local()
+            .nodes(2)
+            .module("x-pack-sql")
+            .module("constant-keyword")
+            .module("wildcard")
+            .module("rest-root")
+            .setting("xpack.security.enabled", "false")
+            .setting("xpack.license.self_generated.type", "trial")
+            .build();
+    }
+
+    protected static ElasticsearchCluster withSecurityCluster(boolean withSsl) {
+        return ElasticsearchCluster.local()
+            .module("x-pack-sql")
+            .module("constant-keyword")
+            .module("wildcard")
+            .module("rest-root")
+            .setting("xpack.security.audit.enabled", "true")
+            .setting("xpack.security.enabled", "true")
+            .setting("xpack.license.self_generated.type", "trial")
+            .setting("xpack.security.http.ssl.enabled", String.valueOf(withSsl))
+            .setting("xpack.security.transport.ssl.enabled", String.valueOf(withSsl))
+            .setting("xpack.security.transport.ssl.keystore.path", "test-node.jks")
+            .setting("xpack.security.http.ssl.keystore.path", "test-node.jks")
+            .keystore("xpack.security.transport.ssl.keystore.secure_password", "keypass")
+            .keystore("xpack.security.http.ssl.keystore.secure_password", "keypass")
+            .configFile("test-node.jks", Resource.fromClasspath("test-node.jks"))
+            .configFile("test-client.jks", Resource.fromClasspath("test-client.jks"))
+            .user("test_admin", "x-pack-test-password")
+            .build();
+    }
+
+    protected static Settings securitySettings(boolean isSslEnabled) {
+        String token = basicAuthHeaderValue("test_admin", new SecureString("x-pack-test-password".toCharArray()));
+        Settings.Builder builder = Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token);
+        if (isSslEnabled) {
+            Path keyStore;
+            try {
+                keyStore = PathUtils.get(getTestClass().getResource("/test-node.jks").toURI());
+            } catch (URISyntaxException e) {
+                throw new RuntimeException("exception while reading the store", e);
+            }
+            if (Files.exists(keyStore) == false) {
+                throw new IllegalStateException("Keystore file [" + keyStore + "] does not exist.");
+            }
+            builder.put(ESRestTestCase.TRUSTSTORE_PATH, keyStore).put(ESRestTestCase.TRUSTSTORE_PASSWORD, "keypass");
+        }
+        return builder.build();
     }
 }

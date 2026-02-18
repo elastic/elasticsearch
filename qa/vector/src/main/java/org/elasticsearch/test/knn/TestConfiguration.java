@@ -508,6 +508,7 @@ record TestConfiguration(
             List<Path> data = downloadFromGoogleCloud((List<String>) dsData.get("data"), dataDir);
             Path queries = downloadFromGoogleCloud(List.of((String) dsData.get("queries")), dataDir).getFirst();
             String vectorEncoding = dsData.get("vector_encoding").toString();
+            String vectorSpace = dsData.get("vector_space").toString();
             int numDocVectors = ((Number) dsData.get("num_doc_vectors")).intValue();
             int numQueryVectors = ((Number) dsData.get("num_query_vectors")).intValue();
 
@@ -517,10 +518,12 @@ record TestConfiguration(
             if (numQueries > numQueryVectors) {
                 throw new IllegalArgumentException(numQueries + " queries requested, but only " + numQueryVectors + " available");
             }
+
             docVectors = data;
             queryVectors = queries;
             setDimensions(-1);  // dataset dimensions is documentation, the tester reads the dimensions from the fvec files
             setVectorEncoding(vectorEncoding);
+            setVectorSpace(vectorSpace);
         }
 
         private static List<Path> downloadFromGoogleCloud(List<String> files, Path dest) throws Exception {

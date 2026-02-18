@@ -44,7 +44,7 @@ public class LZ4CompressionMode extends CompressionMode {
 
     private static final class LZ4Compressor extends Compressor {
 
-        private final LZ4.FastCompressionHashTable hashTable = new LZ4.FastCompressionHashTable();
+        private final LZ4.HighCompressionHashTable hashTable = new LZ4.HighCompressionHashTable();
         private byte[] buffer = BytesRef.EMPTY_BYTES;
 
         private LZ4Compressor() {}

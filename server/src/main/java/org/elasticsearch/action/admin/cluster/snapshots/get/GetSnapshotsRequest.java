@@ -160,6 +160,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         if (size == 0 || size < NO_LIMIT) {
             validationException = addValidationError("size must be -1 or greater than 0", validationException);
         }
+        if (offset < 0) {
+            validationException = addValidationError("offset must be non-negative", validationException);
+        }
         if (verbose == false) {
             if (sort != SnapshotSortKey.START_TIME) {
                 validationException = addValidationError("can't use non-default sort with verbose=false", validationException);

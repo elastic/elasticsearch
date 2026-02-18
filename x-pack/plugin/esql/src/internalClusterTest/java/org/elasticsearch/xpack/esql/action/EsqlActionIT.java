@@ -32,6 +32,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.OperatorStatus;
@@ -1351,7 +1352,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     /**
      * This test covers the scenarios where Lucene is throwing a {@link org.apache.lucene.search.CollectionTerminatedException} when
      * it's signaling that it could stop collecting hits early. For example, in the case the index is sorted in the same order as the query.
-     * The {@link org.elasticsearch.compute.lucene.LuceneTopNSourceOperator#getOutput()} is handling this exception by
+     * The {@link LuceneTopNSourceOperator#getOutput()} is handling this exception by
      * ignoring it (which is the right thing to do) and sort of cleaning up and moving to the next docs collection.
      */
     public void testTopNPushedToLuceneOnSortedIndex() {

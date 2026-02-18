@@ -11,12 +11,15 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.indices.NodeIndicesStats;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -51,12 +54,15 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
         discoBuilder.localNodeId(dataNode1.getId());
 
         // Indices: 1 Regular index
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        @FixForMultiProject(description = "NodesDataTiersUsageTransportAction.aggregateStats is not project aware")
+        ProjectId projectId = ProjectId.DEFAULT;
+        Metadata metadata = Metadata.builder()
+            .put(ProjectMetadata.builder(projectId).put(indexMetadata("index_1", 3, 1), false))
+            .generateClusterUuidIfNeeded()
+            .build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
-        IndexMetadata index1 = indexMetadata("index_1", 3, 1);
-        metadataBuilder.put(index1, false).generateClusterUuidIfNeeded();
-
+        IndexMetadata index1 = metadata.getProject(projectId).index("index_1");
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(index1.getIndex());
         routeTestShardToNodes(index1, 0, indexRoutingTableBuilder, dataNode1);
         routeTestShardToNodes(index1, 1, indexRoutingTableBuilder, dataNode1);
@@ -65,9 +71,9 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
 
         // Cluster State and create stats responses
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
-            .metadata(metadataBuilder)
+            .metadata(metadata)
             .nodes(discoBuilder)
-            .routingTable(routingTableBuilder.build())
+            .putRoutingTable(projectId, routingTableBuilder.build())
             .build();
         NodeIndicesStats nodeIndicesStats = buildNodeIndicesStats(
             clusterState.getRoutingNodes().node(dataNode1.getId()),
@@ -94,14 +100,15 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
         discoBuilder.localNodeId(dataNode1.getId());
 
         // Indices: 1 Regular index, not hosted on any tiers
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        ProjectId projectId = randomProjectIdOrDefault();
+        Metadata metadata = Metadata.builder().put(ProjectMetadata.builder(projectId)).build();
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         // Cluster State and create stats responses
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
-            .metadata(metadataBuilder)
+            .metadata(metadata)
             .nodes(discoBuilder)
-            .routingTable(routingTableBuilder.build())
+            .putRoutingTable(projectId, routingTableBuilder.build())
             .build();
         NodeIndicesStats nodeIndicesStats = buildNodeIndicesStats(
             clusterState.getRoutingNodes().node(dataNode1.getId()),
@@ -133,11 +140,13 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
         discoBuilder.localNodeId(dataNode1.getId());
 
         // Indices: 1 Hot index, 2 Warm indices, 3 Cold indices
-        Metadata.Builder metadataBuilder = Metadata.builder();
+        @FixForMultiProject(description = "NodesDataTiersUsageTransportAction.aggregateStats is not project aware")
+        ProjectId projectId = ProjectId.DEFAULT;
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(projectId);
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder();
 
         IndexMetadata hotIndex1 = indexMetadata("hot_index_1", 3, 1, DataTier.DATA_HOT);
-        metadataBuilder.put(hotIndex1, false).generateClusterUuidIfNeeded();
+        projectBuilder.put(hotIndex1, false);
         {
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(hotIndex1.getIndex());
             routeTestShardToNodes(hotIndex1, 0, indexRoutingTableBuilder, dataNode1, dataNode2);
@@ -146,14 +155,14 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
         }
 
         IndexMetadata warmIndex1 = indexMetadata("warm_index_1", 1, 1, DataTier.DATA_WARM);
-        metadataBuilder.put(warmIndex1, false).generateClusterUuidIfNeeded();
+        projectBuilder.put(warmIndex1, false);
         {
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(warmIndex1.getIndex());
             routeTestShardToNodes(warmIndex1, 0, indexRoutingTableBuilder, dataNode1, dataNode2);
             routingTableBuilder.add(indexRoutingTableBuilder.build());
         }
         IndexMetadata warmIndex2 = indexMetadata("warm_index_2", 1, 1, DataTier.DATA_WARM);
-        metadataBuilder.put(warmIndex2, false).generateClusterUuidIfNeeded();
+        projectBuilder.put(warmIndex2, false);
         {
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(warmIndex2.getIndex());
             routeTestShardToNodes(warmIndex2, 0, indexRoutingTableBuilder, dataNode2, dataNode1);
@@ -161,18 +170,20 @@ public class NodesDataTiersUsageTransportActionTests extends ESTestCase {
         }
 
         IndexMetadata coldIndex1 = indexMetadata("cold_index_1", 1, 0, DataTier.DATA_COLD);
-        metadataBuilder.put(coldIndex1, false).generateClusterUuidIfNeeded();
+        projectBuilder.put(coldIndex1, false);
         {
             IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(coldIndex1.getIndex());
             routeTestShardToNodes(coldIndex1, 0, indexRoutingTableBuilder, dataNode1);
             routingTableBuilder.add(indexRoutingTableBuilder.build());
         }
 
+        Metadata metadata = Metadata.builder().put(projectBuilder.build()).generateClusterUuidIfNeeded().build();
+
         // Cluster State and create stats responses
         ClusterState clusterState = ClusterState.builder(new ClusterName("test"))
             .nodes(discoBuilder)
-            .metadata(metadataBuilder)
-            .routingTable(routingTableBuilder.build())
+            .metadata(metadata)
+            .putRoutingTable(projectId, routingTableBuilder.build())
             .build();
         NodeIndicesStats nodeIndicesStats = buildNodeIndicesStats(
             clusterState.getRoutingNodes().node(dataNode1.getId()),

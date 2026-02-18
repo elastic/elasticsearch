@@ -69,6 +69,7 @@ processingCommand
     | rerankCommand
     | inlineStatsCommand
     | fuseCommand
+    | uriPartsCommand
     | metricsInfoCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
@@ -367,6 +368,10 @@ lookupCommand
 
 insistCommand
     : DEV_INSIST qualifiedNamePatterns
+    ;
+
+uriPartsCommand
+    : URI_PARTS qualifiedName ASSIGN primaryExpression
     ;
 
 setCommand

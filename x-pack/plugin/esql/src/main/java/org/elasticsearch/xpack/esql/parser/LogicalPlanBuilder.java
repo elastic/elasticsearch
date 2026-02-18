@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.InferencePlan;
@@ -123,8 +124,10 @@ import static org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode;
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private static final String TIME = "time", START = "start", END = "end", STEP = "step", INDEX = "index";
-    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, INDEX);
+    private static final String TIME = "time", START = "start", END = "end", STEP = "step", BUCKETS = "buckets", SCRAPE_INTERVAL =
+        "scrape_interval", INDEX = "index";
+    private static final int DEFAULT_PROMQL_BUCKETS = 100;
+    private static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, INDEX);
 
     /**
      * Maximum number of commands allowed per query
@@ -461,6 +464,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             input,
             fields.stream().map(ne -> (Attribute) new UnresolvedAttribute(ne.source(), ne.name())).toList()
         );
+    }
+
+    @Override
+    public PlanFactory visitUriPartsCommand(EsqlBaseParser.UriPartsCommandContext ctx) {
+        Source source = source(ctx);
+
+        Attribute outputPrefix = visitQualifiedName(ctx.qualifiedName());
+        if (outputPrefix == null) {
+            throw new ParsingException(source, "URI_PARTS command requires an output field prefix");
+        }
+
+        Expression input = expression(ctx.primaryExpression());
+        if (input == null) {
+            throw new ParsingException(source, "URI_PARTS command requires an input expression");
+        }
+
+        return child -> UriParts.createInitialInstance(source, child, input, outputPrefix);
     }
 
     @Override
@@ -1301,6 +1321,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             params.startLiteral(),
             params.endLiteral(),
             params.stepLiteral(),
+            params.bucketsLiteral(),
+            params.scrapeIntervalLiteral(),
             valueColumnName,
             new UnresolvedTimestamp(source)
         );
@@ -1328,6 +1350,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         Instant start = null;
         Instant end = null;
         Duration step = null;
+        Integer buckets = null;
+        Duration scrapeInterval = Duration.ofMinutes(1);
         IndexPattern indexPattern = new IndexPattern(source, "*");
 
         Set<String> paramsSeen = new HashSet<>();
@@ -1342,13 +1366,13 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 case TIME -> time = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
                 case START -> start = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
                 case END -> end = PromqlParserUtils.parseDate(valueSource, parseParamValueString(paramCtx.value));
-                case STEP -> {
-                    try {
-                        step = Duration.ofSeconds(Integer.parseInt(parseParamValueString(paramCtx.value)));
-                    } catch (NumberFormatException ignore) {
-                        step = PromqlParserUtils.parseDuration(valueSource, parseParamValueString(paramCtx.value));
-                    }
-                }
+                case STEP -> step = parsePositivePromqlDuration(valueSource, parseParamValueString(paramCtx.value), STEP);
+                case BUCKETS -> buckets = parsePositiveInteger(valueSource, parseParamValueString(paramCtx.value), BUCKETS);
+                case SCRAPE_INTERVAL -> scrapeInterval = parsePositivePromqlDuration(
+                    valueSource,
+                    parseParamValueString(paramCtx.value),
+                    SCRAPE_INTERVAL
+                );
                 case INDEX -> indexPattern = parseIndexPattern(paramCtx.value);
                 default -> {
                     String message = "Unknown parameter [{}]";
@@ -1363,19 +1387,22 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         // Validation logic for time parameters
         if (time != null) {
-            if (start != null || end != null || step != null) {
+            // instant query
+            if (step != null || buckets != null || start != null || end != null) {
                 throw new ParsingException(
                     source,
-                    "Specify either [{}] for instant query or [{}], [{}] or [{}] for a range query",
+                    "Specify either [{}] for instant query or any of [{}], [{}], [{}], [{}] for a range query",
                     TIME,
                     STEP,
+                    BUCKETS,
                     START,
                     END
                 );
             }
             start = time;
             end = time;
-        } else if (step != null || start != null || end != null) {
+        } else {
+            // range query
             if (start != null || end != null) {
                 if (start == null || end == null) {
                     throw new ParsingException(
@@ -1394,21 +1421,31 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                     );
                 }
             }
-            if (step == null) {
-                throw new ParsingException(source, "Parameter [{}] must be specified for a range query", STEP);
-            } else if (step.isPositive() == false) {
-                throw new ParsingException(
-                    source,
-                    "invalid parameter \"step\": zero or negative query resolution step widths are not accepted. "
-                        + "Try a positive integer",
-                    step
-                );
+            if (step != null && buckets != null) {
+                throw new ParsingException(source, "Parameters [{}] and [{}] are mutually exclusive for a range query", STEP, BUCKETS);
             }
-        } else {
-            start = Instant.now();
-            end = start;
+            if (step == null && buckets == null) {
+                buckets = DEFAULT_PROMQL_BUCKETS;
+            }
         }
-        return new PromqlParams(source, start, end, step, indexPattern);
+        return new PromqlParams(source, start, end, step, buckets, scrapeInterval, indexPattern);
+    }
+
+    private Duration parsePositivePromqlDuration(Source source, String value, String parameterName) {
+        Duration parsedValue;
+        try {
+            parsedValue = Duration.ofSeconds(Integer.parseInt(value));
+        } catch (NumberFormatException ignore) {
+            try {
+                parsedValue = PromqlParserUtils.parseDuration(source, value);
+            } catch (ParsingException e) {
+                throw new ParsingException(source, "Invalid value [{}] for parameter [{}]", value, parameterName);
+            }
+        }
+        if (parsedValue.isPositive() == false) {
+            throw new ParsingException(source, "Invalid value [{}] for parameter [{}], expected a positive duration", value, parameterName);
+        }
+        return parsedValue;
     }
 
     private String parseParamName(EsqlBaseParser.PromqlParamNameContext ctx) {
@@ -1449,6 +1486,19 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
     }
 
+    private Integer parsePositiveInteger(Source source, String value, String parameterName) {
+        int parsedValue;
+        try {
+            parsedValue = Integer.parseInt(value);
+        } catch (NumberFormatException e) {
+            throw new ParsingException(source, "Invalid value [{}] for parameter [{}], expected a positive integer", value, parameterName);
+        }
+        if (parsedValue <= 0) {
+            throw new ParsingException(source, "Invalid value [{}] for parameter [{}], expected a positive integer", value, parameterName);
+        }
+        return parsedValue;
+    }
+
     public PlanFactory visitMmrCommand(EsqlBaseParser.MmrCommandContext ctx) {
         Source source = source(ctx);
 
@@ -1481,7 +1531,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      * Container for PromQL command parameters:
      * <ul>
      *     <li>time for instant queries</li>
-     *     <li>start, end, step for range queries</li>
+     *     <li>start/end and one of step or buckets for range queries</li>
+     *     <li>scrape_interval for implicit range selector windows</li>
      * </ul>
      * These can be specified in the {@linkplain PromqlCommand PROMQL command} like so:
      * <pre>
@@ -1495,7 +1546,15 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
      *
      * @see <a href="https://prometheus.io/docs/prometheus/latest/querying/api/#expression-queries">PromQL API documentation</a>
      */
-    public record PromqlParams(Source source, Instant start, Instant end, Duration step, IndexPattern indexPattern) {
+    public record PromqlParams(
+        Source source,
+        Instant start,
+        Instant end,
+        Duration step,
+        Integer buckets,
+        Duration scrapeInterval,
+        IndexPattern indexPattern
+    ) {
 
         public Literal startLiteral() {
             if (start == null) {
@@ -1516,6 +1575,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
                 return Literal.NULL;
             }
             return Literal.timeDuration(source, step);
+        }
+
+        public Literal bucketsLiteral() {
+            if (buckets == null) {
+                return Literal.NULL;
+            }
+            return Literal.integer(source, buckets);
+        }
+
+        /**
+         * Returns the scrape interval as a duration literal.
+         */
+        public Literal scrapeIntervalLiteral() {
+            if (scrapeInterval == null) {
+                return Literal.NULL;
+            }
+            return Literal.timeDuration(source, scrapeInterval);
         }
     }
 }

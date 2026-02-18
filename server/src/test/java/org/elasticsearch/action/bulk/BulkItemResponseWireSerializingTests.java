@@ -243,12 +243,7 @@ public class BulkItemResponseWireSerializingTests extends AbstractWireSerializin
         assertEquals("shardId mismatch", expected.getShardId(), actual.getShardId());
     }
 
-    private static BulkItemResponse recreate(
-        int itemId,
-        OpType opType,
-        DocWriteResponse response,
-        Failure failure
-    ) {
+    private static BulkItemResponse recreate(int itemId, OpType opType, DocWriteResponse response, Failure failure) {
         return failure != null ? BulkItemResponse.failure(itemId, opType, failure) : BulkItemResponse.success(itemId, opType, response);
     }
 

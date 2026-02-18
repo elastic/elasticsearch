@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Represents a single item response for an action executed as part of the bulk API. Holds the index/type/id

@@ -291,13 +291,7 @@ public class BulkItemResponseTests extends ESTestCase {
         long seqNo = randomNonNegativeLong();
         long term = randomNonNegativeLong();
 
-        Failure failure = new Failure(
-            "index",
-            "id",
-            new IllegalStateException("Exception"),
-            seqNo,
-            term
-        );
+        Failure failure = new Failure("index", "id", new IllegalStateException("Exception"), seqNo, term);
 
         assertEquals(seqNo, failure.getSeqNo());
         assertEquals(term, failure.getTerm());
@@ -311,28 +305,16 @@ public class BulkItemResponseTests extends ESTestCase {
     }
 
     public void testFailureAbortedFlag() {
-        Failure abortedFailure = new Failure(
-            "index",
-            "id",
-            new RuntimeException("Exception"),
-            true
-        );
+        Failure abortedFailure = new Failure("index", "id", new RuntimeException("Exception"), true);
 
         assertTrue(abortedFailure.isAborted());
         assertEquals(RestStatus.INTERNAL_SERVER_ERROR, abortedFailure.getStatus());
     }
 
     public void testFailureStoreStatus() {
-        Failure failure = new Failure(
-            "index",
-            "id",
-            new RuntimeException("boom")
-        );
+        Failure failure = new Failure("index", "id", new RuntimeException("boom"));
 
-        assertEquals(
-            IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN,
-            failure.getFailureStoreStatus()
-        );
+        assertEquals(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN, failure.getFailureStoreStatus());
 
         failure.setFailureStoreStatus(IndexDocFailureStoreStatus.FAILED);
 

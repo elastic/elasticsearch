@@ -32,6 +32,29 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
         return FailureWrapper::new;
     }
 
+    /**
+     * Mutates a single, representative field of the wrapped {@link BulkItemResponse.Failure}.
+     * <p>
+     * {@code AbstractWireSerializingTestCase#mutateInstance(Object)} is intended to verify that
+     * a serialized instance is not considered equal to a meaningfully different instance. It
+     * does <em>not</em> require exhaustive mutation of every field.
+     * <p>
+     * In this test, only a subset of fields (index, id, cause, and failure store status) are
+     * mutated because:
+     * <ul>
+     *     <li>Other fields (such as {@code seqNo}, {@code term}, and {@code aborted}) are already
+     *     extensively exercised through random instance generation and round‑trip
+     *     serialization.</li>
+     *     <li>Some fields are interdependent or constructor‑driven, and mutating them in
+     *     isolation would require reconstructing the {@link Failure} via a different constructor,
+     *     adding noise without increasing serialization coverage.</li>
+     *     <li>Changing any one of the selected fields is sufficient to ensure that equality
+     *     and hash‑based comparisons fail if serialization does not faithfully preserve state.</li>
+     * </ul>
+     * <p>
+     * This approach keeps mutation focused and stable while still providing strong guarantees
+     * that wire serialization preserves the observable semantics of {@link Failure}.
+     */
     @Override
     protected FailureWrapper mutateInstance(FailureWrapper instance) {
         Failure failure = instance.failure();

@@ -163,7 +163,7 @@ public class FoldNullTests extends ESTestCase {
         // ip
         assertNullLiteral(foldNull(new CIDRMatch(EMPTY, NULL, List.of(NULL))));
         // conversion
-        assertNullLiteral(foldNull(new ToString(EMPTY, NULL)));
+        assertNullLiteral(foldNull(new ToString(EMPTY, NULL, TEST_CFG)));
     }
 
     public void testNullFoldingDoesNotApplyOnLogicalExpressions() {

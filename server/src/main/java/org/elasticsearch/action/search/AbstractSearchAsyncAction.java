@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
@@ -32,7 +33,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
 import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchPhaseResult;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -76,6 +76,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
     protected final SearchTransportService searchTransportService;
+    protected final BigArrays bigArrays;
     private final Executor executor;
     private final ActionListener<SearchResponse> listener;
     protected final SearchRequest request;
@@ -105,6 +106,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final TransportVersion mintransportVersion;
     protected final SearchResponseMetrics searchResponseMetrics;
     protected final Map<String, Object> searchRequestAttributes;
+    private final boolean isPitRelocationEnabled;
     protected long phaseStartTimeInNanos;
 
     // protected for tests
@@ -116,6 +118,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         Logger logger,
         NamedWriteableRegistry namedWriteableRegistry,
         SearchTransportService searchTransportService,
+        BigArrays bigArrays,
         BiFunction<String, String, Transport.Connection> nodeIdToConnection,
         Map<String, AliasFilter> aliasFilter,
         Map<String, Float> concreteIndexBoosts,
@@ -130,7 +133,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         int maxConcurrentRequestsPerNode,
         SearchResponse.Clusters clusters,
         SearchResponseMetrics searchResponseMetrics,
-        Map<String, Object> searchRequestAttributes
+        Map<String, Object> searchRequestAttributes,
+        boolean pitRelocationEnabled
     ) {
         super(name);
         this.namedWriteableRegistry = namedWriteableRegistry;
@@ -158,6 +162,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.timeProvider = timeProvider;
         this.logger = logger;
         this.searchTransportService = searchTransportService;
+        this.bigArrays = bigArrays;
         this.executor = executor;
         this.request = request;
         this.task = task;
@@ -175,6 +180,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.clusters = clusters;
         this.searchResponseMetrics = searchResponseMetrics;
         this.searchRequestAttributes = searchRequestAttributes;
+        this.isPitRelocationEnabled = pitRelocationEnabled;
     }
 
     protected void notifyListShards(
@@ -621,7 +627,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 buildSearchResponse(
                     internalSearchResponse,
                     failures,
-                    request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults) : null,
+                    request.scroll() != null ? TransportSearchHelper.buildScrollId(queryResults, bigArrays.bytesRefRecycler()) : null,
                     buildSearchContextId(failures)
                 )
             );
@@ -632,7 +638,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchSourceBuilder source = request.source();
         // only (re-)build a search context id if we are running a long-lived point-in-time request
         if (source != null && source.pointInTimeBuilder() != null && source.pointInTimeBuilder().singleSession() == false) {
-            if (SearchService.PIT_RELOCATION_FEATURE_FLAG.isEnabled()) {
+            if (isPitRelocationEnabled) {
                 // we want to change node ids in the PIT id if any shards and its PIT context have moved
                 return maybeReEncodeNodeIds(
                     source.pointInTimeBuilder(),

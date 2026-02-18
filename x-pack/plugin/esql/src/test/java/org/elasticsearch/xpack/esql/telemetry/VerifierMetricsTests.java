@@ -12,7 +12,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.common.stats.Counters;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
-import org.elasticsearch.xpack.esql.action.PromqlFeatures;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
@@ -814,7 +813,6 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testPromql() {
-        assumeTrue("PromQL required", PromqlFeatures.isEnabled());
         Counters c = esql("""
             PROMQL index=k8s step=5m sum(network.cost)""");
         assertEquals(0, dissect(c));

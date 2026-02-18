@@ -1,13 +1,16 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-operators-numeric.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
 
 # Operators: Numeric [painless-operators-numeric]
 
-## Post Increment [post-increment-operator]
+## Post increment [post-increment-operator]
 
 Use the `post increment operator '++'` to INCREASE the value of a numeric type variable/field by `1`. An extra implicit cast is necessary to return the promoted numeric type value to the original numeric type value of the variable/field for the following types: `byte`, `short`, and `char`. If a variable/field is read as part of an expression the value is loaded prior to the increment.
 
@@ -36,7 +39,7 @@ post_increment: ( variable | field ) '++';
 
 **Examples**
 
-* Post increment with different numeric types.
+* Post increment with different numeric types
 
     ```painless
     short i = 0; <1>
@@ -52,7 +55,7 @@ post_increment: ( variable | field ) '++';
     4. declare `long k`; store default `long 0` to `k`
     5. load from `j` → `long 1`; store `long 1` to `k`; add `long 1` and `long 1` → `long 2`; store `long 2` to `j`
 
-* Post increment with the `def` type.
+* Post increment with the `def` type
 
     ```painless
     def x = 1; <1>
@@ -64,7 +67,7 @@ post_increment: ( variable | field ) '++';
 
 
 
-## Post Decrement [post-decrement-operator]
+## Post decrement [post-decrement-operator]
 
 Use the `post decrement operator '--'` to DECREASE the value of a numeric type variable/field by `1`. An extra implicit cast is necessary to return the promoted numeric type value to the original numeric type value of the variable/field for the following types: `byte`, `short`, and `char`. If a variable/field is read as part of an expression the value is loaded prior to the decrement.
 
@@ -93,7 +96,7 @@ post_decrement: ( variable | field ) '--';
 
 **Examples**
 
-* Post decrement with different numeric types.
+* Post decrement with different numeric types
 
     ```painless
     short i = 0; <1>
@@ -109,7 +112,7 @@ post_decrement: ( variable | field ) '--';
     4. declare `long k`; store default `long 0` to `k`
     5. load from `j` → `long 1`; store `long 1` to `k`; subtract `long 1` from `long 1` → `long 0`; store `long 0` to `j`
 
-* Post decrement with the `def` type.
+* Post decrement with the `def` type
 
     ```painless
     def x = 1; <1>
@@ -121,7 +124,7 @@ post_decrement: ( variable | field ) '--';
 
 
 
-## Pre Increment [pre-increment-operator]
+## Pre increment [pre-increment-operator]
 
 Use the `pre increment operator '++'` to INCREASE the value of a numeric type variable/field by `1`. An extra implicit cast is necessary to return the promoted numeric type value to the original numeric type value of the variable/field for the following types: `byte`, `short`, and `char`. If a variable/field is read as part of an expression the value is loaded after the increment.
 
@@ -150,7 +153,7 @@ pre_increment: '++' ( variable | field );
 
 **Examples**
 
-* Pre increment with different numeric types.
+* Pre increment with different numeric types
 
     ```painless
     short i = 0; <1>
@@ -166,7 +169,7 @@ pre_increment: '++' ( variable | field );
     4. declare `long k`; store default `long 0` to `k`
     5. load from `j` → `long 1`; add `long 1` and `long 1` → `long 2`; store `long 2` to `j`; store `long 2` to `k`
 
-* Pre increment with the `def` type.
+* Pre increment with the `def` type
 
     ```painless
     def x = 1; <1>
@@ -178,7 +181,7 @@ pre_increment: '++' ( variable | field );
 
 
 
-## Pre Decrement [pre-decrement-operator]
+## Pre decrement [pre-decrement-operator]
 
 Use the `pre decrement operator '--'` to DECREASE the value of a numeric type variable/field by `1`. An extra implicit cast is necessary to return the promoted numeric type value to the original numeric type value of the variable/field for the following types: `byte`, `short`, and `char`. If a variable/field is read as part of an expression the value is loaded after the decrement.
 
@@ -207,7 +210,7 @@ pre_decrement: '--' ( variable | field );
 
 **Examples**
 
-* Pre decrement with different numeric types.
+* Pre decrement with different numeric types
 
     ```painless
     short i = 0; <1>
@@ -223,7 +226,7 @@ pre_decrement: '--' ( variable | field );
     4. declare `long k`; store default `long 0` to `k`
     5. load from `j` → `long 1`; subtract `long 1` from `long 1` → `long 0`; store `long 0` to `j` store `long 0` to `k`;
 
-* Pre decrement operator with the `def` type.
+* Pre decrement operator with the `def` type
 
     ```painless
     def x = 1; <1>
@@ -235,7 +238,7 @@ pre_decrement: '--' ( variable | field );
 
 
 
-## Unary Positive [unary-positive-operator]
+## Unary positive [unary-positive-operator]
 
 Use the `unary positive operator '+'` to the preserve the IDENTITY of a numeric type value.
 
@@ -251,7 +254,7 @@ unary_positive: '+' expression;
 
 **Examples**
 
-* Unary positive with different numeric types.
+* Unary positive with different numeric types
 
     ```painless
     int x = +1;  <1>
@@ -261,7 +264,7 @@ unary_positive: '+' expression;
     1. declare `int x`; identity `int 1` → `int 1`; store `int 1` to `x`
     2. declare `long y`; load from `x` → `int 1`; identity `int 1` → `int 1`; implicit cast `int 1` to `long 1` → `long 1`; store `long 1` to `y`
 
-* Unary positive with the `def` type.
+* Unary positive with the `def` type
 
     ```painless
     def z = +1; <1>
@@ -273,7 +276,7 @@ unary_positive: '+' expression;
 
 
 
-## Unary Negative [unary-negative-operator]
+## Unary negative [unary-negative-operator]
 
 Use the `unary negative operator '-'` to NEGATE a numeric type value.
 
@@ -289,7 +292,7 @@ unary_negative: '-' expression;
 
 **Examples**
 
-* Unary negative with different numeric types.
+* Unary negative with different numeric types
 
     ```painless
     int x = -1;  <1>
@@ -299,7 +302,7 @@ unary_negative: '-' expression;
     1. declare `int x`; negate `int 1` → `int -1`; store `int -1` to `x`
     2. declare `long y`; load from `x` → `int 1`; negate `int -1` → `int 1`; implicit cast `int 1` to `long 1` → `long 1`; store `long 1` to `y`
 
-* Unary negative with the `def` type.
+* Unary negative with the `def` type
 
     ```painless
     def z = -1; <1>
@@ -311,7 +314,7 @@ unary_negative: '-' expression;
 
 
 
-## Bitwise Not [bitwise-not-operator]
+## Bitwise not [bitwise-not-operator]
 
 Use the `bitwise not operator '~'` to NOT each bit in an integer type value where a `1-bit` is flipped to a resultant `0-bit` and a `0-bit` is flipped to a resultant `1-bit`.
 
@@ -345,7 +348,7 @@ bitwise_not: '~' expression;
 
 **Examples**
 
-* Bitwise not with different numeric types.
+* Bitwise not with different numeric types
 
     ```painless
     byte b = 1;  <1>
@@ -357,7 +360,7 @@ bitwise_not: '~' expression;
     2. declare `int i`; load from `b` → `byte 1`; implicit cast `byte 1` to `int 1` → `int 1`; bitwise not `int 1` → `int -2`; store `int -2` to `i`
     3. declare `long l`; load from `i` → `int -2`; implicit cast `int -2` to `long -2` → `long -2`; bitwise not `long -2` → `long 1`; store `long 1` to `l`
 
-* Bitwise not with the `def` type.
+* Bitwise not with the `def` type
 
     ```painless
     def d = 1;  <1>
@@ -399,7 +402,7 @@ multiplication: expression '*' expression;
 
 **Examples**
 
-* Multiplication with different numeric types.
+* Multiplication with different numeric types
 
     ```painless
     int i = 5*4;      <1>
@@ -409,7 +412,7 @@ multiplication: expression '*' expression;
     1. declare `int i`; multiply `int 4` by `int 5` → `int 20`; store `int 20` in `i`
     2. declare `double d`; load from `int i` → `int 20`; promote `int 20` and `double 7.0`: result `double`; implicit cast `int 20` to `double 20.0` → `double 20.0`; multiply `double 20.0` by `double 7.0` → `double 140.0`; store `double 140.0` to `d`
 
-* Multiplication with the `def` type.
+* Multiplication with the `def` type
 
     ```painless
     def x = 5*4; <1>
@@ -452,7 +455,7 @@ division: expression '/' expression;
 
 **Examples**
 
-* Division with different numeric types.
+* Division with different numeric types
 
     ```painless
     int i = 29/4;     <1>
@@ -462,7 +465,7 @@ division: expression '/' expression;
     1. declare `int i`; divide `int 29` by `int 4` → `int 7`; store `int 7` in `i`
     2. declare `double d`; load from `int i` → `int 7`; promote `int 7` and `double 7.0`: result `double`; implicit cast `int 7` to `double 7.0` → `double 7.0`; divide `double 7.0` by `double 7.0` → `double 1.0`; store `double 1.0` to `d`
 
-* Division with the `def` type.
+* Division with the `def` type
 
     ```painless
     def x = 5/4; <1>
@@ -504,7 +507,7 @@ remainder: expression '%' expression;
 
 **Examples**
 
-* Remainder with different numeric types.
+* Remainder with different numeric types
 
     ```painless
     int i = 29%4;     <1>
@@ -514,7 +517,7 @@ remainder: expression '%' expression;
     1. declare `int i`; remainder `int 29` by `int 4` → `int 1`; store `int 7` in `i`
     2. declare `double d`; load from `int i` → `int 1`; promote `int 1` and `double 7.0`: result `double`; implicit cast `int 1` to `double 1.0` → `double 1.0`; remainder `double 1.0` by `double 7.0` → `double 1.0`; store `double 1.0` to `d`
 
-* Remainder with the `def` type.
+* Remainder with the `def` type
 
     ```painless
     def x = 5%4; <1>
@@ -556,7 +559,7 @@ addition: expression '+' expression;
 
 **Examples**
 
-* Addition operator with different numeric types.
+* Addition operator with different numeric types
 
     ```painless
     int i = 29+4;     <1>
@@ -566,7 +569,7 @@ addition: expression '+' expression;
     1. declare `int i`; add `int 29` and `int 4` → `int 33`; store `int 33` in `i`
     2. declare `double d`; load from `int i` → `int 33`; promote `int 33` and `double 7.0`: result `double`; implicit cast `int 33` to `double 33.0` → `double 33.0`; add `double 33.0` and `double 7.0` → `double 40.0`; store `double 40.0` to `d`
 
-* Addition with the `def` type.
+* Addition with the `def` type
 
     ```painless
     def x = 5+4; <1>
@@ -608,7 +611,7 @@ subtraction: expression '-' expression;
 
 **Examples**
 
-* Subtraction with different numeric types.
+* Subtraction with different numeric types
 
     ```painless
     int i = 29-4;     <1>
@@ -618,7 +621,7 @@ subtraction: expression '-' expression;
     1. declare `int i`; subtract `int 4` from `int 29` → `int 25`; store `int 25` in `i`
     2. declare `double d` load from `int i` → `int 25`; promote `int 25` and `double 7.5`: result `double`; implicit cast `int 25` to `double 25.0` → `double 25.0`; subtract `double 33.0` by `double 7.5` → `double 25.5`; store `double 25.5` to `d`
 
-* Subtraction with the `def` type.
+* Subtraction with the `def` type
 
     ```painless
     def x = 5-4; <1>
@@ -630,7 +633,7 @@ subtraction: expression '-' expression;
 
 
 
-## Left Shift [left-shift-operator]
+## Left shift [left-shift-operator]
 
 Use the `left shift operator '<<'` to SHIFT lower order bits to higher order bits in a left-hand side integer type value by the distance specified in a right-hand side integer type value.
 
@@ -660,7 +663,7 @@ The left-hand side integer type value is promoted as specified in the table belo
 
 **Examples**
 
-* Left shift with different integer types.
+* Left shift with different integer types
 
     ```painless
     int i = 4 << 1;   <1>
@@ -670,7 +673,7 @@ The left-hand side integer type value is promoted as specified in the table belo
     1. declare `int i`; left shift `int 4` by `int 1` → `int 8`; store `int 8` in `i`
     2. declare `long l` load from `int i` → `int 8`; implicit cast `long 2` to `int 2` → `int 2`; left shift `int 8` by `int 2` → `int 32`; implicit cast `int 32` to `long 32` → `long 32`; store `long 32` to `l`
 
-* Left shift with the `def` type.
+* Left shift with the `def` type
 
     ```painless
     def x = 4 << 2; <1>
@@ -682,7 +685,7 @@ The left-hand side integer type value is promoted as specified in the table belo
 
 
 
-## Right Shift [right-shift-operator]
+## Right shift [right-shift-operator]
 
 Use the `right shift operator '>>'` to SHIFT higher order bits to lower order bits in a left-hand side integer type value by the distance specified in a right-hand side integer type value. The highest order bit of the left-hand side integer type value is preserved.
 
@@ -712,7 +715,7 @@ The left-hand side integer type value is promoted as specified in the table belo
 
 **Examples**
 
-* Right shift with different integer types.
+* Right shift with different integer types
 
     ```painless
     int i = 32 >> 1;  <1>
@@ -722,7 +725,7 @@ The left-hand side integer type value is promoted as specified in the table belo
     1. declare `int i`; right shift `int 32` by `int 1` → `int 16`; store `int 16` in `i`
     2. declare `long l` load from `int i` → `int 16`; implicit cast `long 2` to `int 2` → `int 2`; right shift `int 16` by `int 2` → `int 4`; implicit cast `int 4` to `long 4` → `long 4`; store `long 4` to `l`
 
-* Right shift with the `def` type.
+* Right shift with the `def` type
 
     ```painless
     def x = 16 >> 2; <1>
@@ -734,7 +737,7 @@ The left-hand side integer type value is promoted as specified in the table belo
 
 
 
-## Unsigned Right Shift [unsigned-right-shift-operator]
+## Unsigned right shift [unsigned-right-shift-operator]
 
 Use the `unsigned right shift operator '>>>'` to SHIFT higher order bits to lower order bits in a left-hand side integer type value by the distance specified in a right-hand side type integer value. The highest order bit of the left-hand side integer type value is **not** preserved.
 
@@ -764,7 +767,7 @@ The left-hand side integer type value is promoted as specified in the table belo
 
 **Examples**
 
-* Unsigned right shift with different integer types.
+* Unsigned right shift with different integer types
 
     ```painless
     int i = -1 >>> 29; <1>
@@ -774,7 +777,7 @@ The left-hand side integer type value is promoted as specified in the table belo
     1. declare `int i`; unsigned right shift `int -1` by `int 29` → `int 7`; store `int 7` in `i`
     2. declare `long l` load from `int i` → `int 7`; implicit cast `long 2` to `int 2` → `int 2`; unsigned right shift `int 7` by `int 2` → `int 3`; implicit cast `int 3` to `long 3` → `long 3`; store `long 3` to `l`
 
-* Unsigned right shift with the `def` type.
+* Unsigned right shift with the `def` type
 
     ```painless
     def x = 16 >>> 2; <1>
@@ -786,7 +789,7 @@ The left-hand side integer type value is promoted as specified in the table belo
 
 
 
-## Bitwise And [bitwise-and-operator]
+## Bitwise and [bitwise-and-operator]
 
 Use the `bitwise and operator '&'` to AND together each bit within two integer type values where if both bits at the same index are `1` the resultant bit is `1` and `0` otherwise.
 
@@ -822,7 +825,7 @@ bitwise_and: expression '&' expression;
 
 **Examples**
 
-* Bitwise and with different integer types.
+* Bitwise and with different integer types
 
     ```painless
     int i = 5 & 6;   <1>
@@ -832,7 +835,7 @@ bitwise_and: expression '&' expression;
     1. declare `int i`; bitwise and `int 5` and `int 6` → `int 4`; store `int 4` in `i`
     2. declare `long l` load from `int i` → `int 4`; promote `int 4` and `long 5`: result `long`; implicit cast `int 4` to `long 4` → `long 4`; bitwise and `long 4` and `long 5` → `long 4`; store `long 4` to `l`
 
-* Bitwise and with the `def` type.
+* Bitwise and with the `def` type
 
     ```painless
     def x = 15 & 6; <1>
@@ -844,13 +847,13 @@ bitwise_and: expression '&' expression;
 
 
 
-## Bitwise Xor [bitwise-xor-operator]
+## Bitwise xor [bitwise-xor-operator]
 
 Use the `bitwise xor operator '^'` to XOR together each bit within two integer type values where if one bit is a `1` and the other bit is a `0` at the same index the resultant bit is `1` otherwise the resultant bit is `0`.
 
 **Errors**
 
-* If either of the values is a non-integer type.
+* If either of the values is a non-integer type
 
 **Bits**
 
@@ -882,7 +885,7 @@ bitwise_xor: expression '^' expression;
 
 **Examples**
 
-* Bitwise xor with different integer types.
+* Bitwise xor with different integer types
 
     ```painless
     int i = 5 ^ 6;   <1>
@@ -892,7 +895,7 @@ bitwise_xor: expression '^' expression;
     1. declare `int i`; bitwise xor `int 5` and `int 6` → `int 3`; store `int 3` in `i`
     2. declare `long l` load from `int i` → `int 4`; promote `int 3` and `long 5`: result `long`; implicit cast `int 3` to `long 3` → `long 3`; bitwise xor `long 3` and `long 5` → `long 6`; store `long 6` to `l`
 
-* Bitwise xor with the `def` type.
+* Bitwise xor with the `def` type
 
     ```painless
     def x = 15 ^ 6; <1>
@@ -904,7 +907,7 @@ bitwise_xor: expression '^' expression;
 
 
 
-## Bitwise Or [bitwise-or-operator]
+## Bitwise or [bitwise-or-operator]
 
 Use the `bitwise or operator '|'` to OR together each bit within two integer type values where if at least one bit is a `1` at the same index the resultant bit is `1` otherwise the resultant bit is `0`.
 
@@ -942,7 +945,7 @@ bitwise_or: expression '|' expression;
 
 **Examples**
 
-* Bitwise or with different integer types.
+* Bitwise or with different integer types
 
     ```painless
     int i = 5 | 6;   <1>
@@ -952,7 +955,7 @@ bitwise_or: expression '|' expression;
     1. declare `int i`; bitwise or `int 5` and `int 6` → `int 7`; store `int 7` in `i`
     2. declare `long l` load from `int i` → `int 7`; promote `int 7` and `long 8`: result `long`; implicit cast `int 7` to `long 7` → `long 7`; bitwise or `long 7` and `long 8` → `long 15`; store `long 15` to `l`
 
-* Bitwise or with the `def` type.
+* Bitwise or with the `def` type
 
     ```painless
     def x = 5 ^ 6; <1>

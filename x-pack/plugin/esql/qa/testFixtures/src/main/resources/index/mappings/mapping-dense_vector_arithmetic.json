@@ -1,0 +1,25 @@
+{
+  "properties": {
+    "id": {
+      "type": "long"
+    },
+    "vector_field_1": {
+      "type": "dense_vector",
+      "similarity": "l2_norm",
+      "index_options": {
+        "type": "hnsw",
+        "m": 16,
+        "ef_construction": 100
+      }
+    },
+    "vector_field_2": {
+      "type": "dense_vector",
+      "similarity": "l2_norm",
+      "index_options": {
+        "type": "hnsw",
+        "m": 16,
+        "ef_construction": 100
+      }
+    }
+  }
+}

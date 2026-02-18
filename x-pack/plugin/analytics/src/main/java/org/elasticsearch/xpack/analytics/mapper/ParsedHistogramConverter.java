@@ -8,11 +8,10 @@
 package org.elasticsearch.xpack.analytics.mapper;
 
 import org.elasticsearch.exponentialhistogram.ExponentialScaleUtils;
+import org.elasticsearch.exponentialhistogram.TDigestToExponentialHistogramConverter;
 
 import java.util.ArrayList;
 import java.util.List;
-
-import static org.elasticsearch.exponentialhistogram.ExponentialHistogram.MAX_SCALE;
 
 public class ParsedHistogramConverter {
 
@@ -61,44 +60,16 @@ public class ParsedHistogramConverter {
         List<Double> centroids = tDigest.values();
         List<Long> counts = tDigest.counts();
 
-        int numNegativeCentroids = 0;
-        while (numNegativeCentroids < centroids.size() && centroids.get(numNegativeCentroids) < 0) {
-            numNegativeCentroids++;
-        }
-
-        // iterate negative centroids from closest to zero to furthest away,
-        // which corresponds to ascending exponential histogram bucket indices
-        int scale = MAX_SCALE;
-        List<IndexWithCount> negativeBuckets = new ArrayList<>();
-        for (int i = numNegativeCentroids - 1; i >= 0; i--) {
-            double centroid = centroids.get(i);
-            long count = counts.get(i);
-            assert centroid < 0;
-            appendCentroidWithCountAsBucket(centroid, count, scale, negativeBuckets);
-        }
-
-        long zeroCount = 0;
-        int firstPositiveIndex = numNegativeCentroids;
-        if (firstPositiveIndex < centroids.size() && centroids.get(firstPositiveIndex) == 0) {
-            // we have a zero-centroid, which we'll map to the zero bucket
-            zeroCount = counts.get(firstPositiveIndex);
-            firstPositiveIndex++;
-        }
-
-        List<IndexWithCount> positiveBuckets = new ArrayList<>();
-        for (int i = firstPositiveIndex; i < centroids.size(); i++) {
-            double centroid = centroids.get(i);
-            long count = counts.get(i);
-            assert centroid > 0;
-            appendCentroidWithCountAsBucket(centroid, count, scale, positiveBuckets);
-        }
+        TDigestToExponentialHistogramConverter.LazyConversion converted = TDigestToExponentialHistogramConverter.convertLazy(
+            new TDigestToExponentialHistogramConverter.ArrayBasedCentroidIterator(centroids, counts)
+        );
 
         return new ExponentialHistogramParser.ParsedExponentialHistogram(
-            scale,
+            converted.getScale(),
             0.0,
-            zeroCount,
-            negativeBuckets,
-            positiveBuckets,
+            converted.getZeroCount(),
+            IndexWithCount.fromIterator(converted.negativeBuckets()),
+            IndexWithCount.fromIterator(converted.positiveBuckets()),
             null, // sum, min, max will be estimated
             null,
             null

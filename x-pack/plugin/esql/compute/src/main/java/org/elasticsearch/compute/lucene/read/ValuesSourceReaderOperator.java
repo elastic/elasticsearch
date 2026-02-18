@@ -9,6 +9,7 @@ package org.elasticsearch.compute.lucene.read;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocBlock;
@@ -16,7 +17,7 @@ import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
@@ -53,9 +54,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
      * @param shardContexts per-shard loading information
      * @param docChannel the channel containing the shard, leaf/segment and doc id
      */
-    public record Factory(ByteSizeValue jumboSize, List<FieldInfo> fields, IndexedByShardId<ShardContext> shardContexts, int docChannel)
-        implements
-            OperatorFactory {
+    public record Factory(
+        ByteSizeValue jumboSize,
+        List<FieldInfo> fields,
+        IndexedByShardId<ShardContext> shardContexts,
+        boolean reuseColumnLoaders,
+        int docChannel
+    ) implements OperatorFactory {
         public Factory
 
         {
@@ -66,7 +71,14 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         @Override
         public Operator get(DriverContext driverContext) {
-            return new ValuesSourceReaderOperator(driverContext, jumboSize.getBytes(), fields, shardContexts, docChannel);
+            return new ValuesSourceReaderOperator(
+                driverContext,
+                jumboSize.getBytes(),
+                fields,
+                shardContexts,
+                reuseColumnLoaders,
+                docChannel
+            );
         }
 
         @Override
@@ -152,6 +164,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     final long jumboBytes;
     final FieldWork[] fields;
     final IndexedByShardId<? extends ShardContext> shardContexts;
+    private final boolean reuseColumnLoaders;
     private final int docChannel;
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
@@ -170,6 +183,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         long jumboBytes,
         List<FieldInfo> fields,
         IndexedByShardId<? extends ShardContext> shardContexts,
+        boolean reuseColumnLoaders,
         int docChannel
     ) {
         if (fields.isEmpty()) {
@@ -182,6 +196,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             this.fields[i] = new FieldWork(fields.get(i), i);
         }
         this.shardContexts = shardContexts;
+        this.reuseColumnLoaders = reuseColumnLoaders;
         this.docChannel = docChannel;
     }
 
@@ -259,9 +274,13 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
         private final int fieldIdx;
 
         BlockLoader loader;
+        // TODO rework this bit of mutable state into something harder to forget
+        // Seriously, I've tripped over this twice.
         @Nullable
         ConverterEvaluator converter;
+        @Nullable
         BlockLoader.ColumnAtATimeReader columnAtATime;
+        @Nullable
         BlockLoader.RowStrideReader rowStride;
 
         FieldWork(FieldInfo info, int fieldIdx) {
@@ -271,6 +290,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         void sameSegment(int firstDoc) {
             if (columnAtATime != null && columnAtATime.canReuse(firstDoc) == false) {
+                // TODO count the number of times we can't reuse?
                 columnAtATime = null;
             }
             if (rowStride != null && rowStride.canReuse(firstDoc) == false) {
@@ -294,8 +314,17 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
         BlockLoader.ColumnAtATimeReader columnAtATime(LeafReaderContext ctx) throws IOException {
             if (columnAtATime == null) {
-                columnAtATime = loader.columnAtATimeReader(ctx);
-                trackReader("column_at_a_time", this.columnAtATime);
+                IOSupplier<BlockLoader.ColumnAtATimeReader> supplier = loader.columnAtATimeReader(ctx);
+                if (supplier == null) {
+                    trackReader("column_at_a_time", null);
+                    return null;
+                }
+                if (reuseColumnLoaders) {
+                    columnAtATime = supplier.get();
+                    trackReader("column_at_a_time", columnAtATime);
+                } else {
+                    columnAtATime = new ColumnAtATimeReaderWithoutReuse(supplier, r -> trackReader("column_at_a_time", r));
+                }
             }
             return columnAtATime;
         }

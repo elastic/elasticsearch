@@ -28,13 +28,14 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_PERIOD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isMillisOrNanos;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNull;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isTemporalAmount;
 
-public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperation implements ConfigurationAware {
+public abstract class DateTimeArithmeticOperation extends DenseVectorArithmeticOperation implements ConfigurationAware {
     /** Arithmetic (quad) function. */
     interface DatetimeArithmeticEvaluator {
         ExpressionEvaluator.Factory apply(
@@ -57,10 +58,11 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
         BinaryEvaluator longs,
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles,
+        BinaryEvaluator denseVectors,
         DatetimeArithmeticEvaluator millisEvaluator,
         DatetimeArithmeticEvaluator nanosEvaluator
     ) {
-        super(source, left, right, op, ints, longs, ulongs, doubles);
+        super(source, left, right, op, ints, longs, ulongs, doubles, denseVectors);
         this.millisEvaluator = millisEvaluator;
         this.nanosEvaluator = nanosEvaluator;
     }
@@ -72,10 +74,11 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
         BinaryEvaluator longs,
         BinaryEvaluator ulongs,
         BinaryEvaluator doubles,
+        BinaryEvaluator denseVectors,
         DatetimeArithmeticEvaluator millisEvaluator,
         DatetimeArithmeticEvaluator nanosEvaluator
     ) throws IOException {
-        super(in, op, ints, longs, ulongs, doubles);
+        super(in, op, ints, longs, ulongs, doubles, denseVectors);
         this.millisEvaluator = millisEvaluator;
         this.nanosEvaluator = nanosEvaluator;
     }
@@ -84,12 +87,13 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
     protected TypeResolution resolveInputType(Expression e, TypeResolutions.ParamOrdinal paramOrdinal) {
         return TypeResolutions.isType(
             e,
-            t -> t.isNumeric() || DataType.isDateTimeOrNanosOrTemporal(t) || DataType.isNull(t),
+            t -> t.isNumeric() || t == DENSE_VECTOR || DataType.isDateTimeOrNanosOrTemporal(t) || DataType.isNull(t),
             sourceText(),
             paramOrdinal,
             "date_nanos",
             "datetime",
-            "numeric"
+            "numeric",
+            "dense_vector"
         );
     }
 

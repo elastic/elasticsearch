@@ -182,6 +182,10 @@ public class DateUtils {
         return zonedDateTime.toInstant().toEpochMilli();
     }
 
+    public static long asNanos(ZonedDateTime zonedDateTime) {
+        return org.elasticsearch.common.time.DateUtils.toLong(zonedDateTime.toInstant());
+    }
+
     /**
      * Parses the given string into a DateTime using UTC as a default timezone.
      */

@@ -1,0 +1,5 @@
+pr: 141392
+summary: Periodically emit partial aggregation results
+area: ES|QL
+type: enhancement
+issues: []

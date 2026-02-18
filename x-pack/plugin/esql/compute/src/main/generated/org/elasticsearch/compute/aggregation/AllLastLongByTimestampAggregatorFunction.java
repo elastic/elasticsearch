@@ -43,7 +43,7 @@ public final class AllLastLongByTimestampAggregatorFunction implements Aggregato
 
   public static AllLastLongByTimestampAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new AllLastLongByTimestampAggregatorFunction(driverContext, channels, AllLastLongByTimestampAggregator.initSingle());
+    return new AllLastLongByTimestampAggregatorFunction(driverContext, channels, AllLastLongByTimestampAggregator.initSingle(driverContext));
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

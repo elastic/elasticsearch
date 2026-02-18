@@ -23,7 +23,7 @@ public class ResultBuilderForExponentialHistogram implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         throw new AssertionError("ExponentialHistogramBlock can't be a key");
     }
 

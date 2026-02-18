@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -2718,7 +2719,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
             newMapping.toCompressedXContent(),
             IndexVersion.current(),
             MapperMetrics.NOOP,
-            "myIndex"
+            "myIndex",
+            randomFrom(IndexMode.values())
         );
         ParsedDocument doc2 = newDocMapper.parse(source("""
             {

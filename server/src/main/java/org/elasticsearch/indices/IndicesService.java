@@ -74,17 +74,20 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -92,7 +95,6 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
@@ -135,6 +137,9 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndexRemovalReason;
@@ -284,10 +289,12 @@ public class IndicesService extends AbstractLifecycleComponent
     private final PostRecoveryMerger postRecoveryMerger;
     private final List<SearchOperationListener> searchOperationListeners;
     private final QueryRewriteInterceptor queryRewriteInterceptor;
-    final SlowLogFieldProvider slowLogFieldProvider; // pkg-private for testingå
+    final ActionLoggingFieldsProvider loggingFieldsProvider; // pkg-private for testingå
     private final IndexingStatsSettings indexStatsSettings;
     private final SearchStatsSettings searchStatsSettings;
     private final MergeMetrics mergeMetrics;
+    private final PluggableDirectoryMetricsHolder<StoreMetrics> storeMetricHolder;
+    private final Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
 
     @Override
     protected void doStart() {
@@ -414,9 +421,11 @@ public class IndicesService extends AbstractLifecycleComponent
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
         this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
         this.searchOperationListeners = builder.searchOperationListener;
-        this.slowLogFieldProvider = builder.slowLogFieldProvider;
+        this.loggingFieldsProvider = builder.loggingFieldsProvider;
         this.indexStatsSettings = new IndexingStatsSettings(clusterService.getClusterSettings());
         this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
+        this.storeMetricHolder = builder.storeMetricsHolder;
+        this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -810,12 +819,13 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            slowLogFieldProvider,
+            loggingFieldsProvider,
             mapperMetrics,
             searchOperationListeners,
             indexStatsSettings,
             searchStatsSettings,
-            mergeMetrics
+            mergeMetrics,
+            storeMetricHolder
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -909,12 +919,13 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            slowLogFieldProvider,
+            loggingFieldsProvider,
             mapperMetrics,
             searchOperationListeners,
             indexStatsSettings,
             searchStatsSettings,
-            mergeMetrics
+            mergeMetrics,
+            storeMetricHolder
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         // If an IndexService with a DocumentMapper already exists for this index, reuse its DocumentMapper to avoid parsing/merging
@@ -940,8 +951,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public synchronized void verifyIndexMetadata(IndexMetadata metadata, IndexMetadata metadataUpdate) throws IOException {
         final List<Closeable> closeables = new ArrayList<>();
         try {
-            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
-            });
+            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});
             closeables.add(indicesFieldDataCache);
             IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings);
             closeables.add(indicesQueryCache);
@@ -2017,5 +2027,41 @@ public class IndicesService extends AbstractLifecycleComponent
     @Nullable
     public ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
         return threadPoolMergeExecutorService;
+    }
+
+    /**
+     * Start measuring directory level metrics in the current thread, returning the delta when the supplier is invoked.
+     * This will be the amount consumed between calling this method and the supplier.
+     * @return supplier to give the delta of all directory metrics. Must be called from the same thread as this method.
+     */
+    public Supplier<DirectoryMetrics> directoryMetricsDelta() {
+        DirectoryMetrics.Builder directoryMetricsBuilder = new DirectoryMetrics.Builder();
+        directoryMetricHolderMap.forEach((s, m) -> directoryMetricsBuilder.add(s, m.instance()));
+        DirectoryMetrics metrics = directoryMetricsBuilder.build();
+        return assertThread(metrics.delta());
+    }
+
+    private Supplier<DirectoryMetrics> assertThread(Supplier<DirectoryMetrics> delta) {
+        if (Assertions.ENABLED) {
+            Thread thread = Thread.currentThread();
+            return () -> {
+                assert thread == Thread.currentThread();
+                return delta.get();
+            };
+        } else {
+            return delta;
+        }
+    }
+
+    /**
+     * run the block of code, extracting the directory metric changes it causes during its execution on the current thread.
+     * @param block the block to run
+     * @return the result and metrics delta.
+     * @throws E if the block does.
+     */
+    public <T, E extends Exception> Tuple<T, DirectoryMetrics> withDirectoryMetrics(CheckedSupplier<T, E> block) throws E {
+        var delta = directoryMetricsDelta();
+        T result = block.get();
+        return Tuple.tuple(result, delta.get());
     }
 }

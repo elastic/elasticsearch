@@ -1,0 +1,6 @@
+pr: 140660
+summary: "ESQL: Fix null comparison type checking"
+area: ES|QL
+type: bug
+issues:
+  - 140460

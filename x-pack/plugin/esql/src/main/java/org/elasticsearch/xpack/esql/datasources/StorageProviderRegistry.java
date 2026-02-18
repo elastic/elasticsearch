@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -26,28 +27,34 @@ import java.util.concurrent.ConcurrentHashMap;
  * Allows pluggable discovery of storage providers based on the scheme
  * portion of a StoragePath (e.g., "http", "https", "s3", "file").
  *
- * <p>Registration methods ({@link #registerWithProvider}, {@link #setSpiFactories})
- * are intended for single-threaded initialization only (called from the
- * {@link DataSourceModule} constructor). No concurrent writes occur, so no
- * synchronization is needed around the provider list.
+ * <p>Providers are created lazily on first access rather than eagerly at startup,
+ * so heavy dependencies (S3 client, HTTP client, etc.) are only loaded when
+ * an EXTERNAL query actually targets that backend.
  *
- * <p>This registry implements Closeable to properly close all registered providers
+ * <p>Registration methods are intended for single-threaded initialization only
+ * (called from the {@link DataSourceModule} constructor).
+ *
+ * <p>This registry implements Closeable to properly close all created providers
  * when the registry is no longer needed.
  */
 public class StorageProviderRegistry implements Closeable {
+    private final Map<String, StorageProviderFactory> factories = new ConcurrentHashMap<>();
     private final Map<String, StorageProvider> providers = new ConcurrentHashMap<>();
     private final List<StorageProvider> createdProviders = new ArrayList<>();
-    private Map<String, StorageProviderFactory> spiFactories = Map.of();
+    private final Settings settings;
 
-    public void registerWithProvider(String scheme, StorageProvider provider) {
-        if (scheme == null || scheme.isEmpty()) {
+    public StorageProviderRegistry(Settings settings) {
+        this.settings = settings != null ? settings : Settings.EMPTY;
+    }
+
+    public void registerFactory(String scheme, StorageProviderFactory factory) {
+        if (Strings.isNullOrEmpty(scheme)) {
             throw new IllegalArgumentException("Scheme cannot be null or empty");
         }
-        if (provider == null) {
-            throw new IllegalArgumentException("Provider cannot be null");
+        if (factory == null) {
+            throw new IllegalArgumentException("Factory cannot be null");
         }
-        providers.put(scheme.toLowerCase(Locale.ROOT), provider);
-        createdProviders.add(provider);
+        factories.put(scheme.toLowerCase(Locale.ROOT), factory);
     }
 
     public StorageProvider provider(StoragePath path) {
@@ -55,23 +62,20 @@ public class StorageProviderRegistry implements Closeable {
             throw new IllegalArgumentException("Path cannot be null");
         }
 
-        String scheme = path.scheme();
-        StorageProvider provider = providers.get(scheme.toLowerCase(Locale.ROOT));
+        String scheme = path.scheme().toLowerCase(Locale.ROOT);
+        StorageProvider provider = providers.get(scheme);
         if (provider == null) {
-            throw new IllegalArgumentException("No storage provider registered for scheme: " + scheme);
+            provider = createDefaultProvider(scheme);
         }
         return provider;
     }
 
     public boolean hasProvider(String scheme) {
-        if (scheme == null || scheme.isEmpty()) {
+        if (Strings.isNullOrEmpty(scheme)) {
             return false;
         }
-        return providers.containsKey(scheme.toLowerCase(Locale.ROOT));
-    }
-
-    public void setSpiFactories(Map<String, StorageProviderFactory> spiFactories) {
-        this.spiFactories = spiFactories;
+        String normalized = scheme.toLowerCase(Locale.ROOT);
+        return factories.containsKey(normalized) || providers.containsKey(normalized);
     }
 
     public StorageProvider createProvider(String scheme, Settings settings, Map<String, Object> config) {
@@ -81,23 +85,40 @@ public class StorageProviderRegistry implements Closeable {
         if (config == null || config.isEmpty()) {
             StorageProvider provider = providers.get(normalizedScheme);
             if (provider == null) {
-                throw new IllegalArgumentException("No storage provider registered for scheme: " + scheme);
+                provider = createDefaultProvider(normalizedScheme);
             }
             return provider;
         }
 
         // Create a fresh provider with the per-query config
-        StorageProviderFactory spiFactory = spiFactories.get(normalizedScheme);
-        if (spiFactory == null) {
+        StorageProviderFactory factory = factories.get(normalizedScheme);
+        if (factory == null) {
             throw new IllegalArgumentException("No SPI storage factory registered for scheme: " + scheme);
         }
-        return spiFactory.create(settings, config);
+        return factory.create(settings, config);
+    }
+
+    private synchronized StorageProvider createDefaultProvider(String normalizedScheme) {
+        // Double-check after acquiring lock
+        StorageProvider provider = providers.get(normalizedScheme);
+        if (provider != null) {
+            return provider;
+        }
+        StorageProviderFactory factory = factories.get(normalizedScheme);
+        if (factory == null) {
+            throw new IllegalArgumentException("No storage provider registered for scheme: " + normalizedScheme);
+        }
+        provider = factory.create(settings);
+        providers.put(normalizedScheme, provider);
+        createdProviders.add(provider);
+        return provider;
     }
 
     @Override
     public void close() throws IOException {
         List<StorageProvider> toClose = new ArrayList<>(createdProviders);
         createdProviders.clear();
+        providers.clear();
         IOUtils.close(toClose);
     }
 }

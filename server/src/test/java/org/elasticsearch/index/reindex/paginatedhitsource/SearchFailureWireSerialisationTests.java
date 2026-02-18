@@ -10,61 +10,130 @@
 package org.elasticsearch.index.reindex.paginatedhitsource;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
+import java.io.IOException;
+import java.util.Objects;
+
 import static org.elasticsearch.index.reindex.paginatedhitsource.SearchFailureTests.randomException;
 
-public class SearchFailureWireSerialisationTests extends AbstractWireSerializingTestCase<SearchFailure> {
-
+public class SearchFailureWireSerialisationTests extends AbstractWireSerializingTestCase<
+    SearchFailureWireSerialisationTests.SearchFailureWrapper> {
     @Override
-    protected SearchFailure createTestInstance() {
+    protected SearchFailureWrapper createTestInstance() {
         Throwable reason = randomException();
         String index = randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null;
         Integer shardId = randomBoolean() ? randomIntBetween(0, 100) : null;
         String nodeId = randomBoolean() ? randomAlphaOfLengthBetween(1, 10) : null;
-        return new SearchFailure(reason, index, shardId, nodeId);
+        return new SearchFailureWrapper(new SearchFailure(reason, index, shardId, nodeId));
     }
 
     @Override
-    protected Writeable.Reader<SearchFailure> instanceReader() {
-        return SearchFailure::new;
+    protected Writeable.Reader<SearchFailureWrapper> instanceReader() {
+        return SearchFailureWrapper::new;
     }
 
     @Override
-    protected SearchFailure mutateInstance(SearchFailure instance) {
-        return mutateSearchFailure(instance);
+    protected SearchFailureWrapper mutateInstance(SearchFailureWrapper instance) {
+        return new SearchFailureWrapper(mutateSearchFailure(instance.failure()));
     }
 
     /**
-     * {@link SearchFailure} contains a {@code Throwable reason}.
-     * While the XContent output looks identical, the exception instances are not semantically identical after deserialization.
-     * Therefore, we must provide our own equality override to verify that the exceptions are meaningfully identical, even if the instance
-     * equality check fails.
+     * Custom semantic equality assertion for wire-serialization testing.
+     * <p>
+     * {@link SearchFailure} contains a {@link Throwable} whose equality is based on
+     * object identity. This method performs a field-by-field comparison of the
+     * meaningful state, including exception class and message, to verify that wire
+     * serialization preserves observable failure semantics without requiring
+     * production equality semantics on {@link SearchFailure}.
      */
     @Override
-    protected void assertEqualInstances(SearchFailure expected, SearchFailure actual) {
-        assertEquals(expected.getIndex(), actual.getIndex());
-        assertEquals(expected.getShardId(), actual.getShardId());
-        assertEquals(expected.getNodeId(), actual.getNodeId());
-        assertEquals(expected.getStatus(), actual.getStatus());
-
-        // Compare exception meaningfully, not by identity
-        assertEquals(expected.getReason().getClass(), actual.getReason().getClass());
-        assertEquals(expected.getReason().getMessage(), actual.getReason().getMessage());
+    protected void assertEqualInstances(SearchFailureWrapper expected, SearchFailureWrapper actual) {
+        SearchFailure e = expected.failure();
+        SearchFailure a = actual.failure();
+        assertEquals(e.getIndex(), a.getIndex());
+        assertEquals(e.getShardId(), a.getShardId());
+        assertEquals(e.getNodeId(), a.getNodeId());
+        assertEquals(e.getStatus(), a.getStatus());
+        // Compare exception semantically, not by identity
+        assertEquals(e.getReason().getClass(), a.getReason().getClass());
+        assertEquals(e.getReason().getMessage(), a.getReason().getMessage());
     }
 
-    public static SearchFailure mutateSearchFailure(SearchFailure instance) {
+    /**
+     * Wrapper around {@link SearchFailure} used exclusively for wire-serialization tests.
+     * <p>
+     * {@link AbstractWireSerializingTestCase} requires instances to be comparable via
+     * {@code equals}/{@code hashCode()}, but {@link SearchFailure} does not define
+     * suitable semantic equality due to its embedded {@link Throwable}.
+     * <p>
+     * This wrapper provides stable, test-only equality semantics without leaking
+     * test concerns into production code.
+     */
+    static final class SearchFailureWrapper implements Writeable {
+        private final SearchFailure failure;
+
+        SearchFailureWrapper(SearchFailure failure) {
+            this.failure = failure;
+        }
+
+        SearchFailureWrapper(StreamInput in) throws IOException {
+            this.failure = new SearchFailure(in);
+        }
+
+        SearchFailure failure() {
+            return failure;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            failure.writeTo(out);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            SearchFailureWrapper that = (SearchFailureWrapper) o;
+            return failuresEqual(failure, that.failure);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                failure.getIndex(),
+                failure.getShardId(),
+                failure.getNodeId(),
+                failure.getStatus(),
+                failure.getReason().getClass(),
+                failure.getReason().getMessage()
+            );
+        }
+
+        private static boolean failuresEqual(SearchFailure a, SearchFailure b) {
+            return Objects.equals(a.getIndex(), b.getIndex())
+                && Objects.equals(a.getShardId(), b.getShardId())
+                && Objects.equals(a.getNodeId(), b.getNodeId())
+                && a.getStatus() == b.getStatus()
+                && a.getReason().getClass().equals(b.getReason().getClass())
+                && Objects.equals(a.getReason().getMessage(), b.getReason().getMessage());
+        }
+    }
+
+    static SearchFailure mutateSearchFailure(SearchFailure instance) {
         int fieldToMutate = randomIntBetween(0, 3);
-        switch (fieldToMutate) {
+        return switch (fieldToMutate) {
             case 0 -> {
                 Throwable newReason;
                 do {
                     newReason = randomException();
                 } while (newReason.getClass().equals(instance.getReason().getClass())
-                    && String.valueOf(newReason.getMessage()).equals(String.valueOf(instance.getReason().getMessage())));
-                return new SearchFailure(
+                    && Objects.equals(newReason.getMessage(), instance.getReason().getMessage()));
+                yield new SearchFailure(
                     newReason,
                     instance.getIndex(),
                     instance.getShardId(),
@@ -76,21 +145,21 @@ public class SearchFailureWireSerialisationTests extends AbstractWireSerializing
                 String newIndex = instance.getIndex() == null
                     ? randomAlphaOfLengthBetween(1, 10)
                     : randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(1, 10));
-                return new SearchFailure(instance.getReason(), newIndex, instance.getShardId(), instance.getNodeId(), instance.getStatus());
+                yield new SearchFailure(instance.getReason(), newIndex, instance.getShardId(), instance.getNodeId(), instance.getStatus());
             }
             case 2 -> {
                 Integer newShardId = instance.getShardId() == null
                     ? randomIntBetween(0, 100)
                     : randomValueOtherThan(instance.getShardId(), () -> randomIntBetween(0, 100));
-                return new SearchFailure(instance.getReason(), instance.getIndex(), newShardId, instance.getNodeId(), instance.getStatus());
+                yield new SearchFailure(instance.getReason(), instance.getIndex(), newShardId, instance.getNodeId(), instance.getStatus());
             }
             case 3 -> {
                 String newNodeId = instance.getNodeId() == null
                     ? randomAlphaOfLengthBetween(1, 10)
                     : randomValueOtherThan(instance.getNodeId(), () -> randomAlphaOfLengthBetween(1, 10));
-                return new SearchFailure(instance.getReason(), instance.getIndex(), instance.getShardId(), newNodeId, instance.getStatus());
+                yield new SearchFailure(instance.getReason(), instance.getIndex(), instance.getShardId(), newNodeId, instance.getStatus());
             }
             default -> throw new AssertionError("Unknown field index [" + fieldToMutate + "]");
-        }
+        };
     }
 }

@@ -88,7 +88,7 @@ public final class DefaultPipelineResolver implements PipelineResolver {
             return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).xor().patchedPFor().bitPack();
         }
         if (hint == OptimizeFor.BALANCED) {
-            return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).chimpDoubleStage().offset().gcd().bitPack();
+            return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).chimpDoubleStage(QUANTIZE_STORAGE).offset().gcd().bitPack();
         }
         return PipelineConfig.forDoubles(TSDB_BLOCK_SIZE).alpDoubleStage(QUANTIZE_STORAGE).offset().gcd().bitPack();
     }
@@ -98,7 +98,7 @@ public final class DefaultPipelineResolver implements PipelineResolver {
             return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).xor().patchedPFor().bitPack();
         }
         if (hint == OptimizeFor.BALANCED) {
-            return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).chimpFloatStage().offset().gcd().bitPack();
+            return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).chimpFloatStage(QUANTIZE_STORAGE).offset().gcd().bitPack();
         }
         return PipelineConfig.forFloats(TSDB_BLOCK_SIZE).alpFloatStage().offset().gcd().bitPack();
     }

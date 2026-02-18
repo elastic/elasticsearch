@@ -21,16 +21,18 @@ public final class FpcTransformDecodeStage implements TransformDecoder {
     private final long[] fcmTable;
     private final long[] dfcmTable;
     private final int tableMask;
+    private final byte[] selectors;
 
-    public FpcTransformDecodeStage() {
-        this(FpcTransformEncodeStage.DEFAULT_TABLE_SIZE);
+    public FpcTransformDecodeStage(int blockSize) {
+        this(blockSize, FpcTransformEncodeStage.DEFAULT_TABLE_SIZE);
     }
 
-    public FpcTransformDecodeStage(int tableSize) {
+    public FpcTransformDecodeStage(int blockSize, int tableSize) {
         assert (tableSize & (tableSize - 1)) == 0 : "tableSize must be a power of 2: " + tableSize;
         this.fcmTable = new long[tableSize];
         this.dfcmTable = new long[tableSize];
         this.tableMask = tableSize - 1;
+        this.selectors = new byte[(blockSize + 7) >>> 3];
     }
 
     @Override
@@ -49,52 +51,24 @@ public final class FpcTransformDecodeStage implements TransformDecoder {
 
         final var metadata = context.metadata();
         final int selectorByteCount = (valueCount + 7) >>> 3;
-        final byte[] selectors = new byte[selectorByteCount];
-        metadata.readBytes(selectors);
+        metadata.readBytes(selectors, 0, selectorByteCount);
 
         int fcmHash = 0;
         int dfcmHash = 0;
         long lastValue = 0;
-        int i = 0;
 
-        final int fullBytes = valueCount >>> 3;
-        for (int byteIdx = 0; byteIdx < fullBytes; byteIdx++) {
-            int sel = selectors[byteIdx] & 0xFF;
-            for (int bit = 0; bit < 8; bit++, i++) {
-                final long fcmPred = fcmTable[fcmHash];
-                final long dfcmPred = lastValue + dfcmTable[dfcmHash];
+        for (int i = 0; i < valueCount; i++) {
+            final boolean useDfcm = (selectors[i >>> 3] & (1 << (i & 7))) != 0;
+            final long pred = useDfcm ? lastValue + dfcmTable[dfcmHash] : fcmTable[fcmHash];
+            final long actual = values[i] ^ pred;
+            values[i] = actual;
 
-                final long actual = values[i] ^ ((sel & 1) != 0 ? dfcmPred : fcmPred);
-                values[i] = actual;
-                sel >>>= 1;
-
-                fcmTable[fcmHash] = actual;
-                fcmHash = ((fcmHash << 6) ^ (int) (actual >>> 48)) & tableMask;
-                final long stride = actual - lastValue;
-                dfcmTable[dfcmHash] = stride;
-                dfcmHash = ((dfcmHash << 2) ^ (int) (stride >>> 40)) & tableMask;
-                lastValue = actual;
-            }
-        }
-
-        if (i < valueCount) {
-            int sel = selectors[fullBytes] & 0xFF;
-            while (i < valueCount) {
-                final long fcmPred = fcmTable[fcmHash];
-                final long dfcmPred = lastValue + dfcmTable[dfcmHash];
-
-                final long actual = values[i] ^ ((sel & 1) != 0 ? dfcmPred : fcmPred);
-                values[i] = actual;
-                sel >>>= 1;
-                i++;
-
-                fcmTable[fcmHash] = actual;
-                fcmHash = ((fcmHash << 6) ^ (int) (actual >>> 48)) & tableMask;
-                final long stride = actual - lastValue;
-                dfcmTable[dfcmHash] = stride;
-                dfcmHash = ((dfcmHash << 2) ^ (int) (stride >>> 40)) & tableMask;
-                lastValue = actual;
-            }
+            fcmTable[fcmHash] = actual;
+            fcmHash = ((fcmHash << 6) ^ (int) (actual >>> 48)) & tableMask;
+            final long stride = actual - lastValue;
+            dfcmTable[dfcmHash] = stride;
+            dfcmHash = ((dfcmHash << 2) ^ (int) (stride >>> 40)) & tableMask;
+            lastValue = actual;
         }
 
         return valueCount;

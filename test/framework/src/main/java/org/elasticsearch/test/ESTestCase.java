@@ -40,6 +40,7 @@ import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.tests.util.TestRuleMarkFailure;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.tests.util.TimeUnits;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.ExceptionsHelper;
@@ -229,6 +230,7 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
 
@@ -3031,6 +3033,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      * @param taskFactory task factory
      */
     public static void runInParallel(int numberOfTasks, IntConsumer taskFactory) {
+        assertThat("runInParallel: negative numberOfTasks", numberOfTasks, greaterThanOrEqualTo(0));
+        if (numberOfTasks == 0) {
+            return;
+        }
+
         final ArrayList<Future<?>> futures = new ArrayList<>(numberOfTasks);
         final Thread[] threads = new Thread[numberOfTasks - 1];
         for (int i = 0; i < numberOfTasks; i++) {
@@ -3155,5 +3162,24 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     public static ProjectMetadata emptyProject() {
         return ProjectMetadata.builder(randomProjectIdOrDefault()).build();
+    }
+
+    /**
+     * Insert random garbage {@link BytesRef}
+     */
+    public static BytesRef embedInRandomBytes(BytesRef bytesRef) {
+        var offset = randomIntBetween(0, 10);
+        var extraLength = randomIntBetween(offset == 0 ? 1 : 0, 10);
+        var newBytesArray = randomByteArrayOfLength(bytesRef.length + offset + extraLength);
+
+        for (int i = 0; i < offset; i++) {
+            newBytesArray[i] = randomByte();
+        }
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, newBytesArray, offset, bytesRef.length);
+        for (int i = offset + bytesRef.length; i < newBytesArray.length; i++) {
+            newBytesArray[i] = randomByte();
+        }
+
+        return new BytesRef(newBytesArray, offset, bytesRef.length);
     }
 }

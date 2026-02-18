@@ -16,6 +16,7 @@ import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 
@@ -42,13 +43,13 @@ dependencies {
   implementation project('compute:ann')
   implementation project(':libs:dissect')
   implementation project(':libs:grok')
+  implementation project(':libs:web-utils')
   implementation project(':libs:exponential-histogram')
   api "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
   api "org.antlr:antlr4-runtime:${versions.antlr4}"
   api project(":libs:h3")
   implementation project('arrow')
   implementation "org.apache.commons:commons-math3:${versions.commons_math3}"
-
   // Also contains a dummy processor to allow compilation with unused annotations.
   annotationProcessor project('compute:gen')
 
@@ -95,6 +96,13 @@ tasks.named('splitPackagesAudit').configure {
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
+
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/*.parquet'
+  exclude '**/*.avro'
+  exclude '**/.*.crc'
+}
+
 
 def generatedPath = "src/main/generated"
 def projectDirectory = project.layout.projectDirectory
@@ -643,6 +651,7 @@ tasks.named("test").configure {
   if (System.getProperty("golden.overwrite") != null || project.hasProperty("golden.overwrite")) {
     systemProperty "golden.overwrite", "true"
   }
+
   systemProperty "policy.directory", file("${projectDir}").absolutePath
   systemProperty "java.security.policy", file("${projectDir}/test.policy").absolutePath
 }
@@ -652,3 +661,4 @@ tasks.register("analyzePromqlQueries", JavaExec) {
   classpath = sourceSets.test.runtimeClasspath
   args project.findProperty("queriesFile") ?: "", project.findProperty("outputFile") ?: ""
 }
+

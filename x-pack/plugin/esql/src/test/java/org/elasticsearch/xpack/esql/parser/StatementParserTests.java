@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.evaluator.command.UriPartsFunctionBridge;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDenseVector;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -80,6 +82,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -99,6 +102,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -3587,7 +3591,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "mv_expand",
             "rename",
             "sort",
-            "stats" };
+            "stats",
+            "uri_parts" };
         for (String keyword : keywords) {
             var plan = query("FROM test | STATS avg(" + keyword + ")");
             var aggregate = as(plan, Aggregate.class);
@@ -4394,9 +4399,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         MMR mmrCmd = (MMR) cmd;
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
-        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
-        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
-        assertThat(limitValue, equalTo(10));
+        verifyMMRLimitValue(mmrCmd.limit(), 10);
         assertNull(mmrCmd.queryVector());
         verifyMMRLambdaValue(mmrCmd, null);
     }
@@ -4410,10 +4413,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
-        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
-        assertThat(limitValue, equalTo(10));
-
+        verifyMMRLimitValue(mmrCmd.limit(), 10);
         verifyMMRLambdaValue(mmrCmd, 0.5);
 
         assertNull(mmrCmd.queryVector());
@@ -4425,21 +4425,25 @@ public class StatementParserTests extends AbstractStatementParserTests {
         var mmrCmd = as(processingCommand("mmr [0.5, 0.4, 0.3, 0.2] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
-        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
-        assertThat(limitValue, equalTo(10));
-
+        verifyMMRLimitValue(mmrCmd.limit(), 10);
         verifyMMRLambdaValue(mmrCmd, 0.5);
+        verifyMMRQueryVectorValue(mmrCmd.queryVector(), List.of(0.5, 0.4, 0.3, 0.2));
+    }
 
-        Expression queryVectorExpression = mmrCmd.queryVector();
-        if (queryVectorExpression instanceof Literal litExpression) {
-            var thisValue = litExpression.value();
-            if (thisValue instanceof Collection<?> litCollection) {
-                assertEquals(List.of(0.5, 0.4, 0.3, 0.2), litCollection);
-            }
-        } else {
-            fail("query vector expression [" + queryVectorExpression + "] is not a literal double collection");
-        }
+    public void testMMRCommandWithByteVectorQuery() {
+        assumeTrue("MMR requires corresponding capability", EsqlCapabilities.Cap.MMR.isEnabled());
+
+        var mmrByteArray = as(processingCommand("mmr [17, 48, 56] on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
+        assertThat(mmrByteArray.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+        verifyMMRLimitValue(mmrByteArray.limit(), 10);
+        verifyMMRLambdaValue(mmrByteArray, 0.5);
+        verifyMMRQueryVectorValue(mmrByteArray.queryVector(), List.of(17, 48, 56));
+
+        var mmrByteArrayString = as(processingCommand("mmr \"113038\" on dense_embedding limit 10 with { \"lambda\": 0.5 }"), MMR.class);
+        assertThat(mmrByteArrayString.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
+        verifyMMRLimitValue(mmrByteArrayString.limit(), 10);
+        verifyMMRLambdaValue(mmrByteArrayString, 0.5);
+        verifyMMRQueryVectorValue(mmrByteArrayString.queryVector(), List.of(), "113038");
     }
 
     public void testMMRCommandWithFieldQueryVector() {
@@ -4453,21 +4457,9 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
-        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
-        assertThat(limitValue, equalTo(10));
-
+        verifyMMRLimitValue(mmrCmd.limit(), 10);
         verifyMMRLambdaValue(mmrCmd, 0.5);
-
-        Expression queryVectorExpression = mmrCmd.queryVector();
-        if (queryVectorExpression instanceof Literal litExpression) {
-            var thisValue = litExpression.value();
-            if (thisValue instanceof Collection<?> litCollection) {
-                assertEquals(List.of(0.5, 0.4, 0.3, 0.2), litCollection);
-            }
-        } else {
-            fail("query vector expression [" + queryVectorExpression + "] is not a literal double collection");
-        }
+        verifyMMRQueryVectorValue(mmrCmd.queryVector(), List.of(), "[0.5, 0.4, 0.3, 0.2]");
     }
 
     public void testMMRCommandWithTextEmbeddingQueryVector() {
@@ -4482,10 +4474,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         assertThat(mmrCmd.diversifyField(), equalToIgnoringIds(attribute("dense_embedding")));
 
-        assertThat(mmrCmd.limit().dataType(), equalTo(INTEGER));
-        int limitValue = (Integer) (((Literal) mmrCmd.limit()).value());
-        assertThat(limitValue, equalTo(10));
-
+        verifyMMRLimitValue(mmrCmd.limit(), 10);
         verifyMMRLambdaValue(mmrCmd, 0.5);
 
         Expression queryVectorExpression = mmrCmd.queryVector();
@@ -4495,6 +4484,37 @@ public class StatementParserTests extends AbstractStatementParserTests {
         } else {
             fail("query vector expression [" + queryVectorExpression + "] is not a literal double collection");
         }
+    }
+
+    private void verifyMMRLimitValue(Expression expression, int limit) {
+        assertThat(expression.dataType(), equalTo(INTEGER));
+        int limitValue = (Integer) (((Literal) expression).value());
+        assertEquals(limit, limitValue);
+    }
+
+    private void verifyMMRQueryVectorValue(Expression expression, List<?> expected) {
+        verifyMMRQueryVectorValue(expression, expected, null);
+    }
+
+    private void verifyMMRQueryVectorValue(Expression expression, List<?> expected, @Nullable String expectedString) {
+        if (expression instanceof Literal litExpression) {
+            var thisValue = litExpression.value();
+            if (thisValue instanceof Collection<?> litCollection) {
+                assertEquals(expected, litCollection);
+                return;
+            }
+        } else if (expression instanceof ToDenseVector asDenseVector) {
+            var thisValue = ((Literal) asDenseVector.field()).value();
+            if (thisValue instanceof Collection<?> litCollection) {
+                assertEquals(expected, litCollection);
+                return;
+            } else if (thisValue instanceof BytesRef bytesRef && expectedString != null) {
+                assertEquals(new BytesRef(expectedString), bytesRef);
+                return;
+            }
+        }
+
+        fail("query vector expression [" + expression + "] is not a valid dense vector convertable type");
     }
 
     private void verifyMMRLambdaValue(MMR mmrCmd, Double value) {
@@ -4550,6 +4570,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
             "row a = 1 | sample 1",
             "1:13: invalid value for SAMPLE probability [1], expecting a number between 0 and 1, exclusive"
         );
+    }
+
+    public void testUriPartsCommand() {
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        LogicalPlan cmd = processingCommand("uri_parts p = a");
+        UriParts parts = as(cmd, UriParts.class);
+        assertEqualsIgnoringIds(attribute("a"), parts.getInput());
+
+        // Dynamically get expected field names
+        List<String> expectedFieldNames = UriPartsFunctionBridge.getAllOutputFields()
+            .keySet()
+            .stream()
+            .map(name -> "p." + name)
+            .collect(Collectors.toList());
+
+        List<String> actualFieldNames = parts.generatedAttributes().stream().map(NamedExpression::name).collect(Collectors.toList());
+        assertEquals(expectedFieldNames, actualFieldNames);
     }
 
 }

@@ -40,6 +40,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.BindException;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.URISyntaxException;
@@ -215,30 +216,70 @@ public class HdfsFixture extends ExternalResource {
             try {
                 Path hdfsHome = createHdfsDataFolder(baseDir);
                 tryStartingHdfs(hdfsHome);
-                break;
+                return;
             } catch (IOException e) {
-                // Log the exception
-                System.out.println("Attempt " + attempt + " to start HDFS failed: " + e.getMessage());
-                // Clean up the failed attempt
-                try {
-                    FileUtils.deleteDirectory(baseDir.toFile());
-                } catch (IOException cleanupException) {
-                    // Log but don't fail on cleanup errors
-                    cleanupException.printStackTrace();
-                    System.out.println("Failed to cleanup baseDir after attempt " + attempt + ": " + cleanupException.getMessage());
-                }
-                // If the maximum number of attempts is reached, rethrow the exception
-                if (attempt == maxAttempts) {
+                handleStartMinHdfsFailure(attempt, maxAttempts, baseDir, e);
+            } catch (RuntimeException e) {
+                if (hasCause(e, BindException.class) == false) {
                     throw e;
                 }
-                // Add a small delay before retrying to allow filesystem to stabilize
-                try {
-                    Thread.sleep(1000L * attempt * attempt); // Progressive backoff: 1s, 4s
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    throw new IOException("Interrupted while waiting to retry HDFS startup", ie);
-                }
+                handleStartMinHdfsFailure(attempt, maxAttempts, baseDir, e);
             }
+        }
+
+        throw new IllegalStateException("startMinHdfs retry loop should have returned or thrown");
+    }
+
+    static boolean hasCause(Throwable throwable, Class<? extends Throwable> causeType) {
+        for (Throwable t = throwable; t != null; t = t.getCause()) {
+            if (causeType.isInstance(t)) {
+                return true;
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return false;
+    }
+
+    private void handleStartMinHdfsFailure(int attempt, int maxAttempts, Path baseDir, Exception e) throws Exception {
+        // Log the exception
+        System.out.println("Attempt " + attempt + " to start HDFS failed: " + e.getMessage());
+        closeMiniDfsClusterQuietly();
+        // Clean up the failed attempt
+        try {
+            FileUtils.deleteDirectory(baseDir.toFile());
+        } catch (IOException cleanupException) {
+            // Log but don't fail on cleanup errors
+            cleanupException.printStackTrace();
+            System.out.println("Failed to cleanup baseDir after attempt " + attempt + ": " + cleanupException.getMessage());
+        }
+        // If the maximum number of attempts is reached, rethrow the exception
+        if (attempt == maxAttempts) {
+            if (e instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw e;
+        }
+        // Add a small delay before retrying to allow filesystem to stabilize
+        try {
+            Thread.sleep(1000L * attempt * attempt); // Progressive backoff: 1s, 4s
+        } catch (InterruptedException ie) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while waiting to retry HDFS startup", ie);
+        }
+    }
+
+    private void closeMiniDfsClusterQuietly() {
+        if (dfs == null) {
+            return;
+        }
+        try {
+            dfs.close();
+        } catch (Exception closeException) {
+            closeException.printStackTrace();
+        } finally {
+            dfs = null;
         }
     }
 
@@ -263,7 +304,11 @@ public class HdfsFixture extends ExternalResource {
         cfg.set("hadoop.security.group.mapping", "org.apache.hadoop.security.JniBasedUnixGroupsMappingWithFallback");
         // Disable HTTP server to avoid webapp issues with Hadoop 2.x
         cfg.set(DFSConfigKeys.DFS_NAMENODE_HTTP_ADDRESS_KEY, "0.0.0.0:0");
+        cfg.set("dfs.namenode.https-address", "0.0.0.0:0");
         cfg.set(DFSConfigKeys.DFS_DATANODE_HTTP_ADDRESS_KEY, "0.0.0.0:0");
+        cfg.set("dfs.datanode.https.address", "0.0.0.0:0");
+        cfg.set("dfs.datanode.address", "0.0.0.0:0");
+        cfg.set("dfs.datanode.ipc.address", "0.0.0.0:0");
 
         // optionally configure security
         if (isSecure()) {

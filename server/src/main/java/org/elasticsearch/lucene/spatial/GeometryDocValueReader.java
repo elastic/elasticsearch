@@ -30,13 +30,13 @@ import java.util.List;
  * <p><b>V2 format</b> (DimensionalShapeType high bit set):
  * <pre>
  * centroid-x(4) | centroid-y(4) | DimensionalShapeType(1, 0x80 set) | sumWeight(VLong) | extent |
- * treeLength(VInt) | tree(vertex ordinals) | vertexTable | connectivity
+ * treeLength(VInt) | tree(vertex ordinals) | connectivityLength(4) | connectivity | vertexTable
  * </pre>
  *
  * <p>The format is detected automatically on first access after {@link #reset(BytesRef)}.
  * Reading the centroid or extent never loads the vertex table, keeping analytics-only
- * access paths fast. The tree length prefix allows the reader to skip past the tree to
- * reach the vertex table (loaded lazily on first tree visit or geometry reconstruction).
+ * access paths fast. The tree and connectivity length prefixes allow the reader to skip
+ * to the vertex table at the end (loaded lazily on first tree visit or geometry reconstruction).
  */
 public class GeometryDocValueReader {
     private final ByteArrayStreamInput input;
@@ -62,7 +62,7 @@ public class GeometryDocValueReader {
     /** Lazily loaded vertex table (V2 only). Null until first needed. */
     private VertexLookupTable vertexTable;
 
-    /** Position of the connectivity data (V2 only). Set after vertex table is loaded from after the tree. */
+    /** Position of the connectivity data (V2 only). Set when vertex table is loaded. */
     private int connectivityOffset;
 
     public GeometryDocValueReader() {
@@ -146,10 +146,12 @@ public class GeometryDocValueReader {
             if (v2Format == false) {
                 throw new UnsupportedOperationException("Vertex table is not available in legacy doc-value format");
             }
-            // V2: vertex table is right after the tree data
+            // V2 layout after tree: connectivityLength(4 bytes) | connectivity | vertexTable
             input.setPosition(treeOffset + treeLength);
-            vertexTable = VertexLookupTable.readFrom(input);
+            int connectivityLength = input.readInt();
             connectivityOffset = input.getPosition();
+            input.setPosition(connectivityOffset + connectivityLength);
+            vertexTable = VertexLookupTable.readFrom(input);
         }
     }
 

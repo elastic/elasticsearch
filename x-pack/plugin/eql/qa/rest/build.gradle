@@ -4,7 +4,7 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
- 
+
 apply plugin: 'elasticsearch.internal-test-artifact'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -40,3 +40,8 @@ if (buildParams.inFipsJvm){
   tasks.named("javaRestTest").configure{enabled = false }
   tasks.named("yamlRestTest").configure{enabled = false }
 }
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  // Expected deprecation warning to compat yaml tests:
+  task.addAllowedWarningRegex("Parameter \\[default_metric\\] is deprecated and will be removed in a future version")
+})

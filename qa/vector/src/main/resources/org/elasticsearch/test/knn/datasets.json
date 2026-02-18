@@ -1,4 +1,15 @@
 {
+  "ann-gist-1M": {
+    "data": [
+      "gs://knnindextester/ann-gist-1M/corpus-ann-gist-1M.fvec"
+    ],
+    "queries": "gs://knnindextester/ann-gist-1M/queries-ann-gist-1M.fvec",
+    "dimensions": 960,
+    "vector_encoding": "float32",
+    "vector_space": "euclidean",
+    "num_doc_vectors": 1000000,
+    "num_query_vectors": 1000
+  },
   "dbpedia-entity-E5-small": {
     "data": [
       "gs://knnindextester/dbpedia-entity-E5-small/corpus-dbpedia-entity-E5-small-0.fvec",

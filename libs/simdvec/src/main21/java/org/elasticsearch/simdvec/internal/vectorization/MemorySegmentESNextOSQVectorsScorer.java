@@ -224,13 +224,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
          *        or DirectAccessInput
          */
         MemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, boolean allowAnyInputType) {
-            if (allowAnyInputType == false && (in instanceof MemorySegmentAccessInput || in instanceof DirectAccessInput) == false) {
-                throw new IllegalArgumentException(
-                    "Expected MemorySegmentAccessInput or DirectAccessInput but got "
-                        + in.getClass().getName()
-                        + ". Ensure the IndexInput is properly unwrapped before constructing the scorer."
-                );
-            }
+            checkInputType(in, allowAnyInputType);
             this.in = in;
             this.length = dataLength;
             this.dimensions = dimensions;
@@ -337,6 +331,19 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
                 }
             }
             return maxScore;
+        }
+    }
+
+    private static void checkInputType(IndexInput in, boolean allowAnyInputType) {
+        if (allowAnyInputType) {
+            return;
+        }
+        if ((in instanceof MemorySegmentAccessInput || in instanceof DirectAccessInput) == false) {
+            throw new IllegalArgumentException(
+                "Expected MemorySegmentAccessInput or DirectAccessInput but got "
+                    + in.getClass().getName()
+                    + ". Ensure the IndexInput is properly unwrapped before constructing the scorer."
+            );
         }
     }
 }

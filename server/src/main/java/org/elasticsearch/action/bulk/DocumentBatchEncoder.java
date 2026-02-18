@@ -303,6 +303,12 @@ public class DocumentBatchEncoder {
                 stringValues[docIdx] = Integer.toString(value);
                 present[docIdx] = true;
                 return;
+            } else if (type == ColumnType.BINARY) {
+                binaryValues[docIdx] = new org.elasticsearch.common.bytes.BytesArray(
+                    Integer.toString(value).getBytes(StandardCharsets.UTF_8)
+                );
+                present[docIdx] = true;
+                return;
             } else if (type != ColumnType.INT) {
                 widenTo(ColumnType.INT);
             }
@@ -319,6 +325,10 @@ public class DocumentBatchEncoder {
                 widenIntToLong();
             } else if (type == ColumnType.STRING) {
                 stringValues[docIdx] = Long.toString(value);
+                present[docIdx] = true;
+                return;
+            } else if (type == ColumnType.BINARY) {
+                binaryValues[docIdx] = new org.elasticsearch.common.bytes.BytesArray(Long.toString(value).getBytes(StandardCharsets.UTF_8));
                 present[docIdx] = true;
                 return;
             } else if (type != ColumnType.LONG) {
@@ -341,6 +351,12 @@ public class DocumentBatchEncoder {
                 stringValues[docIdx] = Float.toString(value);
                 present[docIdx] = true;
                 return;
+            } else if (type == ColumnType.BINARY) {
+                binaryValues[docIdx] = new org.elasticsearch.common.bytes.BytesArray(
+                    Float.toString(value).getBytes(StandardCharsets.UTF_8)
+                );
+                present[docIdx] = true;
+                return;
             } else if (type != ColumnType.INT) {
                 widenTo(ColumnType.INT);
             }
@@ -357,6 +373,12 @@ public class DocumentBatchEncoder {
                 widenIntToLong();
             } else if (type == ColumnType.STRING) {
                 stringValues[docIdx] = Double.toString(value);
+                present[docIdx] = true;
+                return;
+            } else if (type == ColumnType.BINARY) {
+                binaryValues[docIdx] = new org.elasticsearch.common.bytes.BytesArray(
+                    Double.toString(value).getBytes(StandardCharsets.UTF_8)
+                );
                 present[docIdx] = true;
                 return;
             } else if (type != ColumnType.LONG) {
@@ -387,6 +409,12 @@ public class DocumentBatchEncoder {
             if (type == null) {
                 type = ColumnType.BOOLEAN;
                 booleanValues = new boolean[present.length];
+            } else if (type == ColumnType.BINARY) {
+                binaryValues[docIdx] = new org.elasticsearch.common.bytes.BytesArray(
+                    Boolean.toString(value).getBytes(StandardCharsets.UTF_8)
+                );
+                present[docIdx] = true;
+                return;
             } else if (type != ColumnType.BOOLEAN) {
                 widenToString();
                 stringValues[docIdx] = Boolean.toString(value);

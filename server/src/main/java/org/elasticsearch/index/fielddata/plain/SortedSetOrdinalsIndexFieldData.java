@@ -115,9 +115,6 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
             sortMissingLast(missingValue) ^ reverse ? SortedSetSortField.STRING_LAST : SortedSetSortField.STRING_FIRST
         );
         // TODO Remove once doc value skippers actually support competitive iterators
-        if (shouldNotUseCompetitiveIterator) {
-            sortField.setOptimizeSortWithIndexedData(false);
-        }
         return sortField;
     }
 

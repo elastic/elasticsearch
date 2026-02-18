@@ -628,10 +628,10 @@ public class HeapAttackIT extends HeapAttackTestCase {
         initManyExponentialHistograms(10_000, 100);
 
         // Run a successful query first as sanity check
-        queryAndVerifyDuplicatedHistograms("many_exponential_histograms", "histo",1);
+        queryAndVerifyDuplicatedHistograms("many_exponential_histograms", "histo", 1);
 
         // and now blow up the memory
-        assertCircuitBreaks(attempt -> queryDuplicatedHistograms("many_exponential_histograms", "histo",attempt * 10));
+        assertCircuitBreaks(attempt -> queryDuplicatedHistograms("many_exponential_histograms", "histo", attempt * 10));
     }
 
     public void testManyTDigests() throws IOException {
@@ -673,7 +673,7 @@ public class HeapAttackIT extends HeapAttackTestCase {
         query.append("| STATS ");
         query.append(
             IntStream.range(0, numDuplications)
-                .mapToObj(i -> "val_" + i + " = PERCENTILE(" + column +", 50) WHERE histo_id != -" + i)
+                .mapToObj(i -> "val_" + i + " = PERCENTILE(" + column + ", 50) WHERE histo_id != -" + i)
                 .collect(Collectors.joining(", "))
         );
         query.append("BY histo_id");
@@ -956,7 +956,8 @@ public class HeapAttackIT extends HeapAttackTestCase {
     }
 
     enum TDigestFieldType {
-        TDIGEST, HISTOGRAM
+        TDIGEST,
+        HISTOGRAM
     }
 
     private void initManyTDigests(int numHistograms, int numCentroidsPerHistogram, TDigestFieldType fieldType) throws IOException {

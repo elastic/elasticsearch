@@ -12,6 +12,7 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.KeepWordFilter;
+import org.elasticsearch.analysis.common.async.AsyncInitKeepWordFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.dictionary.CustomDictionaryService;
 import org.elasticsearch.env.Environment;
@@ -78,7 +79,7 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new KeepWordFilter(tokenStream, keepWordsSupplier.get());
+        return new AsyncInitKeepWordFilter(tokenStream, keepWordsSupplier);
     }
 
     private static void validateSettings(Settings settings) {

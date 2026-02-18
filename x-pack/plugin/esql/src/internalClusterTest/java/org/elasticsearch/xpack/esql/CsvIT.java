@@ -14,8 +14,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilter;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
@@ -25,6 +27,8 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
@@ -34,6 +38,7 @@ import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
+import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
@@ -196,7 +201,9 @@ public class CsvIT extends ESTestCase {
         );
 
         var request = syncEsqlQueryRequest(testCase.query);
-        try (var response = cluster.client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS)) {
+        var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
+        cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);
+        try (var response = listener.actionGet(30, TimeUnit.SECONDS)) {
             ExpectedResults expected = loadCsvSpecValues(testCase.expectedResults);
             ActualResults actual = new ActualResults(
                 response.zoneId(),
@@ -207,7 +214,6 @@ public class CsvIT extends ESTestCase {
                 Map.of()
             );
 
-            // TODO assert warning headers
             assertResultsWithTransformer(
                 expected,
                 actual.columnNames(),
@@ -218,6 +224,11 @@ public class CsvIT extends ESTestCase {
                 false,
                 logResults() ? logger : null
             );
+            var warnings = listener.warnings.stream()
+                .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))
+                .filter(w -> w.startsWith("No limit defined, adding default limit of") == false)
+                .toList();
+            testCase.assertWarnings(false).assertWarnings(warnings, null);
         } catch (Throwable t) {
             t.setStackTrace(prependSpec(t.getStackTrace()));
             throw t;
@@ -355,7 +366,7 @@ public class CsvIT extends ESTestCase {
         }
     };
 
-    private static abstract class ResourceLoader<T> {
+    private abstract static class ResourceLoader<T> {
         private final Set<String> loaded = new HashSet<>();
         private Throwable failure = null;
 
@@ -389,6 +400,24 @@ public class CsvIT extends ESTestCase {
         public void ensureNoFailures() {
             if (failure != null) {
                 throw new RuntimeException("Resource loading failure", failure);
+            }
+        }
+    }
+
+    private static class ResponseListener extends PlainActionFuture<EsqlQueryResponse> {
+        private final ThreadPool threadPool;
+        private List<String> warnings;
+
+        public ResponseListener(ThreadPool threadPool) {
+            this.threadPool = threadPool;
+        }
+
+        @Override
+        public void onResponse(EsqlQueryResponse result) {
+            result.mustIncRef();
+            warnings = threadPool.getThreadContext().getResponseHeaders().getOrDefault("Warning", List.of());
+            if (set(result) == false) {
+                result.decRef();
             }
         }
     }

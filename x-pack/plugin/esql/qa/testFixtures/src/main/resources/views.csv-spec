@@ -361,10 +361,10 @@ FROM *
 | STATS foo = MAX(num), count = COUNT(num) BY country
 | WHERE country IS NULL
 ;
-warning:Line 1:23 (in view [employees_not_rehired]): evaluation of [is_rehired == false] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:23 (in view [employees_rehired]): evaluation of [is_rehired == true] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:23 (in view [employees_not_rehired]): java.lang.IllegalArgumentException: single-value function encountered multi-value
-warning:Line 1:23 (in view [employees_rehired]): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 foo:long            | count:long | country:keyword
 1698069301543123456 | 22         | null
@@ -409,10 +409,10 @@ FROM employees_*rehired
 | STATS rehired_count = COUNT() by is_rehired
 | SORT is_rehired DESC
 ;
-warning:Line 1:23 (in view [employees_not_rehired]): evaluation of [is_rehired == false] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:23 (in view [employees_rehired]): evaluation of [is_rehired == true] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 1:23 (in view [employees_not_rehired]): java.lang.IllegalArgumentException: single-value function encountered multi-value
-warning:Line 1:23 (in view [employees_rehired]): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: \(in view \[employees_not_rehired\]\): evaluation of \[is_rehired == false\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_not_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
 
 rehired_count:long | is_rehired:boolean
 11                 | true

@@ -23,6 +23,9 @@ public class Clusters {
             .setting("xpack.license.self_generated.type", "trial")
             .setting("esql.query.allow_partial_results", "false")
             .setting("logger.org.elasticsearch.compute.lucene.read", "DEBUG")
+            /*
+             * Lock to two processors and 512mb of RAM to make the tests more consistent.
+             */
             .setting("node.processors", "2")
             .jvmArg("-Xmx512m");
         String javaVersion = JvmInfo.jvmInfo().version();

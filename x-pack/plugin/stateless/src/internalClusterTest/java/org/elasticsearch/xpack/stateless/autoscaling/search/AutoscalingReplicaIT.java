@@ -404,10 +404,13 @@ public class AutoscalingReplicaIT extends AbstractStatelessPluginIntegTestCase {
         }));
 
         setFeatureFlag(true);
+        // Wait for write indices to scale up AND first generations to stay/become 1 replica
         waitUntil(
             () -> cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream1, 2)).getNumberOfReplicas() == 2
-                && cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream2, 2)).getNumberOfReplicas() == 2,
-            2,
+                && cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream2, 2)).getNumberOfReplicas() == 2
+                && cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream1, 1)).getNumberOfReplicas() == 1
+                && cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream2, 1)).getNumberOfReplicas() == 1,
+            5,
             TimeUnit.SECONDS
         );
         for (String datastream : new String[] { dataStream1, dataStream2 }) {
@@ -419,10 +422,13 @@ public class AutoscalingReplicaIT extends AbstractStatelessPluginIntegTestCase {
         final String dataStream3 = "logs-es3";
         setupDataStream(dataStream3);
         verifyDocs("logs-es3", 400, 1, 2);
+        // Wait for ds3 indices to scale up AND ds1/ds2 first generations to scale down
         waitUntil(
             () -> cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream3, 2)).getNumberOfReplicas() == 2
-                && cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream3, 1)).getNumberOfReplicas() == 2,
-            2,
+                && cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream3, 1)).getNumberOfReplicas() == 2
+                && cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream1, 1)).getNumberOfReplicas() == 1
+                && cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream2, 1)).getNumberOfReplicas() == 1,
+            4,
             TimeUnit.SECONDS
         );
         // all write indices should have 2 replicas now

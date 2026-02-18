@@ -27,7 +27,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     private final NdJsonPageDecoder pageDecoder;
     private boolean endOfFile = false;
     private Page nextPage;
-    private InputStream inputStream;
+    private final InputStream inputStream;
 
     NdJsonPageIterator(StorageObject object, List<String> projectedColumns, int batchSize, BlockFactory blockFactory) throws IOException {
         // FIXME: either read schema ahead of time, of buffer the stream and replay it to avoid opening it twice.

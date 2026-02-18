@@ -647,6 +647,13 @@ public abstract class FieldMapper extends Mapper {
                 }
             }
 
+            void mergeFrom(Builder incoming, MapperMergeContext mergeContext) {
+                for (var entry : incoming.mapperBuilders.entrySet()) {
+                    FieldMapper incomingMapper = entry.getValue().apply(mergeContext.getMapperBuilderContext());
+                    update(incomingMapper, mergeContext);
+                }
+            }
+
             public boolean hasMultiFields() {
                 return mapperBuilders.isEmpty() == false;
             }
@@ -997,6 +1004,10 @@ public abstract class FieldMapper extends Mapper {
         @SuppressWarnings("unchecked")
         void mergeFrom(Parameter<?> other, Conflicts conflicts) {
             mergeValue((T) other.getValue(), conflicts);
+        }
+
+        void freezeValue() {
+            setValue(getValue());
         }
 
         private void mergeValue(T value, Conflicts conflicts) {
@@ -1607,6 +1618,64 @@ public abstract class FieldMapper extends Mapper {
          *         returned by {@link FieldMapper#contentType()} on the built mapper
          */
         public abstract String contentType();
+
+        @Override
+        Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
+            MapperBuilderContext builderContext = mergeContext.getMapperBuilderContext();
+            if (incoming instanceof NestedObjectMapper.Builder) {
+                MapperErrors.throwNestedMappingConflictError(builderContext.buildFullName(incoming.leafName()));
+            } else if (incoming instanceof ObjectMapper.Builder) {
+                MapperErrors.throwObjectMappingConflictError(builderContext.buildFullName(incoming.leafName()));
+            }
+            if (builderContext.getMergeReason() == MapperService.MergeReason.INDEX_TEMPLATE) {
+                return incoming;
+            }
+            if (incoming instanceof FieldMapper.Builder == false) {
+                throw new IllegalArgumentException(
+                    "mapper ["
+                        + builderContext.buildFullName(leafName())
+                        + "] cannot be changed from type ["
+                        + contentType()
+                        + "] to ["
+                        + incoming.getClass().getSimpleName()
+                        + "]"
+                );
+            }
+            FieldMapper.Builder incomingField = (FieldMapper.Builder) incoming;
+            String fullName = builderContext.buildFullName(leafName());
+            if (Objects.equals(this.getClass(), incomingField.getClass()) == false
+                || Objects.equals(contentType(), incomingField.contentType()) == false) {
+                if (builderContext.getMergeReason().isAutoUpdate()) {
+                    return this;
+                }
+                throw new IllegalArgumentException(
+                    "mapper [" + fullName + "] cannot be changed from type [" + contentType() + "] to [" + incomingField.contentType() + "]"
+                );
+            }
+            Conflicts conflicts = new Conflicts(fullName);
+            mergeFromBuilder(incomingField, conflicts, mergeContext);
+            conflicts.check();
+            return this;
+        }
+
+        protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
+            Parameter<?>[] myParams = getParameters();
+            Parameter<?>[] theirParams = incoming.getParameters();
+            // Freeze parameter values before merging to prevent dynamic defaults from
+            // changing mid-merge when earlier parameters are updated (e.g., normalizer
+            // changing affects normalizer_skip_store_original_value's default)
+            for (Parameter<?> param : myParams) {
+                param.freezeValue();
+            }
+            for (int i = 0; i < myParams.length; i++) {
+                myParams[i].mergeFrom(theirParams[i], conflicts);
+            }
+            MapperMergeContext childContext = mergeContext.createChildContext(incoming.leafName(), null);
+            multiFieldsBuilder.mergeFrom(incoming.multiFieldsBuilder, childContext);
+            this.copyTo = incoming.copyTo;
+            this.sourceKeepMode = incoming.sourceKeepMode;
+            validate();
+        }
 
         @Override
         public abstract FieldMapper build(MapperBuilderContext context);

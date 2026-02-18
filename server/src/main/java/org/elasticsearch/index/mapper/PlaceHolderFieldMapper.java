@@ -69,6 +69,13 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
+        protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
+            assert incoming instanceof PlaceHolderFieldMapper.Builder;
+            unknownParams.putAll(((PlaceHolderFieldMapper.Builder) incoming).unknownParams);
+            super.mergeFromBuilder(incoming, conflicts, mergeContext);
+        }
+
+        @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder = super.toXContent(builder, params);
             for (Map.Entry<String, Object> unknownParam : unknownParams.entrySet()) {

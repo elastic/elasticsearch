@@ -11,132 +11,175 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
-public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSerializingTestCase<Failure> {
+import java.io.IOException;
+import java.util.Objects;
+
+public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSerializingTestCase<
+    BulkItemResponseFailureWireSerializingTests.FailureWrapper> {
     @Override
-    protected Failure createTestInstance() {
-        return randomFailure();
+    protected FailureWrapper createTestInstance() {
+        return new FailureWrapper(randomFailure());
     }
 
     @Override
-    protected Writeable.Reader<Failure> instanceReader() {
-        return Failure::new;
+    protected Writeable.Reader<FailureWrapper> instanceReader() {
+        return FailureWrapper::new;
+    }
+
+    @Override
+    protected FailureWrapper mutateInstance(FailureWrapper instance) {
+        Failure failure = instance.failure();
+        int fieldToMutate = randomIntBetween(0, 3);
+        Failure mutated = switch (fieldToMutate) {
+            case 0 -> randomFailure(
+                randomValueOtherThan(failure.getIndex(), () -> randomAlphaOfLengthBetween(3, 10)),
+                failure.getId(),
+                failure.getCause(),
+                failure.getSeqNo(),
+                failure.getTerm(),
+                failure.isAborted(),
+                failure.getFailureStoreStatus()
+            );
+            case 1 -> randomFailure(
+                failure.getIndex(),
+                randomValueOtherThan(failure.getId(), () -> randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null),
+                failure.getCause(),
+                failure.getSeqNo(),
+                failure.getTerm(),
+                failure.isAborted(),
+                failure.getFailureStoreStatus()
+            );
+            case 2 -> randomFailure(
+                failure.getIndex(),
+                failure.getId(),
+                randomValueOtherThan(failure.getCause(), BulkItemResponseFailureWireSerializingTests::randomException),
+                failure.getSeqNo(),
+                failure.getTerm(),
+                failure.isAborted(),
+                failure.getFailureStoreStatus()
+            );
+            case 3 -> randomFailure(
+                failure.getIndex(),
+                failure.getId(),
+                failure.getCause(),
+                failure.getSeqNo(),
+                failure.getTerm(),
+                failure.isAborted(),
+                randomValueOtherThan(failure.getFailureStoreStatus(), () -> randomFrom(IndexDocFailureStoreStatus.values()))
+            );
+            default -> throw new AssertionError();
+        };
+        return new FailureWrapper(mutated);
     }
 
     /**
-     * Returns a mutated copy of the given {@link BulkItemResponse.Failure}.
+     * Custom equality assertion for wire-serialization testing.
      * <p>
-     * The mutation modifies exactly one field that participates in semantic
-     * equality. Only fields whose values survive public constructor normalization
-     * are mutated (such as {@code index}, {@code id}, {@code cause}, and
-     * {@code failureStoreStatus}).
+     * {@link AbstractWireSerializingTestCase} requires a semantic comparison between
+     * the expected and actual instances after a serialization round-trip. For
+     * {@link BulkItemResponse.Failure}, default equality semantics are insufficient
+     * because it contains an {@link Exception}, whose equality is based on object
+     * identity rather than logical content.
      * <p>
-     * Other fields (for example {@code seqNo}, {@code term}, and {@code aborted})
-     * are intentionally not mutated here because their values may be implicitly
-     * reset or derived by the available public constructors, which can result in
-     * mutations that are semantically equivalent to the original instance. Such
-     * mutations would violate the expectations of {@code testEqualsAndHashcode}.
-     * <p>
-     * This guarantees that the mutated instance is always unequal to the original
-     * according to {@link Object#equals(Object)}, while still modifying exactly one
-     * logical field per invocation.
+     * This method performs a field-by-field comparison of the meaningful state,
+     * including exception class and message (but not identity), to ensure that
+     * wire serialization faithfully preserves the observable failure information
+     * without requiring {@link BulkItemResponse.Failure} to implement or change
+     * {@code equals}/{@code hashCode()} semantics in production code.
      */
     @Override
-    protected Failure mutateInstance(Failure instance) {
-        int fieldToMutate = randomIntBetween(0, 3);
-        switch (fieldToMutate) {
-            case 0 -> {
-                String newIndex = randomValueOtherThan(instance.getIndex(), () -> randomAlphaOfLengthBetween(3, 10));
-                return randomFailure(
-                    newIndex,
-                    instance.getId(),
-                    instance.getCause(),
-                    instance.getSeqNo(),
-                    instance.getTerm(),
-                    instance.isAborted(),
-                    instance.getFailureStoreStatus()
-                );
-            }
-            case 1 -> {
-                String newId = randomValueOtherThan(instance.getId(), () -> randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null);
-                return randomFailure(
-                    instance.getIndex(),
-                    newId,
-                    instance.getCause(),
-                    instance.getSeqNo(),
-                    instance.getTerm(),
-                    instance.isAborted(),
-                    instance.getFailureStoreStatus()
-                );
-            }
-            case 2 -> {
-                Exception newCause = randomValueOtherThan(
-                    instance.getCause(),
-                    BulkItemResponseFailureWireSerializingTests::randomException
-                );
-                return randomFailure(
-                    instance.getIndex(),
-                    instance.getId(),
-                    newCause,
-                    instance.getSeqNo(),
-                    instance.getTerm(),
-                    instance.isAborted(),
-                    instance.getFailureStoreStatus()
-                );
-            }
-            case 3 -> {
-                IndexDocFailureStoreStatus newStatus = randomValueOtherThan(
-                    instance.getFailureStoreStatus(),
-                    () -> randomFrom(IndexDocFailureStoreStatus.values())
-                );
-                return randomFailure(
-                    instance.getIndex(),
-                    instance.getId(),
-                    instance.getCause(),
-                    instance.getSeqNo(),
-                    instance.getTerm(),
-                    instance.isAborted(),
-                    newStatus
-                );
-            }
-            default -> throw new AssertionError();
+    protected void assertEqualInstances(FailureWrapper expected, FailureWrapper actual) {
+        Failure e = expected.failure();
+        Failure a = actual.failure();
+        assertEquals(e.getIndex(), a.getIndex());
+        assertEquals(e.getId(), a.getId());
+        assertEquals(e.getSeqNo(), a.getSeqNo());
+        assertEquals(e.getTerm(), a.getTerm());
+        assertEquals(e.isAborted(), a.isAborted());
+        assertEquals(e.getFailureStoreStatus(), a.getFailureStoreStatus());
+        assertEquals(e.getStatus(), a.getStatus());
+        // Exception comparison: semantic, not identity
+        assertEquals(e.getCause().getClass(), a.getCause().getClass());
+        assertEquals(e.getCause().getMessage(), a.getCause().getMessage());
+    }
+
+    /**
+     * Wrapper around {@link BulkItemResponse.Failure} used solely for wire-serialization testing.
+     * <p>
+     * {@link AbstractWireSerializingTestCase} relies on {@link Object#equals(Object)} and
+     * {@link Object#hashCode()} to verify that instances are preserved across serialization.
+     * However, {@link BulkItemResponse.Failure} does not implement semantic equality suitable
+     * for this purpose, particularly because it contains an {@link Exception} whose equality
+     * is based on object identity rather than type and message.
+     * <p>
+     * This wrapper provides a stable, semantic {@code equals}/{@code hashCode} implementation
+     * that compares the meaningful fields of {@link BulkItemResponse.Failure}, including
+     * exception class and message, allowing reliable round-trip wire serialization testing
+     * without changing production equality semantics.
+     */
+    static final class FailureWrapper implements Writeable {
+        private final Failure failure;
+
+        FailureWrapper(Failure failure) {
+            this.failure = failure;
+        }
+
+        FailureWrapper(StreamInput in) throws IOException {
+            this.failure = new Failure(in);
+        }
+
+        Failure failure() {
+            return failure;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            failure.writeTo(out);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            FailureWrapper that = (FailureWrapper) o;
+            return failuresEqual(failure, that.failure);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(
+                failure.getIndex(),
+                failure.getId(),
+                failure.getStatus(),
+                failure.getSeqNo(),
+                failure.getTerm(),
+                failure.isAborted(),
+                failure.getFailureStoreStatus(),
+                failure.getCause().getClass(),
+                failure.getCause().getMessage()
+            );
+        }
+
+        private static boolean failuresEqual(Failure a, Failure b) {
+            return Objects.equals(a.getIndex(), b.getIndex())
+                && Objects.equals(a.getId(), b.getId())
+                && a.getSeqNo() == b.getSeqNo()
+                && a.getTerm() == b.getTerm()
+                && a.isAborted() == b.isAborted()
+                && a.getStatus() == b.getStatus()
+                && a.getFailureStoreStatus() == b.getFailureStoreStatus()
+                && a.getCause().getClass().equals(b.getCause().getClass())
+                && Objects.equals(a.getCause().getMessage(), b.getCause().getMessage());
         }
     }
 
-    /**
-     * Asserts semantic equality between two {@link BulkItemResponse.Failure} instances.
-     *
-     * <p>
-     * {@link BulkItemResponse.Failure} contains an {@link Exception} which is
-     * re-created during wire deserialization, so the original and deserialized
-     * instances cannot be compared using object identity.
-     * </p>
-     *
-     * <p>
-     * This method compares all wire-relevant fields explicitly and compares the
-     * failure cause by exception type and message only, which is sufficient to
-     * verify correct wire serialization while avoiding brittle identity-based
-     * comparisons.
-     * </p>
-     */
-    @Override
-    protected void assertEqualInstances(Failure expected, Failure actual) {
-        assertEquals(expected.getIndex(), actual.getIndex());
-        assertEquals(expected.getId(), actual.getId());
-        assertEquals(expected.getSeqNo(), actual.getSeqNo());
-        assertEquals(expected.getTerm(), actual.getTerm());
-        assertEquals(expected.isAborted(), actual.isAborted());
-        assertEquals(expected.getFailureStoreStatus(), actual.getFailureStoreStatus());
-        assertEquals(expected.getStatus(), actual.getStatus());
-        // Compare exception semantically, not by identity
-        assertEquals(expected.getCause().getClass(), actual.getCause().getClass());
-        assertEquals(expected.getCause().getMessage(), actual.getCause().getMessage());
-    }
-
-    public static Failure randomFailure() {
+    static Failure randomFailure() {
         String index = randomAlphaOfLengthBetween(3, 10);
         String id = randomBoolean() ? randomAlphaOfLengthBetween(3, 10) : null;
         Exception cause = randomException();
@@ -151,7 +194,7 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
         );
     }
 
-    private static Failure randomFailure(
+    static Failure randomFailure(
         String index,
         String id,
         Exception cause,
@@ -174,7 +217,7 @@ public class BulkItemResponseFailureWireSerializingTests extends AbstractWireSer
         return failure;
     }
 
-    public static Exception randomException() {
+    static Exception randomException() {
         return randomFrom(
             new IllegalArgumentException(randomAlphaOfLengthBetween(5, 20)),
             new IllegalStateException(randomAlphaOfLengthBetween(5, 20)),

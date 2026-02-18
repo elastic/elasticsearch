@@ -296,51 +296,6 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
         public String toString() {
             return Strings.toString(this);
         }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            Failure that = (Failure) o;
-            if (seqNo != that.seqNo) {
-                return false;
-            }
-            if (term != that.term) {
-                return false;
-            }
-            if (aborted != that.aborted) {
-                return false;
-            }
-            if (index.equals(that.index) == false) {
-                return false;
-            }
-            if (Objects.equals(id, that.id) == false) {
-                return false;
-            }
-            if (status != that.status) {
-                return false;
-            }
-            if (failureStoreStatus != that.failureStoreStatus) {
-                return false;
-            }
-            // Compare exception semantically, not by identity
-            if (cause == null && that.cause == null) {
-                return true;
-            }
-            if (cause == null || that.cause == null) {
-                return false;
-            }
-            return cause.getClass().equals(that.cause.getClass()) && Objects.equals(cause.getMessage(), that.cause.getMessage());
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(index, id, status, seqNo, term, aborted, failureStoreStatus, cause.getClass(), cause.getMessage());
-        }
     }
 
     private final int id;
@@ -535,34 +490,5 @@ public class BulkItemResponse implements Writeable, ToXContentObject {
             case 4 -> new SimulateIndexResponse(in);
             default -> throw new IllegalArgumentException("Unexpected type [" + type + "]");
         };
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (this == obj) {
-            return true;
-        }
-        if (obj == null || getClass() != obj.getClass()) {
-            return false;
-        }
-        BulkItemResponse other = (BulkItemResponse) obj;
-        if (id != other.getItemId()) {
-            return false;
-        }
-        if (opType != other.opType) {
-            return false;
-        }
-        if (Objects.equals(failure, other.failure) == false) {
-            return false;
-        }
-        return Objects.equals(response, other.response) != false;
-    }
-
-    @Override
-    public int hashCode() {
-        int result = Integer.hashCode(id);
-        result = 31 * result + opType.hashCode();
-        result = 31 * result + (failure != null ? Objects.hashCode(failure) : Objects.hashCode(response));
-        return result;
     }
 }

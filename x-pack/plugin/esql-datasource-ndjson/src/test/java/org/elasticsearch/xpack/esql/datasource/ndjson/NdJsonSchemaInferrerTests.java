@@ -74,6 +74,29 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
     }
 
     /**
+     * Test case: check line ending variations
+     */
+    public void testLineEndingVariations() throws IOException {
+        check(
+            "{\"name\": \"John\", \"age\": 30}\nnot_json\n\n{\"name\": \"Jane\", \"age\": null}",
+            field("name", DataType.KEYWORD),
+            field("age", DataType.INTEGER, true)
+        );
+
+        check(
+            "{\"name\": \"John\", \"age\": 30}\nnot_json\r\r{\"name\": \"Jane\", \"age\": null}",
+            field("name", DataType.KEYWORD),
+            field("age", DataType.INTEGER, true)
+        );
+
+        check(
+            "{\"name\": \"John\", \"age\": 30}\nnot_json\r\n\n\r{\"name\": \"Jane\", \"age\": null}",
+            field("name", DataType.KEYWORD),
+            field("age", DataType.INTEGER, true)
+        );
+    }
+
+    /**
      * Test case: Verifies the inference correctly handles arrays in JSON objects.
      */
     public void testInferSchemaForJsonWithArrays() throws IOException {

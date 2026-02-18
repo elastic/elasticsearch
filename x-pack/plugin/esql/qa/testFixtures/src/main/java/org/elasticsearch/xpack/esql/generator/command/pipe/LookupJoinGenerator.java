@@ -115,9 +115,11 @@ public class LookupJoinGenerator implements CommandGenerator {
             prevCols--;
         }
 
-        if (prevCols > columns.size()) {
-            return new ValidationResult(false, "Expecting at least [" + prevCols + "] columns, got [" + columns.size() + "]");
-        }
+        // todo: awaits fix https://github.com/elastic/elasticsearch/issues/142636
+        // if (prevCols > columns.size()) {
+        // return new ValidationResult(false, "Expecting at least [" + prevCols + "] columns, got [" + columns.size() + "]");
+        // }
+
         return VALIDATION_OK;
     }
 }

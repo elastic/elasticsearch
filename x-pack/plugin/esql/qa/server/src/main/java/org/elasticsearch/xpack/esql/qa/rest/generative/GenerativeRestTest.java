@@ -180,7 +180,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     final QueryExecuted result = previousResult == null
                         ? execute(command, 0)
                         : execute(previousResult.query() + command, previousResult.depth());
-                    previousResult = result;
 
                     final boolean hasException = result.exception() != null;
                     if (hasException || checkResults(List.of(), generator, current, previousResult, result).success() == false) {
@@ -193,6 +192,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                         continueExecuting = true;
                         currentSchema = result.outputSchema();
                     }
+                    previousResult = result;
                 }
 
                 @Override

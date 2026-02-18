@@ -123,6 +123,7 @@ abstract class AbstractGradleFuncTest extends Specification {
                                 )
                                 .withProjectDir(projectDir)
                                 .withPluginClasspath()
+                                .withTestKitDir(gradleUserHome)
                                 .forwardOutput()
             ), configurationCacheCompatible,
                 buildApiRestrictionsDisabled)

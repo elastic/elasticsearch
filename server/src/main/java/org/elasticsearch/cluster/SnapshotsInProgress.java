@@ -1275,7 +1275,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             return Entry.createClone(
                 snapshot,
-                completed(clonesBuilder.values()) ? (hasFailures(clonesBuilder) ? State.FAILED : State.SUCCESS) : State.ABORTED,
+                // The clone is being deleted, simply mark it as FAILED if all shard clones are completed so that the entry
+                // gets deleted without the need for finalization.
+                completed(clonesBuilder.values()) ? State.FAILED : State.ABORTED,
                 indices,
                 startTime,
                 repositoryStateId,

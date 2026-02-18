@@ -137,6 +137,10 @@ public class NumberFieldMapper extends FieldMapper {
         private final ScriptCompiler scriptCompiler;
         private final NumberType type;
 
+        public NumberType type() {
+            return type;
+        }
+
         private boolean allowMultipleValues = true;
         private final IndexSettings indexSettings;
 

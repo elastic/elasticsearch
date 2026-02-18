@@ -288,26 +288,13 @@ public final class DocumentParser {
             return null;
         }
         RootObjectMapper.Builder rootBuilder = context.updateRoot();
-        context.getDynamicMappers().forEach(mapper -> rootBuilder.addDynamic(mapper.fullPath(), null, mapperToBuilder(mapper), context));
+        context.forEachDynamicMapper((fullPath, builder) -> rootBuilder.addDynamic(fullPath, null, builder, context));
 
         for (RuntimeField runtimeField : context.getDynamicRuntimeFields()) {
             rootBuilder.addRuntimeField(runtimeField);
         }
         RootObjectMapper root = rootBuilder.build(MapperBuilderContext.root(context.mappingLookup().isSourceSynthetic(), false));
         return context.mappingLookup().getMapping().mappingUpdate(root);
-    }
-
-    private static Mapper.Builder mapperToBuilder(Mapper mapper) {
-        if (mapper instanceof ObjectMapper objectMapper) {
-            return objectMapper.toBuilder();
-        }
-        if (mapper instanceof FieldMapper fieldMapper) {
-            Mapper.Builder mergeBuilder = fieldMapper.getMergeBuilder();
-            if (mergeBuilder != null) {
-                return mergeBuilder;
-            }
-        }
-        return ObjectMapper.Builder.wrapMapper(mapper);
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {
@@ -822,16 +809,16 @@ public final class DocumentParser {
         if (context.indexSettings().getIndexVersionCreated().onOrAfter(DYNAMICALLY_MAP_DENSE_VECTORS_INDEX_VERSION)) {
             final MapperBuilderContext builderContext = context.createDynamicMapperBuilderContext();
             final String fullFieldName = builderContext.buildFullName(fieldName);
-            final List<Mapper> mappers = context.getDynamicMappers(fullFieldName);
-            if (mappers == null
+            final List<Mapper.Builder> builders = context.getDynamicMappers(fullFieldName);
+            if (builders == null
                 || context.isFieldAppliedFromTemplate(fullFieldName)
                 || context.isCopyToDestinationField(fullFieldName)
-                || mappers.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
-                || mappers.size() > MAX_DIMS_COUNT
-                // Anything that is NOT a number or anything that IS a number but not mapped to `float` should NOT be mapped to dense_vector
-                || mappers.stream()
+                || builders.size() < MIN_DIMS_FOR_DYNAMIC_FLOAT_MAPPING
+                || builders.size() > MAX_DIMS_COUNT
+                || builders.stream()
                     .anyMatch(
-                        m -> m instanceof NumberFieldMapper == false || ((NumberFieldMapper) m).type() != NumberFieldMapper.NumberType.FLOAT
+                        b -> b instanceof NumberFieldMapper.Builder == false
+                            || ((NumberFieldMapper.Builder) b).type() != NumberFieldMapper.NumberType.FLOAT
                     )) {
                 return;
             }
@@ -842,7 +829,7 @@ public final class DocumentParser {
                 IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings()),
                 context.getVectorFormatProviders()
             );
-            builder.dimensions(mappers.size());
+            builder.dimensions(builders.size());
             DenseVectorFieldMapper denseVectorFieldMapper = builder.build(builderContext);
             context.updateDynamicMappers(fullFieldName, List.of(denseVectorFieldMapper));
         }

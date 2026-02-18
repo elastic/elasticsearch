@@ -35,6 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 
 /**
  * Context used when parsing incoming documents. Holds everything that is needed to parse a document as well as
@@ -161,7 +162,7 @@ public abstract class DocumentParserContext {
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
     private Scope currentScope;
 
-    private final Map<String, List<Mapper>> dynamicMappers;
+    private final Map<String, List<Mapper.Builder>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
@@ -193,7 +194,7 @@ public abstract class DocumentParserContext {
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
         Scope currentScope,
-        Map<String, List<Mapper>> dynamicMappers,
+        Map<String, List<Mapper.Builder>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
         String id,
@@ -596,8 +597,21 @@ public abstract class DocumentParserContext {
         // dynamically mapped objects when the incoming document defines no sub-fields in them:
         // 1) by default, they would be empty containers in the mappings, is it then important to map them?
         // 2) they can be the result of applying a dynamic template which may define sub-fields or set dynamic, enabled or subobjects.
-        dynamicMappers.computeIfAbsent(mapper.fullPath(), k -> new ArrayList<>()).add(mapper);
+        dynamicMappers.computeIfAbsent(mapper.fullPath(), k -> new ArrayList<>()).add(mapperToBuilder(mapper));
         return true;
+    }
+
+    private static Mapper.Builder mapperToBuilder(Mapper mapper) {
+        if (mapper instanceof ObjectMapper objectMapper) {
+            return objectMapper.toBuilder();
+        }
+        if (mapper instanceof FieldMapper fieldMapper) {
+            Mapper.Builder mergeBuilder = fieldMapper.getMergeBuilder();
+            if (mergeBuilder != null) {
+                return mergeBuilder;
+            }
+        }
+        return ObjectMapper.Builder.wrapMapper(mapper);
     }
 
     /*
@@ -633,23 +647,34 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Get dynamic mappers created as a result of parsing an incoming document. Responsible for exposing all the newly created
+     * Get dynamic mapper builders created as a result of parsing an incoming document. Responsible for exposing all the newly created
      * fields that need to be merged into the existing mappings. Used to create the required mapping update at the end of document parsing.
-     * Consists of a all {@link Mapper}s that will need to be added to their respective parent {@link ObjectMapper}s in order
+     * Consists of all {@link Mapper.Builder}s that will need to be added to their respective parent {@link ObjectMapper}s in order
      * to become part of the resulting dynamic mapping update.
      */
-    public final List<Mapper> getDynamicMappers() {
+    public final List<Mapper.Builder> getDynamicMappers() {
         return dynamicMappers.values().stream().flatMap(List::stream).toList();
     }
 
     /**
-     * Returns the dynamic Consists of a flat set of {@link Mapper}s associated with a field name that will need to be added to their
+     * Returns the dynamic mapper builders associated with a field name that will need to be added to their
      * respective parent {@link ObjectMapper}s in order to become part of the resulting dynamic mapping update.
      * @param fieldName Full field name with dot-notation.
-     * @return List of Mappers or null
+     * @return List of Mapper.Builders or null
      */
-    public final List<Mapper> getDynamicMappers(String fieldName) {
+    public final List<Mapper.Builder> getDynamicMappers(String fieldName) {
         return dynamicMappers.get(fieldName);
+    }
+
+    /**
+     * Iterates over all dynamic mapper builders, providing the full field path alongside each builder.
+     */
+    public final void forEachDynamicMapper(BiConsumer<String, Mapper.Builder> consumer) {
+        for (var entry : dynamicMappers.entrySet()) {
+            for (var builder : entry.getValue()) {
+                consumer.accept(entry.getKey(), builder);
+            }
+        }
     }
 
     public void updateDynamicMappers(String name, List<Mapper> mappers) {

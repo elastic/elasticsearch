@@ -531,7 +531,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 );
                 indexResponse.setShardInfo(org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo.EMPTY);
                 responses[itemIndex] = BulkItemResponse.success(item.id(), item.request().opType(), indexResponse);
-                locationToSync = TransportWriteAction.locationToSync(locationToSync, result.getTranslogLocation());
+                // Batch results share the same Translog.Location from the single batch translog write,
+                // so we cannot use TransportWriteAction.locationToSync() which asserts strictly increasing locations.
+                if (result.getTranslogLocation() != null) {
+                    locationToSync = result.getTranslogLocation();
+                }
             } else {
                 responses[itemIndex] = BulkItemResponse.failure(
                     item.id(),

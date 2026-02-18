@@ -200,6 +200,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                 List.of(
                     "ai21",
                     "azureopenai",
+                    "fireworksai",
                     "llama",
                     "deepseek",
                     "elastic",

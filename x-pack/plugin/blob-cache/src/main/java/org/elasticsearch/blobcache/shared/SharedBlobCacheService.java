@@ -263,6 +263,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> SHARED_CACHE_INITIAL_DECAYS_SETTING = Setting.intSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "initial_decays",
+        4,
+        0,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<TimeValue> SHARED_CACHE_MIN_TIME_DELTA_SETTING = Setting.timeSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "min_time_delta",
         TimeValue.timeValueSeconds(60L),                        // default
@@ -1429,9 +1436,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (readFuture.isDone() == false) {
                 long bytes = fileRegion.tracker.getAbsentBytesWithin(regionRangeToRead);
                 if (bytes > 0) {
-                    try (var dummy = cacheMissMetricHandler.record(bytes)) {
-                        return readFuture.get();
-                    }
+                    return recordWait(bytes, readFuture);
                 }
             }
             return readFuture.get();
@@ -1485,14 +1490,25 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     )
                     .sum();
                 if (bytes > 0) {
-                    try (var dummy = cacheMissMetricHandler.record(bytes)) {
-                        readsComplete.get();
-                    }
+                    recordWait(bytes, readsComplete);
                 }
 
             }
             readsComplete.get();
             return bytesRead.get();
+        }
+
+        /**
+         * Record a wait with the give number of bytes, with duration of the wait for the future given. This method will
+         * wait for the `future` to complete.
+         * @param bytes The bytes to record
+         * @param future the future to wait for.
+         * @return the result of the future.get()
+         */
+        public <T> T recordWait(long bytes, PlainActionFuture<T> future) throws InterruptedException, ExecutionException {
+            try (var dummy = cacheMissMetricHandler.record(bytes)) {
+                return future.get();
+            }
         }
 
         private RangeMissingHandler writerWithOffset(RangeMissingHandler writer, CacheFileRegion<KeyType> fileRegion, int writeOffset) {
@@ -1748,12 +1764,21 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private final DecayAndNewEpochTask decayAndNewEpochTask;
 
         private final AtomicLong epoch = new AtomicLong();
+        private final AtomicLong initialFreeRegions = new AtomicLong();
+        private final long initialDecayPollCount;
 
         @SuppressWarnings("unchecked")
         LFUCache(Settings settings) {
             this.maxFreq = SHARED_CACHE_MAX_FREQ_SETTING.get(settings);
             freqs = (LFUCacheEntry[]) Array.newInstance(LFUCacheEntry.class, maxFreq);
             decayAndNewEpochTask = new DecayAndNewEpochTask(threadPool.generic());
+            int initialDecays = SHARED_CACHE_INITIAL_DECAYS_SETTING.get(settings);
+            if (initialDecays > 0) {
+                initialDecayPollCount = Math.max(numRegions / initialDecays, 1);
+                initialFreeRegions.set(numRegions);
+            } else {
+                initialDecayPollCount = 0;
+            }
         }
 
         @Override
@@ -1895,7 +1920,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert entry.freq == 1;
             assert entry.prev == null;
             assert entry.next == null;
-            final SharedBytes.IO freeSlot = freeRegions.poll();
+            final SharedBytes.IO freeSlot = pollFreeRegionAndMaybeDecay();
             if (freeSlot != null) {
                 // no need to evict an item, just add
                 assignToSlot(entry, freeSlot);
@@ -1918,6 +1943,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
 
             return entry;
+        }
+
+        private SharedBytes.IO pollFreeRegionAndMaybeDecay() {
+            if (initialFreeRegions.getOpaque() > 0) {
+                if (initialFreeRegions.decrementAndGet() % initialDecayPollCount == 0) {
+                    maybeScheduleDecayAndNewEpoch(epoch.get());
+                }
+            }
+            return freeRegions.poll();
         }
 
         private void assignToSlot(LFUCacheEntry entry, SharedBytes.IO freeSlot) {

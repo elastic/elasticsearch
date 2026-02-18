@@ -27,7 +27,9 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
@@ -38,7 +40,6 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -117,8 +118,7 @@ public class ElasticInferenceService extends SenderService {
      */
     private static final EnumSet<TaskType> CHUNKING_TASK_TYPES = EnumSet.of(SPARSE_EMBEDDING, TEXT_EMBEDDING, EMBEDDING);
 
-    private final Map<TaskType, ModelCreator<? extends ElasticInferenceServiceModel>> modelCreators;
-
+    private final Map<TaskType, ElasticInferenceServiceModelCreator<? extends ElasticInferenceServiceModel>> modelCreators;
     private final CCMAuthenticationApplierFactory ccmAuthenticationApplierFactory;
     private ElasticInferenceServiceActionCreator actionCreator;
 
@@ -344,10 +344,9 @@ public class ElasticInferenceService extends SenderService {
                 inferenceEntityId,
                 taskType,
                 serviceSettingsMap,
-                taskSettingsMap,
                 chunkingSettings,
-                serviceSettingsMap,
-                ConfigurationParseContext.REQUEST
+                ConfigurationParseContext.REQUEST,
+                null
             );
 
             throwIfNotEmptyMap(config, NAME);
@@ -392,21 +391,43 @@ public class ElasticInferenceService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        ConfigurationParseContext context
+        ConfigurationParseContext context,
+        @Nullable EndpointMetadata endpointMetadata
     ) {
 
         return retrieveModelCreatorFromMapOrThrow(modelCreators, inferenceEntityId, taskType, NAME, context).createFromMaps(
             inferenceEntityId,
             taskType,
-            NAME,
             serviceSettings,
-            taskSettings,
             chunkingSettings,
-            secretSettings,
-            context
+            context,
+            endpointMetadata
+        );
+    }
+
+    @Override
+    public Model parsePersistedConfigWithSecrets(UnparsedModel unparsedModel) {
+        var config = unparsedModel.settings();
+        var secrets = unparsedModel.secrets();
+        var taskType = unparsedModel.taskType();
+
+        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
+        // These aren't used by EIS endpoints so we'll remove them to avoid potential validation issues
+        removeFromMap(config, ModelConfigurations.TASK_SETTINGS);
+        removeFromMap(secrets, ModelSecrets.SECRET_SETTINGS);
+
+        ChunkingSettings chunkingSettings = null;
+        if (CHUNKING_TASK_TYPES.contains(taskType)) {
+            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
+        }
+
+        return createModelFromPersistent(
+            unparsedModel.inferenceEntityId(),
+            taskType,
+            serviceSettingsMap,
+            chunkingSettings,
+            unparsedModel.endpointMetadata()
         );
     }
 
@@ -417,23 +438,9 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> config,
         Map<String, Object> secrets
     ) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-        Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (CHUNKING_TASK_TYPES.contains(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            secretSettingsMap
-        );
+        // Once the inference api logic is switched to using the UnparsedModel variants of methods, this method can simply throw
+        // an exception. Then once all services use the UnparsedModel we can remove this method entirely.
+        return parsePersistedConfigWithSecrets(new UnparsedModel(inferenceEntityId, taskType, NAME, config, secrets));
     }
 
     @Override
@@ -449,15 +456,9 @@ public class ElasticInferenceService extends SenderService {
 
     @Override
     public Model parsePersistedConfig(String inferenceEntityId, TaskType taskType, Map<String, Object> config) {
-        Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
-
-        ChunkingSettings chunkingSettings = null;
-        if (CHUNKING_TASK_TYPES.contains(taskType)) {
-            chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMap(config, ModelConfigurations.CHUNKING_SETTINGS));
-        }
-
-        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, null);
+        // Once the inference api logic is switched to using the UnparsedModel variants of methods, this method can simply throw
+        // an exception. Then once all services use the UnparsedModel we can remove this method entirely.
+        return parsePersistedConfigWithSecrets(inferenceEntityId, taskType, config, new HashMap<>());
     }
 
     @Override
@@ -469,18 +470,16 @@ public class ElasticInferenceService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings
+        @Nullable EndpointMetadata endpointMetadata
     ) {
         return createModel(
             inferenceEntityId,
             taskType,
             serviceSettings,
-            taskSettings,
             chunkingSettings,
-            secretSettings,
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.PERSISTENT,
+            endpointMetadata
         );
     }
 

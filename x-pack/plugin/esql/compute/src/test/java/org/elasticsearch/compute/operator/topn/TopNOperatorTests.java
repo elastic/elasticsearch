@@ -102,6 +102,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class TopNOperatorTests extends OperatorTestCase {
     private final int pageSize = randomPageSize();
@@ -787,19 +788,21 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     private void testCompare(Page page, ElementType elementType, TopNEncoder encoder) {
         Block nullBlock = TestBlockFactory.getNonBreakingInstance().newConstantNullBlock(1);
-        Page nullPage = new Page(new Block[] { nullBlock, nullBlock, nullBlock, nullBlock, nullBlock });
+        Page nullPage = new Page(nullBlock, nullBlock, nullBlock, nullBlock, nullBlock);
 
         for (int b = 0; b < page.getBlockCount(); b++) {
             // Non-null identity
             for (int p = 0; p < page.getPositionCount(); p++) {
                 TopNOperator.Row row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), page, p);
-                assertEquals(0, TopNOperator.compareRows(row, row));
+                assertThat(row, equalTo(row));
+                assertThat(row.compareTo(row), equalTo(0));
             }
 
             // Null identity
             for (int p = 0; p < page.getPositionCount(); p++) {
                 TopNOperator.Row row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), nullPage, p);
-                assertEquals(0, TopNOperator.compareRows(row, row));
+                assertThat(row, equalTo(row));
+                assertThat(row.compareTo(row), equalTo(0));
             }
 
             // nulls first
@@ -807,8 +810,9 @@ public class TopNOperatorTests extends OperatorTestCase {
                 boolean asc = randomBoolean();
                 TopNOperator.Row nonNullRow = row(elementType, encoder, b, asc, true, page, p);
                 TopNOperator.Row nullRow = row(elementType, encoder, b, asc, true, nullPage, p);
-                assertEquals(-1, TopNOperator.compareRows(nonNullRow, nullRow));
-                assertEquals(1, TopNOperator.compareRows(nullRow, nonNullRow));
+                assertThat(nonNullRow, not(equalTo(nullRow)));
+                assertThat(nonNullRow, lessThan(nullRow));
+                assertThat(nullRow, greaterThan(nonNullRow));
             }
 
             // nulls last
@@ -816,8 +820,9 @@ public class TopNOperatorTests extends OperatorTestCase {
                 boolean asc = randomBoolean();
                 TopNOperator.Row nonNullRow = row(elementType, encoder, b, asc, false, page, p);
                 TopNOperator.Row nullRow = row(elementType, encoder, b, asc, false, nullPage, p);
-                assertEquals(1, TopNOperator.compareRows(nonNullRow, nullRow));
-                assertEquals(-1, TopNOperator.compareRows(nullRow, nonNullRow));
+                assertThat(nonNullRow, not(equalTo(nullRow)));
+                assertThat(nonNullRow, greaterThan(nullRow));
+                assertThat(nullRow, lessThan(nonNullRow));
             }
 
             // ascending
@@ -825,16 +830,18 @@ public class TopNOperatorTests extends OperatorTestCase {
                 boolean nullsFirst = randomBoolean();
                 TopNOperator.Row r1 = row(elementType, encoder, b, true, nullsFirst, page, 0);
                 TopNOperator.Row r2 = row(elementType, encoder, b, true, nullsFirst, page, 1);
-                assertThat(TopNOperator.compareRows(r1, r2), greaterThan(0));
-                assertThat(TopNOperator.compareRows(r2, r1), lessThan(0));
+                assertThat(r1, not(equalTo(r2)));
+                assertThat(r1, greaterThan(r2));
+                assertThat(r2, lessThan(r1));
             }
             // descending
             {
                 boolean nullsFirst = randomBoolean();
                 TopNOperator.Row r1 = row(elementType, encoder, b, false, nullsFirst, page, 0);
                 TopNOperator.Row r2 = row(elementType, encoder, b, false, nullsFirst, page, 1);
-                assertThat(TopNOperator.compareRows(r1, r2), lessThan(0));
-                assertThat(TopNOperator.compareRows(r2, r1), greaterThan(0));
+                assertThat(r1, not(equalTo(r2)));
+                assertThat(r1, lessThan(r2));
+                assertThat(r2, greaterThan(r1));
             }
         }
         page.releaseBlocks();
@@ -850,13 +857,16 @@ public class TopNOperatorTests extends OperatorTestCase {
         int position
     ) {
         final var sortOrders = List.of(new TopNOperator.SortOrder(channel, asc, nullsFirst));
+        boolean[] channelInKey = new boolean[page.getBlockCount()];
+        channelInKey[channel] = true;
         TopNOperator.RowFiller rf = new TopNOperator.RowFiller(
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> elementType).toList(),
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> encoder).toList(),
             sortOrders,
+            channelInKey,
             page
         );
-        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders, 0, 0);
+        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), 0, 0);
         rf.writeKey(position, row);
         rf.writeValues(position, row);
         return row;
@@ -1163,15 +1173,15 @@ public class TopNOperatorTests extends OperatorTestCase {
         TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
             10,
             List.of(BYTES_REF, BYTES_REF),
-            List.of(UTF8, new FixedLengthTopNEncoder(fixedLength)),
-            List.of(new TopNOperator.SortOrder(1, false, false), new TopNOperator.SortOrder(3, false, true)),
+            List.of(UTF8, new FixedLengthAscTopNEncoder(fixedLength)),
+            List.of(new TopNOperator.SortOrder(0, false, false), new TopNOperator.SortOrder(1, false, true)),
             randomPageSize(),
             InputOrdering.NOT_SORTED
         );
-        String sorts = List.of("SortOrder[channel=1, asc=false, nullsFirst=false]", "SortOrder[channel=3, asc=false, nullsFirst=true]")
+        String sorts = List.of("SortOrder[channel=0, asc=false, nullsFirst=false]", "SortOrder[channel=1, asc=false, nullsFirst=true]")
             .stream()
             .collect(Collectors.joining(", "));
-        String tail = ", elementTypes=[BYTES_REF, BYTES_REF], encoders=[UTF8TopNEncoder, FixedLengthTopNEncoder["
+        String tail = ", elementTypes=[BYTES_REF, BYTES_REF], encoders=[Utf8Asc, FixedLengthAsc["
             + fixedLength
             + "]], sortOrders=["
             + sorts
@@ -1919,10 +1929,10 @@ public class TopNOperatorTests extends OperatorTestCase {
             block.decRef();
             op.addInput(new Page(blocks));
 
-            // 105 are from the objects
+            // 94 are from the objects
             // 1 is for the min-heap itself
             // -1 IF we're sorting ascending. We encode one less value.
-            assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 105L : 106L));
+            assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 94L : 95L));
         }
     }
 

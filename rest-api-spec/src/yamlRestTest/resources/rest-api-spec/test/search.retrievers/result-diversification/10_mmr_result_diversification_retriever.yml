@@ -118,22 +118,22 @@ setup:
         index: test-result-diversification-index-other
         refresh: true
         body: |
-          {"index":{}}
-          {"id": 12, "textbody": "first text other", "textvector": [0.4, 0.2, 0.4, 0.4], "keywordfield": "test1"}
-          {"index":{}}
-          {"id": 23, "textbody": "second text other", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2"}
-          {"index":{}}
-          {"id": 14, "textbody": "second text duplicate other", "textvector": [0.4, 0.2, 0.3, 0.3], "keywordfield": "test2_dup"}
-          {"index":{}}
-          {"id": 15, "textbody": "third text other", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3"}
-          {"index":{}}
-          {"id": 16, "textbody": "third text duplicate other", "textvector": [0.4, 0.1, 0.3, 0.3], "keywordfield": "test3_dup"}
-          {"index":{}}
-          {"id": 17, "textbody": "fourth text other", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test4"}
-          {"index":{}}
-          {"id": 18, "textbody": "fifth text other", "textvector": [0.1, 0.9, 0.5, 0.9], "keywordfield": "test5"}
-          {"index":{}}
-          {"id": 19, "textbody": "sixth text other", "textvector": [0.05, 0.05, 0.05, 0.05], "keywordfield": "test6"}
+          { "index": { } }
+          { "id": 12, "textbody": "first text other", "textvector": [ 0.14, 0.5, 0.49, 0.36 ], "keywordfield": "test1" }
+          { "index": { } }
+          { "id": 23, "textbody": "second text other", "textvector": [ 0.63, 0.63, 0.51, 0.07 ], "keywordfield": "test2" }
+          { "index": { } }
+          { "id": 14, "textbody": "second text duplicate other", "textvector": [ 0.63, 0.63, 0.51, 0.07 ], "keywordfield": "test2_dup" }
+          { "index": { } }
+          { "id": 15, "textbody": "third text other", "textvector": [ 0.3, 0.24, 0.97, 0.82 ], "keywordfield": "test3" }
+          { "index": { } }
+          { "id": 16, "textbody": "third text duplicate other", "textvector": [ 0.3, 0.24, 0.97, 0.82 ], "keywordfield": "test3_dup" }
+          { "index": { } }
+          { "id": 17, "textbody": "fourth text other", "textvector": [ 0.88, 0.82, 0.96, 0.06 ], "keywordfield": "test4" }
+          { "index": { } }
+          { "id": 18, "textbody": "fifth text other", "textvector": [ 0.36, 0.03, 0.1, 0.62 ], "keywordfield": "test5" }
+          { "index": { } }
+          { "id": 19, "textbody": "sixth text other", "textvector": [ 0.19, 0.44, 0.68, 0.35 ], "keywordfield": "test6" }
 
   - do:
       headers:
@@ -442,25 +442,24 @@ teardown:
         index: "test-result-diversification-index*"
         body:
           retriever:
-            standard:
-              query:
-                match_all: { }
-              sort:
-                id:
-                  order: asc
+            knn:
+              field: "textvector"
+              query_vector: [ 0.5, 0.2, 0.4, 0.4 ]
+              k: 10
+              num_candidates: 10
 
-  - match: { hits.total.value: 19 }
+  - match: { hits.total.value: 10 }
   - length: { hits.hits: 10 }
-  - match: { hits.hits.0._source.textbody: "first text" }
-  - match: { hits.hits.1._source.textbody: "second text" }
-  - match: { hits.hits.2._source.textbody: "second text duplicate" }
-  - match: { hits.hits.3._source.textbody: "third text" }
-  - match: { hits.hits.4._source.textbody: "third text duplicate" }
-  - match: { hits.hits.5._source.textbody: "fourth text" }
-  - match: { hits.hits.6._source.textbody: "fifth text" }
-  - match: { hits.hits.7._source.textbody: "sixth text" }
-  - match: { hits.hits.8._source.textbody: "seventh text" }
-  - match: { hits.hits.9._source.textbody: "eighth text" }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "second text duplicate" }
+  - match: { hits.hits.2._source.textbody: "third text" }
+  - match: { hits.hits.3._source.textbody: "third text duplicate" }
+  - match: { hits.hits.4._source.textbody: "first text" }
+  - match: { hits.hits.5._source.textbody: "sixth text" }
+  - match: { hits.hits.6._source.textbody: "ninth text" }
+  - match: { hits.hits.7._source.textbody: "third text other" }
+  - match: { hits.hits.8._source.textbody: "third text duplicate other" }
+  - match: { hits.hits.9._source.textbody: "fifth text other" }
 
   - do:
       search:
@@ -481,9 +480,9 @@ teardown:
 
   - match: { hits.total.value: 10 }
   - length: { hits.hits: 3 }
-  - match: { hits.hits.0._source.textbody: "second text other" }
-  - match: { hits.hits.1._source.textbody: "third text other" }
-  - match: { hits.hits.2._source.textbody: "third text duplicate other" }
+  - match: { hits.hits.0._source.textbody: "second text" }
+  - match: { hits.hits.1._source.textbody: "sixth text" }
+  - match: { hits.hits.2._source.textbody: "ninth text" }
 
 ---
 "Test MMR result diversification with default size should return results":

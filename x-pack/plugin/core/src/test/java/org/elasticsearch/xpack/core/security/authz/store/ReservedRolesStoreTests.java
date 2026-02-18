@@ -2011,6 +2011,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "logs-qualys_gav.asset-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-sentinel_one.application-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-sentinel_one.threat_event-" + randomAlphaOfLength(randomIntBetween(1, 10)),
+            "logs-sentinel_one.unified_alert-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-island_browser.user-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-island_browser.device-" + randomAlphaOfLength(randomIntBetween(1, 10)),
             "logs-cyera.classification-" + randomAlphaOfLength(randomIntBetween(1, 10)),

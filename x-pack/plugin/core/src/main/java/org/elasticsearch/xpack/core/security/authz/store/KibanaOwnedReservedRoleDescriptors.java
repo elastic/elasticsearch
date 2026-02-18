@@ -573,6 +573,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-qualys_gav.asset-*",
                         "logs-sentinel_one.application-*",
                         "logs-sentinel_one.threat_event-*",
+                        "logs-sentinel_one.unified_alert-*",
                         "logs-island_browser.user-*",
                         "logs-island_browser.device-*",
                         "logs-cyera.classification-*",

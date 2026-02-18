@@ -153,7 +153,7 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
             OPTIMIZED_MERGE_ENABLE_DEFAULT,
-            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            BinaryDVCompressionMode.COMPRESSED_LZ4,
             true,
             numericBlockShift
         );

@@ -274,9 +274,11 @@ public class CsvIT extends ESTestCase {
 
     private static void loadIndices(FieldCapabilitiesRequest request) {
         Stream.of(request.indices())
-            .flatMap(pattern -> pattern.contains("*") || pattern.startsWith("-") || pattern.contains("<")
-                ? CsvTestsDataLoader.CSV_DATASET_MAP.values().stream() // load all when using pattern, exclusion or date-math
-                : Stream.of(CsvTestsDataLoader.CSV_DATASET_MAP.get(pattern)))
+            .flatMap(
+                pattern -> pattern.contains("*") || pattern.startsWith("-") || pattern.contains("<")
+                    ? CsvTestsDataLoader.CSV_DATASET_MAP.values().stream() // load all when using pattern, exclusion or date-math
+                    : Stream.of(CsvTestsDataLoader.CSV_DATASET_MAP.get(pattern))
+            )
             .distinct()
             .forEach(resource -> indices.maybeLoad(resource.indexName(), () -> loadDataset(resource)));
     }

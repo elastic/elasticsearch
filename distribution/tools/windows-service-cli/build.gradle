@@ -4,6 +4,7 @@ dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:cli")
   compileOnly project(":distribution:tools:server-cli")
+  compileOnly project(":libs:windows-service-control")
 
   testImplementation project(":test:framework")
 }

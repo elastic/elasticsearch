@@ -9,21 +9,38 @@
 
 package org.elasticsearch.windows.service;
 
+import org.elasticsearch.service.windows.WindowsServiceControl;
+import org.elasticsearch.service.windows.WindowsServiceException;
+
+import java.util.Locale;
+
 /**
- * Removes the Elasticsearch Windows service, first stopping it if it is running.
+ * Removes the Elasticsearch Windows service.
+ *
+ * <p>Uses the SCM {@code DeleteService} API to mark the service for deletion.
  */
-class WindowsServiceRemoveCommand extends ProcrunCommand {
+class WindowsServiceRemoveCommand extends ScmCommand {
+
     WindowsServiceRemoveCommand() {
-        super("Remove the Elasticsearch Windows Service", "DS");
+        this(WindowsServiceControl.create());
+    }
+
+    WindowsServiceRemoveCommand(WindowsServiceControl serviceControl) {
+        super("Remove the Elasticsearch Windows Service", serviceControl);
+    }
+
+    @Override
+    protected void executeServiceCommand(WindowsServiceControl serviceControl, String serviceId) throws WindowsServiceException {
+        serviceControl.deleteService(serviceId);
     }
 
     @Override
     protected String getSuccessMessage(String serviceId) {
-        return String.format(java.util.Locale.ROOT, "The service '%s' has been removed", serviceId);
+        return String.format(Locale.ROOT, "The service '%s' has been removed", serviceId);
     }
 
     @Override
     protected String getFailureMessage(String serviceId) {
-        return String.format(java.util.Locale.ROOT, "Failed removing '%s' service", serviceId);
+        return String.format(Locale.ROOT, "Failed removing '%s' service", serviceId);
     }
 }

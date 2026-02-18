@@ -375,6 +375,7 @@
         },
         "identifying_attributes": {
           "type": "passthrough",
+          "priority": 20,
           "properties": {
             "service": {
               "properties": {
@@ -397,6 +398,7 @@
         },
         "non_identifying_attributes": {
            "type": "passthrough",
+           "priority": 20,
            "properties": {
               "host": {
                 "properties": {

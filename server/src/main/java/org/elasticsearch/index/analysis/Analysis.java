@@ -202,6 +202,35 @@ public class Analysis {
         return new CharArraySet(wordList, ignoreCase);
     }
 
+    public static Supplier<CharArraySet> getWordSetSupplier(
+        CustomDictionaryService customDictionaryService,
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        String settingDictionary,
+        String settingCase,
+        boolean removeComments
+    ) {
+        boolean ignoreCase = settings.getAsBoolean(settingCase, false);
+        Supplier<List<String>> wordListSupplier = getWordListSupplier(
+            customDictionaryService,
+            env,
+            settings,
+            settingPath,
+            settingList,
+            settingDictionary,
+            removeComments
+        );
+        return () -> {
+            List<String> wordList = wordListSupplier.get();
+            if (wordList == null) {
+                return null;
+            }
+            return new CharArraySet(wordList, ignoreCase);
+        };
+    }
+
     /**
      * Fetches a list of words from the specified settings file. The list should either be available at the key
      * specified by settingsPrefix or in a file specified by settingsPrefix + _path.
@@ -257,6 +286,23 @@ public class Analysis {
         }
     }
 
+    public static List<String> getWordList(
+        Environment env,
+        Settings settings,
+        String settingPath,
+        String settingList,
+        String settingLenient,
+        boolean removeComments,
+        boolean checkDuplicate
+    ) {
+        boolean deduplicateDictionary = settings.getAsBoolean(settingLenient, false);
+        final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments);
+        if (ruleList != null && ruleList.isEmpty() == false && checkDuplicate) {
+            return deDuplicateRules(ruleList, deduplicateDictionary == false);
+        }
+        return ruleList;
+    }
+
     public static Supplier<List<String>> getWordListSupplier(
         CustomDictionaryService customDictionaryService,
         Environment env,
@@ -301,23 +347,6 @@ public class Analysis {
         }
 
         return wordListSupplier;
-    }
-
-    public static List<String> getWordList(
-        Environment env,
-        Settings settings,
-        String settingPath,
-        String settingList,
-        String settingLenient,
-        boolean removeComments,
-        boolean checkDuplicate
-    ) {
-        boolean deduplicateDictionary = settings.getAsBoolean(settingLenient, false);
-        final List<String> ruleList = getWordList(env, settings, settingPath, settingList, removeComments);
-        if (ruleList != null && ruleList.isEmpty() == false && checkDuplicate) {
-            return deDuplicateRules(ruleList, deduplicateDictionary == false);
-        }
-        return ruleList;
     }
 
     /**

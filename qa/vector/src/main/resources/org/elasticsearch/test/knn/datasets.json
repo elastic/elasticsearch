@@ -5,7 +5,6 @@
     ],
     "queries": "gs://knnindextester/ann-gist-1M/queries-ann-gist-1M.fvec",
     "dimensions": 960,
-    "vector_encoding": "float32",
     "vector_space": "euclidean",
     "num_doc_vectors": 1000000,
     "num_query_vectors": 1000
@@ -20,7 +19,6 @@
     ],
     "queries": "gs://knnindextester/dbpedia-entity-E5-small/queries-dbpedia-entity-E5-small-0.fvec",
     "dimensions": 384,
-    "vector_encoding": "float32",
     "vector_space": "cosine",
     "num_doc_vectors": 4635922,
     "num_query_vectors": 467
@@ -31,7 +29,6 @@
     ],
     "queries": "gs://knnindextester/glove-200/queries-glove-200.fvec",
     "dimensions": 200,
-    "vector_encoding": "float32",
     "vector_space": "cosine",
     "num_doc_vectors": 1183514,
     "num_query_vectors": 10000
@@ -47,7 +44,6 @@
     ],
     "queries": "gs://knnindextester/hotpotqa-E5-small/queries-hotpotqa-E5-small-0.fvec",
     "dimensions": 384,
-    "vector_encoding": "float32",
     "vector_space": "cosine",
     "num_doc_vectors": 433329,
     "num_query_vectors": 97852
@@ -58,7 +54,6 @@
     ],
     "queries": "gs://knnindextester/wiki-cohere/queries-wiki-cohere.fvec",
     "dimensions": 768,
-    "vector_encoding": "float32",
     "vector_space": "cosine",
     "num_doc_vectors": 934024,
     "num_query_vectors": 1000

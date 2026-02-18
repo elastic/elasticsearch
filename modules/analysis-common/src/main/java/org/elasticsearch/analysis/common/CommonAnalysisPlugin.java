@@ -109,7 +109,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.AnalyzerProvider;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.PreBuiltAnalyzerProviderFactory;
@@ -153,10 +152,6 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         this.scriptServiceHolder.set(services.scriptService());
         this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(services.client()));
         this.circuitBreakerServiceHolder.set(services.indicesService().getCircuitBreakerService());
-
-        // TODO: Is this initialization pattern workable?
-        Analysis.initialize(services.client());
-
         return Collections.emptyList();
     }
 

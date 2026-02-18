@@ -13,8 +13,8 @@ import org.apache.lucene.store.RandomAccessInput;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.DirectAccessInput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.EOFException;
 import java.io.IOException;

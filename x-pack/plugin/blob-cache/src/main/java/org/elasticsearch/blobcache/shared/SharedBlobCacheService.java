@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -1381,7 +1382,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return res;
         }
 
-        public CloseableByteBuffer tryGetByteBufferSlice(long offset, int length) {
+        CloseableByteBuffer tryGetByteBufferSlice(long offset, int length) {
             assert assertOffsetsWithinFileLength(offset, length, this.length);
             final int startRegion = getRegion(offset);
             final long end = offset + length;
@@ -1404,6 +1405,24 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 lastAccessedRegion = fileRegion;
             }
             return slice;
+        }
+
+        /**
+         * If a direct byte buffer view is available for the given range, passes it
+         * to {@code action} and returns {@code true}. Otherwise returns
+         * {@code false} without invoking the action.
+         */
+        public boolean withByteBufferSlice(long offset, int length, CheckedConsumer<ByteBuffer, IOException> action) throws IOException {
+            CloseableByteBuffer cbb = tryGetByteBufferSlice(offset, length);
+            if (cbb == null) {
+                return false;
+            }
+            try {
+                action.accept(cbb.buffer());
+                return true;
+            } finally {
+                cbb.close();
+            }
         }
 
         public int populateAndRead(

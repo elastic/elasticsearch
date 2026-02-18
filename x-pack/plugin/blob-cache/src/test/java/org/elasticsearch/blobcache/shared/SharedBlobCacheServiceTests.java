@@ -34,7 +34,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
@@ -2117,7 +2116,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     // TODO: add tests for eviction, miss, etc?
-    public void testTryGetByteBufferSlice() throws Exception {
+    public void testWithByteBufferSlice() throws Exception {
         final int regionSize = (int) size(10);
         final long fileLength = size(8); // fits in a single region
         Settings settings = Settings.builder()
@@ -2146,8 +2145,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 SharedBlobCacheService.CacheMissHandler.NOOP
             );
 
-            // before populating, tryGetByteBufferSlice should return null (data not available)
-            assertThat(cacheFile.tryGetByteBufferSlice(0, 100), nullValue());
+            // before populating, withByteBufferSlice should return false (data not available)
+            assertFalse(cacheFile.withByteBufferSlice(0, 100, slice -> fail("should not be invoked")));
 
             // populate the cache with known data
             byte[] testData = randomByteArrayOfLength((int) fileLength);
@@ -2172,12 +2171,10 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
             assertThat(bytesRead, equalTo((int) fileLength));
 
-            // now tryGetByteBufferSlice should return a valid slice
+            // now withByteBufferSlice should provide a valid slice
             int sliceOffset = randomIntBetween(0, (int) fileLength / 2);
             int sliceLength = randomIntBetween(1, (int) fileLength - sliceOffset);
-            try (CloseableByteBuffer cbb = cacheFile.tryGetByteBufferSlice(sliceOffset, sliceLength)) {
-                assertThat(cbb, notNullValue());
-                ByteBuffer slice = cbb.buffer();
+            boolean available = cacheFile.withByteBufferSlice(sliceOffset, sliceLength, slice -> {
                 assertTrue(slice.isReadOnly());
                 assertEquals(sliceLength, slice.remaining());
                 byte[] sliceData = new byte[sliceLength];
@@ -2185,12 +2182,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 for (int i = 0; i < sliceLength; i++) {
                     assertEquals(testData[sliceOffset + i], sliceData[i]);
                 }
-            }
+            });
+            assertTrue(available);
         }
         ioExecutor.shutdown();
     }
 
-    public void testTryGetByteBufferSlicePreventsEviction() throws Exception {
+    public void testWithByteBufferSlicePreventsEviction() throws Exception {
         // Use a small cache with exactly 2 regions so we can trigger eviction easily
         final int regionSize = (int) size(10);
         Settings settings = Settings.builder()
@@ -2243,46 +2241,38 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 "test"
             );
 
-            // obtain a CloseableByteBuffer slice — this should hold a ref on the region
-            CloseableByteBuffer cbb = cacheFile1.tryGetByteBufferSlice(0, (int) fileLength);
-            assertThat(cbb, notNullValue());
+            // inside the callback, the ref is held — eviction should not reclaim the region
+            boolean available = cacheFile1.withByteBufferSlice(0, (int) fileLength, slice -> {
+                // fill the remaining region with a different key, using up all free regions
+                final var cacheKey2 = generateCacheKey();
+                cacheService.get(cacheKey2, fileLength, 0);
 
-            // fill the remaining region with a different key, using up all free regions
-            final var cacheKey2 = generateCacheKey();
-            cacheService.get(cacheKey2, fileLength, 0);
+                // now all regions are used; requesting yet another key triggers eviction pressure
+                final var cacheKey3 = generateCacheKey();
+                cacheService.get(cacheKey3, fileLength, 0);
+                taskQueue.runAllRunnableTasks();
 
-            // now all regions are used; requesting yet another key triggers eviction pressure
-            final var cacheKey3 = generateCacheKey();
-            cacheService.get(cacheKey3, fileLength, 0);
-            // run decay tasks
-            taskQueue.runAllRunnableTasks();
+                // the buffer should still contain the original data (region not evicted while ref held)
+                byte[] readBack = new byte[(int) fileLength];
+                slice.get(readBack);
+                assertArrayEquals(testData, readBack);
+            });
+            assertTrue(available);
 
-            // the held buffer should still contain the original data (region not evicted)
-            ByteBuffer buf = cbb.buffer();
-            byte[] readBack = new byte[(int) fileLength];
-            buf.get(readBack);
-            assertArrayEquals(testData, readBack);
-
-            // close the CloseableByteBuffer, releasing the ref
-            cbb.close();
-
-            // now trigger more eviction pressure — the region should be evictable
+            // after the callback, the ref is released — trigger more eviction pressure
             final var cacheKey4 = generateCacheKey();
             cacheService.get(cacheKey4, fileLength, 0);
             taskQueue.runAllRunnableTasks();
 
-            // after eviction, tryGetByteBufferSlice on the old cache file may return null
-            // (region was evicted and reassigned). Verify the region is no longer pinned
-            // by checking that the data has been replaced or that the slice returns null.
-            CloseableByteBuffer cbb2 = cacheFile1.tryGetByteBufferSlice(0, (int) fileLength);
-            if (cbb2 != null) {
-                cbb2.close();
-            }
+            // after eviction, withByteBufferSlice on the old cache file may return false
+            cacheFile1.withByteBufferSlice(0, (int) fileLength, slice -> {
+                // if the callback is invoked, the region was not evicted — that's OK too
+            });
         }
         ioExecutor.shutdown();
     }
 
-    public void testTryGetByteBufferSliceCrossRegionReturnsNull() throws Exception {
+    public void testWithByteBufferSliceCrossRegionReturnsFalse() throws Exception {
         final int regionSize = (int) size(10);
         final long fileLength = size(25); // spans 3 regions
         Settings settings = Settings.builder()
@@ -2314,12 +2304,14 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // region 0 covers [0, regionSize), region 1 covers [regionSize, 2*regionSize)
             int crossBoundaryOffset = regionSize - 100;
             int crossBoundaryLength = 200; // crosses into region 1
-            CloseableByteBuffer slice = cacheFile.tryGetByteBufferSlice(crossBoundaryOffset, crossBoundaryLength);
-            assertThat(slice, nullValue());
+            boolean available = cacheFile.withByteBufferSlice(crossBoundaryOffset, crossBoundaryLength, slice -> {
+                fail("action should not be invoked for cross-region slice");
+            });
+            assertFalse(available);
         }
     }
 
-    public void testTryGetByteBufferSliceNoMmapReturnsNull() throws Exception {
+    public void testWithByteBufferSliceNoMmapReturnsFalse() throws Exception {
         final int regionSize = (int) size(10);
         final long fileLength = size(8);
         Settings settings = Settings.builder()
@@ -2370,8 +2362,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 "test"
             );
 
-            // without mmap, tryGetByteBufferSlice should return null even with data populated
-            assertThat(cacheFile.tryGetByteBufferSlice(0, 100), nullValue());
+            // without mmap, withByteBufferSlice should return false even with data populated
+            boolean available = cacheFile.withByteBufferSlice(
+                0,
+                100,
+                slice -> { fail("action should not be invoked when mmap is not enabled"); }
+            );
+            assertFalse(available);
         }
         ioExecutor.shutdown();
     }

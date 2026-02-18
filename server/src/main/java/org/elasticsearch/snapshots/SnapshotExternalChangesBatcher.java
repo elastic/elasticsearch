@@ -155,6 +155,22 @@ final class SnapshotExternalChangesBatcher {
      * {@link State#IDLE} if no new changes arrived during execution, re-enqueues a new task otherwise.
      */
     void onTaskSuccess() {
+        onTaskCompletion();
+    }
+
+    private void onTaskFailure(Exception e) {
+        if (e instanceof NotMasterException || e instanceof FailedToCommitClusterStateException) {
+            synchronized (this) {
+                state = State.IDLE;
+            }
+            return;
+        }
+        assert false;
+        logger.error("Failed to update snapshot state after shards or node configuration changed", e);
+        onTaskCompletion();
+    }
+
+    private void onTaskCompletion() {
         boolean enqueueTask = false;
         synchronized (this) {
             if (state == State.NO_CHANGES) {
@@ -167,17 +183,6 @@ final class SnapshotExternalChangesBatcher {
         if (enqueueTask) {
             taskQueue.submitTask("update snapshot after external changes", new Task(), null);
         }
-    }
-
-    private void onTaskFailure(Exception e) {
-        synchronized (this) {
-            state = State.IDLE;
-        }
-        if (e instanceof NotMasterException || e instanceof FailedToCommitClusterStateException) {
-            return;
-        }
-        assert false;
-        logger.error("Failed to update snapshot state after shards or node configuration changed", e);
     }
 
     /**

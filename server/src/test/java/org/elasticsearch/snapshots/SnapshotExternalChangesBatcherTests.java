@@ -122,7 +122,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         }
     }
 
-    public void testExternalChangesTaskResubmissionOnSuccess() {
+    public void testExternalChangesTaskResubmissionOnCompletion() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
         final var pendingChanges = new AtomicBoolean(false);
@@ -439,15 +439,15 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         return masterService;
     }
 
-    static String uuid() {
+    private static String uuid() {
         return UUIDs.randomBase64UUID(random());
     }
 
-    static Snapshot snapshot(String repoName, String name) {
+    private static Snapshot snapshot(String repoName, String name) {
         return new Snapshot(ProjectId.DEFAULT, repoName, new SnapshotId(name, uuid()));
     }
 
-    static SnapshotsInProgress.Entry snapshotEntry(
+    private static SnapshotsInProgress.Entry snapshotEntry(
         Snapshot snapshot,
         Map<String, IndexId> indexIds,
         Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards

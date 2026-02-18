@@ -56,6 +56,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     private final Literal end;
     private final Literal step;
     private final Literal buckets;
+    private final Literal scrapeInterval;
     // TODO: this should be made available through the planner
     private final Expression timestamp;
     private final String valueColumnName;
@@ -72,10 +73,11 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         Literal end,
         Literal step,
         Literal buckets,
+        Literal scrapeInterval,
         String valueColumnName,
         Expression timestamp
     ) {
-        this(source, child, promqlPlan, start, end, step, buckets, valueColumnName, new NameId(), new NameId(), timestamp);
+        this(source, child, promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, new NameId(), new NameId(), timestamp);
     }
 
     // Range query constructor
@@ -87,6 +89,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         Literal end,
         Literal step,
         Literal buckets,
+        Literal scrapeInterval,
         String valueColumnName,
         NameId valueId,
         NameId stepId,
@@ -98,6 +101,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         this.end = end;
         this.step = step;
         this.buckets = buckets;
+        this.scrapeInterval = scrapeInterval;
         this.valueColumnName = valueColumnName;
         this.valueId = valueId;
         this.stepId = stepId;
@@ -115,6 +119,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
             end(),
             step(),
             buckets(),
+            scrapeInterval(),
             valueColumnName(),
             valueId(),
             stepId(),
@@ -132,6 +137,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
             end(),
             step(),
             buckets(),
+            scrapeInterval(),
             valueColumnName(),
             valueId(),
             stepId(),
@@ -148,6 +154,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
             end(),
             step(),
             buckets(),
+            scrapeInterval(),
             valueColumnName(),
             valueId(),
             stepId(),
@@ -191,8 +198,18 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         return step;
     }
 
+    /**
+     * Number of buckets for auto-derived range-query bucket size.
+     */
     public Literal buckets() {
         return buckets;
+    }
+
+    /**
+     * The expected scrape interval used to derive implicit range selector windows.
+     */
+    public Literal scrapeInterval() {
+        return scrapeInterval;
     }
 
     public boolean isInstantQuery() {
@@ -234,7 +251,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), promqlPlan, start, end, step, buckets, valueColumnName, valueId, stepId, timestamp);
+        return Objects.hash(child(), promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, valueId, stepId, timestamp);
     }
 
     @Override
@@ -248,6 +265,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                 && Objects.equals(end, other.end)
                 && Objects.equals(step, other.step)
                 && Objects.equals(buckets, other.buckets)
+                && Objects.equals(scrapeInterval, other.scrapeInterval)
                 && Objects.equals(valueColumnName, other.valueColumnName)
                 && Objects.equals(valueId, other.valueId)
                 && Objects.equals(stepId, other.stepId)
@@ -265,6 +283,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         sb.append("] end=[").append(end);
         sb.append("] step=[").append(step);
         sb.append("] buckets=[").append(buckets);
+        sb.append("] scrape_interval=[").append(scrapeInterval);
         sb.append("] valueColumnName=[").append(valueColumnName);
         sb.append("] promql=[<>\n");
         sb.append(promqlPlan.toString());

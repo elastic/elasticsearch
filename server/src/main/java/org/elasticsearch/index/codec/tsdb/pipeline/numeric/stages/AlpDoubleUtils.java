@@ -47,17 +47,6 @@ final class AlpDoubleUtils {
         return Math.round(x);
     }
 
-    // NOTE: In-place quantization using alpRoundDouble (Kahan bias trick).
-    // Snaps each finite value to the nearest multiple of `step`.
-    static void quantize(final long[] values, int valueCount, double step) {
-        for (int i = 0; i < valueCount; i++) {
-            final double v = NumericUtils.sortableLongToDouble(values[i]);
-            if (Double.isFinite(v)) {
-                values[i] = NumericUtils.doubleToSortableLong(alpRound(v / step) * step);
-            }
-        }
-    }
-
     static final int CAND_POOL_SIZE = 32;
     static final int TOP_K = 5;
     static final int PRE_SELECT_SAMPLE = 64;

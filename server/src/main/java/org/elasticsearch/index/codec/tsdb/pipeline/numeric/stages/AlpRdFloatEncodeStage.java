@@ -83,7 +83,7 @@ public final class AlpRdFloatEncodeStage implements PayloadEncoder {
         assert valueCount > 0 : "valueCount must be positive";
 
         if (quantizeStep > 0) {
-            AlpFloatUtils.quantizeInPlace(values, valueCount, quantizeStep);
+            QuantizeUtils.quantizeFloats(values, valueCount, quantizeStep);
         }
 
         int bestExceptions;

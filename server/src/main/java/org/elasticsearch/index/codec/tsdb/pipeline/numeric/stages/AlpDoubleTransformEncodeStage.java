@@ -71,7 +71,7 @@ public final class AlpDoubleTransformEncodeStage implements TransformEncoder {
         assert valueCount > 0 : "valueCount must be positive";
 
         if (quantizeStep > 0) {
-            AlpDoubleUtils.quantize(values, valueCount, quantizeStep);
+            QuantizeUtils.quantizeDoubles(values, valueCount, quantizeStep);
         }
 
         int bestExceptions;

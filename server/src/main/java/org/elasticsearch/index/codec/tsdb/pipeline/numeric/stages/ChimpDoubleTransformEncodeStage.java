@@ -14,6 +14,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformEncoder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public final class ChimpDoubleTransformEncodeStage implements TransformEncoder {
 
@@ -23,15 +24,22 @@ public final class ChimpDoubleTransformEncodeStage implements TransformEncoder {
     static final int DEFAULT_GROUP_SIZE = GROUP_SIZE_BALANCED;
 
     private final int groupSize;
+    private final double quantizeStep;
 
     public ChimpDoubleTransformEncodeStage(int blockSize) {
-        this(blockSize, DEFAULT_GROUP_SIZE);
+        this(blockSize, DEFAULT_GROUP_SIZE, 0.0);
     }
 
     public ChimpDoubleTransformEncodeStage(int blockSize, int groupSize) {
+        this(blockSize, groupSize, 0.0);
+    }
+
+    public ChimpDoubleTransformEncodeStage(int blockSize, int groupSize, double maxError) {
         assert groupSize > 0 : "groupSize must be positive: " + groupSize;
         assert (groupSize & (groupSize - 1)) == 0 : "groupSize must be a power of 2: " + groupSize;
+        assert maxError >= 0 : "maxError must be non-negative: " + maxError;
         this.groupSize = groupSize;
+        this.quantizeStep = maxError > 0 ? 2.0 * maxError : 0.0;
     }
 
     @Override
@@ -54,6 +62,14 @@ public final class ChimpDoubleTransformEncodeStage implements TransformEncoder {
     public int encode(final long[] values, int valueCount, final EncodingContext context) throws IOException {
         assert valueCount > 0 : "valueCount must be positive";
 
+        if (quantizeStep > 0) {
+            QuantizeUtils.quantizeDoubles(values, valueCount, quantizeStep);
+        }
+
+        if (shouldSkip(values, valueCount)) {
+            return valueCount;
+        }
+
         final var metadata = context.metadata();
         metadata.writeByte((byte) groupSize);
 
@@ -67,6 +83,18 @@ public final class ChimpDoubleTransformEncodeStage implements TransformEncoder {
         }
 
         return valueCount;
+    }
+
+    private static boolean shouldSkip(final long[] values, int valueCount) {
+        long rawOr = 0;
+        for (int i = 0; i < valueCount; i++) {
+            rawOr |= values[i];
+        }
+        long xorOr = 0;
+        for (int i = 1; i < valueCount; i++) {
+            xorOr |= values[i] ^ values[i - 1];
+        }
+        return 64 - Long.numberOfLeadingZeros(xorOr) >= 64 - Long.numberOfLeadingZeros(rawOr);
     }
 
     public static int encodeStatic(
@@ -84,16 +112,19 @@ public final class ChimpDoubleTransformEncodeStage implements TransformEncoder {
 
     @Override
     public boolean equals(Object o) {
-        return this == o || (o instanceof ChimpDoubleTransformEncodeStage that && groupSize == that.groupSize);
+        return this == o
+            || (o instanceof ChimpDoubleTransformEncodeStage that
+                && groupSize == that.groupSize
+                && Double.compare(quantizeStep, that.quantizeStep) == 0);
     }
 
     @Override
     public int hashCode() {
-        return Integer.hashCode(groupSize);
+        return Objects.hash(groupSize, quantizeStep);
     }
 
     @Override
     public String toString() {
-        return "ChimpDoubleTransformEncodeStage{groupSize=" + groupSize + "}";
+        return "ChimpDoubleTransformEncodeStage{groupSize=" + groupSize + ", quantizeStep=" + quantizeStep + "}";
     }
 }

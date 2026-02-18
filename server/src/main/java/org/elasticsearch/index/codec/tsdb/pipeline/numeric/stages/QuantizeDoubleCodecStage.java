@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 
-import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
@@ -21,12 +20,14 @@ import java.io.IOException;
 public final class QuantizeDoubleCodecStage implements TransformEncoder, TransformDecoder {
 
     private final double maxError;
+    private final double step;
 
     public QuantizeDoubleCodecStage(double maxError) {
         if (maxError <= 0 || Double.isNaN(maxError) || Double.isInfinite(maxError)) {
             throw new IllegalArgumentException("maxError must be a finite positive number, got: " + maxError);
         }
         this.maxError = maxError;
+        this.step = 2.0 * maxError;
     }
 
     @Override
@@ -36,16 +37,7 @@ public final class QuantizeDoubleCodecStage implements TransformEncoder, Transfo
 
     @Override
     public int encode(final long[] values, int valueCount, final EncodingContext context) throws IOException {
-        final double step = 2.0 * maxError;
-
-        for (int i = 0; i < valueCount; i++) {
-            double v = NumericUtils.sortableLongToDouble(values[i]);
-            if (Double.isNaN(v) || Double.isInfinite(v)) {
-                continue;
-            }
-            double quantized = AlpDoubleUtils.alpRound(v / step) * step;
-            values[i] = NumericUtils.doubleToSortableLong(quantized);
-        }
+        QuantizeUtils.quantizeDoubles(values, valueCount, step);
 
         // NOTE: Metadata layout: [step: Long (8 bytes, raw IEEE 754 bits of 2*maxError)].
         // Written as raw long bits via writeLong for exact round-trip fidelity.

@@ -57,17 +57,6 @@ final class AlpFloatUtils {
         return Math.round(x);
     }
 
-    // NOTE: In-place quantization using alpRound (Kahan bias trick).
-    // Snaps each finite value to the nearest multiple of `step`.
-    static void quantizeInPlace(final long[] values, int valueCount, float step) {
-        for (int i = 0; i < valueCount; i++) {
-            final float v = NumericUtils.sortableIntToFloat((int) values[i]);
-            if (Float.isFinite(v)) {
-                values[i] = NumericUtils.floatToSortableInt(alpRound(v / step) * step);
-            }
-        }
-    }
-
     static int estimatePrecisionFloat(float value, int maxExponent) {
         if (Float.isNaN(value) || Float.isInfinite(value) || value == 0.0f) {
             return 0;

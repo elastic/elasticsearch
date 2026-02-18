@@ -318,7 +318,7 @@ public class AlpDoubleTransformEncodeStageTests extends NumericCodecStageTestCas
         for (int i = 0; i < blockSize; i++) {
             values[i] = doubleToSortableLong(10.0 + i * 0.01);
         }
-        AlpDoubleUtils.quantize(values, blockSize, step);
+        QuantizeUtils.quantizeDoubles(values, blockSize, step);
         assertRoundTrip(
             values,
             blockSize,
@@ -339,7 +339,7 @@ public class AlpDoubleTransformEncodeStageTests extends NumericCodecStageTestCas
         for (int i = 0; i < blockSize; i++) {
             values[i] = doubleToSortableLong(Math.round(randomDoubleBetween(0.01, 99.99, true) * 1e6) / 1e6);
         }
-        AlpDoubleUtils.quantize(values, blockSize, step);
+        QuantizeUtils.quantizeDoubles(values, blockSize, step);
         assertRoundTrip(
             values,
             blockSize,

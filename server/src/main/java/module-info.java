@@ -518,4 +518,5 @@ module org.elasticsearch.server {
     exports org.elasticsearch.readiness to org.elasticsearch.internal.sigterm;
     exports org.elasticsearch.inference.metadata;
     exports org.elasticsearch.search.diversification.mmr;
+    exports org.elasticsearch.dictionary;
 }

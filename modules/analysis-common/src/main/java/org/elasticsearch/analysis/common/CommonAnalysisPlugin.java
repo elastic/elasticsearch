@@ -106,6 +106,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.dictionary.CustomDictionaryService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -146,12 +147,14 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     private final SetOnce<ScriptService> scriptServiceHolder = new SetOnce<>();
     private final SetOnce<SynonymsManagementAPIService> synonymsManagementServiceHolder = new SetOnce<>();
     private final SetOnce<CircuitBreakerService> circuitBreakerServiceHolder = new SetOnce<>();
+    private final SetOnce<CustomDictionaryService> customDictionaryServiceHolder = new SetOnce<>();
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
         this.scriptServiceHolder.set(services.scriptService());
         this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(services.client()));
         this.circuitBreakerServiceHolder.set(services.indicesService().getCircuitBreakerService());
+        this.customDictionaryServiceHolder.set(new CustomDictionaryService(services.client()));
         return Collections.emptyList();
     }
 
@@ -266,7 +269,10 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("hindi_normalization", HindiNormalizationFilterFactory::new);
         filters.put("hyphenation_decompounder", requiresAnalysisSettings(HyphenationCompoundWordTokenFilterFactory::new));
         filters.put("indic_normalization", IndicNormalizationFilterFactory::new);
-        filters.put("keep", requiresAnalysisSettings(KeepWordFilterFactory::new));
+        filters.put(
+            "keep",
+            requiresAnalysisSettings((i, e, n, s) -> new KeepWordFilterFactory(i, e, n, s, customDictionaryServiceHolder.get()))
+        );
         filters.put("keep_types", requiresAnalysisSettings(KeepTypesFilterFactory::new));
         filters.put("keyword_marker", requiresAnalysisSettings(KeywordMarkerTokenFilterFactory::new));
         filters.put("kstem", KStemTokenFilterFactory::new);

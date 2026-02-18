@@ -13,6 +13,7 @@ import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.KeepWordFilter;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.dictionary.CustomDictionaryService;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * A {@link TokenFilterFactory} for {@link KeepWordFilter}. This filter only
@@ -41,34 +43,66 @@ import java.util.List;
  * @see StopTokenFilterFactory
  */
 public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
-    private final CharArraySet keepWords;
     private static final String KEEP_WORDS_KEY = "keep_words";
     private static final String KEEP_WORDS_PATH_KEY = KEEP_WORDS_KEY + "_path";
+    private static final String KEEP_WORDS_DICTIONARY_KEY = KEEP_WORDS_KEY + "_dictionary";
     @SuppressWarnings("unused")
     private static final String KEEP_WORDS_CASE_KEY = KEEP_WORDS_KEY + "_case"; // for javadoc
 
     // unsupported ancient option
     private static final String ENABLE_POS_INC_KEY = "enable_position_increments";
 
-    KeepWordFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+    private final Supplier<CharArraySet> keepWordsSupplier;
+
+    KeepWordFilterFactory(
+        IndexSettings indexSettings,
+        Environment env,
+        String name,
+        Settings settings,
+        CustomDictionaryService customDictionaryService
+    ) {
         super(name);
 
-        final List<String> arrayKeepWords = settings.getAsList(KEEP_WORDS_KEY, null);
-        final String keepWordsPath = settings.get(KEEP_WORDS_PATH_KEY, null);
-        if ((arrayKeepWords == null && keepWordsPath == null) || (arrayKeepWords != null && keepWordsPath != null)) {
-            // we don't allow both or none
-            throw new IllegalArgumentException(
-                "keep requires either `" + KEEP_WORDS_KEY + "` or `" + KEEP_WORDS_PATH_KEY + "` to be configured"
-            );
-        }
-        if (settings.get(ENABLE_POS_INC_KEY) != null) {
-            throw new IllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain");
-        }
-        this.keepWords = Analysis.getWordSet(env, settings, KEEP_WORDS_KEY);
+        validateSettings(settings);
+        this.keepWordsSupplier = Analysis.getWordSetSupplier(
+            customDictionaryService,
+            env,
+            settings,
+            KEEP_WORDS_PATH_KEY,
+            KEEP_WORDS_KEY,
+            KEEP_WORDS_DICTIONARY_KEY,
+            KEEP_WORDS_CASE_KEY,
+            true
+        );
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new KeepWordFilter(tokenStream, keepWords);
+        return new KeepWordFilter(tokenStream, keepWordsSupplier.get());
+    }
+
+    private static void validateSettings(Settings settings) {
+        int sourceCount = 0;
+        for (String sourceKey : List.of(KEEP_WORDS_KEY, KEEP_WORDS_PATH_KEY, KEEP_WORDS_DICTIONARY_KEY)) {
+            if (settings.hasValue(sourceKey)) {
+                sourceCount++;
+            }
+        }
+
+        if (sourceCount != 1) {
+            throw new IllegalArgumentException(
+                "keep requires one of ["
+                    + KEEP_WORDS_KEY
+                    + "], ["
+                    + KEEP_WORDS_PATH_KEY
+                    + "], or ["
+                    + KEEP_WORDS_DICTIONARY_KEY
+                    + "] to be configured"
+            );
+        }
+
+        if (settings.hasValue(ENABLE_POS_INC_KEY)) {
+            throw new IllegalArgumentException(ENABLE_POS_INC_KEY + " is not supported anymore. Please fix your analysis chain");
+        }
     }
 }

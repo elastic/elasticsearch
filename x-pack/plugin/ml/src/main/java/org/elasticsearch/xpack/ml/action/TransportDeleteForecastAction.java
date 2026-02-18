@@ -32,7 +32,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
@@ -206,7 +206,7 @@ public class TransportDeleteForecastAction extends HandledTransportAction<Delete
             }
         }
 
-        for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
+        for (PaginatedHitSource.SearchFailure failure : response.getSearchFailures()) {
             RestStatus failureStatus = org.elasticsearch.ExceptionsHelper.status(failure.getReason());
             if (failureStatus.getStatus() > status.getStatus()) {
                 status = failureStatus;

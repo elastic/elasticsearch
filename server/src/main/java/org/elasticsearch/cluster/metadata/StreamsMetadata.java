@@ -38,9 +38,9 @@ public class StreamsMetadata extends AbstractNamedDiffable<Metadata.ProjectCusto
     private static final ParseField LOGS_ECS_ENABLED = new ParseField("logs_ecs_enabled");
     private static final ParseField LOGS_OTEL_ENABLED = new ParseField("logs_otel_enabled");
     private static final ConstructingObjectParser<StreamsMetadata, Void> PARSER = new ConstructingObjectParser<>(TYPE, false, args -> {
-        boolean logsEnabled = (boolean) args[0];
-        boolean logsOtelEnabled = (boolean) args[2];
-        boolean logsECSEnabled = (boolean) args[1];
+        boolean logsEnabled = args[0] != null && (boolean) args[0];
+        boolean logsECSEnabled = args[1] != null && (boolean) args[1];
+        boolean logsOtelEnabled = args[2] != null && (boolean) args[2];
         return new StreamsMetadata(logsEnabled, logsECSEnabled, logsOtelEnabled);
     });
     static {

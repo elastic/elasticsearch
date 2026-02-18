@@ -11,7 +11,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xpack.esql.datasource.grpc.EmployeeFlightServer;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.TestClustersThreadFilter;
@@ -19,6 +18,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.SpecReader;
+import org.elasticsearch.xpack.esql.datasource.grpc.EmployeeFlightServer;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;

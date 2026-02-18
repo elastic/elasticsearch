@@ -1,0 +1,6 @@
+area: Search
+issues: []
+pr: 142647
+summary: "Search fetch phase: Defer releasing the circuit breaker until network send\
+  \ completes"
+type: bug

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -25,6 +26,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 /**
@@ -45,22 +47,13 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
     );
 
     public static Ai21ChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String model = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
-            map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            Ai21Service.NAME,
-            context
-        );
+        var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, Ai21Service.NAME, context);
+        validationException.throwIfValidationErrorsExist();
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new Ai21ChatCompletionServiceSettings(model, rateLimitSettings);
+        return new Ai21ChatCompletionServiceSettings(modelId, rateLimitSettings);
     }
 
     public Ai21ChatCompletionServiceSettings(StreamInput in) throws IOException {
@@ -86,6 +79,31 @@ public class Ai21ChatCompletionServiceSettings extends FilteredXContentObject im
     @Override
     public String modelId() {
         return this.modelId;
+    }
+
+    @Override
+    public Ai21ChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        var validationException = new ValidationException();
+
+        var extractedModelId = extractOptionalString(
+            serviceSettings,
+            ServiceFields.MODEL_ID,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            Ai21Service.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+        validationException.throwIfValidationErrorsExist();
+
+        return new Ai21ChatCompletionServiceSettings(
+            extractedModelId != null ? extractedModelId : this.modelId,
+            extractedRateLimitSettings
+        );
     }
 
     public RateLimitSettings rateLimitSettings() {

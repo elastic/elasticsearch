@@ -16,10 +16,10 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiService;
@@ -31,10 +31,12 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalBoolean;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.API_VERSION;
@@ -69,13 +71,11 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_440);
 
     public static AzureOpenAiEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
         var settings = fromMap(map, validationException, context);
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AzureOpenAiEmbeddingsServiceSettings(settings);
     }
@@ -88,8 +88,8 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         String resourceName = extractRequiredString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String deploymentId = extractRequiredString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String apiVersion = extractRequiredString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxTokens = extractOptionalPositiveInteger(
+        Integer dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        Integer maxInputTokens = extractOptionalPositiveInteger(
             map,
             MAX_INPUT_TOKENS,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -104,21 +104,26 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
             context
         );
 
-        Boolean dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
+        Boolean dimensionsSetByUser = extractOptionalBoolean(map, DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {
                 if (dimensionsSetByUser != null) {
                     validationException.addValidationError(
-                        ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        ServiceUtils.invalidSettingError(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
-                dimensionsSetByUser = dims != null;
+                dimensionsSetByUser = dimensions != null;
             }
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {
                     validationException.addValidationError(
-                        InferenceUtils.missingSettingErrorMsg(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                        InferenceUtils.missingSettingErrorMsg(DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+                    );
+                } else if (dimensionsSetByUser && dimensions == null) {
+                    // if dimensions were set by the user, they must be present in persistent settings
+                    validationException.addValidationError(
+                        InferenceUtils.missingSettingErrorMsg(DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
             }
@@ -128,9 +133,9 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
             resourceName,
             deploymentId,
             apiVersion,
-            dims,
+            dimensions,
             Boolean.TRUE.equals(dimensionsSetByUser),
-            maxTokens,
+            maxInputTokens,
             similarity,
             rateLimitSettings
         );
@@ -224,6 +229,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         return dimensions;
     }
 
+    @Override
     public Boolean dimensionsSetByUser() {
         return dimensionsSetByUser;
     }
@@ -248,6 +254,55 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
     }
 
     @Override
+    public AzureOpenAiEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        var validationException = new ValidationException();
+
+        var settings = updateEmbeddingsServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AzureOpenAiEmbeddingsServiceSettings(settings);
+    }
+
+    private CommonFields updateEmbeddingsServiceSettings(Map<String, Object> map, ValidationException validationException) {
+        var extractedResourceName = extractOptionalString(map, RESOURCE_NAME, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedDeploymentId = extractOptionalString(map, DEPLOYMENT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedApiVersion = extractOptionalString(map, API_VERSION, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedDimensions = extractOptionalPositiveInteger(
+            map,
+            DIMENSIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            map,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedSimilarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            map,
+            this.rateLimitSettings,
+            validationException,
+            AzureOpenAiService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        return new CommonFields(
+            extractedResourceName != null ? extractedResourceName : this.resourceName,
+            extractedDeploymentId != null ? extractedDeploymentId : this.deploymentId,
+            extractedApiVersion != null ? extractedApiVersion : this.apiVersion,
+            extractedDimensions != null ? extractedDimensions : this.dimensions,
+            // Set to true if dimensions were previously set by the user or are newly provided
+            dimensionsSetByUser || extractedDimensions != null,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            extractedSimilarity != null ? extractedSimilarity : this.similarity,
+            extractedRateLimitSettings
+        );
+    }
+
+    @Override
     public String getWriteableName() {
         return NAME;
     }
@@ -257,7 +312,7 @@ public class AzureOpenAiEmbeddingsServiceSettings extends FilteredXContentObject
         builder.startObject();
 
         toXContentFragmentOfExposedFields(builder, params);
-        builder.field(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+        builder.field(DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
 
         builder.endObject();
         return builder;

@@ -127,6 +127,45 @@ public class ModelTests extends AbstractBWCWireSerializationTestCase<Model> {
         public String modelId() {
             return model;
         }
+
+        @Override
+        public TestServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+            var validationException = new ValidationException();
+            var modelValue = serviceSettings.getOrDefault("model", this.modelId());
+            var dimensionsValue = serviceSettings.getOrDefault("dimensions", this.dimensions());
+            var similarityValue = serviceSettings.get("similarity");
+            SimilarityMeasure similarityEnumValue = null;
+            if (similarityValue == null) {
+                similarityEnumValue = this.similarity();
+            } else {
+                if (similarityValue instanceof String stringSimilarityValue) {
+                    try {
+                        similarityEnumValue = SimilarityMeasure.fromString(stringSimilarityValue);
+                    } catch (IllegalArgumentException e) {
+                        validationException.addValidationError("Invalid value for service setting [similarity]: " + similarityValue);
+                    }
+                } else {
+                    validationException.addValidationError("Expected service setting [similarity] to be of type String");
+                }
+            }
+            var elementTypeValue = serviceSettings.get("element_type");
+            DenseVectorFieldMapper.ElementType elementTypeEnumValue = null;
+            if (elementTypeValue == null) {
+                elementTypeEnumValue = this.elementType();
+            } else {
+                if (elementTypeValue instanceof String stringElementTypeValue) {
+                    try {
+                        elementTypeEnumValue = DenseVectorFieldMapper.ElementType.fromString(stringElementTypeValue);
+                    } catch (IllegalArgumentException e) {
+                        validationException.addValidationError("Invalid value for service setting [element_type]: " + elementTypeValue);
+                    }
+                } else {
+                    validationException.addValidationError("Expected service setting [element_type] to be of type String");
+                }
+            }
+            validationException.throwIfValidationErrorsExist();
+            return new TestServiceSettings((String) modelValue, (Integer) dimensionsValue, similarityEnumValue, elementTypeEnumValue);
+        }
     }
 
     public record SimpleSecretSettings(String field) implements SecretSettings {

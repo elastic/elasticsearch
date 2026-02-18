@@ -24,6 +24,8 @@ import java.util.EnumSet;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalEnum;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredEnum;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.MODEL_FIELD;
@@ -51,9 +53,9 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         ValidationException validationException,
         ConfigurationParseContext context
     ) {
-        String model = extractRequiredString(map, MODEL_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String region = extractRequiredString(map, REGION_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        AmazonBedrockProvider provider = extractRequiredEnum(
+        var model = extractRequiredString(map, MODEL_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var region = extractRequiredString(map, REGION_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var provider = extractRequiredEnum(
             map,
             PROVIDER_FIELD,
             ModelConfigurations.SERVICE_SETTINGS,
@@ -61,7 +63,7 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
             EnumSet.allOf(AmazonBedrockProvider.class),
             validationException
         );
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
             validationException,
@@ -70,6 +72,42 @@ public abstract class AmazonBedrockServiceSettings extends FilteredXContentObjec
         );
 
         return new BaseAmazonBedrockCommonSettings(region, model, provider, rateLimitSettings);
+    }
+
+    protected BaseAmazonBedrockCommonSettings updateBaseAmazonBedrockCommonSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedModel = extractOptionalString(serviceSettings, MODEL_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedRegion = extractOptionalString(
+            serviceSettings,
+            REGION_FIELD,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedProvider = extractOptionalEnum(
+            serviceSettings,
+            PROVIDER_FIELD,
+            ModelConfigurations.SERVICE_SETTINGS,
+            AmazonBedrockProvider::fromString,
+            EnumSet.allOf(AmazonBedrockProvider.class),
+            validationException
+        );
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            AMAZON_BEDROCK_BASE_NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new BaseAmazonBedrockCommonSettings(
+            extractedRegion != null ? extractedRegion : this.region,
+            extractedModel != null ? extractedModel : this.model,
+            extractedProvider != null ? extractedProvider : this.provider,
+            extractedRateLimitSettings
+        );
     }
 
     protected record BaseAmazonBedrockCommonSettings(

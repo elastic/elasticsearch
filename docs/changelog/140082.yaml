@@ -1,0 +1,5 @@
+pr: 140082
+summary: Added service settings update logic for providers in the Inference Plugin
+area: Inference
+type: enhancement
+issues: []

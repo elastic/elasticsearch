@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicRateLimitServiceSettings;
@@ -26,6 +27,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 
 /**
@@ -55,10 +57,7 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
             context
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
+        validationException.throwIfValidationErrorsExist();
         return new AnthropicChatCompletionServiceSettings(modelId, rateLimitSettings);
     }
 
@@ -84,6 +83,27 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
     @Override
     public String modelId() {
         return modelId;
+    }
+
+    @Override
+    public AnthropicChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        var validationException = new ValidationException();
+
+        var extractedModelId = extractOptionalString(serviceSettings, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            AnthropicService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+        return new AnthropicChatCompletionServiceSettings(
+            extractedModelId != null ? extractedModelId : this.modelId,
+            extractedRateLimitSettings
+        );
     }
 
     @Override

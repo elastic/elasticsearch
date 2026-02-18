@@ -243,7 +243,7 @@ public class VoyageAIService extends SenderService implements RerankingInference
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 

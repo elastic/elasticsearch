@@ -164,7 +164,7 @@ public class ContextualAiService extends SenderService implements RerankingInfer
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 

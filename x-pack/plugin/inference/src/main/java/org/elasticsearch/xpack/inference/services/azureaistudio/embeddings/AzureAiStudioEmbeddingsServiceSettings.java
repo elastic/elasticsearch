@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
@@ -42,33 +43,19 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
     public static final String NAME = "azure_ai_studio_embeddings_service_settings";
 
     public static AzureAiStudioEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        var settings = embeddingSettingsFromMap(map, validationException, context);
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new AzureAiStudioEmbeddingsServiceSettings(settings);
-    }
-
-    private static AzureAiStudioEmbeddingCommonFields embeddingSettingsFromMap(
-        Map<String, Object> map,
-        ValidationException validationException,
-        ConfigurationParseContext context
-    ) {
         var baseSettings = AzureAiStudioServiceSettings.fromMap(map, validationException, context);
 
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer maxTokens = extractOptionalPositiveInteger(
+        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
             map,
             MAX_INPUT_TOKENS,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        Boolean dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
+        var dimensionsSetByUser = extractOptionalBoolean(map, ServiceFields.DIMENSIONS_SET_BY_USER, validationException);
 
         switch (context) {
             case REQUEST -> {
@@ -77,7 +64,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
                         ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
                     );
                 }
-                dimensionsSetByUser = dims != null;
+                dimensionsSetByUser = dimensions != null;
             }
             case PERSISTENT -> {
                 if (dimensionsSetByUser == null) {
@@ -87,7 +74,12 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
                 }
             }
         }
-        return new AzureAiStudioEmbeddingCommonFields(baseSettings, dims, dimensionsSetByUser, maxTokens, similarity);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AzureAiStudioEmbeddingsServiceSettings(
+            new AzureAiStudioEmbeddingCommonFields(baseSettings, dimensions, dimensionsSetByUser, maxInputTokens, similarity)
+        );
     }
 
     private record AzureAiStudioEmbeddingCommonFields(
@@ -151,6 +143,7 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
         return this.dimensionsSetByUser;
     }
 
+    @Override
     public Integer dimensions() {
         return dimensions;
     }
@@ -172,6 +165,45 @@ public class AzureAiStudioEmbeddingsServiceSettings extends AzureAiStudioService
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
         return DenseVectorFieldMapper.ElementType.FLOAT;
+    }
+
+    @Override
+    public AzureAiStudioEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        var validationException = new ValidationException();
+
+        var baseSettings = updateBaseServiceSettings(serviceSettings, validationException);
+
+        var extractedSimilarity = extractSimilarity(serviceSettings, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedDimensions = extractOptionalPositiveInteger(
+            serviceSettings,
+            DIMENSIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        if (extractOptionalBoolean(serviceSettings, ServiceFields.DIMENSIONS_SET_BY_USER, validationException) != null) {
+            validationException.addValidationError(
+                ServiceUtils.invalidSettingError(ServiceFields.DIMENSIONS_SET_BY_USER, ModelConfigurations.SERVICE_SETTINGS)
+            );
+        }
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AzureAiStudioEmbeddingsServiceSettings(
+            new AzureAiStudioEmbeddingCommonFields(
+                baseSettings,
+                extractedDimensions != null ? extractedDimensions : this.dimensions,
+                // Set to true if dimensions were previously set by the user or are newly provided
+                extractedDimensions != null || this.dimensionsSetByUser,
+                extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+                extractedSimilarity != null ? extractedSimilarity : this.similarity
+            )
+        );
     }
 
     @Override

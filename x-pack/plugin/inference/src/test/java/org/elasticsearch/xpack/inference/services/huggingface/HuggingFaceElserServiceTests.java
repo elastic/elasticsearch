@@ -246,16 +246,11 @@ public class HuggingFaceElserServiceTests extends ESTestCase {
                 thrownException.getMessage(),
                 is(
                     Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ENTITY_ID_VALUE,
-                        HuggingFaceElserService.NAME,
+                        "The [%s] service does not support task type [%s]",
                         HuggingFaceElserService.NAME,
                         TaskType.CHAT_COMPLETION
                     )
                 )
-
             );
         }
     }

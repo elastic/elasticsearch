@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -25,13 +25,7 @@ public class AlibabaCloudSearchRerankServiceSettings implements ServiceSettings 
     public static final String NAME = "alibabacloud_search_rerank_service_settings";
 
     public static AlibabaCloudSearchRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
-        var commonServiceSettings = AlibabaCloudSearchServiceSettings.fromMap(map, context);
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new AlibabaCloudSearchRerankServiceSettings(commonServiceSettings);
+        return new AlibabaCloudSearchRerankServiceSettings(AlibabaCloudSearchServiceSettings.fromMap(map, context));
     }
 
     private final AlibabaCloudSearchServiceSettings commonSettings;
@@ -51,6 +45,11 @@ public class AlibabaCloudSearchRerankServiceSettings implements ServiceSettings 
     @Override
     public String modelId() {
         return commonSettings.modelId();
+    }
+
+    @Override
+    public AlibabaCloudSearchRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        return new AlibabaCloudSearchRerankServiceSettings(commonSettings.updateServiceSettings(serviceSettings, taskType));
     }
 
     @Override

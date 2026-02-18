@@ -240,7 +240,7 @@ public class AzureAiStudioService extends SenderService implements RerankingInfe
             config.getInferenceEntityId(),
             config.getTaskType(),
             config.getService(),
-            ConfigurationParseContext.PERSISTENT
+            ConfigurationParseContext.REQUEST
         ).createFromModelConfigurationsAndSecrets(config, secrets);
         checkProviderAndEndpointTypeForTask(config.getTaskType(), model.provider(), model.endpointType());
         return model;

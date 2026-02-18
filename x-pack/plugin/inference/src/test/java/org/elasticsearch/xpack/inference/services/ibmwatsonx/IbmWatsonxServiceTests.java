@@ -1179,18 +1179,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             );
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        "id",
-                        IbmWatsonxService.NAME,
-                        IbmWatsonxService.NAME,
-                        TaskType.SPARSE_EMBEDDING
-                    )
-                )
-
+                is(Strings.format("The [%s] service does not support task type [%s]", IbmWatsonxService.NAME, TaskType.SPARSE_EMBEDDING))
             );
         }
     }

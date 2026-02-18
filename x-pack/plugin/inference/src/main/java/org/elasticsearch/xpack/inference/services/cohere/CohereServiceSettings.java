@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -35,12 +36,16 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.convertToUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
+/**
+ * Settings for the Cohere service.
+ * This class encapsulates the configuration settings required to use Cohere models.
+ */
 public class CohereServiceSettings extends FilteredXContentObject implements ServiceSettings, CohereRateLimitServiceSettings {
 
     public static final String NAME = "cohere_service_settings";
@@ -50,6 +55,9 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
 
     private static final TransportVersion ML_INFERENCE_COHERE_API_VERSION = TransportVersion.fromName("ml_inference_cohere_api_version");
 
+    /**
+     * The API versions supported by the Cohere service.
+     */
     public enum CohereApiVersion {
         V1,
         V2;
@@ -64,45 +72,46 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
     // 10K requests a minute
     public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
+    /**
+     * Creates {@link CohereServiceSettings} from a map
+     * @param map the map to parse
+     * @param context the context in which the parsing is done
+     * @return the created {@link CohereServiceSettings}
+     * @throws ValidationException If there are validation errors in the provided settings.
+     */
     public static CohereServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        ValidationException validationException = new ValidationException();
+        var validationException = new ValidationException();
 
-        String url = extractOptionalString(map, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
-        Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
-        URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        String oldModelId = extractOptionalString(map, OLD_MODEL_ID_FIELD, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        RateLimitSettings rateLimitSettings = RateLimitSettings.of(
+        var uri = extractOptionalUri(map, URL, validationException);
+        var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var maxInputTokens = extractOptionalPositiveInteger(
             map,
-            DEFAULT_RATE_LIMIT_SETTINGS,
-            validationException,
-            CohereService.NAME,
-            context
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
         );
-
-        String modelId = extractOptionalString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-
-        if (context == ConfigurationParseContext.REQUEST && oldModelId != null) {
-            logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
-        }
-
-        var resolvedModelId = modelId(oldModelId, modelId);
+        var modelId = extractModelId(map, validationException, context);
         var apiVersion = apiVersionFromMap(map, context, validationException);
-        if (apiVersion == CohereApiVersion.V2) {
-            if (resolvedModelId == null) {
-                validationException.addValidationError(MODEL_REQUIRED_FOR_V2_API);
-            }
+        if (apiVersion == CohereApiVersion.V2 && modelId == null) {
+            validationException.addValidationError(MODEL_REQUIRED_FOR_V2_API);
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, CohereService.NAME, context);
 
-        return new CohereServiceSettings(uri, similarity, dims, maxInputTokens, resolvedModelId, rateLimitSettings, apiVersion);
+        validationException.throwIfValidationErrorsExist();
+
+        return new CohereServiceSettings(uri, similarity, dimensions, maxInputTokens, modelId, rateLimitSettings, apiVersion);
     }
 
+    /**
+     * Extracts the Cohere API version from the provided map based on the given context.
+     *
+     * @param map the map containing the settings
+     * @param context the context for parsing configuration settings
+     * @param validationException the validation exception to collect errors
+     * @return the extracted Cohere API version
+     */
     public static CohereApiVersion apiVersionFromMap(
         Map<String, Object> map,
         ConfigurationParseContext context,
@@ -129,8 +138,8 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         };
     }
 
-    private static String modelId(@Nullable String model, @Nullable String modelId) {
-        return modelId != null ? modelId : model;
+    private static String selectModelId(@Nullable String oldModelId, @Nullable String newModelId) {
+        return newModelId != null ? newModelId : oldModelId;
     }
 
     private final URI uri;
@@ -141,6 +150,17 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
     private final RateLimitSettings rateLimitSettings;
     private final CohereApiVersion apiVersion;
 
+    /**
+     * Constructs a new {@link CohereServiceSettings} instance.
+     *
+     * @param uri the URI of the Cohere service
+     * @param similarity the similarity measure to use
+     * @param dimensions the number of dimensions for embeddings
+     * @param maxInputTokens the maximum number of input tokens
+     * @param modelId the model identifier
+     * @param rateLimitSettings the rate limit settings
+     * @param apiVersion the Cohere API version
+     */
     public CohereServiceSettings(
         @Nullable URI uri,
         @Nullable SimilarityMeasure similarity,
@@ -171,6 +191,12 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         this(createOptionalUri(url), similarity, dimensions, maxInputTokens, modelId, rateLimitSettings, apiVersion);
     }
 
+    /**
+     * Constructs a new {@link CohereServiceSettings} instance from a {@link StreamInput}.
+     *
+     * @param in the stream input to read from
+     * @throws IOException if an I/O error occurs
+     */
     public CohereServiceSettings(StreamInput in) throws IOException {
         uri = createOptionalUri(in.readOptionalString());
         similarity = in.readOptionalEnum(SimilarityMeasure.class);
@@ -185,7 +211,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
         }
     }
 
-    // should only be used for testing, public because it's accessed outside of the package
+    // should only be used for testing, public because it's accessed outside the package
     public CohereServiceSettings(CohereApiVersion apiVersion) {
         this((URI) null, null, null, null, null, null, apiVersion);
     }
@@ -221,6 +247,81 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
     @Override
     public String modelId() {
         return modelId;
+    }
+
+    @Override
+    public CohereServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        var validationException = new ValidationException();
+
+        var extractedUri = extractOptionalUri(serviceSettings, URL, validationException);
+        var extractedSimilarity = extractSimilarity(serviceSettings, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var extractedDimensions = extractOptionalPositiveInteger(
+            serviceSettings,
+            DIMENSIONS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        var extractedModelId = extractModelId(serviceSettings, validationException, ConfigurationParseContext.REQUEST);
+        var extractedApiVersion = ServiceUtils.extractOptionalEnum(
+            serviceSettings,
+            API_VERSION,
+            ModelConfigurations.SERVICE_SETTINGS,
+            CohereServiceSettings.CohereApiVersion::fromString,
+            EnumSet.allOf(CohereServiceSettings.CohereApiVersion.class),
+            validationException
+        );
+        if (extractedApiVersion == CohereServiceSettings.CohereApiVersion.V2 && extractedModelId == null && this.modelId == null) {
+            validationException.addValidationError(MODEL_REQUIRED_FOR_V2_API);
+        }
+
+        var extractedRateLimitSettings = RateLimitSettings.of(
+            serviceSettings,
+            this.rateLimitSettings,
+            validationException,
+            CohereService.NAME,
+            ConfigurationParseContext.REQUEST
+        );
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new CohereServiceSettings(
+            extractedUri != null ? extractedUri : this.uri,
+            extractedSimilarity != null ? extractedSimilarity : this.similarity,
+            extractedDimensions != null ? extractedDimensions : this.dimensions,
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens,
+            extractedModelId != null ? extractedModelId : this.modelId,
+            extractedRateLimitSettings,
+            extractedApiVersion != null ? extractedApiVersion : this.apiVersion
+        );
+    }
+
+    private static String extractModelId(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException,
+        ConfigurationParseContext context
+    ) {
+        var extractedOldModelId = extractOptionalString(
+            serviceSettings,
+            OLD_MODEL_ID_FIELD,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        if (context == ConfigurationParseContext.REQUEST && extractedOldModelId != null) {
+            logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
+        }
+        var extractedModelId = extractOptionalString(
+            serviceSettings,
+            ServiceFields.MODEL_ID,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+        return selectModelId(extractedOldModelId, extractedModelId);
     }
 
     @Override

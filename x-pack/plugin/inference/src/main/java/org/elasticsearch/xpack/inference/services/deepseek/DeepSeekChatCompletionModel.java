@@ -34,10 +34,11 @@ import java.util.Optional;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalUri;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
+import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings.API_KEY;
 
 /**
  * Design notes:
@@ -80,19 +81,15 @@ public class DeepSeekChatCompletionModel extends Model {
         var validationException = new ValidationException();
 
         var model = extractRequiredString(serviceSettingsMap, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = createOptionalUri(
-            extractOptionalString(serviceSettingsMap, URL, ModelConfigurations.SERVICE_SETTINGS, validationException)
-        );
+        var uri = extractOptionalUri(serviceSettingsMap, URL, validationException);
         var secureApiToken = extractRequiredSecureString(
             serviceSettingsMap,
-            "api_key",
+            API_KEY,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         var serviceSettings = new DeepSeekServiceSettings(model, uri);
         var taskSettings = new EmptyTaskSettings();
@@ -108,18 +105,7 @@ public class DeepSeekChatCompletionModel extends Model {
         Map<String, Object> serviceSettingsMap,
         Map<String, Object> secrets
     ) {
-        var validationException = new ValidationException();
-
-        var model = extractRequiredString(serviceSettingsMap, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var uri = createOptionalUri(
-            extractOptionalString(serviceSettingsMap, "url", ModelConfigurations.SERVICE_SETTINGS, validationException)
-        );
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        var serviceSettings = new DeepSeekServiceSettings(model, uri);
+        var serviceSettings = buildAndValidateDeepSeekServiceSettings(serviceSettingsMap);
         var taskSettings = new EmptyTaskSettings();
         var secretSettings = DefaultSecretSettings.fromMap(secrets);
         var modelConfigurations = new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings);
@@ -164,6 +150,14 @@ public class DeepSeekChatCompletionModel extends Model {
 
     public RateLimitSettings rateLimitSettings() {
         return RATE_LIMIT_SETTINGS;
+    }
+
+    private static DeepSeekServiceSettings buildAndValidateDeepSeekServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+        var model = extractRequiredString(serviceSettings, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        var uri = extractOptionalUri(serviceSettings, URL, validationException);
+        validationException.throwIfValidationErrorsExist();
+        return new DeepSeekServiceSettings(model, uri);
     }
 
     public record DeepSeekServiceSettings(String modelId, URI uri) implements ServiceSettings {
@@ -213,6 +207,26 @@ public class DeepSeekChatCompletionModel extends Model {
                 builder.field(URL, uri.toString());
             }
             return builder.endObject();
+        }
+
+        @Override
+        public DeepSeekServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+            var validationException = new ValidationException();
+
+            var extractedModelId = extractOptionalString(
+                serviceSettings,
+                MODEL_ID,
+                ModelConfigurations.SERVICE_SETTINGS,
+                validationException
+            );
+            var extractedUri = extractOptionalUri(serviceSettings, URL, validationException);
+
+            validationException.throwIfValidationErrorsExist();
+
+            return new DeepSeekServiceSettings(
+                extractedModelId != null ? extractedModelId : this.modelId,
+                extractedUri != null ? extractedUri : this.uri
+            );
         }
     }
 }

@@ -12,6 +12,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,11 +31,24 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSIONS_SET_BY_USER;
-import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARITY;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<AzureOpenAiEmbeddingsServiceSettings> {
+    private static final String TEST_RESOURCE_NAME = "test-resource-name";
+    private static final String INITIAL_TEST_RESOURCE_NAME = "initial-resource-name";
+    private static final String TEST_DEPLOYMENT_ID = "test-deployment-id";
+    private static final String INITIAL_TEST_DEPLOYMENT_ID = "initial-deployment-id";
+    private static final String TEST_API_VERSION = "test-api-version";
+    private static final String INITIAL_TEST_API_VERSION = "initial-api-version";
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int TEST_DIMENSIONS = 1536;
+    private static final int INITIAL_TEST_DIMENSIONS = 3072;
+    private static final int TEST_MAX_INPUT_TOKENS = 512;
+    private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
+    private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
+    private static final SimilarityMeasure INITIAL_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
 
     private static AzureOpenAiEmbeddingsServiceSettings createRandom() {
         var resourceName = randomAlphaOfLength(8);
@@ -54,28 +68,101 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_Request_CreatesSettingsCorrectly() {
-        var resourceName = "this-resource";
-        var deploymentId = "this-deployment";
-        var apiVersion = "2024-01-01";
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var serviceSettings = AzureOpenAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    AzureOpenAiServiceFields.RESOURCE_NAME,
-                    resourceName,
-                    AzureOpenAiServiceFields.DEPLOYMENT_ID,
-                    deploymentId,
-                    AzureOpenAiServiceFields.API_VERSION,
-                    apiVersion,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    SIMILARITY,
-                    SimilarityMeasure.COSINE.toString()
+    public void testUpdateServiceSettings_AllFields_DimensionsSetByUserFalse_Success() {
+        testUpdateServiceSettings_AllFields_Success(false);
+    }
+
+    public void testUpdateServiceSettings_AllFields_DimensionsSetByUserTrue_Success() {
+        testUpdateServiceSettings_AllFields_Success(true);
+    }
+
+    private static void testUpdateServiceSettings_AllFields_Success(boolean dimensionsSetByUser) {
+        var settingsMap = createEmbeddingsServiceSettingsMap(
+            TEST_RESOURCE_NAME,
+            TEST_DEPLOYMENT_ID,
+            TEST_API_VERSION,
+            TEST_DIMENSIONS,
+            null,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY_MEASURE,
+            TEST_RATE_LIMIT
+        );
+        var serviceSettings = new AzureOpenAiEmbeddingsServiceSettings(
+            INITIAL_TEST_RESOURCE_NAME,
+            INITIAL_TEST_DEPLOYMENT_ID,
+            INITIAL_TEST_API_VERSION,
+            INITIAL_TEST_DIMENSIONS,
+            dimensionsSetByUser,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            INITIAL_SIMILARITY_MEASURE,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        ).updateServiceSettings(settingsMap, TaskType.TEXT_EMBEDDING);
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(
+                new AzureOpenAiEmbeddingsServiceSettings(
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION,
+                    TEST_DIMENSIONS,
+                    true,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY_MEASURE,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DimensionsSetByUserTrue_Success() {
+        testUpdateServiceSettings_EmptyMap_Success(false);
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_DimensionsSetByUserFalse_Success() {
+        testUpdateServiceSettings_EmptyMap_Success(true);
+    }
+
+    private static void testUpdateServiceSettings_EmptyMap_Success(boolean dimensionsSetByUser) {
+        var serviceSettings = new AzureOpenAiEmbeddingsServiceSettings(
+            INITIAL_TEST_RESOURCE_NAME,
+            INITIAL_TEST_DEPLOYMENT_ID,
+            INITIAL_TEST_API_VERSION,
+            INITIAL_TEST_DIMENSIONS,
+            dimensionsSetByUser,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
+            INITIAL_SIMILARITY_MEASURE,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+        ).updateServiceSettings(new HashMap<>(), TaskType.TEXT_EMBEDDING);
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(
+                new AzureOpenAiEmbeddingsServiceSettings(
+                    INITIAL_TEST_RESOURCE_NAME,
+                    INITIAL_TEST_DEPLOYMENT_ID,
+                    INITIAL_TEST_API_VERSION,
+                    INITIAL_TEST_DIMENSIONS,
+                    dimensionsSetByUser,
+                    INITIAL_TEST_MAX_INPUT_TOKENS,
+                    INITIAL_SIMILARITY_MEASURE,
+                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testFromMap_Request_AllFields_Success() {
+        var serviceSettings = AzureOpenAiEmbeddingsServiceSettings.fromMap(
+            createEmbeddingsServiceSettingsMap(
+                TEST_RESOURCE_NAME,
+                TEST_DEPLOYMENT_ID,
+                TEST_API_VERSION,
+                TEST_DIMENSIONS,
+                null,
+                TEST_MAX_INPUT_TOKENS,
+                TEST_SIMILARITY_MEASURE,
+                TEST_RATE_LIMIT
             ),
             ConfigurationParseContext.REQUEST
         );
@@ -84,153 +171,85 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             serviceSettings,
             is(
                 new AzureOpenAiEmbeddingsServiceSettings(
-                    resourceName,
-                    deploymentId,
-                    apiVersion,
-                    dims,
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION,
+                    TEST_DIMENSIONS,
                     true,
-                    maxInputTokens,
-                    SimilarityMeasure.COSINE,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY_MEASURE,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
+                )
+            )
+        );
+    }
+
+    public void testFromMap_Request_OnlyMandatoryFields_Success() {
+        var serviceSettings = AzureOpenAiEmbeddingsServiceSettings.fromMap(
+            createEmbeddingsServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION, null, null, null, null, null),
+            ConfigurationParseContext.REQUEST
+        );
+
+        assertThat(
+            serviceSettings,
+            is(
+                new AzureOpenAiEmbeddingsServiceSettings(
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION,
+                    null,
+                    false,
+                    null,
+                    null,
                     null
                 )
             )
         );
     }
 
-    public void testFromMap_RequestWithRateLimit_CreatesSettingsCorrectly() {
-        var resourceName = "this-resource";
-        var deploymentId = "this-deployment";
-        var apiVersion = "2024-01-01";
-        var dims = 1536;
-        var maxInputTokens = 512;
-        var serviceSettings = AzureOpenAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    AzureOpenAiServiceFields.RESOURCE_NAME,
-                    resourceName,
-                    AzureOpenAiServiceFields.DEPLOYMENT_ID,
-                    deploymentId,
-                    AzureOpenAiServiceFields.API_VERSION,
-                    apiVersion,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    SIMILARITY,
-                    SimilarityMeasure.COSINE.toString(),
-                    RateLimitSettings.FIELD_NAME,
-                    new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, 3))
-                )
-            ),
-            ConfigurationParseContext.REQUEST
-        );
-
-        assertThat(
-            serviceSettings,
-            is(
-                new AzureOpenAiEmbeddingsServiceSettings(
-                    resourceName,
-                    deploymentId,
-                    apiVersion,
-                    dims,
-                    true,
-                    maxInputTokens,
-                    SimilarityMeasure.COSINE,
-                    new RateLimitSettings(3)
-                )
-            )
-        );
-    }
-
-    public void testFromMap_Request_DimensionsSetByUser_IsFalse_WhenDimensionsAreNotPresent() {
-        var resourceName = "this-resource";
-        var deploymentId = "this-deployment";
-        var apiVersion = "2024-01-01";
-        var maxInputTokens = 512;
-        var serviceSettings = AzureOpenAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    AzureOpenAiServiceFields.RESOURCE_NAME,
-                    resourceName,
-                    AzureOpenAiServiceFields.DEPLOYMENT_ID,
-                    deploymentId,
-                    AzureOpenAiServiceFields.API_VERSION,
-                    apiVersion,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens
-                )
-            ),
-            ConfigurationParseContext.REQUEST
-        );
-
-        assertThat(
-            serviceSettings,
-            is(new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, maxInputTokens, null, null))
-        );
-    }
-
-    public void testFromMap_Request_DimensionsSetByUser_ShouldThrowWhenPresent() {
-        var resourceName = "this-resource";
-        var deploymentId = "this-deployment";
-        var apiVersion = "2024-01-01";
-        var maxInputTokens = 512;
+    public void testFromMap_Request_DimensionsSetByUserTrue_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
             () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(
-                    Map.of(
-                        AzureOpenAiServiceFields.RESOURCE_NAME,
-                        resourceName,
-                        AzureOpenAiServiceFields.DEPLOYMENT_ID,
-                        deploymentId,
-                        AzureOpenAiServiceFields.API_VERSION,
-                        apiVersion,
-                        ServiceFields.MAX_INPUT_TOKENS,
-                        maxInputTokens,
-                        ServiceFields.DIMENSIONS,
-                        1024,
-                        DIMENSIONS_SET_BY_USER,
-                        false
-                    )
-                ),
+                createEmbeddingsServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION, null, true, null, null, null),
                 ConfigurationParseContext.REQUEST
             )
         );
 
         MatcherAssert.assertThat(
             thrownException.getMessage(),
-            containsString(
-                Strings.format("Validation Failed: 1: [service_settings] does not allow the setting [%s];", DIMENSIONS_SET_BY_USER)
-            )
+            is(Strings.format("Validation Failed: 1: [service_settings] does not allow the setting [%s];", DIMENSIONS_SET_BY_USER))
         );
     }
 
-    public void testFromMap_ThrowsException_WhenDimensionsAreZero() {
-        var resourceName = "this-resource";
-        var deploymentId = "this-deployment";
-        var apiVersion = "2024-01-01";
-        var dimensions = 0;
-
-        var settingsMap = getRequestAzureOpenAiServiceSettingsMap(resourceName, deploymentId, apiVersion, dimensions, null);
-
+    public void testFromMap_Request_DimensionsSetByUserFalse_ThrowsException() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(
+                createEmbeddingsServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION, null, false, null, null, null),
+                ConfigurationParseContext.REQUEST
+            )
         );
 
-        assertThat(
+        MatcherAssert.assertThat(
             thrownException.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [dimensions] must be a positive integer;")
+            is(Strings.format("Validation Failed: 1: [service_settings] does not allow the setting [%s];", DIMENSIONS_SET_BY_USER))
         );
     }
 
-    public void testFromMap_ThrowsException_WhenDimensionsAreNegative() {
-        var resourceName = "this-resource";
-        var deploymentId = "this-deployment";
-        var apiVersion = "2024-01-01";
-        var dimensions = randomNegativeInt();
+    public void testFromMap_Request_DimensionsZero_ThrowsException() {
+        var dimensions = 0;
 
-        var settingsMap = getRequestAzureOpenAiServiceSettingsMap(resourceName, deploymentId, apiVersion, dimensions, null);
+        var settingsMap = createEmbeddingsServiceSettingsMap(
+            TEST_RESOURCE_NAME,
+            TEST_DEPLOYMENT_ID,
+            TEST_API_VERSION,
+            dimensions,
+            null,
+            null,
+            null,
+            null
+        );
 
         var thrownException = expectThrows(
             ValidationException.class,
@@ -248,13 +267,19 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_ThrowsException_WhenMaxInputTokensAreZero() {
-        var resourceName = "this-resource";
-        var deploymentId = "this-deployment";
-        var apiVersion = "2024-01-01";
-        var maxInputTokens = 0;
+    public void testFromMap_Request_DimensionsNegative_ThrowsException() {
+        var dimensions = randomNegativeInt();
 
-        var settingsMap = getRequestAzureOpenAiServiceSettingsMap(resourceName, deploymentId, apiVersion, null, maxInputTokens);
+        var settingsMap = createEmbeddingsServiceSettingsMap(
+            TEST_RESOURCE_NAME,
+            TEST_DEPLOYMENT_ID,
+            TEST_API_VERSION,
+            dimensions,
+            null,
+            null,
+            null,
+            null
+        );
 
         var thrownException = expectThrows(
             ValidationException.class,
@@ -263,17 +288,28 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
         assertThat(
             thrownException.getMessage(),
-            containsString("Validation Failed: 1: [service_settings] Invalid value [0]. [max_input_tokens] must be a positive integer;")
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [dimensions] must be a positive integer;",
+                    dimensions
+                )
+            )
         );
     }
 
-    public void testFromMap_ThrowsException_WhenMaxInputTokensAreNegative() {
-        var resourceName = "this-resource";
-        var deploymentId = "this-deployment";
-        var apiVersion = "2024-01-01";
-        var maxInputTokens = randomNegativeInt();
+    public void testFromMap_MaxInputTokensZero_ThrowsException() {
+        var maxInputTokens = 0;
 
-        var settingsMap = getRequestAzureOpenAiServiceSettingsMap(resourceName, deploymentId, apiVersion, null, maxInputTokens);
+        var settingsMap = createEmbeddingsServiceSettingsMap(
+            TEST_RESOURCE_NAME,
+            TEST_DEPLOYMENT_ID,
+            TEST_API_VERSION,
+            null,
+            null,
+            maxInputTokens,
+            null,
+            null
+        );
 
         var thrownException = expectThrows(
             ValidationException.class,
@@ -282,7 +318,7 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
 
         assertThat(
             thrownException.getMessage(),
-            containsString(
+            is(
                 Strings.format(
                     "Validation Failed: 1: [service_settings] Invalid value [%d]. [max_input_tokens] must be a positive integer;",
                     maxInputTokens
@@ -291,32 +327,47 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public void testFromMap_Persistent_CreatesSettingsCorrectly() {
-        var resourceName = "this-resource";
-        var deploymentId = "this-deployment";
-        var apiVersion = "2024-01-01";
-        var encodingFormat = "float";
-        var dims = 1536;
-        var maxInputTokens = 512;
+    public void testFromMap_MaxInputTokensNegative_ThrowsException() {
+        var maxInputTokens = randomNegativeInt();
 
-        var serviceSettings = AzureOpenAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    AzureOpenAiServiceFields.RESOURCE_NAME,
-                    resourceName,
-                    AzureOpenAiServiceFields.DEPLOYMENT_ID,
-                    deploymentId,
-                    AzureOpenAiServiceFields.API_VERSION,
-                    apiVersion,
-                    ServiceFields.DIMENSIONS,
-                    dims,
-                    DIMENSIONS_SET_BY_USER,
-                    false,
-                    ServiceFields.MAX_INPUT_TOKENS,
-                    maxInputTokens,
-                    SIMILARITY,
-                    SimilarityMeasure.DOT_PRODUCT.toString()
+        var settingsMap = createEmbeddingsServiceSettingsMap(
+            TEST_RESOURCE_NAME,
+            TEST_DEPLOYMENT_ID,
+            TEST_API_VERSION,
+            null,
+            null,
+            maxInputTokens,
+            null,
+            null
+        );
+
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(settingsMap, ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            is(
+                Strings.format(
+                    "Validation Failed: 1: [service_settings] Invalid value [%d]. [max_input_tokens] must be a positive integer;",
+                    maxInputTokens
                 )
+            )
+        );
+    }
+
+    public void testFromMap_Persistent_AllFields_Success() {
+        var serviceSettings = AzureOpenAiEmbeddingsServiceSettings.fromMap(
+            createEmbeddingsServiceSettingsMap(
+                TEST_RESOURCE_NAME,
+                TEST_DEPLOYMENT_ID,
+                TEST_API_VERSION,
+                TEST_DIMENSIONS,
+                false,
+                TEST_MAX_INPUT_TOKENS,
+                TEST_SIMILARITY_MEASURE,
+                TEST_RATE_LIMIT
             ),
             ConfigurationParseContext.PERSISTENT
         );
@@ -325,66 +376,22 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             serviceSettings,
             is(
                 new AzureOpenAiEmbeddingsServiceSettings(
-                    resourceName,
-                    deploymentId,
-                    apiVersion,
-                    dims,
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION,
+                    TEST_DIMENSIONS,
                     false,
-                    maxInputTokens,
-                    SimilarityMeasure.DOT_PRODUCT,
-                    null
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY_MEASURE,
+                    new RateLimitSettings(TEST_RATE_LIMIT)
                 )
             )
         );
     }
 
-    public void testFromMap_PersistentContext_DoesNotThrowException_WhenDimensionsIsNull() {
-        var resourceName = "this-resource";
-        var deploymentId = "this-deployment";
-        var apiVersion = "2024-01-01";
-
+    public void testFromMap_PersistentContext_DimensionsNull_Success() {
         var settings = AzureOpenAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    AzureOpenAiServiceFields.RESOURCE_NAME,
-                    resourceName,
-                    AzureOpenAiServiceFields.DEPLOYMENT_ID,
-                    deploymentId,
-                    AzureOpenAiServiceFields.API_VERSION,
-                    apiVersion,
-                    DIMENSIONS_SET_BY_USER,
-                    true
-                )
-            ),
-            ConfigurationParseContext.PERSISTENT
-        );
-
-        assertThat(
-            settings,
-            is(new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, true, null, null, null))
-        );
-    }
-
-    public void testFromMap_PersistentContext_DoesNotThrowException_WhenSimilarityIsPresent() {
-        var resourceName = "this-resource";
-        var deploymentId = "this-deployment";
-        var apiVersion = "2024-01-01";
-
-        var settings = AzureOpenAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(
-                Map.of(
-                    AzureOpenAiServiceFields.RESOURCE_NAME,
-                    resourceName,
-                    AzureOpenAiServiceFields.DEPLOYMENT_ID,
-                    deploymentId,
-                    AzureOpenAiServiceFields.API_VERSION,
-                    apiVersion,
-                    DIMENSIONS_SET_BY_USER,
-                    true,
-                    SIMILARITY,
-                    SimilarityMeasure.COSINE.toString()
-                )
-            ),
+            createEmbeddingsServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION, null, false, null, null, null),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -392,38 +399,48 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
             settings,
             is(
                 new AzureOpenAiEmbeddingsServiceSettings(
-                    resourceName,
-                    deploymentId,
-                    apiVersion,
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION,
                     null,
-                    true,
+                    false,
                     null,
-                    SimilarityMeasure.COSINE,
+                    null,
                     null
                 )
             )
         );
     }
 
-    public void testFromMap_PersistentContext_ThrowsException_WhenDimensionsSetByUserIsNull() {
-        var resourceName = "this-resource";
-        var deploymentId = "this-deployment";
-        var apiVersion = "2024-01-01";
-
+    public void testFromMap_PersistentContext_DimensionsNull_DimensionsSetByUserTrue_ThrowsException() {
         var exception = expectThrows(
             ValidationException.class,
             () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(
-                new HashMap<>(
-                    Map.of(
-                        AzureOpenAiServiceFields.RESOURCE_NAME,
-                        resourceName,
-                        AzureOpenAiServiceFields.DEPLOYMENT_ID,
-                        deploymentId,
-                        AzureOpenAiServiceFields.API_VERSION,
-                        apiVersion,
-                        ServiceFields.DIMENSIONS,
-                        1
-                    )
+                createEmbeddingsServiceSettingsMap(TEST_RESOURCE_NAME, TEST_DEPLOYMENT_ID, TEST_API_VERSION, null, true, null, null, null),
+                ConfigurationParseContext.PERSISTENT
+            )
+        );
+
+        assertThat(
+            exception.getMessage(),
+            is("Validation Failed: 1: [service_settings] does not contain the required setting [dimensions];")
+
+        );
+    }
+
+    public void testFromMap_PersistentContext_DimensionsSetByUserNull_ThrowsException() {
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> AzureOpenAiEmbeddingsServiceSettings.fromMap(
+                createEmbeddingsServiceSettingsMap(
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION,
+                    TEST_DIMENSIONS,
+                    null,
+                    null,
+                    null,
+                    null
                 ),
                 ConfigurationParseContext.PERSISTENT
             )
@@ -436,57 +453,86 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
     }
 
     public void testToXContent_WritesDimensionsSetByUserTrue() throws IOException {
+        boolean dimensionsSetByUser = true;
         var entity = new AzureOpenAiEmbeddingsServiceSettings(
-            "resource",
-            "deployment",
-            "apiVersion",
+            TEST_RESOURCE_NAME,
+            TEST_DEPLOYMENT_ID,
+            TEST_API_VERSION,
             null,
-            true,
+            dimensionsSetByUser,
             null,
             null,
-            new RateLimitSettings(2)
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"resource_name":"resource","deployment_id":"deployment","api_version":"apiVersion",""" + """
-            "rate_limit":{"requests_per_minute":2},"dimensions_set_by_user":true}"""));
+        assertThat(
+            xContentResult,
+            is(
+                Strings.format(
+                    """
+                        {"resource_name":"%s","deployment_id":"%s","api_version":"%s","rate_limit":\
+                        {"requests_per_minute":%d},"dimensions_set_by_user":%b}""",
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION,
+                    TEST_RATE_LIMIT,
+                    dimensionsSetByUser
+                )
+            )
+        );
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
+        boolean dimensionsSetByUser = false;
         var entity = new AzureOpenAiEmbeddingsServiceSettings(
-            "resource",
-            "deployment",
-            "apiVersion",
-            1024,
-            false,
-            512,
-            null,
-            new RateLimitSettings(3)
+            TEST_RESOURCE_NAME,
+            TEST_DEPLOYMENT_ID,
+            TEST_API_VERSION,
+            TEST_DIMENSIONS,
+            dimensionsSetByUser,
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY_MEASURE,
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"resource_name":"resource","deployment_id":"deployment","api_version":"apiVersion",""" + """
-            "dimensions":1024,"max_input_tokens":512,"rate_limit":{"requests_per_minute":3},"dimensions_set_by_user":false}"""));
+        assertThat(
+            xContentResult,
+            is(
+                Strings.format(
+                    """
+                        {"resource_name":"%s","deployment_id":"%s","api_version":"%s","dimensions":%d,\
+                        "max_input_tokens":%d,"similarity":"%s","rate_limit":{"requests_per_minute":%d},"dimensions_set_by_user":%b}""",
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY_MEASURE,
+                    TEST_RATE_LIMIT,
+                    dimensionsSetByUser
+                )
+            )
+        );
     }
 
-    public void testToFilteredXContent_WritesAllValues_Except_DimensionsSetByUser() throws IOException {
+    public void testToFilteredXContent_WritesAllValues_ExceptDimensionsSetByUser() throws IOException {
         var entity = new AzureOpenAiEmbeddingsServiceSettings(
-            "resource",
-            "deployment",
-            "apiVersion",
-            1024,
+            TEST_RESOURCE_NAME,
+            TEST_DEPLOYMENT_ID,
+            TEST_API_VERSION,
+            TEST_DIMENSIONS,
             false,
-            512,
-            null,
-            new RateLimitSettings(1)
+            TEST_MAX_INPUT_TOKENS,
+            TEST_SIMILARITY_MEASURE,
+            new RateLimitSettings(TEST_RATE_LIMIT)
         );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
@@ -494,9 +540,23 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         filteredXContent.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
 
-        assertThat(xContentResult, is("""
-            {"resource_name":"resource","deployment_id":"deployment","api_version":"apiVersion",""" + """
-            "dimensions":1024,"max_input_tokens":512,"rate_limit":{"requests_per_minute":1}}"""));
+        assertThat(
+            xContentResult,
+            is(
+                Strings.format(
+                    """
+                        {"resource_name":"%s","deployment_id":"%s","api_version":"%s","dimensions":%d,"max_input_tokens":%d,\
+                        "similarity":"%s","rate_limit":{"requests_per_minute":%d}}""",
+                    TEST_RESOURCE_NAME,
+                    TEST_DEPLOYMENT_ID,
+                    TEST_API_VERSION,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
+                    TEST_SIMILARITY_MEASURE,
+                    TEST_RATE_LIMIT
+                )
+            )
+        );
     }
 
     @Override
@@ -543,52 +603,45 @@ public class AzureOpenAiEmbeddingsServiceSettingsTests extends AbstractWireSeria
         );
     }
 
-    public static Map<String, Object> getPersistentAzureOpenAiServiceSettingsMap(
+    public static HashMap<String, Object> createEmbeddingsServiceSettingsMap(
         String resourceName,
         String deploymentId,
         String apiVersion,
         @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens
+        @Nullable Boolean dimensionsSetByUser,
+        @Nullable Integer maxTokens,
+        @Nullable SimilarityMeasure similarityMeasure,
+        @Nullable Integer rateLimitSettings
     ) {
-        var map = new HashMap<String, Object>();
-
-        map.put(AzureOpenAiServiceFields.RESOURCE_NAME, resourceName);
-        map.put(AzureOpenAiServiceFields.DEPLOYMENT_ID, deploymentId);
-        map.put(AzureOpenAiServiceFields.API_VERSION, apiVersion);
-
-        if (dimensions != null) {
-            map.put(ServiceFields.DIMENSIONS, dimensions);
-            map.put(DIMENSIONS_SET_BY_USER, true);
-        } else {
-            map.put(DIMENSIONS_SET_BY_USER, false);
-        }
-
-        if (maxInputTokens != null) {
-            map.put(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens);
-        }
-
-        return map;
-    }
-
-    public static Map<String, Object> getRequestAzureOpenAiServiceSettingsMap(
-        String resourceName,
-        String deploymentId,
-        String apiVersion,
-        @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens
-    ) {
-        var map = new HashMap<String, Object>();
-
-        map.put(AzureOpenAiServiceFields.RESOURCE_NAME, resourceName);
-        map.put(AzureOpenAiServiceFields.DEPLOYMENT_ID, deploymentId);
-        map.put(AzureOpenAiServiceFields.API_VERSION, apiVersion);
+        var map = new HashMap<String, Object>(
+            Map.of(
+                AzureOpenAiServiceFields.RESOURCE_NAME,
+                resourceName,
+                AzureOpenAiServiceFields.DEPLOYMENT_ID,
+                deploymentId,
+                AzureOpenAiServiceFields.API_VERSION,
+                apiVersion
+            )
+        );
 
         if (dimensions != null) {
             map.put(ServiceFields.DIMENSIONS, dimensions);
         }
 
-        if (maxInputTokens != null) {
-            map.put(ServiceFields.MAX_INPUT_TOKENS, maxInputTokens);
+        if (dimensionsSetByUser != null) {
+            map.put(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser.equals(Boolean.TRUE));
+        }
+
+        if (maxTokens != null) {
+            map.put(ServiceFields.MAX_INPUT_TOKENS, maxTokens);
+        }
+
+        if (similarityMeasure != null) {
+            map.put(ServiceFields.SIMILARITY, similarityMeasure.toString());
+        }
+
+        if (rateLimitSettings != null) {
+            map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimitSettings)));
         }
 
         return map;

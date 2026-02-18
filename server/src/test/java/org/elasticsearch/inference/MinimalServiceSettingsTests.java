@@ -23,8 +23,10 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCase<MinimalServiceSettings> {
 
@@ -219,6 +221,14 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
     @Override
     protected MinimalServiceSettings doParseInstance(XContentParser parser) throws IOException {
         return MinimalServiceSettings.parse(parser);
+    }
+
+    public void testUpdateServiceSettings_SameInstance() {
+        MinimalServiceSettings minimalServiceSettings = randomInstance();
+        assertThat(
+            minimalServiceSettings.updateServiceSettings(Map.of("some_key", "some_value"), TaskType.TEXT_EMBEDDING),
+            sameInstance(minimalServiceSettings)
+        );
     }
 
     @Override

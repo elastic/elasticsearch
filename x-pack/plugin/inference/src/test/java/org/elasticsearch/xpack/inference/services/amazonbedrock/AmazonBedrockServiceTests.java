@@ -1643,18 +1643,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             );
             assertThat(
                 thrownException.getMessage(),
-                is(
-                    Strings.format(
-                        """
-                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
-                            Please delete and add the service again""",
-                        INFERENCE_ID_VALUE,
-                        AmazonBedrockService.NAME,
-                        AmazonBedrockService.NAME,
-                        unsupportedTaskType
-                    )
-                )
-
+                is(Strings.format("The [%s] service does not support task type [%s]", AmazonBedrockService.NAME, unsupportedTaskType))
             );
         }
     }

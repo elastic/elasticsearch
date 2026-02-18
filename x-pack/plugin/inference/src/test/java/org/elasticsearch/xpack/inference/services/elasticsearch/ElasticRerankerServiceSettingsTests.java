@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.junit.Assert;
 
@@ -28,6 +29,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class ElasticRerankerServiceSettingsTests extends AbstractElasticsearchInternalServiceSettingsTests<ElasticRerankerServiceSettings> {
     public static ElasticRerankerServiceSettings createRandomWithoutChunkingConfiguration(String modelId) {
         return createRandom(null, null, modelId);
+    }
+
+    @Override
+    protected TaskType getSupportedTask() {
+        return TaskType.RERANK;
     }
 
     public static ElasticRerankerServiceSettings createRandomWithChunkingConfiguration(

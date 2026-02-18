@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -38,11 +39,115 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<CohereEmbeddingsServiceSettings> {
+    private static final String TEST_URL = "https://www.test.com";
+    private static final String INITIAL_TEST_URL = "https://www.initial-test.com";
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int TEST_DIMENSIONS = 1536;
+    private static final int INITIAL_TEST_DIMENSIONS = 3072;
+    private static final int TEST_MAX_INPUT_TOKENS = 512;
+    private static final int INITIAL_TEST_MAX_INPUT_TOKENS = 1024;
+    private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
+    private static final SimilarityMeasure INITIAL_TEST_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
+    private static final CohereServiceSettings.CohereApiVersion TEST_INITIAL_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V1;
+    private static final CohereServiceSettings.CohereApiVersion TEST_COHERE_API_VERSION = CohereServiceSettings.CohereApiVersion.V2;
+    private static final CohereEmbeddingType TEST_INITIAL_COHERE_EMBEDDING_TYPE = CohereEmbeddingType.BIT;
+    private static final CohereEmbeddingType TEST_COHERE_EMBEDDING_TYPE = CohereEmbeddingType.BYTE;
+
     public static CohereEmbeddingsServiceSettings createRandom() {
         var commonSettings = CohereServiceSettingsTests.createRandom();
         var embeddingType = randomFrom(CohereEmbeddingType.values());
 
         return new CohereEmbeddingsServiceSettings(commonSettings, embeddingType);
+    }
+
+    public void testUpdateServiceSettings_AllFields_Success() {
+        HashMap<String, Object> settingsMap = new HashMap<>(
+            Map.of(
+                ServiceFields.URL,
+                TEST_URL,
+                ServiceFields.SIMILARITY,
+                TEST_SIMILARITY_MEASURE.toString(),
+                ServiceFields.DIMENSIONS,
+                TEST_DIMENSIONS,
+                ServiceFields.MAX_INPUT_TOKENS,
+                TEST_MAX_INPUT_TOKENS,
+                ServiceFields.MODEL_ID,
+                TEST_MODEL_ID,
+                ServiceFields.EMBEDDING_TYPE,
+                TEST_COHERE_EMBEDDING_TYPE.toString(),
+                CohereServiceSettings.API_VERSION,
+                TEST_COHERE_API_VERSION.toString(),
+                RateLimitSettings.FIELD_NAME,
+                new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+            )
+        );
+
+        var serviceSettings = new CohereEmbeddingsServiceSettings(
+            new CohereServiceSettings(
+                INITIAL_TEST_URL,
+                INITIAL_TEST_SIMILARITY_MEASURE,
+                INITIAL_TEST_DIMENSIONS,
+                INITIAL_TEST_MAX_INPUT_TOKENS,
+                INITIAL_TEST_MODEL_ID,
+                new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+                TEST_INITIAL_COHERE_API_VERSION
+            ),
+            TEST_INITIAL_COHERE_EMBEDDING_TYPE
+        ).updateServiceSettings(settingsMap, TaskType.TEXT_EMBEDDING);
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings(
+                        TEST_URL,
+                        TEST_SIMILARITY_MEASURE,
+                        TEST_DIMENSIONS,
+                        TEST_MAX_INPUT_TOKENS,
+                        TEST_MODEL_ID,
+                        new RateLimitSettings(TEST_RATE_LIMIT),
+                        TEST_COHERE_API_VERSION
+                    ),
+                    TEST_COHERE_EMBEDDING_TYPE
+                )
+            )
+        );
+    }
+
+    public void testUpdateServiceSettings_EmptyMap_Success() {
+        var serviceSettings = new CohereEmbeddingsServiceSettings(
+            new CohereServiceSettings(
+                INITIAL_TEST_URL,
+                INITIAL_TEST_SIMILARITY_MEASURE,
+                INITIAL_TEST_DIMENSIONS,
+                INITIAL_TEST_MAX_INPUT_TOKENS,
+                INITIAL_TEST_MODEL_ID,
+                new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+                TEST_INITIAL_COHERE_API_VERSION
+            ),
+            TEST_INITIAL_COHERE_EMBEDDING_TYPE
+        ).updateServiceSettings(new HashMap<>(), TaskType.TEXT_EMBEDDING);
+
+        MatcherAssert.assertThat(
+            serviceSettings,
+            is(
+                new CohereEmbeddingsServiceSettings(
+                    new CohereServiceSettings(
+                        INITIAL_TEST_URL,
+                        INITIAL_TEST_SIMILARITY_MEASURE,
+                        INITIAL_TEST_DIMENSIONS,
+                        INITIAL_TEST_MAX_INPUT_TOKENS,
+                        INITIAL_TEST_MODEL_ID,
+                        new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
+                        TEST_INITIAL_COHERE_API_VERSION
+                    ),
+                    TEST_INITIAL_COHERE_EMBEDDING_TYPE
+                )
+            )
+        );
     }
 
     public void testFromMap() {

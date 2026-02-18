@@ -60,6 +60,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -69,6 +71,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -182,6 +185,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final boolean collectCCSTelemetry;
     private final TimeValue forceConnectTimeoutSecs;
     private final CrossProjectModeDecider crossProjectModeDecider;
+    private final ActivityLogger<SearchLogContext> activityLogger;
 
     @Inject
     public TransportSearchAction(
@@ -200,7 +204,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ExecutorSelector executorSelector,
         SearchResponseMetrics searchResponseMetrics,
         Client client,
-        UsageService usageService
+        UsageService usageService,
+        ActionLoggingFieldsProvider fieldProvider,
+        ActivityLogWriterProvider logWriterProvider
     ) {
         super(TYPE.name(), transportService, actionFilters, SearchRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.threadPool = threadPool;
@@ -232,6 +238,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.usageService = usageService;
         this.forceConnectTimeoutSecs = settings.getAsTime("search.ccs.force_connect_timeout", null);
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
+        this.activityLogger = new ActivityLogger<>(
+            "search",
+            clusterService.getClusterSettings(),
+            new SearchLogProducer(clusterService.getClusterSettings(), indexNameExpressionResolver.getSystemNamePredicate()),
+            logWriterProvider,
+            fieldProvider
+        );
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -347,7 +360,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
 
     @Override
     protected void doExecute(Task task, SearchRequest searchRequest, ActionListener<SearchResponse> listener) {
-        executeRequest((SearchTask) task, searchRequest, listener, AsyncSearchActionProvider::new, true);
+        executeRequest(
+            (SearchTask) task,
+            searchRequest,
+            activityLogger.wrap(listener, new SearchLogContextBuilder(task, namedWriteableRegistry, searchRequest)),
+            AsyncSearchActionProvider::new,
+            true
+        );
     }
 
     void executeOpenPit(
@@ -701,10 +720,32 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static void openPIT(Client client, SearchRequest request, long keepAliveMillis, ActionListener<OpenPointInTimeResponse> listener) {
-        OpenPointInTimeRequest pitReq = new OpenPointInTimeRequest(request.indices()).indicesOptions(request.indicesOptions())
+        ResolvedIndexExpressions resolvedIndexExpressions = request.getResolvedIndexExpressions();
+
+        String[] indices;
+        /*
+         * At this point, request.indices() holds indices that are already expanded/rewritten by the Security Action Filter (SAF).
+         * Using these indices again for the PIT request would make it look as if the qualified index expression(s) were
+         * specified by the user. They then show up in `ResolvedIndexExpressions`, which can trip the subsequent
+         * `CrossProjectIndexResolutionValidator#validate()` since the PIT request is CPS compatible and goes through the
+         * SAF. To prevent that from happening, we negate the previous SAF action by using the indices that the user originally
+         * specified.
+         *
+         * However, if `resolvedIndexExpressions` is `null`, it means that we're not in a CPS environment. In that case,
+         * we can go ahead and use the request's indices directly.
+         */
+        if (resolvedIndexExpressions == null) {
+            indices = request.indices();
+        } else {
+            indices = resolvedIndexExpressions.expressions().stream().map(ResolvedIndexExpression::original).toArray(String[]::new);
+        }
+
+        OpenPointInTimeRequest pitReq = new OpenPointInTimeRequest(indices).indicesOptions(request.indicesOptions())
             .preference(request.preference())
             .routing(request.routing())
             .keepAlive(TimeValue.timeValueMillis(keepAliveMillis));
+        pitReq.projectRouting(request.getProjectRouting());
+
         client.execute(TransportOpenPointInTimeAction.TYPE, pitReq, listener);
     }
 

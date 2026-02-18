@@ -651,6 +651,10 @@ public abstract class FieldMapper extends Mapper {
                 return mapperBuilders.isEmpty() == false;
             }
 
+            int size() {
+                return mapperBuilders.size();
+            }
+
             public boolean hasSyntheticSourceCompatibleKeywordField() {
                 return hasSyntheticSourceCompatibleKeywordField;
             }
@@ -1537,6 +1541,11 @@ public abstract class FieldMapper extends Mapper {
             super(name);
         }
 
+        @Override
+        int getTotalFieldsCount() {
+            return 1 + multiFieldsBuilder.size();
+        }
+
         /**
          * Initialises all parameters from an existing mapper
          */
@@ -1547,6 +1556,8 @@ public abstract class FieldMapper extends Mapper {
             for (FieldMapper subField : initializer.builderParams.multiFields.mappers) {
                 multiFieldsBuilder.add(subField);
             }
+            this.copyTo = initializer.builderParams.copyTo;
+            this.sourceKeepMode = initializer.builderParams.sourceKeepMode;
             return this;
         }
 

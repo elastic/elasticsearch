@@ -214,7 +214,10 @@ public class ParsedDocument {
         if (dynamicMappingsUpdate == null) {
             dynamicMappingsUpdate = update;
         } else {
-            dynamicMappingsUpdate = dynamicMappingsUpdate.merge(update, MergeReason.MAPPING_AUTO_UPDATE, Long.MAX_VALUE);
+            MappingBuilder existingBuilder = MappingBuilder.fromMapping(dynamicMappingsUpdate);
+            MappingBuilder incomingBuilder = MappingBuilder.fromMapping(update);
+            existingBuilder.merge(incomingBuilder, MergeReason.MAPPING_AUTO_UPDATE, Long.MAX_VALUE);
+            dynamicMappingsUpdate = existingBuilder.build(MergeReason.MAPPING_AUTO_UPDATE);
         }
     }
 

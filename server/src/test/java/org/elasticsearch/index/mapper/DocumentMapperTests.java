@@ -310,7 +310,12 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        merged = merged.merge(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
+        {
+            MappingBuilder existingBuilder = MappingBuilder.fromMapping(merged);
+            MappingBuilder incomingBuilder = MappingBuilder.fromMapping(updatedMapper.mapping());
+            existingBuilder.merge(incomingBuilder, MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
+            merged = existingBuilder.build(MergeReason.INDEX_TEMPLATE);
+        }
 
         expected = Map.of("field", "value", "object", Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
         assertThat(merged.getMeta(), equalTo(expected));

@@ -71,6 +71,28 @@ public class PassThroughObjectMapper extends ObjectMapper {
         }
 
         @Override
+        void merge(ObjectMapper.Builder mergeWith, MapperMergeContext objectMergeContext, String fullPath) {
+            if (mergeWith instanceof PassThroughObjectMapper.Builder ptMergeWith) {
+                if (ptMergeWith.timeSeriesDimensionSubFields.explicit()) {
+                    this.timeSeriesDimensionSubFields = ptMergeWith.timeSeriesDimensionSubFields;
+                }
+                this.priority = Math.max(this.priority, ptMergeWith.priority);
+                super.merge(mergeWith, objectMergeContext, fullPath);
+            } else if (mergeWith instanceof NestedObjectMapper.Builder) {
+                MapperErrors.throwNestedMappingConflictError(fullPath);
+            } else {
+                // Plain ObjectMapper merging into PassThrough - check eligibility
+                if (mergeWith instanceof RootObjectMapper.Builder
+                    || (mergeWith.subobjects != null
+                        && mergeWith.subobjects.explicit()
+                        && mergeWith.subobjects.value() != Subobjects.DISABLED)) {
+                    MapperErrors.throwPassThroughMappingConflictError(fullPath);
+                }
+                super.merge(mergeWith, objectMergeContext, fullPath);
+            }
+        }
+
+        @Override
         public PassThroughObjectMapper build(MapperBuilderContext context) {
             return new PassThroughObjectMapper(
                 leafName(),
@@ -151,45 +173,34 @@ public class PassThroughObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public PassThroughObjectMapper merge(Mapper mergeWith, MapperMergeContext parentBuilderContext) {
+    PassThroughObjectMapper.Builder toBuilder() {
+        PassThroughObjectMapper.Builder builder = new PassThroughObjectMapper.Builder(leafName());
+        builder.enabled = this.enabled;
+        builder.dynamic = this.dynamic;
+        builder.sourceKeepMode = this.sourceKeepMode;
+        builder.timeSeriesDimensionSubFields = this.timeSeriesDimensionSubFields;
+        builder.priority = this.priority;
+        for (Mapper mapper : mappers.values()) {
+            if (mapper instanceof ObjectMapper objectMapper) {
+                builder.add(objectMapper.toBuilder());
+            } else if (mapper instanceof FieldMapper fieldMapper && fieldMapper.getMergeBuilder() != null) {
+                builder.add(fieldMapper.getMergeBuilder());
+            } else {
+                builder.add(ObjectMapper.Builder.wrapMapper(mapper));
+            }
+        }
+        return builder;
+    }
+
+    @Override
+    public PassThroughObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
         if (mergeWith instanceof ObjectMapper == false) {
             MapperErrors.throwObjectMappingConflictError(mergeWith.fullPath());
         }
-        ObjectMapper mergeWithObjectMapper = (ObjectMapper) mergeWith;
-        if (mergeWithObjectMapper instanceof PassThroughObjectMapper mergeWithPassThrough) {
-            final var mergeResult = MergeResult.build(this, mergeWithPassThrough, parentBuilderContext);
-            final Explicit<Boolean> containsDimensions = (mergeWithPassThrough.timeSeriesDimensionSubFields.explicit())
-                ? mergeWithPassThrough.timeSeriesDimensionSubFields
-                : this.timeSeriesDimensionSubFields;
-
-            return new PassThroughObjectMapper(
-                leafName(),
-                fullPath(),
-                mergeResult.enabled(),
-                mergeResult.sourceKeepMode(),
-                mergeResult.dynamic(),
-                mergeResult.mappers(),
-                containsDimensions,
-                Math.max(priority, mergeWithPassThrough.priority)
-            );
-        }
-        if (mergeWithObjectMapper instanceof NestedObjectMapper) {
-            MapperErrors.throwNestedMappingConflictError(fullPath());
-        }
-        if (isEligibleForMerge(mergeWithObjectMapper) == false) {
-            MapperErrors.throwPassThroughMappingConflictError(fullPath());
-        }
-        MergeResult mergeResult = MergeResult.build(this, mergeWithObjectMapper, parentBuilderContext);
-        return new PassThroughObjectMapper(
-            leafName(),
-            fullPath(),
-            mergeResult.enabled(),
-            mergeResult.sourceKeepMode(),
-            mergeResult.dynamic(),
-            mergeResult.mappers(),
-            timeSeriesDimensionSubFields,
-            priority
-        );
+        PassThroughObjectMapper.Builder builder = toBuilder();
+        MapperMergeContext objectMergeContext = createChildContext(parentMergeContext, leafName());
+        builder.merge(((ObjectMapper) mergeWith).toBuilder(), objectMergeContext, fullPath());
+        return builder.build(parentMergeContext.getMapperBuilderContext());
     }
 
     /**

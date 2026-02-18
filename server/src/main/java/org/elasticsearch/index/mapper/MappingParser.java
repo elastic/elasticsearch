@@ -91,6 +91,15 @@ public final class MappingParser {
         return parse(type, reason, mapping);
     }
 
+    MappingBuilder parseToBuilder(@Nullable String type, MergeReason reason, CompressedXContent source) throws MapperParsingException {
+        try {
+            Map<String, Object> mapping = convertToMap(source);
+            return parseToBuilder(type, reason, mapping);
+        } catch (Exception e) {
+            throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
+        }
+    }
+
     /**
      * A method to parse mapping from a source in a map form.
      *
@@ -100,8 +109,24 @@ public final class MappingParser {
      * @return a parsed mapping
      * @throws MapperParsingException in case of parsing error
      */
-    @SuppressWarnings("unchecked")
     Mapping parse(@Nullable String type, MergeReason reason, Map<String, Object> mappingSource) throws MapperParsingException {
+        return parseToBuilder(type, reason, mappingSource).build(reason);
+    }
+
+    /**
+     * Parses a mapping source into a {@link MappingBuilder}, deferring the final build step.
+     * This allows callers to perform merge operations at the builder level before building the
+     * final {@link Mapping}.
+     *
+     * @param type          the mapping type
+     * @param reason        the merge reason (used for deprecation checks during parsing)
+     * @param mappingSource mapping source already converted to a map form, but not yet processed otherwise
+     * @return a {@link MappingBuilder} containing the parsed root builder, metadata, and meta
+     * @throws MapperParsingException in case of parsing error
+     */
+    @SuppressWarnings("unchecked")
+    MappingBuilder parseToBuilder(@Nullable String type, MergeReason reason, Map<String, Object> mappingSource)
+        throws MapperParsingException {
         if (mappingSource.isEmpty()) {
             if (type == null) {
                 throw new MapperParsingException("malformed mapping, no type name found");
@@ -127,12 +152,6 @@ public final class MappingParser {
         Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
         Map<String, Object> meta = null;
 
-        // TODO this should be the final value once `_source.mode` mapping parameter is not used anymore
-        // and it should not be reassigned below.
-        // For now it is still possible to set `_source.mode` so this is correct.
-        boolean isSourceSynthetic = SourceFieldMapper.isSynthetic(mappingParserContext.getIndexSettings());
-        boolean isDataStream = false;
-
         Iterator<Map.Entry<String, Object>> iterator = mappingSource.entrySet().iterator();
         while (iterator.hasNext()) {
             Map.Entry<String, Object> entry = iterator.next();
@@ -156,14 +175,6 @@ public final class MappingParser {
                 MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, mappingParserContext).build();
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
                 assert fieldNodeMap.isEmpty();
-
-                if (metadataFieldMapper instanceof SourceFieldMapper sfm) {
-                    isSourceSynthetic = sfm.isSynthetic();
-                }
-
-                if (metadataFieldMapper instanceof DataStreamTimestampFieldMapper dsfm) {
-                    isDataStream = dsfm.isEnabled();
-                }
             }
         }
 
@@ -191,10 +202,6 @@ public final class MappingParser {
             checkNoRemainingFields(mappingSource, "Root mapping definition has unsupported parameters: ");
         }
 
-        return new Mapping(
-            rootObjectMapper.build(MapperBuilderContext.root(isSourceSynthetic, isDataStream, reason)),
-            metadataMappers.values().toArray(new MetadataFieldMapper[0]),
-            meta
-        );
+        return new MappingBuilder(rootObjectMapper, metadataMappers, meta);
     }
 }

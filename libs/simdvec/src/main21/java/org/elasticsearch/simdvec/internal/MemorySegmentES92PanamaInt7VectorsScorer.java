@@ -168,6 +168,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
     }
 
     private static void panamaInt7DotProductBulkImpl(byte[] q, MemorySegment memorySegment, int dimensions, int count, float[] scores) {
+        // only vectorize if we'll at least enter the loop a single time
         if (dimensions >= 16) {
             // compute vectorized dot product consistent with VPDPBUSD instruction
             if (VECTOR_BITSIZE >= 512) {

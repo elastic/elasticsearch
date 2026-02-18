@@ -1,5 +1,6 @@
-area: "ES|QL"
-issues: []
+area: ES|QL
+issues:
+ - 142640
 pr: 142528
 summary: Extract centroid from doc values for ST_CENTROID_AGG over `geo_shape` and
   `cartesian_shape`

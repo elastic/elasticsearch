@@ -254,7 +254,6 @@ public class CsvIT extends ESTestCase {
 
                 @Override
                 protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
-                    logger.info("Executing {}", action);
                     switch (action) {
                         case EsqlQueryAction.NAME -> loadViews();
                         case EsqlResolveFieldsAction.NAME -> loadIndices((FieldCapabilitiesRequest) request);
@@ -267,6 +266,7 @@ public class CsvIT extends ESTestCase {
     }
 
     private static void loadViews() {
+        // TODO We should instead load views once and never unload them
         if ("views".equals(currentGroupName)) {
             CsvTestsDataLoader.VIEW_CONFIGS.forEach(view -> views.maybeLoad(view));
         } else {
@@ -276,12 +276,16 @@ public class CsvIT extends ESTestCase {
 
     private static void loadIndices(FieldCapabilitiesRequest request) {
         Stream.of(request.indices())
-            .flatMap(
-                pattern -> pattern.contains("*") || pattern.startsWith("-") || pattern.contains("<")
-                    ? CsvTestsDataLoader.CSV_DATASET_MAP.values().stream() // load all when using pattern, exclusion or date-math
-                    : Stream.of(CsvTestsDataLoader.CSV_DATASET_MAP.get(pattern))
-            )
-            .distinct()
+            .flatMap(pattern -> {
+                assert pattern.contains("<") == false : "Date-math is not supported in test";
+                if (pattern.contains("*")) {
+                    assert pattern.endsWith("*") : "Only suffix patterns are supported in test";
+                    var prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
+                    return CsvTestsDataLoader.CSV_DATASET_MAP.values().stream().filter(ds -> ds.indexName().startsWith(prefix));
+                } else {
+                    return Stream.of(CsvTestsDataLoader.CSV_DATASET_MAP.get(pattern));
+                }
+            })
             .forEach(resource -> indices.maybeLoad(resource));
     }
 

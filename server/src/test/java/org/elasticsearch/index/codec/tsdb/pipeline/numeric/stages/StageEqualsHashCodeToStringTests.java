@@ -24,13 +24,13 @@ public class StageEqualsHashCodeToStringTests extends ESTestCase {
     }
 
     public void testFpcTransformDecodeStageToString() {
-        assertEquals("FpcTransformDecodeStage{tableSize=1024}", new FpcTransformDecodeStage().toString());
+        assertEquals("FpcTransformDecodeStage{tableSize=1024}", new FpcTransformDecodeStage(512).toString());
     }
 
     public void testFpcTransformDecodeStageEqualsHashCode() {
-        final var a = new FpcTransformDecodeStage(1024);
-        final var b = new FpcTransformDecodeStage(1024);
-        final var c = new FpcTransformDecodeStage(512);
+        final var a = new FpcTransformDecodeStage(512, 1024);
+        final var b = new FpcTransformDecodeStage(512, 1024);
+        final var c = new FpcTransformDecodeStage(512, 512);
         assertEqualsContract(a, b, c);
     }
 
@@ -145,10 +145,48 @@ public class StageEqualsHashCodeToStringTests extends ESTestCase {
         final var b = new FpcTransformEncodeStage(BLOCK_SIZE, 1024);
         final var c = new FpcTransformEncodeStage(BLOCK_SIZE, 512);
         assertEqualsContract(a, b, c);
+        final var d = new FpcTransformEncodeStage(BLOCK_SIZE, 1024, 1e-3);
+        assertNotEquals(a, d);
     }
 
     public void testFpcTransformEncodeStageToString() {
-        assertEquals("FpcTransformEncodeStage{tableSize=1024}", new FpcTransformEncodeStage(BLOCK_SIZE).toString());
+        assertEquals("FpcTransformEncodeStage{tableSize=1024, quantizeStep=0.0}", new FpcTransformEncodeStage(BLOCK_SIZE).toString());
+        assertEquals(
+            "FpcTransformEncodeStage{tableSize=1024, quantizeStep=0.002}",
+            new FpcTransformEncodeStage(BLOCK_SIZE, 1024, 1e-3).toString()
+        );
+    }
+
+    public void testChimpDoubleTransformEncodeStageEqualsHashCode() {
+        final var a = new ChimpDoubleTransformEncodeStage(BLOCK_SIZE, 16);
+        final var b = new ChimpDoubleTransformEncodeStage(BLOCK_SIZE, 16);
+        final var c = new ChimpDoubleTransformEncodeStage(BLOCK_SIZE, 8);
+        assertEqualsContract(a, b, c);
+        final var d = new ChimpDoubleTransformEncodeStage(BLOCK_SIZE, 16, 1e-3);
+        assertNotEquals(a, d);
+    }
+
+    public void testChimpDoubleTransformEncodeStageToString() {
+        assertThat(
+            new ChimpDoubleTransformEncodeStage(BLOCK_SIZE).toString(),
+            org.hamcrest.Matchers.startsWith("ChimpDoubleTransformEncodeStage{")
+        );
+    }
+
+    public void testChimpFloatTransformEncodeStageEqualsHashCode() {
+        final var a = new ChimpFloatTransformEncodeStage(BLOCK_SIZE, 16);
+        final var b = new ChimpFloatTransformEncodeStage(BLOCK_SIZE, 16);
+        final var c = new ChimpFloatTransformEncodeStage(BLOCK_SIZE, 8);
+        assertEqualsContract(a, b, c);
+        final var d = new ChimpFloatTransformEncodeStage(BLOCK_SIZE, 16, 1e-3);
+        assertNotEquals(a, d);
+    }
+
+    public void testChimpFloatTransformEncodeStageToString() {
+        assertThat(
+            new ChimpFloatTransformEncodeStage(BLOCK_SIZE).toString(),
+            org.hamcrest.Matchers.startsWith("ChimpFloatTransformEncodeStage{")
+        );
     }
 
     public void testZstdEncodeStageEqualsHashCode() {

@@ -260,6 +260,16 @@ public final class PipelineConfig {
             return this;
         }
 
+        public DoubleBuilder fpcStage(double maxError) {
+            specs.add(new StageSpec.FpcStage(0, maxError));
+            return this;
+        }
+
+        public DoubleBuilder fpcStage(int tableSize, double maxError) {
+            specs.add(new StageSpec.FpcStage(tableSize, maxError));
+            return this;
+        }
+
         public DoubleBuilder chimpDoubleStage() {
             specs.add(new StageSpec.ChimpDoubleStage());
             return this;
@@ -267,6 +277,16 @@ public final class PipelineConfig {
 
         public DoubleBuilder chimpDoubleStage(int groupSize) {
             specs.add(new StageSpec.ChimpDoubleStage(groupSize));
+            return this;
+        }
+
+        public DoubleBuilder chimpDoubleStage(double maxError) {
+            specs.add(new StageSpec.ChimpDoubleStage(16, maxError));
+            return this;
+        }
+
+        public DoubleBuilder chimpDoubleStage(int groupSize, double maxError) {
+            specs.add(new StageSpec.ChimpDoubleStage(groupSize, maxError));
             return this;
         }
 
@@ -381,6 +401,16 @@ public final class PipelineConfig {
             return this;
         }
 
+        public FloatBuilder fpcStage(double maxError) {
+            specs.add(new StageSpec.FpcStage(0, maxError));
+            return this;
+        }
+
+        public FloatBuilder fpcStage(int tableSize, double maxError) {
+            specs.add(new StageSpec.FpcStage(tableSize, maxError));
+            return this;
+        }
+
         public FloatBuilder alpRdFloatStage() {
             specs.add(new StageSpec.AlpRdFloatStage());
             return this;
@@ -398,6 +428,16 @@ public final class PipelineConfig {
 
         public FloatBuilder chimpFloatStage(int groupSize) {
             specs.add(new StageSpec.ChimpFloatStage(groupSize));
+            return this;
+        }
+
+        public FloatBuilder chimpFloatStage(double maxError) {
+            specs.add(new StageSpec.ChimpFloatStage(16, maxError));
+            return this;
+        }
+
+        public FloatBuilder chimpFloatStage(int groupSize, double maxError) {
+            specs.add(new StageSpec.ChimpFloatStage(groupSize, maxError));
             return this;
         }
 

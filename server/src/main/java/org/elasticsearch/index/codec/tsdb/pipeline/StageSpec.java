@@ -119,9 +119,13 @@ public sealed interface StageSpec {
         }
     }
 
-    record FpcStage(int tableSize) implements StageSpec {
+    record FpcStage(int tableSize, double maxError) implements StageSpec {
         public FpcStage() {
-            this(0);
+            this(0, -1);
+        }
+
+        public FpcStage(int tableSize) {
+            this(tableSize, -1);
         }
 
         @Override
@@ -130,9 +134,13 @@ public sealed interface StageSpec {
         }
     }
 
-    record ChimpDoubleStage(int groupSize) implements StageSpec {
+    record ChimpDoubleStage(int groupSize, double maxError) implements StageSpec {
         public ChimpDoubleStage() {
-            this(16);
+            this(16, -1);
+        }
+
+        public ChimpDoubleStage(int groupSize) {
+            this(groupSize, -1);
         }
 
         @Override
@@ -141,9 +149,13 @@ public sealed interface StageSpec {
         }
     }
 
-    record ChimpFloatStage(int groupSize) implements StageSpec {
+    record ChimpFloatStage(int groupSize, double maxError) implements StageSpec {
         public ChimpFloatStage() {
-            this(16);
+            this(16, -1);
+        }
+
+        public ChimpFloatStage(int groupSize) {
+            this(groupSize, -1);
         }
 
         @Override

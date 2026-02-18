@@ -9,9 +9,16 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 
+import org.apache.lucene.store.ByteArrayDataInput;
+import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockDecoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockEncoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformDecoder;
 
@@ -20,7 +27,7 @@ import java.util.Arrays;
 
 public class FpcTransformStageTests extends NumericCodecStageTestCase {
 
-    private static final TransformDecoder DECODER = new FpcTransformDecodeStage();
+    private static final TransformDecoder DECODER = new FpcTransformDecodeStage(128 << 7);
     private static final int EXTRA_BUFFER_PER_VALUE = 2;
 
     public void testRoundTripConstantValues() throws IOException {
@@ -286,6 +293,70 @@ public class FpcTransformStageTests extends NumericCodecStageTestCase {
         }
         final NumericEncoder encoder = NumericEncoder.fromConfig(PipelineConfig.forFloats(blockSize).fpcStage().offset().gcd().bitPack());
         assertFullPipelineRoundTrip(values, encoder);
+    }
+
+    public void testRoundTripWithQuantization() throws IOException {
+        final int blockSize = randomBlockSize();
+        final double maxError = 0.01;
+        final long[] values = new long[blockSize];
+        for (int i = 0; i < blockSize; i++) {
+            values[i] = NumericUtils.doubleToSortableLong(22.5 + randomDoubleBetween(-0.5, 0.5, true));
+        }
+        final FpcTransformEncodeStage encoder = new FpcTransformEncodeStage(
+            blockSize,
+            FpcTransformEncodeStage.DEFAULT_TABLE_SIZE,
+            maxError
+        );
+        final long[] encoded = values.clone();
+        final PipelineDescriptor pipeline = new PipelineDescriptor(
+            new byte[] { StageId.FPC_STAGE.id, TestPayloadCodecStage.TEST_STAGE_ID },
+            blockSize
+        );
+        final EncodingContext context = new EncodingContext(blockSize, pipeline.pipelineLength());
+        context.setValueCount(encoded.length);
+        context.setCurrentPosition(0);
+        encoder.encode(encoded, encoded.length, context);
+        for (int i = 0; i < values.length; i++) {
+            final double original = NumericUtils.sortableLongToDouble(values[i]);
+            final double quantized = NumericUtils.sortableLongToDouble(encoded[i]);
+            assertTrue(
+                "quantized value should be within maxError: original=" + original + " quantized=" + quantized,
+                Math.abs(original - quantized) <= maxError || encoded[i] != values[i]
+            );
+        }
+    }
+
+    public void testFullPipelineRoundTripWithQuantization() throws IOException {
+        final int blockSize = randomBlockSize();
+        final double maxError = 0.01;
+        final long[] values = new long[blockSize];
+        for (int i = 0; i < blockSize; i++) {
+            values[i] = NumericUtils.doubleToSortableLong(Math.round(randomDoubleBetween(0.01, 99.99, true) * 100.0) / 100.0);
+        }
+        final NumericEncoder encoder = NumericEncoder.fromConfig(
+            PipelineConfig.forDoubles(blockSize).fpcStage(maxError).offset().gcd().bitPack()
+        );
+        final long[] original = values.clone();
+        final byte[] buffer = new byte[blockSize * Long.BYTES * 4 + 4096];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+
+        final NumericBlockEncoder blockEncoder = encoder.newBlockEncoder();
+        blockEncoder.encode(values, values.length, out);
+
+        final NumericDecoder decoder = NumericDecoder.fromDescriptor(encoder.descriptor());
+        final NumericBlockDecoder blockDecoder = decoder.newBlockDecoder();
+        final long[] decoded = new long[blockSize];
+        final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
+        blockDecoder.decode(decoded, in);
+
+        for (int i = 0; i < original.length; i++) {
+            final double orig = NumericUtils.sortableLongToDouble(original[i]);
+            final double dec = NumericUtils.sortableLongToDouble(decoded[i]);
+            assertTrue(
+                "decoded value should be within maxError: original=" + orig + " decoded=" + dec,
+                Math.abs(orig - dec) <= maxError + 1e-9
+            );
+        }
     }
 
     public void testDoubleRoundTripIntegerLikeValues() throws IOException {

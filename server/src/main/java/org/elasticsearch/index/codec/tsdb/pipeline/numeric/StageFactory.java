@@ -80,9 +80,15 @@ public final class StageFactory {
             case StageSpec.AlpRdFloatStage(double maxError) -> maxError > 0
                 ? new AlpRdFloatTransformEncodeStage(blockSize, maxError)
                 : new AlpRdFloatTransformEncodeStage(blockSize);
-            case StageSpec.FpcStage(int ts) -> ts > 0 ? new FpcTransformEncodeStage(blockSize, ts) : new FpcTransformEncodeStage(blockSize);
-            case StageSpec.ChimpDoubleStage(int gs) -> new ChimpDoubleTransformEncodeStage(blockSize, gs);
-            case StageSpec.ChimpFloatStage(int gs) -> new ChimpFloatTransformEncodeStage(blockSize, gs);
+            case StageSpec.FpcStage(int ts, double me) -> me > 0
+                ? new FpcTransformEncodeStage(blockSize, ts > 0 ? ts : 1024, me)
+                : (ts > 0 ? new FpcTransformEncodeStage(blockSize, ts) : new FpcTransformEncodeStage(blockSize));
+            case StageSpec.ChimpDoubleStage(int gs, double me) -> me > 0
+                ? new ChimpDoubleTransformEncodeStage(blockSize, gs, me)
+                : new ChimpDoubleTransformEncodeStage(blockSize, gs);
+            case StageSpec.ChimpFloatStage(int gs, double me) -> me > 0
+                ? new ChimpFloatTransformEncodeStage(blockSize, gs, me)
+                : new ChimpFloatTransformEncodeStage(blockSize, gs);
             default -> throw new IllegalArgumentException("Not a transform stage: " + spec);
         };
     }
@@ -101,7 +107,9 @@ public final class StageFactory {
             case StageSpec.AlpRdDoubleStage alpRdDoubleStage -> new AlpRdDoubleTransformDecodeStage();
             case StageSpec.AlpFloatStage alpFloatStage -> new AlpFloatTransformDecodeStage();
             case StageSpec.AlpRdFloatStage alpRdFloatStage -> new AlpRdFloatTransformDecodeStage();
-            case StageSpec.FpcStage(int ts) -> ts > 0 ? new FpcTransformDecodeStage(ts) : new FpcTransformDecodeStage();
+            case StageSpec.FpcStage(int ts, double me) -> ts > 0
+                ? new FpcTransformDecodeStage(blockSize, ts)
+                : new FpcTransformDecodeStage(blockSize);
             case StageSpec.ChimpDoubleStage chimpDoubleStage -> new ChimpDoubleTransformDecodeStage();
             case StageSpec.ChimpFloatStage chimpFloatStage -> new ChimpFloatTransformDecodeStage();
             default -> throw new IllegalArgumentException("Not a transform stage: " + spec);

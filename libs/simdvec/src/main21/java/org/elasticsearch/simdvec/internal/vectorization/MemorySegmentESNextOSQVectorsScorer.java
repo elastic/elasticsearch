@@ -33,24 +33,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
 
     private final MemorySegmentScorer scorer;
 
-    /** Creates a new scorer, or null if one cannot be created. */
-    public static MemorySegmentESNextOSQVectorsScorer create(
-        IndexInput in,
-        byte queryBits,
-        byte indexBits,
-        int dimensions,
-        int dataLength,
-        int bulkSize,
-        MemorySegment memorySegment
-    ) {
-        // TODO: add more queryButs and indexBit combinations later
-        if (memorySegment != null || (queryBits == 4 && indexBits == 1)) {
-            return new MemorySegmentESNextOSQVectorsScorer(in, queryBits, indexBits, dimensions, dataLength, bulkSize, memorySegment);
-        }
-        return null;
-    }
-
-    private MemorySegmentESNextOSQVectorsScorer(
+    public MemorySegmentESNextOSQVectorsScorer(
         IndexInput in,
         byte queryBits,
         byte indexBits,
@@ -185,6 +168,9 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
 
         static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
         static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
+
+        static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+        static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
         private final MemorySegment memorySegment;
         protected final IndexInput in;

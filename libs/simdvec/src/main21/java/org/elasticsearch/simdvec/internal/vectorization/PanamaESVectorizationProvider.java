@@ -46,9 +46,8 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
         unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
         MemorySegment ms = segmentSliceOrNull(unwrappedInput);
-        var scorer = MemorySegmentESNextOSQVectorsScorer.create(input, queryBits, indexBits, dimension, dataLength, bulkSize, ms);
-        if (scorer != null) {
-            return scorer;
+        if (ms != null || (queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4))) {
+            return new MemorySegmentESNextOSQVectorsScorer(unwrappedInput, queryBits, indexBits, dimension, dataLength, bulkSize, ms);
         }
         return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
     }

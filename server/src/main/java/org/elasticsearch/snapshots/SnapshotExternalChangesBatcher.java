@@ -109,13 +109,13 @@ final class SnapshotExternalChangesBatcher {
         Predicate<Snapshot> isInitializingClone,
         SnapshotFinalizer snapshotFinalizer,
         ClonesStarter clonesStarter,
-        DeletionStarter deletionLoopStarter
+        DeletionStarter deletionStarter
     ) {
         this.taskQueue = taskQueue;
         this.isInitializingClone = isInitializingClone;
         this.snapshotFinalizer = snapshotFinalizer;
         this.clonesStarter = clonesStarter;
-        this.deletionStarter = deletionLoopStarter;
+        this.deletionStarter = deletionStarter;
     }
 
     /**
@@ -190,7 +190,7 @@ final class SnapshotExternalChangesBatcher {
         }
     }
 
-    private final class Executor implements ClusterStateTaskExecutor<Task> {
+    final class Executor implements ClusterStateTaskExecutor<Task> {
         @Override
         public ClusterState execute(BatchExecutionContext<Task> batchExecutionContext) {
             final int numberOfTasksInBatch = batchExecutionContext.taskContexts().size();

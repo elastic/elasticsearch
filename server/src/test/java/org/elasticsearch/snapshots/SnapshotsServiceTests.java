@@ -12,25 +12,16 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
-import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoryShardId;
@@ -40,13 +31,15 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
-import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
+import static org.elasticsearch.snapshots.SnapshotServiceTestHelper.cloneEntry;
+import static org.elasticsearch.snapshots.SnapshotServiceTestHelper.discoveryNodes;
+import static org.elasticsearch.snapshots.SnapshotServiceTestHelper.snapshotEntry;
+import static org.elasticsearch.snapshots.SnapshotServiceTestHelper.stateWithSnapshots;
+import static org.elasticsearch.snapshots.SnapshotServiceTestHelper.stateWithUnassignedIndices;
+import static org.elasticsearch.snapshots.SnapshotServiceTestHelper.uuid;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.is;
 
@@ -647,13 +640,6 @@ public class SnapshotsServiceTests extends ESTestCase {
         );
     }
 
-    private static DiscoveryNodes discoveryNodes(String localNodeId) {
-        return DiscoveryNodes.builder()
-            .add(DiscoveryNodeUtils.builder(localNodeId).roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
-            .localNodeId(localNodeId)
-            .build();
-    }
-
     private static SnapshotsService.ShardSnapshotUpdate successUpdate(Snapshot snapshot, ShardId shardId, String nodeId) {
         return new SnapshotsService.ShardSnapshotUpdate(
             snapshot,
@@ -671,59 +657,6 @@ public class SnapshotsServiceTests extends ESTestCase {
             shardId,
             successfulShardStatus(nodeId),
             ActionTestUtils.assertNoFailureListener(t -> {})
-        );
-    }
-
-    private static ClusterState stateWithUnassignedIndices(String... indexNames) {
-        final Metadata.Builder metaBuilder = Metadata.builder(Metadata.EMPTY_METADATA);
-        for (String index : indexNames) {
-            metaBuilder.put(
-                IndexMetadata.builder(index)
-                    .settings(Settings.builder().put(SETTING_VERSION_CREATED, IndexVersion.current()))
-                    .numberOfShards(1)
-                    .numberOfReplicas(0)
-                    .build(),
-                false
-            );
-        }
-        final RoutingTable.Builder routingTable = RoutingTable.builder();
-        for (String index : indexNames) {
-            final Index idx = metaBuilder.get(index).getIndex();
-            final ShardId shardId = new ShardId(idx, 0);
-            routingTable.add(
-                IndexRoutingTable.builder(idx)
-                    .addIndexShard(
-                        IndexShardRoutingTable.builder(shardId)
-                            .addShard(
-                                ShardRouting.newUnassigned(
-                                    shardId,
-                                    true,
-                                    RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                                    new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test"),
-                                    ShardRouting.Role.DEFAULT
-                                )
-                            )
-                    )
-            );
-        }
-        return ClusterState.builder(ClusterState.EMPTY_STATE).metadata(metaBuilder).routingTable(routingTable.build()).build();
-    }
-
-    private static ClusterState stateWithSnapshots(ClusterState state, String repository, SnapshotsInProgress.Entry... entries) {
-        return ClusterState.builder(state)
-            .version(state.version() + 1L)
-            .putCustom(
-                SnapshotsInProgress.TYPE,
-                SnapshotsInProgress.EMPTY.createCopyWithUpdatedEntriesForRepo(repository, Arrays.asList(entries))
-            )
-            .build();
-    }
-
-    private static ClusterState stateWithSnapshots(String repository, SnapshotsInProgress.Entry... entries) {
-        return stateWithSnapshots(
-            ClusterState.builder(ClusterState.EMPTY_STATE).nodes(discoveryNodes(uuid())).build(),
-            repository,
-            entries
         );
     }
 
@@ -755,40 +688,6 @@ public class SnapshotsServiceTests extends ESTestCase {
         }, Arrays.asList(updates));
     }
 
-    private static SnapshotsInProgress.Entry snapshotEntry(
-        Snapshot snapshot,
-        Map<String, IndexId> indexIds,
-        Map<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shards
-    ) {
-        return SnapshotsInProgress.startedEntry(
-            snapshot,
-            randomBoolean(),
-            randomBoolean(),
-            indexIds,
-            Collections.emptyList(),
-            1L,
-            randomNonNegativeLong(),
-            shards,
-            Collections.emptyMap(),
-            IndexVersion.current(),
-            Collections.emptyList()
-        );
-    }
-
-    private static SnapshotsInProgress.Entry cloneEntry(
-        Snapshot snapshot,
-        SnapshotId source,
-        Map<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> clones
-    ) {
-        final Map<String, IndexId> indexIds = clones.keySet()
-            .stream()
-            .map(RepositoryShardId::index)
-            .distinct()
-            .collect(Collectors.toMap(IndexId::getName, Function.identity()));
-        return SnapshotsInProgress.startClone(snapshot, source, indexIds, 1L, randomNonNegativeLong(), IndexVersion.current())
-            .withClones(clones);
-    }
-
     /**
      * Helper method to create a shard snapshot status with state {@link SnapshotsInProgress.ShardState#INIT}.
      */
@@ -815,7 +714,4 @@ public class SnapshotsServiceTests extends ESTestCase {
         return new IndexId(name, uuid());
     }
 
-    private static String uuid() {
-        return UUIDs.randomBase64UUID(random());
-    }
 }

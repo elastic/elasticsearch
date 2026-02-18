@@ -2,14 +2,13 @@ setup:
   - requires:
       cluster_features: [ "mapper.source.mode_from_index_setting" ]
       reason: "Source mode configured through index setting"
+      test_runner_features: [ allowed_warnings ]
 
 ---
 aggregate_metric_double:
-  - requires:
-      cluster_features: ["gte_v8.5.0"]
-      reason: synthetic source support added  in 8.5.0
-
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: test
         body:
@@ -62,6 +61,8 @@ aggregate_metric_double:
 ---
 aggregate_metric_double with ignore_malformed:
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index: test
         body:

@@ -609,12 +609,12 @@ public abstract class FieldMapper extends Mapper {
 
         public static class Builder {
 
-            private final Map<String, Function<MapperBuilderContext, FieldMapper>> mapperBuilders = new HashMap<>();
+            private final Map<String, FieldMapper.Builder> fieldBuilders = new HashMap<>();
 
             private boolean hasSyntheticSourceCompatibleKeywordField;
 
             public Builder add(FieldMapper.Builder builder) {
-                mapperBuilders.put(builder.leafName(), builder::build);
+                fieldBuilders.put(builder.leafName(), builder);
 
                 if (builder instanceof KeywordFieldMapper.Builder kwd) {
                     if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
@@ -627,7 +627,27 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void add(FieldMapper mapper) {
-                mapperBuilders.put(mapper.leafName(), context -> mapper);
+                FieldMapper.Builder builder = mapper.getMergeBuilder();
+                if (builder != null) {
+                    fieldBuilders.put(mapper.leafName(), builder);
+                } else {
+                    fieldBuilders.put(mapper.leafName(), new FieldMapper.Builder(mapper.leafName()) {
+                        @Override
+                        protected Parameter<?>[] getParameters() {
+                            return EMPTY_PARAMETERS;
+                        }
+
+                        @Override
+                        public String contentType() {
+                            return mapper.contentType();
+                        }
+
+                        @Override
+                        public FieldMapper build(MapperBuilderContext context) {
+                            return mapper;
+                        }
+                    });
+                }
 
                 if (mapper instanceof KeywordFieldMapper kwd) {
                     if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
@@ -637,29 +657,51 @@ public abstract class FieldMapper extends Mapper {
             }
 
             private void update(FieldMapper toMerge, MapperMergeContext context) {
-                if (mapperBuilders.containsKey(toMerge.leafName()) == false) {
+                if (fieldBuilders.containsKey(toMerge.leafName()) == false) {
                     if (context.decrementFieldBudgetIfPossible(toMerge.getTotalFieldsCount())) {
                         add(toMerge);
                     }
                 } else {
-                    FieldMapper existing = mapperBuilders.get(toMerge.leafName()).apply(context.getMapperBuilderContext());
+                    FieldMapper existing = fieldBuilders.get(toMerge.leafName()).build(context.getMapperBuilderContext());
                     add(existing.merge(toMerge, context));
                 }
             }
 
             void mergeFrom(Builder incoming, MapperMergeContext mergeContext) {
-                for (var entry : incoming.mapperBuilders.entrySet()) {
-                    FieldMapper incomingMapper = entry.getValue().apply(mergeContext.getMapperBuilderContext());
-                    update(incomingMapper, mergeContext);
+                for (var entry : incoming.fieldBuilders.entrySet()) {
+                    FieldMapper.Builder incomingBuilder = entry.getValue();
+                    FieldMapper.Builder existingBuilder = fieldBuilders.get(entry.getKey());
+                    if (existingBuilder == null) {
+                        if (mergeContext.decrementFieldBudgetIfPossible(incomingBuilder.getTotalFieldsCount())) {
+                            fieldBuilders.put(entry.getKey(), incomingBuilder);
+                            updateSyntheticSourceCompatibleKeywordField(incomingBuilder);
+                        }
+                    } else {
+                        MapperMergeContext childContext = MapperMergeContext.from(
+                            mergeContext.getMapperBuilderContext(),
+                            Long.MAX_VALUE
+                        );
+                        Mapper.Builder merged = existingBuilder.mergeWith(incomingBuilder, childContext);
+                        fieldBuilders.put(entry.getKey(), (FieldMapper.Builder) merged);
+                    }
+                }
+            }
+
+            private void updateSyntheticSourceCompatibleKeywordField(FieldMapper.Builder builder) {
+                if (builder instanceof KeywordFieldMapper.Builder kwd) {
+                    if ((kwd.hasNormalizer() == false || kwd.isNormalizerSkipStoreOriginalValue())
+                        && (kwd.docValuesParameters().enabled || kwd.isStored())) {
+                        hasSyntheticSourceCompatibleKeywordField = true;
+                    }
                 }
             }
 
             public boolean hasMultiFields() {
-                return mapperBuilders.isEmpty() == false;
+                return fieldBuilders.isEmpty() == false;
             }
 
             int size() {
-                return mapperBuilders.size();
+                return fieldBuilders.size();
             }
 
             public boolean hasSyntheticSourceCompatibleKeywordField() {
@@ -667,14 +709,14 @@ public abstract class FieldMapper extends Mapper {
             }
 
             public MultiFields build(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
-                if (mapperBuilders.isEmpty()) {
+                if (fieldBuilders.isEmpty()) {
                     return empty();
                 } else {
-                    FieldMapper[] mappers = new FieldMapper[mapperBuilders.size()];
+                    FieldMapper[] mappers = new FieldMapper[fieldBuilders.size()];
                     context = context.createChildContext(mainFieldBuilder.leafName(), null);
                     int i = 0;
-                    for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
-                        mappers[i++] = entry.getValue().apply(context);
+                    for (FieldMapper.Builder builder : fieldBuilders.values()) {
+                        mappers[i++] = builder.build(context);
                     }
                     return new MultiFields(mappers);
                 }

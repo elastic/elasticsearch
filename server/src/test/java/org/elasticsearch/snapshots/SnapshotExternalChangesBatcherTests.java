@@ -80,7 +80,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             assertThat("at most one task in the queue at any time", batchContext.taskContexts().size(), is(1));
             final var taskContext = batchContext.taskContexts().getFirst();
             executedChanges.add(batcher.get().acquireChangesToExecute());
-            taskContext.success(batcher.get()::onTaskSuccess);
+            taskContext.success(batcher.get()::onTaskCompletion);
             return batchContext.initialState();
         };
 
@@ -139,7 +139,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                 batcher.get().processExternalChanges(nodes, shards);
                 pendingChanges.set(nodes || shards);
             }
-            taskContext.success(batcher.get()::onTaskSuccess);
+            taskContext.success(batcher.get()::onTaskCompletion);
             return batchContext.initialState();
         };
 
@@ -187,7 +187,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                 );
             } else {
                 lastSuccessfulExecutedChange.set(batcher.get().acquireChangesToExecute());
-                taskContext.success(batcher.get()::onTaskSuccess);
+                taskContext.success(batcher.get()::onTaskCompletion);
                 return batchContext.initialState();
             }
         };

@@ -151,26 +151,10 @@ final class SnapshotExternalChangesBatcher {
     }
 
     /**
-     * Called after successful execution (including publication) of a task. Transitions state back to
+     * Called after a completed execution of a task. Transitions state back to
      * {@link State#IDLE} if no new changes arrived during execution, re-enqueues a new task otherwise.
      */
-    void onTaskSuccess() {
-        onTaskCompletion();
-    }
-
-    private void onTaskFailure(Exception e) {
-        if (e instanceof NotMasterException || e instanceof FailedToCommitClusterStateException) {
-            synchronized (this) {
-                state = State.IDLE;
-            }
-            return;
-        }
-        assert false;
-        logger.error("Failed to update snapshot state after shards or node configuration changed", e);
-        onTaskCompletion();
-    }
-
-    private void onTaskCompletion() {
+    void onTaskCompletion() {
         boolean enqueueTask = false;
         synchronized (this) {
             if (state == State.NO_CHANGES) {
@@ -183,6 +167,18 @@ final class SnapshotExternalChangesBatcher {
         if (enqueueTask) {
             taskQueue.submitTask("update snapshot after external changes", new Task(), null);
         }
+    }
+
+    private void onTaskFailure(Exception e) {
+        if (e instanceof NotMasterException || e instanceof FailedToCommitClusterStateException) {
+            synchronized (this) {
+                state = State.IDLE;
+            }
+            return;
+        }
+        assert false;
+        logger.error("Failed to update snapshot state after shards or node configuration changed", e);
+        onTaskCompletion();
     }
 
     /**
@@ -343,7 +339,7 @@ final class SnapshotExternalChangesBatcher {
             ).v1();
 
             taskContext.success(() -> {
-                onTaskSuccess();
+                onTaskCompletion();
                 clusterStateProcessed(res, finishedSnapshots);
             });
             return res;

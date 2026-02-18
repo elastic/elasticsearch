@@ -1,0 +1,51 @@
+{
+  "dbpedia-entity-E5-small": {
+    "data": [
+      "gs://knnindextester/dbpedia-entity-E5-small/corpus-dbpedia-entity-E5-small-0.fvec",
+      "gs://knnindextester/dbpedia-entity-E5-small/corpus-dbpedia-entity-E5-small-1.fvec",
+      "gs://knnindextester/dbpedia-entity-E5-small/corpus-dbpedia-entity-E5-small-2.fvec",
+      "gs://knnindextester/dbpedia-entity-E5-small/corpus-dbpedia-entity-E5-small-3.fvec",
+      "gs://knnindextester/dbpedia-entity-E5-small/corpus-dbpedia-entity-E5-small-4.fvec"
+    ],
+    "queries": "gs://knnindextester/dbpedia-entity-E5-small/queries-dbpedia-entity-E5-small-0.fvec",
+    "dimensions": 384,
+    "vector_encoding": "float32",
+    "num_doc_vectors": 4635922,
+    "num_query_vectors": 467
+  },
+  "glove-200": {
+    "data": [
+      "gs://knnindextester/glove-200/corpus-glove-200.fvec"
+    ],
+    "queries": "gs://knnindextester/glove-200/queries-glove-200.fvec",
+    "dimensions": 200,
+    "vector_encoding": "float32",
+    "num_doc_vectors": 1183514,
+    "num_query_vectors": 10000
+  },
+  "hotpotqa-E5-small": {
+    "data": [
+      "gs://knnindextester/hotpotqa-E5-small/corpus-hotpotqa-E5-small-0.fvec",
+      "gs://knnindextester/hotpotqa-E5-small/corpus-hotpotqa-E5-small-1.fvec",
+      "gs://knnindextester/hotpotqa-E5-small/corpus-hotpotqa-E5-small-2.fvec",
+      "gs://knnindextester/hotpotqa-E5-small/corpus-hotpotqa-E5-small-3.fvec",
+      "gs://knnindextester/hotpotqa-E5-small/corpus-hotpotqa-E5-small-4.fvec",
+      "gs://knnindextester/hotpotqa-E5-small/corpus-hotpotqa-E5-small-5.fvec"
+    ],
+    "queries": "gs://knnindextester/hotpotqa-E5-small/queries-hotpotqa-E5-small-0.fvec",
+    "dimensions": 384,
+    "vector_encoding": "float32",
+    "num_doc_vectors": 433329,
+    "num_query_vectors": 97852
+  },
+  "wiki-cohere": {
+    "data": [
+      "gs://knnindextester/wiki-cohere/corpus-wiki-cohere.fvec"
+    ],
+    "queries": "gs://knnindextester/wiki-cohere/queries-wiki-cohere.fvec",
+    "dimensions": 768,
+    "vector_encoding": "float32",
+    "num_doc_vectors": 934024,
+    "num_query_vectors": 1000
+  }
+}

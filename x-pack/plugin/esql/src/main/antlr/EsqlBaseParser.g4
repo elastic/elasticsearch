@@ -69,11 +69,11 @@ processingCommand
     | rerankCommand
     | inlineStatsCommand
     | fuseCommand
+    | uriPartsCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
     | {this.isDevVersion()}? mmrCommand
-    | {this.isDevVersion()}? uriPartsCommand
     ;
 
 whereCommand

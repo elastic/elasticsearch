@@ -757,7 +757,11 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             .findFirst()
             .orElse(null);
 
-        assert cloneEntry != null : "clone entry [" + snapshotId + "] not found in " + snapshotsInProgress;
+        if (cloneEntry == null) {
+            // In rare case, the master can fail over and the clone entry gets deleted by the new master
+            logger.debug("clone [{}] was concurrently deleted by the new master", snapshotId);
+            throw new AbortedSnapshotException();
+        }
 
         final var shardSnapshotStatus = cloneEntry.shardSnapshotStatusByRepoShardId().get(repoShardId);
         assert shardSnapshotStatus != null;

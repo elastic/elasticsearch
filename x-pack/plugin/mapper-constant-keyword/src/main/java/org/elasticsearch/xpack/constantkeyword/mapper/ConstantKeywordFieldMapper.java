@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
@@ -95,6 +94,11 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             super(name);
             value.setSerializerCheck((id, ic, v) -> v != null);
             value.setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
+        }
+
+        public Builder setValue(String v) {
+            this.value.setValue(v);
+            return this;
         }
 
         @Override
@@ -336,9 +340,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().value == null) {
-            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
-            Mapper update = new ConstantKeywordFieldMapper(leafName(), newFieldType, builderParams);
-            boolean dynamicMapperAdded = context.addDynamicMapper(update);
+            Builder builder = new Builder(leafName()).setValue(value);
+            boolean dynamicMapperAdded = context.addDynamicMapper(builder, fullPath());
             // the mapper is already part of the mapping, we're just updating it with the new value
             assert dynamicMapperAdded;
         } else if (Objects.equals(fieldType().value, value) == false) {

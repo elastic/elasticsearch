@@ -600,27 +600,6 @@ public abstract class DocumentParserContext {
         return true;
     }
 
-    /**
-     * Convenience overload for callers that have a built mapper but not a builder.
-     * Extracts an appropriate builder from the mapper.
-     */
-    public final boolean addDynamicMapper(Mapper mapper) {
-        return addDynamicMapper(mapperToBuilder(mapper), mapper.fullPath());
-    }
-
-    private static Mapper.Builder mapperToBuilder(Mapper mapper) {
-        if (mapper instanceof ObjectMapper objectMapper) {
-            return objectMapper.toBuilder();
-        }
-        if (mapper instanceof FieldMapper fieldMapper) {
-            Mapper.Builder mergeBuilder = fieldMapper.getMergeBuilder();
-            if (mergeBuilder != null) {
-                return mergeBuilder;
-            }
-        }
-        return ObjectMapper.Builder.wrapMapper(mapper);
-    }
-
     /*
      * Returns an approximation of the number of dynamically mapped fields and runtime fields that will be added to the mapping.
      * This is to validate early and to fail fast during document parsing.

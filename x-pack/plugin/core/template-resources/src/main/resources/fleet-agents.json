@@ -375,7 +375,7 @@
         },
         "identifying_attributes": {
           "type": "passthrough",
-          "priority": 20,
+          "priority": 10,
           "properties": {
             "service": {
               "properties": {

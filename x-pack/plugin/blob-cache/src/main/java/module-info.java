@@ -8,7 +8,7 @@
 module org.elasticsearch.blobcache {
     requires org.elasticsearch.base;
     requires org.elasticsearch.server;
-    requires transitive org.elasticsearch.nativeaccess;
+    requires org.elasticsearch.nativeaccess;
 
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;

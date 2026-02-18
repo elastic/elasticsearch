@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -275,9 +276,13 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     private TranslationResult translateFunctionCall(PromqlFunctionCall functionCall, LogicalPlan currentPlan, TranslationContext ctx) {
         TranslationResult childResult = translateNode(functionCall.child(), currentPlan, ctx);
 
-        Expression window = (functionCall.child() instanceof RangeSelector rangeSelector)
-            ? rangeSelector.range()
-            : AggregateFunction.NO_WINDOW;
+        Expression window = AggregateFunction.NO_WINDOW;
+        if (functionCall.child() instanceof RangeSelector rangeSelector) {
+            window = rangeSelector.range();
+            if (isImplicitRangePlaceholder(window)) {
+                window = resolveImplicitRangeWindow(ctx.promqlCommand());
+            }
+        }
 
         PromqlFunctionRegistry.PromqlContext promqlCtx = new PromqlFunctionRegistry.PromqlContext(
             ctx.promqlCommand().timestamp(),
@@ -315,6 +320,29 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         }
 
         return new TranslationResult(childResult.plan(), function);
+    }
+
+    private static boolean isImplicitRangePlaceholder(Expression range) {
+        return range.foldable()
+            && range.fold(FoldContext.small()) instanceof Duration duration
+            && duration.equals(PromqlLogicalPlanBuilder.IMPLICIT_RANGE_PLACEHOLDER);
+    }
+
+    /**
+     * Resolves the implicit range placeholder to a concrete duration based on step and scrape interval.
+     * The implicit window is calculated as {@code max(step, scrape_interval)}.
+     */
+    private static Literal resolveImplicitRangeWindow(PromqlCommand promqlCommand) {
+        Duration step = foldDuration(resolveTimeBucketSize(promqlCommand), "step");
+        Duration scrapeInterval = foldDuration(promqlCommand.scrapeInterval(), "scrape_interval");
+        return Literal.timeDuration(promqlCommand.source(), step.compareTo(scrapeInterval) >= 0 ? step : scrapeInterval);
+    }
+
+    private static Duration foldDuration(Expression expression, String paramName) {
+        if (expression != null && expression.foldable() && expression.fold(FoldContext.small()) instanceof Duration duration) {
+            return duration;
+        }
+        throw new QlIllegalArgumentException("Expected [{}] to be a duration literal, got [{}]", paramName, expression);
     }
 
     /**

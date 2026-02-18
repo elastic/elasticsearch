@@ -40,11 +40,13 @@ import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -58,6 +60,13 @@ import static org.elasticsearch.xpack.esql.CsvTestUtils.multiValuesAwareCsvToStr
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.reader;
 
 public class CsvTestsDataLoader {
+
+    static {
+        // Ensure the logging factory is initialized before the static logger field below. When running standalone (via main() or
+        // Gradle's loadCsvSpecData task), nothing has initialized the ES logging system before this class is loaded.
+        LogConfigurator.loadLog4jPlugins();
+        LogConfigurator.configureESLogging();
+    }
 
     private static final Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
@@ -124,12 +133,12 @@ public class CsvTestsDataLoader {
         "partial_mapping_no_source_sample_data",
         "mapping-partial_mapping_no_source_sample_data.json",
         "partial_mapping_sample_data.csv"
-    ).withSetting("source_parameters-settings.json");
+    );
     private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE = new TestDataset(
         "partial_mapping_excluded_source_sample_data",
         "mapping-partial_mapping_excluded_source_sample_data.json",
         "partial_mapping_sample_data.csv"
-    ).withSetting("source_parameters-settings.json");
+    );
     private static final TestDataset CLIENT_IPS = new TestDataset("clientips");
     private static final TestDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup").withSetting("lookup-settings.json");
     private static final TestDataset MESSAGE_TYPES = new TestDataset("message_types");
@@ -530,7 +539,7 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean isLookupDataset(TestDataset dataset) throws IOException {
-        Settings settings = dataset.readSettingsFile();
+        Settings settings = dataset.loadSettings();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("lookup"));
     }
@@ -539,8 +548,7 @@ public class CsvTestsDataLoader {
         if (dataset.mappingFileName() == null) {
             return true;
         }
-        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
-        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        JsonNode mappingNode = new ObjectMapper().readTree(dataset.streamMapping());
         // BWC tests don't support _source field mappings, so don't load those datasets.
         return mappingNode.get("_source") != null;
     }
@@ -566,8 +574,7 @@ public class CsvTestsDataLoader {
             return false;
         }
 
-        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
-        Map<?, ?> mappingNode = new ObjectMapper().readValue(mappingJsonText, Map.class);
+        Map<?, ?> mappingNode = new ObjectMapper().readValue(dataset.streamMapping(), Map.class);
         Object mappingProperties = mappingNode.get("properties");
         if (mappingProperties instanceof Map<?, ?> mappingPropertiesMap) {
             for (Object field : mappingPropertiesMap.values()) {
@@ -584,8 +591,7 @@ public class CsvTestsDataLoader {
         if (dataset.mappingFileName() == null) {
             return false;
         }
-        String mappingJsonText = readTextFile(getResource("/" + dataset.mappingFileName()));
-        JsonNode mappingNode = new ObjectMapper().readTree(mappingJsonText);
+        JsonNode mappingNode = new ObjectMapper().readTree(dataset.streamMapping());
         JsonNode properties = mappingNode.get("properties");
         if (properties != null) {
             for (var fieldWithValue : properties.properties()) {
@@ -602,7 +608,7 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean isTimeSeries(TestDataset dataset) throws IOException {
-        Settings settings = dataset.readSettingsFile();
+        Settings settings = dataset.loadSettings();
         String mode = settings.get("index.mode");
         return (mode != null && mode.equalsIgnoreCase("time_series"));
     }
@@ -910,7 +916,7 @@ public class CsvTestsDataLoader {
     private static void loadView(RestClient client, ViewConfig view) throws IOException {
         logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name, view.name);
         Request request = new Request("PUT", "/_query/view/" + view.name);
-        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\n", "\\\n") + "\"}");
+        request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\n", "") + "\"}");
         client.performRequest(request);
     }
 
@@ -933,10 +939,10 @@ public class CsvTestsDataLoader {
         try {
             client.performRequest(new Request("DELETE", "/_query/view/" + viewName));
         } catch (ResponseException e) {
-            logger.info("View delete error: {}", e.getMessage());
             int code = e.getResponse().getStatusLine().getStatusCode();
             // On older servers the view listing succeeds when it should not, so we get here when we should not, hence the 400 and 500
             if (code != 404 && code != 400 && code != 410 && code != 500) {
+                logger.info("View delete error: {}", e.getMessage());
                 throw e;
             }
         }
@@ -958,30 +964,31 @@ public class CsvTestsDataLoader {
         }
     }
 
-    private static URL getResource(String name) {
-        URL result = CsvTestsDataLoader.class.getResource(name);
-        if (result == null) {
-            throw new IllegalArgumentException("Cannot find resource " + name);
+    public static InputStream getResourceStream(String name) {
+        return Objects.requireNonNull(CsvTestsDataLoader.class.getResourceAsStream(name), "Cannot find resource " + name);
+    }
+
+    public static String getResourceString(String name) {
+        try (var stream = getResourceStream(name)) {
+            return new String(stream.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
-        return result;
     }
 
     private static void load(RestClient client, TestDataset dataset, IndexCreator indexCreator) throws IOException {
-        logger.info("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
-        URL mapping = getResource("/" + dataset.mappingFileName);
-        Settings indexSettings = dataset.readSettingsFile();
-        indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
+        logger.debug("Loading dataset [{}] into ES index [{}]", dataset.dataFileName, dataset.indexName);
+        indexCreator.createIndex(client, dataset.indexName, readMappingFile(dataset), dataset.loadSettings());
 
         // Some examples only test that the query and mappings are valid, and don't need example data. Use .noData() for those
         if (dataset.dataFileName != null) {
-            URL data = getResource("/data/" + dataset.dataFileName);
-            loadCsvData(client, dataset.indexName, data, dataset.allowSubFields);
+            loadCsvData(client, dataset.indexName, dataset.streamData(), dataset.allowSubFields);
         }
     }
 
-    private static String readMappingFile(URL resource, Map<String, String> typeMapping) throws IOException {
-        String mappingJsonText = readTextFile(resource);
-        if (typeMapping == null || typeMapping.isEmpty()) {
+    private static String readMappingFile(TestDataset dataset) throws IOException {
+        String mappingJsonText = dataset.loadMappings();
+        if (dataset.typeMapping == null || dataset.typeMapping.isEmpty()) {
             return mappingJsonText;
         }
         boolean modified = false;
@@ -989,7 +996,7 @@ public class CsvTestsDataLoader {
         JsonNode mappingNode = mapper.readTree(mappingJsonText);
         JsonNode propertiesNode = mappingNode.path("properties");
 
-        for (Map.Entry<String, String> entry : typeMapping.entrySet()) {
+        for (Map.Entry<String, String> entry : dataset.typeMapping.entrySet()) {
             String key = entry.getKey();
             String newType = entry.getValue();
 
@@ -1004,20 +1011,8 @@ public class CsvTestsDataLoader {
         return mappingJsonText;
     }
 
-    public static String readTextFile(URL resource) throws IOException {
-        try (BufferedReader reader = reader(resource)) {
-            StringBuilder b = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                b.append(line);
-            }
-            return b.toString();
-        }
-    }
-
     record ColumnHeader(String name, String type) {}
 
-    @SuppressWarnings("unchecked")
     /**
      * Loads a classic csv file in an ES cluster using a RestClient.
      * The structure of the file is as follows:
@@ -1032,7 +1027,7 @@ public class CsvTestsDataLoader {
      *   - multi-values are comma separated
      *   - commas inside multivalue fields can be escaped with \ (backslash) character
      */
-    public static void loadCsvData(RestClient client, String indexName, URL resource, boolean allowSubFields) throws IOException {
+    public static void loadCsvData(RestClient client, String indexName, InputStream resource, boolean allowSubFields) throws IOException {
 
         ArrayList<String> failures = new ArrayList<>();
         StringBuilder builder = new StringBuilder();
@@ -1347,36 +1342,40 @@ public class CsvTestsDataLoader {
             );
         }
 
-        private Settings readSettingsFile() throws IOException {
-            Settings indexSettings = Settings.EMPTY;
-            final String settingName = settingFileName != null ? "/" + settingFileName : null;
-            if (settingName != null) {
-                indexSettings = Settings.builder()
-                    .loadFromStream(settingName, CsvTestsDataLoader.class.getResourceAsStream(settingName), false)
-                    .build();
+        public Settings loadSettings() throws IOException {
+            if (settingFileName == null) {
+                return Settings.EMPTY;
             }
+            final String settingName = "/index/settings/" + settingFileName;
+            return Settings.builder().loadFromStream(settingName, getResourceStream(settingName), false).build();
+        }
 
-            return indexSettings;
+        public String loadMappings() {
+            return getResourceString("/index/mappings/" + mappingFileName);
+        }
+
+        public InputStream streamMapping() {
+            return getResourceStream("/index/mappings/" + mappingFileName);
+        }
+
+        public InputStream streamData() {
+            return getResourceStream("/data/" + dataFileName);
         }
     }
 
     public record ViewConfig(String name) {
         public String loadQuery() {
-            try {
-                return readTextFile(getResource("/views/" + name + ".esql"));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            return getResourceString("/views/" + name + ".esql");
         }
     }
 
     public record EnrichConfig(String policyName, String policyFileName) {
         public String loadPolicy() {
-            try {
-                return readTextFile(getResource("/" + policyFileName));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            return getResourceString("/enrich/policy/" + policyFileName);
+        }
+
+        public InputStream streamPolicy() {
+            return getResourceStream("/enrich/policy/" + policyFileName);
         }
     }
 

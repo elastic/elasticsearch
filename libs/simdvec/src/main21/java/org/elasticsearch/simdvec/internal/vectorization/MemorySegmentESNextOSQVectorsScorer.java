@@ -39,16 +39,15 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         byte indexBits,
         int dimensions,
         int dataLength,
-        int bulkSize,
-        MemorySegment memorySegment
+        int bulkSize
     ) {
         super(in, queryBits, indexBits, dimensions, dataLength);
         if (queryBits == 4 && indexBits == 1) {
-            this.scorer = new MSBitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, memorySegment);
+            this.scorer = new MSBitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
         } else if (queryBits == 4 && indexBits == 4) {
-            this.scorer = new MSInt4SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, memorySegment);
+            this.scorer = new MSInt4SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
         } else if (queryBits == 4 && indexBits == 2) {
-            this.scorer = new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, memorySegment);
+            this.scorer = new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
         } else {
             throw new IllegalArgumentException("Only asymmetric 4-bit query and 1-bit index supported");
         }
@@ -172,7 +171,6 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
         static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
-        private final MemorySegment memorySegment;
         protected final IndexInput in;
         protected final int length;
         protected final int dimensions;
@@ -181,33 +179,23 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         /**
          * Creates a new MemorySegmentScorer.
          *
-         * <p> The scorer prefers to score directly from the memory segment. If the
-         * memory segment is not available - null, then the scorer may copy the
-         * data into a temporary location prior to scoring.
+         * <p> Memory segment access is handled by
+         * {@link org.elasticsearch.simdvec.internal.IndexInputSegments#withSlice
+         * IndexInputSegments.withSlice}, which probes the index input for
+         * {@link org.apache.lucene.store.MemorySegmentAccessInput} /
+         * {@link org.elasticsearch.core.DirectAccessInput} support and
+         * falls back to a heap copy when neither is available.
          *
          * @param in the index input
          * @param dimensions the vector dimensions
          * @param dataLength the length in bytes, per data vector
          * @param bulkSize the number of vectors per bulk
-         * @param segment the backing memory segment, or null if not available
          */
-        MemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, MemorySegment segment) {
+        MemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
             this.in = in;
             this.length = dataLength;
             this.dimensions = dimensions;
-            this.memorySegment = segment;
             this.bulkSize = bulkSize;
-        }
-
-        /**
-         * Returns the raw backing memory segment, or null if not available.
-         * Prefer {@link org.elasticsearch.simdvec.internal.IndexInputSegments#withSlice
-         * IndexInputSegments.withSlice} where available, which handles
-         * ref-counting for eviction safety. Only use this method when the
-         * segment is known to be long-lived (e.g. whole-file mmap).
-         */
-        protected final MemorySegment rawMemorySegment() {
-            return memorySegment;
         }
 
         abstract long quantizeScore(byte[] q) throws IOException;

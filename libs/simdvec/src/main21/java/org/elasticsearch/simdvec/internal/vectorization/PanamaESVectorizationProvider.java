@@ -42,12 +42,11 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         int dimension,
         int dataLength,
         int bulkSize
-    ) throws IOException {
-        IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
-        unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
-        MemorySegment ms = segmentSliceOrNull(unwrappedInput);
-        if (ms != null || (queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4))) {
-            return new MemorySegmentESNextOSQVectorsScorer(unwrappedInput, queryBits, indexBits, dimension, dataLength, bulkSize, ms);
+    ) {
+        if (queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) {
+            IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
+            unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+            return new MemorySegmentESNextOSQVectorsScorer(unwrappedInput, queryBits, indexBits, dimension, dataLength, bulkSize);
         }
         return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
     }

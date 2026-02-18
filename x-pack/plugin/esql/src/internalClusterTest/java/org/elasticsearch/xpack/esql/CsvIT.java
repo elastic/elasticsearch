@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
+import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramMapperPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
@@ -72,7 +73,7 @@ public class CsvIT extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(CsvIT.class);
 
     private static InternalTestCluster cluster;
-    private static ResourceLoader indices = new ResourceLoader();
+    private static String currentGroupName = null;
 
     private final String fileName;
     private final String groupName;
@@ -163,17 +164,6 @@ public class CsvIT extends ESTestCase {
         // .actionGet();
         // assertTrue(response.getStatus().isCompleted());
         // }
-
-        for (var view : CsvTestsDataLoader.VIEW_CONFIGS) {
-            logger.info("Creating view [{}]", view.name());
-            assertAcked(
-                cluster.client()
-                    .execute(
-                        PutViewAction.INSTANCE,
-                        new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(view.name(), view.loadQuery()))
-                    )
-            );
-        }
     }
 
     @AfterClass
@@ -184,7 +174,10 @@ public class CsvIT extends ESTestCase {
     public final void test() throws Throwable {
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
 
+        currentGroupName = groupName;
+        // verify no prior failures
         indices.ensureNoFailures();
+        views.ensureNoFailures();
 
         skipUnsupportedCapability(EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS);
         skipUnsupportedCapability(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION);
@@ -261,14 +254,23 @@ public class CsvIT extends ESTestCase {
 
                 @Override
                 protected boolean apply(String action, ActionRequest request, ActionListener<?> listener) {
+                    logger.info("Executing {}", action);
                     switch (action) {
+                        case EsqlQueryAction.NAME -> loadViews();
                         case EsqlResolveFieldsAction.NAME -> loadIndices((FieldCapabilitiesRequest) request);
-                        // TODO view
                         // TODO enrich
                     }
                     return true;
                 }
             });
+        }
+    }
+
+    private static void loadViews() {
+        if ("views".equals(currentGroupName)) {
+            CsvTestsDataLoader.VIEW_CONFIGS.forEach(view -> views.maybeLoad(view));
+        } else {
+            views.unloadAll();
         }
     }
 
@@ -280,54 +282,106 @@ public class CsvIT extends ESTestCase {
                     : Stream.of(CsvTestsDataLoader.CSV_DATASET_MAP.get(pattern))
             )
             .distinct()
-            .forEach(resource -> indices.maybeLoad(resource.indexName(), () -> loadDataset(resource)));
+            .forEach(resource -> indices.maybeLoad(resource));
     }
 
-    private static void loadDataset(CsvTestsDataLoader.TestDataset dataset) throws IOException {
-        if (dataset.requiresInferenceEndpoint()) {
-            return;// TODO inference endpoint
+    private static ResourceLoader<CsvTestsDataLoader.TestDataset> indices = new ResourceLoader<>() {
+        @Override
+        protected String name(CsvTestsDataLoader.TestDataset resource) {
+            return resource.indexName();
         }
-        logger.info("Loading dataset [{}]", dataset.indexName());
-        assertAcked(
-            cluster.client()
-                .admin()
-                .indices()
-                .prepareCreate(dataset.indexName())
-                .setMapping(CsvTestsDataLoader.readMappingFile(dataset))
-                .setSettings(dataset.loadSettings())
-        );
-        if (dataset.dataFileName() != null) {
-            var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
-            for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
-                bulk.add(
-                    cluster.client()
-                        .prepareIndex(dataset.indexName())
-                        .setId(document.id())
-                        .setSource(document.json().toString(), XContentType.JSON)
-                );
-            }
-            if (bulk.numberOfActions() > 0) {
-                var result = bulk.get();
-                assertFalse(
-                    "Must load dataset [" + dataset.indexName() + "] successfully: " + result.buildFailureMessage(),
-                    result.hasFailures()
-                );
-            }
-        }
-    }
 
-    private static class ResourceLoader {
+        @Override
+        protected void load(CsvTestsDataLoader.TestDataset dataset) throws IOException {
+            if (dataset.requiresInferenceEndpoint()) {
+                return;// TODO inference endpoint
+            }
+            logger.info("Loading dataset [{}]", dataset.indexName());
+            assertAcked(
+                cluster.client()
+                    .admin()
+                    .indices()
+                    .prepareCreate(dataset.indexName())
+                    .setMapping(CsvTestsDataLoader.readMappingFile(dataset))
+                    .setSettings(dataset.loadSettings())
+            );
+            if (dataset.dataFileName() != null) {
+                var bulk = cluster.client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+                for (var document : CsvTestsDataLoader.readCsvDocuments(dataset.streamData(), dataset.allowSubFields())) {
+                    bulk.add(
+                        cluster.client()
+                            .prepareIndex(dataset.indexName())
+                            .setId(document.id())
+                            .setSource(document.json().toString(), XContentType.JSON)
+                    );
+                }
+                if (bulk.numberOfActions() > 0) {
+                    var result = bulk.get();
+                    assertFalse(
+                        "Must load dataset [" + dataset.indexName() + "] successfully: " + result.buildFailureMessage(),
+                        result.hasFailures()
+                    );
+                }
+            }
+        }
+    };
+    private static ResourceLoader<CsvTestsDataLoader.ViewConfig> views = new ResourceLoader<>() {
+        @Override
+        protected String name(CsvTestsDataLoader.ViewConfig resource) {
+            return resource.name();
+        }
+
+        @Override
+        protected void load(CsvTestsDataLoader.ViewConfig view) {
+            logger.info("Loading view [{}]", view.name());
+            assertAcked(
+                cluster.client()
+                    .execute(
+                        PutViewAction.INSTANCE,
+                        new PutViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, new View(view.name(), view.loadQuery()))
+                    )
+            );
+        }
+
+        @Override
+        protected void unload(String name) {
+            logger.info("Unloading view [{}]", name);
+            assertAcked(
+                cluster.client()
+                    .execute(DeleteViewAction.INSTANCE, new DeleteViewAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name))
+            );
+        }
+    };
+
+    private static abstract class ResourceLoader<T> {
         private final Set<String> loaded = new HashSet<>();
         private Throwable failure = null;
 
-        public void maybeLoad(String resource, ThrowingRunnable loader) {
-            if (failure == null && loaded.add(resource)) {
+        protected abstract String name(T resource);
+
+        protected abstract void load(T resource) throws Throwable;
+
+        protected void unload(String name) {
+            throw new UnsupportedOperationException("Unloading is not supported");
+        }
+
+        public void maybeLoad(T resource) {
+            var name = name(resource);
+            if (failure == null && loaded.add(name)) {
                 try {
-                    loader.run();
+                    load(resource);
                 } catch (Throwable t) {
                     failure = t;
+                    throw new RuntimeException("Resource loading failure", failure);
                 }
             }
+        }
+
+        public void unloadAll() {
+            for (String name : loaded) {
+                unload(name);
+            }
+            loaded.clear();
         }
 
         public void ensureNoFailures() {

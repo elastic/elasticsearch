@@ -628,24 +628,34 @@ public class HeapAttackIT extends HeapAttackTestCase {
         initManyExponentialHistograms(10_000, 100);
 
         // Run a successful query first as sanity check
-        queryAndVerifyDuplicatedHistograms("many_exponential_histograms", 1);
+        queryAndVerifyDuplicatedHistograms("many_exponential_histograms", "histo",1);
 
         // and now blow up the memory
-        assertCircuitBreaks(attempt -> queryDuplicatedHistograms("many_exponential_histograms", attempt * 10));
+        assertCircuitBreaks(attempt -> queryDuplicatedHistograms("many_exponential_histograms", "histo",attempt * 10));
     }
 
     public void testManyTDigests() throws IOException {
-        initManyTDigests(10_000, 100);
+        initManyTDigests(10_000, 100, TDigestFieldType.TDIGEST);
 
         // Run a successful query first as sanity check
-        queryAndVerifyDuplicatedHistograms("many_tdigests", 1);
+        queryAndVerifyDuplicatedHistograms("many_tdigests", "histo", 1);
 
         // and now blow up the memory
-        assertCircuitBreaks(attempt -> queryDuplicatedHistograms("many_tdigests", attempt * 10));
+        assertCircuitBreaks(attempt -> queryDuplicatedHistograms("many_tdigests", "histo", attempt * 10));
     }
 
-    private void queryAndVerifyDuplicatedHistograms(String index, int numDuplications) throws IOException {
-        Map<String, Object> responseMap = queryDuplicatedHistograms(index, numDuplications);
+    public void testManyHistograms() throws IOException {
+        initManyTDigests(10_000, 100, TDigestFieldType.HISTOGRAM);
+
+        // Run a successful query first as sanity check
+        queryAndVerifyDuplicatedHistograms("many_tdigests", "TO_TDIGEST(histo)", 1);
+
+        // and now blow up the memory
+        assertCircuitBreaks(attempt -> queryDuplicatedHistograms("many_tdigests", "TO_TDIGEST(histo)", attempt * 10));
+    }
+
+    private void queryAndVerifyDuplicatedHistograms(String index, String column, int numDuplications) throws IOException {
+        Map<String, Object> responseMap = queryDuplicatedHistograms(index, column, numDuplications);
         ListMatcher columns = matchesList().item(matchesMap().entry("name", "dummy").entry("type", "double"));
         ListMatcher values = matchesList(List.of(matchesList(List.of(isA(Double.class)))));
         assertResultMap(responseMap, columns, values);
@@ -657,13 +667,13 @@ public class HeapAttackIT extends HeapAttackTestCase {
      * PERCENTILES() is implemented using a surrogate histogram merge, which means at the end of the STATS we
      * have n copies of each histogram in memory.
      */
-    private Map<String, Object> queryDuplicatedHistograms(String index, int numDuplications) throws IOException {
+    private Map<String, Object> queryDuplicatedHistograms(String index, String column, int numDuplications) throws IOException {
         StringBuilder query = startQuery();
         query.append("FROM " + index);
         query.append("| STATS ");
         query.append(
             IntStream.range(0, numDuplications)
-                .mapToObj(i -> "val_" + i + " = PERCENTILE(histo, 50) WHERE histo_id != -" + i)
+                .mapToObj(i -> "val_" + i + " = PERCENTILE(" + column +", 50) WHERE histo_id != -" + i)
                 .collect(Collectors.joining(", "))
         );
         query.append("BY histo_id");
@@ -945,27 +955,32 @@ public class HeapAttackIT extends HeapAttackTestCase {
         initIndex("many_exponential_histograms", bulk.toString());
     }
 
-    private void initManyTDigests(int numHistograms, int numCentroidsPerHistogram) throws IOException {
+    enum TDigestFieldType {
+        TDIGEST, HISTOGRAM
+    }
+
+    private void initManyTDigests(int numHistograms, int numCentroidsPerHistogram, TDigestFieldType fieldType) throws IOException {
         logger.info("loading many documents with tdigests");
 
         createIndex("many_tdigests", Settings.EMPTY, """
             {
                 "properties": {
                   "histo": {
-                    "type": "tdigest"
+                    "type": "%s"
                   },
                   "histo_id": {
                     "type": "long"
                   }
                 }
             }
-            """);
+            """.formatted(fieldType == TDigestFieldType.TDIGEST ? "tdigest" : "histogram"));
 
         StringBuilder bulk = new StringBuilder();
         int flush = 0;
+        String centroidsFieldName = fieldType == TDigestFieldType.TDIGEST ? "centroids" : "values";
         for (int i = 0; i < numHistograms; i++) {
             StringBuilder histoJson = new StringBuilder("{");
-            histoJson.append("\"centroids\":");
+            histoJson.append("\"").append(centroidsFieldName).append("\":");
             histoJson.append(
                 IntStream.range(i, i + numCentroidsPerHistogram).mapToObj(Integer::toString).collect(Collectors.joining(",", "[", "]"))
             );

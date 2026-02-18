@@ -45,6 +45,7 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
+    | {this.isDevVersion()}? externalCommand
     ;
 
 processingCommand
@@ -100,6 +101,10 @@ fromCommand
 
 timeSeriesCommand
     : TS indexPatternAndMetadataFields
+    ;
+
+externalCommand
+    : EXTERNAL stringOrParameter commandNamedParameters
     ;
 
 indexPatternAndMetadataFields

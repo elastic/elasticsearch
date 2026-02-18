@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elastic.denseembeddings;
 
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
@@ -57,10 +55,7 @@ public class ElasticInferenceServiceDenseEmbeddingsModelTests extends ESTestCase
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             "id",
             taskType,
-            "elastic",
             new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, SimilarityMeasure.COSINE, null, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
@@ -91,10 +86,7 @@ public class ElasticInferenceServiceDenseEmbeddingsModelTests extends ESTestCase
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             "id",
             taskType,
-            "elastic",
             serviceSettings,
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of(url),
             chunkingSettings
         );

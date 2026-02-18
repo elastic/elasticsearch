@@ -80,6 +80,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "illegal data type \\[datetime\\]", // https://github.com/elastic/elasticsearch/issues/142137
         "Expected to replace a single StubRelation in the plan, but none found", // https://github.com/elastic/elasticsearch/issues/142219
         "blocks is empty", // https://github.com/elastic/elasticsearch/issues/142473
+        "Overflow to represent absolute value of Integer.MIN_VALUE", // https://github.com/elastic/elasticsearch/issues/142642
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561

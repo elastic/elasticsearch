@@ -205,3 +205,231 @@ v:ul
 154551962150890561
 ;
 
+
+###############################################
+# Null comparison with unsigned_long
+###############################################
+
+compareUnsignedLongFieldWithNull
+required_capability: fix_null_comparison_type_check
+
+FROM ul_logs | WHERE bytes_in == null | KEEP id, bytes_in | SORT id | LIMIT 5
+;
+
+id:integer | bytes_in:ul
+;
+
+
+compareUnsignedLongFieldNotEqualNull
+required_capability: fix_null_comparison_type_check
+
+FROM ul_logs | WHERE bytes_in != null | SORT id | KEEP id, bytes_in | LIMIT 3
+;
+
+id:integer | bytes_in:ul
+;
+
+
+compareUnsignedLongFieldGreaterThanNull
+required_capability: fix_null_comparison_type_check
+
+FROM ul_logs | WHERE bytes_in > null | KEEP id, bytes_in | LIMIT 1
+;
+
+id:integer | bytes_in:ul
+;
+
+
+compareUnsignedLongFieldLessThanNull
+required_capability: fix_null_comparison_type_check
+
+FROM ul_logs | WHERE bytes_in < null | KEEP id, bytes_in | LIMIT 1
+;
+
+id:integer | bytes_in:ul
+;
+
+
+evalUnsignedLongEqualsNull
+required_capability: fix_null_comparison_type_check
+
+ROW ul = to_ul(42) | EVAL result = ul == null | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+evalNullEqualsUnsignedLong
+required_capability: fix_null_comparison_type_check
+
+ROW ul = to_ul(42) | EVAL result = null == ul | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+evalUnsignedLongGreaterThanNull
+required_capability: fix_null_comparison_type_check
+
+ROW ul = to_ul(42) | EVAL result = ul > null | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+evalUnsignedLongNotEqualsNull
+required_capability: fix_null_comparison_type_check
+
+ROW ul = to_ul(42) | EVAL result = ul != null | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+###############################################
+# Null in IN with unsigned_long
+###############################################
+
+unsignedLongInWithNull
+required_capability: fix_null_comparison_type_check
+
+FROM ul_logs | WHERE id IN (42, 85) | LIMIT 5 | SORT id | WHERE bytes_in IN (to_ul(0), null) | KEEP id, bytes_in 
+;
+warning:Line 1:65: evaluation of [bytes_in IN (to_ul(0), null)] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:65: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+
+id:integer | bytes_in:ul
+;
+
+
+unsignedLongInWithOnlyNull
+required_capability: fix_null_comparison_type_check
+
+FROM ul_logs | WHERE bytes_in IN (null) | KEEP id, bytes_in | LIMIT 1
+;
+
+id:integer | bytes_in:ul
+;
+
+
+rowUnsignedLongInWithNull
+required_capability: fix_null_comparison_type_check
+
+ROW ul = to_ul(42) | EVAL result = ul IN (to_ul(42), null) | KEEP result
+;
+
+result:boolean
+true
+;
+
+
+rowUnsignedLongInOnlyNull
+required_capability: fix_null_comparison_type_check
+
+ROW ul = to_ul(42) | EVAL result = ul IN (null) | KEEP result
+;
+
+result:boolean
+null
+;
+
+
+###############################################
+# Null in boolean logical operations with unsigned_long
+###############################################
+
+nullOrUnsignedLongComparison
+required_capability: fix_null_comparison_type_check
+
+FROM ul_logs | WHERE id == 43 | EVAL x = null OR bytes_in > to_ul(0) | KEEP id, x
+;
+
+id:integer | x:boolean
+43         | true
+;
+
+
+nullAndUnsignedLongComparison
+required_capability: fix_null_comparison_type_check
+
+ROW ul = to_ul(100) | EVAL x = null AND ul > to_ul(0) | KEEP x
+;
+
+x:boolean
+null
+;
+
+
+unsignedLongNullComparisonOrTrue
+required_capability: fix_null_comparison_type_check
+
+ROW ul = to_ul(100) | EVAL x = (ul > null) OR true | KEEP x
+;
+
+x:boolean
+true
+;
+
+
+unsignedLongNullComparisonAndTrue
+required_capability: fix_null_comparison_type_check
+
+ROW ul = to_ul(100) | EVAL x = (ul > null) AND true | KEEP x
+;
+
+x:boolean
+null
+;
+
+
+nullOrUnsignedLongGtLiteral
+required_capability: fix_null_comparison_type_check
+
+FROM ul_logs | WHERE id == 82 | EVAL x = null OR bytes_in > to_ul(2) | KEEP id, bytes_in, x
+;
+
+id:integer | bytes_in:ul        | x:boolean
+82         | 74330435873664882  | true
+;
+
+
+nullOrUnsignedLongGtLiteralFalse
+required_capability: fix_null_comparison_type_check
+
+FROM ul_logs | WHERE id == 70 | EVAL x = null OR bytes_in > to_ul(999) | KEEP id, bytes_in, x
+;
+
+id:integer | bytes_in:ul | x:boolean
+70         | 0           | null
+;
+
+
+nullFieldOrUnsignedLongComparison
+required_capability: fix_null_comparison_type_check
+
+FROM ul_logs | WHERE id == 41 | EVAL x = bytes_in > to_ul(0) OR bytes_out > to_ul(0) | KEEP id, x
+;
+
+id:integer | x:boolean
+41         | null
+;
+
+
+derivedNullUnsignedLongBooleanOp
+required_capability: fix_null_comparison_type_check
+
+ROW x = null, ul = to_ul(10) | EVAL t = (to_ul(x) > ul) OR false | KEEP t
+;
+
+t:boolean
+null
+;

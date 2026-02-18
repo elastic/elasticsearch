@@ -74,6 +74,8 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.DynamicContextDataProvider;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
+import org.elasticsearch.common.logging.activity.Log4jWriter;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -883,7 +885,7 @@ class NodeConstruction {
             new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
         );
 
-        List<? extends ActionLoggingFieldsProvider> slowLogFieldProviders = pluginsService.loadServiceProviders(
+        List<? extends ActionLoggingFieldsProvider> loggingFieldsProviders = pluginsService.loadServiceProviders(
             ActionLoggingFieldsProvider.class
         );
         // NOTE: the response of index/search slow log fields below must be calculated dynamically on every call
@@ -891,7 +893,7 @@ class NodeConstruction {
         ActionLoggingFieldsProvider loggingFieldsProvider = new ActionLoggingFieldsProvider() {
             public ActionLoggingFields create(ActionLoggingFieldsContext context) {
                 final List<ActionLoggingFields> fields = new ArrayList<>();
-                for (var provider : slowLogFieldProviders) {
+                for (var provider : loggingFieldsProviders) {
                     fields.add(provider.create(context));
                 }
                 return new ActionLoggingFields(context) {
@@ -1334,6 +1336,11 @@ class NodeConstruction {
         );
         dataStreamAutoShardingService.init();
 
+        ActivityLogWriterProvider logWriterProvider = pluginsService.loadSingletonServiceProvider(
+            ActivityLogWriterProvider.class,
+            () -> Log4jWriter.PROVIDER
+        );
+
         modules.add(b -> {
             b.bind(NodeService.class).toInstance(nodeService);
             b.bind(BigArrays.class).toInstance(bigArrays);
@@ -1376,6 +1383,8 @@ class NodeConstruction {
             b.bind(OnlinePrewarmingService.class).toInstance(onlinePrewarmingService);
             b.bind(MergeMetrics.class).toInstance(mergeMetrics);
             b.bind(ProjectRoutingResolver.class).toInstance(projectRoutingResolver);
+            b.bind(ActionLoggingFieldsProvider.class).toInstance(loggingFieldsProvider);
+            b.bind(ActivityLogWriterProvider.class).toInstance(logWriterProvider);
         });
 
         if (ReadinessService.enabled(environment)) {

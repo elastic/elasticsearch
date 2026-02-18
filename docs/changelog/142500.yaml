@@ -1,0 +1,5 @@
+area: Packaging
+issues: []
+pr: 142500
+summary: Updating bundled jdk version to 25.0.2+10
+type: upgrade

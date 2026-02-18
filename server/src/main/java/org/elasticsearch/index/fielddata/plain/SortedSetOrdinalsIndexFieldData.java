@@ -51,7 +51,8 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
             String name,
             ValuesSourceType valuesSourceType,
             boolean shouldNotUseCompetitiveIterator,
-            ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
+            ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
+        ) {
             this.name = name;
             this.toScriptFieldFactory = toScriptFieldFactory;
             this.valuesSourceType = valuesSourceType;
@@ -82,7 +83,6 @@ public class SortedSetOrdinalsIndexFieldData extends AbstractIndexOrdinalsFieldD
     ) {
         this(cache, fieldName, valuesSourceType, false, breakerService, toScriptFieldFactory);
     }
-
 
     public SortedSetOrdinalsIndexFieldData(
         IndexFieldDataCache cache,

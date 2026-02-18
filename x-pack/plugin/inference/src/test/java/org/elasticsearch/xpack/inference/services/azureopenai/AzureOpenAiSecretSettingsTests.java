@@ -33,13 +33,16 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
         boolean isApiKeyNotEntraId = randomBoolean();
         return new AzureOpenAiSecretSettings(
             isApiKeyNotEntraId ? randomSecureStringOfLength(15) : null,
-            isApiKeyNotEntraId == false ? randomSecureStringOfLength(15) : null
+            isApiKeyNotEntraId == false ? randomSecureStringOfLength(15) : null,
+            null,
+            null,
+            null
         );
     }
 
     public void testNewSecretSettingsApiKey() {
         AzureOpenAiSecretSettings initialSettings = createRandom();
-        AzureOpenAiSecretSettings newSettings = new AzureOpenAiSecretSettings(randomSecureStringOfLength(15), null);
+        AzureOpenAiSecretSettings newSettings = new AzureOpenAiSecretSettings(randomSecureStringOfLength(15), null, null, null, null);
         AzureOpenAiSecretSettings finalSettings = (AzureOpenAiSecretSettings) initialSettings.newSecretSettings(
             Map.of(API_KEY, newSettings.apiKey().toString())
         );
@@ -49,7 +52,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
 
     public void testNewSecretSettingsEntraId() {
         AzureOpenAiSecretSettings initialSettings = createRandom();
-        AzureOpenAiSecretSettings newSettings = new AzureOpenAiSecretSettings(null, randomSecureStringOfLength(15));
+        AzureOpenAiSecretSettings newSettings = new AzureOpenAiSecretSettings(null, randomSecureStringOfLength(15), null, null, null);
         AzureOpenAiSecretSettings finalSettings = (AzureOpenAiSecretSettings) initialSettings.newSecretSettings(
             Map.of(ENTRA_ID, newSettings.entraId().toString())
         );
@@ -59,12 +62,12 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
 
     public void testFromMap_ApiKey_Only() {
         var serviceSettings = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiSecretSettings.API_KEY, "abc")));
-        assertThat(new AzureOpenAiSecretSettings(new SecureString("abc".toCharArray()), null), is(serviceSettings));
+        assertThat(new AzureOpenAiSecretSettings(new SecureString("abc".toCharArray()), null, null, null, null), is(serviceSettings));
     }
 
     public void testFromMap_EntraId_Only() {
         var serviceSettings = AzureOpenAiSecretSettings.fromMap(new HashMap<>(Map.of(ENTRA_ID, "xyz")));
-        assertThat(new AzureOpenAiSecretSettings(null, new SecureString("xyz".toCharArray())), is(serviceSettings));
+        assertThat(new AzureOpenAiSecretSettings(null, new SecureString("xyz".toCharArray()), null, null, null), is(serviceSettings));
     }
 
     public void testFromMap_ReturnsNull_WhenMapIsNull() {
@@ -133,7 +136,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
 
     // test toXContent
     public void testToXContext_WritesApiKeyOnlyWhenEntraIdIsNull() throws IOException {
-        var testSettings = new AzureOpenAiSecretSettings(new SecureString("apikey"), null);
+        var testSettings = new AzureOpenAiSecretSettings(new SecureString("apikey"), null, null, null, null);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         testSettings.toXContent(builder, null);
@@ -144,7 +147,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
     }
 
     public void testToXContext_WritesEntraIdOnlyWhenApiKeyIsNull() throws IOException {
-        var testSettings = new AzureOpenAiSecretSettings(null, new SecureString("entraid"));
+        var testSettings = new AzureOpenAiSecretSettings(null, new SecureString("entraid"), null, null, null);
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         testSettings.toXContent(builder, null);
         String xContentResult = Strings.toString(builder);
@@ -180,7 +183,7 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
                 entraId = randomBoolean() ? null : randomValueOtherThan(instance.entraId(), () -> randomSecureStringOfLength(15));
             }
         }
-        return new AzureOpenAiSecretSettings(apiKey, entraId);
+        return new AzureOpenAiSecretSettings(apiKey, entraId, null, null, null);
     }
 
     @Override

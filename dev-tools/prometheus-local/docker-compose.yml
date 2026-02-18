@@ -1,0 +1,56 @@
+services:
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: es-local-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.enable-lifecycle"
+    restart: unless-stopped
+  kibana_settings:
+    image: curlimages/curl:latest
+    container_name: kibana-settings
+    restart: 'no'
+    command:
+      - /bin/sh
+      - -c
+      - |
+          echo "Setup kibana_system password"
+          start_time=$$(date +%s)
+          timeout=60
+          until curl -s -u "elastic:password" -X POST "http://host.docker.internal:9200/_security/user/kibana_system/_password" \
+            -H "Content-Type: application/json" \
+            -d "{\"password\":\"password\"}" | grep -q "^{}"; do
+            if [ $$(($$(date +%s) - $$start_time)) -ge $$timeout ]; then
+              echo "Error: Elasticsearch timeout while setting kibana_system password"
+              exit 1
+            fi
+            sleep 2
+          done
+  kibana:
+    depends_on:
+      kibana_settings:
+        condition: service_completed_successfully
+    image: docker.elastic.co/kibana/kibana:9.4.0-SNAPSHOT
+    container_name: es-local-kibana
+    ports:
+      - "5601:5601"
+    environment:
+      SERVER_NAME: kibana
+      ELASTICSEARCH_HOSTS: http://host.docker.internal:9200
+      ELASTICSEARCH_USERNAME: kibana_system
+      ELASTICSEARCH_PASSWORD: password
+      SERVER_HOST: "0.0.0.0"
+      XPACK_SECURITY_ENABLED: "false"
+      XPACK_ENCRYPTEDSAVEDOBJECTS_ENCRYPTIONKEY: "prometheus-local-eso-encryption-key-32"
+      ELASTICSEARCH_PUBLICBASEURL: http://host.docker.internal:9200
+      XPACK_SPACES_DEFAULTSOLUTION: "oblt"
+    restart: unless-stopped
+
+volumes:
+  prometheus_data:

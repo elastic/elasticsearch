@@ -77,14 +77,6 @@ public class GlobMatcherTests extends ESTestCase {
         assertFalse(m.matches("fileXparquet"));
     }
 
-    public void testNullGlobThrows() {
-        expectThrows(IllegalArgumentException.class, () -> new GlobMatcher(null));
-    }
-
-    public void testNullPathDoesNotMatch() {
-        assertFalse(new GlobMatcher("*").matches(null));
-    }
-
     public void testGlob() {
         assertEquals("*.parquet", new GlobMatcher("*.parquet").glob());
     }

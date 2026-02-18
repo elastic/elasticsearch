@@ -373,8 +373,6 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                         worker.workerId,
                         response.isSuccess()
                     );
-                    // Always resolve serverResponseListener (used by close() to wait for responses)
-                    worker.serverResponseListener.onResponse(null);
                     if (response.isSuccess()) {
                         worker.statusRef.onResponse(null);
                     } else {
@@ -384,16 +382,21 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
                             worker.workerId,
                             failure != null ? failure.getMessage() : "unknown"
                         );
+                        notifyFailure(failure);
                         worker.statusRef.onFailure(failure);
                     }
+                    // Resolve serverResponseListener LAST so close() doesn't unblock
+                    // until failure has been fully propagated via notifyFailure
+                    worker.serverResponseListener.onResponse(null);
                 }, failure -> {
                     logger.error(
                         "[LookupJoinClient] Failed to receive batch exchange status response for worker={}: {}",
                         worker.workerId,
                         failure.getMessage()
                     );
-                    worker.serverResponseListener.onResponse(null);
+                    notifyFailure(failure);
                     worker.statusRef.onFailure(failure);
+                    worker.serverResponseListener.onResponse(null);
                 })
             );
             worker.requestSent = true;
@@ -626,6 +629,7 @@ public final class BidirectionalBatchExchangeClient extends BidirectionalBatchEx
         batchToWorker.put(metadata.batchId(), worker);
         // Track the number of batches that have been sent
         startedBatchCount++;
+        page.allowPassingToDifferentDriver();
         worker.clientToServerSink.addPage(page);
         logger.trace(
             "[LookupJoinClient] Sent batch {} to worker {}, pending={}",

@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
+import org.elasticsearch.xpack.esql.plan.logical.TsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
@@ -86,7 +87,8 @@ public enum FeatureMetric {
     MMR(MMR.class::isInstance),
     PROMQL(PromqlCommand.class::isInstance),
     URI_PARTS(UriParts.class::isInstance),
-    METRICS_INFO(MetricsInfo.class::isInstance);
+    METRICS_INFO(MetricsInfo.class::isInstance),
+    TS_INFO(TsInfo.class::isInstance);
 
     /**
      * List here plans we want to exclude from telemetry

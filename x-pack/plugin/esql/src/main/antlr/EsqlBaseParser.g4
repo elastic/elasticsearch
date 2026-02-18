@@ -71,6 +71,7 @@ processingCommand
     | fuseCommand
     | uriPartsCommand
     | metricsInfoCommand
+    | tsInfoCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
@@ -357,6 +358,10 @@ fuseKeyByFields
 
 metricsInfoCommand
     : METRICS_INFO
+    ;
+
+tsInfoCommand
+    : TS_INFO
     ;
 
 //

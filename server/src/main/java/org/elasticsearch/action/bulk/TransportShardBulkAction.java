@@ -416,19 +416,18 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         final MappingLookup mappingLookup = mapperService.mappingLookup();
         final DocumentBatch batch = request.getDocumentBatch();
 
-        // Phase 1: Collect non-aborted items and map batch doc index -> items array index
-        final int[] itemIndices = new int[items.length];
-        final java.util.List<IndexRequest> indexRequests = new java.util.ArrayList<>(items.length);
-        int batchDocCount = 0;
+        // Phase 1: Collect items and map batch doc index -> items array index
+        // If any items are aborted, the batch doc indices won't align with the items array
+        // (the batch was encoded on the coordinating node before any aborts), so fall back to serial.
+        final int batchDocCount = items.length;
+        final java.util.List<IndexRequest> indexRequests = new java.util.ArrayList<>(batchDocCount);
 
         for (int i = 0; i < items.length; i++) {
             BulkItemRequest item = items[i];
             if (item.getPrimaryResponse() != null) {
-                continue; // skip aborted items
+                return null; // aborted item — fall back to serial path
             }
             indexRequests.add((IndexRequest) item.request());
-            itemIndices[batchDocCount] = i;
-            batchDocCount++;
         }
 
         if (batchDocCount == 0) {
@@ -451,8 +450,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
         // Phase 4: Build Engine.Index operations for successfully parsed documents
         final java.util.List<Engine.Index> engineOps = new java.util.ArrayList<>(batchDocCount);
-        final int[] engineOpToDocIndex = new int[batchDocCount]; // maps engine op index -> batch doc index
-        int engineOpCount = 0;
         final long startTimeNanos = primary.getRelativeTimeInNanos();
         final long operationPrimaryTerm = primary.getOperationPrimaryTerm();
 
@@ -480,8 +477,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             );
 
             engineOps.add(engineIndex);
-            engineOpToDocIndex[engineOpCount] = i;
-            engineOpCount++;
         }
 
         // Phase 5: Execute on engine
@@ -494,15 +489,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         // Handle parse failures first
         for (int i = 0; i < batchDocCount; i++) {
             if (parseResult.isSuccess(i) == false) {
-                int itemIndex = itemIndices[i];
-                BulkItemRequest item = items[itemIndex];
+                BulkItemRequest item = items[i];
                 Exception parseException = parseResult.getException(i);
-                responses[itemIndex] = BulkItemResponse.failure(
+                responses[i] = BulkItemResponse.failure(
                     item.id(),
                     item.request().opType(),
                     new BulkItemResponse.Failure(request.index(), item.request().id(), parseException)
                 );
-                item.setPrimaryResponse(responses[itemIndex]);
+                item.setPrimaryResponse(responses[i]);
             }
         }
 
@@ -513,8 +507,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 continue;
             }
 
-            int itemIndex = itemIndices[i];
-            BulkItemRequest item = items[itemIndex];
+            BulkItemRequest item = items[i];
             Engine.IndexResult result = engineResults.get(engineResultIdx);
             engineResultIdx++;
 
@@ -530,27 +523,20 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                     indexRequest.getExecutedPipelines()
                 );
                 indexResponse.setShardInfo(org.elasticsearch.action.support.replication.ReplicationResponse.ShardInfo.EMPTY);
-                responses[itemIndex] = BulkItemResponse.success(item.id(), item.request().opType(), indexResponse);
+                responses[i] = BulkItemResponse.success(item.id(), item.request().opType(), indexResponse);
                 // Batch results share the same Translog.Location from the single batch translog write,
                 // so we cannot use TransportWriteAction.locationToSync() which asserts strictly increasing locations.
                 if (result.getTranslogLocation() != null) {
                     locationToSync = result.getTranslogLocation();
                 }
             } else {
-                responses[itemIndex] = BulkItemResponse.failure(
+                responses[i] = BulkItemResponse.failure(
                     item.id(),
                     item.request().opType(),
                     new BulkItemResponse.Failure(request.index(), result.getId(), result.getFailure(), result.getSeqNo(), result.getTerm())
                 );
             }
-            item.setPrimaryResponse(responses[itemIndex]);
-        }
-
-        // Fill in aborted items (already have primaryResponse set)
-        for (int i = 0; i < items.length; i++) {
-            if (responses[i] == null && items[i].getPrimaryResponse() != null) {
-                responses[i] = items[i].getPrimaryResponse();
-            }
+            item.setPrimaryResponse(responses[i]);
         }
 
         BulkShardResponse shardResponse = new BulkShardResponse(shardId, responses);

@@ -2,5 +2,5 @@ area: Ingest Node
 issues:
  - 125745
 pr: 142611
-summary: Add `command_line_args` ingest processor
+summary: Add `command_line_args` ingest processor to parse arguments from a command line
 type: enhancement

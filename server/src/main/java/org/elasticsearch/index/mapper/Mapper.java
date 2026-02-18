@@ -127,32 +127,8 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         /**
          * Merges an incoming builder into this builder. Returns the merged builder, which may be
          * a different instance if a type conversion is needed (e.g., ObjectMapper -> PassThroughObjectMapper).
-         * The default implementation builds both mappers and uses mapper-level merge.
          */
-        Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
-            MapperBuilderContext builderContext = mergeContext.getMapperBuilderContext();
-            // Check for type conflicts at the builder level
-            if (incoming instanceof NestedObjectMapper.Builder) {
-                MapperErrors.throwNestedMappingConflictError(builderContext.buildFullName(incoming.leafName()));
-            } else if (incoming instanceof ObjectMapper.Builder) {
-                MapperErrors.throwObjectMappingConflictError(builderContext.buildFullName(incoming.leafName()));
-            }
-            // INDEX_TEMPLATE: for non-object mappers, incoming wins directly
-            if (builderContext.getMergeReason() == MapperService.MergeReason.INDEX_TEMPLATE) {
-                return incoming;
-            }
-            // Build both for dynamic conflict check and actual merge
-            Mapper existingMapper = this.build(builderContext);
-            Mapper incomingMapper = incoming.build(builderContext);
-            if (builderContext.getMergeReason().isAutoUpdate() && existingMapper.typeName().equals(incomingMapper.typeName()) == false) {
-                return this;
-            }
-            Mapper merged = existingMapper.merge(incomingMapper, mergeContext);
-            if (merged instanceof FieldMapper fieldMapper && fieldMapper.getMergeBuilder() != null) {
-                return fieldMapper.getMergeBuilder();
-            }
-            return ObjectMapper.Builder.wrapMapper(merged);
-        }
+        abstract Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext);
 
         void setLeafName(String leafName) {
             this.leafName = leafName;

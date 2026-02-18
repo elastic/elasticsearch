@@ -1930,6 +1930,11 @@ public class NestedObjectMapperTests extends MapperServiceTestCase {
                 assertEquals(parentContainsDimensions, context.parentObjectContainsDimensions());
                 return new MockFieldMapper("name");
             }
+
+            @Override
+            Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
+                return incoming;
+            }
         });
         NestedObjectMapper nestedObjectMapper = builder.build(mapperBuilderContext);
         assertNotNull(nestedObjectMapper.getMapper("name"));

@@ -155,5 +155,17 @@ public final class FieldAliasMapper extends Mapper {
             String fullName = context.buildFullName(leafName());
             return new FieldAliasMapper(leafName(), fullName, path);
         }
+
+        @Override
+        Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
+            if (incoming instanceof FieldAliasMapper.Builder == false) {
+                throw new IllegalArgumentException(
+                    "Cannot merge a field alias mapping ["
+                        + mergeContext.getMapperBuilderContext().buildFullName(leafName())
+                        + "] with a mapping that is not for a field alias."
+                );
+            }
+            return incoming;
+        }
     }
 }

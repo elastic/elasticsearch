@@ -127,7 +127,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             IllegalArgumentException.class,
             () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
-        assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [text] to [ObjectMapper]"));
+        assertTrue(e.getMessage(), e.getMessage().contains("can't merge a non object mapping [foo] with an object mapping"));
     }
 
     public void testMultiFieldsWithFieldAlias() throws IOException {

@@ -220,18 +220,24 @@ public class ObjectMapper extends Mapper {
         }
 
         protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
-            Map<String, Mapper> mappers = new HashMap<>();
+            // De-duplicate builders first, merging at builder level rather than mapper level.
+            // The same mappings or document may hold the same field twice, either because duplicated JSON keys are allowed or
+            // the same field is provided using the object notation as well as the dot notation at the same time.
+            // This can also happen due to multiple index templates being merged into a single mappings definition using
+            // XContentHelper#mergeDefaults, again in case some index templates contained mappings for the same field using a
+            // mix of object notation and dot notation.
+            MapperMergeContext dedupContext = MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE);
+            Map<String, Mapper.Builder> dedupedBuilders = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
-                Mapper mapper = builder.build(mapperBuilderContext);
-                Mapper existing = mappers.get(mapper.leafName());
+                Mapper.Builder existing = dedupedBuilders.get(builder.leafName());
                 if (existing != null) {
-                    // The same mappings or document may hold the same field twice, either because duplicated JSON keys are allowed or
-                    // the same field is provided using the object notation as well as the dot notation at the same time.
-                    // This can also happen due to multiple index templates being merged into a single mappings definition using
-                    // XContentHelper#mergeDefaults, again in case some index templates contained mappings for the same field using a
-                    // mix of object notation and dot notation.
-                    mapper = existing.merge(mapper, MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE));
+                    builder = existing.mergeWith(builder, dedupContext);
                 }
+                dedupedBuilders.put(builder.leafName(), builder);
+            }
+            Map<String, Mapper> mappers = new HashMap<>();
+            for (Mapper.Builder builder : dedupedBuilders.values()) {
+                Mapper mapper = builder.build(mapperBuilderContext);
                 if (subobjects.value() == Subobjects.DISABLED && mapper instanceof ObjectMapper objectMapper) {
                     // We're parsing a mapping that has set `subobjects: false` but has defined sub-objects
                     objectMapper.asFlattenedFieldMappers(mapperBuilderContext).forEach(m -> mappers.put(m.leafName(), m));
@@ -438,6 +444,13 @@ public class ObjectMapper extends Mapper {
                 @Override
                 int getTotalFieldsCount() {
                     return mapper.getTotalFieldsCount();
+                }
+
+                @Override
+                Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
+                    Mapper incomingMapper = incoming.build(mergeContext.getMapperBuilderContext());
+                    Mapper merged = mapper.merge(incomingMapper, mergeContext);
+                    return wrapMapper(merged);
                 }
             };
         }

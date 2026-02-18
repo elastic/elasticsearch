@@ -1,0 +1,19 @@
+ProjectExec[[message{f}#0]]
+\_TopNExec[[Order[message{f}#0,ASC,LAST]],1000[INTEGER],null]
+  \_ExchangeExec[[message{f}#0],false]
+    \_ProjectExec[[message{f}#0]]
+      \_FieldExtractExec[message{f}#0]<[],[]>
+        \_EsQueryExec[sample_data], indexMode[standard], [_doc{f}#1], limit[1000], sort[[FieldSort[field=message{f}#0, direction=ASC, nulls=LAST]]] estimatedRowSize[66] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "message",
+    "next" : {
+      "term" : {
+        "message" : {
+          "value" : "Connection error?",
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "message == \"Connection error?\"@3:9"
+  }
+}, tags=[]]]]

@@ -25,13 +25,14 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.QueryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -69,6 +70,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultLookupResolution;
+import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 
 /** See GoldenTestsReadme.md for more information about these tests. */
 @Listeners({ GoldenTestCase.GoldenTestReproduceInfoPrinter.class })
@@ -200,24 +202,25 @@ public abstract class GoldenTestCase extends ESTestCase {
         }
 
         private List<Tuple<Stage, TestResult>> doTests() throws IOException {
-            LogicalPlan parsedStatement = EsqlParser.INSTANCE.parseQuery(esqlQuery);
+            EsqlStatement statement = EsqlParser.INSTANCE.createStatement(esqlQuery);
+            LogicalPlan parsedPlan = statement.plan();
             Files.createDirectories(PathUtils.get(basePath.toString(), testName));
             Files.writeString(PathUtils.get(basePath.toString(), testName, "query.esql"), esqlQuery);
             var analyzer = new Analyzer(
                 new AnalyzerContext(
                     EsqlTestUtils.TEST_CFG,
                     new EsqlFunctionRegistry(),
-                    CsvTests.loadIndexResolution(CsvTests.testDatasets(parsedStatement)),
+                    CsvTests.loadIndexResolution(CsvTests.testDatasets(parsedPlan)),
                     defaultLookupResolution(),
                     new EnrichResolution(),
                     InferenceResolution.EMPTY,
                     transportVersion,
-                    UnmappedResolution.FAIL
+                    statement.setting(UNMAPPED_FIELDS)
                 ),
                 TEST_VERIFIER
             );
             List<Tuple<Stage, TestResult>> result = new ArrayList<>();
-            var analyzed = analyzer.analyze(parsedStatement);
+            var analyzed = analyzer.analyze(parsedPlan);
             if (stages.contains(Stage.ANALYSIS)) {
                 result.add(Tuple.tuple(Stage.ANALYSIS, verifyOrWrite(analyzed, Stage.ANALYSIS)));
             }

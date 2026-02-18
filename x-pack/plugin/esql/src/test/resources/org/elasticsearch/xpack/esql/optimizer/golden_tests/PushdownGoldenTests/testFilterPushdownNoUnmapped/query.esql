@@ -1,0 +1,4 @@
+FROM sample_data
+| KEEP message
+| WHERE message == "Connection error?"
+| SORT message

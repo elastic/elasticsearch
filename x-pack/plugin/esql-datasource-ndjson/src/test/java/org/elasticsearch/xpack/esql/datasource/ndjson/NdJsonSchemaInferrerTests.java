@@ -44,7 +44,6 @@ public class NdJsonSchemaInferrerTests extends ESTestCase {
      * Test case: Verifies the correct schema inference for lines containing valid flat JSON objects.
      */
     public void testInferSchemaForFlatJson() throws IOException {
-        assertTrue(12345678901234L > Integer.MAX_VALUE);
         check("""
             {"name": "John", "age": 30}
             {"name": "Jane", "age": 25}

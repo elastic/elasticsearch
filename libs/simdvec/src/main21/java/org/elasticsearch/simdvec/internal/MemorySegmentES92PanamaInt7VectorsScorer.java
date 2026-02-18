@@ -19,7 +19,9 @@ import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 
 import java.io.IOException;
@@ -60,7 +62,23 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
     }
 
     protected MemorySegmentES92PanamaInt7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
+        this(in, dimensions, bulkSize, false);
+    }
+
+    /**
+     * @param allowAnyInputType if true, accepts any IndexInput type
+     *        (for testing); otherwise requires MemorySegmentAccessInput
+     *        or DirectAccessInput
+     */
+    protected MemorySegmentES92PanamaInt7VectorsScorer(IndexInput in, int dimensions, int bulkSize, boolean allowAnyInputType) {
         super(in, dimensions, bulkSize);
+        if (allowAnyInputType == false && (in instanceof MemorySegmentAccessInput || in instanceof DirectAccessInput) == false) {
+            throw new IllegalArgumentException(
+                "Expected MemorySegmentAccessInput or DirectAccessInput but got "
+                    + in.getClass().getName()
+                    + ". Ensure the IndexInput is properly unwrapped before constructing the scorer."
+            );
+        }
     }
 
     protected long panamaInt7DotProduct(byte[] q) throws IOException {
@@ -70,7 +88,9 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
     private static long panamaInt7DotProductImpl(byte[] q, MemorySegment segment, int dimensions) {
         int i = 0;
         int res = 0;
+        // only vectorize if we'll at least enter the loop a single time
         if (dimensions >= 16) {
+            // compute vectorized dot product consistent with VPDPBUSD instruction
             if (VECTOR_BITSIZE >= 512) {
                 int limit = BYTE_SPECIES_128.loopBound(dimensions);
                 res += dotProductBody512Impl(q, segment, 0, limit);
@@ -80,11 +100,13 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
                 res += dotProductBody256Impl(q, segment, 0, limit);
                 i = limit;
             } else {
+                // tricky: we don't have SPECIES_32, so we workaround with "overlapping read"
                 int limit = BYTE_SPECIES_64.loopBound(dimensions - BYTE_SPECIES_64.length());
                 res += dotProductBody128Impl(q, segment, 0, limit);
                 i = limit;
             }
         }
+        // scalar tail
         for (; i < dimensions; i++) {
             res += segment.get(ValueLayout.JAVA_BYTE, i) * q[i];
         }
@@ -216,9 +238,9 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         float[] scores,
         int bulkSize
     ) throws IOException {
-        IndexInputSegments.withSlice(in, 16L * bulkSize, seg -> {
+        IndexInputSegments.withSlice(in, 16L * bulkSize, segment -> {
             applyCorrectionsBulkImpl(
-                seg,
+                segment,
                 queryAdditionalCorrection,
                 similarityFunction,
                 centroidDp,
@@ -234,7 +256,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
     }
 
     private static void applyCorrectionsBulkImpl(
-        MemorySegment seg,
+        MemorySegment segment,
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
@@ -251,19 +273,19 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         float ly = (queryUpperInterval - ay) * SEVEN_BIT_SCALE;
         float y1 = queryComponentSum;
         for (; i < limit; i += FLOAT_SPECIES.length()) {
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES, seg, i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
-            var lx = FloatVector.fromMemorySegment(FLOAT_SPECIES, seg, 4 * bulkSize + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN)
+            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES, segment, i * Float.BYTES, ByteOrder.LITTLE_ENDIAN);
+            var lx = FloatVector.fromMemorySegment(FLOAT_SPECIES, segment, 4 * bulkSize + i * Float.BYTES, ByteOrder.LITTLE_ENDIAN)
                 .sub(ax)
                 .mul(SEVEN_BIT_SCALE);
             var targetComponentSums = IntVector.fromMemorySegment(
                 INT_SPECIES,
-                seg,
+                segment,
                 8 * bulkSize + i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             ).convert(VectorOperators.I2F, 0);
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES,
-                seg,
+                segment,
                 12 * bulkSize + i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN
             );
@@ -302,10 +324,10 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
             var floatVectorMask = FLOAT_SPECIES.indexInRange(i, bulkSize);
             var intVectorMask = INT_SPECIES.indexInRange(i, bulkSize);
 
-            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES, seg, (long) i * Float.BYTES, ByteOrder.LITTLE_ENDIAN, floatVectorMask);
+            var ax = FloatVector.fromMemorySegment(FLOAT_SPECIES, segment, (long) i * Float.BYTES, LITTLE_ENDIAN, floatVectorMask);
             var upper = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES,
-                seg,
+                segment,
                 4L * bulkSize + (long) i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN,
                 floatVectorMask
@@ -314,7 +336,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
 
             var targetComponentSums = IntVector.fromMemorySegment(
                 INT_SPECIES,
-                seg,
+                segment,
                 8L * bulkSize + (long) i * Integer.BYTES,
                 ByteOrder.LITTLE_ENDIAN,
                 intVectorMask
@@ -322,7 +344,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
 
             var additionalCorrections = FloatVector.fromMemorySegment(
                 FLOAT_SPECIES,
-                seg,
+                segment,
                 12L * bulkSize + (long) i * Float.BYTES,
                 ByteOrder.LITTLE_ENDIAN,
                 floatVectorMask

@@ -70,4 +70,28 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
         return new MemorySegmentES92Int7VectorsScorer(unwrappedInput, dimension, bulkSize);
     }
+
+    @Override
+    public ESNextOSQVectorsScorer newESNextOSQVectorsScorerForTesting(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength,
+        int bulkSize
+    ) {
+        if (queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) {
+            IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
+            unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+            return new MemorySegmentESNextOSQVectorsScorer(unwrappedInput, queryBits, indexBits, dimension, dataLength, bulkSize, true);
+        }
+        return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
+    }
+
+    @Override
+    public ES92Int7VectorsScorer newES92Int7VectorsScorerForTesting(IndexInput input, int dimension, int bulkSize) {
+        IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
+        unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+        return new MemorySegmentES92Int7VectorsScorer(unwrappedInput, dimension, bulkSize, true);
+    }
 }

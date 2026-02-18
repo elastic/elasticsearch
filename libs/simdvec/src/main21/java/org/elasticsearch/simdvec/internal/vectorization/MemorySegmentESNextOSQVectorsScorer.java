@@ -16,7 +16,9 @@ import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 
@@ -41,13 +43,32 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         int dataLength,
         int bulkSize
     ) {
+        this(in, queryBits, indexBits, dimensions, dataLength, bulkSize, false);
+    }
+
+    /**
+     * Creates a new scorer. When {@code allowAnyInputType} is false (the
+     * default), the index input must be a {@link MemorySegmentAccessInput}
+     * or {@link DirectAccessInput}; otherwise an
+     * {@link IllegalArgumentException} is thrown. Pass {@code true} to
+     * bypass this check (for testing with plain index inputs).
+     */
+    MemorySegmentESNextOSQVectorsScorer(
+        IndexInput in,
+        byte queryBits,
+        byte indexBits,
+        int dimensions,
+        int dataLength,
+        int bulkSize,
+        boolean allowAnyInputType
+    ) {
         super(in, queryBits, indexBits, dimensions, dataLength);
         if (queryBits == 4 && indexBits == 1) {
-            this.scorer = new MSBitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            this.scorer = new MSBitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, allowAnyInputType);
         } else if (queryBits == 4 && indexBits == 4) {
-            this.scorer = new MSInt4SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            this.scorer = new MSInt4SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, allowAnyInputType);
         } else if (queryBits == 4 && indexBits == 2) {
-            this.scorer = new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            this.scorer = new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, allowAnyInputType);
         } else {
             throw new IllegalArgumentException("Only asymmetric 4-bit query and 1-bit index supported");
         }
@@ -177,13 +198,15 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         protected final int bulkSize;
 
         /**
-         * Creates a new MemorySegmentScorer.
+         * Creates a new MemorySegmentScorer. The index input must be a
+         * {@link MemorySegmentAccessInput} or {@link DirectAccessInput};
+         * otherwise an {@link IllegalArgumentException} is thrown.
          *
          * <p> Memory segment access is handled by
          * {@link org.elasticsearch.simdvec.internal.IndexInputSegments#withSlice
          * IndexInputSegments.withSlice}, which probes the index input for
-         * {@link org.apache.lucene.store.MemorySegmentAccessInput} /
-         * {@link org.elasticsearch.core.DirectAccessInput} support and
+         * {@link MemorySegmentAccessInput} /
+         * {@link DirectAccessInput} support and
          * falls back to a heap copy when neither is available.
          *
          * @param in the index input
@@ -192,6 +215,22 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
          * @param bulkSize the number of vectors per bulk
          */
         MemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
+            this(in, dimensions, dataLength, bulkSize, false);
+        }
+
+        /**
+         * @param allowAnyInputType if true, accepts any IndexInput type
+         *        (for testing); otherwise requires MemorySegmentAccessInput
+         *        or DirectAccessInput
+         */
+        MemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, boolean allowAnyInputType) {
+            if (allowAnyInputType == false && (in instanceof MemorySegmentAccessInput || in instanceof DirectAccessInput) == false) {
+                throw new IllegalArgumentException(
+                    "Expected MemorySegmentAccessInput or DirectAccessInput but got "
+                        + in.getClass().getName()
+                        + ". Ensure the IndexInput is properly unwrapped before constructing the scorer."
+                );
+            }
             this.in = in;
             this.length = dataLength;
             this.dimensions = dimensions;

@@ -33,6 +33,11 @@ public abstract class ESVectorizationProvider {
     /** Create a new {@link ES91OSQVectorsScorer} for the given {@link IndexInput}. */
     public abstract ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
 
+    /**
+     * Create a new {@link ESNextOSQVectorsScorer} for the given {@link IndexInput}.
+     * The input must be a {@code MemorySegmentAccessInput} or {@code DirectAccessInput};
+     * otherwise an {@link IllegalArgumentException} may be thrown.
+     */
     public abstract ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
         IndexInput input,
         byte queryBits,
@@ -42,8 +47,39 @@ public abstract class ESVectorizationProvider {
         int bulkSize
     ) throws IOException;
 
-    /** Create a new {@link ES92Int7VectorsScorer} for the given {@link IndexInput}. */
+    /**
+     * Create a new {@link ES92Int7VectorsScorer} for the given {@link IndexInput}.
+     * The input must be a {@code MemorySegmentAccessInput} or {@code DirectAccessInput};
+     * otherwise an {@link IllegalArgumentException} may be thrown.
+     */
     public abstract ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
+
+    /**
+     * Testing-only variant of {@link #newESNextOSQVectorsScorer} that accepts
+     * any {@link IndexInput} type, bypassing the requirement for
+     * {@code MemorySegmentAccessInput} or {@code DirectAccessInput}.
+     * The scorer will fall back to a heap copy when neither interface is
+     * available. Do not use in production code.
+     */
+    public ESNextOSQVectorsScorer newESNextOSQVectorsScorerForTesting(
+        IndexInput input,
+        byte queryBits,
+        byte indexBits,
+        int dimension,
+        int dataLength,
+        int bulkSize
+    ) throws IOException {
+        return newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
+    }
+
+    /**
+     * Testing-only variant of {@link #newES92Int7VectorsScorer} that accepts
+     * any {@link IndexInput} type. Do not use in production code.
+     * See {@link #newESNextOSQVectorsScorerForTesting}.
+     */
+    public ES92Int7VectorsScorer newES92Int7VectorsScorerForTesting(IndexInput input, int dimension, int bulkSize) throws IOException {
+        return newES92Int7VectorsScorer(input, dimension, bulkSize);
+    }
 
     // visible for tests
     static ESVectorizationProvider lookup(boolean testMode) {

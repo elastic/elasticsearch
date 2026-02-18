@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -31,6 +32,12 @@ public class GPUPluginInitializationWithoutGPUIT extends ESIntegTestCase {
     public static class TestGPUPlugin extends GPUPlugin {
         public TestGPUPlugin() {
             super(Settings.EMPTY);
+        }
+
+        @Override
+        public List<ActionPlugin.ActionHandler> getActions() {
+            // Skip registering xpack usage/info actions in this test as they require XPackLicenseState
+            return List.of();
         }
     }
 

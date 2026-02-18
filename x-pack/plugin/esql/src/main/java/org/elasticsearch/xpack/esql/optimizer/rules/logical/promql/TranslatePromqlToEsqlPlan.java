@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -68,6 +69,8 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
@@ -98,6 +101,22 @@ import java.util.List;
  *           \_ Aggregate[avg(sum_result), groupBy=[step]]
  *                 \_ TimeSeriesAggregate[sum(rate(value)), groupBy=[step, cluster]]
  * </pre>
+ *
+ * Translation mechanism:
+ *
+ * Recursive descent via {@code translateNode()}. Each node returns a {@code TranslationResult}:
+ * <ul>
+ *   <li>{@code plan} the LogicalPlan built so far</li>
+ *   <li>{@code expression} reference to this node's output, composed into parent expressions</li>
+ * </ul>
+ *
+ * Example translations:
+ * <ul>
+ *   <li>{@link Selector}: plan unchanged, expression = LastOverTime(field) or field reference</li>
+ *   <li>{@link AcrossSeriesAggregate}: plan = new Aggregate, expression = reference to aggregate output</li>
+ *   <li>{@link PromqlFunctionCall}: plan = Eval if child aggregated, expression = function(child expr)</li>
+ *   <li>{@link VectorBinaryOperator}: plan = merged from both sides, expression = left op right</li>
+ * </ul>
  */
 public final class TranslatePromqlToEsqlPlan extends OptimizerRules.ParameterizedOptimizerRule<PromqlCommand, LogicalOptimizerContext> {
 
@@ -330,18 +349,28 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             return new TranslationResult(leftResult.plan(), leftExpr);
         }
 
-        // The right operand is translated using leftResult.plan() as its base.
-        // This assumes at most one side produces an aggregate (e.g. agg + scalar).
-        // TODO: Binary ops between two independent aggregates require join operation.
-        TranslationResult rightResult = translateNode(binaryOp.right(), leftResult.plan(), ctx);
+        TranslationResult rightResult = translateNode(binaryOp.right(), currentPlan, ctx);
         Expression rightExpr = new ToDouble(rightResult.expression().source(), rightResult.expression());
 
         Expression binaryExpr = binaryOp.binaryOp()
             .asFunction()
             .create(binaryOp.source(), leftExpr, rightExpr, ctx.optimizerContext().configuration());
 
-        // If either side has aggregation, we need to add Eval on top
-        LogicalPlan resultPlan = rightResult.plan();
+        boolean leftAgg = containsAggregation(leftResult.plan());
+        boolean rightAgg = containsAggregation(rightResult.plan());
+
+        // If both sides have Aggregate, use a new joint Aggregate plan;
+        // otherwise, use the plan from the side that has Aggregate.
+        // In both cases aggregate expressions participate in the Eval node that wraps the result.
+        LogicalPlan resultPlan;
+        if (leftAgg && rightAgg) {
+            resultPlan = foldBinaryExpressionAggregates(leftResult.plan(), rightResult.plan());
+        } else if (leftAgg) {
+            resultPlan = leftResult.plan();
+        } else {
+            resultPlan = rightResult.plan();
+        }
+
         if (containsAggregation(resultPlan)) {
             Alias evalAlias = new Alias(binaryExpr.source(), ctx.promqlCommand().valueColumnName(), binaryExpr);
             LogicalPlan evalPlan = new Eval(ctx.promqlCommand().source(), resultPlan, List.of(evalAlias));
@@ -349,6 +378,49 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         }
 
         return new TranslationResult(resultPlan, binaryExpr);
+    }
+
+    /**
+     * Fold left and right aggregates into a single plan.
+     */
+    private static LogicalPlan foldBinaryExpressionAggregates(LogicalPlan leftPlan, LogicalPlan rightPlan) {
+        var names = new TemporaryNameGenerator.Monotonic();
+        var rightAgg = rightPlan.collect(Aggregate.class).getFirst();
+
+        var result = leftPlan.transformDown(Aggregate.class, leftAgg -> {
+            // Different groupings require vector matching semantics (on/ignoring/group_left/group_right)
+            // which is tracked in TODO: https://github.com/elastic/elasticsearch/issues/142596
+            // This check is a safety net; such queries should ideally be rejected during validation.
+            boolean areGroupingsCompatible = leftAgg.groupings().size() == rightAgg.groupings().size()
+                && new HashSet<>(leftAgg.groupings()).containsAll(rightAgg.groupings());
+
+            if (areGroupingsCompatible == false) {
+                throw new QlIllegalArgumentException("binary expressions with different grouping keys not supported yet");
+            }
+
+            // Unique aggregates from both sides
+            var uniqueAggregates = new LinkedHashSet<NamedExpression>(leftAgg.aggregates());
+            uniqueAggregates.addAll(rightAgg.aggregates());
+
+            var newAggregates = uniqueAggregates.stream().map(e -> {
+                Expression inner = e;
+                if (e instanceof Alias a) {
+                    inner = a.child();
+                }
+                // Rename it to avoid conflicting output names
+                return new Alias(e.source(), names.next(e.name()), inner, e.id());
+            }).toList();
+
+            return leftAgg.with(leftAgg.child(), leftAgg.groupings(), newAggregates);
+        });
+
+        // If right had Eval nodes wrapping its Aggregate layer them on top of the merged plan
+        // E.g. sum(a) / ceil(max(b)) becomes Eval[ceil(max(b))] -> Aggregate[sum(a), max(b)]
+        var rightEvals = rightPlan.collect(Eval.class);
+        for (Eval eval : rightEvals.reversed()) {
+            result = new Eval(eval.source(), result, eval.fields());
+        }
+        return result;
     }
 
     /**

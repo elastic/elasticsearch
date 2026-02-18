@@ -15,6 +15,10 @@ package org.elasticsearch.xpack.esql.datasources.spi;
  * - Does not perform URL encoding/decoding
  * - Has simpler parsing rules suitable for blob storage keys
  * - Provides convenient methods for path manipulation
+ *
+ * Note: glob pattern detection ({@link #isPattern()}) only inspects the path component.
+ * Glob characters in the scheme or authority (e.g. {@code s3://bucket-*&#47;data/}) are
+ * not detected as patterns and will be treated as literal text.
  */
 public final class StoragePath {
 

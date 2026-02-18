@@ -476,6 +476,64 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.total_bytes_in"));
     }
 
+    public void testBinaryAcrossSeriesAggregations() {
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.total_bytes_in) / max(network.total_bytes_in))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("ratio", "step")));
+
+        // Find the outer Aggregate (not TimeSeriesAggregate) that should contain both sum and max
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("binary agg expressions should fold into a single outer Aggregate", outerAggs, hasSize(1));
+
+        var aggregate = outerAggs.getFirst();
+        // Aggregates should contain both sum and max
+        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Sum.class::isInstance)).count(), equalTo(1L));
+        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Max.class::isInstance)).count(), equalTo(1L));
+    }
+
+    public void testBinaryAcrossSeriesAggregationsDoNotLoseReferences() {
+        // Verifies that both aggregate expressions are preserved when folding (using different fields)
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.total_bytes_in) / max(network.bytes_in))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("ratio", "step")));
+
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("both aggregations should be folded into single outer Aggregate", outerAggs, hasSize(1));
+
+        var aggregate = outerAggs.getFirst();
+        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Sum.class::isInstance)).count(), equalTo(1L));
+        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Max.class::isInstance)).count(), equalTo(1L));
+    }
+
+    public void testNestedBinaryAggregationsWithScalar() {
+        // Pattern: (agg op agg) op scalar
+        var plan = planPromql("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) / max(network.total_bytes_in) * 100)");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("all aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
+    }
+
+    public void testFunctionOnBinaryAggregations() {
+        // Pattern: func(agg op agg) - tests that Eval nodes for function are preserved
+        var plan = planPromql("PROMQL index=k8s step=1m result=(ceil(sum(network.total_bytes_in) / max(network.total_bytes_in)))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
+
+        // Verify ceil is applied via Eval
+        var evals = plan.collect(Eval.class);
+        assertThat("should have Eval nodes for ceil and value conversion", evals.size(), org.hamcrest.Matchers.greaterThanOrEqualTo(1));
+    }
+
+    public void testBinaryAggregationsWithAddition() {
+        // Two aggregates combined with addition
+        var plan = planPromql("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) + max(network.total_bytes_in))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("all aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
+    }
+
     public void testAcrossSeriesMultiplicationLiteral() {
         var plan = planPromql("PROMQL index=k8s step=1m bits=(max(network.total_bytes_in * 8))");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step")));

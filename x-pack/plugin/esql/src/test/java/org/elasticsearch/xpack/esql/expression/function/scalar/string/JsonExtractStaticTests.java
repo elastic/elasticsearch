@@ -173,6 +173,10 @@ public class JsonExtractStaticTests extends ESTestCase {
         assertResult("[10,20,30]", "$[1]", "20");
     }
 
+    public void testBareLeadingBracketArrayIndex() {
+        assertResult("[1,2,3]", "[0]", "1");
+    }
+
     public void testDollarBracketNestedPath() {
         assertResult("{\"a\":{\"b\":1}}", "$['a'].b", "1");
     }

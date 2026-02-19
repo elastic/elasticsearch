@@ -14,7 +14,7 @@ To use the `forcemerge` action in the `hot` phase, the `rollover` action **must*
 :::::{admonition} Performance considerations
 :name: ilm-forcemerge-performance
 
-Force merge is a resource-intensive operation. If too many force merges are triggered at once, it can negatively impact your cluster. For example, this can happen when you
+Force merge is a resource-intensive operation. If too many force merges are triggered at once, it can negatively impact your cluster. For example, this can happen when you:
 * modify an existing {{ilm-init}} policy's phase `min_age`, causing indices to trigger the force merge at a faster rate.
 * apply an {{ilm-init}} policy that includes a force merge action to existing indices. If the indices meet the `min_age` criteria, they can immediately proceed through multiple actions. You can prevent this by increasing the `min_age` or setting `index.lifecycle.origination_date` to change how the index age is calculated.
 * run the [{{ilm-init}} Move Step API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ilm-move-to-step) against multiple indices.

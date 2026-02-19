@@ -16,19 +16,24 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.index.analysis.CharFilterFactory;
+import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
@@ -62,6 +67,14 @@ import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.elasticsearch.xpack.exponentialhistogram.ExponentialHistogramMapperPlugin;
 import org.elasticsearch.xpack.inference.LocalStateInferencePlugin;
+import org.elasticsearch.xpack.ml.job.categorization.FirstLineWithLettersCharFilter;
+import org.elasticsearch.xpack.ml.job.categorization.FirstLineWithLettersCharFilterFactory;
+import org.elasticsearch.xpack.ml.job.categorization.FirstNonBlankLineCharFilter;
+import org.elasticsearch.xpack.ml.job.categorization.FirstNonBlankLineCharFilterFactory;
+import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizer;
+import org.elasticsearch.xpack.ml.job.categorization.MlClassicTokenizerFactory;
+import org.elasticsearch.xpack.ml.job.categorization.MlStandardTokenizer;
+import org.elasticsearch.xpack.ml.job.categorization.MlStandardTokenizerFactory;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
 import org.elasticsearch.xpack.unsignedlong.UnsignedLongMapperPlugin;
 import org.elasticsearch.xpack.versionfield.VersionFieldPlugin;
@@ -162,6 +175,7 @@ public class CsvIT extends ESTestCase {
                 EsqlTestPlugin.class,
                 AggregateMetricMapperPlugin.class,
                 AnalyticsPlugin.class,
+                CommonAnalysisPlugin.class,
                 ConstantKeywordMapperPlugin.class,
                 EnrichPlugin.class,
                 IngestCommonPlugin.class,
@@ -194,13 +208,10 @@ public class CsvIT extends ESTestCase {
         // verify no prior failures
         indices.ensureNoFailures();
         enrich.ensureNoFailures();
+        inference.ensureNoFailures();
         views.ensureNoFailures();
 
-        // skipUnsupportedCapability(EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS);
         skipUnsupportedCapability(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION);
-        skipUnsupportedCapability(EsqlCapabilities.Cap.CATEGORIZE_V6);
-        skipUnsupportedCapability(EsqlCapabilities.Cap.CATEGORIZE_OPTIONS);
-        skipUnsupportedCapability(EsqlCapabilities.Cap.CATEGORIZE_MULTIPLE_GROUPINGS);
         skipUnsupportedCapability(EsqlCapabilities.Cap.RERANK);
         skipUnsupportedCapability(EsqlCapabilities.Cap.COMPLETION);
         // runs in a single cluster/single node mode
@@ -261,7 +272,7 @@ public class CsvIT extends ESTestCase {
         return false;
     }
 
-    public static class EsqlTestPlugin extends EsqlPlugin implements NetworkPlugin {
+    public static class EsqlTestPlugin extends EsqlPlugin implements NetworkPlugin, AnalysisPlugin {
         protected XPackLicenseState getLicenseState() {
             return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
         }
@@ -307,6 +318,26 @@ public class CsvIT extends ESTestCase {
                     };
                 }
             });
+        }
+
+        @Override
+        public Map<String, AnalysisModule.AnalysisProvider<CharFilterFactory>> getCharFilters() {
+            return Map.of(
+                FirstNonBlankLineCharFilter.NAME,
+                FirstNonBlankLineCharFilterFactory::new,
+                FirstLineWithLettersCharFilter.NAME,
+                FirstLineWithLettersCharFilterFactory::new
+            );
+        }
+
+        @Override
+        public Map<String, AnalysisModule.AnalysisProvider<TokenizerFactory>> getTokenizers() {
+            return Map.of(
+                MlClassicTokenizer.NAME,
+                MlClassicTokenizerFactory::new,
+                MlStandardTokenizer.NAME,
+                MlStandardTokenizerFactory::new
+            );
         }
     }
 

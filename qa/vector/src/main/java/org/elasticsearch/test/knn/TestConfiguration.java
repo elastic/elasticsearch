@@ -496,25 +496,40 @@ record TestConfiguration(
         }
 
         private void resolveDataset() throws Exception {
-            /*
-             * Currently, datasets only support fvec files with the dimensions stored in the file.
-             */
-            Map<String, Object> datasets;
-            try (
-                InputStream ds = TestConfiguration.class.getResourceAsStream("datasets.json");
-                XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, ds)
-            ) {
-                datasets = parser.map();
-            }
-            Map<?, ?> dsData = (Map<?, ?>) datasets.get(dataset);
-            if (dsData == null) {
-                throw new IllegalArgumentException("Dataset " + dataset + " not a valid dataset. Available datasets: " + datasets.keySet());
-            }
+            final String datasetBucketRoot = "gs://knnindextester";
 
             Path dataDir = PathUtils.get(this.dataDir).toAbsolutePath();
-            @SuppressWarnings("unchecked")
-            List<Path> data = downloadFromGoogleCloud((List<String>) dsData.get("data"), dataDir);
-            Path queries = downloadFromGoogleCloud(List.of((String) dsData.get("queries")), dataDir).getFirst();
+            Map<?, ?> dsData;
+            List<Path> data;
+            Path queries;
+
+            try (Storage storage = StorageOptions.newBuilder().setProjectId("benchmarking").build().getService()) {
+                // get the dataset descriptor file
+                BlobId id = BlobId.fromGsUtilUri(Strings.format("%s/%s/%2$s.json", datasetBucketRoot, dataset));
+                System.out.printf("Loading dataset descriptor %s...%n", id.toGsUtilUri());
+                Blob blob = storage.get(id);
+                if (blob == null) {
+                    throw new IllegalArgumentException("Dataset descriptor " + id.toGsUtilUri() + " not found");
+                }
+
+                try (
+                    XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, blob.getContent())
+                ) {
+                    dsData = parser.map();
+                }
+
+                // grab the data files from storage if needed
+                List<String> dsFiles = ((List<?>) dsData.get("data")).stream()
+                    .map(f -> Strings.format("%s/%s/%s", datasetBucketRoot, dataset, f))
+                    .toList();
+                data = downloadFromGoogleCloud(storage, dsFiles, dataDir);
+                queries = downloadFromGoogleCloud(
+                    storage,
+                    List.of(Strings.format("%s/%s/%s", datasetBucketRoot, dataset, dsData.get("queries"))),
+                    dataDir
+                ).getFirst();
+            }
+
             String vectorSpace = dsData.get("vector_space").toString();
             int numDocVectors = ((Number) dsData.get("num_doc_vectors")).intValue();
             int numQueryVectors = ((Number) dsData.get("num_query_vectors")).intValue();
@@ -534,43 +549,39 @@ record TestConfiguration(
             }
         }
 
-        private static List<Path> downloadFromGoogleCloud(List<String> files, Path dest) throws Exception {
+        private static List<Path> downloadFromGoogleCloud(Storage storage, List<String> files, Path dest) throws Exception {
             if (Files.exists(dest) && !Files.isDirectory(dest)) {
                 throw new IllegalArgumentException("Data path must be a directory");
             }
 
             List<Path> dataFiles = new ArrayList<>();
-            try (Storage storage = StorageOptions.newBuilder().setProjectId("benchmarking").build().getService()) {
-                for (String gsFile : files) {
-                    BlobId id = BlobId.fromGsUtilUri(gsFile);
-                    Blob blob = storage.get(id);
-                    if (blob == null) {
-                        throw new IllegalArgumentException("Blob " + gsFile + " not found");
+            for (String gsFile : files) {
+                BlobId id = BlobId.fromGsUtilUri(gsFile);
+                Blob blob = storage.get(id);
+                if (blob == null) {
+                    throw new IllegalArgumentException("Blob " + gsFile + " not found");
+                }
+
+                Path destFile = dest.resolve(id.getName());
+                dataFiles.add(destFile);
+                if (!Files.exists(destFile)) {
+                    System.out.printf("Downloading %s to %s...%n", gsFile, destFile);
+
+                    // may need to create a subdirectory
+                    Files.createDirectories(destFile.getParent());
+                    blob.downloadTo(destFile);
+                } else {
+                    System.out.printf("Checking CRC32C for %s...%n", destFile.getFileName());
+                    // check CRC32
+                    final String blobCrc32c = blob.getCrc32c();
+                    if (blobCrc32c == null) {
+                        System.out.printf("Skipping CRC32C check for %s (blob CRC32C not available)%n", gsFile);
+                        continue;
                     }
 
-                    Path destFile = dest.resolve(id.getName());
-                    dataFiles.add(destFile);
-                    if (!Files.exists(destFile)) {
-                        System.out.printf("Downloading %s to %s...%n", gsFile, destFile);
-
-                        // may need to create a subdirectory
-                        Files.createDirectories(destFile.getParent());
-                        blob.downloadTo(destFile);
-                    } else {
-                        System.out.printf("Checking CRC32C for %s...%n", destFile.getFileName());
-                        // check CRC32
-                        final String blobCrc32c = blob.getCrc32c();
-                        if (blobCrc32c == null) {
-                            System.out.printf("Skipping CRC32C check for %s (blob CRC32C not available)%n", gsFile);
-                            continue;
-                        }
-
-                        final String localCrc32c = computeFileCrc32cBase64(destFile);
-                        if (!blobCrc32c.equals(localCrc32c)) {
-                            throw new IllegalArgumentException(
-                                "CRC32C mismatch on local file " + destFile + ". Delete file to re-download"
-                            );
-                        }
+                    final String localCrc32c = computeFileCrc32cBase64(destFile);
+                    if (!blobCrc32c.equals(localCrc32c)) {
+                        throw new IllegalArgumentException("CRC32C mismatch on local file " + destFile + ". Delete file to re-download");
                     }
                 }
             }

@@ -73,162 +73,6 @@ public class CsvTestsDataLoader {
     private static final Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
 
     private static final int BULK_DATA_SIZE = 100_000;
-    private static final TestDataset EMPLOYEES = new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
-    private static final TestDataset VOYAGER = new TestDataset("voyager", "mapping-voyager.json", "voyager.csv").noSubfields();
-    private static final TestDataset EMPLOYEES_INCOMPATIBLE = new TestDataset(
-        "employees_incompatible",
-        "mapping-default-incompatible.json",
-        "employees_incompatible.csv"
-    ).noSubfields();
-    // Note: this index currently has no data, and is only used by the golden tests.
-    private static final TestDataset ALL_TYPES = new TestDataset("all_types", "mapping-all-types.json", "all-types.csv");
-    private static final TestDataset HOSTS = new TestDataset("hosts");
-    private static final TestDataset APPS = new TestDataset("apps");
-    private static final TestDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
-    private static final TestDataset MULTI_COLUMN_JOINABLE = new TestDataset(
-        "multi_column_joinable",
-        "mapping-multi_column_joinable.json",
-        "multi_column_joinable.csv"
-    );
-    private static final TestDataset MULTI_COLUMN_JOINABLE_LOOKUP = new TestDataset(
-        "multi_column_joinable_lookup",
-        "mapping-multi_column_joinable_lookup.json",
-        "multi_column_joinable_lookup.csv"
-    ).withSetting("lookup-settings.json");
-    private static final TestDataset LANGUAGES = new TestDataset("languages");
-    private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");
-    private static final TestDataset LANGUAGES_NON_UNIQUE_KEY = new TestDataset("languages_non_unique_key");
-    private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
-        .withData("languages_non_unique_key.csv")
-        .withDynamicTypeMapping(Map.of("country", "text"));
-    private static final TestDataset LANGUAGES_NESTED_FIELDS = new TestDataset(
-        "languages_nested_fields",
-        "mapping-languages_nested_fields.json",
-        "languages_nested_fields.csv"
-    ).withSetting("lookup-settings.json");
-    private static final TestDataset LANGUAGES_MIX_NUMERICS = new TestDataset("languages_mixed_numerics").withSetting(
-        "lookup-settings.json"
-    );
-    private static final TestDataset ALERTS = new TestDataset("alerts");
-    private static final TestDataset UL_LOGS = new TestDataset("ul_logs");
-    private static final TestDataset SAMPLE_DATA = new TestDataset("sample_data");
-    private static final TestDataset MV_SAMPLE_DATA = new TestDataset("mv_sample_data");
-    private static final TestDataset SAMPLE_DATA_STR = SAMPLE_DATA.withIndex("sample_data_str")
-        .withTypeMapping(Map.of("client_ip", "keyword"));
-    private static final TestDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
-        .withData("sample_data_ts_long.csv")
-        .withTypeMapping(Map.of("@timestamp", "long"));
-    private static final TestDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
-        .withData("sample_data_ts_nanos.csv")
-        .withTypeMapping(Map.of("@timestamp", "date_nanos"));
-    // the double underscore is meant to not match `sample_data*`, but do match `sample_*`
-    private static final TestDataset SAMPLE_DATA_TS_NANOS_LOOKUP = SAMPLE_DATA_TS_NANOS.withIndex("sample__data_ts_nanos_lookup")
-        .withSetting("lookup-settings.json");
-    private static final TestDataset MISSING_IP_SAMPLE_DATA = new TestDataset("missing_ip_sample_data");
-    private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING = new TestDataset("partial_mapping_sample_data");
-    private static final TestDataset SAMPLE_DATA_NO_MAPPING = new TestDataset(
-        "no_mapping_sample_data",
-        "mapping-no_mapping_sample_data.json",
-        "partial_mapping_sample_data.csv"
-    ).withTypeMapping(Stream.of("timestamp", "client_ip", "event_duration").collect(Collectors.toMap(k -> k, k -> "keyword")));
-    private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE = new TestDataset(
-        "partial_mapping_no_source_sample_data",
-        "mapping-partial_mapping_no_source_sample_data.json",
-        "partial_mapping_sample_data.csv"
-    );
-    private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE = new TestDataset(
-        "partial_mapping_excluded_source_sample_data",
-        "mapping-partial_mapping_excluded_source_sample_data.json",
-        "partial_mapping_sample_data.csv"
-    );
-    private static final TestDataset CLIENT_IPS = new TestDataset("clientips");
-    private static final TestDataset CLIENT_IPS_LOOKUP = CLIENT_IPS.withIndex("clientips_lookup").withSetting("lookup-settings.json");
-    private static final TestDataset MESSAGE_TYPES = new TestDataset("message_types");
-    private static final TestDataset MESSAGE_TYPES_LOOKUP = MESSAGE_TYPES.withIndex("message_types_lookup")
-        .withSetting("lookup-settings.json");
-    private static final TestDataset FIREWALL_LOGS = new TestDataset("firewall_logs").noData();
-    private static final TestDataset THREAT_LIST = new TestDataset("threat_list").withSetting("lookup-settings.json").noData();
-    private static final TestDataset APP_LOGS = new TestDataset("app_logs").noData();
-    private static final TestDataset SERVICE_OWNERS = new TestDataset("service_owners").withSetting("lookup-settings.json").noData();
-    private static final TestDataset SYSTEM_METRICS = new TestDataset("system_metrics").noData();
-    private static final TestDataset HOST_INVENTORY = new TestDataset("host_inventory").withSetting("lookup-settings.json").noData();
-    private static final TestDataset OWNERSHIPS = new TestDataset("ownerships").withSetting("lookup-settings.json").noData();
-    private static final TestDataset CLIENT_CIDR = new TestDataset("client_cidr");
-    private static final TestDataset AGES = new TestDataset("ages");
-    private static final TestDataset HEIGHTS = new TestDataset("heights");
-    private static final TestDataset DECADES = new TestDataset("decades");
-    private static final TestDataset AIRPORTS = new TestDataset("airports");
-    private static final TestDataset AIRPORTS_MP = AIRPORTS.withIndex("airports_mp")
-        .withData("airports_mp.csv")
-        .withSetting("lookup-settings.json");
-    private static final TestDataset AIRPORTS_NO_DOC_VALUES = new TestDataset("airports_no_doc_values").withData("airports.csv");
-    private static final TestDataset AIRPORTS_NOT_INDEXED = new TestDataset("airports_not_indexed").withData("airports.csv");
-    private static final TestDataset AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES = new TestDataset("airports_not_indexed_nor_doc_values").withData(
-        "airports.csv"
-    );
-    private static final TestDataset AIRPORTS_WEB = new TestDataset("airports_web");
-    private static final TestDataset DATE_NANOS = new TestDataset("date_nanos");
-    private static final TestDataset DATE_NANOS_UNION_TYPES = new TestDataset("date_nanos_union_types");
-    private static final TestDataset COUNTRIES_BBOX = new TestDataset("countries_bbox");
-    private static final TestDataset COUNTRIES_BBOX_WEB = new TestDataset("countries_bbox_web");
-    private static final TestDataset AIRPORT_CITY_BOUNDARIES = new TestDataset("airport_city_boundaries").withSetting(
-        "lookup-settings.json"
-    );
-    private static final TestDataset CARTESIAN_MULTIPOLYGONS = new TestDataset("cartesian_multipolygons");
-    private static final TestDataset CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES = new TestDataset("cartesian_multipolygons_no_doc_values")
-        .withData("cartesian_multipolygons.csv");
-    private static final TestDataset MULTIVALUE_GEOMETRIES = new TestDataset("multivalue_geometries");
-    private static final TestDataset MULTIVALUE_POINTS = new TestDataset("multivalue_points");
-    private static final TestDataset DISTANCES = new TestDataset("distances");
-    private static final TestDataset K8S = new TestDataset("k8s", "k8s-mappings.json", "k8s.csv").withSetting("k8s-settings.json");
-    private static final TestDataset K8S_DATENANOS = new TestDataset("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv")
-        .withSetting("k8s-settings.json");
-    private static final TestDataset K8S_DOWNSAMPLED = new TestDataset(
-        "k8s-downsampled",
-        "k8s-downsampled-mappings.json",
-        "k8s-downsampled.csv"
-    ).withSetting("k8s-downsampled-settings.json");
-    private static final TestDataset ADDRESSES = new TestDataset("addresses");
-    private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
-    private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
-    private static final TestDataset LOGS = new TestDataset("logs");
-    private static final TestDataset DENSE_VECTOR_TEXT = new TestDataset("dense_vector_text");
-    private static final TestDataset MV_TEXT = new TestDataset("mv_text");
-    private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
-    private static final TestDataset DENSE_VECTOR_BFLOAT16 = new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(
-        List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT)
-    );
-    private static final TestDataset DENSE_VECTOR_ARITHMETIC = new TestDataset("dense_vector_arithmetic");
-    private static final TestDataset WEB_LOGS = new TestDataset("web_logs");
-    private static final TestDataset COLORS = new TestDataset("colors");
-    private static final TestDataset COLORS_CMYK_LOOKUP = new TestDataset("colors_cmyk").withSetting("lookup-settings.json");
-    private static final TestDataset BASE_CONVERSION = new TestDataset("base_conversion");
-    private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset(
-        "exp_histo_sample",
-        "exp_histo_sample-mappings.json",
-        "exp_histo_sample.csv"
-    ).withSetting("exp_histo_sample-settings.json")
-        .withRequiredCapabilities(List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW));
-    private static final TestDataset TDIGEST_STANDARD_INDEX = new TestDataset("tdigest_standard_index").withRequiredCapabilities(
-        List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW)
-    );
-    private static final TestDataset HISTOGRAM_STANDARD_INDEX = new TestDataset("histogram_standard_index").withRequiredCapabilities(
-        List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION)
-    );
-    private static final TestDataset TDIGEST_TIMESERIES_INDEX = new TestDataset(
-        "tdigest_timeseries_index",
-        "tdigest_timeseries_index-mappings.json",
-        "tdigest_standard_index.csv"
-    ).withSetting("tdigest_timeseries_index-settings.json")
-        .withRequiredCapabilities(List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW, EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC));
-    private static final TestDataset HISTOGRAM_TIMESERIES_INDEX = new TestDataset(
-        "histogram_timeseries_index",
-        "mapping-histogram_time_series_index.json",
-        "histogram_standard_index.csv"
-    ).withSetting("settings-histogram_time_series_index.json")
-        .withRequiredCapabilities(List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION));
-    private static final TestDataset MANY_NUMBERS = new TestDataset("many_numbers");
-    private static final TestDataset MMR_TEXT_VECTOR_KEYWORD = new TestDataset("mmr_text_vector_keyword");
 
     private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
         .setWarningsHandler(warnings -> {
@@ -245,89 +89,8 @@ public class CsvTestsDataLoader {
         })
         .build();
 
-    public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
-        Map.entry(EMPLOYEES.indexName, EMPLOYEES),
-        Map.entry(VOYAGER.indexName, VOYAGER),
-        Map.entry(EMPLOYEES_INCOMPATIBLE.indexName, EMPLOYEES_INCOMPATIBLE),
-        Map.entry(ALL_TYPES.indexName, ALL_TYPES),
-        Map.entry(HOSTS.indexName, HOSTS),
-        Map.entry(APPS.indexName, APPS),
-        Map.entry(APPS_SHORT.indexName, APPS_SHORT),
-        Map.entry(LANGUAGES.indexName, LANGUAGES),
-        Map.entry(LANGUAGES_LOOKUP.indexName, LANGUAGES_LOOKUP),
-        Map.entry(LANGUAGES_LOOKUP_NON_UNIQUE_KEY.indexName, LANGUAGES_LOOKUP_NON_UNIQUE_KEY),
-        Map.entry(LANGUAGES_NESTED_FIELDS.indexName, LANGUAGES_NESTED_FIELDS),
-        Map.entry(LANGUAGES_MIX_NUMERICS.indexName, LANGUAGES_MIX_NUMERICS),
-        Map.entry(UL_LOGS.indexName, UL_LOGS),
-        Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
-        Map.entry(SAMPLE_DATA_PARTIAL_MAPPING.indexName, SAMPLE_DATA_PARTIAL_MAPPING),
-        Map.entry(SAMPLE_DATA_NO_MAPPING.indexName, SAMPLE_DATA_NO_MAPPING),
-        Map.entry(SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE.indexName, SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE),
-        Map.entry(SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE.indexName, SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE),
-        Map.entry(MV_SAMPLE_DATA.indexName, MV_SAMPLE_DATA),
-        Map.entry(ALERTS.indexName, ALERTS),
-        Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
-        Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
-        Map.entry(SAMPLE_DATA_TS_NANOS.indexName, SAMPLE_DATA_TS_NANOS),
-        Map.entry(SAMPLE_DATA_TS_NANOS_LOOKUP.indexName, SAMPLE_DATA_TS_NANOS_LOOKUP),
-        Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
-        Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
-        Map.entry(CLIENT_IPS_LOOKUP.indexName, CLIENT_IPS_LOOKUP),
-        Map.entry(MESSAGE_TYPES.indexName, MESSAGE_TYPES),
-        Map.entry(MESSAGE_TYPES_LOOKUP.indexName, MESSAGE_TYPES_LOOKUP),
-        Map.entry(FIREWALL_LOGS.indexName, FIREWALL_LOGS),
-        Map.entry(THREAT_LIST.indexName, THREAT_LIST),
-        Map.entry(APP_LOGS.indexName, APP_LOGS),
-        Map.entry(SERVICE_OWNERS.indexName, SERVICE_OWNERS),
-        Map.entry(SYSTEM_METRICS.indexName, SYSTEM_METRICS),
-        Map.entry(HOST_INVENTORY.indexName, HOST_INVENTORY),
-        Map.entry(OWNERSHIPS.indexName, OWNERSHIPS),
-        Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
-        Map.entry(AGES.indexName, AGES),
-        Map.entry(HEIGHTS.indexName, HEIGHTS),
-        Map.entry(DECADES.indexName, DECADES),
-        Map.entry(AIRPORTS.indexName, AIRPORTS),
-        Map.entry(AIRPORTS_MP.indexName, AIRPORTS_MP),
-        Map.entry(AIRPORTS_NO_DOC_VALUES.indexName, AIRPORTS_NO_DOC_VALUES),
-        Map.entry(AIRPORTS_NOT_INDEXED.indexName, AIRPORTS_NOT_INDEXED),
-        Map.entry(AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES.indexName, AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES),
-        Map.entry(AIRPORTS_WEB.indexName, AIRPORTS_WEB),
-        Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
-        Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),
-        Map.entry(AIRPORT_CITY_BOUNDARIES.indexName, AIRPORT_CITY_BOUNDARIES),
-        Map.entry(CARTESIAN_MULTIPOLYGONS.indexName, CARTESIAN_MULTIPOLYGONS),
-        Map.entry(CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES.indexName, CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES),
-        Map.entry(MULTIVALUE_GEOMETRIES.indexName, MULTIVALUE_GEOMETRIES),
-        Map.entry(MULTIVALUE_POINTS.indexName, MULTIVALUE_POINTS),
-        Map.entry(DATE_NANOS.indexName, DATE_NANOS),
-        Map.entry(DATE_NANOS_UNION_TYPES.indexName, DATE_NANOS_UNION_TYPES),
-        Map.entry(K8S.indexName, K8S),
-        Map.entry(K8S_DATENANOS.indexName, K8S_DATENANOS),
-        Map.entry(K8S_DOWNSAMPLED.indexName, K8S_DOWNSAMPLED),
-        Map.entry(DISTANCES.indexName, DISTANCES),
-        Map.entry(ADDRESSES.indexName, ADDRESSES),
-        Map.entry(BOOKS.indexName, BOOKS),
-        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
-        Map.entry(LOGS.indexName, LOGS),
-        Map.entry(DENSE_VECTOR_TEXT.indexName, DENSE_VECTOR_TEXT),
-        Map.entry(MV_TEXT.indexName, MV_TEXT),
-        Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
-        Map.entry(DENSE_VECTOR_BFLOAT16.indexName, DENSE_VECTOR_BFLOAT16),
-        Map.entry(DENSE_VECTOR_ARITHMETIC.indexName, DENSE_VECTOR_ARITHMETIC),
-        Map.entry(WEB_LOGS.indexName, WEB_LOGS),
-        Map.entry(COLORS.indexName, COLORS),
-        Map.entry(COLORS_CMYK_LOOKUP.indexName, COLORS_CMYK_LOOKUP),
-        Map.entry(BASE_CONVERSION.indexName, BASE_CONVERSION),
-        Map.entry(MULTI_COLUMN_JOINABLE.indexName, MULTI_COLUMN_JOINABLE),
-        Map.entry(MULTI_COLUMN_JOINABLE_LOOKUP.indexName, MULTI_COLUMN_JOINABLE_LOOKUP),
-        Map.entry(EXP_HISTO_SAMPLE.indexName, EXP_HISTO_SAMPLE),
-        Map.entry(TDIGEST_STANDARD_INDEX.indexName, TDIGEST_STANDARD_INDEX),
-        Map.entry(HISTOGRAM_STANDARD_INDEX.indexName, HISTOGRAM_STANDARD_INDEX),
-        Map.entry(TDIGEST_TIMESERIES_INDEX.indexName, TDIGEST_TIMESERIES_INDEX),
-        Map.entry(HISTOGRAM_TIMESERIES_INDEX.indexName, HISTOGRAM_TIMESERIES_INDEX),
-        Map.entry(MANY_NUMBERS.indexName, MANY_NUMBERS),
-        Map.entry(MMR_TEXT_VECTOR_KEYWORD.indexName, MMR_TEXT_VECTOR_KEYWORD)
-    );
+    public static final Map<String, TestDataset> CSV_DATASET_MAP = Stream.of(TestDataset.values())
+        .collect(Collectors.toUnmodifiableMap(TestDataset::indexName, v -> v));
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
     private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");
@@ -1121,152 +884,405 @@ public class CsvTestsDataLoader {
         public static MultiIndexTestDataset of(TestDataset testsDataset) {
             return new MultiIndexTestDataset(testsDataset.indexName, List.of(testsDataset));
         }
-
     }
 
-    public record TestDataset(
-        String indexName,
-        String mappingFileName,
-        String dataFileName,
-        String settingFileName,
-        boolean allowSubFields,
-        @Nullable Map<String, String> typeMapping, // Override mappings read from mappings file
-        @Nullable Map<String, String> dynamicTypeMapping, // Define mappings not in the mapping files, but available from field-caps
-        boolean requiresInferenceEndpoint,
-        List<EsqlCapabilities.Cap> requiredCapabilities
-    ) {
-        public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, null, false, List.of());
-        }
+    public enum TestDataset {
+        EMPLOYEES("employees", "mapping-default.json", "employees.csv", null, false, null, null, false, List.of()),
+        VOYAGER("voyager", "mapping-voyager.json", "voyager.csv", null, false, null, null, false, List.of()),
+        EMPLOYEES_INCOMPATIBLE(
+            "employees_incompatible",
+            "mapping-default-incompatible.json",
+            "employees_incompatible.csv",
+            null,
+            false,
+            null,
+            null,
+            false,
+            List.of()
+        ),
+        ALL_TYPES("all_types", "mapping-all-types.json", "all-types.csv"),
+        HOSTS("hosts"),
+        APPS("apps"),
+        APPS_SHORT("apps_short", "mapping-apps.json", "apps.csv", null, true, Map.of("id", "short"), null, false, List.of()),
+        MULTI_COLUMN_JOINABLE("multi_column_joinable", "mapping-multi_column_joinable.json", "multi_column_joinable.csv"),
+        MULTI_COLUMN_JOINABLE_LOOKUP(
+            "multi_column_joinable_lookup",
+            "mapping-multi_column_joinable_lookup.json",
+            "multi_column_joinable_lookup.csv",
+            "lookup-settings.json",
+            true,
+            null,
+            null,
+            false,
+            List.of()
+        ),
+        LANGUAGES("languages"),
+        LANGUAGES_LOOKUP(
+            "languages_lookup",
+            "mapping-languages.json",
+            "languages.csv",
+            "lookup-settings.json",
+            true,
+            null,
+            null,
+            false,
+            List.of()
+        ),
+        LANGUAGES_NON_UNIQUE_KEY("languages_non_unique_key"),
+        LANGUAGES_LOOKUP_NON_UNIQUE_KEY(
+            "languages_lookup_non_unique_key",
+            "mapping-languages.json",
+            "languages_non_unique_key.csv",
+            "lookup-settings.json",
+            true,
+            null,
+            Map.of("country", "text"),
+            false,
+            List.of()
+        ),
+        LANGUAGES_NESTED_FIELDS(
+            "languages_nested_fields",
+            "mapping-languages_nested_fields.json",
+            "languages_nested_fields.csv",
+            "lookup-settings.json",
+            true,
+            null,
+            null,
+            false,
+            List.of()
+        ),
+        LANGUAGES_MIX_NUMERICS(
+            "languages_mixed_numerics",
+            "mapping-languages_mixed_numerics.json",
+            "languages_mixed_numerics.csv",
+            "lookup-settings.json",
+            true,
+            null,
+            null,
+            false,
+            List.of()
+        ),
+        ALERTS("alerts"),
+        UL_LOGS("ul_logs"),
+        SAMPLE_DATA("sample_data"),
+        MV_SAMPLE_DATA("mv_sample_data"),
+        SAMPLE_DATA_STR(
+            "sample_data_str",
+            "mapping-sample_data.json",
+            "sample_data.csv",
+            null,
+            true,
+            Map.of("client_ip", "keyword"),
+            null,
+            false,
+            List.of()
+        ),
+        SAMPLE_DATA_TS_LONG(
+            "sample_data_ts_long",
+            "mapping-sample_data.json",
+            "sample_data_ts_long.csv",
+            null,
+            true,
+            Map.of("@timestamp", "long"),
+            null,
+            false,
+            List.of()
+        ),
+        SAMPLE_DATA_TS_NANOS(
+            "sample_data_ts_nanos",
+            "mapping-sample_data.json",
+            "sample_data_ts_nanos.csv",
+            null,
+            true,
+            Map.of("@timestamp", "date_nanos"),
+            null,
+            false,
+            List.of()
+        ),
+        // the double underscore is meant to not match `sample_data*`, but do match `sample_*`
+        SAMPLE_DATA_TS_NANOS_LOOKUP(
+            "sample__data_ts_nanos_lookup",
+            "mapping-sample_data.json",
+            "sample_data_ts_nanos.csv",
+            "lookup-settings.json",
+            true,
+            Map.of("@timestamp", "date_nanos"),
+            null,
+            false,
+            List.of()
+        ),
+        MISSING_IP_SAMPLE_DATA("missing_ip_sample_data"),
+        SAMPLE_DATA_PARTIAL_MAPPING("partial_mapping_sample_data"),
+        SAMPLE_DATA_NO_MAPPING(
+            "no_mapping_sample_data",
+            "mapping-no_mapping_sample_data.json",
+            "partial_mapping_sample_data.csv",
+            null,
+            true,
+            Map.of("timestamp", "keyword", "client_ip", "keyword", "event_duration", "keyword"),
+            null,
+            false,
+            List.of()
+        ),
+        SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE(
+            "partial_mapping_no_source_sample_data",
+            "mapping-partial_mapping_no_source_sample_data.json",
+            "partial_mapping_sample_data.csv"
+        ),
+        SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE(
+            "partial_mapping_excluded_source_sample_data",
+            "mapping-partial_mapping_excluded_source_sample_data.json",
+            "partial_mapping_sample_data.csv"
+        ),
+        CLIENT_IPS("clientips"),
+        CLIENT_IPS_LOOKUP(
+            "clientips_lookup",
+            "mapping-clientips.json",
+            "clientips.csv",
+            "lookup-settings.json",
+            true,
+            null,
+            null,
+            false,
+            List.of()
+        ),
+        MESSAGE_TYPES("message_types"),
+        MESSAGE_TYPES_LOOKUP(
+            "message_types_lookup",
+            "mapping-message_types.json",
+            "message_types.csv",
+            "lookup-settings.json",
+            true,
+            null,
+            null,
+            false,
+            List.of()
+        ),
+        FIREWALL_LOGS("firewall_logs", "mapping-firewall_logs.json", null),
+        THREAT_LIST("threat_list", "mapping-threat_list.json", null, "lookup-settings.json", true, null, null, false, List.of()),
+        APP_LOGS("app_logs", "mapping-app_logs.json", null),
+        SERVICE_OWNERS("service_owners", "mapping-service_owners.json", null, "lookup-settings.json", true, null, null, false, List.of()),
+        SYSTEM_METRICS("system_metrics", "mapping-system_metrics.json", null),
+        HOST_INVENTORY("host_inventory", "mapping-host_inventory.json", null, "lookup-settings.json", true, null, null, false, List.of()),
+        OWNERSHIPS("ownerships", "mapping-ownerships.json", null, "lookup-settings.json", true, null, null, false, List.of()),
+        CLIENT_CIDR("client_cidr"),
+        AGES("ages"),
+        HEIGHTS("heights"),
+        DECADES("decades"),
+        AIRPORTS("airports"),
+        AIRPORTS_MP("airports_mp", "mapping-airports.json", "airports_mp.csv", "lookup-settings.json", true, null, null, false, List.of()),
+        AIRPORTS_NO_DOC_VALUES("airports_no_doc_values", "mapping-airports_no_doc_values.json", "airports.csv"),
+        AIRPORTS_NOT_INDEXED("airports_not_indexed", "mapping-airports_not_indexed.json", "airports.csv"),
+        AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES(
+            "airports_not_indexed_nor_doc_values",
+            "mapping-airports_not_indexed_nor_doc_values.json",
+            "airports.csv"
+        ),
+        AIRPORTS_WEB("airports_web"),
+        DATE_NANOS("date_nanos"),
+        DATE_NANOS_UNION_TYPES("date_nanos_union_types"),
+        COUNTRIES_BBOX("countries_bbox"),
+        COUNTRIES_BBOX_WEB("countries_bbox_web"),
+        AIRPORT_CITY_BOUNDARIES(
+            "airport_city_boundaries",
+            "mapping-airport_city_boundaries.json",
+            "airport_city_boundaries.csv",
+            "lookup-settings.json",
+            true,
+            null,
+            null,
+            false,
+            List.of()
+        ),
+        CARTESIAN_MULTIPOLYGONS("cartesian_multipolygons"),
+        CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES(
+            "cartesian_multipolygons_no_doc_values",
+            "mapping-cartesian_multipolygons_no_doc_values.json",
+            "cartesian_multipolygons.csv"
+        ),
+        MULTIVALUE_GEOMETRIES("multivalue_geometries"),
+        MULTIVALUE_POINTS("multivalue_points"),
+        DISTANCES("distances"),
+        K8S("k8s", "k8s-mappings.json", "k8s.csv", "k8s-settings.json", true, null, null, false, List.of()),
+        K8S_DATENANOS("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json", true, null, null, false, List.of()),
+        K8S_DOWNSAMPLED(
+            "k8s-downsampled",
+            "k8s-downsampled-mappings.json",
+            "k8s-downsampled.csv",
+            "k8s-downsampled-settings.json",
+            true,
+            null,
+            null,
+            false,
+            List.of()
+        ),
+        ADDRESSES("addresses"),
+        BOOKS("books", "mapping-books.json", "books.csv", "books-settings.json", true, null, null, false, List.of()),
+        SEMANTIC_TEXT("semantic_text", "mapping-semantic_text.json", "semantic_text.csv", null, true, null, null, true, List.of()),
+        LOGS("logs"),
+        DENSE_VECTOR_TEXT("dense_vector_text"),
+        MV_TEXT("mv_text"),
+        DENSE_VECTOR("dense_vector"),
+        DENSE_VECTOR_BFLOAT16(
+            "dense_vector_bfloat16",
+            "mapping-dense_vector_bfloat16.json",
+            "dense_vector_bfloat16.csv",
+            null,
+            true,
+            null,
+            null,
+            false,
+            List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT)
+        ),
+        DENSE_VECTOR_ARITHMETIC("dense_vector_arithmetic"),
+        WEB_LOGS("web_logs"),
+        COLORS("colors"),
+        COLORS_CMYK_LOOKUP(
+            "colors_cmyk",
+            "mapping-colors_cmyk.json",
+            "colors_cmyk.csv",
+            "lookup-settings.json",
+            true,
+            null,
+            null,
+            false,
+            List.of()
+        ),
+        BASE_CONVERSION("base_conversion"),
+        EXP_HISTO_SAMPLE(
+            "exp_histo_sample",
+            "exp_histo_sample-mappings.json",
+            "exp_histo_sample.csv",
+            "exp_histo_sample-settings.json",
+            true,
+            null,
+            null,
+            false,
+            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW)
+        ),
+        TDIGEST_STANDARD_INDEX(
+            "tdigest_standard_index",
+            "mapping-tdigest_standard_index.json",
+            "tdigest_standard_index.csv",
+            null,
+            true,
+            null,
+            null,
+            false,
+            List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW)
+        ),
+        HISTOGRAM_STANDARD_INDEX(
+            "histogram_standard_index",
+            "mapping-histogram_standard_index.json",
+            "histogram_standard_index.csv",
+            null,
+            true,
+            null,
+            null,
+            false,
+            List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION)
+        ),
+        TDIGEST_TIMESERIES_INDEX(
+            "tdigest_timeseries_index",
+            "tdigest_timeseries_index-mappings.json",
+            "tdigest_standard_index.csv",
+            "tdigest_timeseries_index-settings.json",
+            true,
+            null,
+            null,
+            false,
+            List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW, EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC)
+        ),
+        HISTOGRAM_TIMESERIES_INDEX(
+            "histogram_timeseries_index",
+            "mapping-histogram_time_series_index.json",
+            "histogram_standard_index.csv",
+            "settings-histogram_time_series_index.json",
+            true,
+            null,
+            null,
+            false,
+            List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION)
+        ),
+        MANY_NUMBERS("many_numbers"),
+        MMR_TEXT_VECTOR_KEYWORD("mmr_text_vector_keyword");
 
-        public TestDataset(String indexName) {
+        private final String indexName;
+        private final String mappingFileName;
+        private final String dataFileName;
+        private final String settingFileName;
+        private final boolean allowSubFields;
+        @Nullable
+        private final Map<String, String> typeMapping;
+        @Nullable
+        private final Map<String, String> dynamicTypeMapping;
+        private final boolean requiresInferenceEndpoint;
+        private final List<EsqlCapabilities.Cap> requiredCapabilities;
+
+        TestDataset(String indexName) {
             this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, false, List.of());
         }
 
-        public TestDataset withIndex(String indexName) {
-            return new TestDataset(
-                indexName,
-                mappingFileName,
-                dataFileName,
-                settingFileName,
-                allowSubFields,
-                typeMapping,
-                dynamicTypeMapping,
-                requiresInferenceEndpoint,
-                requiredCapabilities
-            );
+        TestDataset(String indexName, String mappingFileName, String dataFileName) {
+            this(indexName, mappingFileName, dataFileName, null, true, null, null, false, List.of());
         }
 
-        public TestDataset withData(String dataFileName) {
-            return new TestDataset(
-                indexName,
-                mappingFileName,
-                dataFileName,
-                settingFileName,
-                allowSubFields,
-                typeMapping,
-                dynamicTypeMapping,
-                requiresInferenceEndpoint,
-                requiredCapabilities
-            );
+        TestDataset(
+            String indexName,
+            String mappingFileName,
+            String dataFileName,
+            String settingFileName,
+            boolean allowSubFields,
+            @Nullable Map<String, String> typeMapping,
+            @Nullable Map<String, String> dynamicTypeMapping,
+            boolean requiresInferenceEndpoint,
+            List<EsqlCapabilities.Cap> requiredCapabilities
+        ) {
+            this.indexName = indexName;
+            this.mappingFileName = mappingFileName;
+            this.dataFileName = dataFileName;
+            this.settingFileName = settingFileName;
+            this.allowSubFields = allowSubFields;
+            this.typeMapping = typeMapping;
+            this.dynamicTypeMapping = dynamicTypeMapping;
+            this.requiresInferenceEndpoint = requiresInferenceEndpoint;
+            this.requiredCapabilities = requiredCapabilities;
         }
 
-        public TestDataset noData() {
-            return new TestDataset(
-                indexName,
-                mappingFileName,
-                null,
-                settingFileName,
-                allowSubFields,
-                typeMapping,
-                dynamicTypeMapping,
-                requiresInferenceEndpoint,
-                requiredCapabilities
-            );
+        public String indexName() {
+            return indexName;
         }
 
-        public TestDataset withSetting(String settingFileName) {
-            return new TestDataset(
-                indexName,
-                mappingFileName,
-                dataFileName,
-                settingFileName,
-                allowSubFields,
-                typeMapping,
-                dynamicTypeMapping,
-                requiresInferenceEndpoint,
-                requiredCapabilities
-            );
+        public String mappingFileName() {
+            return mappingFileName;
         }
 
-        public TestDataset noSubfields() {
-            return new TestDataset(
-                indexName,
-                mappingFileName,
-                dataFileName,
-                settingFileName,
-                false,
-                typeMapping,
-                dynamicTypeMapping,
-                requiresInferenceEndpoint,
-                requiredCapabilities
-            );
+        public String dataFileName() {
+            return dataFileName;
         }
 
-        public TestDataset withTypeMapping(Map<String, String> typeMapping) {
-            return new TestDataset(
-                indexName,
-                mappingFileName,
-                dataFileName,
-                settingFileName,
-                allowSubFields,
-                typeMapping,
-                dynamicTypeMapping,
-                requiresInferenceEndpoint,
-                requiredCapabilities
-            );
+        public String settingFileName() {
+            return settingFileName;
         }
 
-        public TestDataset withDynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
-            return new TestDataset(
-                indexName,
-                mappingFileName,
-                dataFileName,
-                settingFileName,
-                allowSubFields,
-                typeMapping,
-                dynamicTypeMapping,
-                requiresInferenceEndpoint,
-                requiredCapabilities
-            );
+        public boolean allowSubFields() {
+            return allowSubFields;
         }
 
-        public TestDataset withInferenceEndpoint(boolean needsInference) {
-            return new TestDataset(
-                indexName,
-                mappingFileName,
-                dataFileName,
-                settingFileName,
-                allowSubFields,
-                typeMapping,
-                dynamicTypeMapping,
-                needsInference,
-                requiredCapabilities
-            );
+        public Map<String, String> typeMapping() {
+            return typeMapping;
         }
 
-        public TestDataset withRequiredCapabilities(List<EsqlCapabilities.Cap> requiredCapabilities) {
-            return new TestDataset(
-                indexName,
-                mappingFileName,
-                dataFileName,
-                settingFileName,
-                allowSubFields,
-                typeMapping,
-                dynamicTypeMapping,
-                requiresInferenceEndpoint,
-                requiredCapabilities
-            );
+        public Map<String, String> dynamicTypeMapping() {
+            return dynamicTypeMapping;
+        }
+
+        public boolean requiresInferenceEndpoint() {
+            return requiresInferenceEndpoint;
+        }
+
+        public List<EsqlCapabilities.Cap> requiredCapabilities() {
+            return requiredCapabilities;
         }
 
         public Settings loadSettings() throws IOException {

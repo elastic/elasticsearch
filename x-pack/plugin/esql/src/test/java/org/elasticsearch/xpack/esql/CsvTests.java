@@ -565,7 +565,7 @@ public class CsvTests extends ESTestCase {
             CsvTestsDataLoader.TestDataset sourceIndex = CSV_DATASET_MAP.get(policy.getIndices().get(0));
             // this could practically work, but it's wrong:
             // EnrichPolicyResolution should contain the policy (system) index, not the source index
-            EsIndex esIndex = loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset.of(sourceIndex.withTypeMapping(Map.of()))).get();
+            EsIndex esIndex = loadIndexResolution(CsvTestsDataLoader.MultiIndexTestDataset.of(sourceIndex)).get();
             var concreteIndices = Map.of(
                 RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY,
                 Iterables.get(esIndex.concreteQualifiedIndices(), 0)

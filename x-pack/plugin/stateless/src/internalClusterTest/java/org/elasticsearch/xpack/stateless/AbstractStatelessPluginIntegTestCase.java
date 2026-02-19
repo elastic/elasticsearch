@@ -86,6 +86,9 @@ import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryStats;
+import org.elasticsearch.repositories.RepositoryStatsSnapshot;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -973,6 +976,30 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
 
     protected static ObjectStoreService getObjectStoreService(String nodeName) {
         return internalCluster().getInstance(StatelessComponents.class, nodeName).getObjectStoreService();
+    }
+
+    protected static List<RepositoryStats> getRepositoryStats() {
+        return StreamSupport.stream(internalCluster().getInstances(StatelessComponents.class).spliterator(), false)
+            .map(components -> components.getObjectStoreService().stats())
+            .toList();
+    }
+
+    protected static List<RepositoryStats> getObsRepositoryStats() {
+        return StreamSupport.stream(internalCluster().getInstances(RepositoriesService.class).spliterator(), false)
+            .map(AbstractStatelessPluginIntegTestCase::computeObsRepositoryStats)
+            .toList();
+    }
+
+    protected static RepositoryStats computeObsRepositoryStats(RepositoriesService repositoriesService) {
+        final List<RepositoryStatsSnapshot> repositoryStatsSnapshots = repositoriesService.repositoriesStats();
+        final Set<String> repositoryTypes = repositoryStatsSnapshots.stream()
+            .map(repositoryStatsSnapshot -> repositoryStatsSnapshot.getRepositoryInfo().type)
+            .collect(Collectors.toUnmodifiableSet());
+        assert repositoryTypes.size() <= 1 : "expect at most a single repository type, but got " + repositoryTypes;
+        return repositoryStatsSnapshots.stream()
+            .map(RepositoryStatsSnapshot::getRepositoryStats)
+            .reduce(RepositoryStats::merge)
+            .orElse(RepositoryStats.EMPTY_STATS);
     }
 
     protected static TranslogReplicator getTranslogReplicator(String nodeName) {

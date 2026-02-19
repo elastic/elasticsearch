@@ -73,7 +73,6 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService.Type;
-import org.elasticsearch.xpack.stateless.cache.action.ClearBlobCacheNodesRequest;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -407,7 +406,8 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessPluginInte
         long generation = client().admin().indices().prepareStats(indexName).setFlush(true).get().getShards()[0].getCommitStats()
             .getGeneration();
 
-        client(indexNode).execute(StatelessPlugin.CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).actionGet();
+        internalCluster().getInstances(StatelessPlugin.SharedBlobCacheServiceSupplier.class)
+            .forEach(sharedBlobCacheServiceSupplier -> sharedBlobCacheServiceSupplier.get().forceEvict(entry -> true));
 
         PlainActionFuture<Void> warmingFuture = new PlainActionFuture<>();
 

@@ -51,8 +51,7 @@ module org.elasticsearch.xpack.stateless {
     exports org.elasticsearch.xpack.stateless.commits to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.objectstore to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.cache to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
-    exports org.elasticsearch.xpack.stateless.cache.action to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
-    exports org.elasticsearch.xpack.stateless.metering.action to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
+    exports org.elasticsearch.xpack.stateless.lucene to org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.reshard to org.elasticsearch.server, org.elasticsearch.serverless.stateless;
     exports org.elasticsearch.xpack.stateless.allocation to org.elasticsearch.server; // For StatelessHeapUsageCollector
 

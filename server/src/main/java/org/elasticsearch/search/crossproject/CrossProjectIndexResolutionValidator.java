@@ -22,11 +22,13 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.transport.RemoteClusterAware;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_NOT_VISIBLE;
 import static org.elasticsearch.action.ResolvedIndexExpression.LocalIndexResolutionResult.CONCRETE_RESOURCE_UNAUTHORIZED;
@@ -246,7 +248,12 @@ public class CrossProjectIndexResolutionValidator {
             if (notFoundException == null && indicesOptions.allowNoIndices() == false) {
                 if (localResolvedExpressions.localIndicesIsEmpty()
                     && remoteResolvedExpressions.values().stream().allMatch(ResolvedIndexExpressions::localIndicesIsEmpty)) {
-                    return new IndexNotFoundException(localResolvedExpressions.expressions().getFirst().original());
+                    return new IndexNotFoundException(
+                        localResolvedExpressions.expressions()
+                            .stream()
+                            .map(ResolvedIndexExpression::original)
+                            .collect(Collectors.joining(","))
+                    );
                 }
             }
             return notFoundException;

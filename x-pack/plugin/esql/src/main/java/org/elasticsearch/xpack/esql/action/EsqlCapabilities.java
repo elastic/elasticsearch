@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.action;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.compute.lucene.query.LuceneQueryEvaluator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
@@ -1311,7 +1312,7 @@ public class EsqlCapabilities {
         LOOKUP_JOIN_ON_MIXED_NUMERIC_FIELDS,
 
         /**
-         * {@link org.elasticsearch.compute.lucene.LuceneQueryEvaluator} rewrites the query before executing it in Lucene. This
+         * {@link LuceneQueryEvaluator} rewrites the query before executing it in Lucene. This
          * provides support for KQL in a STATS ... BY command that uses a KQL query for filter, for example.
          */
         LUCENE_QUERY_EVALUATOR_QUERY_REWRITE,
@@ -1917,6 +1918,11 @@ public class EsqlCapabilities {
         PROMQL_TIME,
 
         /**
+         * Support for deriving PromQL time buckets from [start, end, buckets] when [step] is omitted.
+         */
+        PROMQL_BUCKETS_PARAMETER,
+
+        /**
          * Queries for unmapped fields return no data instead of an error.
          * Also filters out nulls from results.
          */
@@ -1937,6 +1943,12 @@ public class EsqlCapabilities {
          * PromQL scalar() function support.
          */
         PROMQL_SCALAR,
+
+        /**
+         * Support implicit conversion from an instant selector to a range selector for range-vector functions.
+         * For example, `rate(metric)` is interpreted as `rate(metric[step])`.
+         */
+        PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -2071,6 +2083,13 @@ public class EsqlCapabilities {
         FIX_INLINE_STATS_GROUP_BY_NULL(INLINE_STATS.enabled),
 
         /**
+         * Fix null comparison type check in binary comparisons.
+         * Null should be compatible with any type in binary comparisons.
+         * https://github.com/elastic/elasticsearch/issues/140460
+         */
+        FIX_NULL_COMPARISON_TYPE_CHECK,
+
+        /**
          * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.
          */
         CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
@@ -2143,6 +2162,11 @@ public class EsqlCapabilities {
          * TODO - remove this once the MMR operator is merged
          */
         MMR_V2(Build.current().isSnapshot()),
+
+        /**
+         * Supports the {@code URI_PARTS}) command.
+         */
+        URI_PARTS_COMMAND,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

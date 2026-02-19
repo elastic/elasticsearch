@@ -89,6 +89,76 @@ public class JsonExtractStaticTests extends ESTestCase {
         assertWarningResult("{\"a\":1}", "$.", "invalid path: empty path");
     }
 
+    // --- Bracket notation for named keys ---
+
+    public void testSingleQuotedKey() {
+        assertResult("{\"name\":\"Alice\"}", "['name']", "Alice");
+    }
+
+    public void testDoubleQuotedKey() {
+        assertResult("{\"name\":\"Alice\"}", "[\"name\"]", "Alice");
+    }
+
+    public void testQuotedKeyWithDot() {
+        assertResult("{\"user.name\":\"Alice\"}", "['user.name']", "Alice");
+    }
+
+    public void testQuotedKeyWithSpace() {
+        assertResult("{\"first name\":\"Bob\"}", "['first name']", "Bob");
+    }
+
+    public void testQuotedKeyWithBrackets() {
+        assertResult("{\"items[0]\":\"value\"}", "['items[0]']", "value");
+    }
+
+    public void testQuotedKeyNested() {
+        assertResult("{\"a\":{\"b.c\":42}}", "a['b.c']", "42");
+    }
+
+    public void testMixedDotAndBracketNotation() {
+        assertResult("{\"store\":{\"user.name\":\"Alice\",\"city\":\"London\"}}", "store['user.name']", "Alice");
+    }
+
+    public void testConsecutiveBracketNotation() {
+        assertResult("{\"a\":{\"b.c\":{\"d\":1}}}", "a['b.c']['d']", "1");
+    }
+
+    public void testBracketNotationAfterArrayIndex() {
+        assertResult("{\"arr\":[{\"a.b\":1},{\"a.b\":2}]}", "arr[0]['a.b']", "1");
+    }
+
+    public void testEscapedSingleQuoteInKey() {
+        assertResult("{\"it's\":\"value\"}", "['it\\'s']", "value");
+    }
+
+    public void testEscapedDoubleQuoteInKey() {
+        assertResult("{\"say \\\"hi\\\"\":\"value\"}", "[\"say \\\"hi\\\"\"]", "value");
+    }
+
+    public void testEscapedBackslashInKey() {
+        assertResult("{\"a\\\\b\":\"value\"}", "['a\\\\b']", "value");
+    }
+
+    public void testDollarPrefixWithBracketNotation() {
+        assertResult("{\"user.name\":\"Alice\"}", "$['user.name']", "Alice");
+    }
+
+    public void testDollarBracketArrayIndex() {
+        assertResult("[10,20,30]", "$[1]", "20");
+    }
+
+    public void testDollarBracketNestedPath() {
+        assertResult("{\"a\":{\"b\":1}}", "$['a'].b", "1");
+    }
+
+    public void testUnterminatedQuotedKey() {
+        assertWarningResult("{\"a\":1}", "['unterminated", "invalid path [['unterminated]");
+    }
+
+    public void testMissingClosingBracketAfterQuote() {
+        assertWarningResult("{\"a\":1}", "['key'x", "invalid path [['key'x]");
+    }
+
     // --- Unicode handling ---
 
     public void testUnicodeKey() {

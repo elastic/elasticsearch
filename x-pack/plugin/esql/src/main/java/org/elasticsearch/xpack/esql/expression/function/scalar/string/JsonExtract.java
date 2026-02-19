@@ -107,8 +107,10 @@ public class JsonExtract extends EsqlScalarFunction {
             name = "path",
             type = { "keyword", "text" },
             description = "A dot-notation path expression identifying the value to extract. "
-                + "Use dot notation for nested fields (e.g., `user.name`) and bracket notation "
-                + "for array indices (e.g., `items[0]`). An optional JSONPath `$.` prefix is accepted. "
+                + "Use dot notation for nested fields (e.g., `user.name`), bracket notation "
+                + "for array indices (e.g., `items[0]`), and quoted bracket notation for keys "
+                + "containing special characters (e.g., `['user.name']` or `[\"Content-Type\"]`). "
+                + "An optional JSONPath `$.` prefix is accepted. "
                 + "If `null`, the function returns `null`."
         ) Expression path
     ) {
@@ -189,15 +191,22 @@ public class JsonExtract extends EsqlScalarFunction {
      * Splits a path string into segments, converting bracket notation to segments.
      * E.g., "orders[1].item" -> ["orders", "1", "item"]
      * <p>
+     * Supports both dot notation ({@code a.b.c}) and bracket notation for named keys
+     * ({@code ['key']} or {@code ["key"]}). Bracket notation allows keys containing
+     * dots, spaces, or other special characters. Escaped quotes within brackets are
+     * supported (e.g., {@code ['it\\'s']}).
+     * <p>
      * Uses manual character iteration instead of {@code String.split(regex)} to avoid
      * regex compilation overhead on every invocation.
      * <p>
      * Throws {@link IllegalArgumentException} for malformed paths such as empty paths,
-     * consecutive dots, leading/trailing dots, or empty brackets.
+     * consecutive dots, leading/trailing dots, empty brackets, or unterminated quoted keys.
      */
     private static String[] splitPath(String path) {
         if (path.startsWith("$.")) {
             path = path.substring(2);
+        } else if (path.startsWith("$[")) {
+            path = path.substring(1);
         }
         if (path.isEmpty()) {
             throw new IllegalArgumentException("invalid path: empty path");
@@ -219,14 +228,46 @@ public class JsonExtract extends EsqlScalarFunction {
                     start = i + 1;
                 }
             } else if (c == '[') {
-                if (i == start && !afterBracket) {
+                if (i == start && !afterBracket && i > 0) {
                     throw new IllegalArgumentException("invalid path [" + path + "]");
                 }
                 if (i > start) {
                     segments.add(path.substring(start, i));
                 }
-                afterBracket = false;
-                start = i + 1;
+                // Check for quoted key: ['key'] or ["key"]
+                if (i + 1 < path.length() && (path.charAt(i + 1) == '\'' || path.charAt(i + 1) == '"')) {
+                    char quote = path.charAt(i + 1);
+                    i += 2; // skip '[' and opening quote
+                    StringBuilder key = new StringBuilder();
+                    boolean found = false;
+                    while (i < path.length()) {
+                        char ch = path.charAt(i);
+                        if (ch == '\\' && i + 1 < path.length()) {
+                            key.append(path.charAt(i + 1));
+                            i += 2;
+                        } else if (ch == quote) {
+                            if (i + 1 >= path.length() || path.charAt(i + 1) != ']') {
+                                throw new IllegalArgumentException("invalid path [" + path + "]");
+                            }
+                            segments.add(key.toString());
+                            i += 1; // advance to ']'; for-loop will increment past it
+                            found = true;
+                            afterBracket = true;
+                            start = i + 1;
+                            break;
+                        } else {
+                            key.append(ch);
+                            i++;
+                        }
+                    }
+                    if (!found) {
+                        throw new IllegalArgumentException("invalid path [" + path + "]");
+                    }
+                } else {
+                    // Numeric index — existing behavior
+                    afterBracket = false;
+                    start = i + 1;
+                }
             } else if (c == ']') {
                 if (i == start) {
                     throw new IllegalArgumentException("invalid path [" + path + "]");

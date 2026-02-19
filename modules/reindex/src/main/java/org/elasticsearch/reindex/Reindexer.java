@@ -307,6 +307,7 @@ public class Reindexer {
         }
         final boolean nonSlicedThereforeSetupRelocation = task.isWorker() && task.getParentTaskId().isSet() == false;
         if (nonSlicedThereforeSetupRelocation) {
+            // we don't need a thread-safe nodeToRelocateToSupplier for non-sliced, but re-using leads to less code
             task.getWorkerState().setNodeToRelocateToSupplier(createNodeToRelocateToSupplier());
         }
     }

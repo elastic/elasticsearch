@@ -23,8 +23,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
-import java.util.List;
-
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
@@ -37,8 +35,6 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizer
 import static org.elasticsearch.xpack.esql.core.expression.Literal.FALSE;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.is;
 
 public class PropagateNullableTests extends ESTestCase {
     private Expression propagateNullable(And e) {
@@ -145,6 +141,7 @@ public class PropagateNullableTests extends ESTestCase {
         assertEquals(and, propagateNullable(and));
     }
 
+    // constants and nullable comparison keep exact conjunction shape
     public void testDoNotOptimizeIsNullAndMultipleComparisonWithConstants() {
         Literal a = ONE;
         Literal b = ONE;
@@ -155,13 +152,15 @@ public class PropagateNullableTests extends ESTestCase {
         And aIsNull_AND_bLT1_AND_cLT1_AND_aLT1 = new And(EMPTY, aIsNull_AND_bLT1_AND_cLT1, lessThanOf(a, ONE));
 
         Expression optimized = propagateNullable(aIsNull_AND_bLT1_AND_cLT1_AND_aLT1);
-        Literal nullLiteral = new Literal(EMPTY, null, BOOLEAN);
-        List<Expression> splits = Predicates.splitAnd(optimized);
-        assertThat(splits, hasItems(aIsNull, nullLiteral));
-        assertThat(
-            "expected null-propagation to preserve a nullable c-comparison branch",
-            splits.stream().anyMatch(e -> e.toString().contains("c") || e.toString().contains("null")),
-            is(true)
+
+        Literal nullBoolean = new Literal(EMPTY, null, BOOLEAN);
+        Literal nullInteger = new Literal(EMPTY, null, ONE.dataType());
+        Expression expected = new And(
+            EMPTY,
+            aIsNull,
+            new And(EMPTY, nullBoolean, new And(EMPTY, lessThanOf(getFieldAttribute("c"), nullInteger), nullBoolean))
         );
+
+        assertEquals(Predicates.splitAnd(expected), Predicates.splitAnd(optimized));
     }
 }

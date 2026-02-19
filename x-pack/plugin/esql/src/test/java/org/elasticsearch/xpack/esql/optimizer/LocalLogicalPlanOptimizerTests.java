@@ -674,6 +674,9 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     }
 
     public void testIsNullFilterDoesNotPruneDisjunctionBranch() {
+        // (nullable IS NOT NULL OR emp_no > 10000) AND nullable IS NULL
+        // simplifies to (emp_no > 10000) AND nullable IS NULL.
+        // The optimizer must keep the residual emp_no branch instead of pruning to empty.
         var plan = localPlan("""
               FROM test
             | EVAL nullable = languages
@@ -686,6 +689,7 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var limit = as(project.child(), Limit.class);
         var filter = as(limit.child(), Filter.class);
         var conjuncts = Predicates.splitAnd(filter.condition());
+        assertThat(conjuncts, hasSize(2));
 
         var residualBranch = conjuncts.stream()
             .filter(GreaterThan.class::isInstance)

@@ -29,7 +29,7 @@ import java.util.Optional;
  * task has a complete result from all slices. A task may be resumed multiple times, so information for completed slices must be carried
  * forward to each subsequent resume until the task is fully completed.
  *
- * TODO: we can change slices from Map<Integer, SliceStatus> to List<SliceStatus> since keys are required to be 0-based and contiguous.
+ * TODO: we can use List instead of Map for since the keys are required to be 0-based and contiguous.
  */
 public record ResumeInfo(@Nullable WorkerResumeInfo worker, @Nullable Map<Integer, SliceStatus> slices) implements Writeable {
 

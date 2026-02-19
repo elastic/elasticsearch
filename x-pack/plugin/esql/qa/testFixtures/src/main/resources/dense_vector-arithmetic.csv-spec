@@ -87,7 +87,7 @@ null
 ;
 
 addDenseVectorAndScalarDouble
-required_capability: dense_vector_arithmetic
+required_capability: dense_vector_scalar_arithmetic
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 + 1.0
 | SORT id
@@ -101,7 +101,7 @@ result_vector:dense_vector
 ;
 
 addDenseVectorAndScalarInt
-required_capability: dense_vector_arithmetic
+required_capability: dense_vector_scalar_arithmetic
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 + 1
 | SORT id
@@ -115,7 +115,7 @@ result_vector:dense_vector
 ;
 
 addDenseVectorAndScalarLong
-required_capability: dense_vector_arithmetic
+required_capability: dense_vector_scalar_arithmetic
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 + 1::long
 | SORT id
@@ -217,7 +217,7 @@ null
 ;
 
 subDenseVectorAndScalarDouble
-required_capability: dense_vector_arithmetic
+required_capability: dense_vector_scalar_arithmetic
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 - 1.0
 | SORT id
@@ -231,7 +231,7 @@ result_vector:dense_vector
 ;
 
 subDenseVectorAndScalarInt
-required_capability: dense_vector_arithmetic
+required_capability: dense_vector_scalar_arithmetic
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 - 1
 | SORT id
@@ -245,7 +245,7 @@ result_vector:dense_vector
 ;
 
 subDenseVectorAndScalarLong
-required_capability: dense_vector_arithmetic
+required_capability: dense_vector_scalar_arithmetic
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 - 1::long
 | SORT id
@@ -347,7 +347,7 @@ null
 ;
 
 mulDenseVectorAndScalarDouble
-required_capability: dense_vector_arithmetic
+required_capability: dense_vector_scalar_arithmetic
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 * 2.0
 | SORT id
@@ -361,7 +361,7 @@ result_vector:dense_vector
 ;
 
 mulDenseVectorAndScalarInt
-required_capability: dense_vector_arithmetic
+required_capability: dense_vector_scalar_arithmetic
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 * 2
 | SORT id
@@ -375,7 +375,7 @@ result_vector:dense_vector
 ;
 
 mulDenseVectorAndScalarLong
-required_capability: dense_vector_arithmetic
+required_capability: dense_vector_scalar_arithmetic
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 * 2::long
 | SORT id
@@ -477,7 +477,7 @@ null
 ;
 
 divDenseVectorAndScalarDouble
-required_capability: dense_vector_arithmetic
+required_capability: dense_vector_scalar_arithmetic
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 / 2.0
 | SORT id
@@ -491,7 +491,7 @@ result_vector:dense_vector
 ;
 
 divDenseVectorAndScalarInt
-required_capability: dense_vector_arithmetic
+required_capability: dense_vector_scalar_arithmetic
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 / 2
 | SORT id
@@ -505,7 +505,7 @@ result_vector:dense_vector
 ;
 
 divDenseVectorAndScalarLong
-required_capability: dense_vector_arithmetic
+required_capability: dense_vector_scalar_arithmetic
 FROM dense_vector_arithmetic
 | eval result_vector = vector_field_1 / 2::long
 | SORT id

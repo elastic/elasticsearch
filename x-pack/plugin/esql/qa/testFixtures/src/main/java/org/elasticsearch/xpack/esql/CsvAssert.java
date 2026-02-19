@@ -77,6 +77,10 @@ import static org.junit.Assert.fail;
 public final class CsvAssert {
     private CsvAssert() {}
 
+    public static void assertMetadata(ExpectedResults expected, List<String> actualNames, List<Type> actualTypes, Logger logger) {
+        assertMetadata(expected, actualNames, actualTypes, List.of(), logger);
+    }
+
     public static void assertMetadata(
         ExpectedResults expected,
         List<String> actualNames,

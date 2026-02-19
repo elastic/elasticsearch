@@ -487,7 +487,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
     ) {
         var actualColumnNames = actualColumns.stream().map(c -> c.get("name")).toList();
         var actualColumnTypes = actualColumns.stream().map(c -> CsvTestUtils.Type.asType(c.get("type"))).toList();
-        assertMetadata(expected, actualColumnNames, actualColumnTypes, List.of(), logger);
+        assertMetadata(expected, actualColumnNames, actualColumnTypes, logger);
         assertDataWithValueConverter(
             expected,
             actualValues,

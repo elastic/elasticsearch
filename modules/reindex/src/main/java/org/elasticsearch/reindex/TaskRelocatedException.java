@@ -28,8 +28,6 @@ public class TaskRelocatedException extends ElasticsearchException {
     }
 
     public Optional<String> getRelocatedTaskId() {
-        return Optional.ofNullable(this.getMetadata("es.relocated_task_id"))
-            .filter(taskIds -> taskIds.size() == 1)
-            .map(List::getFirst);
+        return Optional.ofNullable(this.getMetadata("es.relocated_task_id")).filter(taskIds -> taskIds.size() == 1).map(List::getFirst);
     }
 }

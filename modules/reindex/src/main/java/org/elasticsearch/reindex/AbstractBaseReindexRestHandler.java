@@ -31,6 +31,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.core.Strings.format;
+
 public abstract class AbstractBaseReindexRestHandler<
     Request extends AbstractBulkByScrollRequest<Request>,
     A extends ActionType<BulkByScrollResponse>> extends BaseRestHandler {
@@ -80,7 +82,7 @@ public abstract class AbstractBaseReindexRestHandler<
             if (e instanceof TaskRelocatedException relocatedException) {
                 logger.info("{} was relocated to {}", task.getId(), relocatedException.getRelocatedTaskId().orElseThrow());
             } else {
-                logger.warn("{} failed with exception", task.getId(), e);
+                logger.warn(() -> format("%s failed with exception", task.getId()), e);
             }
         });
         responseListener.addListener(loggingListener);

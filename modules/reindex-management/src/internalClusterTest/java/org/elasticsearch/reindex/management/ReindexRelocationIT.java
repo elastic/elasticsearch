@@ -134,9 +134,11 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     // todo(szy): add test for two reindex task hops
     // todo(szy): add test for remote reindex
 
-    private TaskId assertOriginalTaskExpectedEndStateAndGetRelocatedTaskId(final TaskResult originalResult,
-                                                                           final TaskId originalTaskId,
-                                                                           final String relocatedNodeId) {
+    private TaskId assertOriginalTaskExpectedEndStateAndGetRelocatedTaskId(
+        final TaskResult originalResult,
+        final TaskId originalTaskId,
+        final String relocatedNodeId
+    ) {
         assertThat("task completed", originalResult.isCompleted(), is(true));
 
         final Map<String, Object> innerResponse = originalResult.getResponseAsMap();

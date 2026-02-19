@@ -47,13 +47,14 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
-import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Integration test(s) for reindex task relocation on node shutdown.
@@ -114,8 +115,8 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         internalCluster().getInstance(ShutdownPrepareService.class, nodeBName).prepareForShutdown();
         internalCluster().stopNode(nodeBName);
 
-        // Assert the original task is in .tasks index and has expected content (including relocated taskId)
-        final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(originalTaskId);
+        // Assert the original task is in .tasks index and has expected content (including relocated taskId on nodeA)
+        final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(originalTaskId, nodeAId);
 
         // Assert relocated reindex is running and has expected state
         final TaskResult relocatedReindex = getRunningReindex(relocatedTaskId);
@@ -133,7 +134,9 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     // todo(szy): add test for two reindex task hops
     // todo(szy): add test for remote reindex
 
-    private TaskId assertOriginalTaskExpectedEndStateAndGetRelocatedTaskId(final TaskResult originalResult) {
+    private TaskId assertOriginalTaskExpectedEndStateAndGetRelocatedTaskId(final TaskResult originalResult,
+                                                                           final TaskId originalTaskId,
+                                                                           final String relocatedNodeId) {
         assertThat("task completed", originalResult.isCompleted(), is(true));
 
         final Map<String, Object> innerResponse = originalResult.getResponseAsMap();
@@ -162,14 +165,13 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertThat((Integer) taskStatus.get("throttled_until_millis"), greaterThanOrEqualTo(0));
 
         final Map<String, Object> errorMap = originalResult.getErrorAsMap();
+        assertThat(errorMap, is(aMapWithSize(4)));
         assertThat("we get expected error type", errorMap.get("type"), equalTo("task_relocated_exception"));
-        final String errorReason = (String) errorMap.get("reason");
-        assertThat(
-            "we get expected error message",
-            errorReason,
-            matchesPattern("^Task [a-zA-Z0-9_-]+:\\d+ was relocated to [a-zA-Z0-9_-]+:\\d+$")
-        );
-        return new TaskId(errorReason.split("was relocated to ")[1]);
+        assertThat("we get expected error reason", errorMap.get("reason"), equalTo("Task was relocated"));
+        assertThat("we get expected original task id", errorMap.get("original_task_id"), equalTo(originalTaskId.toString()));
+        final String relocatedTaskId = (String) errorMap.get("relocated_task_id");
+        assertThat("we relocate to expected node", relocatedTaskId, startsWith(relocatedNodeId));
+        return new TaskId(relocatedTaskId);
     }
 
     private void assertRelocatedTaskExpectedEndState(final TaskId taskId) throws Exception {
@@ -215,7 +217,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertThat((Integer) taskStatus.get("throttled_until_millis"), greaterThanOrEqualTo(0));
     }
 
-    private TaskId assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(TaskId taskId) {
+    private TaskId assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(final TaskId taskId, final String relocatedNodeId) {
         ensureYellowAndNoInitializingShards(TaskResultsService.TASK_INDEX); // replicas won't be allocated
         assertNoFailures(indicesAdmin().prepareRefresh(TaskResultsService.TASK_INDEX).get());
         final GetResponse getTaskResponse = client().prepareGet(TaskResultsService.TASK_INDEX, taskId.toString()).get();
@@ -231,7 +233,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             throw new AssertionError("failed to parse task result from .tasks index", e);
         }
 
-        return assertOriginalTaskExpectedEndStateAndGetRelocatedTaskId(result);
+        return assertOriginalTaskExpectedEndStateAndGetRelocatedTaskId(result, taskId, relocatedNodeId);
     }
 
     private TaskId startAsyncThrottledReindexOnNode(final String nodeName) throws Exception {

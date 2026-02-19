@@ -12,25 +12,15 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.tasks.TaskId;
 
-import java.util.Objects;
-
 /** Reason for a task failing because it's been relocated to another node to continue execution. */
 public class TaskRelocatedException extends ElasticsearchException {
 
-    private final TaskId originalTaskId;
-    private final TaskId relocatedTaskId;
-
-    public TaskRelocatedException(final TaskId originalTaskId, final TaskId relocatedTaskId) {
-        super("Task {} was relocated to {}", Objects.requireNonNull(originalTaskId), Objects.requireNonNull(relocatedTaskId));
-        this.originalTaskId = originalTaskId;
-        this.relocatedTaskId = relocatedTaskId;
+    public TaskRelocatedException() {
+        super("Task was relocated");
     }
 
-    public TaskId getOriginalTaskId() {
-        return originalTaskId;
-    }
-
-    public TaskId getRelocatedTaskId() {
-        return relocatedTaskId;
+    public void setOriginalAndRelocatedTaskIdMetadata(final TaskId originalTaskId, final TaskId relocatedTaskId) {
+        this.addMetadata("es.original_task_id", originalTaskId.toString()); // implicit nullchecks
+        this.addMetadata("es.relocated_task_id", relocatedTaskId.toString());
     }
 }

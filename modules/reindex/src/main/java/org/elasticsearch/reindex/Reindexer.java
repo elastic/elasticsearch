@@ -284,13 +284,14 @@ public class Reindexer {
             }
             request.setResumeInfo(response.getTaskResumeInfo().get());
             final ResumeBulkByScrollRequest resumeRequest = new ResumeBulkByScrollRequest(request);
-            final ActionListener<ResumeBulkByScrollResponse> relocationListener = ActionListener.wrap(
-                // todo(szy) reviewer comment: is failing the task the most idiomatic thing?
-                resp -> l.onFailure(
-                    new TaskRelocatedException(new TaskId(clusterService.localNode().getId(), task.getId()), resp.getTaskId())
-                ),
-                l::onFailure
-            );
+            final ActionListener<ResumeBulkByScrollResponse> relocationListener = ActionListener.wrap(resp -> {
+                final var relocatedException = new TaskRelocatedException();
+                relocatedException.setOriginalAndRelocatedTaskIdMetadata(
+                    new TaskId(clusterService.localNode().getId(), task.getId()),
+                    resp.getTaskId()
+                );
+                l.onFailure(relocatedException);
+            }, l::onFailure);
             transportService.sendRequest(
                 nodeToRelocateToNode,
                 ResumeReindexAction.NAME,

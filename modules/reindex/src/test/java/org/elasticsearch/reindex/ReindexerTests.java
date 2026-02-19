@@ -38,9 +38,11 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -208,7 +210,10 @@ public class ReindexerTests extends ESTestCase {
 
         assertTrue(future.isDone());
         TaskRelocatedException exception = expectThrows(TaskRelocatedException.class, future::actionGet);
-        assertEquals("Task source-node:987 was relocated to target-node:123", exception.getMessage());
+        assertThat(exception.getMessage(), equalTo("Task was relocated"));
+        assertThat(exception.getMetadataKeys(), equalTo(Set.of("es.original_task_id", "es.relocated_task_id")));
+        assertThat(exception.getMetadata("es.original_task_id"), equalTo(List.of("source-node:987")));
+        assertThat(exception.getMetadata("es.relocated_task_id"), equalTo(List.of("target-node:123")));
     }
 
     // --- workerListenerWithRelocationAndMetrics tests ---

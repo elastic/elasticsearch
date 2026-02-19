@@ -26,6 +26,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.lucene.spatial.DimensionalShapeType;
 import org.elasticsearch.lucene.spatial.Extent;
@@ -224,6 +225,32 @@ public class GeometryDocValueTests extends ESTestCase {
         assertThat("Expect equivalent geometry", reader.getGeometry(CoordinateEncoder.GEO), equivalentTo(geometry));
     }
 
+    public void testRandomGeometryReconstruction() throws IOException {
+        GeoShapeIndexer indexer = new GeoShapeIndexer(Orientation.CCW, "test");
+        for (int i = 0; i < 100; i++) {
+            Geometry geometry = switch (i % 7) {
+                case 0 -> randomPoint(false);
+                case 1 -> randomMultiPoint(false);
+                case 2 -> randomLine(false);
+                case 3 -> randomMultiLine(false);
+                case 4 -> randomPolygon(false);
+                case 5 -> randomMultiPolygon(false);
+                case 6 -> new Rectangle(
+                    randomIntBetween(-179, -1),
+                    randomIntBetween(1, 179),
+                    randomIntBetween(1, 89),
+                    randomIntBetween(-89, -1)
+                );
+                default -> throw new AssertionError();
+            };
+            Geometry normalized = indexer.normalize(geometry);
+            GeometryDocValueReader reader = GeoTestUtils.geometryDocValueReader(geometry, CoordinateEncoder.GEO);
+            Geometry extracted = reader.getGeometry(CoordinateEncoder.GEO);
+            assertNotNull("Iteration " + i + ": expected non-null geometry for " + geometry.type(), extracted);
+            assertThat("Iteration " + i + ": equivalent geometry for " + normalized.type(), extracted, equivalentTo(normalized));
+        }
+    }
+
     private Geometry loadResourceAsGeometry(String filename) throws IOException, ParseException {
         GZIPInputStream is = new GZIPInputStream(getClass().getResourceAsStream(filename));
         final BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
@@ -409,9 +436,25 @@ public class GeometryDocValueTests extends ESTestCase {
             public String visit(MultiPoint expected) {
                 if (actual instanceof MultiPoint a) {
                     if (expected.size() != a.size()) return sizeMismatch(expected.size(), a.size());
+                    // Point ordering in MultiPoint is semantically meaningless and is not
+                    // preserved by the triangle tree (legacy format), so match greedily.
+                    boolean[] used = new boolean[a.size()];
                     for (int i = 0; i < expected.size(); i++) {
-                        String r = checkEquivalent(expected.get(i), a.get(i), path + "[" + i + "]");
-                        if (r != null) return r;
+                        Point ep = expected.get(i);
+                        boolean found = false;
+                        for (int j = 0; j < a.size(); j++) {
+                            if (used[j] == false) {
+                                Point ap = a.get(j);
+                                if (compareCoord("", ep.getX(), ep.getY(), ap.getX(), ap.getY()) == null) {
+                                    used[j] = true;
+                                    found = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (found == false) {
+                            return path + ": no matching point for expected[" + i + "] (" + ep.getX() + ", " + ep.getY() + ") in " + a;
+                        }
                     }
                     return null;
                 }
@@ -503,7 +546,7 @@ public class GeometryDocValueTests extends ESTestCase {
 
         private String compareCoord(String path, double expectedX, double expectedY, double actualX, double actualY) {
             int ex = encoder.encodeX(encoder.normalizeX(expectedX));
-            int ax = encoder.encodeX(actualX);
+            int ax = encoder.encodeX(encoder.normalizeX(actualX));
             if (ex != ax) {
                 return path + ".x: " + expectedX + " (enc:" + ex + ") != " + actualX + " (enc:" + ax + ")";
             }

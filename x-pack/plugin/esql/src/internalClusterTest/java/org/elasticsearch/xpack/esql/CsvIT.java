@@ -204,6 +204,14 @@ public class CsvIT extends ESTestCase {
 
     public final void test() throws Throwable {
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
+        assumeFalse(
+            "runs in a single cluster/single node mode",
+            testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST.capabilityName())
+        );
+        assumeFalse(
+            "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
+            testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
+        );
 
         currentGroupName = groupName;
         // verify no prior failures
@@ -211,16 +219,6 @@ public class CsvIT extends ESTestCase {
         enrich.ensureNoFailures();
         inference.ensureNoFailures();
         views.ensureNoFailures();
-
-        skipUnsupportedCapability(EsqlCapabilities.Cap.RERANK);
-        skipUnsupportedCapability(EsqlCapabilities.Cap.COMPLETION);
-        // runs in a single cluster/single node mode
-        skipUnsupportedCapability(EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST);
-
-        assumeFalse(
-            "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
-            testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
-        );
 
         var request = syncEsqlQueryRequest(testCase.query);
         var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
@@ -262,10 +260,6 @@ public class CsvIT extends ESTestCase {
         copy[0] = new StackTraceElement(getClass().getName(), groupName + "." + testName, fileName, lineNumber);
         System.arraycopy(original, 0, copy, 1, original.length);
         return copy;
-    }
-
-    private void skipUnsupportedCapability(EsqlCapabilities.Cap capability) {
-        assumeFalse("Skipping unsupported capability: " + capability, testCase.requiredCapabilities.contains(capability.capabilityName()));
     }
 
     public boolean logResults() {

@@ -408,7 +408,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var indexName = randomIndexName();
             final var index = new Index(indexName, uuid());
             final var shardId = new ShardId(index, 0);
-            // A snapshot whose shard is all already in a terminal state.
+            // A snapshot whose shard is already in a terminal state.
             final var terminalShardState = randomBoolean() ? SnapshotsInProgress.ShardState.SUCCESS : SnapshotsInProgress.ShardState.FAILED;
             final var terminalShardStatus = terminalShardState == SnapshotsInProgress.ShardState.SUCCESS
                 ? SnapshotsInProgress.ShardSnapshotStatus.success(
@@ -535,9 +535,9 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
 
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
 
+            // ABORTED snapshots are included in update.
             if (nodesChanged) {
-                // ABORTED snapshots are included in statesToUpdate.
-                // The ABORTED shard on the departed node is failed → the snapshot becomes completed → snapshotFinalizer fires.
+                // The ABORTED shard on the departed node is failed -> the snapshot becomes completed -> snapshotFinalizer fires.
                 assertThat("snapshotFinalizer should fire for the completed aborted snapshot when nodes changed", finalized, hasSize(1));
                 assertTrue("completed aborted snapshot should be in a terminal state", finalized.get(0).state().completed());
                 assertThat(
@@ -546,7 +546,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                     is(SnapshotsInProgress.ShardState.FAILED)
                 );
             } else {
-                // ABORTED snapshots are excluded from statesToUpdate.
+                // ABORTED snapshots are excluded from update.
                 // No shard-state changes are applied: the snapshot remains ABORTED and the finalizer is not called.
                 assertThat("snapshotFinalizer should not fire for an ABORTED snapshot when only shard routing changed", finalized, empty());
                 assertThat("aborted snapshot should remain in cluster state", updatedAbortedSnapshots, hasSize(1));

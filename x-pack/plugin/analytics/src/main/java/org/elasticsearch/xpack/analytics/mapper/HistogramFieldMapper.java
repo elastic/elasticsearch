@@ -16,8 +16,6 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -50,6 +48,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tdigest.EncodedTDigest;
 import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -405,19 +404,7 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     static BytesRef encodeBytesRef(List<Double> values, List<Long> counts) throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-        assert counts.size() == values.size();
-        for (int i = 0; i < values.size(); i++) {
-            long count = counts.get(i);
-            assert count >= 0;
-            // we do not add elements with count == 0
-            if (count > 0) {
-                streamOutput.writeVLong(count);
-                streamOutput.writeLong(Double.doubleToRawLongBits(values.get(i)));
-            }
-        }
-        BytesRef docValue = streamOutput.bytes().toBytesRef();
-        return docValue;
+        return EncodedTDigest.encodeCentroids(values, counts);
     }
 
     /** re-usable {@link HistogramValue} implementation */
@@ -425,15 +412,17 @@ public class HistogramFieldMapper extends FieldMapper {
         double value;
         long count;
         boolean isExhausted;
-        final ByteArrayStreamInput streamInput;
+        final EncodedTDigest encodedTDigest;
+        EncodedTDigest.CentroidIterator centroidIterator;
 
         InternalHistogramValue() {
-            streamInput = new ByteArrayStreamInput();
+            encodedTDigest = new EncodedTDigest();
         }
 
         /** reset the value for the histogram */
         void reset(BytesRef bytesRef) {
-            streamInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+            encodedTDigest.reset(bytesRef);
+            centroidIterator = encodedTDigest.centroidIterator();
             isExhausted = false;
             value = 0;
             count = 0;
@@ -441,9 +430,10 @@ public class HistogramFieldMapper extends FieldMapper {
 
         @Override
         public boolean next() throws IOException {
-            if (streamInput.available() > 0) {
-                count = streamInput.readVLong();
-                value = Double.longBitsToDouble(streamInput.readLong());
+            if (centroidIterator != null && centroidIterator.hasNext()) {
+                count = centroidIterator.peekCount();
+                value = centroidIterator.peekMean();
+                centroidIterator.advance();
                 return true;
             }
             isExhausted = true;

@@ -19,8 +19,6 @@ import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -56,6 +54,7 @@ import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.tdigest.EncodedTDigest;
 import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -262,12 +261,8 @@ public class TDigestFieldMapper extends FieldMapper {
 
                                     @Override
                                     public HistogramValue histogram() throws IOException {
-                                        try {
-                                            value.reset(values.binaryValue());
-                                            return value;
-                                        } catch (IOException e) {
-                                            throw new IOException("Cannot load doc value", e);
-                                        }
+                                        value.reset(values.binaryValue());
+                                        return value;
                                     }
                                 };
                             } catch (IOException e) {
@@ -399,7 +394,7 @@ public class TDigestFieldMapper extends FieldMapper {
                 XContentParserUtils::parsingException
             );
 
-            BytesRef docValue = encodeCentroidsAndCounts(parsedTDigest.centroids(), parsedTDigest.counts());
+            BytesRef docValue = EncodedTDigest.encodeCentroids(parsedTDigest.centroids(), parsedTDigest.counts());
             Field digestField = new BinaryDocValuesField(fullPath(), docValue);
 
             // Add numeric doc values fields for the summary data
@@ -475,23 +470,6 @@ public class TDigestFieldMapper extends FieldMapper {
         context.path().remove();
     }
 
-    private static BytesRef encodeCentroidsAndCounts(List<Double> centroids, List<Long> counts) throws IOException {
-        BytesStreamOutput streamOutput = new BytesStreamOutput();
-
-        for (int i = 0; i < centroids.size(); i++) {
-            long count = counts.get(i);
-            assert count >= 0;
-            // we do not add elements with count == 0
-            if (count > 0) {
-                streamOutput.writeVLong(count);
-                streamOutput.writeDouble(centroids.get(i));
-            }
-        }
-
-        BytesRef docValue = streamOutput.bytes().toBytesRef();
-        return docValue;
-    }
-
     private static String valuesCountSubFieldName(String fullPath) {
         return fullPath + "._values_count";
     }
@@ -513,16 +491,17 @@ public class TDigestFieldMapper extends FieldMapper {
         double value;
         long count;
         boolean isExhausted;
-
-        final ByteArrayStreamInput streamInput;
+        final EncodedTDigest encodedTDigest;
+        EncodedTDigest.CentroidIterator centroidIterator;
 
         InternalTDigestValue() {
-            streamInput = new ByteArrayStreamInput();
+            encodedTDigest = new EncodedTDigest();
         }
 
         /** reset the value for the histogram */
-        void reset(BytesRef bytesRef) throws IOException {
-            streamInput.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        void reset(BytesRef bytesRef) {
+            encodedTDigest.reset(bytesRef);
+            centroidIterator = encodedTDigest.centroidIterator();
             isExhausted = false;
             value = 0;
             count = 0;
@@ -530,9 +509,10 @@ public class TDigestFieldMapper extends FieldMapper {
 
         @Override
         public boolean next() throws IOException {
-            if (streamInput.available() > 0) {
-                count = streamInput.readVLong();
-                value = streamInput.readDouble();
+            if (centroidIterator != null && centroidIterator.hasNext()) {
+                count = centroidIterator.peekCount();
+                value = centroidIterator.peekMean();
+                centroidIterator.advance();
                 return true;
             }
             isExhausted = true;

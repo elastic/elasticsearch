@@ -12,13 +12,17 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -29,33 +33,50 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 2, numClientNodes = 1)
 public class BatchBulkIT extends ESIntegTestCase {
 
-    private static final String MAPPING = """
-        {
-          "_doc": {
-            "dynamic": "strict",
-            "_source": {
-              "mode": "synthetic"
-            },
-            "properties": {
-              "name": { "type": "keyword" },
-              "value": { "type": "long" },
-              "message": { "type": "text", "store": true }
-            }
-          }
-        }""";
-
-    private void createBatchIndex(String index, int shards, int replicas) {
+    private void createBatchIndex(String index, int shards, int replicas) throws IOException {
+        XContentBuilder mapping = getMapping();
         assertAcked(
             indicesAdmin().prepareCreate(index)
                 .setSettings(
                     Settings.builder()
                         .put("index.number_of_shards", shards)
                         .put("index.number_of_replicas", replicas)
+                        .put("index.mapping.source.mode", "synthetic")
                         .put(IndexSettings.COLUMN_BATCH_INDEX.getKey(), true)
                 )
-                .setMapping(MAPPING)
+                .setMapping(mapping)
         );
         ensureGreen(index);
+    }
+
+    private static XContentBuilder getMapping() throws IOException {
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            // Wrap everything in _doc
+            mapping.startObject("_doc");
+            {
+                // 1. Move synthetic source configuration here (it's safer than the setting)
+                mapping.startObject("_source");
+                mapping.field("mode", "synthetic");
+                mapping.endObject();
+
+                // 2. Set Dynamic Mapping to Strict
+                mapping.field("dynamic", "strict");
+
+                // 3. Define Properties
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("name").field("type", "keyword").endObject();
+                    mapping.startObject("value").field("type", "long").endObject();
+                    mapping.startObject("message").field("type", "text").field("store", true).endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject(); // end _doc
+        }
+        mapping.endObject();
+        return mapping;
     }
 
     private String findCoordinatingNode() {
@@ -68,7 +89,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         return internalCluster().getNodeNames()[internalCluster().getNodeNames().length - 1];
     }
 
-    public void testBulkIndexingViaBatchMode() {
+    public void testBulkIndexingViaBatchMode() throws IOException {
         String index = "test-batch";
         createBatchIndex(index, 2, 1);
         String coordinatingNode = findCoordinatingNode();
@@ -93,10 +114,15 @@ public class BatchBulkIT extends ESIntegTestCase {
         });
     }
 
-    public void testSyntheticSourceReconstruction() {
+    public void testSyntheticSourceReconstruction() throws IOException {
         String index = "test-batch-synthetic";
         createBatchIndex(index, 1, 0);
         String coordinatingNode = findCoordinatingNode();
+
+        logger.info(
+            "ACTUAL MAPPING: {}",
+            client().admin().indices().prepareGetMappings(TimeValue.MAX_VALUE, index).get().getMappings().get(index).source().toString()
+        );
 
         int numDocs = 20;
         BulkRequest bulkRequest = new BulkRequest();
@@ -141,7 +167,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertThat(getResponse.getSourceAsMap().get("message"), equalTo("synthetic source test 5"));
     }
 
-    public void testMultipleBulkRequests() {
+    public void testMultipleBulkRequests() throws IOException {
         String index = "test-multi-batch";
         createBatchIndex(index, 2, 1);
         String coordinatingNode = findCoordinatingNode();
@@ -172,7 +198,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         });
     }
 
-    public void testBulkWithExplicitIds() {
+    public void testBulkWithExplicitIds() throws IOException {
         String index = "test-batch-ids";
         createBatchIndex(index, 2, 1);
         String coordinatingNode = findCoordinatingNode();
@@ -202,8 +228,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertThat(getResponse.getSourceAsMap().get("name"), equalTo("explicit-0"));
     }
 
-    @AwaitsFix(bugUrl = "Not propogating exception properly")
-    public void testBatchModeWithParseFailures() {
+    public void testBatchModeWithParseFailures() throws IOException {
         String index = "test-batch-failures";
         createBatchIndex(index, 2, 1);
         String coordinatingNode = findCoordinatingNode();
@@ -257,13 +282,13 @@ public class BatchBulkIT extends ESIntegTestCase {
         });
     }
 
-    public void testBatchModeNotEnabledWithoutSetting() {
+    public void testBatchModeNotEnabledWithoutSetting() throws IOException {
         // Create an index without the column_batch_index setting
         String index = "test-no-batch";
         assertAcked(
             indicesAdmin().prepareCreate(index)
                 .setSettings(Settings.builder().put("index.number_of_shards", 2).put("index.number_of_replicas", 1))
-                .setMapping(MAPPING)
+                .setMapping(getMapping())
         );
         ensureGreen(index);
         String coordinatingNode = findCoordinatingNode();
@@ -289,7 +314,7 @@ public class BatchBulkIT extends ESIntegTestCase {
         });
     }
 
-    public void testLargeBatchAcrossShards() {
+    public void testLargeBatchAcrossShards() throws IOException {
         String index = "test-large-batch";
         createBatchIndex(index, 3, 1);
         String coordinatingNode = findCoordinatingNode();
@@ -328,7 +353,7 @@ public class BatchBulkIT extends ESIntegTestCase {
     }
 
     @AwaitsFix(bugUrl = "Source reconstruction from columnar batch not yet implemented")
-    public void testRealtimeGetFromTranslog() {
+    public void testRealtimeGetFromTranslog() throws IOException {
         String index = "test-batch-realtime-get";
         createBatchIndex(index, 1, 0);
         String coordinatingNode = findCoordinatingNode();

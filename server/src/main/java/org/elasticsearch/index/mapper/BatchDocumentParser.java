@@ -14,6 +14,7 @@ import org.elasticsearch.action.bulk.ColumnType;
 import org.elasticsearch.action.bulk.DocumentBatch;
 import org.elasticsearch.action.bulk.FieldColumn;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -61,7 +62,11 @@ public final class BatchDocumentParser {
      * @param mappingLookup the current mapping lookup
      * @return a result containing parsed documents and per-document exceptions
      */
-    public BatchResult parseBatch(DocumentBatch batch, MappingLookup mappingLookup, java.util.List<org.elasticsearch.common.bytes.BytesReference> originalSources) {
+    public BatchResult parseBatch(
+        DocumentBatch batch,
+        MappingLookup mappingLookup,
+        java.util.List<org.elasticsearch.common.bytes.BytesReference> originalSources
+    ) {
         return parseBatchInternal(batch, mappingLookup, originalSources);
     }
 
@@ -69,7 +74,11 @@ public final class BatchDocumentParser {
         return parseBatchInternal(batch, mappingLookup, null);
     }
 
-    private BatchResult parseBatchInternal(DocumentBatch batch, MappingLookup mappingLookup, java.util.List<org.elasticsearch.common.bytes.BytesReference> originalSources) {
+    private BatchResult parseBatchInternal(
+        DocumentBatch batch,
+        MappingLookup mappingLookup,
+        java.util.List<org.elasticsearch.common.bytes.BytesReference> originalSources
+    ) {
         final int docCount = batch.docCount();
         final MetadataFieldMapper[] metadataFieldMappers = mappingLookup.getMapping().getSortedMetadataMappers();
 
@@ -80,7 +89,7 @@ public final class BatchDocumentParser {
 
         for (int i = 0; i < docCount; i++) {
             try {
-                org.elasticsearch.common.bytes.BytesReference src = originalSources != null ? originalSources.get(i) : BytesArray.EMPTY;
+                BytesReference src = originalSources != null ? originalSources.get(i) : BytesArray.EMPTY;
                 sources[i] = createSourceToParse(batch, i, src);
                 contexts[i] = new BatchDocumentParserContext(mappingLookup, mappingParserContext, sources[i]);
             } catch (Exception e) {
@@ -110,7 +119,7 @@ public final class BatchDocumentParser {
             if (mapper == null) {
                 // No mapper found for this field - skip (unmapped field in batch)
                 // Dynamic mapping from batches is not supported in this initial implementation
-                continue;
+                throw new IllegalArgumentException("No mapper found for field [" + fieldPath + "]");
             }
 
             if (mapper instanceof FieldMapper fieldMapper) {
@@ -197,7 +206,11 @@ public final class BatchDocumentParser {
         return createSourceToParse(batch, docIndex, BytesArray.EMPTY);
     }
 
-    private static SourceToParse createSourceToParse(DocumentBatch batch, int docIndex, org.elasticsearch.common.bytes.BytesReference source) {
+    private static SourceToParse createSourceToParse(
+        DocumentBatch batch,
+        int docIndex,
+        org.elasticsearch.common.bytes.BytesReference source
+    ) {
         String id = batch.docId(docIndex);
         String routing = batch.docRouting(docIndex);
         XContentType xContentType = batch.docXContentType(docIndex);

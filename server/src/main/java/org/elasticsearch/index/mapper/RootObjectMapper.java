@@ -233,30 +233,6 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public RootObjectMapper.Builder toBuilder() {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder(leafName(), subobjects);
-        builder.enabled = this.enabled;
-        builder.dynamic = this.dynamic;
-        builder.sourceKeepMode = this.sourceKeepMode;
-        for (Mapper mapper : mappers.values()) {
-            if (mapper instanceof ObjectMapper objectMapper) {
-                builder.add(objectMapper.toBuilder());
-            } else if (mapper instanceof FieldMapper fieldMapper && fieldMapper.getMergeBuilder() != null) {
-                builder.add(fieldMapper.getMergeBuilder());
-            } else {
-                builder.add(Builder.wrapMapper(mapper));
-            }
-        }
-        builder.dynamicDateTimeFormatters = this.dynamicDateTimeFormatters;
-        builder.dynamicTemplates = this.dynamicTemplates;
-        builder.dateDetection = this.dateDetection;
-        builder.numericDetection = this.numericDetection;
-        builder.runtimeFields.putAll(this.runtimeFields);
-        builder.namespaceValidator = this.namespaceValidator;
-        return builder;
-    }
-
-    @Override
     RootObjectMapper withoutMappers() {
         return new RootObjectMapper(
             leafName(),

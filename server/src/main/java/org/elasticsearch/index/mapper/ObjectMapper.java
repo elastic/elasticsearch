@@ -434,13 +434,6 @@ public class ObjectMapper extends Mapper {
             );
         }
 
-        static Mapper.Builder wrapMapper(Mapper mapper) {
-            if (mapper instanceof FieldAliasMapper aliasMapper) {
-                return new FieldAliasMapper.Builder(aliasMapper.leafName()).path(aliasMapper.targetPath());
-            }
-            throw new IllegalArgumentException("Cannot wrap mapper [" + mapper.leafName() + "] of type [" + mapper.typeName() + "]");
-        }
-
         private Map<String, Mapper.Builder> mergeChildMappers(
             Map<String, Mapper.Builder> existingBuilders,
             Map<String, Mapper.Builder> incomingBuilders,
@@ -746,26 +739,6 @@ public class ObjectMapper extends Mapper {
         Builder builder = new Builder(leafName(), subobjects);
         builder.enabled = this.enabled;
         builder.dynamic = this.dynamic;
-        return builder;
-    }
-
-    /**
-     * @return a Builder that will produce an ObjectMapper with the same configuration and children as this one
-     */
-    public Builder toBuilder() {
-        Builder builder = new Builder(leafName(), subobjects);
-        builder.enabled = this.enabled;
-        builder.dynamic = this.dynamic;
-        builder.sourceKeepMode = this.sourceKeepMode;
-        for (Mapper mapper : mappers.values()) {
-            if (mapper instanceof ObjectMapper objectMapper) {
-                builder.add(objectMapper.toBuilder());
-            } else if (mapper instanceof FieldMapper fieldMapper && fieldMapper.getMergeBuilder() != null) {
-                builder.add(fieldMapper.getMergeBuilder());
-            } else {
-                builder.add(Builder.wrapMapper(mapper));
-            }
-        }
         return builder;
     }
 

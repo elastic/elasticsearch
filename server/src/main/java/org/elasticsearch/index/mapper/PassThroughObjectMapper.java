@@ -172,26 +172,6 @@ public class PassThroughObjectMapper extends ObjectMapper {
         return builder;
     }
 
-    @Override
-    public PassThroughObjectMapper.Builder toBuilder() {
-        PassThroughObjectMapper.Builder builder = new PassThroughObjectMapper.Builder(leafName());
-        builder.enabled = this.enabled;
-        builder.dynamic = this.dynamic;
-        builder.sourceKeepMode = this.sourceKeepMode;
-        builder.timeSeriesDimensionSubFields = this.timeSeriesDimensionSubFields;
-        builder.priority = this.priority;
-        for (Mapper mapper : mappers.values()) {
-            if (mapper instanceof ObjectMapper objectMapper) {
-                builder.add(objectMapper.toBuilder());
-            } else if (mapper instanceof FieldMapper fieldMapper && fieldMapper.getMergeBuilder() != null) {
-                builder.add(fieldMapper.getMergeBuilder());
-            } else {
-                builder.add(ObjectMapper.Builder.wrapMapper(mapper));
-            }
-        }
-        return builder;
-    }
-
     /**
      * An object mapper is compatible to be merged with a passthrough mapper if
      * - It is not a root mapper

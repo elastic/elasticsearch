@@ -334,27 +334,6 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    public NestedObjectMapper.Builder toBuilder() {
-        IndexVersion version = indexSettings != null ? indexSettings.getIndexVersionCreated() : IndexVersion.current();
-        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(leafName(), version, bitsetProducer, indexSettings);
-        builder.enabled = this.enabled;
-        builder.dynamic = this.dynamic;
-        builder.sourceKeepMode = this.sourceKeepMode;
-        builder.includeInRoot = this.includeInRoot;
-        builder.includeInParent = this.includeInParent;
-        for (Mapper mapper : mappers.values()) {
-            if (mapper instanceof ObjectMapper objectMapper) {
-                builder.add(objectMapper.toBuilder());
-            } else if (mapper instanceof FieldMapper fieldMapper && fieldMapper.getMergeBuilder() != null) {
-                builder.add(fieldMapper.getMergeBuilder());
-            } else {
-                builder.add(ObjectMapper.Builder.wrapMapper(mapper));
-            }
-        }
-        return builder;
-    }
-
-    @Override
     NestedObjectMapper withoutMappers() {
         return new NestedObjectMapper(
             leafName(),

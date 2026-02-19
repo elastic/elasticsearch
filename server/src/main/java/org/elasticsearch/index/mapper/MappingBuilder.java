@@ -42,14 +42,6 @@ public class MappingBuilder {
     }
 
     /**
-     * Creates a {@link MappingBuilder} from an existing {@link Mapping}, converting the root mapper
-     * and all its children into builder form.
-     */
-    public static MappingBuilder fromMapping(Mapping mapping) {
-        return new MappingBuilder(mapping.getRoot().toBuilder(), new HashMap<>(mapping.getMetadataMappersMap()), mapping.getMeta());
-    }
-
-    /**
      * Creates a new {@link MappingBuilder} with the same root settings and metadata but no child
      * mappers in the root. Useful for applying field budget constraints without decomposing a built mapping.
      */

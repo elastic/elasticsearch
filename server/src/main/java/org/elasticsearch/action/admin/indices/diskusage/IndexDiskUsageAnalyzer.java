@@ -56,7 +56,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.bloomfilter.BloomFilter;
-import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
+import org.elasticsearch.index.codec.BlockTermStateFPProvider;
 import org.elasticsearch.index.mapper.SyntheticIdField;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.LuceneFilesExtensions;
@@ -335,8 +335,8 @@ final class IndexDiskUsageAnalyzer {
             if (termState instanceof final Lucene912PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
             }
-            if (termState instanceof final ES812PostingsFormat.IntBlockTermState blockTermState) {
-                return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);
+            if (termState instanceof final BlockTermStateFPProvider provider) {
+                return new BlockTermState(provider.getDocStartFP(), provider.getPosStartFP(), provider.getPayStartFP());
             }
             if (termState instanceof final Lucene99PostingsFormat.IntBlockTermState blockTermState) {
                 return new BlockTermState(blockTermState.docStartFP, blockTermState.posStartFP, blockTermState.payStartFP);

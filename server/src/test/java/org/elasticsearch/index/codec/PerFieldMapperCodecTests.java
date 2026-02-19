@@ -9,8 +9,12 @@
 
 package org.elasticsearch.index.codec;
 
+import org.apache.lucene.codecs.FieldsConsumer;
+import org.apache.lucene.codecs.FieldsProducer;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene103.Lucene103PostingsFormat;
+import org.apache.lucene.index.SegmentReadState;
+import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
@@ -19,17 +23,19 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
-import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.codec.PerFieldFormatSupplier.ES812_POSTINGS_FORMAT_NAME;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
@@ -99,8 +105,8 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
 
-        Class<? extends PostingsFormat> expectedPostingsFormat = timeSeries ? ES812PostingsFormat.class : Lucene103PostingsFormat.class;
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field"), instanceOf(expectedPostingsFormat));
+        String expectedPostingsFormatName = timeSeries ? ES812_POSTINGS_FORMAT_NAME : new Lucene103PostingsFormat().getName();
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field").getName(), equalTo(expectedPostingsFormatName));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled() throws IOException {
@@ -108,19 +114,19 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(true));
         assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES87BloomFilterPostingsFormat.class));
         assertThat(perFieldMapperCodec.useBloomFilter("another_field"), is(false));
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field"), instanceOf(ES812PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("another_field").getName(), equalTo(ES812_POSTINGS_FORMAT_NAME));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_noTimeSeriesMode() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, false, false);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id").getName(), equalTo(ES812_POSTINGS_FORMAT_NAME));
     }
 
     public void testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter() throws IOException {
         PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(true, true, true);
         assertThat(perFieldMapperCodec.useBloomFilter("_id"), is(false));
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id"), instanceOf(ES812PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("_id").getName(), equalTo(ES812_POSTINGS_FORMAT_NAME));
         assertWarnings(
             "[index.bloom_filter_for_id_field.enabled] setting was deprecated in Elasticsearch and will be removed in a future release. "
                 + "See the deprecation documentation for the next major version."
@@ -135,23 +141,23 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(Lucene103PostingsFormat.class));
 
         perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.STANDARD, MAPPING_1);
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(ES812PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge").getName(), equalTo(ES812_POSTINGS_FORMAT_NAME));
 
         // LogsDB index mode
         // by default, logsdb uses the ES 8.12 postings format
         perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.LOGSDB, MAPPING_3);
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("message").getName(), equalTo(ES812_POSTINGS_FORMAT_NAME));
 
         perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.LOGSDB, MAPPING_3);
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("message"), instanceOf(ES812PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("message").getName(), equalTo(ES812_POSTINGS_FORMAT_NAME));
 
         // time series index mode
         // by default, logsdb uses the ES 8.12 postings format
         perFieldMapperCodec = createFormatSupplier(false, false, IndexMode.TIME_SERIES, MAPPING_1);
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(ES812PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge").getName(), equalTo(ES812_POSTINGS_FORMAT_NAME));
 
         perFieldMapperCodec = createFormatSupplier(false, true, IndexMode.TIME_SERIES, MAPPING_1);
-        assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge"), instanceOf(ES812PostingsFormat.class));
+        assertThat(perFieldMapperCodec.getPostingsFormatForField("gauge").getName(), equalTo(ES812_POSTINGS_FORMAT_NAME));
     }
 
     public void testUseEs812PostingsFormatForIdField() throws IOException {
@@ -165,7 +171,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 Function<String, PostingsFormat> postingsFormats = es87BloomFilterPostingsFormat.getPostingsFormats();
                 result = postingsFormats.apply("_id");
             }
-            assertThat(result, instanceOf(ES812PostingsFormat.class));
+            assertThat(result.getName(), equalTo(ES812_POSTINGS_FORMAT_NAME));
         }
     }
 
@@ -217,7 +223,7 @@ public class PerFieldMapperCodecTests extends ESTestCase {
                 """;
             mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         }
-        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+        return new TestPerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
     }
 
     public void testUseES87TSDBEncodingSettingDisabled() throws IOException {
@@ -305,7 +311,29 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         }
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
-        return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+        return new TestPerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+    }
+
+    static class TestPerFieldFormatSupplier extends PerFieldFormatSupplier {
+
+        TestPerFieldFormatSupplier(MapperService mapperService, BigArrays bigArrays, ThreadPool threadPool) {
+            super(mapperService, bigArrays, threadPool);
+        }
+
+        @Override
+        protected PostingsFormat loadES819PostingsFormat() {
+            return new PostingsFormat(ES812_POSTINGS_FORMAT_NAME) {
+                @Override
+                public FieldsConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public FieldsProducer fieldsProducer(SegmentReadState state) throws IOException {
+                    throw new UnsupportedOperationException();
+                }
+            };
+        }
     }
 
 }

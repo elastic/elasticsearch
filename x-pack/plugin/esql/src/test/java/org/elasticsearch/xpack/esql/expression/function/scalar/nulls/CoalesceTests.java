@@ -254,6 +254,16 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
         return new Coalesce(Source.EMPTY, args.get(0), args.subList(1, args.size()));
     }
 
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("Coalesce requires all arguments to have the same type", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        assumeTrue("Coalesce requires all arguments to have the same type", false);
+    }
+
     public void testCoalesceIsLazy() {
         List<Expression> sub = new ArrayList<>(testCase.getDataAsFields());
         FieldAttribute evil = new FieldAttribute(

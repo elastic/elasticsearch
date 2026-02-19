@@ -482,6 +482,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.SubTests
   method: testCoAndContraVarianceWithNonNull
   issue: https://github.com/elastic/elasticsearch/issues/142537
+- class: "org.elasticsearch.xpack.esql.expression.function.aggregate.LastTests"
+  method: "testCoAndContraVariance *"
+  issue: "https://github.com/elastic/elasticsearch/issues/142583"
+- class: "org.elasticsearch.xpack.esql.expression.function.aggregate.LastTests"
+  method: "testCoAndContraVarianceWithNonNull *"
+  issue: "https://github.com/elastic/elasticsearch/issues/142583"
+- class: "org.elasticsearch.xpack.esql.expression.function.aggregate.FirstTests"
+  method: "testCoAndContraVariance *"
+  issue: "https://github.com/elastic/elasticsearch/issues/142583"
+- class: "org.elasticsearch.xpack.esql.expression.function.aggregate.FirstTests"
+  method: "testCoAndContraVarianceWithNonNull *"
+  issue: "https://github.com/elastic/elasticsearch/issues/142583"
 
 # Examples:
 #

@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.stateless.action.FetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
-import org.elasticsearch.xpack.stateless.cache.action.ClearBlobCacheNodesRequest;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTestUtils;
@@ -46,7 +45,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_DURATION_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitServiceTestUtils.getAllSearchNodesRetainingCommitsForShard;
@@ -107,7 +105,8 @@ public class StatelessCommitServiceIT extends AbstractStatelessPluginIntegTestCa
 
         // Evict data from all node blob caches. This will force nodes to refresh their data caches from whatever remains on the remote blob
         // store.
-        client().execute(CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).get();
+        internalCluster().getInstances(StatelessPlugin.SharedBlobCacheServiceSupplier.class)
+            .forEach(sharedBlobCacheServiceSupplier -> sharedBlobCacheServiceSupplier.get().forceEvict(entry -> true));
     }
 
     /**

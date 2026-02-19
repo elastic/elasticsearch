@@ -51,7 +51,6 @@ import org.elasticsearch.xpack.stateless.action.NewCommitNotificationRequest;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher.BCCPreFetchedOffset;
-import org.elasticsearch.xpack.stateless.cache.action.ClearBlobCacheNodesRequest;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
@@ -78,7 +77,6 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -605,7 +603,8 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertThat(searchEngine.getTotalPrefetchedBytes(), is(equalTo(0L)));
 
         // Upon recovery, the search shard would use the first region. Clear the cache to start from scratch.
-        client().execute(CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).get();
+        internalCluster().getInstances(StatelessPlugin.SharedBlobCacheServiceSupplier.class)
+            .forEach(sharedBlobCacheServiceSupplier -> sharedBlobCacheServiceSupplier.get().forceEvict(entry -> true));
         var numberOfCommits = randomIntBetween(2, 8);
         for (int j = 0; j < numberOfCommits; j++) {
             indexDocs(indexName, 10);

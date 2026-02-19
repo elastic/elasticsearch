@@ -87,7 +87,6 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.cache.action.ClearBlobCacheNodesRequest;
 import org.elasticsearch.xpack.stateless.commits.ClosedShardService;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitCleaner;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
@@ -139,7 +138,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertScrollResponsesAndHitCount;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
 import static org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -1517,7 +1515,8 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
                     if (rarely()) {
                         if (randomBoolean()) {
                             // fan out to all nodes
-                            client().execute(CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).get();
+                            internalCluster().getInstances(StatelessPlugin.SharedBlobCacheServiceSupplier.class)
+                                .forEach(sharedBlobCacheServiceSupplier -> sharedBlobCacheServiceSupplier.get().forceEvict(entry -> true));
                         } else {
                             // clear cache on just searching node
                             evictSearchShardCache(indexName);

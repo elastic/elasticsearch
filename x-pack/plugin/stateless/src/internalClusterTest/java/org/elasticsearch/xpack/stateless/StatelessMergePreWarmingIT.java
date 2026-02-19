@@ -34,7 +34,6 @@ import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.stateless.cache.action.ClearBlobCacheNodesRequest;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
@@ -52,7 +51,6 @@ import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_C
 import static org.elasticsearch.index.engine.ThreadPoolMergeScheduler.USE_THREAD_POOL_MERGE_SCHEDULER_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.xpack.stateless.StatelessMergeIT.blockMergePool;
-import static org.elasticsearch.xpack.stateless.StatelessPlugin.CLEAR_BLOB_CACHE_ACTION;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS;
 import static org.elasticsearch.xpack.stateless.commits.StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE;
 
@@ -202,7 +200,8 @@ public class StatelessMergePreWarmingIT extends AbstractStatelessPluginIntegTest
 
         // Wait until the upload reached the blob store and clear the cache since the upload does pre-warm the cache before being scheduled
         safeAwait(uploadInProgressLatch);
-        client().execute(CLEAR_BLOB_CACHE_ACTION, new ClearBlobCacheNodesRequest()).get();
+        internalCluster().getInstances(StatelessPlugin.SharedBlobCacheServiceSupplier.class)
+            .forEach(sharedBlobCacheServiceSupplier -> sharedBlobCacheServiceSupplier.get().forceEvict(entry -> true));
 
         // This prevents the shard to be allocated if the shard fails due to a bug in the tested code
         client().admin()

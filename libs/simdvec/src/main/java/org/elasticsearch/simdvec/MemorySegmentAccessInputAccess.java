@@ -16,6 +16,10 @@ public interface MemorySegmentAccessInputAccess {
     MemorySegmentAccessInput get();
 
     static IndexInput unwrap(IndexInput input) {
-        return input instanceof MemorySegmentAccessInputAccess msaia ? (IndexInput) msaia.get() : input;
+        if (input instanceof MemorySegmentAccessInputAccess msaia) {
+            var unwrapped = msaia.get();
+            return unwrapped != null ? (IndexInput) unwrapped : input;
+        }
+        return input;
     }
 }

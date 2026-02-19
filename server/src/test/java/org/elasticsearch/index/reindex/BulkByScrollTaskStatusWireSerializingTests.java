@@ -46,11 +46,18 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
 
     @Override
     protected StatusWrapper mutateInstance(StatusWrapper instance) throws IOException {
-        BulkByScrollTask.Status status = instance.status;
+        return new StatusWrapper(mutateStatus(instance.status));
+    }
+
+    /**
+     * Returns a copy of the given status with exactly one field changed. Used by
+     * {@link BulkByScrollTaskStatusOrExceptionWireSerializingTests} when mutating the status field.
+     */
+    public static BulkByScrollTask.Status mutateStatus(BulkByScrollTask.Status status) {
         if (status.getSliceStatuses().isEmpty()) {
-            return new StatusWrapper(mutateSingleFieldStatus(status));
+            return mutateSingleFieldStatus(status);
         } else {
-            return new StatusWrapper(mutateMergedStatus(status));
+            return mutateMergedStatus(status);
         }
     }
 
@@ -166,7 +173,7 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
             return statusHashCode(status);
         }
 
-        private static boolean statusEquals(BulkByScrollTask.Status a, BulkByScrollTask.Status b) {
+        static boolean statusEquals(BulkByScrollTask.Status a, BulkByScrollTask.Status b) {
             if (a == b) return true;
             if (a == null || b == null) return false;
             if (a.getTotal() != b.getTotal()) return false;
@@ -205,7 +212,7 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
             return false;
         }
 
-        private static int statusHashCode(BulkByScrollTask.Status s) {
+        static int statusHashCode(BulkByScrollTask.Status s) {
             if (s == null) return 0;
             int h = Objects.hash(
                 s.getSliceId(),

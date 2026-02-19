@@ -126,9 +126,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.shared.NodesCachesStatsIntegTests
   method: testNodesCachesStats
   issue: https://github.com/elastic/elasticsearch/issues/129863
-- class: org.elasticsearch.index.IndexingPressureIT
-  method: testWriteCanRejectOnPrimaryBasedOnMaxOperationSize
-  issue: https://github.com/elastic/elasticsearch/issues/130281
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/124447
@@ -276,9 +273,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointServiceNodeTests
   method: testGetCheckpointStats
   issue: https://github.com/elastic/elasticsearch/issues/141112
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=esql/240_base_conversion/numeric_family, to_integer first argument, integer not a string}
-  issue: https://github.com/elastic/elasticsearch/issues/141113
 - class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/141200
@@ -341,9 +335,6 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOomRaceTests
   method: testRace {repeats = 50}
   issue: https://github.com/elastic/elasticsearch/issues/141773
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=esql/50_index_patterns/disjoint_mappings}
-  issue: https://github.com/elastic/elasticsearch/issues/141856
 - class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionTests
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/141954
@@ -374,9 +365,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
-- class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
-  method: testTsIndexConflictingTypes {null}
-  issue: https://github.com/elastic/elasticsearch/issues/142410
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
   method: testBulkScalarVsVectorized {p0=768 p1=1 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/142413
@@ -470,6 +458,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.MMR}
   issue: https://github.com/elastic/elasticsearch/issues/142674
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/142426
 
 # Examples:
 #

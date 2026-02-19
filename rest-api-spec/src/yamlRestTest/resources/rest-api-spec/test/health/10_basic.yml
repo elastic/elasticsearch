@@ -42,3 +42,6 @@
 
   - is_true: indicators.data_stream_lifecycle.status
   - is_true: indicators.data_stream_lifecycle.symptom
+
+  - is_true: indicators.peer_connections.status
+  - is_true: indicators.peer_connections.symptom

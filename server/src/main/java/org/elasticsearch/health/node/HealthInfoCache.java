@@ -34,6 +34,7 @@ public class HealthInfoCache implements ClusterStateListener {
     private volatile DataStreamLifecycleHealthInfo dslHealthInfo = null;
     private volatile ConcurrentHashMap<String, RepositoriesHealthInfo> repositoriesInfoByNode = new ConcurrentHashMap<>();
     private volatile FileSettingsHealthInfo fileSettingsHealthInfo = INDETERMINATE;
+    private volatile ConcurrentHashMap<String, PeerConnectionsHealthInfo> peerConnectionsInfoByNode = new ConcurrentHashMap<>();
 
     private HealthInfoCache() {}
 
@@ -48,7 +49,8 @@ public class HealthInfoCache implements ClusterStateListener {
         @Nullable DiskHealthInfo diskHealthInfo,
         @Nullable DataStreamLifecycleHealthInfo latestDslHealthInfo,
         @Nullable RepositoriesHealthInfo repositoriesHealthInfo,
-        @Nullable FileSettingsHealthInfo fileSettingsHealthInfo
+        @Nullable FileSettingsHealthInfo fileSettingsHealthInfo,
+        @Nullable PeerConnectionsHealthInfo peerConnectionsHealthInfo
     ) {
         if (diskHealthInfo != null) {
             diskInfoByNode.put(nodeId, diskHealthInfo);
@@ -62,6 +64,9 @@ public class HealthInfoCache implements ClusterStateListener {
         if (fileSettingsHealthInfo != null) {
             this.fileSettingsHealthInfo = fileSettingsHealthInfo;
         }
+        if (peerConnectionsHealthInfo != null) {
+            peerConnectionsInfoByNode.put(nodeId, peerConnectionsHealthInfo);
+        }
     }
 
     @Override
@@ -73,19 +78,24 @@ public class HealthInfoCache implements ClusterStateListener {
                 for (DiscoveryNode removedNode : event.nodesDelta().removedNodes()) {
                     diskInfoByNode.remove(removedNode.getId());
                     repositoriesInfoByNode.remove(removedNode.getId());
+                    peerConnectionsInfoByNode.remove(removedNode.getId());
                 }
             }
             // Resetting the cache is not synchronized for efficiency and simplicity.
             // Processing a delayed update after the cache has been emptied because
             // the node is not the health node anymore has small impact since it will
             // be reset in the next round again.
-        } else if (diskInfoByNode.isEmpty() == false || dslHealthInfo != null || repositoriesInfoByNode.isEmpty() == false) {
-            logger.debug("Node [{}][{}] is no longer the health node, emptying the cache.", localNode.getName(), localNode.getId());
-            diskInfoByNode = new ConcurrentHashMap<>();
-            dslHealthInfo = null;
-            repositoriesInfoByNode = new ConcurrentHashMap<>();
-            fileSettingsHealthInfo = INDETERMINATE;
-        }
+        } else if (diskInfoByNode.isEmpty() == false
+            || dslHealthInfo != null
+            || repositoriesInfoByNode.isEmpty() == false
+            || peerConnectionsInfoByNode.isEmpty() == false) {
+                logger.debug("Node [{}][{}] is no longer the health node, emptying the cache.", localNode.getName(), localNode.getId());
+                diskInfoByNode = new ConcurrentHashMap<>();
+                dslHealthInfo = null;
+                repositoriesInfoByNode = new ConcurrentHashMap<>();
+                fileSettingsHealthInfo = INDETERMINATE;
+                peerConnectionsInfoByNode = new ConcurrentHashMap<>();
+            }
     }
 
     /**
@@ -94,6 +104,12 @@ public class HealthInfoCache implements ClusterStateListener {
      */
     public HealthInfo getHealthInfo() {
         // A shallow copy is enough because the inner data is immutable.
-        return new HealthInfo(Map.copyOf(diskInfoByNode), dslHealthInfo, Map.copyOf(repositoriesInfoByNode), fileSettingsHealthInfo);
+        return new HealthInfo(
+            Map.copyOf(diskInfoByNode),
+            dslHealthInfo,
+            Map.copyOf(repositoriesInfoByNode),
+            fileSettingsHealthInfo,
+            Map.copyOf(peerConnectionsInfoByNode)
+        );
     }
 }

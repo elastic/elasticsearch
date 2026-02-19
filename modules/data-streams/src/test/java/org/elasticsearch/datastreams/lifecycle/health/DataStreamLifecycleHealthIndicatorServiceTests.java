@@ -168,6 +168,6 @@ public class DataStreamLifecycleHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private HealthInfo constructHealthInfo(DataStreamLifecycleHealthInfo dslHealthInfo) {
-        return new HealthInfo(Map.of(), dslHealthInfo, Map.of(), FileSettingsHealthInfo.INDETERMINATE);
+        return new HealthInfo(Map.of(), dslHealthInfo, Map.of(), FileSettingsHealthInfo.INDETERMINATE, Map.of());
     }
 }

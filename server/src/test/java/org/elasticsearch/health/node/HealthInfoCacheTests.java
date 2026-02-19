@@ -49,12 +49,19 @@ public class HealthInfoCacheTests extends ESTestCase {
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
         DataStreamLifecycleHealthInfo latestDslHealthInfo = randomDslHealthInfo();
         var repoHealthInfo = randomRepoHealthInfo();
-        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, latestDslHealthInfo, repoHealthInfo, FileSettingsHealthInfo.INDETERMINATE);
-        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE);
+        healthInfoCache.updateNodeHealth(
+            node1.getId(),
+            GREEN,
+            latestDslHealthInfo,
+            repoHealthInfo,
+            FileSettingsHealthInfo.INDETERMINATE,
+            null
+        );
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE, null);
 
         Map<String, DiskHealthInfo> diskHealthInfo = healthInfoCache.getHealthInfo().diskInfoByNode();
         // Ensure that HealthInfoCache#getHealthInfo() returns a copy of the health info.
-        healthInfoCache.updateNodeHealth(node1.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE);
+        healthInfoCache.updateNodeHealth(node1.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE, null);
 
         assertThat(diskHealthInfo.get(node1.getId()), equalTo(GREEN));
         assertThat(diskHealthInfo.get(node2.getId()), equalTo(RED));
@@ -64,10 +71,17 @@ public class HealthInfoCacheTests extends ESTestCase {
 
     public void testRemoveNodeFromTheCluster() {
         HealthInfoCache healthInfoCache = HealthInfoCache.create(clusterService);
-        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE);
+        healthInfoCache.updateNodeHealth(node1.getId(), GREEN, null, null, FileSettingsHealthInfo.INDETERMINATE, null);
         DataStreamLifecycleHealthInfo latestDslHealthInfo = randomDslHealthInfo();
         var repoHealthInfo = randomRepoHealthInfo();
-        healthInfoCache.updateNodeHealth(node2.getId(), RED, latestDslHealthInfo, repoHealthInfo, FileSettingsHealthInfo.INDETERMINATE);
+        healthInfoCache.updateNodeHealth(
+            node2.getId(),
+            RED,
+            latestDslHealthInfo,
+            repoHealthInfo,
+            FileSettingsHealthInfo.INDETERMINATE,
+            null
+        );
 
         ClusterState previous = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
         ClusterState current = ClusterStateCreationUtils.state(node1, node1, node1, new DiscoveryNode[] { node1 });
@@ -88,9 +102,10 @@ public class HealthInfoCacheTests extends ESTestCase {
             GREEN,
             randomDslHealthInfo(),
             randomRepoHealthInfo(),
-            FileSettingsHealthInfo.INDETERMINATE
+            FileSettingsHealthInfo.INDETERMINATE,
+            null
         );
-        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE);
+        healthInfoCache.updateNodeHealth(node2.getId(), RED, null, null, FileSettingsHealthInfo.INDETERMINATE, null);
 
         ClusterState previous = ClusterStateCreationUtils.state(node1, node1, node1, allNodes);
         ClusterState current = ClusterStateCreationUtils.state(node1, node1, node2, allNodes);

@@ -158,7 +158,8 @@ public class StatefulShardsAvailabilityHealthIndicatorServiceIT extends ESIntegT
                                 Map.of(),
                                 DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
                                 Map.of(),
-                                FileSettingsHealthInfo.INDETERMINATE
+                                FileSettingsHealthInfo.INDETERMINATE,
+                                Map.of()
                             )
                         )
                     )

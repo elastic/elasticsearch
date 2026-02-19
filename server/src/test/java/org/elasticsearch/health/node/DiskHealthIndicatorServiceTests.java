@@ -278,7 +278,8 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
             diskInfoByNode,
             DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
             Map.of(),
-            FileSettingsHealthInfo.INDETERMINATE
+            FileSettingsHealthInfo.INDETERMINATE,
+            Map.of()
         );
 
         HealthIndicatorResult result = diskHealthIndicatorService.calculate(true, healthInfo);
@@ -1055,7 +1056,13 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
                 diskInfoByNode.put(node.getId(), diskHealthInfo);
             }
         }
-        return new HealthInfo(diskInfoByNode, DataStreamLifecycleHealthInfo.NO_DSL_ERRORS, Map.of(), FileSettingsHealthInfo.INDETERMINATE);
+        return new HealthInfo(
+            diskInfoByNode,
+            DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
+            Map.of(),
+            FileSettingsHealthInfo.INDETERMINATE,
+            Map.of()
+        );
     }
 
     private static ClusterService createClusterService(Collection<DiscoveryNode> nodes, boolean withBlockedIndex) {

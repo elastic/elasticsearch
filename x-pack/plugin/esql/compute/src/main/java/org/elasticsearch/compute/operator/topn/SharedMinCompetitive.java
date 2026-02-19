@@ -70,9 +70,6 @@ public class SharedMinCompetitive extends SideChannel {
      *         competitive value already recorded
      */
     public boolean offer(BytesRef minCompetitive) {
-        if (value.length() > 0 && value.bytesRefView().compareTo(minCompetitive) <= 0) {
-            return false;
-        }
         synchronized (value) {
             if (value.length() > 0 && value.bytesRefView().compareTo(minCompetitive) <= 0) {
                 return false;

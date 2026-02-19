@@ -43,9 +43,8 @@ public class HttpHeaderParserTests extends ESTestCase {
         );
     }
 
-    public void testParseRangeHeaderEndlessRange() {
-        var bytes = randomLongBetween(0, Long.MAX_VALUE);
-        assertEquals(new HttpHeaderParser.Range(bytes, null), HttpHeaderParser.parseRangeHeader(Strings.format("bytes=%d-", bytes)));
+    public void testParseRangeHeaderEndlessRangeNotMatched() {
+        assertNull(HttpHeaderParser.parseRangeHeader(Strings.format("bytes=%d-", randomLongBetween(0, Long.MAX_VALUE))));
     }
 
     public void testParseRangeHeaderSuffixLengthNotMatched() {

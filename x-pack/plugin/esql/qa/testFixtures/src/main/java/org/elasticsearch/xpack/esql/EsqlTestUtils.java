@@ -421,6 +421,11 @@ public final class EsqlTestUtils {
         }
 
         @Override
+        public boolean supportsGeometryDocValueReconstruction(FieldName name) {
+            return true;
+        }
+
+        @Override
         public Map<ShardId, IndexMetadata> targetShards() {
             return Map.of();
         }
@@ -442,7 +447,8 @@ public final class EsqlTestUtils {
             EXISTS,
             INDEXED,
             DOC_VALUES,
-            EXACT_SUBFIELD
+            EXACT_SUBFIELD,
+            GEOMETRY_DOC_VALUE_RECONSTRUCTION
         }
 
         private final Map<Config, Set<String>> includes = new HashMap<>();
@@ -489,6 +495,11 @@ public final class EsqlTestUtils {
         @Override
         public boolean hasExactSubfield(FieldName field) {
             return isConfigationSet(Config.EXACT_SUBFIELD, field.string());
+        }
+
+        @Override
+        public boolean supportsGeometryDocValueReconstruction(FieldName field) {
+            return isConfigationSet(Config.GEOMETRY_DOC_VALUE_RECONSTRUCTION, field.string());
         }
 
         @Override

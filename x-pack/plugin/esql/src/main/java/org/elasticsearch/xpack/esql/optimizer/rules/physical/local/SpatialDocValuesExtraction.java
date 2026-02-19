@@ -78,6 +78,7 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         if (foundAttributes.isEmpty()) {
             return planNode;
         }
+        log.debug("Updating plan to mark [{}] for doc-values field extraction", foundAttributes);
 
         return planNode.transformDown(UnaryExec.class, exec -> {
             if (exec instanceof AggregateExec agg) {
@@ -146,25 +147,38 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
 
     private Set<FieldAttribute> findAttributesFromAggregatesAndEvals(UnaryExec exec, LocalPhysicalOptimizerContext ctx) {
         var foundAttributes = new HashSet<FieldAttribute>();
-        // Search for STATS with spatial aggregations
+        // Search for STATS with spatial aggregations (shapes not allowed here; handled by SpatialShapeBoundsExtraction)
         exec.forEachDown(AggregateExec.class, agg -> {
             for (NamedExpression aggExpr : agg.aggregates()) {
                 if (aggExpr instanceof Alias as && as.child() instanceof SpatialAggregateFunction af) {
+                    log.debug("Checking spatial aggregation [{}] for applicable attributes", af);
                     if (af.field() instanceof FieldAttribute fieldAttribute
-                        && allowedForDocValues(fieldAttribute, ctx.searchStats(), agg, foundAttributes)) {
+                        && allowedForDocValues(fieldAttribute, ctx.searchStats(), agg, foundAttributes, false)) {
                         foundAttributes.add(fieldAttribute);
+                        log.debug(
+                            "Found attribute [{}] in spatial aggregation [{}] for doc-values extraction consideration",
+                            fieldAttribute,
+                            af
+                        );
                     }
                 }
             }
         });
-        // Search in EVALs for functions that can take doc values, namely St_Simplify, St_Geotile, St_Geohex, St_Geohash
+        // Search in EVALs for functions that can take doc values, namely St_Simplify, St_Geotile, St_Geohex, St_Geohash.
+        // Shapes are allowed here when the field supports geometry reconstruction from doc-values.
         exec.forEachDown(EvalExec.class, evalExec -> {
             for (Alias field : evalExec.fields()) {
                 field.forEachDown(SpatialDocValuesFunction.class, spatialFunction -> {
+                    log.debug("Checking spatial function [{}] for applicable attributes", spatialFunction);
                     if (spatialFunction.spatialField() instanceof FieldAttribute fieldAttribute
                         && spatialFunction.prefersDocValuesExtraction()
-                        && allowedForDocValues(fieldAttribute, ctx.searchStats(), exec, foundAttributes)) {
+                        && allowedForDocValues(fieldAttribute, ctx.searchStats(), exec, foundAttributes, true)) {
                         foundAttributes.add(fieldAttribute);
+                        log.debug(
+                            "Found attribute [{}] in spatial function [{}] for doc-values extraction consideration",
+                            fieldAttribute,
+                            spatialFunction
+                        );
                     }
                 });
             }
@@ -173,7 +187,10 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
         exec.output().forEach(attribute -> {
             if (attribute instanceof FieldAttribute fieldAttribute) {
                 // Any field that will be returned to the coordinator cannot be loaded from doc-values
-                foundAttributes.remove(fieldAttribute);
+                if (foundAttributes.contains(fieldAttribute)) {
+                    foundAttributes.remove(fieldAttribute);
+                    log.debug("Removed output table attribute [{}] from doc-values extraction consideration", fieldAttribute);
+                }
             }
         });
         return foundAttributes;
@@ -203,21 +220,26 @@ public class SpatialDocValuesExtraction extends PhysicalOptimizerRules.Parameter
     /**
      * This function disallows the use of more than one field for doc-values extraction in the same spatial relation function.
      * This is because comparing two doc-values fields is not supported in the current implementation.
-     * This also rejects fields that do not have doc-values in the field mapping, as well as rejecting geo_shape and cartesian_shape
-     * because we do not yet support full doc-values extraction for non-point geometries. We do have aggregations that support
-     * shapes, and to prevent them triggering this rule on non-point geometries we have to explicitly disallow them here.
+     * For point geometries, doc-values are always allowed. For shape geometries (geo_shape, cartesian_shape),
+     * doc-values are only allowed when {@code allowShapes} is true and the field's index supports geometry
+     * reconstruction from doc-values (V2 format).
      */
     private boolean allowedForDocValues(
         FieldAttribute fieldAttribute,
         SearchStats stats,
         UnaryExec exec,
-        Set<FieldAttribute> foundAttributes
+        Set<FieldAttribute> foundAttributes,
+        boolean allowShapes
     ) {
+        log.debug("Considering [{}]", fieldAttribute);
         if (stats.hasDocValues(fieldAttribute.fieldName()) == false) {
             return false;
         }
         if (fieldAttribute.dataType() == DataType.GEO_SHAPE || fieldAttribute.dataType() == DataType.CARTESIAN_SHAPE) {
-            return false;
+            if (allowShapes == false || stats.supportsGeometryDocValueReconstruction(fieldAttribute.fieldName()) == false) {
+                log.debug("Attribute [{}] does not support geometry reconstruction from doc-values", fieldAttribute);
+                return false;
+            }
         }
         var candidateDocValuesAttributes = new HashSet<>(foundAttributes);
         candidateDocValuesAttributes.add(fieldAttribute);

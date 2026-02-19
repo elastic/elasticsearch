@@ -544,6 +544,59 @@ public abstract class SpatialPushDownShapeTestCase extends SpatialPushDownTestCa
         }
     }
 
+    /**
+     * Test that ST_SIMPLIFY produces the same results whether reading from doc-values or from source.
+     * When the original field is not in the output (only the simplified result is), the optimizer should
+     * be able to read the geometry from doc-values for indexes that support it.
+     */
+    public void testStSimplifyWithAndWithoutDocValues() {
+        assumeTrue("Test for shapes only", fieldType().contains("shape"));
+        initIndexes();
+
+        String polygon1 = "POLYGON ((-5 -5, -5 5, 5 5, 5 -5, -5 -5))";
+        String polygon2 = "POLYGON ((-10 -10, -10 0, 0 0, 0 -10, -10 -10))";
+        String line1 = "LINESTRING (0 0, 1 1, 2 0, 3 1, 4 0)";
+
+        addToIndexes(0, "\"" + polygon1 + "\"", ALL_INDEXES);
+        addToIndexes(1, "\"" + polygon2 + "\"", ALL_INDEXES);
+        addToIndexes(2, "\"" + line1 + "\"", ALL_INDEXES);
+        refresh(ALL_INDEXES);
+
+        // Query that drops the original field and only keeps the simplified result.
+        // This allows the optimizer to read from doc-values when available.
+        List<String> queries = getQueries("""
+            FROM index | EVAL simplified = ST_SIMPLIFY(location, 1.0) | KEEP simplified | STATS c = COUNT(*)
+            """);
+        try (TestQueryResponseCollection responses = new TestQueryResponseCollection(queries)) {
+            long indexedCount = (long) responses.getResponse(0, 0);
+            assertThat("Expected 3 results from indexed", indexedCount, equalTo(3L));
+            for (int i = 1; i < ALL_INDEXES.length; i++) {
+                long otherCount = (long) responses.getResponse(i, 0);
+                assertEquals("ST_SIMPLIFY count mismatch for " + ALL_INDEXES[i], indexedCount, otherCount);
+            }
+        }
+
+        // Also verify that reading the actual simplified geometries works across doc-values and source-backed indexes.
+        // We use METADATA _id for deterministic per-document comparison.
+        for (String indexName : ALL_INDEXES) {
+            String query = String.format(Locale.ROOT, """
+                FROM %s METADATA _id | EVAL simplified = ST_SIMPLIFY(location, 1.0) | KEEP _id, simplified
+                """, indexName);
+            try (EsqlQueryResponse response = client().execute(EsqlQueryAction.INSTANCE, syncEsqlQueryRequest(query)).actionGet()) {
+                long rows = 0;
+                var idCol = response.response().column(0).iterator();
+                var simplifiedCol = response.response().column(1).iterator();
+                while (idCol.hasNext()) {
+                    Object id = idCol.next();
+                    Object simplified = simplifiedCol.next();
+                    assertNotNull("ST_SIMPLIFY result should not be null for id=" + id + " in " + indexName, simplified);
+                    rows++;
+                }
+                assertThat("Expected 3 rows from " + indexName, rows, equalTo(3L));
+            }
+        }
+    }
+
     @Override
     protected Geometry quantize(Geometry shape) {
         TestQuantizedGeometryVisitor visitor = new TestQuantizedGeometryVisitor();

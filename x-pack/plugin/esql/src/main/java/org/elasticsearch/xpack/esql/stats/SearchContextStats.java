@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.index.mapper.AbstractGeometryFieldMapper;
 import org.elasticsearch.index.mapper.ConstantFieldType;
 import org.elasticsearch.index.mapper.DocCountFieldMapper.DocCountFieldType;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -456,6 +457,15 @@ public class SearchContextStats implements SearchStats {
     @Override
     public MappedFieldType fieldType(FieldName field) {
         return cache.computeIfAbsent(field.string(), this::makeFieldStats).config.fieldType;
+    }
+
+    @Override
+    public boolean supportsGeometryDocValueReconstruction(FieldName field) {
+        MappedFieldType type = fieldType(field);
+        if (type instanceof AbstractGeometryFieldMapper.AbstractGeometryFieldType<?> geoFieldType) {
+            return geoFieldType.supportsGeometryDocValueReconstruction();
+        }
+        return false;
     }
 
     private interface DocCountTester {

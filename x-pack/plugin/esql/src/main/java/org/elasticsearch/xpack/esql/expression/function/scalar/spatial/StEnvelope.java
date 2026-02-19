@@ -122,12 +122,11 @@ public class StEnvelope extends SpatialUnaryDocValuesFunction {
             ? new SpatialEnvelopeResults.Factory<BytesRefBlock.Builder>(GEO, () -> new GeoPointVisitor(WRAP))
             : new SpatialEnvelopeResults.Factory<BytesRefBlock.Builder>(CARTESIAN, CartesianPointVisitor::new);
         var spatial = toEvaluator.apply(spatialField());
-        if (spatialDocValues) {
-            if (isSpatialPoint(spatialField().dataType())) {
-                return new StEnvelopeFromDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
-            }
-            throw new IllegalArgumentException("Cannot use doc values for type " + spatialField().dataType());
+        if (spatialDocValues && isSpatialPoint(spatialField().dataType())) {
+            // Spatial points are converted to encoded longs
+            return new StEnvelopeFromDocValuesEvaluator.Factory(source(), spatial, resultsBuilder::get);
         }
+        // Spatial shapes from doc-values are extracted as re-constructed geometries, so we use the same evaluator as reading from source
         return new StEnvelopeFromWKBEvaluator.Factory(source(), spatial, resultsBuilder::get);
     }
 

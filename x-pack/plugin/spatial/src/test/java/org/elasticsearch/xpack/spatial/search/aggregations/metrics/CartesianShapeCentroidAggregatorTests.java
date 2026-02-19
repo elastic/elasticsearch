@@ -18,6 +18,7 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.DimensionalShapeType;
@@ -61,6 +62,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                 Orientation.RIGHT,
                 null,
                 false,
+                IndexVersion.current(),
                 Collections.emptyMap()
             );
             try (IndexReader reader = w.getReader()) {
@@ -86,6 +88,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                     Orientation.RIGHT,
                     null,
                     false,
+                    IndexVersion.current(),
                     Collections.emptyMap()
                 );
                 InternalCartesianCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
@@ -98,6 +101,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                     Orientation.RIGHT,
                     null,
                     false,
+                    IndexVersion.current(),
                     Collections.emptyMap()
                 );
                 result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
@@ -125,6 +129,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                     Orientation.RIGHT,
                     null,
                     false,
+                    IndexVersion.current(),
                     Collections.emptyMap()
                 );
                 InternalCartesianCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
@@ -237,6 +242,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
                 Orientation.RIGHT,
                 null,
                 false,
+                IndexVersion.current(),
                 Collections.emptyMap()
             );
             CartesianCentroidAggregationBuilder aggBuilder = new CartesianCentroidAggregationBuilder("my_agg").field("field");
@@ -258,6 +264,7 @@ public class CartesianShapeCentroidAggregatorTests extends AggregatorTestCase {
             Orientation.RIGHT,
             null,
             false,
+            IndexVersion.current(),
             Collections.emptyMap()
         );
         CartesianCentroidAggregationBuilder aggBuilder = new CartesianCentroidAggregationBuilder("my_agg").field("field");

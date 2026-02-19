@@ -485,9 +485,26 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         );
     }
 
+    public static UnifiedCompletionRequest randomTextInputOnlyUnifiedCompletionRequest() {
+        return new UnifiedCompletionRequest(
+            randomList(5, () -> randomMessage(false)),
+            randomAlphaOfLengthOrNull(10),
+            randomNonNegativeLongOrNull(),
+            randomStopOrNull(),
+            randomFloatOrNull(),
+            randomToolChoiceOrNull(),
+            randomToolListOrNull(),
+            randomFloatOrNull()
+        );
+    }
+
     public static UnifiedCompletionRequest.Message randomMessage() {
+        return randomMessage(true);
+    }
+
+    public static UnifiedCompletionRequest.Message randomMessage(boolean allowMultimodal) {
         return new UnifiedCompletionRequest.Message(
-            randomContent(),
+            randomContent(allowMultimodal),
             randomAlphaOfLength(10),
             randomAlphaOfLengthOrNull(10),
             randomToolCallListOrNull()
@@ -495,18 +512,26 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
     }
 
     public static UnifiedCompletionRequest.Content randomContent() {
-        return randomBoolean()
-            ? new UnifiedCompletionRequest.ContentString(randomAlphaOfLength(10))
-            : new UnifiedCompletionRequest.ContentObjects(randomList(10, UnifiedCompletionRequestTests::randomContentObject));
+        return randomContent(true);
     }
 
-    public static UnifiedCompletionRequest.ContentObject randomContentObject() {
-        return switch (randomFrom(SUPPORTED_CONTENT_OBJECT_TYPES)) {
-            case TEXT_TYPE -> randomContentObjectText();
-            case IMAGE_URL_TYPE -> randomContentObjectImage();
-            case FILE_TYPE -> randomContentObjectFile();
-            default -> throw new IllegalStateException("Illegal randomization branch");
-        };
+    public static UnifiedCompletionRequest.Content randomContent(boolean allowMultimodal) {
+        return randomBoolean()
+            ? new UnifiedCompletionRequest.ContentString(randomAlphaOfLength(10))
+            : new UnifiedCompletionRequest.ContentObjects(randomList(10, () -> randomContentObject(allowMultimodal)));
+    }
+
+    public static UnifiedCompletionRequest.ContentObject randomContentObject(boolean allowMultimodal) {
+        if (allowMultimodal == false) {
+            return randomContentObjectText();
+        } else {
+            return switch (randomFrom(SUPPORTED_CONTENT_OBJECT_TYPES)) {
+                case TEXT_TYPE -> randomContentObjectText();
+                case IMAGE_URL_TYPE -> randomContentObjectImage();
+                case FILE_TYPE -> randomContentObjectFile();
+                default -> throw new IllegalStateException("Illegal randomization branch");
+            };
+        }
     }
 
     public static UnifiedCompletionRequest.ContentObjectText randomContentObjectText() {

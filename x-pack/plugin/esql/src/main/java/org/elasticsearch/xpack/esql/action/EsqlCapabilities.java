@@ -2169,6 +2169,11 @@ public class EsqlCapabilities {
         URI_PARTS_COMMAND,
 
         /**
+         * Support for the METRICS_INFO command.
+         */
+        METRICS_INFO_COMMAND,
+
+        /**
          * Supports the REGISTERED_DOMAIN command.
          */
         REGISTERED_DOMAIN_COMMAND,

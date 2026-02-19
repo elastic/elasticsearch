@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -83,6 +84,8 @@ public enum FeatureMetric {
     SUBQUERY(Subquery.class::isInstance),
     MMR(MMR.class::isInstance),
     PROMQL(PromqlCommand.class::isInstance),
+    URI_PARTS(UriParts.class::isInstance),
+    METRICS_INFO(MetricsInfo.class::isInstance);
     URI_PARTS(UriParts.class::isInstance),
     REGISTERED_DOMAIN(RegisteredDomain.class::isInstance);
 

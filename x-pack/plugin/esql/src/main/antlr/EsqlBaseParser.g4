@@ -69,6 +69,7 @@ processingCommand
     | inlineStatsCommand
     | fuseCommand
     | uriPartsCommand
+    | metricsInfoCommand
     | registeredDomainCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
@@ -349,6 +350,10 @@ fuseConfiguration
 fuseKeyByFields
    : qualifiedName (COMMA qualifiedName)*
    ;
+
+metricsInfoCommand
+    : METRICS_INFO
+    ;
 
 //
 // In development

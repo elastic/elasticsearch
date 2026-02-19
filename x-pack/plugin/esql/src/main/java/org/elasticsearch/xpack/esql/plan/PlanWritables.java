@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
@@ -104,6 +106,7 @@ public class PlanWritables {
             TimeSeriesAggregate.ENTRY,
             TopN.ENTRY,
             UriParts.ENTRY,
+            MetricsInfo.ENTRY,
             RegisteredDomain.ENTRY
         );
     }
@@ -136,6 +139,7 @@ public class PlanWritables {
             TimeSeriesAggregateExec.ENTRY,
             TopNExec.ENTRY,
             UriPartsExec.ENTRY,
+            MetricsInfoExec.ENTRY,
             RegisteredDomainExec.ENTRY
         );
     }

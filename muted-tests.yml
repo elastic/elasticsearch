@@ -159,15 +159,6 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
   method: testCBTrippingOnReduction
   issue: https://github.com/elastic/elasticsearch/issues/134667
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=transform/transforms_start_stop/Test stop transform with force and wait_for_checkpoint true}
-  issue: https://github.com/elastic/elasticsearch/issues/135135
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=analytics/nested_top_metrics_sort/terms order by top metrics numeric not null double values}
-  issue: https://github.com/elastic/elasticsearch/issues/135159
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=analytics/nested_top_metrics_sort/terms order by top metrics numeric not null integer values}
-  issue: https://github.com/elastic/elasticsearch/issues/135162
 - class: org.elasticsearch.gradle.TestClustersPluginFuncTest
   method: override jdk usage via ES_JAVA_HOME for known jdk os incompatibilities
   issue: https://github.com/elastic/elasticsearch/issues/135413

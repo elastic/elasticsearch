@@ -13,6 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -228,6 +229,10 @@ public interface BlockLoader {
             boolean toInt,
             boolean binaryMultiValuedFormat
         ) throws IOException;
+
+        default DocIdSetIterator containsIterator(BytesRef containsTerm) throws IOException {
+            return null;
+        }
     }
 
     /**

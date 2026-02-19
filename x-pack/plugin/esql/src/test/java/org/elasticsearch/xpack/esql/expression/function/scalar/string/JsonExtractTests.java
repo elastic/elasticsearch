@@ -169,6 +169,83 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
             );
         }
 
+        // Constant path - nested dot notation
+        suppliers.add(constantPathSupplier(
+            "constant nested path",
+            "{\"user\":{\"address\":{\"city\":\"London\"}}}",
+            "user.address.city",
+            equalTo(new BytesRef("London"))
+        ));
+
+        // Constant path - array bracket notation
+        suppliers.add(constantPathSupplier(
+            "constant array path",
+            "{\"tags\":[\"a\",\"b\",\"c\"]}",
+            "tags[0]",
+            equalTo(new BytesRef("a"))
+        ));
+
+        // Constant path - mixed nesting (array + dot)
+        suppliers.add(constantPathSupplier(
+            "constant mixed path",
+            "{\"orders\":[{\"id\":1,\"item\":\"book\"},{\"id\":2,\"item\":\"pen\"}]}",
+            "orders[1].item",
+            equalTo(new BytesRef("pen"))
+        ));
+
+        // Constant path - missing path (warning case)
+        suppliers.add(new TestCaseSupplier("constant missing path", types(DataType.KEYWORD, DataType.KEYWORD), () -> {
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), DataType.KEYWORD, "jsonInput"),
+                    new TestCaseSupplier.TypedData(new BytesRef("nonexistent"), DataType.KEYWORD, "path").forceLiteral()
+                ),
+                "JsonExtractConstantEvaluator[jsonInput=Attribute[channel=0], path=nonexistent]",
+                DataType.KEYWORD,
+                nullValue()
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: path [nonexistent] does not exist");
+        }));
+
+        // Constant path - array out of bounds (warning case)
+        suppliers.add(new TestCaseSupplier("constant array oob", types(DataType.KEYWORD, DataType.KEYWORD), () -> {
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef("{\"tags\":[\"a\",\"b\"]}"), DataType.KEYWORD, "jsonInput"),
+                    new TestCaseSupplier.TypedData(new BytesRef("tags[5]"), DataType.KEYWORD, "path").forceLiteral()
+                ),
+                "JsonExtractConstantEvaluator[jsonInput=Attribute[channel=0], path=tags[5]]",
+                DataType.KEYWORD,
+                nullValue()
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: array index out of bounds");
+        }));
+
+        // Constant path - invalid JSON (warning case)
+        suppliers.add(new TestCaseSupplier("constant invalid json", types(DataType.KEYWORD, DataType.KEYWORD), () -> {
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef("not valid json"), DataType.KEYWORD, "jsonInput"),
+                    new TestCaseSupplier.TypedData(new BytesRef("field"), DataType.KEYWORD, "path").forceLiteral()
+                ),
+                "JsonExtractConstantEvaluator[jsonInput=Attribute[channel=0], path=field]",
+                DataType.KEYWORD,
+                nullValue()
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: invalid JSON input");
+        }));
+
+        // Constant path - JSON null extraction
+        suppliers.add(constantPathSupplier("constant json null", "{\"value\":null}", "value", nullValue()));
+
+        // Constant path - extract object as JSON string
+        suppliers.add(constantPathSupplier(
+            "constant extract object",
+            "{\"user\":{\"name\":\"Alice\",\"age\":30}}",
+            "user",
+            equalTo(new BytesRef("{\"name\":\"Alice\",\"age\":30}"))
+        ));
+
         // SOURCE type support (for _source field)
         for (DataType pathType : DataType.stringTypes()) {
             suppliers.add(
@@ -207,6 +284,20 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
                 expectedToString(),
                 DataType.KEYWORD,
                 expectedValue == null ? nullValue() : equalTo(expectedValue)
+            );
+        });
+    }
+
+    private static TestCaseSupplier constantPathSupplier(String name, String json, String path, org.hamcrest.Matcher<?> expectedMatcher) {
+        return new TestCaseSupplier(name, types(DataType.KEYWORD, DataType.KEYWORD), () -> {
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(json), DataType.KEYWORD, "jsonInput"),
+                    new TestCaseSupplier.TypedData(new BytesRef(path), DataType.KEYWORD, "path").forceLiteral()
+                ),
+                "JsonExtractConstantEvaluator[jsonInput=Attribute[channel=0], path=" + path + "]",
+                DataType.KEYWORD,
+                expectedMatcher
             );
         });
     }

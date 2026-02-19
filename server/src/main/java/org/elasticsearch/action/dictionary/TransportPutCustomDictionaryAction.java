@@ -43,6 +43,6 @@ public class TransportPutCustomDictionaryAction extends HandledTransportAction<
         PutCustomDictionaryAction.Request request,
         ActionListener<PutCustomDictionaryAction.Response> listener
     ) {
-        customDictionaryService.putDictionary(request.id(), request.dictionary(), listener.map(PutCustomDictionaryAction.Response::new));
+        customDictionaryService.putDictionary(request.id(), request.content(), listener.map(PutCustomDictionaryAction.Response::new));
     }
 }

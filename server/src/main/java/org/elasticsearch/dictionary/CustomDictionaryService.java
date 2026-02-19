@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -91,9 +90,9 @@ public class CustomDictionaryService {
         }));
     }
 
-    public void putDictionary(String id, BytesReference dictionary, ActionListener<DictionaryOperationResult> listener) {
+    public void putDictionary(String id, String content, ActionListener<DictionaryOperationResult> listener) {
         try {
-            IndexRequest indexRequest = createDictionaryIndexRequest(id, dictionary.utf8ToString());
+            IndexRequest indexRequest = createDictionaryIndexRequest(id, content);
             indexRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
 
             client.index(indexRequest, listener.delegateFailureAndWrap((l, indexResponse) -> {
@@ -125,11 +124,11 @@ public class CustomDictionaryService {
             }));
     }
 
-    private IndexRequest createDictionaryIndexRequest(String id, String dictionary) throws IOException {
+    private IndexRequest createDictionaryIndexRequest(String id, String content) throws IOException {
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             {
-                builder.field(CUSTOM_DICTIONARY_VALUE_FIELD, dictionary);
+                builder.field(CUSTOM_DICTIONARY_VALUE_FIELD, content);
             }
             builder.endObject();
 

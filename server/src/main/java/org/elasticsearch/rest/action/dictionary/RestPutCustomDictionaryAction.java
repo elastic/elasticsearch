@@ -9,15 +9,14 @@
 
 package org.elasticsearch.rest.action.dictionary;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.dictionary.PutCustomDictionaryAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -34,22 +33,17 @@ public class RestPutCustomDictionaryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(PUT, "/_dictionary/{id}"));
+        return List.of(new Route(PUT, "/_dictionary"));
     }
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        String id = restRequest.param("id");
+        restRequest.ensureContent();
+        PutCustomDictionaryAction.Request request;
+        try (XContentParser parser = restRequest.contentParser()) {
+            request = PutCustomDictionaryAction.Request.PARSER.parse(parser, null);
+        }
 
-        // Retain a reference to the content before async processing
-        ReleasableBytesReference content = restRequest.content().retain();
-        PutCustomDictionaryAction.Request request = new PutCustomDictionaryAction.Request(id, content);
-
-        return channel -> client.execute(
-            PutCustomDictionaryAction.INSTANCE,
-            request,
-            // Release the content reference after async processing completes
-            ActionListener.releaseBefore(content, new RestToXContentListener<>(channel))
-        );
+        return channel -> client.execute(PutCustomDictionaryAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

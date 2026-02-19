@@ -179,10 +179,6 @@ public class Reindexer {
         long startTime,
         boolean isRemote
     ) {
-        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false || relocationNodePicker == null) {
-            return wrapWithMetrics(potentiallyWrappedRelocationListener, reindexMetrics, startTime, isRemote);
-        }
-
         final ActionListener<BulkByScrollResponse> metricListener = wrapWithMetrics(
             potentiallyWrappedRelocationListener,
             reindexMetrics,

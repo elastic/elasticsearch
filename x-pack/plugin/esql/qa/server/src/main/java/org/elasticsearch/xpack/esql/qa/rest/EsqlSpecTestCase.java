@@ -297,12 +297,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (supportsSourceFieldMapping() == false) {
             assumeFalse("source mapping tests are muted", testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName()));
         }
-        // EXTERNAL command tests require dedicated infrastructure (S3 fixture, datasource plugins, template replacement)
-        // that is only available in AbstractExternalSourceSpecTestCase subclasses, not in generic EsqlSpecIT suites.
-        assumeFalse(
-            "EXTERNAL command tests require dedicated external source test infrastructure",
-            testCase.query.trim().toUpperCase(Locale.ROOT).startsWith("EXTERNAL")
-        );
     }
 
     protected static void checkCapabilities(

@@ -292,6 +292,6 @@ public abstract class OperatorTestCase extends AnyOperatorTestCase {
         if (HashImplFactory.SWISS_TABLES_HASHING.isEnabled()) {
             return "213120b";
         }
-        return "491b";
+        return "400b";
     }
 }

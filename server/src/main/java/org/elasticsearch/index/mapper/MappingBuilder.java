@@ -87,7 +87,14 @@ public class MappingBuilder {
             if (existing == null || reason == MergeReason.INDEX_TEMPLATE) {
                 merged = entry.getValue();
             } else {
-                merged = (MetadataFieldMapper) existing.merge(entry.getValue(), mergeContext);
+                FieldMapper.Builder existingBuilder = existing.getMergeBuilder();
+                FieldMapper.Builder incomingBuilder = entry.getValue().getMergeBuilder();
+                if (existingBuilder != null && incomingBuilder != null) {
+                    merged = (MetadataFieldMapper) existingBuilder.mergeWith(incomingBuilder, mergeContext)
+                        .build(mergeContext.getMapperBuilderContext());
+                } else {
+                    merged = entry.getValue();
+                }
             }
             this.metadataMappers.put(merged.getClass(), merged);
         }

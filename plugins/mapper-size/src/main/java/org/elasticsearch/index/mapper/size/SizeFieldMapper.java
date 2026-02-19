@@ -44,6 +44,11 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return NAME;
+        }
+
+        @Override
         public SizeFieldMapper build() {
             return new SizeFieldMapper(enabled.getValue(), new SizeFieldType());
         }

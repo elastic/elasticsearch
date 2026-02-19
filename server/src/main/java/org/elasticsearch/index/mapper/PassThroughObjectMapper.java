@@ -173,7 +173,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
     }
 
     @Override
-    PassThroughObjectMapper.Builder toBuilder() {
+    public PassThroughObjectMapper.Builder toBuilder() {
         PassThroughObjectMapper.Builder builder = new PassThroughObjectMapper.Builder(leafName());
         builder.enabled = this.enabled;
         builder.dynamic = this.dynamic;
@@ -190,17 +190,6 @@ public class PassThroughObjectMapper extends ObjectMapper {
             }
         }
         return builder;
-    }
-
-    @Override
-    public PassThroughObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
-        if (mergeWith instanceof ObjectMapper == false) {
-            MapperErrors.throwObjectMappingConflictError(mergeWith.fullPath());
-        }
-        PassThroughObjectMapper.Builder builder = toBuilder();
-        MapperMergeContext objectMergeContext = createChildContext(parentMergeContext, leafName());
-        builder.merge(((ObjectMapper) mergeWith).toBuilder(), objectMergeContext, fullPath());
-        return builder.build(parentMergeContext.getMapperBuilderContext());
     }
 
     /**

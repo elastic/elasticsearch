@@ -353,6 +353,11 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public LegacyGeoShapeFieldMapper build(MapperBuilderContext context) {
             LegacyGeoShapeParser parser = new LegacyGeoShapeParser();
             GeoShapeFieldType ft = buildFieldType(parser, context);

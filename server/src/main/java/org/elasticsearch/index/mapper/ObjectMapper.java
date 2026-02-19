@@ -249,7 +249,7 @@ public class ObjectMapper extends Mapper {
         }
 
         @Override
-        Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext parentContext) {
+        public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext parentContext) {
             if (incoming instanceof ObjectMapper.Builder incomingObj) {
                 if (incoming instanceof NestedObjectMapper.Builder && this instanceof NestedObjectMapper.Builder == false) {
                     MapperErrors.throwNestedMappingConflictError(parentContext.getMapperBuilderContext().buildFullName(leafName()));
@@ -435,24 +435,10 @@ public class ObjectMapper extends Mapper {
         }
 
         static Mapper.Builder wrapMapper(Mapper mapper) {
-            return new Mapper.Builder(mapper.leafName()) {
-                @Override
-                public Mapper build(MapperBuilderContext context) {
-                    return mapper;
-                }
-
-                @Override
-                int getTotalFieldsCount() {
-                    return mapper.getTotalFieldsCount();
-                }
-
-                @Override
-                Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
-                    Mapper incomingMapper = incoming.build(mergeContext.getMapperBuilderContext());
-                    Mapper merged = mapper.merge(incomingMapper, mergeContext);
-                    return wrapMapper(merged);
-                }
-            };
+            if (mapper instanceof FieldAliasMapper aliasMapper) {
+                return new FieldAliasMapper.Builder(aliasMapper.leafName()).path(aliasMapper.targetPath());
+            }
+            throw new IllegalArgumentException("Cannot wrap mapper [" + mapper.leafName() + "] of type [" + mapper.typeName() + "]");
         }
 
         private Map<String, Mapper.Builder> mergeChildMappers(
@@ -766,7 +752,7 @@ public class ObjectMapper extends Mapper {
     /**
      * @return a Builder that will produce an ObjectMapper with the same configuration and children as this one
      */
-    Builder toBuilder() {
+    public Builder toBuilder() {
         Builder builder = new Builder(leafName(), subobjects);
         builder.enabled = this.enabled;
         builder.dynamic = this.dynamic;
@@ -844,24 +830,6 @@ public class ObjectMapper extends Mapper {
      */
     protected void validateSubField(Mapper mapper, MappingLookup mappers) {
         mapper.validate(mappers);
-    }
-
-    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
-        return mapperMergeContext.createChildContext(name, dynamic);
-    }
-
-    @Override
-    public ObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
-        if (mergeWith instanceof ObjectMapper == false) {
-            MapperErrors.throwObjectMappingConflictError(mergeWith.fullPath());
-        }
-        if (this instanceof NestedObjectMapper == false && mergeWith instanceof NestedObjectMapper) {
-            MapperErrors.throwNestedMappingConflictError(mergeWith.fullPath());
-        }
-        Builder existingBuilder = toBuilder();
-        Builder incomingBuilder = ((ObjectMapper) mergeWith).toBuilder();
-        Mapper.Builder merged = existingBuilder.mergeWith(incomingBuilder, parentMergeContext);
-        return (ObjectMapper) merged.build(parentMergeContext.getMapperBuilderContext());
     }
 
     /**

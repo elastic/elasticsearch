@@ -34,7 +34,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.function.BiConsumer;
 
@@ -115,6 +114,17 @@ public class RootObjectMapper extends ObjectMapper {
         public RootObjectMapper.Builder addRuntimeFields(Map<String, RuntimeField> runtimeFields) {
             this.runtimeFields.putAll(runtimeFields);
             return this;
+        }
+
+        @Override
+        public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext parentContext) {
+            MapperMergeContext objectMergeContext = parentContext.createChildContext(null, this.dynamic);
+            if (incoming instanceof ObjectMapper.Builder incomingObj) {
+                this.merge(incomingObj, objectMergeContext, leafName());
+                return this;
+            }
+            MapperErrors.throwObjectMappingConflictError(parentContext.getMapperBuilderContext().buildFullName(incoming.leafName()));
+            return null;
         }
 
         @Override
@@ -215,7 +225,7 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    RootObjectMapper.Builder toBuilder() {
+    public RootObjectMapper.Builder toBuilder() {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder(leafName(), subobjects);
         builder.enabled = this.enabled;
         builder.dynamic = this.dynamic;
@@ -290,23 +300,6 @@ public class RootObjectMapper extends ObjectMapper {
 
     RuntimeField getRuntimeField(String name) {
         return runtimeFields.get(name);
-    }
-
-    @Override
-    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
-        assert Objects.equals(mapperMergeContext.getMapperBuilderContext().buildFullName("foo"), "foo");
-        return mapperMergeContext.createChildContext(null, dynamic);
-    }
-
-    @Override
-    public RootObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
-        if (mergeWith instanceof RootObjectMapper == false) {
-            MapperErrors.throwObjectMappingConflictError(mergeWith.fullPath());
-        }
-        RootObjectMapper.Builder builder = toBuilder();
-        MapperMergeContext objectMergeContext = createChildContext(parentMergeContext, leafName());
-        builder.merge(((RootObjectMapper) mergeWith).toBuilder(), objectMergeContext, fullPath());
-        return builder.build(parentMergeContext.getMapperBuilderContext());
     }
 
     @Override

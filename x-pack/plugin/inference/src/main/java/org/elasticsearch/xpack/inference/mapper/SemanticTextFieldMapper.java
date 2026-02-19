@@ -400,12 +400,20 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
         }
 
+        @Override
+        protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
+            SemanticTextFieldMapper incomingMapper = (SemanticTextFieldMapper) incoming.build(mergeContext.getMapperBuilderContext());
+            merge(incomingMapper, conflicts, mergeContext);
+        }
+
         private void mergeInferenceField(MapperMergeContext mapperMergeContext, SemanticTextFieldMapper semanticMergeWith) {
             try {
                 var context = mapperMergeContext.createChildContext(semanticMergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
                 var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
-                var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), context);
-                inferenceFieldBuilder = c -> mergedInferenceField;
+                var existingBuilder = inferenceField.toBuilder();
+                var incomingBuilder = semanticMergeWith.fieldType().getInferenceField().toBuilder();
+                var mergedBuilder = existingBuilder.mergeWith(incomingBuilder, context);
+                inferenceFieldBuilder = c -> (ObjectMapper) mergedBuilder.build(c);
             } catch (Exception e) {
                 // Wrap errors in nicer messages that hide inference field internals
                 String errorMessage = e.getMessage() != null

@@ -381,34 +381,6 @@ public abstract class FieldMapper extends Mapper {
      */
     public abstract Builder getMergeBuilder();
 
-    @Override
-    public final FieldMapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
-        if (mergeWith == this) {
-            return this;
-        }
-        if (mergeWith instanceof FieldMapper == false) {
-            throw new IllegalArgumentException(
-                "mapper ["
-                    + fullPath()
-                    + "] cannot be changed from type ["
-                    + contentType()
-                    + "] to ["
-                    + mergeWith.getClass().getSimpleName()
-                    + "]"
-            );
-        }
-        checkIncomingMergeType((FieldMapper) mergeWith);
-
-        Builder builder = getMergeBuilder();
-        if (builder == null) {
-            return (FieldMapper) mergeWith;
-        }
-        Conflicts conflicts = new Conflicts(fullPath());
-        builder.merge((FieldMapper) mergeWith, conflicts, mapperMergeContext);
-        conflicts.check();
-        return builder.build(mapperMergeContext.getMapperBuilderContext());
-    }
-
     protected void checkIncomingMergeType(FieldMapper mergeWith) {
         if (Objects.equals(this.getClass(), mergeWith.getClass()) == false) {
             throw new IllegalArgumentException(
@@ -662,8 +634,15 @@ public abstract class FieldMapper extends Mapper {
                         add(toMerge);
                     }
                 } else {
-                    FieldMapper existing = fieldBuilders.get(toMerge.leafName()).build(context.getMapperBuilderContext());
-                    add(existing.merge(toMerge, context));
+                    FieldMapper.Builder existingBuilder = fieldBuilders.get(toMerge.leafName());
+                    FieldMapper.Builder incomingBuilder = toMerge.getMergeBuilder();
+                    if (incomingBuilder != null) {
+                        MapperMergeContext childContext = MapperMergeContext.from(context.getMapperBuilderContext(), Long.MAX_VALUE);
+                        Mapper.Builder merged = existingBuilder.mergeWith(incomingBuilder, childContext);
+                        fieldBuilders.put(toMerge.leafName(), (FieldMapper.Builder) merged);
+                    } else {
+                        add(toMerge);
+                    }
                 }
             }
 
@@ -1659,7 +1638,7 @@ public abstract class FieldMapper extends Mapper {
         public abstract String contentType();
 
         @Override
-        Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
+        public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext mergeContext) {
             MapperBuilderContext builderContext = mergeContext.getMapperBuilderContext();
             if (incoming instanceof NestedObjectMapper.Builder) {
                 MapperErrors.throwNestedMappingConflictError(builderContext.buildFullName(incoming.leafName()));

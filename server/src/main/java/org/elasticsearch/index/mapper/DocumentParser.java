@@ -1086,10 +1086,6 @@ public final class DocumentParser {
             super(name, fullPath, Explicit.IMPLICIT_TRUE, Defaults.SUBOBJECTS, Optional.empty(), Dynamic.RUNTIME, Collections.emptyMap());
         }
 
-        @Override
-        public ObjectMapper merge(Mapper mergeWith, MapperMergeContext mapperMergeContext) {
-            return this;
-        }
     }
 
     /**

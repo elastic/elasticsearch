@@ -334,7 +334,7 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     @Override
-    NestedObjectMapper.Builder toBuilder() {
+    public NestedObjectMapper.Builder toBuilder() {
         IndexVersion version = indexSettings != null ? indexSettings.getIndexVersionCreated() : IndexVersion.current();
         NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(leafName(), version, bitsetProducer, indexSettings);
         builder.enabled = this.enabled;
@@ -394,38 +394,6 @@ public class NestedObjectMapper extends ObjectMapper {
         }
         serializeMappers(builder, params);
         return builder.endObject();
-    }
-
-    @Override
-    public NestedObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
-        if (mergeWith instanceof NestedObjectMapper == false) {
-            MapperErrors.throwNestedMappingConflictError(mergeWith.fullPath());
-        }
-        NestedObjectMapper.Builder builder = toBuilder();
-        MapperMergeContext objectMergeContext = createChildContext(parentMergeContext, leafName());
-        builder.merge(((NestedObjectMapper) mergeWith).toBuilder(), objectMergeContext, fullPath());
-        return builder.build(parentMergeContext.getMapperBuilderContext());
-    }
-
-    @Override
-    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
-        MapperBuilderContext mapperBuilderContext = mapperMergeContext.getMapperBuilderContext();
-        boolean parentIncludedInRoot = this.includeInRoot.value();
-        if (mapperBuilderContext instanceof NestedMapperBuilderContext == false) {
-            parentIncludedInRoot |= this.includeInParent.value();
-        }
-        return mapperMergeContext.createChildContext(
-            new NestedMapperBuilderContext(
-                mapperBuilderContext.buildFullName(name),
-                mapperBuilderContext.isSourceSynthetic(),
-                mapperBuilderContext.isDataStream(),
-                mapperBuilderContext.parentObjectContainsDimensions(),
-                nestedTypeFilter,
-                parentIncludedInRoot,
-                mapperBuilderContext.getDynamic(dynamic),
-                mapperBuilderContext.getMergeReason()
-            )
-        );
     }
 
     @Override

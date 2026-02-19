@@ -163,6 +163,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         private final IndexMode indexMode;
         private boolean serializeMode;
+        private Mode fallbackMode;
 
         private final boolean supportsNonDefaultParameterValues;
         private final boolean sourceModeIsNoop;
@@ -286,8 +287,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             // If `_source.mode` is not set we need to apply a default according to index mode.
             if (mode.get() == null || sourceModeIsNoop) {
                 if (indexMode == null || indexMode == IndexMode.STANDARD) {
-                    // Special case to avoid serializing mode.
-                    return null;
+                    return fallbackMode;
                 }
 
                 return indexMode.defaultSourceMode();
@@ -561,7 +561,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(null, Settings.EMPTY, sourceModeIsNoop, false, serializeMode).init(this);
+        Builder b = new Builder(null, Settings.EMPTY, sourceModeIsNoop, false, serializeMode);
+        b.fallbackMode = this.mode;
+        b.init(this);
+        return b;
     }
 
     public boolean isSynthetic() {

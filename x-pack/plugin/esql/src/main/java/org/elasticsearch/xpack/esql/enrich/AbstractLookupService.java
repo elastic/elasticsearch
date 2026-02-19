@@ -13,7 +13,6 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -47,6 +47,7 @@ import org.elasticsearch.compute.operator.lookup.LookupEnrichQueryGenerator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -216,6 +217,18 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     protected abstract LookupResponse createLookupResponse(List<Page> resultPages, BlockFactory blockFactory) throws IOException;
 
     /**
+     * Helper to create a LookupResponse from pages and send it to the listener.
+     * The response is released after sending via {@link ActionListener#respondAndRelease}.
+     */
+    protected final void respondWithPages(ActionListener<LookupResponse> listener, List<Page> pages) {
+        try {
+            ActionListener.respondAndRelease(listener, createLookupResponse(pages, blockFactory));
+        } catch (IOException e) {
+            listener.onFailure(e);
+        }
+    }
+
+    /**
      * Read the response from a {@link StreamInput}.
      */
     protected abstract LookupResponse readLookupResponse(StreamInput in, BlockFactory blockFactory) throws IOException;
@@ -230,33 +243,78 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     /**
-     * Perform the actual lookup.
+     * Get the shard iterator for the lookup index. Returns null if validation fails
+     * (after calling listener.onFailure).
      */
-    public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<List<Page>> outListener) {
-        ClusterState clusterState = clusterService.state();
-        var projectState = projectResolver.getProjectState(clusterState);
+    @Nullable
+    private ShardIterator getShardIterator(R request, ActionListener<LookupResponse> listener) {
+        var projectState = projectResolver.getProjectState(clusterService.state());
         List<SearchShardRouting> shardIterators = clusterService.operationRouting()
             .searchShards(projectState, new String[] { request.index }, Map.of(), "_local");
         if (shardIterators.size() != 1) {
-            outListener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
+            listener.onFailure(new EsqlIllegalArgumentException("target index {} has more than one shard", request.index));
+            return null;
+        }
+        return shardIterators.get(0);
+    }
+
+    /**
+     * Perform the actual lookup, returning the full {@link LookupResponse}.
+     * Callers can access pages via {@link LookupResponse#takePages()} and must call {@link LookupResponse#decRef()} when done.
+     * This method determines the target node internally via shard routing.
+     */
+    public final void lookupAsync(R request, CancellableTask parentTask, ActionListener<LookupResponse> outListener) {
+        ShardIterator shardIt = getShardIterator(request, outListener);
+        if (shardIt == null) {
             return;
         }
-        ShardIterator shardIt = shardIterators.get(0);
         ShardRouting shardRouting = shardIt.nextOrNull();
-        ShardId shardId = shardIt.shardId();
         if (shardRouting == null) {
-            outListener.onFailure(new UnavailableShardsException(shardId, "target index is not available"));
+            outListener.onFailure(new UnavailableShardsException(shardIt.shardId(), "target index is not available"));
             return;
         }
-        DiscoveryNode targetNode = clusterState.nodes().get(shardRouting.currentNodeId());
-        T transportRequest = transportRequest(request, shardId);
+        DiscoveryNode targetNode = clusterService.state().nodes().get(shardRouting.currentNodeId());
         // TODO: handle retry and avoid forking for the local lookup
+        T transportRequest = transportRequest(request, shardIt.shardId());
+        sendChildRequest(parentTask, outListener, targetNode, transportRequest);
+    }
+
+    /**
+     * Perform the actual lookup using an explicit target node.
+     * Use this overload when the caller has already determined which node should handle the request,
+     * to avoid inconsistent node selection when replicas exist.
+     */
+    public final void lookupAsync(
+        R request,
+        DiscoveryNode targetNode,
+        CancellableTask parentTask,
+        ActionListener<LookupResponse> outListener
+    ) {
+        ShardIterator shardIt = getShardIterator(request, outListener);
+        if (shardIt == null) {
+            return;
+        }
+        // Validate that the target node has a copy of the shard
+        boolean nodeHasShard = false;
+        for (ShardRouting routing : shardIt) {
+            if (targetNode.getId().equals(routing.currentNodeId())) {
+                nodeHasShard = true;
+                break;
+            }
+        }
+        if (nodeHasShard == false) {
+            outListener.onFailure(
+                new UnavailableShardsException(shardIt.shardId(), "target node [" + targetNode.getId() + "] does not have this shard")
+            );
+            return;
+        }
+        T transportRequest = transportRequest(request, shardIt.shardId());
         sendChildRequest(parentTask, outListener, targetNode, transportRequest);
     }
 
     protected void sendChildRequest(
         CancellableTask parentTask,
-        ActionListener<List<Page>> delegate,
+        ActionListener<LookupResponse> delegate,
         DiscoveryNode targetNode,
         T transportRequest
     ) {
@@ -266,22 +324,18 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
             transportRequest,
             parentTask,
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(
-                delegate.map(LookupResponse::takePages),
-                in -> readLookupResponse(in, blockFactory),
-                executor
-            )
+            new ActionListenerResponseHandler<>(delegate, in -> readLookupResponse(in, blockFactory), executor)
         );
     }
 
-    protected void doLookup(T request, CancellableTask task, ActionListener<List<Page>> listener) {
+    protected void doLookup(T request, CancellableTask task, ActionListener<LookupResponse> listener) {
         for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
             Block inputBlock = request.inputPage.getBlock(j);
             if (inputBlock.areAllValuesNull()) {
                 List<Page> nullResponse = mergePages
                     ? List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields))
                     : List.of();
-                listener.onResponse(nullResponse);
+                respondWithPages(listener, nullResponse);
                 return;
             }
         }
@@ -403,7 +457,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                     if (mergePages && out.isEmpty()) {
                         out = List.of(createNullResponse(request.inputPage.getPositionCount(), request.extractFields));
                     }
-                    listener.onResponse(out);
+                    respondWithPages(listener, out);
                 }
 
                 @Override
@@ -471,10 +525,14 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         );
     }
 
-    /**
-     * Extracts field name from a NamedExpression, handling FieldAttribute and Alias cases.
-     * For Alias, recursively extracts the field name from the child expression.
-     */
+    public CircuitBreaker getBreaker() {
+        return blockFactory.breaker();
+    }
+
+    public Executor getExecutor() {
+        return executor;
+    }
+
     public static String extractFieldName(NamedExpression extractField) {
         return extractField instanceof FieldAttribute fa ? fa.fieldName().string()
             : extractField instanceof Alias a ? extractFieldName((NamedExpression) a.child())
@@ -512,13 +570,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         public void messageReceived(T request, TransportChannel channel, Task task) {
             request.incRef();
             ActionListener<LookupResponse> listener = ActionListener.runBefore(new ChannelActionListener<>(channel), request::decRef);
-            doLookup(
-                request,
-                (CancellableTask) task,
-                listener.delegateFailureAndWrap(
-                    (l, resultPages) -> ActionListener.respondAndRelease(l, createLookupResponse(resultPages, blockFactory))
-                )
-            );
+            doLookup(request, (CancellableTask) task, listener);
         }
     }
 
@@ -657,6 +709,15 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         }
 
         protected abstract List<Page> takePages();
+
+        /**
+         * Returns the plan string for profile output, or null if not available.
+         * Subclasses can override to provide a plan string when profiling is enabled.
+         */
+        @Nullable
+        public String planString() {
+            return null;
+        }
 
         private void release() {
             blockFactory.breaker().addWithoutBreaking(-reservedBytes);

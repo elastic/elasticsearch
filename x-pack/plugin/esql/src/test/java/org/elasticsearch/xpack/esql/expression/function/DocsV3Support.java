@@ -1337,15 +1337,20 @@ public abstract class DocsV3Support {
             separator.append("--- |");
         }
 
+        Map<DataType, Set<List<Set<DataType>>>> mergedSignatures = DocsV3SupportSignaturesMerger.buildMergedTypesTable(
+            args,
+            Set.copyOf(this.signatures.get())
+        );
+
+        // Collect per-position appliesTo from the original signatures (all sigs share the same annotation per position)
+        List<List<FunctionAppliesTo>> appliesToByPosition = collectAppliesToByPosition(args, this.signatures.get());
+
         List<String> table = new ArrayList<>();
-        for (TypeSignature sig : this.signatures.get()) { // TODO flip to using sortedSignatures
-            if (shouldHideSignature(sig.argTypes(), sig.returnType())) {
-                continue;
+        for (Map.Entry<DataType, Set<List<Set<DataType>>>> entry : mergedSignatures.entrySet()) {
+            DataType returnType = entry.getKey();
+            for (List<Set<DataType>> row : entry.getValue()) {
+                table.add(getMergedTypeRow(row, returnType, args, appliesToByPosition, showResultColumn));
             }
-            if (sig.argTypes().size() > argNames.size()) { // skip variadic [test] cases (but not those with optional parameters)
-                continue;
-            }
-            table.add(getTypeRow(args, sig, argNames, showResultColumn));
         }
         Collections.sort(table);
         if (table.isEmpty()) {
@@ -1360,6 +1365,65 @@ public abstract class DocsV3Support {
         logger.info("Writing function types for [{}]", name);
         logger.debug("{}", rendered);
         writeToTempSnippetsDir("types", rendered);
+    }
+
+    /**
+     * Collects the first non-empty {@link FunctionAppliesTo} annotation found per arg position across all signatures.
+     */
+    private static List<List<FunctionAppliesTo>> collectAppliesToByPosition(
+        List<EsqlFunctionRegistry.ArgSignature> args,
+        Set<TypeSignature> signatures
+    ) {
+        List<List<FunctionAppliesTo>> result = new ArrayList<>(args.size());
+        for (int i = 0; i < args.size(); i++) {
+            result.add(List.of());
+        }
+        for (TypeSignature sig : signatures) {
+            if (sig.argTypes().size() > args.size()) {
+                // Variadic; skip
+                continue;
+            }
+            int start = getFirstParametersIndexForSignature(args, sig);
+            for (int i = 0; i < sig.argTypes().size(); i++) {
+                int pos = start + i;
+                if (result.get(pos).isEmpty()) {
+                    List<FunctionAppliesTo> appliesTo = sig.argTypes().get(i).appliesTo();
+                    if (appliesTo != null && appliesTo.isEmpty() == false) {
+                        result.set(pos, appliesTo);
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private static String getMergedTypeRow(
+        List<Set<DataType>> row,
+        DataType returnType,
+        List<EsqlFunctionRegistry.ArgSignature> args,
+        List<List<FunctionAppliesTo>> appliesToByPosition,
+        boolean showResultColumn
+    ) {
+        StringBuilder b = new StringBuilder("| ");
+        for (int i = 0; i < args.size(); i++) {
+            if (args.get(i).mapArg()) {
+                b.append("named parameters");
+            } else {
+                Set<DataType> cell = row.get(i);
+                if (cell.isEmpty() == false) {
+                    b.append(cell.stream().map(DataType::esNameIfPossible).sorted().collect(Collectors.joining(", ")));
+                    if (appliesToByPosition.get(i).isEmpty() == false) {
+                        b.append(FunctionDocsSupport.makeAppliesToText(appliesToByPosition.get(i), false, true));
+                    }
+                }
+            }
+            b.append(" | ");
+        }
+        if (showResultColumn) {
+            b.append(returnType.esNameIfPossible());
+            b.append(" |");
+        }
+        return b.toString();
     }
 
     /**
@@ -1395,40 +1459,6 @@ public abstract class DocsV3Support {
             || args.stream().anyMatch(EsqlFunctionRegistry.ArgSignature::variadic)
             : "The calculated initialProvidedParamIndex exceeds the args size";
         return initialProvidedParamIndex;
-    }
-
-    private static String getTypeRow(
-        List<EsqlFunctionRegistry.ArgSignature> args,
-        TypeSignature sig,
-        List<String> argNames,
-        boolean showResultColumn
-    ) {
-        StringBuilder b = new StringBuilder("| ");
-
-        int initialProvidedParamIndex = getFirstParametersIndexForSignature(args, sig);
-        for (int i = 0; i < initialProvidedParamIndex; i++) {
-            b.append("| ");
-        }
-
-        for (int i = 0; i < sig.argTypes().size(); i++) {
-            Param param = sig.argTypes().get(i);
-            EsqlFunctionRegistry.ArgSignature argSignature = args.get(initialProvidedParamIndex + i);
-            if (argSignature.mapArg()) {
-                b.append("named parameters");
-            } else {
-                b.append(param.dataType().esNameIfPossible());
-                if (param.appliesTo() != null) {
-                    b.append(FunctionDocsSupport.makeAppliesToText(param.appliesTo(), false, true));
-                }
-            }
-            b.append(" | ");
-        }
-        b.append("| ".repeat(argNames.size() - sig.argTypes().size() - initialProvidedParamIndex));
-        if (showResultColumn) {
-            b.append(sig.returnType().esNameIfPossible());
-            b.append(" |");
-        }
-        return b.toString();
     }
 
     void renderDescription(String description, String detailedDescription, String note) throws IOException {

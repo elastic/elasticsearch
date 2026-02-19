@@ -168,7 +168,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
                             }
                         } else {
                             hashCleanupListener.onResponse(
-                                AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]")
+                                AuthenticationResult.terminate("failed to authenticate user [" + token.principal() + "]", null, true)
                             );
                         }
                     }

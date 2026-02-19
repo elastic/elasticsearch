@@ -24,6 +24,8 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.support.RealmUserLookup;
 import org.elasticsearch.xpack.security.metric.InstrumentedSecurityActionListener;
@@ -36,6 +38,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -53,19 +56,33 @@ public class RealmsAuthenticator implements Authenticator {
     private final AtomicLong numInvalidation;
     private final Cache<String, Realm> lastSuccessfulAuthCache;
     private final SecurityMetrics<Realm> authenticationMetrics;
+    private final Runnable timingMitigation;
 
-    public RealmsAuthenticator(AtomicLong numInvalidation, Cache<String, Realm> lastSuccessfulAuthCache, MeterRegistry meterRegistry) {
-        this(numInvalidation, lastSuccessfulAuthCache, meterRegistry, System::nanoTime);
+    public RealmsAuthenticator(
+        AtomicLong numInvalidation,
+        Cache<String, Realm> lastSuccessfulAuthCache,
+        MeterRegistry meterRegistry,
+        Hasher timingMitigationHasher
+    ) {
+        this(
+            numInvalidation,
+            lastSuccessfulAuthCache,
+            meterRegistry,
+            timingMitigationHasher != null ? () -> Hasher.verifyForTimingNormalization(timingMitigationHasher) : null,
+            System::nanoTime
+        );
     }
 
     RealmsAuthenticator(
         AtomicLong numInvalidation,
         Cache<String, Realm> lastSuccessfulAuthCache,
         MeterRegistry meterRegistry,
+        Runnable timingMitigation,
         LongSupplier nanoTimeSupplier
     ) {
         this.numInvalidation = numInvalidation;
         this.lastSuccessfulAuthCache = lastSuccessfulAuthCache;
+        this.timingMitigation = timingMitigation;
         this.authenticationMetrics = new SecurityMetrics<>(
             SecurityMetricType.AUTHC_REALMS,
             meterRegistry,
@@ -156,6 +173,7 @@ public class RealmsAuthenticator implements Authenticator {
 
         final AtomicReference<Realm> authenticatedByRef = new AtomicReference<>();
         final AtomicReference<AuthenticationResult<User>> authenticationResultRef = new AtomicReference<>();
+        final AtomicBoolean credentialVerificationPerformed = new AtomicBoolean(false);
 
         final BiConsumer<Realm, ActionListener<User>> realmAuthenticatingConsumer = (realm, userListener) -> {
             if (realm.supports(authenticationToken)) {
@@ -176,8 +194,10 @@ public class RealmsAuthenticator implements Authenticator {
                             authenticationToken.getClass().getSimpleName(),
                             result
                         );
+                        if (result.isCredentialVerificationPerformed()) {
+                            credentialVerificationPerformed.set(true);
+                        }
                         if (result.getStatus() == AuthenticationResult.Status.SUCCESS) {
-                            // user was authenticated, populate the authenticated by information
                             authenticatedByRef.set(realm);
                             authenticationResultRef.set(result);
                             if (lastSuccessfulAuthCache != null && startInvalidation == numInvalidation.get()) {
@@ -185,7 +205,6 @@ public class RealmsAuthenticator implements Authenticator {
                             }
                             userListener.onResponse(result.getValue());
                         } else {
-                            // the user was not authenticated, call this so we can audit the correct event
                             context.getRequest().realmAuthenticationFailed(authenticationToken, realm.name());
                             if (result.getStatus() == AuthenticationResult.Status.TERMINATE) {
                                 final var resultException = result.getException();
@@ -236,6 +255,7 @@ public class RealmsAuthenticator implements Authenticator {
         final IteratingActionListener<User, Realm> authenticatingListener = new IteratingActionListener<>(
             ContextPreservingActionListener.wrapPreservingContext(ActionListener.wrap(user -> {
                 if (user == null) {
+                    performTimingMitigationIfNeeded(authenticationToken, credentialVerificationPerformed);
                     consumeNullUser(context, messages, listener);
                 } else {
                     final AuthenticationResult<User> result = authenticationResultRef.get();
@@ -247,6 +267,7 @@ public class RealmsAuthenticator implements Authenticator {
                 }
             }, e -> {
                 if (e == AuthenticationTerminatedSuccessfullyException.INSTANCE) {
+                    performTimingMitigationIfNeeded(authenticationToken, credentialVerificationPerformed);
                     listener.onFailure(context.getRequest().authenticationFailed(authenticationToken));
                 } else {
                     assert e instanceof AuthenticationTerminatedSuccessfullyException == false : e;
@@ -277,6 +298,20 @@ public class RealmsAuthenticator implements Authenticator {
                 e
             );
             listener.onFailure(context.getRequest().exceptionProcessingRequest(e, authenticationToken));
+        }
+    }
+
+    /**
+     * Performs a sentinel hash verification if no realm performed an expensive credential verification
+     * during the authentication attempt. This normalizes the authentication response timing for
+     * password-based realms.
+     *
+     * Only applies to {@link UsernamePasswordToken} authentication, since other token types
+     * (e.g. JWT, Kerberos) do not involve local password hash verification.
+     */
+    private void performTimingMitigationIfNeeded(AuthenticationToken token, AtomicBoolean credentialVerificationPerformed) {
+        if (timingMitigation != null && token instanceof UsernamePasswordToken && credentialVerificationPerformed.get() == false) {
+            timingMitigation.run();
         }
     }
 

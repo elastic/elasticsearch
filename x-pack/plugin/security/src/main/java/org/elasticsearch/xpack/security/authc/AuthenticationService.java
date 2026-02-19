@@ -25,18 +25,23 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.Realm;
+import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
+import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.EmptyAuthorizationInfo;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -119,7 +124,12 @@ public class AuthenticationService {
             new ServiceAccountAuthenticator(serviceAccountService, nodeName, meterRegistry),
             new OAuth2TokenAuthenticator(tokenService, meterRegistry),
             new ApiKeyAuthenticator(apiKeyService, nodeName, meterRegistry),
-            new RealmsAuthenticator(numInvalidation, lastSuccessfulAuthCache, meterRegistry)
+            new RealmsAuthenticator(
+                numInvalidation,
+                lastSuccessfulAuthCache,
+                meterRegistry,
+                resolveTimingMitigationHasher(settings, realms)
+            )
         );
     }
 
@@ -450,6 +460,22 @@ public class AuthenticationService {
         public String toString() {
             return "rest request uri [" + request.uri() + "]";
         }
+    }
+
+    /**
+     * Returns the {@link Hasher} to use for normalizing authentication response timing on
+     * password-based authentication, or {@code null} if no active realm performs local password hash verification.
+     */
+    @Nullable
+    private static Hasher resolveTimingMitigationHasher(Settings settings, Realms realms) {
+        boolean hasLocalPasswordRealm = realms.getActiveRealms().stream().anyMatch(realm -> {
+            String type = realm.type();
+            if (NativeRealmSettings.TYPE.equals(type) || FileRealmSettings.TYPE.equals(type)) {
+                return true;
+            }
+            return ReservedRealm.TYPE.equals(type) && XPackSettings.RESERVED_REALM_ENABLED_SETTING.get(settings);
+        });
+        return hasLocalPasswordRealm ? Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(settings)) : null;
     }
 
     public static void addSettings(List<Setting<?>> settings) {

@@ -26,7 +26,7 @@ import java.util.Objects;
  * </ol>
  */
 public final class AuthenticationResult<T> {
-    private static final AuthenticationResult<?> NOT_HANDLED = new AuthenticationResult<>(Status.CONTINUE, null, null, null, null);
+    private static final AuthenticationResult<?> NOT_HANDLED = new AuthenticationResult<>(Status.CONTINUE, null, null, null, null, false);
 
     @SuppressWarnings("rawtypes")
     public static final ThreadContextTransient<AuthenticationResult> THREAD_CONTEXT_VALUE = ThreadContextTransient.transientValue(
@@ -62,19 +62,22 @@ public final class AuthenticationResult<T> {
     private final String message;
     private final Exception exception;
     private final Map<String, Object> metadata;
+    private final boolean credentialVerificationPerformed;
 
     private AuthenticationResult(
         Status status,
         @Nullable T value,
         @Nullable String message,
         @Nullable Exception exception,
-        @Nullable Map<String, Object> metadata
+        @Nullable Map<String, Object> metadata,
+        boolean credentialVerificationPerformed
     ) {
         this.status = status;
         this.value = value;
         this.message = message;
         this.exception = exception;
         this.metadata = metadata == null ? Collections.emptyMap() : Collections.unmodifiableMap(metadata);
+        this.credentialVerificationPerformed = credentialVerificationPerformed;
     }
 
     public Status getStatus() {
@@ -98,6 +101,15 @@ public final class AuthenticationResult<T> {
     }
 
     /**
+     * Returns {@code true} if an expensive credential verification (e.g. bcrypt or PBKDF2 hash comparison)
+     * was performed as part of producing this result. Used by the authentication service to normalize
+     * authentication response timing for password-based realms.
+     */
+    public boolean isCredentialVerificationPerformed() {
+        return credentialVerificationPerformed;
+    }
+
+    /**
      * Creates an {@code AuthenticationResult} that indicates that the supplied {@link User}
      * has been successfully authenticated.
      * <p>
@@ -118,7 +130,7 @@ public final class AuthenticationResult<T> {
      */
     public static <T> AuthenticationResult<T> success(T value, @Nullable Map<String, Object> metadata) {
         Objects.requireNonNull(value);
-        return new AuthenticationResult<>(Status.SUCCESS, value, null, null, metadata);
+        return new AuthenticationResult<>(Status.SUCCESS, value, null, null, metadata, true);
     }
 
     /**
@@ -146,7 +158,22 @@ public final class AuthenticationResult<T> {
      */
     public static <T> AuthenticationResult<T> unsuccessful(String message, @Nullable Exception cause) {
         Objects.requireNonNull(message);
-        return new AuthenticationResult<>(Status.CONTINUE, null, message, cause, null);
+        return new AuthenticationResult<>(Status.CONTINUE, null, message, cause, null, false);
+    }
+
+    /**
+     * Creates an unsuccessful {@code AuthenticationResult} that also records whether an expensive
+     * credential verification was performed. This is used to normalize authentication response timing.
+     *
+     * @see #unsuccessful(String, Exception)
+     */
+    public static <T> AuthenticationResult<T> unsuccessful(
+        String message,
+        @Nullable Exception cause,
+        boolean credentialVerificationPerformed
+    ) {
+        Objects.requireNonNull(message);
+        return new AuthenticationResult<>(Status.CONTINUE, null, message, cause, null, credentialVerificationPerformed);
     }
 
     /**
@@ -160,7 +187,21 @@ public final class AuthenticationResult<T> {
      * </p>
      */
     public static <T> AuthenticationResult<T> terminate(String message, @Nullable Exception cause) {
-        return new AuthenticationResult<>(Status.TERMINATE, null, message, cause, null);
+        return new AuthenticationResult<>(Status.TERMINATE, null, message, cause, null, false);
+    }
+
+    /**
+     * Creates a terminating {@code AuthenticationResult} that also records whether an expensive
+     * credential verification was performed. This is used to normalize authentication response timing.
+     *
+     * @see #terminate(String, Exception)
+     */
+    public static <T> AuthenticationResult<T> terminate(
+        String message,
+        @Nullable Exception cause,
+        boolean credentialVerificationPerformed
+    ) {
+        return new AuthenticationResult<>(Status.TERMINATE, null, message, cause, null, credentialVerificationPerformed);
     }
 
     /**
@@ -174,7 +215,7 @@ public final class AuthenticationResult<T> {
      * </p>
      */
     public static <T> AuthenticationResult<T> terminate(String message) {
-        return terminate(message, null);
+        return terminate(message, (Exception) null);
     }
 
     public boolean isAuthenticated() {
@@ -192,6 +233,8 @@ public final class AuthenticationResult<T> {
             + message
             + ", exception="
             + exception
+            + ", credentialVerificationPerformed="
+            + credentialVerificationPerformed
             + '}';
     }
 

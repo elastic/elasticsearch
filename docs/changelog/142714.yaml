@@ -1,0 +1,5 @@
+area: Authentication
+issues: []
+pr: 142714
+summary: Normalize authentication response timing for password realms
+type: enhancement

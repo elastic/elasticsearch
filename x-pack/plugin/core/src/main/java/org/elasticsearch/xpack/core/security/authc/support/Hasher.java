@@ -22,6 +22,7 @@ import java.util.Arrays;
 import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
 import javax.crypto.SecretKeyFactory;
@@ -587,6 +588,19 @@ public enum Hasher {
     public static boolean verifyHash(SecureString data, char[] hash) {
         final Hasher hasher = resolveFromHash(hash);
         return hasher.verify(data, hash);
+    }
+
+    private static final SecureString SENTINEL_PASSWORD = new SecureString("sentinel-password-normalization".toCharArray());
+    private static final ConcurrentHashMap<Hasher, char[]> SENTINEL_HASHES = new ConcurrentHashMap<>();
+
+    /**
+     * Performs a hash verification against a pre-computed sentinel value for the given hasher.
+     * This is used to normalize authentication response timing for password-based realms.
+     * The sentinel hash is lazily computed and cached per hasher.
+     */
+    public static void verifyForTimingNormalization(Hasher hasher) {
+        char[] sentinelHash = SENTINEL_HASHES.computeIfAbsent(hasher, h -> h.hash(SENTINEL_PASSWORD));
+        hasher.verify(SENTINEL_PASSWORD, sentinelHash);
     }
 
     private static char[] getPbkdf2Hash(SecureString data, int cost, String prefix) {

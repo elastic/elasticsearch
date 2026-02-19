@@ -86,7 +86,7 @@ public class FileUserPasswdStore {
             return AuthenticationResult.notHandled();
         }
         if (Hasher.verifyHash(password, hash) == false) {
-            return AuthenticationResult.unsuccessful("Password authentication failed for " + username, null);
+            return AuthenticationResult.unsuccessful("Password authentication failed for " + username, null, true);
         }
         return AuthenticationResult.success(user.get());
     }

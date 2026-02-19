@@ -15,12 +15,7 @@ import java.util.Objects;
 
 public class RegisteredDomainSerializationTests extends CompoundOutputEvalSerializationTests<RegisteredDomain> {
     @Override
-    protected RegisteredDomain createInitialInstance(
-        Source source,
-        LogicalPlan child,
-        Expression input,
-        Attribute outputFieldPrefix
-    ) {
+    protected RegisteredDomain createInitialInstance(Source source, LogicalPlan child, Expression input, Attribute outputFieldPrefix) {
         return RegisteredDomain.createInitialInstance(source, child, input, Objects.requireNonNull(outputFieldPrefix));
     }
 }

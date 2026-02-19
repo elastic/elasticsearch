@@ -42,12 +42,7 @@ public class RegisteredDomain extends CompoundOutputEval<RegisteredDomain> {
      * @param outputFieldPrefix the prefix to be used for the output field names
      * @return the logical plan
      */
-    public static RegisteredDomain createInitialInstance(
-        Source source,
-        LogicalPlan child,
-        Expression input,
-        Attribute outputFieldPrefix
-    ) {
+    public static RegisteredDomain createInitialInstance(Source source, LogicalPlan child, Expression input, Attribute outputFieldPrefix) {
         LinkedHashMap<String, Class<?>> functionOutputFields = RegisteredDomainFunctionBridge.getAllOutputFields();
         List<String> outputFileNames = functionOutputFields.keySet().stream().toList();
         List<Attribute> outputFieldAttributes = computeOutputAttributes(functionOutputFields, outputFieldPrefix.name(), source);
@@ -104,9 +99,7 @@ public class RegisteredDomain extends CompoundOutputEval<RegisteredDomain> {
         if (input.resolved()) {
             DataType type = input.dataType();
             if (DataType.isString(type) == false) {
-                failures.add(
-                    fail(input, "Input for REGISTERED_DOMAIN must be of type [string] but is [{}]", type.typeName())
-                );
+                failures.add(fail(input, "Input for REGISTERED_DOMAIN must be of type [string] but is [{}]", type.typeName()));
             }
         }
     }

@@ -38,10 +38,6 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         super(in, dimensions, dataLength, bulkSize);
     }
 
-    MSDibitToInt4ESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, boolean allowAnyInputType) {
-        super(in, dimensions, dataLength, bulkSize, allowAnyInputType);
-    }
-
     @Override
     public long quantizeScore(byte[] q) throws IOException {
         assert q.length == length * 2;

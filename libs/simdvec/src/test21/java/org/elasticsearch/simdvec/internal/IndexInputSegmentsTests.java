@@ -74,12 +74,12 @@ public class IndexInputSegmentsTests extends ESTestCase {
 
     // -- constructor validation tests -----------------------------------------
 
-    public void testES92ConstructorRejectsPlainInput() throws Exception {
+    public void testES92ConstructorAcceptsPlainInput() throws Exception {
         byte[] data = randomByteArrayOfLength(256);
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                expectThrows(IllegalArgumentException.class, () -> new MemorySegmentES92Int7VectorsScorer(in, 64, 16));
+                new MemorySegmentES92Int7VectorsScorer(in, 64, 16);
             }
         }
     }
@@ -105,12 +105,13 @@ public class IndexInputSegmentsTests extends ESTestCase {
         }
     }
 
-    public void testES92TestConstructorAcceptsPlainInput() throws Exception {
+    public void testES92ConstructorRejectsUnwrappedFilterIndexInput() throws Exception {
         byte[] data = randomByteArrayOfLength(256);
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
-            try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                new MemorySegmentES92Int7VectorsScorer(in, 64, 16, true);
+            try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
+                IndexInput wrapped = new FilterIndexInput("plain-wrapper", rawIn) {};
+                expectThrows(IllegalArgumentException.class, () -> new MemorySegmentES92Int7VectorsScorer(wrapped, 64, 16));
             }
         }
     }

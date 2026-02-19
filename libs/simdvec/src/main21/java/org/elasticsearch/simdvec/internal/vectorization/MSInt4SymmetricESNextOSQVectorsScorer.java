@@ -38,10 +38,6 @@ final class MSInt4SymmetricESNextOSQVectorsScorer extends MemorySegmentESNextOSQ
         super(in, dimensions, dataLength, bulkSize);
     }
 
-    MSInt4SymmetricESNextOSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, boolean allowAnyInputType) {
-        super(in, dimensions, dataLength, bulkSize, allowAnyInputType);
-    }
-
     @Override
     public long quantizeScore(byte[] q) throws IOException {
         assert q.length == length;

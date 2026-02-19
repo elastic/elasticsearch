@@ -20,15 +20,6 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         super(in, dimensions, bulkSize);
     }
 
-    /**
-     * Creates a scorer that accepts any IndexInput type (for testing).
-     * The heap-copy fallback in {@link IndexInputSegments#withSlice} will
-     * be used when the input is not a recognised direct-access type.
-     */
-    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize, boolean allowAnyInputType) {
-        super(in, dimensions, bulkSize, allowAnyInputType);
-    }
-
     @Override
     public boolean hasNativeAccess() {
         return false; // This class does not support native access

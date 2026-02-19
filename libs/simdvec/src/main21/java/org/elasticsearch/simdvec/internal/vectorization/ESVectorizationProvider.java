@@ -42,8 +42,11 @@ public abstract class ESVectorizationProvider {
 
     /**
      * Create a new {@link ESNextOSQVectorsScorer} for the given {@link IndexInput}.
-     * The input must be a {@code MemorySegmentAccessInput} or {@code DirectAccessInput};
-     * otherwise an {@link IllegalArgumentException} may be thrown.
+     * The input should be unwrapped before calling this method. If the input is
+     * still a {@code FilterIndexInput} that does not implement
+     * {@code MemorySegmentAccessInput} or {@code DirectAccessInput}, an
+     * {@link IllegalArgumentException} is thrown. Non-wrapper inputs (e.g.
+     * {@code ByteBuffersIndexInput}) are accepted and use a heap-copy fallback.
      */
     public abstract ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
         IndexInput input,
@@ -56,37 +59,9 @@ public abstract class ESVectorizationProvider {
 
     /**
      * Create a new {@link ES92Int7VectorsScorer} for the given {@link IndexInput}.
-     * The input must be a {@code MemorySegmentAccessInput} or {@code DirectAccessInput};
-     * otherwise an {@link IllegalArgumentException} may be thrown.
+     * See {@link #newESNextOSQVectorsScorer} for input type requirements.
      */
     public abstract ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException;
-
-    /**
-     * Testing-only variant of {@link #newESNextOSQVectorsScorer} that accepts
-     * any {@link IndexInput} type, bypassing the requirement for
-     * {@code MemorySegmentAccessInput} or {@code DirectAccessInput}.
-     * The scorer will fall back to a heap copy when neither interface is
-     * available. Do not use in production code.
-     */
-    public ESNextOSQVectorsScorer newESNextOSQVectorsScorerForTesting(
-        IndexInput input,
-        byte queryBits,
-        byte indexBits,
-        int dimension,
-        int dataLength,
-        int bulkSize
-    ) throws IOException {
-        return newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
-    }
-
-    /**
-     * Testing-only variant of {@link #newES92Int7VectorsScorer} that accepts
-     * any {@link IndexInput} type. Do not use in production code.
-     * See {@link #newESNextOSQVectorsScorerForTesting}.
-     */
-    public ES92Int7VectorsScorer newES92Int7VectorsScorerForTesting(IndexInput input, int dimension, int bulkSize) throws IOException {
-        return newES92Int7VectorsScorer(input, dimension, bulkSize);
-    }
 
     // visible for tests
     static ESVectorizationProvider lookup(boolean testMode) {

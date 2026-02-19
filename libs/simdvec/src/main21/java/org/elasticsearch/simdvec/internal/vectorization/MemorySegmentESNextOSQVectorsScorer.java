@@ -15,6 +15,7 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
@@ -43,32 +44,13 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         int dataLength,
         int bulkSize
     ) {
-        this(in, queryBits, indexBits, dimensions, dataLength, bulkSize, false);
-    }
-
-    /**
-     * Creates a new scorer. When {@code allowAnyInputType} is false (the
-     * default), the index input must be a {@link MemorySegmentAccessInput}
-     * or {@link DirectAccessInput}; otherwise an
-     * {@link IllegalArgumentException} is thrown. Pass {@code true} to
-     * bypass this check (for testing with plain index inputs).
-     */
-    MemorySegmentESNextOSQVectorsScorer(
-        IndexInput in,
-        byte queryBits,
-        byte indexBits,
-        int dimensions,
-        int dataLength,
-        int bulkSize,
-        boolean allowAnyInputType
-    ) {
         super(in, queryBits, indexBits, dimensions, dataLength);
         if (queryBits == 4 && indexBits == 1) {
-            this.scorer = new MSBitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, allowAnyInputType);
+            this.scorer = new MSBitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
         } else if (queryBits == 4 && indexBits == 4) {
-            this.scorer = new MSInt4SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, allowAnyInputType);
+            this.scorer = new MSInt4SymmetricESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
         } else if (queryBits == 4 && indexBits == 2) {
-            this.scorer = new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize, allowAnyInputType);
+            this.scorer = new MSDibitToInt4ESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
         } else {
             throw new IllegalArgumentException("Only asymmetric 4-bit query and 1-bit index supported");
         }
@@ -215,16 +197,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
          * @param bulkSize the number of vectors per bulk
          */
         MemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
-            this(in, dimensions, dataLength, bulkSize, false);
-        }
-
-        /**
-         * @param allowAnyInputType if true, accepts any IndexInput type
-         *        (for testing); otherwise requires MemorySegmentAccessInput
-         *        or DirectAccessInput
-         */
-        MemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize, boolean allowAnyInputType) {
-            checkInputType(in, allowAnyInputType);
+            checkInputType(in);
             this.in = in;
             this.length = dataLength;
             this.dimensions = dimensions;
@@ -334,15 +307,13 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         }
     }
 
-    private static void checkInputType(IndexInput in, boolean allowAnyInputType) {
-        if (allowAnyInputType) {
-            return;
-        }
-        if ((in instanceof MemorySegmentAccessInput || in instanceof DirectAccessInput) == false) {
+    private static void checkInputType(IndexInput in) {
+        if (in instanceof FilterIndexInput && (in instanceof MemorySegmentAccessInput || in instanceof DirectAccessInput) == false) {
             throw new IllegalArgumentException(
-                "Expected MemorySegmentAccessInput or DirectAccessInput but got "
+                "IndexInput is a FilterIndexInput ("
                     + in.getClass().getName()
-                    + ". Ensure the IndexInput is properly unwrapped before constructing the scorer."
+                    + ") that does not implement MemorySegmentAccessInput or DirectAccessInput. "
+                    + "Ensure the wrapper implements DirectAccessInput or is unwrapped before constructing the scorer."
             );
         }
     }

@@ -18,6 +18,7 @@ import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
@@ -62,17 +63,8 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
     }
 
     protected MemorySegmentES92PanamaInt7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
-        this(in, dimensions, bulkSize, false);
-    }
-
-    /**
-     * @param allowAnyInputType if true, accepts any IndexInput type
-     *        (for testing); otherwise requires MemorySegmentAccessInput
-     *        or DirectAccessInput
-     */
-    protected MemorySegmentES92PanamaInt7VectorsScorer(IndexInput in, int dimensions, int bulkSize, boolean allowAnyInputType) {
         super(in, dimensions, bulkSize);
-        checkInputType(in, allowAnyInputType);
+        checkInputType(in);
     }
 
     protected long panamaInt7DotProduct(byte[] q) throws IOException {
@@ -376,15 +368,13 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         }
     }
 
-    private static void checkInputType(IndexInput in, boolean allowAnyInputType) {
-        if (allowAnyInputType) {
-            return;
-        }
-        if ((in instanceof MemorySegmentAccessInput || in instanceof DirectAccessInput) == false) {
+    private static void checkInputType(IndexInput in) {
+        if (in instanceof FilterIndexInput && (in instanceof MemorySegmentAccessInput || in instanceof DirectAccessInput) == false) {
             throw new IllegalArgumentException(
-                "Expected MemorySegmentAccessInput or DirectAccessInput but got "
+                "IndexInput is a FilterIndexInput ("
                     + in.getClass().getName()
-                    + ". Ensure the IndexInput is properly unwrapped before constructing the scorer."
+                    + ") that does not implement MemorySegmentAccessInput or DirectAccessInput. "
+                    + "Ensure the wrapper implements DirectAccessInput or is unwrapped before constructing the scorer."
             );
         }
     }

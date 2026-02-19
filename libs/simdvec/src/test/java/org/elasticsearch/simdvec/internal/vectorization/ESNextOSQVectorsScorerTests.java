@@ -91,7 +91,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     length,
                     ESNextOSQVectorsScorer.BULK_SIZE
                 );
-                final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorerForTesting(
+                final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
                     in,
                     queryBits,
                     indexBits,
@@ -184,7 +184,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         length,
                         ESNextOSQVectorsScorer.BULK_SIZE
                     );
-                    final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorerForTesting(
+                    final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
                         in,
                         queryBits,
                         indexBits,
@@ -314,7 +314,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         length,
                         ESNextOSQVectorsScorer.BULK_SIZE
                     );
-                    final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorerForTesting(
+                    final var panamaScorer = maybePanamaProvider().newESNextOSQVectorsScorer(
                         in,
                         queryBits,
                         indexBits,

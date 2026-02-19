@@ -43,42 +43,10 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
         int dataLength,
         int bulkSize
     ) {
-        return newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, false);
-    }
-
-    @Override
-    public ESNextOSQVectorsScorer newESNextOSQVectorsScorerForTesting(
-        IndexInput input,
-        byte queryBits,
-        byte indexBits,
-        int dimension,
-        int dataLength,
-        int bulkSize
-    ) {
-        return newESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, true);
-    }
-
-    private ESNextOSQVectorsScorer newESNextOSQVectorsScorer(
-        IndexInput input,
-        byte queryBits,
-        byte indexBits,
-        int dimension,
-        int dataLength,
-        int bulkSize,
-        boolean allowAnyInputType
-    ) {
         if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS && queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
-            return new MemorySegmentESNextOSQVectorsScorer(
-                unwrappedInput,
-                queryBits,
-                indexBits,
-                dimension,
-                dataLength,
-                bulkSize,
-                allowAnyInputType
-            );
+            return new MemorySegmentESNextOSQVectorsScorer(unwrappedInput, queryBits, indexBits, dimension, dataLength, bulkSize);
         }
         return new ESNextOSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize);
     }
@@ -98,17 +66,8 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
 
     @Override
     public ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize) {
-        return newES92Int7VectorsScorer(input, dimension, bulkSize, false);
-    }
-
-    @Override
-    public ES92Int7VectorsScorer newES92Int7VectorsScorerForTesting(IndexInput input, int dimension, int bulkSize) {
-        return newES92Int7VectorsScorer(input, dimension, bulkSize, true);
-    }
-
-    private ES92Int7VectorsScorer newES92Int7VectorsScorer(IndexInput input, int dimension, int bulkSize, boolean allowAnyInputType) {
         IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
         unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
-        return new MemorySegmentES92Int7VectorsScorer(unwrappedInput, dimension, bulkSize, allowAnyInputType);
+        return new MemorySegmentES92Int7VectorsScorer(unwrappedInput, dimension, bulkSize);
     }
 }

@@ -75,9 +75,12 @@ public class JsonExtract extends EsqlScalarFunction {
             Returns the extracted value as a keyword string. String values are returned without
             surrounding quotes, numbers and booleans are returned as their string representation,
             and objects or arrays are returned as JSON strings. Returns `null` if either parameter
-            is `null` or if the extracted JSON value is `null`. Returns `null` and emits a warning
-            if the input is not valid JSON, the path does not exist, the array index is out of bounds,
-            or the path attempts to traverse through a non-object/non-array value.""",
+            is `null` or if the extracted JSON value is `null`. A JSON `null` inside an array
+            (e.g., `[1, null, 3]`) is also returned as `null` without a warning.
+            When duplicate keys exist in a JSON object, the first matching value is returned.
+            Returns `null` and emits a warning if the input is not valid JSON, the path does not
+            exist, the array index is out of bounds, or the path attempts to traverse through a
+            non-object/non-array value.""",
         examples = {
             @Example(file = "json_extract", tag = "json_extract"),
             @Example(file = "json_extract", tag = "json_extract_nested", description = "Extract a nested value using dot-notation:") }

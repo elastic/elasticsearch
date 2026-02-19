@@ -708,11 +708,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             long epochBefore = cache.epoch();
             cache.get(generateCacheKey(), fileLength, 0);
             taskQueue.runAllRunnableTasks();
-            assertThat(
-                "no decay when freelist is non-empty even though freq0 is below threshold",
-                cache.epoch(),
-                equalTo(epochBefore)
-            );
+            assertThat("no decay when freelist is non-empty even though freq0 is below threshold", cache.epoch(), equalTo(epochBefore));
         }
     }
 

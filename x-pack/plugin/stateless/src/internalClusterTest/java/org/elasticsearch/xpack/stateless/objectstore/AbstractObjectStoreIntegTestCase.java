@@ -50,10 +50,6 @@ import org.elasticsearch.snapshots.UpdateIndexShardSnapshotStatusRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
-import org.elasticsearch.xpack.stateless.StatelessPlugin;
-import org.elasticsearch.xpack.stateless.metering.action.GetBlobStoreStatsNodeResponse;
-import org.elasticsearch.xpack.stateless.metering.action.GetBlobStoreStatsNodesRequest;
-import org.elasticsearch.xpack.stateless.metering.action.GetBlobStoreStatsNodesResponse;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -154,16 +150,11 @@ public abstract class AbstractObjectStoreIntegTestCase extends AbstractStateless
             .get();
         assertThat(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "backup", "snapshot").get().isAcknowledged(), is(true));
 
-        GetBlobStoreStatsNodesResponse getBlobStoreStatsNodesResponse = client().execute(
-            StatelessPlugin.GET_BLOB_STORE_STATS_ACTION,
-            new GetBlobStoreStatsNodesRequest()
-        ).actionGet();
+        final List<RepositoryStats> repositoryStats = getRepositoryStats();
 
-        final List<GetBlobStoreStatsNodeResponse> nodeResponses = getBlobStoreStatsNodesResponse.getNodes();
-
-        assertEquals(1, nodeResponses.size());
-        assertRepositoryStats(nodeResponses.get(0).getRepositoryStats(), withRandomCrud, operationPurpose);
-        assertObsRepositoryStatsSnapshots(nodeResponses.get(0).getObsRepositoryStats());
+        assertEquals(1, repositoryStats.size());
+        assertRepositoryStats(repositoryStats.get(0), withRandomCrud, operationPurpose);
+        assertObsRepositoryStatsSnapshots(getObsRepositoryStats().get(0));
     }
 
     protected abstract void assertRepositoryStats(RepositoryStats repositoryStats, boolean withRandomCrud, OperationPurpose randomPurpose);

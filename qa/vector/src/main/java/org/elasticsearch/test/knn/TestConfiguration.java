@@ -283,7 +283,7 @@ record TestConfiguration(
         private boolean reindex = false;
         private boolean forceMerge = false;
         private int forceMergeMaxNumSegments = 1;
-        private VectorSimilarityFunction vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
+        private VectorSimilarityFunction vectorSpace;   // can be specified in config file, dataset, or the default is set in build()
         private Integer quantizeBits = null;
         private KnnIndexTester.VectorEncoding vectorEncoding = KnnIndexTester.VectorEncoding.FLOAT32;
         private int dimensions;
@@ -496,6 +496,9 @@ record TestConfiguration(
         }
 
         private void resolveDataset() throws Exception {
+            /*
+             * Currently, datasets only support fvec files with the dimensions stored in the file.
+             */
             Map<String, Object> datasets;
             try (
                 InputStream ds = TestConfiguration.class.getResourceAsStream("datasets.json");
@@ -526,7 +529,9 @@ record TestConfiguration(
             docVectors = data;
             queryVectors = queries;
             setDimensions(-1);  // dataset dimensions is documentation, the tester reads the dimensions from the fvec files
-            setVectorSpace(vectorSpace);
+            if (this.vectorSpace == null) {
+                setVectorSpace(vectorSpace);
+            }
         }
 
         private static List<Path> downloadFromGoogleCloud(List<String> files, Path dest) throws Exception {
@@ -597,7 +602,12 @@ record TestConfiguration(
 
         public TestConfiguration build() throws Exception {
             if (dataset != null) {
+                // this fills in various options from the dataset
                 resolveDataset();
+            }
+            if (vectorSpace == null) {
+                // specify the default here, so it can be set by the config file or dataset first
+                vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
             }
 
             if (docVectors == null) {

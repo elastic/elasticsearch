@@ -843,10 +843,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      * @param positionNarrowing mutable map from argument position to narrowed type; remove entries to prevent narrowing
      * @param data the original test case parameters for context
      */
-    protected void filterCoAndContraVarianceNarrowing(
-        Map<Integer, DataType> positionNarrowing,
-        List<TestCaseSupplier.TypedData> data
-    ) {}
+    protected void filterCoAndContraVarianceNarrowing(Map<Integer, DataType> positionNarrowing, List<TestCaseSupplier.TypedData> data) {}
 
     /**
      * Shared implementation: builds original and narrowed expressions, then asserts that the narrowed expression
@@ -859,10 +856,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("no parameters can be narrowed after filtering", positionNarrowing.isEmpty() == false);
 
         Expression original = build(testCase.getSource(), data.stream().map(TestCaseSupplier.TypedData::asReference).toList());
-        assertTrue(
-            "original expression should resolve, but got: " + original.typeResolved().message(),
-            original.typeResolved().resolved()
-        );
+        assertTrue("original expression should resolve, but got: " + original.typeResolved().message(), original.typeResolved().resolved());
         DataType originalOutputType = original.dataType();
 
         List<Expression> args = new ArrayList<>(data.size());

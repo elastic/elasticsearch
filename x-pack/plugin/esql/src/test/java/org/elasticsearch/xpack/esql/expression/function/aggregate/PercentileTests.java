@@ -128,10 +128,7 @@ public class PercentileTests extends AbstractAggregationTestCase {
     }
 
     @Override
-    protected void filterCoAndContraVarianceNarrowing(
-        Map<Integer, DataType> positionNarrowing,
-        List<TestCaseSupplier.TypedData> data
-    ) {
+    protected void filterCoAndContraVarianceNarrowing(Map<Integer, DataType> positionNarrowing, List<TestCaseSupplier.TypedData> data) {
         // The percentile argument must be a non-NULL typed literal.
         positionNarrowing.entrySet().removeIf(e -> e.getKey() == 1 && e.getValue() == DataType.NULL);
     }

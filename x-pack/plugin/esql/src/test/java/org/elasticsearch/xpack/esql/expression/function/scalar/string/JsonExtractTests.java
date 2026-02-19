@@ -45,7 +45,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
                         types(jsonType, pathType),
                         () -> new TestCaseSupplier.TestCase(
                             List.of(
-                                new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), jsonType, "jsonInput"),
+                                new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), jsonType, "str"),
                                 new TestCaseSupplier.TypedData(new BytesRef("name"), pathType, "path")
                             ),
                             expectedToString(),
@@ -83,7 +83,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier("missing path", types(DataType.KEYWORD, DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), DataType.KEYWORD, "jsonInput"),
+                    new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), DataType.KEYWORD, "str"),
                     new TestCaseSupplier.TypedData(new BytesRef("nonexistent"), DataType.KEYWORD, "path")
                 ),
                 expectedToString(),
@@ -100,7 +100,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier("array out of bounds", types(DataType.KEYWORD, DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef("{\"tags\":[\"a\",\"b\"]}"), DataType.KEYWORD, "jsonInput"),
+                    new TestCaseSupplier.TypedData(new BytesRef("{\"tags\":[\"a\",\"b\"]}"), DataType.KEYWORD, "str"),
                     new TestCaseSupplier.TypedData(new BytesRef("tags[5]"), DataType.KEYWORD, "path")
                 ),
                 expectedToString(),
@@ -114,7 +114,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier("non-object traversal", types(DataType.KEYWORD, DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), DataType.KEYWORD, "jsonInput"),
+                    new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), DataType.KEYWORD, "str"),
                     new TestCaseSupplier.TypedData(new BytesRef("name.nested"), DataType.KEYWORD, "path")
                 ),
                 expectedToString(),
@@ -140,7 +140,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier("invalid json", types(DataType.KEYWORD, DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef("not valid json"), DataType.KEYWORD, "jsonInput"),
+                    new TestCaseSupplier.TypedData(new BytesRef("not valid json"), DataType.KEYWORD, "str"),
                     new TestCaseSupplier.TypedData(new BytesRef("field"), DataType.KEYWORD, "path")
                 ),
                 expectedToString(),
@@ -158,10 +158,10 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
                     types(jsonType, DataType.KEYWORD),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), jsonType, "jsonInput"),
+                            new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), jsonType, "str"),
                             new TestCaseSupplier.TypedData(new BytesRef("name"), DataType.KEYWORD, "path").forceLiteral()
                         ),
-                        "JsonExtractConstantEvaluator[jsonInput=Attribute[channel=0], path=name]",
+                        "JsonExtractConstantEvaluator[str=Attribute[channel=0], path=name]",
                         DataType.KEYWORD,
                         equalTo(new BytesRef("Alice"))
                     )
@@ -197,10 +197,10 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier("constant missing path", types(DataType.KEYWORD, DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), DataType.KEYWORD, "jsonInput"),
+                    new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), DataType.KEYWORD, "str"),
                     new TestCaseSupplier.TypedData(new BytesRef("nonexistent"), DataType.KEYWORD, "path").forceLiteral()
                 ),
-                "JsonExtractConstantEvaluator[jsonInput=Attribute[channel=0], path=nonexistent]",
+                "JsonExtractConstantEvaluator[str=Attribute[channel=0], path=nonexistent]",
                 DataType.KEYWORD,
                 nullValue()
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
@@ -211,10 +211,10 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier("constant array oob", types(DataType.KEYWORD, DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef("{\"tags\":[\"a\",\"b\"]}"), DataType.KEYWORD, "jsonInput"),
+                    new TestCaseSupplier.TypedData(new BytesRef("{\"tags\":[\"a\",\"b\"]}"), DataType.KEYWORD, "str"),
                     new TestCaseSupplier.TypedData(new BytesRef("tags[5]"), DataType.KEYWORD, "path").forceLiteral()
                 ),
-                "JsonExtractConstantEvaluator[jsonInput=Attribute[channel=0], path=tags[5]]",
+                "JsonExtractConstantEvaluator[str=Attribute[channel=0], path=tags[5]]",
                 DataType.KEYWORD,
                 nullValue()
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
@@ -225,10 +225,10 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         suppliers.add(new TestCaseSupplier("constant invalid json", types(DataType.KEYWORD, DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef("not valid json"), DataType.KEYWORD, "jsonInput"),
+                    new TestCaseSupplier.TypedData(new BytesRef("not valid json"), DataType.KEYWORD, "str"),
                     new TestCaseSupplier.TypedData(new BytesRef("field"), DataType.KEYWORD, "path").forceLiteral()
                 ),
-                "JsonExtractConstantEvaluator[jsonInput=Attribute[channel=0], path=field]",
+                "JsonExtractConstantEvaluator[str=Attribute[channel=0], path=field]",
                 DataType.KEYWORD,
                 nullValue()
             ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
@@ -254,7 +254,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
                     types(DataType.SOURCE, pathType),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), DataType.SOURCE, "jsonInput"),
+                            new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), DataType.SOURCE, "str"),
                             new TestCaseSupplier.TypedData(new BytesRef("name"), pathType, "path")
                         ),
                         expectedToString(),
@@ -278,7 +278,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         return new TestCaseSupplier(name, types(DataType.KEYWORD, DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(json), DataType.KEYWORD, "jsonInput"),
+                    new TestCaseSupplier.TypedData(new BytesRef(json), DataType.KEYWORD, "str"),
                     new TestCaseSupplier.TypedData(new BytesRef(path), DataType.KEYWORD, "path")
                 ),
                 expectedToString(),
@@ -292,10 +292,10 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         return new TestCaseSupplier(name, types(DataType.KEYWORD, DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef(json), DataType.KEYWORD, "jsonInput"),
+                    new TestCaseSupplier.TypedData(new BytesRef(json), DataType.KEYWORD, "str"),
                     new TestCaseSupplier.TypedData(new BytesRef(path), DataType.KEYWORD, "path").forceLiteral()
                 ),
-                "JsonExtractConstantEvaluator[jsonInput=Attribute[channel=0], path=" + path + "]",
+                "JsonExtractConstantEvaluator[str=Attribute[channel=0], path=" + path + "]",
                 DataType.KEYWORD,
                 expectedMatcher
             );
@@ -303,7 +303,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
     }
 
     private static String expectedToString() {
-        return "JsonExtractEvaluator[jsonInput=Attribute[channel=0], path=Attribute[channel=1]]";
+        return "JsonExtractEvaluator[str=Attribute[channel=0], path=Attribute[channel=1]]";
     }
 
     private static List<DataType> types(DataType firstType, DataType secondType) {

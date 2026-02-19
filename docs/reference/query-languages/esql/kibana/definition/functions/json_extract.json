@@ -7,7 +7,7 @@
     {
       "params" : [
         {
-          "name" : "json_input",
+          "name" : "string",
           "type" : "_source",
           "optional" : false,
           "description" : "A string containing valid JSON, or the `_source` field. If `null`, the function returns `null`."
@@ -25,7 +25,7 @@
     {
       "params" : [
         {
-          "name" : "json_input",
+          "name" : "string",
           "type" : "_source",
           "optional" : false,
           "description" : "A string containing valid JSON, or the `_source` field. If `null`, the function returns `null`."
@@ -43,7 +43,7 @@
     {
       "params" : [
         {
-          "name" : "json_input",
+          "name" : "string",
           "type" : "keyword",
           "optional" : false,
           "description" : "A string containing valid JSON, or the `_source` field. If `null`, the function returns `null`."
@@ -61,7 +61,7 @@
     {
       "params" : [
         {
-          "name" : "json_input",
+          "name" : "string",
           "type" : "keyword",
           "optional" : false,
           "description" : "A string containing valid JSON, or the `_source` field. If `null`, the function returns `null`."
@@ -79,7 +79,7 @@
     {
       "params" : [
         {
-          "name" : "json_input",
+          "name" : "string",
           "type" : "text",
           "optional" : false,
           "description" : "A string containing valid JSON, or the `_source` field. If `null`, the function returns `null`."
@@ -97,7 +97,7 @@
     {
       "params" : [
         {
-          "name" : "json_input",
+          "name" : "string",
           "type" : "text",
           "optional" : false,
           "description" : "A string containing valid JSON, or the `_source` field. If `null`, the function returns `null`."

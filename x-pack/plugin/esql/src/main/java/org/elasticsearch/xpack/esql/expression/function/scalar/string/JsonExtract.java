@@ -63,7 +63,7 @@ public class JsonExtract extends EsqlScalarFunction {
         JsonExtract::new
     );
 
-    private final Expression jsonInput;
+    private final Expression str;
     private final Expression path;
 
     @FunctionInfo(
@@ -98,10 +98,10 @@ public class JsonExtract extends EsqlScalarFunction {
     public JsonExtract(
         Source source,
         @Param(
-            name = "json_input",
+            name = "string",
             type = { "keyword", "text", "_source" },
             description = "A string containing valid JSON, or the `_source` field. If `null`, the function returns `null`."
-        ) Expression jsonInput,
+        ) Expression str,
         @Param(
             name = "path",
             type = { "keyword", "text" },
@@ -110,8 +110,8 @@ public class JsonExtract extends EsqlScalarFunction {
                 + "for array indices (e.g., `items[0]`). If `null`, the function returns `null`."
         ) Expression path
     ) {
-        super(source, Arrays.asList(jsonInput, path));
-        this.jsonInput = jsonInput;
+        super(source, Arrays.asList(str, path));
+        this.str = str;
         this.path = path;
     }
 
@@ -122,7 +122,7 @@ public class JsonExtract extends EsqlScalarFunction {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
-        out.writeNamedWriteable(jsonInput);
+        out.writeNamedWriteable(str);
         out.writeNamedWriteable(path);
     }
 
@@ -150,7 +150,7 @@ public class JsonExtract extends EsqlScalarFunction {
         }
 
         // First parameter accepts string types or SOURCE (for _source field)
-        TypeResolution resolution = isType(jsonInput, JsonExtract::isStringOrSource, sourceText(), FIRST, "keyword", "text", "_source");
+        TypeResolution resolution = isType(str, JsonExtract::isStringOrSource, sourceText(), FIRST, "keyword", "text", "_source");
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -164,7 +164,7 @@ public class JsonExtract extends EsqlScalarFunction {
 
     @Override
     public boolean foldable() {
-        return jsonInput.foldable() && path.foldable();
+        return str.foldable() && path.foldable();
     }
 
     /**
@@ -217,18 +217,18 @@ public class JsonExtract extends EsqlScalarFunction {
     }
 
     @Evaluator(warnExceptions = IllegalArgumentException.class)
-    static void process(BytesRefBlock.Builder builder, BytesRef jsonInput, BytesRef path) {
+    static void process(BytesRefBlock.Builder builder, BytesRef str, BytesRef path) {
         String pathStr = path.utf8ToString();
-        doExtract(builder, jsonInput, splitPath(pathStr), pathStr);
+        doExtract(builder, str, splitPath(pathStr), pathStr);
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
-    static void processConstant(BytesRefBlock.Builder builder, BytesRef jsonInput, @Fixed ParsedPath path) {
-        doExtract(builder, jsonInput, path.segments(), path.originalPath());
+    static void processConstant(BytesRefBlock.Builder builder, BytesRef str, @Fixed ParsedPath path) {
+        doExtract(builder, str, path.segments(), path.originalPath());
     }
 
-    private static void doExtract(BytesRefBlock.Builder builder, BytesRef jsonInput, String[] pathSegments, String originalPath) {
-        String jsonStr = jsonInput.utf8ToString();
+    private static void doExtract(BytesRefBlock.Builder builder, BytesRef str, String[] pathSegments, String originalPath) {
+        String jsonStr = str.utf8ToString();
 
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, jsonStr)) {
             XContentParser.Token token = parser.nextToken();
@@ -454,22 +454,22 @@ public class JsonExtract extends EsqlScalarFunction {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, JsonExtract::new, jsonInput, path);
+        return NodeInfo.create(this, JsonExtract::new, str, path);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        ExpressionEvaluator.Factory jsonInputExpr = toEvaluator.apply(jsonInput);
+        ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
         if (path.foldable()) {
             ParsedPath parsedPath = ParsedPath.parse(((BytesRef) path.fold(toEvaluator.foldCtx())).utf8ToString());
-            return new JsonExtractConstantEvaluator.Factory(source(), jsonInputExpr, parsedPath);
+            return new JsonExtractConstantEvaluator.Factory(source(), strExpr, parsedPath);
         }
         ExpressionEvaluator.Factory pathExpr = toEvaluator.apply(path);
-        return new JsonExtractEvaluator.Factory(source(), jsonInputExpr, pathExpr);
+        return new JsonExtractEvaluator.Factory(source(), strExpr, pathExpr);
     }
 
-    Expression jsonInput() {
-        return jsonInput;
+    Expression str() {
+        return str;
     }
 
     Expression path() {

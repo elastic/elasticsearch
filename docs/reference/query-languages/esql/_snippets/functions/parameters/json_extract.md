@@ -2,7 +2,7 @@
 
 **Parameters**
 
-`json_input`
+`string`
 :   A string containing valid JSON, or the `_source` field. If `null`, the function returns `null`.
 
 `path`

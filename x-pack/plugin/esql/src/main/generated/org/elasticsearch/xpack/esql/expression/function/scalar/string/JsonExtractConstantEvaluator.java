@@ -28,7 +28,7 @@ public final class JsonExtractConstantEvaluator implements EvalOperator.Expressi
 
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator jsonInput;
+  private final EvalOperator.ExpressionEvaluator str;
 
   private final JsonExtract.ParsedPath path;
 
@@ -36,37 +36,37 @@ public final class JsonExtractConstantEvaluator implements EvalOperator.Expressi
 
   private Warnings warnings;
 
-  public JsonExtractConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator jsonInput,
+  public JsonExtractConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
       JsonExtract.ParsedPath path, DriverContext driverContext) {
     this.source = source;
-    this.jsonInput = jsonInput;
+    this.str = str;
     this.path = path;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock jsonInputBlock = (BytesRefBlock) jsonInput.eval(page)) {
-      BytesRefVector jsonInputVector = jsonInputBlock.asVector();
-      if (jsonInputVector == null) {
-        return eval(page.getPositionCount(), jsonInputBlock);
+    try (BytesRefBlock strBlock = (BytesRefBlock) str.eval(page)) {
+      BytesRefVector strVector = strBlock.asVector();
+      if (strVector == null) {
+        return eval(page.getPositionCount(), strBlock);
       }
-      return eval(page.getPositionCount(), jsonInputVector);
+      return eval(page.getPositionCount(), strVector);
     }
   }
 
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += jsonInput.baseRamBytesUsed();
+    baseRamBytesUsed += str.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock jsonInputBlock) {
+  public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef jsonInputScratch = new BytesRef();
+      BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        switch (jsonInputBlock.getValueCount(p)) {
+        switch (strBlock.getValueCount(p)) {
           case 0:
               result.appendNull();
               continue position;
@@ -77,9 +77,9 @@ public final class JsonExtractConstantEvaluator implements EvalOperator.Expressi
               result.appendNull();
               continue position;
         }
-        BytesRef jsonInput = jsonInputBlock.getBytesRef(jsonInputBlock.getFirstValueIndex(p), jsonInputScratch);
+        BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
         try {
-          JsonExtract.processConstant(result, jsonInput, this.path);
+          JsonExtract.processConstant(result, str, this.path);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -89,13 +89,13 @@ public final class JsonExtractConstantEvaluator implements EvalOperator.Expressi
     }
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefVector jsonInputVector) {
+  public BytesRefBlock eval(int positionCount, BytesRefVector strVector) {
     try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
-      BytesRef jsonInputScratch = new BytesRef();
+      BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        BytesRef jsonInput = jsonInputVector.getBytesRef(p, jsonInputScratch);
+        BytesRef str = strVector.getBytesRef(p, strScratch);
         try {
-          JsonExtract.processConstant(result, jsonInput, this.path);
+          JsonExtract.processConstant(result, str, this.path);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -107,12 +107,12 @@ public final class JsonExtractConstantEvaluator implements EvalOperator.Expressi
 
   @Override
   public String toString() {
-    return "JsonExtractConstantEvaluator[" + "jsonInput=" + jsonInput + ", path=" + path + "]";
+    return "JsonExtractConstantEvaluator[" + "str=" + str + ", path=" + path + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(jsonInput);
+    Releasables.closeExpectNoException(str);
   }
 
   private Warnings warnings() {
@@ -125,25 +125,25 @@ public final class JsonExtractConstantEvaluator implements EvalOperator.Expressi
   static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory jsonInput;
+    private final EvalOperator.ExpressionEvaluator.Factory str;
 
     private final JsonExtract.ParsedPath path;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory jsonInput,
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
         JsonExtract.ParsedPath path) {
       this.source = source;
-      this.jsonInput = jsonInput;
+      this.str = str;
       this.path = path;
     }
 
     @Override
     public JsonExtractConstantEvaluator get(DriverContext context) {
-      return new JsonExtractConstantEvaluator(source, jsonInput.get(context), path, context);
+      return new JsonExtractConstantEvaluator(source, str.get(context), path, context);
     }
 
     @Override
     public String toString() {
-      return "JsonExtractConstantEvaluator[" + "jsonInput=" + jsonInput + ", path=" + path + "]";
+      return "JsonExtractConstantEvaluator[" + "str=" + str + ", path=" + path + "]";
     }
   }
 }

@@ -2,7 +2,7 @@
 
 **Supported types**
 
-| json_input | path | result |
+| string | path | result |
 | --- | --- | --- |
 | _source | keyword | keyword |
 | _source | text | keyword |

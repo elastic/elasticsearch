@@ -25,7 +25,7 @@ public class JsonExtractSerializationTests extends AbstractExpressionSerializati
     @Override
     protected JsonExtract mutateInstance(JsonExtract instance) throws IOException {
         Source source = instance.source();
-        Expression jsonInput = instance.jsonInput();
+        Expression jsonInput = instance.str();
         Expression path = instance.path();
         switch (between(0, 1)) {
             case 0 -> jsonInput = randomValueOtherThan(jsonInput, AbstractExpressionSerializationTests::randomChild);

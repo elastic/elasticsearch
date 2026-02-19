@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.generator.LookupIdxColumn;
 import org.elasticsearch.xpack.esql.generator.QueryExecuted;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -81,6 +82,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Expected to replace a single StubRelation in the plan, but none found", // https://github.com/elastic/elasticsearch/issues/142219
         "blocks is empty", // https://github.com/elastic/elasticsearch/issues/142473
         "Overflow to represent absolute value of Integer.MIN_VALUE", // https://github.com/elastic/elasticsearch/issues/142642
+        "illegal query_string option \\[boost\\]", // https://github.com/elastic/elasticsearch/issues/142758
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -205,6 +207,13 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                         continueExecuting = true;
                         currentSchema = result.outputSchema();
                     }
+                    if (previousCommands.isEmpty() && continueExecuting) {
+                        current.context()
+                            .put(
+                                FromGenerator.INDEX_FIELD_NAMES,
+                                currentSchema.stream().map(Column::name).collect(java.util.stream.Collectors.toSet())
+                            );
+                    }
                     previousCommands.add(current);
                     previousResult = result;
                 }
@@ -288,6 +297,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             if (isFirstLastSameFieldError(outputValidation.errorMessage(), result.query())) {
                 return outputValidation;
             }
+            if (isEnrichFieldFullTextError(outputValidation.errorMessage(), result.query())) {
+                return outputValidation;
+            }
+            if (isFullTextAfterSampleBug(outputValidation.errorMessage(), result.query())) {
+                return outputValidation;
+            }
+            if (isFullTextAfterWhereWithUnmappedFieldsBug(outputValidation.errorMessage(), result.query())) {
+                return outputValidation;
+            }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
         }
         return outputValidation;
@@ -303,6 +321,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return;
         }
         if (isFirstLastSameFieldError(query.exception().getMessage(), query.query())) {
+            return;
+        }
+        if (isEnrichFieldFullTextError(query.exception().getMessage(), query.query())) {
+            return;
+        }
+        if (isFullTextAfterSampleBug(query.exception().getMessage(), query.query())) {
+            return;
+        }
+        if (isFullTextAfterWhereWithUnmappedFieldsBug(query.exception().getMessage(), query.query())) {
             return;
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
@@ -387,6 +414,75 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             }
         }
         return false;
+    }
+
+    private static final Pattern NOT_A_FIELD_FROM_INDEX_PATTERN = Pattern.compile(
+        ".*cannot operate on \\[([^]]+)\\], which is not a field from an index mapping.*",
+        Pattern.DOTALL
+    );
+
+    private static final Pattern MV_EXPAND_FIELD_PATTERN = Pattern.compile(
+        "(?i)\\|\\s*mv_expand\\s+`?([^`|\\s]+)`?"
+    );
+
+    /**
+     * Checks if the error is a full-text function/operator rejecting a field that is not a
+     * FieldAttribute from an index mapping. This covers:
+     * <ul>
+     *   <li>Fields added by an ENRICH command (enrich fields are ReferenceAttributes)</li>
+     *   <li>Fields expanded by MV_EXPAND (the expanded field becomes a ReferenceAttribute)</li>
+     * </ul>
+     * The error is allowed only when the offending field can be traced back to one of these commands.
+     */
+    static boolean isEnrichFieldFullTextError(String errorMessage, String query) {
+        Matcher m = NOT_A_FIELD_FROM_INDEX_PATTERN.matcher(errorMessage);
+        if (m.matches() == false) {
+            return false;
+        }
+        String fieldName = m.group(1);
+        String lowerQuery = query.toLowerCase(java.util.Locale.ROOT);
+        if (lowerQuery.contains("| enrich ") || lowerQuery.startsWith("enrich ")) {
+            return true;
+        }
+        // see https://github.com/elastic/elasticsearch/issues/142713
+        Matcher mvMatcher = MV_EXPAND_FIELD_PATTERN.matcher(query);
+        while (mvMatcher.find()) {
+            if (mvMatcher.group(1).equals(fieldName)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static final Pattern FULL_TEXT_AFTER_SAMPLE_PATTERN = Pattern.compile(
+        ".*\\[(KQL|QSTR)] function cannot be used after SAMPLE.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * SAMPLE should not block QSTR/KQL when it appears after the WHERE containing them, but
+     * currently it does.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/142694">#142694</a>
+     */
+    static boolean isFullTextAfterSampleBug(String errorMessage, String query) {
+        return FULL_TEXT_AFTER_SAMPLE_PATTERN.matcher(errorMessage).matches()
+            && query.toLowerCase(java.util.Locale.ROOT).contains("| sample ");
+    }
+
+    private static final Pattern FULL_TEXT_AFTER_WHERE_PATTERN = Pattern.compile(
+        ".*\\[(KQL|QSTR)] function cannot be used after WHERE.*",
+        Pattern.DOTALL
+    );
+
+    /**
+     * When {@code SET unmapped_fields="nullify"} is used, QSTR/KQL can fail with
+     * "cannot be used after WHERE" because the unmapped fields handling introduces
+     * an extra plan node that breaks the placement check.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/142705">#142705</a>
+     */
+    static boolean isFullTextAfterWhereWithUnmappedFieldsBug(String errorMessage, String query) {
+        return FULL_TEXT_AFTER_WHERE_PATTERN.matcher(errorMessage).matches()
+            && query.toLowerCase(java.util.Locale.ROOT).contains("unmapped_fields");
     }
 
     @Override

@@ -55,6 +55,7 @@ import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.concatFun
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.conversionFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.dateDiffFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.dateFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.fullTextFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.greatestLeastFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.inExpression;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.ipPrefixFunction;
@@ -229,7 +230,7 @@ public class EsqlQueryGenerator {
      */
     public static String booleanExpression(List<Column> previousOutput, List<CommandGenerator.CommandDescription> previousCommands) {
         boolean allowUnmapped = areUnmappedFieldsAllowed(previousCommands);
-        return switch (randomIntBetween(0, 11)) {
+        return switch (randomIntBetween(0, 13)) {
             case 0, 1, 2 -> {
                 String field = randomNumericField(previousOutput);
                 if (field == null) {
@@ -245,6 +246,7 @@ public class EsqlQueryGenerator {
             case 8 -> likeExpression(previousOutput, allowUnmapped);
             case 9 -> rlikeExpression(previousOutput, allowUnmapped);
             case 10 -> cidrMatchFunction(previousOutput, allowUnmapped);
+            case 11, 12 -> fullTextFunction(previousOutput, previousCommands);
             default -> {
                 // Numeric comparison on function result
                 String funcExpr = stringToIntFunction(previousOutput, allowUnmapped);

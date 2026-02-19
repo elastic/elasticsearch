@@ -193,6 +193,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
         List<DataType> DOUBLES = Arrays.stream(DataType.values()).filter(DataType::isRationalNumber).toList();
         for (DataType dataType : DataType.values()) {
             if (dataType == DENSE_VECTOR) {
+                // special case for dense_vector since it's neither NUMERICS or DOUBLES
                 assertEquals(DENSE_VECTOR, commonType(dataType, numericType));
             } else if (DOUBLES.containsAll(List.of(numericType, dataType)) && (dataType.estimatedSize() == numericType.estimatedSize())) {
                 assertEquals(numericType, commonType(dataType, numericType));

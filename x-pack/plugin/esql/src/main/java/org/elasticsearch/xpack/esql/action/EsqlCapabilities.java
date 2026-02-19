@@ -2059,7 +2059,7 @@ public class EsqlCapabilities {
         DENSE_VECTOR_ARITHMETIC,
 
         /**
-         * Support for dense_vector arithmetic operations (+, -, *, /)
+         * Support for arithmetic operations (+, -, *, /) between dense_vector and scalar values
          */
         DENSE_VECTOR_SCALAR_ARITHMETIC,
 

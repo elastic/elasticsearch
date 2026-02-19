@@ -49,6 +49,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetr
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.allocator.GlobalBalancingWeightsFactory;
+import org.elasticsearch.cluster.routing.allocation.allocator.PreDesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardRelocationOrder;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -547,10 +548,7 @@ public class ClusterModule extends AbstractModule {
         ShardRelocationOrder shardRelocationOrder
     ) {
         Map<String, Supplier<ShardsAllocator>> allocators = new HashMap<>();
-        allocators.put(
-            BALANCED_ALLOCATOR,
-            () -> new BalancedShardsAllocator(balancerSettings, writeLoadForecaster, balancingWeightsFactory)
-        );
+        allocators.put(BALANCED_ALLOCATOR, () -> new PreDesiredBalanceShardsAllocator(balancerSettings, writeLoadForecaster));
         allocators.put(
             DESIRED_BALANCE_ALLOCATOR,
             () -> new DesiredBalanceShardsAllocator(

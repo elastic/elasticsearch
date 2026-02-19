@@ -156,6 +156,15 @@ public abstract class AbstractGeometryFieldMapper<T> extends FieldMapper {
         }
 
         /**
+         * Returns true if the doc-values for this field support geometry reconstruction.
+         * Point fields always support reconstruction. Shape fields only support it for
+         * indices created with V2 doc-values format.
+         */
+        public boolean supportsGeometryDocValueReconstruction() {
+            return false;
+        }
+
+        /**
          * Gets the formatter by name.
          */
         protected abstract Function<List<T>, List<Object>> getFormatter(String format);

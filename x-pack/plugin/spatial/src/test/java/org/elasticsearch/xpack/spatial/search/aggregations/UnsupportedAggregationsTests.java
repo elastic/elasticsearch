@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.spatial.search.aggregations;
 import org.apache.lucene.document.Document;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.lucene.spatial.BinaryShapeDocValuesField;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -44,6 +45,7 @@ public class UnsupportedAggregationsTests extends AggregatorTestCase {
             null,
             null,
             false,
+            IndexVersion.current(),
             Collections.emptyMap()
         );
         BinaryShapeDocValuesField field = GeoTestUtils.binaryGeoShapeDocValuesField("geometry", new Point(0, 0));
@@ -64,6 +66,7 @@ public class UnsupportedAggregationsTests extends AggregatorTestCase {
             Orientation.RIGHT,
             null,
             false,
+            IndexVersion.current(),
             Collections.emptyMap()
         );
         BinaryShapeDocValuesField field = GeoTestUtils.binaryCartesianShapeDocValuesField("geometry", new Point(0, 0));
@@ -87,6 +90,7 @@ public class UnsupportedAggregationsTests extends AggregatorTestCase {
             null,
             null,
             false,
+            IndexVersion.current(),
             Collections.emptyMap()
         );
         BinaryShapeDocValuesField field = GeoTestUtils.binaryGeoShapeDocValuesField("geometry", new Point(0, 0));
@@ -107,6 +111,7 @@ public class UnsupportedAggregationsTests extends AggregatorTestCase {
             Orientation.RIGHT,
             null,
             false,
+            IndexVersion.current(),
             Collections.emptyMap()
         );
         BinaryShapeDocValuesField field = GeoTestUtils.binaryCartesianShapeDocValuesField("geometry", new Point(0, 0));

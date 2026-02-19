@@ -571,7 +571,7 @@ public class KnnIndexTester {
         }
     }
 
-    static void numSegments(Directory dir, Results result) throws IOException{
+    static void numSegments(Directory dir, Results result) throws IOException {
         try (IndexReader reader = DirectoryReader.open(dir)) {
             result.numSegments = reader.leaves().size();
         } catch (IOException e) {

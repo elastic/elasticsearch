@@ -18,9 +18,9 @@ A kNN retriever returns top documents from a [k-nearest neighbor search (kNN)](d
 
 
 `query_vector`
-:   (Required if `query_vector_builder` is not defined, array of `float`)
+:   (Required if `query_vector_builder` is not defined, array of `float` or string)
 
-    Query vector. Must have the same number of dimensions as the vector field you are searching against. Must be either an array of floats or a hex-encoded byte vector.
+    Query vector. Must have the same number of dimensions as the vector field you are searching against. Must be either an array of floats, a hex-encoded byte vector (one byte per dimension; for `bit`, one byte per 8 dimensions), or a base64-encoded vector string. Base64 supports `float`, `bfloat16`, `byte`, and `bit` encodings depending on the target field type.
 
 
 `query_vector_builder`

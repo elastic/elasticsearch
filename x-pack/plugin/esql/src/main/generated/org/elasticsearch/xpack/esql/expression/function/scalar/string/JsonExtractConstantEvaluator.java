@@ -30,14 +30,14 @@ public final class JsonExtractConstantEvaluator implements EvalOperator.Expressi
 
   private final EvalOperator.ExpressionEvaluator str;
 
-  private final JsonExtract.ParsedPath path;
+  private final JsonPath path;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public JsonExtractConstantEvaluator(Source source, EvalOperator.ExpressionEvaluator str,
-      JsonExtract.ParsedPath path, DriverContext driverContext) {
+      JsonPath path, DriverContext driverContext) {
     this.source = source;
     this.str = str;
     this.path = path;
@@ -127,10 +127,9 @@ public final class JsonExtractConstantEvaluator implements EvalOperator.Expressi
 
     private final EvalOperator.ExpressionEvaluator.Factory str;
 
-    private final JsonExtract.ParsedPath path;
+    private final JsonPath path;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str,
-        JsonExtract.ParsedPath path) {
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory str, JsonPath path) {
       this.source = source;
       this.str = str;
       this.path = path;

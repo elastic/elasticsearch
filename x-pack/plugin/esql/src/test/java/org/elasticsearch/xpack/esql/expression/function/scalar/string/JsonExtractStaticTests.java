@@ -40,31 +40,18 @@ import static org.hamcrest.Matchers.nullValue;
  * Static tests for {@link JsonExtract} that cover edge cases difficult to exercise
  * through the randomized {@link org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase} framework.
  * <p>
- * These tests directly invoke the evaluator to test path parsing edge cases,
- * large JSON inputs, Unicode handling, and constant-path specialization behavior.
+ * These tests directly invoke the evaluator to test the JSON extraction pipeline:
+ * root accessors, bracket/dot notation extraction, Unicode handling, large JSON inputs,
+ * constant-path specialization, and unsupported JSONPath syntax behavior.
+ * <p>
+ * Path parsing logic is tested separately in {@link JsonPathTests}.
  */
 public class JsonExtractStaticTests extends ESTestCase {
 
-    // --- Path parsing edge cases ---
+    // --- Root accessor ---
 
     public void testEmptyPathReturnsRoot() {
         assertResult("{\"a\":1}", "", "{\"a\":1}");
-    }
-
-    public void testConsecutiveDots() {
-        assertWarningResult("{\"a\":{\"b\":1}}", "a..b", "invalid path [a..b]");
-    }
-
-    public void testTrailingDot() {
-        assertWarningResult("{\"a\":1}", "a.", "invalid path [a.]");
-    }
-
-    public void testLeadingDot() {
-        assertWarningResult("{\"a\":1}", ".a", "invalid path [.a]");
-    }
-
-    public void testEmptyBrackets() {
-        assertWarningResult("{\"a\":[1,2]}", "a[]", "invalid path [a[]]");
     }
 
     // --- JSONPath $ prefix ---
@@ -181,12 +168,8 @@ public class JsonExtractStaticTests extends ESTestCase {
         assertResult("{\"a\":{\"b\":1}}", "$['a'].b", "1");
     }
 
-    public void testUnterminatedQuotedKey() {
-        assertWarningResult("{\"a\":1}", "['unterminated", "invalid path [['unterminated]");
-    }
-
-    public void testMissingClosingBracketAfterQuote() {
-        assertWarningResult("{\"a\":1}", "['key'x", "invalid path [['key'x]");
+    public void testEmptyStringKey() {
+        assertResult("{\"\":\"value\"}", "['']", "value");
     }
 
     // --- Unicode handling ---
@@ -325,38 +308,54 @@ public class JsonExtractStaticTests extends ESTestCase {
     }
 
     public void testWildcardBracketStar() {
-        // $[*] — "*" is not a valid array index
-        assertWarningResult("[1,2,3]", "$[*]", "path [$[*]] does not exist");
+        // $[*] — "*" is not a valid array index, caught at parse time
+        assertWarningResult("[1,2,3]", "$[*]", "Invalid JSON path [$[*]]: expected integer array index, got [*] at position 1");
     }
 
     public void testRecursiveDescent() {
         // $..name — leading dot after stripping "$." → invalid path
-        assertWarningResult("{\"a\":{\"name\":1}}", "$..name", "invalid path [.name]");
+        assertWarningResult("{\"a\":{\"name\":1}}", "$..name", "Invalid JSON path [$..name]: path cannot start with a dot at position 2");
     }
 
     public void testRecursiveDescentBare() {
         // ..name without $ — leading dot → invalid path
-        assertWarningResult("{\"a\":{\"name\":1}}", "..name", "invalid path [..name]");
+        assertWarningResult("{\"a\":{\"name\":1}}", "..name", "Invalid JSON path [..name]: path cannot start with a dot at position 0");
     }
 
     public void testArraySlice() {
-        // [0:3] — "0:3" is not a valid integer index
-        assertWarningResult("{\"arr\":[1,2,3,4]}", "arr[0:3]", "path [arr[0:3]] does not exist");
+        // [0:3] — "0:3" is not a valid integer index, caught at parse time
+        assertWarningResult(
+            "{\"arr\":[1,2,3,4]}",
+            "arr[0:3]",
+            "Invalid JSON path [arr[0:3]]: expected integer array index, got [0:3] at position 3"
+        );
     }
 
     public void testArraySliceWithStep() {
-        // [::2] — "::2" is treated as a literal segment, fails parseInt on array
-        assertWarningResult("{\"arr\":[1,2,3,4]}", "arr[::2]", "path [arr[::2]] does not exist");
+        // [::2] — "::2" is not a valid integer index, caught at parse time
+        assertWarningResult(
+            "{\"arr\":[1,2,3,4]}",
+            "arr[::2]",
+            "Invalid JSON path [arr[::2]]: expected integer array index, got [::2] at position 3"
+        );
     }
 
     public void testFilterExpression() {
-        // ?(@.price<10) — "?(@.price<10)" is treated as a literal key, not found
-        assertWarningResult("{\"items\":[{\"price\":5}]}", "items[?(@.price<10)]", "path [items[?(@.price<10)]] does not exist");
+        // ?(@.price<10) — not a valid array index, caught at parse time
+        assertWarningResult(
+            "{\"items\":[{\"price\":5}]}",
+            "items[?(@.price<10)]",
+            "Invalid JSON path [items[?(@.price<10)]]: expected integer array index, got [?(@.price<10)] at position 5"
+        );
     }
 
     public void testUnionMultipleIndices() {
-        // [0,1] — "0,1" is not a valid integer index
-        assertWarningResult("{\"arr\":[1,2,3]}", "arr[0,1]", "path [arr[0,1]] does not exist");
+        // [0,1] — "0,1" is not a valid integer index, caught at parse time
+        assertWarningResult(
+            "{\"arr\":[1,2,3]}",
+            "arr[0,1]",
+            "Invalid JSON path [arr[0,1]]: expected integer array index, got [0,1] at position 3"
+        );
     }
 
     // --- Helper methods ---

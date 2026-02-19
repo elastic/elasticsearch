@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -76,10 +75,13 @@ public class JsonExtract extends EsqlScalarFunction {
             (`$.name` and `name` are equivalent). The supported JSONPath
             features are dot notation for nested fields (`user.address.city`),
             bracket notation for array indices (`items[0]`), quoted bracket
-            notation for keys with special characters (`['user.name']`),
-            the `$` root selector, and any combination of these
-            (`$.store['items'][0].name`). Path matching is case-sensitive
-            per the JSON specification.
+            notation for keys with special characters (`['user.name']`) or
+            empty string keys (`['']`), the `$` root selector, and any combination of these
+            (`$.store['items'][0].name`). Dot notation and quoted bracket
+            notation are interchangeable for simple keys (`a.b` and `a['b']`
+            produce the same result). Optional whitespace is allowed
+            inside brackets (`[ 0 ]` is equivalent to `[0]`).
+            Path matching is case-sensitive per the JSON specification.
 
             The extracted value is returned as a `keyword` string: string values without
             surrounding quotes, numbers and booleans as their string representation,
@@ -181,137 +183,17 @@ public class JsonExtract extends EsqlScalarFunction {
         return str.foldable() && path.foldable();
     }
 
-    /**
-     * Pre-parsed path representation. Holds both the parsed segments and the original
-     * path string (for error messages). When the path is a constant expression, this
-     * is computed once and reused across all rows.
-     */
-    record ParsedPath(String[] segments, String originalPath) {
-        static ParsedPath parse(String path) {
-            return new ParsedPath(splitPath(path), path);
-        }
-
-        @Override
-        public String toString() {
-            return originalPath;
-        }
-    }
-
-    /**
-     * Splits a path string into segments, converting bracket notation to segments.
-     * E.g., "orders[1].item" -> ["orders", "1", "item"]
-     * <p>
-     * Supports both dot notation ({@code a.b.c}) and bracket notation for named keys
-     * ({@code ['key']} or {@code ["key"]}). Bracket notation allows keys containing
-     * dots, spaces, or other special characters. Escaped quotes within brackets are
-     * supported (e.g., {@code ['it\\'s']}).
-     * <p>
-     * Uses manual character iteration instead of {@code String.split(regex)} to avoid
-     * regex compilation overhead on every invocation.
-     * <p>
-     * Throws {@link IllegalArgumentException} for malformed paths such as empty paths,
-     * consecutive dots, leading/trailing dots, empty brackets, or unterminated quoted keys.
-     */
-    private static String[] splitPath(String path) {
-        if (path.equals("$")) {
-            return new String[0];
-        }
-        if (path.startsWith("$.")) {
-            path = path.substring(2);
-        } else if (path.startsWith("$[")) {
-            path = path.substring(1);
-        }
-        if (path.isEmpty()) {
-            return new String[0];
-        }
-        List<String> segments = new ArrayList<>();
-        int start = 0;
-        boolean afterBracket = false;
-        for (int i = 0; i < path.length(); i++) {
-            char c = path.charAt(i);
-            if (c == '.') {
-                if (afterBracket) {
-                    // Skip the dot after ']' — e.g., "orders[1].item"
-                    afterBracket = false;
-                    start = i + 1;
-                } else if (i == start) {
-                    throw new IllegalArgumentException("invalid path [" + path + "]");
-                } else {
-                    segments.add(path.substring(start, i));
-                    start = i + 1;
-                }
-            } else if (c == '[') {
-                if (i == start && !afterBracket && i > 0) {
-                    throw new IllegalArgumentException("invalid path [" + path + "]");
-                }
-                if (i > start) {
-                    segments.add(path.substring(start, i));
-                }
-                // Check for quoted key: ['key'] or ["key"]
-                if (i + 1 < path.length() && (path.charAt(i + 1) == '\'' || path.charAt(i + 1) == '"')) {
-                    char quote = path.charAt(i + 1);
-                    i += 2; // skip '[' and opening quote
-                    StringBuilder key = new StringBuilder();
-                    boolean found = false;
-                    while (i < path.length()) {
-                        char ch = path.charAt(i);
-                        if (ch == '\\' && i + 1 < path.length()) {
-                            key.append(path.charAt(i + 1));
-                            i += 2;
-                        } else if (ch == quote) {
-                            if (i + 1 >= path.length() || path.charAt(i + 1) != ']') {
-                                throw new IllegalArgumentException("invalid path [" + path + "]");
-                            }
-                            segments.add(key.toString());
-                            i += 1; // advance to ']'; for-loop will increment past it
-                            found = true;
-                            afterBracket = true;
-                            start = i + 1;
-                            break;
-                        } else {
-                            key.append(ch);
-                            i++;
-                        }
-                    }
-                    if (!found) {
-                        throw new IllegalArgumentException("invalid path [" + path + "]");
-                    }
-                } else {
-                    // Numeric index — existing behavior
-                    afterBracket = false;
-                    start = i + 1;
-                }
-            } else if (c == ']') {
-                if (i == start) {
-                    throw new IllegalArgumentException("invalid path [" + path + "]");
-                }
-                segments.add(path.substring(start, i));
-                afterBracket = true;
-                start = i + 1;
-            } else {
-                afterBracket = false;
-            }
-        }
-        if (start < path.length()) {
-            segments.add(path.substring(start));
-        } else if (segments.isEmpty() || (!afterBracket && start == path.length())) {
-            throw new IllegalArgumentException("invalid path [" + path + "]");
-        }
-        return segments.toArray(new String[0]);
-    }
-
     @Evaluator(warnExceptions = IllegalArgumentException.class)
     static void process(BytesRefBlock.Builder builder, BytesRef str, BytesRef path) {
-        String pathStr = path.utf8ToString();
-        doExtract(builder, str, splitPath(pathStr), pathStr);
+        doExtract(builder, str, JsonPath.parse(path.utf8ToString()));
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
-    static void processConstant(BytesRefBlock.Builder builder, BytesRef str, @Fixed ParsedPath path) {
-        doExtract(builder, str, path.segments(), path.originalPath());
+    static void processConstant(BytesRefBlock.Builder builder, BytesRef str, @Fixed JsonPath path) {
+        doExtract(builder, str, path);
     }
 
-    private static void doExtract(BytesRefBlock.Builder builder, BytesRef str, String[] pathSegments, String originalPath) {
+    private static void doExtract(BytesRefBlock.Builder builder, BytesRef str, JsonPath path) {
         String jsonStr = str.utf8ToString();
 
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, jsonStr)) {
@@ -319,109 +201,63 @@ public class JsonExtract extends EsqlScalarFunction {
             if (token == null) {
                 throw new JsonExtractException("invalid JSON input");
             }
-            extractValue(builder, parser, pathSegments, 0, originalPath);
+            extractValue(builder, parser, path.segments(), 0, path.originalPath());
         } catch (JsonExtractException e) {
             throw new IllegalArgumentException(e.getMessage());
         } catch (IOException | XContentParseException e) {
-            // JSON parsing errors
             throw new IllegalArgumentException("invalid JSON input");
         }
     }
 
     /**
      * Recursively navigates the JSON stream to extract the value at the given path.
-     * <p>
-     * This method uses streaming parsing to avoid creating intermediate objects for paths
-     * we don't need. It walks through the JSON structure one token at a time, descending
-     * only into the path segments we care about and skipping everything else.
-     * <p>
-     * The recursion works as follows:
-     * <ol>
-     *   <li>If we've consumed all path segments ({@code depth == pathSegments.length}),
-     *       we've reached the target value - extract it.</li>
-     *   <li>If the current token is an object, iterate through its fields looking for
-     *       a key matching the current segment. Skip non-matching fields entirely.</li>
-     *   <li>If the current token is an array, the segment must be a numeric index.
-     *       Iterate through elements, skipping until we reach the target index.</li>
-     *   <li>If the current token is a scalar (string, number, boolean, null) but we
-     *       still have path segments to consume, the path is invalid.</li>
-     * </ol>
-     *
-     * @param builder      the block builder to append the extracted value to
-     * @param parser       the JSON parser positioned at the current token
-     * @param pathSegments the path split into segments (e.g., ["user", "address", "city"])
-     * @param depth        current position in pathSegments (0-indexed)
-     * @param originalPath the original path string for error messages
+     * Uses typed segments: {@link JsonPath.Segment.Key} navigates object fields,
+     * {@link JsonPath.Segment.Index} navigates array elements.
      */
     private static void extractValue(
         BytesRefBlock.Builder builder,
         XContentParser parser,
-        String[] pathSegments,
+        List<JsonPath.Segment> segments,
         int depth,
         String originalPath
     ) throws IOException, JsonExtractException {
         XContentParser.Token token = parser.currentToken();
 
-        // Base case: we've consumed all path segments, so the parser is now positioned
-        // at the value we want to extract
-        if (depth == pathSegments.length) {
+        if (depth == segments.size()) {
             extractCurrentValue(builder, parser);
             return;
         }
 
-        String segment = pathSegments[depth];
+        JsonPath.Segment segment = segments.get(depth);
 
-        if (token == XContentParser.Token.START_OBJECT) {
-            // Current value is an object - look for a field matching the current path segment.
-            // We iterate through all fields: FIELD_NAME token followed by the field's value.
+        if (token == XContentParser.Token.START_OBJECT && segment instanceof JsonPath.Segment.Key key) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     String fieldName = parser.currentName();
-                    parser.nextToken(); // Advance from FIELD_NAME to the field's value
-                    if (fieldName.equals(segment)) {
-                        // Found the matching key - recurse to process the next path segment
-                        extractValue(builder, parser, pathSegments, depth + 1, originalPath);
+                    parser.nextToken();
+                    if (fieldName.equals(key.name())) {
+                        extractValue(builder, parser, segments, depth + 1, originalPath);
                         return;
                     } else {
-                        // Not the key we want - skip this field's entire value (including nested structures)
                         parser.skipChildren();
                     }
                 }
             }
-            // Exhausted all fields without finding a match
             throw new JsonExtractException("path [" + originalPath + "] does not exist");
 
-        } else if (token == XContentParser.Token.START_ARRAY) {
-            // Current value is an array - the path segment must be a numeric index.
-            int targetIndex;
-            try {
-                targetIndex = Integer.parseInt(segment);
-            } catch (NumberFormatException e) {
-                // Path segment isn't a number, but we're at an array - path is invalid
-                throw new JsonExtractException("path [" + originalPath + "] does not exist");
-            }
-            if (targetIndex < 0) {
-                throw new JsonExtractException("array index out of bounds");
-            }
-
-            // Iterate through array elements until we reach the target index
+        } else if (token == XContentParser.Token.START_ARRAY && segment instanceof JsonPath.Segment.Index idx) {
             int currentIndex = 0;
             while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                if (currentIndex == targetIndex) {
-                    // Found the target element - recurse to process the next path segment
-                    extractValue(builder, parser, pathSegments, depth + 1, originalPath);
+                if (currentIndex == idx.index()) {
+                    extractValue(builder, parser, segments, depth + 1, originalPath);
                     return;
                 }
-                // Not the index we want - skip this element entirely
                 parser.skipChildren();
                 currentIndex++;
             }
-            // Reached end of array without finding the target index
             throw new JsonExtractException("array index out of bounds");
 
         } else {
-            // Current value is a scalar (string, number, boolean, null), but we still have
-            // path segments to consume. Can't traverse into a scalar value.
             throw new JsonExtractException("path [" + originalPath + "] does not exist");
         }
     }
@@ -545,8 +381,8 @@ public class JsonExtract extends EsqlScalarFunction {
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
         if (path.foldable()) {
-            ParsedPath parsedPath = ParsedPath.parse(((BytesRef) path.fold(toEvaluator.foldCtx())).utf8ToString());
-            return new JsonExtractConstantEvaluator.Factory(source(), strExpr, parsedPath);
+            JsonPath jsonPath = JsonPath.parse(((BytesRef) path.fold(toEvaluator.foldCtx())).utf8ToString());
+            return new JsonExtractConstantEvaluator.Factory(source(), strExpr, jsonPath);
         }
         ExpressionEvaluator.Factory pathExpr = toEvaluator.apply(path);
         return new JsonExtractEvaluator.Factory(source(), strExpr, pathExpr);

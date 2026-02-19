@@ -303,8 +303,9 @@ POST /_query
   "query": "FROM mv | EVAL gt_1 = b > 1 | LIMIT 4"
 }
 ```
-% TEST[warning:Line 1:16: evaluation of [b > 1] failed, treating result as null. Only first 20 failures recorded.]
-% TEST[warning:Line 1:16: java.lang.IllegalArgumentException: single-value function encountered multi-value]
+% TEST[continued]
+% TEST[warning:Line 1:23: evaluation of [b > 1] failed, treating result as null. Only first 20 failures recorded.]
+% TEST[warning:Line 1:23: java.lang.IllegalArgumentException: single-value function encountered multi-value]
 
 When a filter can be evaluated using the search index, {{esql}} might miss the
 warning for documents that contain a multivalued field where **none** of the values
@@ -322,4 +323,3 @@ POST /_query
   "query": "FROM mv | WHERE b > 2 | LIMIT 4"
 }
 ```
-% TEST[continued]

@@ -45,7 +45,6 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
-    | {this.isDevVersion()}? externalCommand
     ;
 
 processingCommand
@@ -70,6 +69,7 @@ processingCommand
     | inlineStatsCommand
     | fuseCommand
     | uriPartsCommand
+    | metricsInfoCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
@@ -102,10 +102,6 @@ fromCommand
 
 timeSeriesCommand
     : TS indexPatternAndMetadataFields
-    ;
-
-externalCommand
-    : EXTERNAL stringOrParameter commandNamedParameters
     ;
 
 indexPatternAndMetadataFields
@@ -353,6 +349,10 @@ fuseConfiguration
 fuseKeyByFields
    : qualifiedName (COMMA qualifiedName)*
    ;
+
+metricsInfoCommand
+    : METRICS_INFO
+    ;
 
 //
 // In development

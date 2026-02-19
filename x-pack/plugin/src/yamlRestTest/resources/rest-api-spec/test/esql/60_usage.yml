@@ -59,6 +59,7 @@ setup:
             - cosine_vector_similarity_function
             - inline_stats
             - promql_command_v0
+            - uri_parts_command
       reason: "Test that should only be executed on snapshot versions"
 
   - do: { xpack.usage: { } }

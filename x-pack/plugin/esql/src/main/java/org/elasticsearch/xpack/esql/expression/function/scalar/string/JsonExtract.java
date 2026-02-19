@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -29,6 +30,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
@@ -153,30 +155,74 @@ public class JsonExtract extends EsqlScalarFunction {
     }
 
     /**
-     * Parses a path string into segments, converting bracket notation to segments.
-     * E.g., "orders[1].item" -> ["orders", "1", "item"]
+     * Pre-parsed path representation. Holds both the parsed segments and the original
+     * path string (for error messages). When the path is a constant expression, this
+     * is computed once and reused across all rows.
      */
-    private static String[] parsePath(String path) {
+    record ParsedPath(String[] segments, String originalPath) {
+        static ParsedPath parse(String path) {
+            return new ParsedPath(splitPath(path), path);
+        }
+
+        @Override
+        public String toString() {
+            return originalPath;
+        }
+    }
+
+    /**
+     * Splits a path string into segments, converting bracket notation to segments.
+     * E.g., "orders[1].item" -> ["orders", "1", "item"]
+     * <p>
+     * Uses manual character iteration instead of {@code String.split(regex)} to avoid
+     * regex compilation overhead on every invocation.
+     */
+    private static String[] splitPath(String path) {
         if (path.isEmpty()) {
             return new String[0];
         }
-        // Convert bracket notation to dot notation: "orders[1].item" -> "orders.1.item"
-        String converted = path.replace("[", ".").replace("]", "");
-        return converted.split("\\.");
+        List<String> segments = new ArrayList<>();
+        int start = 0;
+        for (int i = 0; i < path.length(); i++) {
+            char c = path.charAt(i);
+            if (c == '.' || c == '[') {
+                if (i > start) {
+                    segments.add(path.substring(start, i));
+                }
+                start = i + 1;
+            } else if (c == ']') {
+                if (i > start) {
+                    segments.add(path.substring(start, i));
+                }
+                start = i + 1;
+            }
+        }
+        if (start < path.length()) {
+            segments.add(path.substring(start));
+        }
+        return segments.toArray(new String[0]);
     }
 
     @Evaluator(warnExceptions = IllegalArgumentException.class)
     static void process(BytesRefBlock.Builder builder, BytesRef jsonInput, BytesRef path) {
-        String jsonStr = jsonInput.utf8ToString();
         String pathStr = path.utf8ToString();
-        String[] pathSegments = parsePath(pathStr);
+        doExtract(builder, jsonInput, splitPath(pathStr), pathStr);
+    }
+
+    @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
+    static void processConstant(BytesRefBlock.Builder builder, BytesRef jsonInput, @Fixed ParsedPath path) {
+        doExtract(builder, jsonInput, path.segments(), path.originalPath());
+    }
+
+    private static void doExtract(BytesRefBlock.Builder builder, BytesRef jsonInput, String[] pathSegments, String originalPath) {
+        String jsonStr = jsonInput.utf8ToString();
 
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, jsonStr)) {
             XContentParser.Token token = parser.nextToken();
             if (token == null) {
                 throw new JsonExtractException("invalid JSON input");
             }
-            extractValue(builder, parser, pathSegments, 0, pathStr);
+            extractValue(builder, parser, pathSegments, 0, originalPath);
         } catch (JsonExtractException e) {
             throw new IllegalArgumentException(e.getMessage());
         } catch (IOException | XContentParseException e) {
@@ -401,6 +447,10 @@ public class JsonExtract extends EsqlScalarFunction {
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         ExpressionEvaluator.Factory jsonInputExpr = toEvaluator.apply(jsonInput);
+        if (path.foldable()) {
+            ParsedPath parsedPath = ParsedPath.parse(((BytesRef) path.fold(toEvaluator.foldCtx())).utf8ToString());
+            return new JsonExtractConstantEvaluator.Factory(source(), jsonInputExpr, parsedPath);
+        }
         ExpressionEvaluator.Factory pathExpr = toEvaluator.apply(path);
         return new JsonExtractEvaluator.Factory(source(), jsonInputExpr, pathExpr);
     }

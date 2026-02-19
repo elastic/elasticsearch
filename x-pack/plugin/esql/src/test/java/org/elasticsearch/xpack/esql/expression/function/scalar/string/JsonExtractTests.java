@@ -150,6 +150,25 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
                 .withWarning("Line 1:1: java.lang.IllegalArgumentException: invalid JSON input");
         }));
 
+        // Constant path optimization (exercises processConstant evaluator via forceLiteral)
+        for (DataType jsonType : DataType.stringTypes()) {
+            suppliers.add(
+                new TestCaseSupplier(
+                    "constant path " + TestCaseSupplier.nameFromTypes(types(jsonType, DataType.KEYWORD)),
+                    types(jsonType, DataType.KEYWORD),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), jsonType, "jsonInput"),
+                            new TestCaseSupplier.TypedData(new BytesRef("name"), DataType.KEYWORD, "path").forceLiteral()
+                        ),
+                        "JsonExtractConstantEvaluator[jsonInput=Attribute[channel=0], path=name]",
+                        DataType.KEYWORD,
+                        equalTo(new BytesRef("Alice"))
+                    )
+                )
+            );
+        }
+
         // SOURCE type support (for _source field)
         for (DataType pathType : DataType.stringTypes()) {
             suppliers.add(

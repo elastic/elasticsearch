@@ -800,16 +800,21 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
         }
 
+        List<DataType> originalTypes = data.stream().map(TestCaseSupplier.TypedData::type).toList();
+        List<DataType> narrowedTypes = args.stream().map(Expression::dataType).toList();
+
         Expression narrowed = build(testCase.getSource(), args);
 
         assertTrue(
-            "expression should resolve with narrower input types, but got: " + narrowed.typeResolved().message(),
+            "narrowing " + originalTypes + " to " + narrowedTypes + ": expression should resolve, but got: "
+                + narrowed.typeResolved().message(),
             narrowed.typeResolved().resolved()
         );
 
         DataType narrowedOutputType = narrowed.dataType();
         assertTrue(
-            "output type [" + narrowedOutputType + "] should be the same as or widen to [" + originalOutputType + "]",
+            "narrowing " + originalTypes + " to " + narrowedTypes + ": output type [" + narrowedOutputType
+                + "] should be the same as or widen to [" + originalOutputType + "]",
             narrowedOutputType.canWidenTo(originalOutputType)
         );
     }

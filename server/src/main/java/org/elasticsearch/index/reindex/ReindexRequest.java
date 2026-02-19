@@ -118,6 +118,13 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             if (getSearchRequest().source().query() != null) {
                 e = addValidationError("reindex from remote sources should use RemoteInfo's query instead of source's query", e);
             }
+            // TODO: Before merging...
+            // - Put the following changes behind a cluster feature
+            // - Let the reindex resilience work (relocation and PIT) merge first
+            // - Check whether anything needs to be updated because of relocation
+            // - Check whether anything needs to be updated because of PIT (e.g. whether we can use PIT with remote in the same way)
+            // - Update existing tests
+            // - Add new integration tests and/or update existing ones
             if (getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES) {
                 e = addValidationError("reindex from remote sources doesn't support slices=auto", e);
             }

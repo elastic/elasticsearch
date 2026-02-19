@@ -54,6 +54,32 @@ import static org.elasticsearch.search.crossproject.CrossProjectIndexExpressions
 public class CrossProjectIndexResolutionValidator {
     private static final Logger logger = LogManager.getLogger(CrossProjectIndexResolutionValidator.class);
 
+    private final IndicesOptions indicesOptions;
+    private final Map<String, ResolvedIndexExpressions> remoteResolvedExpressions;
+
+    private Map<String, ElasticsearchSecurityException> remoteAuthorizationExceptions;
+    private Map<String, List<String>> remoteUnauthorizedIndices;
+    private ElasticsearchSecurityException localAuthorizationException;
+    private List<String> localUnauthorizedIndices;
+    // We report only the first 404 error when there is no 403 error
+    private IndexNotFoundException notFoundException;
+
+    private CrossProjectIndexResolutionValidator(
+        IndicesOptions indicesOptions,
+        Map<String, ResolvedIndexExpressions> remoteResolvedExpressions
+    ) {
+        this.indicesOptions = indicesOptions;
+        this.remoteResolvedExpressions = remoteResolvedExpressions;
+    }
+
+    public static IndicesOptions indicesOptionsForCrossProjectFanout(IndicesOptions indicesOptions) {
+        return IndicesOptions.builder(indicesOptions)
+            .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
+            .crossProjectModeOptions(IndicesOptions.CrossProjectModeOptions.DEFAULT)
+            .build();
+    }
+
     /**
      * Validates the results of cross-project index resolution and returns appropriate exceptions based on the provided
      * {@link IndicesOptions}.
@@ -87,8 +113,6 @@ public class CrossProjectIndexResolutionValidator {
             return null;
         }
 
-        var collector = new ExceptionCollector();
-
         final boolean hasProjectRouting = Strings.isEmpty(projectRouting) == false;
         logger.debug(
             "Checking index existence for [{}] and [{}] with indices options [{}]{}",
@@ -98,115 +122,93 @@ public class CrossProjectIndexResolutionValidator {
             hasProjectRouting ? " and project routing [" + projectRouting + "]" : ""
         );
 
+        var validator = new CrossProjectIndexResolutionValidator(indicesOptions, remoteResolvedExpressions);
+
         for (ResolvedIndexExpression localResolvedIndices : localResolvedExpressions.expressions()) {
-            String originalExpression = localResolvedIndices.original();
-            logger.debug("Checking replaced expression for original expression [{}]", originalExpression);
-
-            // Check if this is a qualified resource (project:index pattern)
-            boolean isQualifiedExpression = RemoteClusterAware.isRemoteIndexName(originalExpression);
-
-            // Sort expressions to ensure behaviour is deterministic
-            // TODO consider sorting during index re-writing, to avoid sorting here
-            var remoteExpressions = localResolvedIndices.remoteExpressions().stream().sorted().toList();
-            ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
-            ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
-            ElasticsearchException localException = checkResolutionFailure(localExpressions, result, originalExpression, indicesOptions);
-
-            if (isQualifiedExpression) {
-                if (localException != null) {
-                    if (localException instanceof ElasticsearchSecurityException securityException) {
-                        collector.addLocalSecurityException(securityException, originalExpression);
-                    } else {
-                        collector.addNotFound((IndexNotFoundException) localException);
-                    }
-                }
-                // qualified linked project expression
-                for (String remoteExpression : remoteExpressions) {
-                    String[] splitResource = splitQualifiedResource(remoteExpression);
-                    var projectAlias = splitResource[0];
-                    var resource = splitResource[1];
-
-                    ElasticsearchException remoteException = checkSingleRemoteExpression(
-                        remoteResolvedExpressions,
-                        projectAlias,
-                        resource,
-                        remoteExpression,
-                        indicesOptions
-                    );
-                    if (remoteException != null) {
-                        if (remoteException instanceof ElasticsearchSecurityException securityException) {
-                            collector.addRemoteSecurityException(projectAlias, securityException, remoteExpression);
-                        } else {
-                            collector.addNotFound((IndexNotFoundException) remoteException);
-                        }
-                    }
-                }
-            } else {
-                if (localException == null && localExpressions != ResolvedIndexExpression.LocalExpressions.NONE) {
-                    // found locally, continue to next expression
-                    continue;
-                }
-                assert localExpressions != ResolvedIndexExpression.LocalExpressions.NONE || false == remoteExpressions.isEmpty()
-                    : "both local expression and remote expressions are empty which should have errored earlier at index rewriting time";
-                ElasticsearchSecurityException currentExpressionSecurityException = null;
-                if (localException instanceof ElasticsearchSecurityException securityException) {
-                    currentExpressionSecurityException = securityException;
-                }
-
-                var remoteResult = checkUnqualifiedRemoteExpressions(remoteExpressions, remoteResolvedExpressions, indicesOptions);
-                if (remoteResult.foundOnAnyProject()) continue;
-                if (remoteResult.securityException() != null) {
-                    collector.addRemoteSecurityException(
-                        remoteResult.projectAlias(),
-                        remoteResult.securityException(),
-                        remoteResult.remoteExpression()
-                    );
-                }
-
-                if (currentExpressionSecurityException != null) {
-                    // We have a local security exception for this unqualified expression. That's what we want to report, i.e.
-                    // we are no longer interested in whether any linked project also returns a security exception.
-                    collector.addLocalSecurityException(currentExpressionSecurityException, originalExpression);
-                } else if (localException != null) {
-                    // We have a local 404 for this unqualified expression which takes priority over any remote 404
-                    assert localException instanceof IndexNotFoundException
-                        : "Expected local exception to be IndexNotFoundException, but found: " + localException;
-                    collector.addNotFound((IndexNotFoundException) localException);
-                } else {
-                    // Local project is excluded and 404 from all remotes, we report 404 for the first remote project
-                    collector.addNotFound(new IndexNotFoundException(remoteExpressions.getFirst()));
-                }
-            }
+            validator.validateExpression(localResolvedIndices);
         }
 
-        return collector.buildResult();
+        return validator.buildResult();
     }
 
-    private static ElasticsearchSecurityException formatAuthorizationException(
-        ElasticsearchException exceptionWithPlaceholder,
-        List<String> unauthorizedIndices
+    private void validateExpression(ResolvedIndexExpression localResolvedIndices) {
+        String originalExpression = localResolvedIndices.original();
+        logger.debug("Checking replaced expression for original expression [{}]", originalExpression);
+
+        // Check if this is a qualified resource (project:index pattern)
+        boolean isQualifiedExpression = RemoteClusterAware.isRemoteIndexName(originalExpression);
+
+        // Sort expressions to ensure behaviour is deterministic
+        // TODO consider sorting during index re-writing, to avoid sorting here
+        var remoteExpressions = localResolvedIndices.remoteExpressions().stream().sorted().toList();
+        ResolvedIndexExpression.LocalExpressions localExpressions = localResolvedIndices.localExpressions();
+        ResolvedIndexExpression.LocalIndexResolutionResult result = localExpressions.localIndexResolutionResult();
+        ElasticsearchException localException = checkResolutionFailure(localExpressions, result, originalExpression);
+
+        if (isQualifiedExpression) {
+            if (localException != null) {
+                recordLocalSecurityException(localException, originalExpression);
+            }
+            // qualified linked project expression
+            for (String remoteExpression : remoteExpressions) {
+                String[] splitResource = splitQualifiedResource(remoteExpression);
+                var projectAlias = splitResource[0];
+                var resource = splitResource[1];
+
+                ElasticsearchException remoteException = checkSingleRemoteExpression(
+                    projectAlias,
+                    resource,
+                    remoteExpression
+                );
+                if (remoteException != null) {
+                    recordRemoteSecurityException(remoteException, remoteExpression, projectAlias);
+                }
+            }
+        } else {
+            validateUnqualifiedExpression(
+                localException,
+                originalExpression,
+                localExpressions,
+                remoteExpressions
+            );
+        }
+    }
+
+    private void validateUnqualifiedExpression(
+        ElasticsearchException localException,
+        String originalExpression,
+        ResolvedIndexExpression.LocalExpressions localExpressions,
+        List<String> remoteExpressions
     ) {
-        return new ElasticsearchSecurityException(
-            Strings.replace(exceptionWithPlaceholder.getMessage(), "-*", Strings.collectionToCommaDelimitedString(unauthorizedIndices)),
-            exceptionWithPlaceholder.status()
-        );
+        if (localException == null && localExpressions != ResolvedIndexExpression.LocalExpressions.NONE) {
+            // found locally, continue to next expression
+            return;
+        }
+        assert localExpressions != ResolvedIndexExpression.LocalExpressions.NONE || false == remoteExpressions.isEmpty()
+            : "both local expression and remote expressions are empty which should have errored earlier at index rewriting time";
+
+        var remoteResult = checkUnqualifiedRemoteExpressions(remoteExpressions);
+        if (remoteResult.foundFlat()) return;
+        if (remoteResult.securityException() != null) {
+            recordRemoteSecurityException(remoteResult.securityException(), remoteResult.remoteExpression(), remoteResult.projectAlias());
+        }
+
+        if (localException instanceof ElasticsearchSecurityException securityException) {
+            // We have a local security exception for this unqualified expression. That's what we want to report, i.e.
+            // we are no longer interested in whether any linked project also returns a security exception.
+            recordLocalSecurityException(securityException, originalExpression);
+        } else if (localException != null) {
+            // We have a local 404 for this unqualified expression which takes priority over any remote 404
+            assert localException instanceof IndexNotFoundException
+                : "Expected local exception to be IndexNotFoundException, but found: " + localException;
+            recordNotFoundException((IndexNotFoundException) localException);
+        } else {
+            // Local project is excluded and 404 from all remotes, we report 404 for the first remote project
+            recordNotFoundException(new IndexNotFoundException(remoteExpressions.getFirst()));
+        }
     }
 
-    public static IndicesOptions indicesOptionsForCrossProjectFanout(IndicesOptions indicesOptions) {
-        return IndicesOptions.builder(indicesOptions)
-            .concreteTargetOptions(new IndicesOptions.ConcreteTargetOptions(true))
-            .wildcardOptions(IndicesOptions.WildcardOptions.builder(indicesOptions.wildcardOptions()).allowEmptyExpressions(true).build())
-            .crossProjectModeOptions(IndicesOptions.CrossProjectModeOptions.DEFAULT)
-            .build();
-    }
-
-    private static ElasticsearchException checkSingleRemoteExpression(
-        Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
-        String projectAlias,
-        String resource,
-        String remoteExpression,
-        IndicesOptions indicesOptions
-    ) {
+    private ElasticsearchException checkSingleRemoteExpression(String projectAlias, String resource, String remoteExpression) {
         if (isExclusionExpression(projectAlias) || isExclusionExpression(resource)) {
             logger.debug("Skipping check for excluded remote expression [{}:{}]", projectAlias, resource);
             return null;
@@ -230,15 +232,10 @@ public class CrossProjectIndexResolutionValidator {
             return new IndexNotFoundException(remoteExpression);
         }
 
-        return checkResolutionFailure(
-            matchingExpression,
-            matchingExpression.localIndexResolutionResult(),
-            remoteExpression,
-            indicesOptions
-        );
+        return checkResolutionFailure(matchingExpression, matchingExpression.localIndexResolutionResult(), remoteExpression);
     }
 
-    public static String[] splitQualifiedResource(String resource) {
+    private static String[] splitQualifiedResource(String resource) {
         String[] splitResource = RemoteClusterAware.splitIndexName(resource);
         assert splitResource.length == 2
             : "Expected two strings (project and indexExpression) for a qualified resource ["
@@ -263,11 +260,10 @@ public class CrossProjectIndexResolutionValidator {
             .orElse(null);
     }
 
-    private static ElasticsearchException checkResolutionFailure(
+    private ElasticsearchException checkResolutionFailure(
         ResolvedIndexExpression.LocalExpressions localExpressions,
         ResolvedIndexExpression.LocalIndexResolutionResult result,
-        String expression,
-        IndicesOptions indicesOptions
+        String expression
     ) {
         assert false == (indicesOptions.allowNoIndices() && indicesOptions.ignoreUnavailable())
             : "Should not be checking index existence in lenient mode";
@@ -290,105 +286,100 @@ public class CrossProjectIndexResolutionValidator {
         return null;
     }
 
-    private static class ExceptionCollector {
-        private Map<String, ElasticsearchSecurityException> remoteAuthExceptions;
-        private Map<String, List<String>> remoteUnauthorizedIndices;
-        private ElasticsearchSecurityException localAuthException;
-        private List<String> localUnauthorizedIndices;
-        // We report only the first 404 error when there is no 403 error
-        private IndexNotFoundException notFoundException;
-
-        void addLocalSecurityException(ElasticsearchSecurityException e, String expression) {
-            if (localAuthException == null) {
-                localAuthException = e;
+    private void recordLocalSecurityException(ElasticsearchException localException, String originalExpression) {
+        if (localException instanceof ElasticsearchSecurityException securityException) {
+            if (localAuthorizationException == null) {
+                localAuthorizationException = securityException;
                 localUnauthorizedIndices = new ArrayList<>();
             }
-            localUnauthorizedIndices.add(expression);
+            localUnauthorizedIndices.add(originalExpression);
+        } else {
+            recordNotFoundException((IndexNotFoundException) localException);
         }
+    }
 
-        void addRemoteSecurityException(String projectAlias, ElasticsearchSecurityException e, String expression) {
-            if (remoteAuthExceptions == null) {
-                remoteAuthExceptions = new LinkedHashMap<>();
+    private void recordRemoteSecurityException(ElasticsearchException remoteException, String remoteExpression, String projectAlias) {
+        if (remoteException instanceof ElasticsearchSecurityException securityException) {
+            if (remoteAuthorizationExceptions == null) {
+                remoteAuthorizationExceptions = new LinkedHashMap<>();
                 remoteUnauthorizedIndices = new HashMap<>();
             }
-            remoteAuthExceptions.putIfAbsent(projectAlias, e);
-            remoteUnauthorizedIndices.computeIfAbsent(projectAlias, k -> new ArrayList<>()).add(expression);
+            remoteAuthorizationExceptions.putIfAbsent(projectAlias, securityException);
+            remoteUnauthorizedIndices.computeIfAbsent(projectAlias, k -> new ArrayList<>()).add(remoteExpression);
+        } else {
+            recordNotFoundException((IndexNotFoundException) remoteException);
         }
+    }
 
-        void addNotFound(IndexNotFoundException e) {
-            if (notFoundException == null) notFoundException = e;
-        }
+    private void recordNotFoundException(IndexNotFoundException e) {
+        if (notFoundException == null) notFoundException = e;
+    }
 
-        ElasticsearchException buildResult() {
-            // For each unauthorized expression, we report 403 for the first project if the expression is unqualified.
-            // Otherwise, we report 403 for all projects where the expression is unauthorized.
+    private ElasticsearchException buildResult() {
+        // For each unauthorized expression, we report 403 for the first project if the expression is unqualified.
+        // Otherwise, we report 403 for all projects where the expression is unauthorized.
 
-            if (localAuthException == null && remoteAuthExceptions == null) {
-                return notFoundException;
-            } else {
-                var firstException = localAuthException != null
-                    ? formatAuthorizationException(localAuthException, localUnauthorizedIndices)
-                    : null;
+        if (localAuthorizationException == null && remoteAuthorizationExceptions == null) {
+            return notFoundException;
+        } else {
+            var firstException = localAuthorizationException != null
+                ? formatAuthorizationException(localAuthorizationException, localUnauthorizedIndices)
+                : null;
 
-                if (remoteAuthExceptions != null) {
-                    for (var e : remoteAuthExceptions.entrySet()) {
-                        final var unauthorizedIndices = remoteUnauthorizedIndices.get(e.getKey());
-                        assert unauthorizedIndices.isEmpty() == false;
+            if (remoteAuthorizationExceptions != null) {
+                for (var e : remoteAuthorizationExceptions.entrySet()) {
+                    final var unauthorizedIndices = remoteUnauthorizedIndices.get(e.getKey());
+                    assert unauthorizedIndices.isEmpty() == false;
 
-                        var exception = formatAuthorizationException(e.getValue(), unauthorizedIndices);
-                        if (firstException == null) {
-                            firstException = exception;
-                        } else {
-                            firstException.addSuppressed(exception);
-                        }
+                    var exception = formatAuthorizationException(e.getValue(), unauthorizedIndices);
+                    if (firstException == null) {
+                        firstException = exception;
+                    } else {
+                        firstException.addSuppressed(exception);
                     }
                 }
-
-                return firstException;
             }
+
+            return firstException;
         }
+    }
+
+    private static ElasticsearchSecurityException formatAuthorizationException(
+        ElasticsearchException exceptionWithPlaceholder,
+        List<String> unauthorizedIndices
+    ) {
+        return new ElasticsearchSecurityException(
+            Strings.replace(exceptionWithPlaceholder.getMessage(), "-*", Strings.collectionToCommaDelimitedString(unauthorizedIndices)),
+            exceptionWithPlaceholder.status()
+        );
     }
 
     private record UnqualifiedRemoteResult(
         @Nullable ElasticsearchSecurityException securityException,
         @Nullable String projectAlias,
         @Nullable String remoteExpression,
-        boolean foundOnAnyProject
+        boolean foundFlat
     ) {}
 
-    private static UnqualifiedRemoteResult checkUnqualifiedRemoteExpressions(
-        List<String> remoteExpressions,
-        Map<String, ResolvedIndexExpressions> remoteResolvedExpressions,
-        IndicesOptions indicesOptions
-    ) {
-        ElasticsearchSecurityException firstSecurityException = null;
-        String firstFailedExpression = null;
-        String firstFailedProject = null;
+    private UnqualifiedRemoteResult checkUnqualifiedRemoteExpressions(List<String> remoteExpressions) {
+        var result = new UnqualifiedRemoteResult(null, null, null, false);
 
         for (String remoteExpression : remoteExpressions) {
             String[] splitResource = splitQualifiedResource(remoteExpression);
             var projectAlias = splitResource[0];
             var resource = splitResource[1];
 
-            ElasticsearchException remoteException = checkSingleRemoteExpression(
-                remoteResolvedExpressions,
-                projectAlias,
-                resource,
-                remoteExpression,
-                indicesOptions
-            );
+            ElasticsearchException remoteException = checkSingleRemoteExpression(projectAlias, resource, remoteExpression);
             if (remoteException == null) {
                 // found flat expression somewhere
                 return new UnqualifiedRemoteResult(null, null, null, true);
             }
 
-            if (firstSecurityException == null && remoteException instanceof ElasticsearchSecurityException securityException) {
-                firstSecurityException = securityException;
-                firstFailedExpression = remoteExpression;
-                firstFailedProject = projectAlias;
+            if (result.securityException() == null && remoteException instanceof ElasticsearchSecurityException securityException) {
+                result = new UnqualifiedRemoteResult(securityException, projectAlias, remoteExpression, false);
             }
         }
 
-        return new UnqualifiedRemoteResult(firstSecurityException, firstFailedProject, firstFailedExpression, false);
+        return result;
     }
 }

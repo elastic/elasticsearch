@@ -115,7 +115,7 @@ serverless: ga
 `query_vector`
 :   (Optional, array of floats or string) Query vector. Must have the same number of dimensions as the vector field you are searching against.
     Must be either an array of floats or a hex-encoded byte vector (one byte per dimension; for `bit`, one byte per 8 dimensions).
-    It can also be a base64-encoded vector string. Base64 supports `float`, `bfloat16`, `byte`, and `bit` encodings depending on the target field type. {applies_to}`stack: ga 9.4` {applies_to}`serverless: ga`
+    It can also be a base64-encoded vector string. Base64 supports `float` and `bfloat16` (big-endian), `byte`, and `bit` encodings depending on the target field type. {applies_to}`stack: ga 9.4` {applies_to}`serverless: ga`
     Either this or `query_vector_builder` must be provided.
 
 

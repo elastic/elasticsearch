@@ -22,8 +22,8 @@ import java.util.Objects;
  * Uses a wrapper type so that equality after round-trip is semantic (field-by-field),
  * since {@link ClusterStateSerializationStats} does not implement {@code equals} or {@code hashCode}.
  */
-public class ClusterStateSerializationStatsWireSerializingTests
-    extends AbstractWireSerializingTestCase<ClusterStateSerializationStatsWireSerializingTests.ClusterStateSerializationStatsWrapper> {
+public class ClusterStateSerializationStatsWireSerializingTests extends AbstractWireSerializingTestCase<
+    ClusterStateSerializationStatsWireSerializingTests.ClusterStateSerializationStatsWrapper> {
 
     @Override
     protected Writeable.Reader<ClusterStateSerializationStatsWrapper> instanceReader() {
@@ -56,7 +56,10 @@ public class ClusterStateSerializationStatsWireSerializingTests
         int field = between(0, 5);
         switch (field) {
             case 0 -> fullStateCount = randomValueOtherThan(fullStateCount, () -> randomNonNegativeLong());
-            case 1 -> totalUncompressedFullStateBytes = randomValueOtherThan(totalUncompressedFullStateBytes, () -> randomNonNegativeLong());
+            case 1 -> totalUncompressedFullStateBytes = randomValueOtherThan(
+                totalUncompressedFullStateBytes,
+                () -> randomNonNegativeLong()
+            );
             case 2 -> totalCompressedFullStateBytes = randomValueOtherThan(totalCompressedFullStateBytes, () -> randomNonNegativeLong());
             case 3 -> diffCount = randomValueOtherThan(diffCount, () -> randomNonNegativeLong());
             case 4 -> totalUncompressedDiffBytes = randomValueOtherThan(totalUncompressedDiffBytes, () -> randomNonNegativeLong());

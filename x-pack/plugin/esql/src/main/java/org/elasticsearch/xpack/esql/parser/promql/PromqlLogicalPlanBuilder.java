@@ -78,6 +78,7 @@ import static org.elasticsearch.xpack.esql.plan.logical.promql.selector.LabelMat
 public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
 
     public static final Duration GLOBAL_EVALUATION_INTERVAL = Duration.ofMinutes(1);
+    public static final Duration IMPLICIT_RANGE_PLACEHOLDER = Duration.ofMillis(-1);
 
     PromqlLogicalPlanBuilder(Literal start, Literal end, int startLine, int startColumn, QueryParams params) {
         super(start, end, startLine, startColumn, params);
@@ -448,7 +449,11 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
             PromqlDataType actualType = PromqlPlan.getType(providedParam);
             PromqlDataType expectedType = expectedParam.type();
             if (actualType != expectedType) {
-                throw new ParsingException(source, "expected type {} in call to function [{}], got {}", expectedType, name, actualType);
+                if (expectedType == PromqlDataType.RANGE_VECTOR && providedParam instanceof InstantSelector selector) {
+                    providedParam = convertToRangeSelector(selector);
+                } else {
+                    throw new ParsingException(source, "expected type {} in call to function [{}], got {}", expectedType, name, actualType);
+                }
             }
             if (expectedParam.child()) {
                 child = providedParam;
@@ -512,6 +517,25 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         }
         //
         return plan;
+    }
+
+    /**
+     * In contrast to strict PromQL,
+     * we allow using instant vector selectors where range vectors are expected,
+     * by implicitly treating them as range vectors with a default range.
+     */
+    private static LogicalPlan convertToRangeSelector(InstantSelector selector) {
+        LogicalPlan providedParam;
+        providedParam = new RangeSelector(
+            selector.source(),
+            selector.child(),
+            selector.series(),
+            selector.labels(),
+            selector.labelMatchers(),
+            Literal.timeDuration(selector.source(), IMPLICIT_RANGE_PLACEHOLDER),
+            selector.evaluation()
+        );
+        return providedParam;
     }
 
     @Override

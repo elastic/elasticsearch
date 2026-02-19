@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -28,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.RerankExec;
 import org.elasticsearch.xpack.esql.planner.AbstractPhysicalOperationProviders;
@@ -64,12 +65,6 @@ public class MapperUtils {
     static PhysicalPlan mapLeaf(LeafPlan p) {
         if (p instanceof LocalRelation local) {
             return new LocalSourceExec(local.source(), local.output(), local.supplier());
-        }
-
-        // External data sources (Iceberg, Parquet, etc.)
-        // These are executed on the coordinator only, bypassing FragmentExec/ExchangeExec dispatch
-        if (p instanceof ExternalRelation external) {
-            return external.toPhysicalExec();
         }
 
         // Commands
@@ -167,6 +162,16 @@ public class MapperUtils {
         if (p instanceof Subquery) {
             // A Subquery node is just a placeholder for the subquery plan, so we just return the child plan
             return child;
+        }
+
+        if (p instanceof UriParts uriParts) {
+            return new UriPartsExec(
+                uriParts.source(),
+                child,
+                uriParts.getInput(),
+                uriParts.outputFieldNames(),
+                uriParts.generatedAttributes()
+            );
         }
 
         return unsupported(p);

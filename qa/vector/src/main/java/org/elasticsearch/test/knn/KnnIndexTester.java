@@ -38,7 +38,7 @@ import org.elasticsearch.gpu.codec.ES92GpuHnswVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
-import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswBinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswScalarQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
@@ -216,11 +216,13 @@ public class KnnIndexTester {
                 );
             };
             case FLAT -> switch (quantizeBits) {
-                case null -> new ES93GenericFlatVectorsFormat(elementType, false);
+                case null -> new ES93FlatVectorFormat(elementType);
                 case 1 -> new ES93BinaryQuantizedVectorsFormat(elementType, false);
                 default -> new ES93ScalarQuantizedVectorsFormat(elementType, null, quantizeBits, true, false);
             };
         };
+
+        logger.info("Using format {}", format.getName());
 
         return new Lucene103Codec() {
             @Override

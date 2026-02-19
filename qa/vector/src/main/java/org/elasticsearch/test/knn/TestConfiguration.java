@@ -128,7 +128,12 @@ record TestConfiguration(
         PARSER.declareBoolean(Builder::setReindex, REINDEX_FIELD);
         PARSER.declareBoolean(Builder::setForceMerge, FORCE_MERGE_FIELD);
         PARSER.declareString(Builder::setVectorSpace, VECTOR_SPACE_FIELD);
-        PARSER.declareInt(Builder::setQuantizeBits, QUANTIZE_BITS_FIELD);
+        PARSER.declareField(
+            Builder::setQuantizeBits,
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue(),
+            QUANTIZE_BITS_FIELD,
+            ObjectParser.ValueType.INT_OR_NULL
+        );
         PARSER.declareString(Builder::setVectorEncoding, VECTOR_ENCODING_FIELD);
         PARSER.declareInt(Builder::setDimensions, DIMENSIONS_FIELD);
         PARSER.declareFieldArray(
@@ -382,7 +387,7 @@ record TestConfiguration(
             return this;
         }
 
-        public Builder setQuantizeBits(int quantizeBits) {
+        public Builder setQuantizeBits(Integer quantizeBits) {
             this.quantizeBits = quantizeBits;
             return this;
         }

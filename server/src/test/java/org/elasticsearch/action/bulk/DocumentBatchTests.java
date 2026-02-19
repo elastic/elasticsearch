@@ -213,40 +213,6 @@ public class DocumentBatchTests extends ESTestCase {
         batch.close();
     }
 
-    public void testStoredSource() throws IOException {
-        List<IndexRequest> requests = new ArrayList<>();
-        String source1 = "{\"name\":\"alice\"}";
-        String source2 = "{\"name\":\"bob\"}";
-        requests.add(new IndexRequest("test").id("1").source(source1, XContentType.JSON));
-        requests.add(new IndexRequest("test").id("2").source(source2, XContentType.JSON));
-
-        DocumentBatch batch = DocumentBatchEncoder.encode(requests, true); // storeSource=true
-
-        assertTrue(batch.hasStoredSource());
-
-        BytesReference storedSource1 = batch.docSource(0);
-        assertNotNull(storedSource1);
-        assertEquals(source1, storedSource1.utf8ToString());
-
-        BytesReference storedSource2 = batch.docSource(1);
-        assertNotNull(storedSource2);
-        assertEquals(source2, storedSource2.utf8ToString());
-
-        batch.close();
-    }
-
-    public void testNoStoredSource() throws IOException {
-        List<IndexRequest> requests = new ArrayList<>();
-        requests.add(new IndexRequest("test").id("1").source("{\"name\":\"alice\"}", XContentType.JSON));
-
-        DocumentBatch batch = DocumentBatchEncoder.encode(requests, false);
-
-        assertFalse(batch.hasStoredSource());
-        assertNull(batch.docSource(0));
-
-        batch.close();
-    }
-
     public void testBooleanColumn() throws IOException {
         List<IndexRequest> requests = new ArrayList<>();
         requests.add(new IndexRequest("test").id("1").source("{\"active\":true}", XContentType.JSON));

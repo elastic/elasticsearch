@@ -13,7 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.ColumnType;
 import org.elasticsearch.action.bulk.DocumentBatch;
 import org.elasticsearch.action.bulk.FieldColumn;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentParser;
@@ -62,7 +61,7 @@ public final class BatchDocumentParser {
      * @param mappingLookup the current mapping lookup
      * @return a result containing parsed documents and per-document exceptions
      */
-    public BatchResult parseBatch(DocumentBatch batch, MappingLookup mappingLookup) {
+    public BatchResult parseBatch(DocumentBatch batch, MappingLookup mappingLookup, List<BytesReference> originalSources) {
         final int docCount = batch.docCount();
         final MetadataFieldMapper[] metadataFieldMappers = mappingLookup.getMapping().getSortedMetadataMappers();
 
@@ -73,7 +72,7 @@ public final class BatchDocumentParser {
 
         for (int i = 0; i < docCount; i++) {
             try {
-                sources[i] = createSourceToParse(batch, i);
+                sources[i] = createSourceToParse(batch, i, originalSources.get(i));
                 contexts[i] = new BatchDocumentParserContext(mappingLookup, mappingParserContext, sources[i]);
             } catch (Exception e) {
                 exceptions[i] = e;
@@ -185,17 +184,10 @@ public final class BatchDocumentParser {
     /**
      * Creates a {@link SourceToParse} from batch metadata for a given document index.
      */
-    private static SourceToParse createSourceToParse(DocumentBatch batch, int docIndex) {
+    private static SourceToParse createSourceToParse(DocumentBatch batch, int docIndex, BytesReference source) {
         String id = batch.docId(docIndex);
         String routing = batch.docRouting(docIndex);
         XContentType xContentType = batch.docXContentType(docIndex);
-        BytesReference source = batch.hasStoredSource() ? batch.docSource(docIndex) : null;
-
-        // If there is no stored source, we still need a non-null BytesReference for SourceToParse.
-        // Use empty bytes as a placeholder; the source will not be stored in this case.
-        if (source == null) {
-            source = BytesArray.EMPTY;
-        }
 
         return new SourceToParse(id, source, xContentType, routing);
     }

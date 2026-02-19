@@ -47,10 +47,9 @@ public class DocumentBatchEncoder {
      * Encode a list of IndexRequests into a binary columnar DocumentBatch.
      *
      * @param requests     the index requests to encode
-     * @param storeSource  if true, include original source bytes in the batch (for stored source mode)
      * @return a DocumentBatch backed by a contiguous byte array
      */
-    public static DocumentBatch encode(List<IndexRequest> requests, boolean storeSource) throws IOException {
+    public static DocumentBatch encode(List<IndexRequest> requests) throws IOException {
         int docCount = requests.size();
 
         // Phase 1: Extract all field values from each document
@@ -77,15 +76,9 @@ public class DocumentBatchEncoder {
         }
 
         // Phase 2: Serialize to binary format
-        return serialize(requests, columns, docCount, storeSource);
+        return serialize(requests, columns, docCount);
     }
 
-    /**
-     * Convenience method that defaults to not storing source (synthetic source mode).
-     */
-    public static DocumentBatch encode(List<IndexRequest> requests) throws IOException {
-        return encode(requests, false);
-    }
 
     private static void flattenObject(
         XContentParser parser,
@@ -161,17 +154,15 @@ public class DocumentBatchEncoder {
     private static DocumentBatch serialize(
         List<IndexRequest> requests,
         Map<String, ColumnBuilder> columns,
-        int docCount,
-        boolean storeSource
+        int docCount
     ) throws IOException {
         ByteArrayOutputStream out = new ByteArrayOutputStream(4096);
 
-        // Header: magic(4) + version(4) + docCount(4) + columnCount(4) + flags(1) = 17 bytes
+        // Header: magic(4) + version(4) + docCount(4) + columnCount(4) = 16 bytes
         writeInt(out, DocumentBatch.MAGIC);
         writeInt(out, DocumentBatch.VERSION);
         writeInt(out, docCount);
         writeInt(out, columns.size());
-        out.write(storeSource ? 1 : 0);
 
         // Per-document metadata
         for (int i = 0; i < docCount; i++) {
@@ -236,16 +227,6 @@ public class DocumentBatchEncoder {
         // Column data
         for (byte[] colData : columnDataArrays) {
             out.write(colData);
-        }
-
-        // Stored source (optional)
-        if (storeSource) {
-            for (int i = 0; i < docCount; i++) {
-                BytesReference source = requests.get(i).source();
-                byte[] sourceBytes = BytesReference.toBytes(source);
-                writeInt(out, sourceBytes.length);
-                out.write(sourceBytes);
-            }
         }
 
         return new DocumentBatch(out.toByteArray());

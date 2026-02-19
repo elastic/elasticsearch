@@ -412,8 +412,12 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }
 
         // Phase 2: Parse batch using BatchDocumentParser
+        final java.util.List<org.elasticsearch.common.bytes.BytesReference> originalSources = new java.util.ArrayList<>(batchDocCount);
+        for (IndexRequest ir : indexRequests) {
+            originalSources.add(ir.source());
+        }
         var batchParser = mapperService.createBatchDocumentParser();
-        var parseResult = batchParser.parseBatch(batch, mappingLookup);
+        var parseResult = batchParser.parseBatch(batch, mappingLookup, originalSources);
 
         // Phase 3: Build Engine.Index operations for successfully parsed documents
         final java.util.List<Engine.Index> engineOps = new java.util.ArrayList<>(batchDocCount);

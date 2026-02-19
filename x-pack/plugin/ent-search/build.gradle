@@ -70,8 +70,8 @@ tasks.named("yamlRestCompatTest") {
 }
 
 tasks.named("yamlRestCompatTestTransform") { task ->
-  // Allow any warning on error responses: check warning headers in the catch path
-  task.addAllowedWarningRegex(".*")
+  // Behavioral Analytics is deprecated with 9.0.0.
+  task.addAllowedWarning("Behavioral Analytics is deprecated and will be removed in a future release.")
 }
 
 addQaCheckDependencies(project)

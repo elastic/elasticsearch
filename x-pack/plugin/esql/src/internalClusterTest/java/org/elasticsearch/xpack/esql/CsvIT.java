@@ -17,22 +17,36 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.HeaderWarning;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.NodeConfigurationSource;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportInterceptor;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
+import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
+import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
@@ -40,6 +54,7 @@ import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
+import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.view.DeleteViewAction;
 import org.elasticsearch.xpack.esql.view.PutViewAction;
@@ -58,7 +73,9 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -122,7 +139,17 @@ public class CsvIT extends ESTestCase {
             1,
             1,
             "esql_test_cluster",
-            NodeConfigurationSource.EMPTY,
+            new NodeConfigurationSource() {
+                @Override
+                public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+                    return Settings.builder().put("xpack.security.enabled", false).build();
+                }
+
+                @Override
+                public java.nio.file.Path nodeConfigPath(int nodeOrdinal) {
+                    return null;
+                }
+            },
             0,
             "node_",
             List.of(
@@ -131,7 +158,8 @@ public class CsvIT extends ESTestCase {
                 AggregateMetricMapperPlugin.class,
                 AnalyticsPlugin.class,
                 ConstantKeywordMapperPlugin.class,
-                // EnrichPlugin.class,
+                EnrichPlugin.class,
+                IngestCommonPlugin.class,
                 ExponentialHistogramMapperPlugin.class,
                 LocalStateInferencePlugin.class,
                 MapperExtrasPlugin.class,
@@ -147,28 +175,6 @@ public class CsvIT extends ESTestCase {
 
         long stop = System.currentTimeMillis();
         logger.info("Started test cluster in {} ms", stop - start);
-
-        // TODO enrich?
-        // for (var policy : CsvTestsDataLoader.ENRICH_POLICIES) {
-        // logger.info("Creating policy [{}]", policy.policyFileName());
-        // var p = EnrichPolicy.fromXContent(
-        // JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, policy.streamPolicy())
-        // );
-        // assertAcked(
-        // cluster.client()
-        // .execute(
-        // PutEnrichPolicyAction.INSTANCE,
-        // new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName(), p)
-        // )
-        // );
-        // var response = cluster.client()
-        // .execute(
-        // ExecuteEnrichPolicyAction.INSTANCE,
-        // new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName())
-        // )
-        // .actionGet();
-        // assertTrue(response.getStatus().isCompleted());
-        // }
     }
 
     @AfterClass
@@ -182,6 +188,7 @@ public class CsvIT extends ESTestCase {
         currentGroupName = groupName;
         // verify no prior failures
         indices.ensureNoFailures();
+        enrich.ensureNoFailures();
         views.ensureNoFailures();
 
         skipUnsupportedCapability(EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS);
@@ -194,7 +201,6 @@ public class CsvIT extends ESTestCase {
         // runs in a single cluster/single node mode
         skipUnsupportedCapability(EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST);
 
-        assumeFalse("Enrich is not supported in IT yet", testCase.query.trim().toUpperCase(java.util.Locale.ROOT).contains("ENRICH"));
         assumeFalse(
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
@@ -250,7 +256,7 @@ public class CsvIT extends ESTestCase {
         return false;
     }
 
-    public static class EsqlTestPlugin extends EsqlPlugin {
+    public static class EsqlTestPlugin extends EsqlPlugin implements NetworkPlugin {
         protected XPackLicenseState getLicenseState() {
             return new XPackLicenseState(System::currentTimeMillis, new XPackLicenseStatus(License.OperationMode.ENTERPRISE, true, null));
         }
@@ -268,9 +274,32 @@ public class CsvIT extends ESTestCase {
                     switch (action) {
                         case EsqlQueryAction.NAME -> loadViews();
                         case EsqlResolveFieldsAction.NAME -> loadIndices((FieldCapabilitiesRequest) request);
-                        // TODO enrich
                     }
                     return true;
+                }
+            });
+        }
+
+        @Override
+        public List<TransportInterceptor> getTransportInterceptors(
+            NamedWriteableRegistry namedWriteableRegistry,
+            ThreadContext threadContext
+        ) {
+            return List.of(new TransportInterceptor() {
+                @Override
+                public <T extends TransportRequest> TransportRequestHandler<T> interceptHandler(
+                    String action,
+                    Executor executor,
+                    boolean forceExecution,
+                    TransportRequestHandler<T> handler
+                ) {
+                    return switch (action) {
+                        case EnrichPolicyResolver.RESOLVE_ACTION_NAME -> (request, channel, task) -> {
+                            loadEnrichPolicy((EnrichPolicyResolver.LookupRequest) request);
+                            handler.messageReceived(request, channel, task);
+                        };
+                        default -> handler;
+                    };
                 }
             });
         }
@@ -295,7 +324,15 @@ public class CsvIT extends ESTestCase {
             } else {
                 return Stream.of(CsvTestsDataLoader.CSV_DATASET_MAP.get(pattern));
             }
-        }).forEach(resource -> indices.maybeLoad(resource));
+        }).filter(Objects::nonNull).forEach(resource -> indices.maybeLoad(resource));
+    }
+
+    private static void loadEnrichPolicy(EnrichPolicyResolver.LookupRequest request) {
+        for (var name : request.policyNames) {
+            enrich.maybeLoad(
+                CsvTestsDataLoader.ENRICH_POLICIES.stream().filter(p -> Objects.equals(p.policyName(), name)).findFirst().get()
+            );
+        }
     }
 
     private static ResourceLoader<CsvTestsDataLoader.TestDataset> indices = new ResourceLoader<>() {
@@ -338,6 +375,39 @@ public class CsvIT extends ESTestCase {
             }
         }
     };
+
+    private static ResourceLoader<CsvTestsDataLoader.EnrichConfig> enrich = new ResourceLoader<>() {
+        @Override
+        protected String name(CsvTestsDataLoader.EnrichConfig resource) {
+            return resource.policyName();
+        }
+
+        @Override
+        protected void load(CsvTestsDataLoader.EnrichConfig policy) throws IOException {
+            logger.info("Creating policy [{}]", policy.policyFileName());
+            var p = EnrichPolicy.fromXContent(
+                JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, policy.streamPolicy())
+            );
+            for (var index : p.getIndices()) {
+                indices.maybeLoad(CsvTestsDataLoader.CSV_DATASET_MAP.get(index));
+            }
+            assertAcked(
+                cluster.client()
+                    .execute(
+                        PutEnrichPolicyAction.INSTANCE,
+                        new PutEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName(), p)
+                    )
+            );
+            var response = cluster.client()
+                .execute(
+                    ExecuteEnrichPolicyAction.INSTANCE,
+                    new ExecuteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy.policyName())
+                )
+                .actionGet();
+            assertTrue(response.getStatus().isCompleted());
+        }
+    };
+
     private static ResourceLoader<CsvTestsDataLoader.ViewConfig> views = new ResourceLoader<>() {
         @Override
         protected String name(CsvTestsDataLoader.ViewConfig resource) {

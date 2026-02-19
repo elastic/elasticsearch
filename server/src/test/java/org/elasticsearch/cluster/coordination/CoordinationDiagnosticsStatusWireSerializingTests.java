@@ -36,4 +36,14 @@ public class CoordinationDiagnosticsStatusWireSerializingTests
     protected CoordinationDiagnosticsStatus mutateInstance(CoordinationDiagnosticsStatus instance) throws IOException {
         return randomValueOtherThan(instance, () -> randomFrom(CoordinationDiagnosticsStatus.values()));
     }
+
+    /**
+     * Enum deserialization returns the same singleton constant instance, so the round-trip copy
+     * is the same reference as the original. Override so the base class uses assertSame instead
+     * of assertNotSame.
+     */
+    @Override
+    protected boolean shouldBeSame(CoordinationDiagnosticsStatus newInstance) {
+        return true;
+    }
 }

@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.isSpatialPoint;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 /**
@@ -87,9 +88,10 @@ public class StIsEmpty extends SpatialUnaryDocValuesFunction implements AnyNullI
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        if (spatialDocValues) {
+        if (spatialDocValues && isSpatialPoint(spatialField().dataType())) {
             return new StIsEmptyFromPointDocValuesEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
         }
+        // spatialDocValues for shapes is provided as WKB
         return new StIsEmptyFromWKBEvaluator.Factory(source(), toEvaluator.apply(spatialField()));
     }
 

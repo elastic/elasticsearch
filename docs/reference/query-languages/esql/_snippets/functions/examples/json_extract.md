@@ -22,4 +22,26 @@ ROW json = "{\\"user\\":{\\"address\\":{\\"city\\":\\"London\\"}}}"
 | --- | --- |
 | "{""user"":{""address"":{""city"":""London""}}}" | London |
 
+Extract a value from a nested array using bracket notation:
+
+```esql
+ROW json = "{\\"orders\\":[{\\"id\\":1,\\"item\\":\\"book\\"},{\\"id\\":2,\\"item\\":\\"pen\\"}]}"
+| EVAL second_item = JSON_EXTRACT(json, "orders[1].item")
+```
+
+| json:keyword | second_item:keyword |
+| --- | --- |
+| "{""orders"":[{""id"":1,""item"":""book""},{""id"":2,""item"":""pen""}]}" | pen |
+
+Extract a nested object, returned as a JSON string:
+
+```esql
+ROW json = "{\\"user\\":{\\"name\\":\\"Alice\\",\\"age\\":30}}"
+| EVAL user = JSON_EXTRACT(json, "user")
+```
+
+| json:keyword | user:keyword |
+| --- | --- |
+| "{""user"":{""name"":""Alice"",""age"":30}}" | "{""name"":""Alice"",""age"":30}" |
+
 

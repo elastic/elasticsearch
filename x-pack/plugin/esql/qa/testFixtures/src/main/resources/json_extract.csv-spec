@@ -58,22 +58,30 @@ json:keyword                         | first_tag:keyword
 
 jsonExtractMixedNesting
 required_capability: fn_json_extract
+// tag::json_extract_array[]
 ROW json = "{\"orders\":[{\"id\":1,\"item\":\"book\"},{\"id\":2,\"item\":\"pen\"}]}"
 | EVAL second_item = JSON_EXTRACT(json, "orders[1].item")
+// end::json_extract_array[]
 ;
 
+// tag::json_extract_array-result[]
 json:keyword                                                                     | second_item:keyword
 "{""orders"":[{""id"":1,""item"":""book""},{""id"":2,""item"":""pen""}]}"        | pen
+// end::json_extract_array-result[]
 ;
 
 jsonExtractObject
 required_capability: fn_json_extract
+// tag::json_extract_object[]
 ROW json = "{\"user\":{\"name\":\"Alice\",\"age\":30}}"
 | EVAL user = JSON_EXTRACT(json, "user")
+// end::json_extract_object[]
 ;
 
+// tag::json_extract_object-result[]
 json:keyword                                     | user:keyword
 "{""user"":{""name"":""Alice"",""age"":30}}"     | "{""name"":""Alice"",""age"":30}"
+// end::json_extract_object-result[]
 ;
 
 jsonExtractMissing

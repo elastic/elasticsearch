@@ -83,7 +83,17 @@ public class JsonExtract extends EsqlScalarFunction {
             non-object/non-array value.""",
         examples = {
             @Example(file = "json_extract", tag = "json_extract"),
-            @Example(file = "json_extract", tag = "json_extract_nested", description = "Extract a nested value using dot-notation:") }
+            @Example(file = "json_extract", tag = "json_extract_nested", description = "Extract a nested value using dot-notation:"),
+            @Example(
+                file = "json_extract",
+                tag = "json_extract_array",
+                description = "Extract a value from a nested array using bracket notation:"
+            ),
+            @Example(
+                file = "json_extract",
+                tag = "json_extract_object",
+                description = "Extract a nested object, returned as a JSON string:"
+            ) }
     )
     public JsonExtract(
         Source source,

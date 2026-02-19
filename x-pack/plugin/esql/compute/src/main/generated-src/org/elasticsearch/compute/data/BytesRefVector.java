@@ -35,7 +35,7 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     OrdinalBytesRefVector asOrdinals();
 
     @Override
-    BytesRefVector filter(int... positions);
+    BytesRefVector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     BytesRefBlock keepMask(BooleanVector mask);

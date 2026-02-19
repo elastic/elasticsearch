@@ -54,12 +54,7 @@ public class CrossProjectIndexExpressionsRewriter {
         Set<String> allProjectAliases,
         @Nullable String projectRouting
     ) {
-        // Always 404 when no project is available for index resolution. This is matching error handling behaviour for resolving
-        // projects with qualified index patterns such as "missing-*:index".
-        if (originProjectAlias == null && allProjectAliases.isEmpty()) {
-            assert projectRouting != null;
-            throw new NoMatchingProjectException("no matching project after applying project routing [" + projectRouting + "]");
-        }
+        ensureProjectsAvailable(originProjectAlias, allProjectAliases, projectRouting);
 
         final boolean isQualified = RemoteClusterAware.isRemoteIndexName(indexExpression);
         final IndexRewriteResult rewrittenExpression;
@@ -73,6 +68,33 @@ public class CrossProjectIndexExpressionsRewriter {
         // Empty rewritten expressions should have been thrown earlier
         assert false == rewrittenExpression.isEmpty() : "rewritten index expression must not be empty";
         return rewrittenExpression;
+    }
+
+    /**
+     * Validates whether the index expression refers to an existing project without rewriting or expanding indices.
+     * Throws {@link NoMatchingProjectException} if a qualified resource cannot be resolved because a project is missing.
+     */
+    public static void validateIndexExpressionWithoutRewrite(
+        String indexExpression,
+        @Nullable String originProjectAlias,
+        Set<String> allProjectAliases,
+        @Nullable String projectRouting
+    ) {
+        ensureProjectsAvailable(originProjectAlias, allProjectAliases, projectRouting);
+
+        if (RemoteClusterAware.isRemoteIndexName(indexExpression) == false) {
+            return;
+        }
+
+        String[] splitResource = RemoteClusterAware.splitIndexName(indexExpression);
+        String requestedProjectAlias = splitResource[0];
+        assert requestedProjectAlias != null : "Expected a project alias for a qualified resource but was null";
+        if (isExclusionExpression(requestedProjectAlias)) {
+            requestedProjectAlias = requestedProjectAlias.substring(1);
+        }
+
+        // triggers project alias resolving which will validate project aliases
+        resolveProjectAliases(requestedProjectAlias, originProjectAlias, allProjectAliases, projectRouting);
     }
 
     static Set<String> getAllProjectAliases(@Nullable ProjectRoutingInfo originProject, List<ProjectRoutingInfo> linkedProjects) {
@@ -131,15 +153,56 @@ public class CrossProjectIndexExpressionsRewriter {
             throw new IllegalArgumentException("Cannot apply exclusion for both the project and the index expression [" + resource + "]");
         }
 
-        if (originProjectAlias != null && ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
-            // handling case where we have a qualified expression like: _origin:indexName
-            return new IndexRewriteResult(isExclusion ? EXCLUSION_PREFIX + indexExpression : indexExpression);
+        List<String> allProjectsMatchingAlias = resolveProjectAliases(
+            requestedProjectAlias,
+            originProjectAlias,
+            allProjectAliases,
+            projectRouting
+        );
+
+        String localExpression = null;
+        final Set<String> resourcesMatchingLinkedProjectAliases = new LinkedHashSet<>();
+        // TODO: Rewrite supports exclusion such as -project:index but it is still rejected by RemoteClusterAware#groupClusterIndices
+        // We could consider supporting it all the way through, see also ES-13767
+        for (String project : allProjectsMatchingAlias) {
+            if (project.equals(originProjectAlias)) {
+                localExpression = isExclusion ? EXCLUSION_PREFIX + indexExpression : indexExpression;
+            } else {
+                final String remoteIndexName = RemoteClusterAware.buildRemoteIndexName(project, indexExpression);
+                resourcesMatchingLinkedProjectAliases.add(isExclusion ? EXCLUSION_PREFIX + remoteIndexName : remoteIndexName);
+            }
         }
 
-        if (originProjectAlias == null && ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
-            // handling case where we have a qualified expression like: _origin:indexName but no _origin project is set
-            // This applies to exclusion as well, e.g. -_origin:indexName
-            throw new NoMatchingProjectException(requestedProjectAlias, projectRouting);
+        return new IndexRewriteResult(localExpression, resourcesMatchingLinkedProjectAliases);
+    }
+
+    private static void ensureProjectsAvailable(
+        @Nullable String originProjectAlias,
+        Set<String> allProjectAliases,
+        @Nullable String projectRouting
+    ) {
+        // Always 404 when no project is available for index resolution. This is matching error handling behaviour for resolving
+        // projects with qualified index patterns such as "missing-*:index".
+        if (originProjectAlias == null && allProjectAliases.isEmpty()) {
+            assert projectRouting != null;
+            throw new NoMatchingProjectException("no matching project after applying project routing [" + projectRouting + "]");
+        }
+    }
+
+    private static List<String> resolveProjectAliases(
+        String requestedProjectAlias,
+        @Nullable String originProjectAlias,
+        Set<String> allProjectAliases,
+        @Nullable String projectRouting
+    ) {
+        if (ProjectRoutingResolver.ORIGIN.equals(requestedProjectAlias)) {
+            // handling case where we have a qualified expression like: _origin:indexName
+            if (originProjectAlias == null) {
+                // handling case where we have a qualified expression like: _origin:indexName but no _origin project is set
+                // This applies to exclusion as well, e.g. -_origin:indexName
+                throw new NoMatchingProjectException(requestedProjectAlias, projectRouting);
+            }
+            return List.of(originProjectAlias);
         }
 
         try {
@@ -155,20 +218,7 @@ public class CrossProjectIndexExpressionsRewriter {
                 throw new NoMatchingProjectException(requestedProjectAlias, projectRouting);
             }
 
-            String localExpression = null;
-            final Set<String> resourcesMatchingLinkedProjectAliases = new LinkedHashSet<>();
-            // TODO: Rewrite supports exclusion such as -project:index but it is still rejected by RemoteClusterAware#groupClusterIndices
-            // We could consider supporting it all the way through, see also ES-13767
-            for (String project : allProjectsMatchingAlias) {
-                if (project.equals(originProjectAlias)) {
-                    localExpression = isExclusion ? EXCLUSION_PREFIX + indexExpression : indexExpression;
-                } else {
-                    final String remoteIndexName = RemoteClusterAware.buildRemoteIndexName(project, indexExpression);
-                    resourcesMatchingLinkedProjectAliases.add(isExclusion ? EXCLUSION_PREFIX + remoteIndexName : remoteIndexName);
-                }
-            }
-
-            return new IndexRewriteResult(localExpression, resourcesMatchingLinkedProjectAliases);
+            return allProjectsMatchingAlias;
         } catch (NoSuchRemoteClusterException ex) {
             logger.debug(ex.getMessage(), ex);
             throw new NoMatchingProjectException(requestedProjectAlias, projectRouting);

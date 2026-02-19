@@ -43,7 +43,7 @@ import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -488,7 +488,7 @@ public class ValuesSourceReaderBenchmark {
                                     blockFactory.newConstantIntBlockWith(0, end - begin).asVector(),
                                     blockFactory.newConstantIntBlockWith(ctx.ord, end - begin).asVector(),
                                     docs.build(),
-                                    true
+                                    DocVector.config().singleSegmentNonDecreasing(true)
                                 ).asBlock()
                             )
                         );
@@ -525,7 +525,7 @@ public class ValuesSourceReaderBenchmark {
                                         blockFactory.newConstantIntVector(0, size),
                                         leafs.build(),
                                         docs.build(),
-                                        null
+                                        DocVector.config()
                                     ).asBlock()
                                 )
                             );
@@ -543,7 +543,7 @@ public class ValuesSourceReaderBenchmark {
                                 blockFactory.newConstantIntBlockWith(0, size).asVector(),
                                 leafs.build().asBlock().asVector(),
                                 docs.build(),
-                                null
+                                DocVector.config()
                             ).asBlock()
                         )
                     );
@@ -570,7 +570,7 @@ public class ValuesSourceReaderBenchmark {
                                     blockFactory.newConstantIntVector(0, 1),
                                     blockFactory.newConstantIntVector(next.ord, 1),
                                     blockFactory.newConstantIntVector(next.itr.nextInt(), 1),
-                                    true
+                                    DocVector.config().singleSegmentNonDecreasing(true)
                                 ).asBlock()
                             )
                         );

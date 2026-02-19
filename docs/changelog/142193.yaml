@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 142193
+summary: Terminate GCS retries when node is shutting down
+type: bug

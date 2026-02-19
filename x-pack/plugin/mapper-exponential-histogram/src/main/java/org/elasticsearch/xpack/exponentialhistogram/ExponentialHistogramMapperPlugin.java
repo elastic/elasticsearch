@@ -36,7 +36,8 @@ public class ExponentialHistogramMapperPlugin extends Plugin implements MapperPl
             ExponentialHistogramAggregatorsRegistrar::registerHistogramAggregator,
             ExponentialHistogramAggregatorsRegistrar::registerMinAggregator,
             ExponentialHistogramAggregatorsRegistrar::registerMaxAggregator,
-            ExponentialHistogramAggregatorsRegistrar::registerPercentilesAggregator
+            ExponentialHistogramAggregatorsRegistrar::registerPercentilesAggregator,
+            ExponentialHistogramAggregatorsRegistrar::registerPercentileRanksAggregator
         );
     }
 }

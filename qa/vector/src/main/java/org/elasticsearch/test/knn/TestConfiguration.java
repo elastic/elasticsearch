@@ -13,6 +13,7 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -43,7 +44,7 @@ record TestConfiguration(
     boolean reindex,
     boolean forceMerge,
     VectorSimilarityFunction vectorSpace,
-    int quantizeBits,
+    Integer quantizeBits,
     KnnIndexTester.VectorEncoding vectorEncoding,
     int dimensions,
     KnnIndexTester.MergePolicyType mergePolicy,
@@ -127,7 +128,12 @@ record TestConfiguration(
         PARSER.declareBoolean(Builder::setReindex, REINDEX_FIELD);
         PARSER.declareBoolean(Builder::setForceMerge, FORCE_MERGE_FIELD);
         PARSER.declareString(Builder::setVectorSpace, VECTOR_SPACE_FIELD);
-        PARSER.declareInt(Builder::setQuantizeBits, QUANTIZE_BITS_FIELD);
+        PARSER.declareField(
+            Builder::setQuantizeBits,
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue(),
+            QUANTIZE_BITS_FIELD,
+            ObjectParser.ValueType.INT_OR_NULL
+        );
         PARSER.declareString(Builder::setVectorEncoding, VECTOR_ENCODING_FIELD);
         PARSER.declareInt(Builder::setDimensions, DIMENSIONS_FIELD);
         PARSER.declareFieldArray(
@@ -165,6 +171,81 @@ record TestConfiguration(
         return Strings.toString(b, true, false);
     }
 
+    public static String formattedParameterHelp() {
+        List<ParameterHelp> params = List.of(
+            new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
+            new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
+            new ParameterHelp("num_docs", "int", "Number of documents to index."),
+            new ParameterHelp("num_queries", "int", "Number of queries to run from the query vectors file."),
+            new ParameterHelp("index_type", "string", "Index type: hnsw, flat, ivf, or gpu_hnsw."),
+            new ParameterHelp("ivf_cluster_size", "int", "IVF: number of clusters."),
+            new ParameterHelp("secondary_cluster_size", "int", "IVF: centroids per parent cluster; -1 uses the format default."),
+            new ParameterHelp("hnsw_m", "int", "HNSW: M parameter (graph degree)."),
+            new ParameterHelp("hnsw_ef_construction", "int", "HNSW: efConstruction parameter."),
+            new ParameterHelp("index_threads", "int", "Number of threads used for indexing."),
+            new ParameterHelp("reindex", "boolean", "Whether to build a new index from the document vectors."),
+            new ParameterHelp("force_merge", "boolean", "Whether to force-merge the index after indexing."),
+            new ParameterHelp("force_merge_max_num_segments", "int", "Force-merge target number of segments."),
+            new ParameterHelp("vector_space", "string", "Similarity: euclidean, dot_product, or cosine."),
+            new ParameterHelp("quantize_bits", "int", "Quantization bits; valid values depend on index_type."),
+            new ParameterHelp("vector_encoding", "string", "Vector encoding: byte, float32, or bfloat16."),
+            new ParameterHelp("dimensions", "int", "Vector dimensions; -1 uses dimensions from the vector file."),
+            new ParameterHelp("merge_policy", "string", "Merge policy: tiered, log_byte, log_doc, or no."),
+            new ParameterHelp("merge_workers", "int", "Number of merge worker threads for vector formats."),
+            new ParameterHelp("writer_buffer_mb", "double", "Index writer RAM buffer size in MB."),
+            new ParameterHelp("writer_buffer_docs", "int", "Max buffered docs before flush; -1 disables auto flush by docs."),
+            new ParameterHelp("on_disk_rescore", "boolean", "Search: enable on-disk rescore for search."),
+            new ParameterHelp("precondition", "boolean", "IVF: apply preconditioning prior to indexing."),
+            new ParameterHelp("preconditioning_block_dims", "int", "IVF: block dimensions used for preconditioning."),
+            new ParameterHelp("num_candidates", "array[int]", "HNSW: number of candidates (efSearch) to consider per query."),
+            new ParameterHelp("k", "array[int]", "Search: top K results to return."),
+            new ParameterHelp("visit_percentage", "array[double]", "IVF: percentage of IVF index to visit (0.0-100.0)."),
+            new ParameterHelp("over_sampling_factor", "array[float]", "Search: oversampling factor for approximate search."),
+            new ParameterHelp("search_threads", "array[int]", "Search: threads per searcher."),
+            new ParameterHelp("num_searchers", "array[int]", "Search: number of parallel searchers."),
+            new ParameterHelp("filter_selectivity", "array[float]", "Search: filter selectivity (0.0-1.0)."),
+            new ParameterHelp("filter_cache", "array[boolean]", "Search: whether filters are cached."),
+            new ParameterHelp("early_termination", "array[boolean]", "Search: allow early termination when possible."),
+            new ParameterHelp("seed", "array[long]", "Search: random seed used random filters."),
+            new ParameterHelp(
+                "search_params",
+                "array[object]",
+                "Explicit per-search settings; each object may include search fields like num_candidates, k, and visit_percentage."
+            )
+        );
+
+        int nameWidth = "parameter".length();
+        int typeWidth = "type".length();
+        for (ParameterHelp param : params) {
+            nameWidth = Math.max(nameWidth, param.name.length());
+            typeWidth = Math.max(typeWidth, param.type.length());
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Configuration parameters:");
+        sb.append("\n");
+        sb.append(formatParamRow("parameter", "type", "description", nameWidth, typeWidth));
+        sb.append("\n");
+        sb.append("-".repeat(nameWidth)).append("  ").append("-".repeat(typeWidth)).append("  ").append("-".repeat("description".length()));
+        sb.append("\n");
+        for (ParameterHelp param : params) {
+            sb.append(formatParamRow(param.name, param.type, param.description, nameWidth, typeWidth));
+            sb.append("\n");
+        }
+        sb.append("\n");
+        sb.append(
+            "Notes: array parameters are combined as a cartesian product to define multiple search runs. "
+                + "If you use search_params, do not provide multiple values for array parameters."
+        );
+        return sb.toString();
+    }
+
+    private static String formatParamRow(String name, String type, String description, int nameWidth, int typeWidth) {
+        return String.format(Locale.ROOT, "%-" + nameWidth + "s  %-" + typeWidth + "s  %s", name, type, description);
+    }
+
+    private record ParameterHelp(String name, String type, String description) {}
+
     static class Builder implements ToXContentObject {
         private List<Path> docVectors;
         private Path queryVectors;
@@ -174,7 +255,7 @@ record TestConfiguration(
         private List<Integer> numCandidates = List.of(1000);
         private List<Integer> k = List.of(10);
         private List<Double> visitPercentages = List.of(1.0);
-        private int ivfClusterSize = 1000;
+        private int ivfClusterSize = ESNextDiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
         private List<Float> overSamplingFactor = List.of(0f);
         private int hnswM = 16;
         private int hnswEfConstruction = 200;
@@ -185,7 +266,7 @@ record TestConfiguration(
         private boolean forceMerge = false;
         private int forceMergeMaxNumSegments = 1;
         private VectorSimilarityFunction vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
-        private int quantizeBits = 8;
+        private Integer quantizeBits = null;
         private KnnIndexTester.VectorEncoding vectorEncoding = KnnIndexTester.VectorEncoding.FLOAT32;
         private int dimensions;
         private List<Boolean> earlyTermination = List.of(Boolean.FALSE);
@@ -306,7 +387,7 @@ record TestConfiguration(
             return this;
         }
 
-        public Builder setQuantizeBits(int quantizeBits) {
+        public Builder setQuantizeBits(Integer quantizeBits) {
             this.quantizeBits = quantizeBits;
             return this;
         }
@@ -487,7 +568,9 @@ record TestConfiguration(
             builder.field(REINDEX_FIELD.getPreferredName(), reindex);
             builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
             builder.field(VECTOR_SPACE_FIELD.getPreferredName(), vectorSpace.name().toLowerCase(Locale.ROOT));
-            builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
+            if (quantizeBits != null) {
+                builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
+            }
             builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
             builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
             builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);

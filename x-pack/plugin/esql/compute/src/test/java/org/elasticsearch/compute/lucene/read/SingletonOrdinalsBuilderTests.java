@@ -26,6 +26,7 @@ import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 
 import java.io.IOException;
@@ -79,17 +80,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                     int numDocs = ctx.reader().numDocs();
                     while (start < numDocs) {
                         int end = start + randomIntBetween(1, numDocs - start);
-                        BlockLoader.Docs docs = new BlockLoader.Docs() {
-                            @Override
-                            public int count() {
-                                return end;
-                            }
-
-                            @Override
-                            public int get(int i) {
-                                return i;
-                            }
-                        };
+                        BlockLoader.Docs docs = TestBlock.docsUpTo(end);
                         var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx);
                         try (BlockLoader.Block block = columnAtATimeReader.get().read(blockFactory, docs, start, false)) {
                             BytesRefBlock result = (BytesRefBlock) block;
@@ -243,17 +234,7 @@ public class SingletonOrdinalsBuilderTests extends ComputeTestCase {
                     int numDocs = ctx.reader().numDocs();
                     while (start < numDocs) {
                         int end = start + randomIntBetween(1, numDocs - start);
-                        BlockLoader.Docs docs = new BlockLoader.Docs() {
-                            @Override
-                            public int count() {
-                                return end;
-                            }
-
-                            @Override
-                            public int get(int i) {
-                                return i;
-                            }
-                        };
+                        BlockLoader.Docs docs = TestBlock.docsUpTo(end);
                         var columnAtATimeReader = blockLoader.columnAtATimeReader(ctx);
                         try (BlockLoader.Block block = columnAtATimeReader.get().read(blockFactory, docs, start, false)) {
                             BytesRefBlock result = (BytesRefBlock) block;

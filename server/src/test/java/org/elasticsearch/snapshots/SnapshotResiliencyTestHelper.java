@@ -82,6 +82,7 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
+import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -114,6 +115,7 @@ import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
+import org.elasticsearch.indices.IndicesServiceTests;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -941,7 +943,9 @@ public class SnapshotResiliencyTestHelper {
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         client,
-                        usageService
+                        usageService,
+                        new IndicesServiceTests.TestActionActionLoggingFieldsProvider(),
+                        ActivityLogWriterProvider.NOOP
                     )
                 );
                 actions.put(
@@ -1279,7 +1283,7 @@ public class SnapshotResiliencyTestHelper {
                 deterministicTaskQueue.scheduleNow(runnable);
             }
 
-            private void scheduleSoon(Runnable runnable) {
+            protected void scheduleSoon(Runnable runnable) {
                 deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + randomLongBetween(0, 100L), runnable);
             }
         }

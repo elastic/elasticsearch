@@ -904,7 +904,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
         var config = getTimeSeriesIndexWriterConfig(null, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            List<BytesRef> binaryFixedValues = new ArrayList<>();
             List<BytesRef> binaryVariableValues = new ArrayList<>();
             int numDocs = 256 + random().nextInt(8096);
 
@@ -914,9 +913,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 // Index sorting doesn't work with NumericDocValuesField:
                 d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
 
-                binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFixedLength)));
                 binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, 100))));
-                d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                d.add(new BinaryDocValuesField(binaryFixedField, new BytesRef(randomAlphaOfLength(binaryFixedLength))));
                 d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
 
                 iw.addDocument(d);
@@ -959,7 +957,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
         var config = getTimeSeriesIndexWriterConfig(null, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            List<BytesRef> binaryFixedValues = new ArrayList<>();
             List<BytesRef> binaryVariableValues = new ArrayList<>();
             int numDocs = 256 + random().nextInt(8096);
 
@@ -970,12 +967,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
 
                 if (randomBoolean()) {
-                    binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFixedLength)));
                     binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, 100))));
-                    d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                    d.add(new BinaryDocValuesField(binaryFixedField, new BytesRef(randomAlphaOfLength(binaryFixedLength))));
                     d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
                 } else {
-                    binaryFixedValues.add(null);
                     binaryVariableValues.add(null);
                 }
 
@@ -994,10 +989,19 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                     var binaryFixedDV = getES819BinaryValues(leaf.reader(), binaryFixedField);
                     var binaryVariableDV = getES819BinaryValues(leaf.reader(), binaryVariableField);
 
+                    int maxDoc = leaf.reader().maxDoc();
+                    // No docs in this segment had these fields, so doc values are null
+                    if (binaryFixedDV == null) {
+                        assertNull(binaryVariableDV);
+                        for (int i = 0; i < maxDoc; i++) {
+                            assertNull(binaryVariableValues.removeLast());
+                        }
+                        continue;
+                    }
+
                     NumericDocValues fixedLengthReader = binaryFixedDV.toLengthValues();
                     NumericDocValues variableLengthReader = binaryVariableDV.toLengthValues();
 
-                    int maxDoc = leaf.reader().maxDoc();
                     for (int i = 0; i < maxDoc; i++) {
                         BytesRef expectedVariableLength = binaryVariableValues.removeLast();
                         if (expectedVariableLength == null) {
@@ -1025,7 +1029,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
         var config = getTimeSeriesIndexWriterConfig(null, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            List<BytesRef> binaryFixedValues = new ArrayList<>();
             List<BytesRef> binaryVariableValues = new ArrayList<>();
             int numDocs = 256 + random().nextInt(8096);
 
@@ -1035,9 +1038,8 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 // Index sorting doesn't work with NumericDocValuesField:
                 d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
 
-                binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFixedLength)));
                 binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, 100))));
-                d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                d.add(new BinaryDocValuesField(binaryFixedField, new BytesRef(randomAlphaOfLength(binaryFixedLength))));
                 d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
 
                 iw.addDocument(d);
@@ -1150,7 +1152,6 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
         var config = getTimeSeriesIndexWriterConfig(null, timestampField);
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            List<BytesRef> binaryFixedValues = new ArrayList<>();
             List<BytesRef> binaryVariableValues = new ArrayList<>();
             int numDocs = 256 + random().nextInt(8096);
 
@@ -1161,12 +1162,10 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 d.add(SortedNumericDocValuesField.indexedField(timestampField, timestamp));
 
                 if (randomBoolean()) {
-                    binaryFixedValues.add(new BytesRef(randomAlphaOfLength(binaryFixedLength)));
                     binaryVariableValues.add(new BytesRef(randomAlphaOfLength(between(0, 100))));
-                    d.add(new BinaryDocValuesField(binaryFixedField, binaryFixedValues.getLast()));
+                    d.add(new BinaryDocValuesField(binaryFixedField, new BytesRef(randomAlphaOfLength(binaryFixedLength))));
                     d.add(new BinaryDocValuesField(binaryVariableField, binaryVariableValues.getLast()));
                 } else {
-                    binaryFixedValues.add(null);
                     binaryVariableValues.add(null);
                 }
 
@@ -2074,17 +2073,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                 var factory = TestBlock.factory();
                 try (DirectoryReader reader = DirectoryReader.open(writer)) {
                     for (LeafReaderContext leaf : reader.leaves()) {
-                        BlockLoader.Docs docs = new BlockLoader.Docs() {
-                            @Override
-                            public int count() {
-                                return leaf.reader().maxDoc();
-                            }
-
-                            @Override
-                            public int get(int i) {
-                                return i;
-                            }
-                        };
+                        BlockLoader.Docs docs = TestBlock.docs(leaf);
                         var idReader = ESTestCase.asInstanceOf(OptionalColumnAtATimeReader.class, leaf.reader().getNumericDocValues("id"));
                         TestBlock idBlock = (TestBlock) idReader.tryRead(factory, docs, 0, false, null, false, false);
                         assertNotNull(idBlock);
@@ -2151,6 +2140,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
                                     @Override
                                     public int get(int docId) {
                                         return docId;
+                                    }
+
+                                    @Override
+                                    public boolean mayContainDuplicates() {
+                                        return false;
                                     }
                                 }, start);
                                 assertNotNull(hostBlock);

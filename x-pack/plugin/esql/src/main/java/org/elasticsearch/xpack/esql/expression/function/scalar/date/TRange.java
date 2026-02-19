@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -92,7 +94,8 @@ public class TRange extends EsqlConfigurationFunction
             @Example(file = "trange", tag = "docsTRangeAbsoluteTimeString"),
             @Example(file = "trange", tag = "docsTRangeAbsoluteTimeDateTime"),
             @Example(file = "trange", tag = "docsTRangeAbsoluteTimeDateTimeNanos"),
-            @Example(file = "trange", tag = "docsTRangeAbsoluteTimeEpochMillis") }
+            @Example(file = "trange", tag = "docsTRangeAbsoluteTimeEpochMillis") },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.3.0") }
     )
     public TRange(
         Source source,

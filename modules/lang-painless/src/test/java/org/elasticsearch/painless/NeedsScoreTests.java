@@ -32,7 +32,7 @@ import static org.elasticsearch.painless.ScriptTestCase.PAINLESS_BASE_WHITELIST;
 public class NeedsScoreTests extends ESSingleNodeTestCase {
 
     public void testNeedsScores() {
-        IndexService index = createIndex("test", Settings.EMPTY, "type", "d", "type=double");
+        IndexService index = createIndex("test", Settings.EMPTY, "d", "type=double");
 
         Map<ScriptContext<?>, List<Whitelist>> contexts = new HashMap<>();
         contexts.put(NumberSortScript.CONTEXT, PAINLESS_BASE_WHITELIST);

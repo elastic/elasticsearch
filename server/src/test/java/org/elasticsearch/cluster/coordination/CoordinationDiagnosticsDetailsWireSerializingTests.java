@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
@@ -51,13 +52,13 @@ public class CoordinationDiagnosticsDetailsWireSerializingTests
         switch (field) {
             case 0 -> currentMaster = randomValueOtherThan(
                 currentMaster,
-                () -> randomBoolean() ? DiscoveryNodeUtils.create(UUID.randomUUID().toString()) : null
+                () -> randomBoolean() ? randomDiscoveryNode() : null
             );
             case 1 -> {
                 List<DiscoveryNode> mutableRecentMasters = recentMasters == null
                     ? new ArrayList<>()
                     : new ArrayList<>(recentMasters);
-                mutableRecentMasters.add(DiscoveryNodeUtils.create(UUID.randomUUID().toString()));
+                mutableRecentMasters.add(randomDiscoveryNode());
                 recentMasters = mutableRecentMasters;
             }
             case 2 -> remoteExceptionMessage = randomValueOtherThan(
@@ -86,11 +87,15 @@ public class CoordinationDiagnosticsDetailsWireSerializingTests
         );
     }
 
+    private DiscoveryNode randomDiscoveryNode() {
+        return DiscoveryNodeUtils.builder(UUID.randomUUID().toString())
+            .address(new TransportAddress(TransportAddress.META_ADDRESS, randomIntBetween(1, 65535)))
+            .build();
+    }
+
     private CoordinationDiagnosticsDetails randomCoordinationDiagnosticsDetails() {
-        DiscoveryNode currentMaster = randomBoolean() ? DiscoveryNodeUtils.create(UUID.randomUUID().toString()) : null;
-        List<DiscoveryNode> recentMasters = randomBoolean()
-            ? randomList(0, 5, () -> DiscoveryNodeUtils.create(UUID.randomUUID().toString()))
-            : null;
+        DiscoveryNode currentMaster = randomBoolean() ? randomDiscoveryNode() : null;
+        List<DiscoveryNode> recentMasters = randomBoolean() ? randomList(0, 5, this::randomDiscoveryNode) : null;
         String remoteExceptionMessage = randomBoolean() ? randomAlphaOfLengthBetween(0, 100) : null;
         String remoteExceptionStackTrace = randomBoolean() ? randomAlphaOfLengthBetween(0, 200) : null;
         Map<String, String> nodeToClusterFormationDescriptionMap = randomNodeToClusterFormationDescriptionMap();

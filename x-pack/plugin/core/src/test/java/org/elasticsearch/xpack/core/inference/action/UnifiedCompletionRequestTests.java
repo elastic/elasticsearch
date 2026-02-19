@@ -7,20 +7,33 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Predicate;
 
+import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.FILE_TYPE;
+import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.IMAGE_URL_TYPE;
+import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.SUPPORTED_CONTENT_OBJECT_TYPES;
+import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.TEXT_TYPE;
+import static org.elasticsearch.inference.UnifiedCompletionRequest.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
+import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 import static org.hamcrest.Matchers.is;
 
 public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationTestCase<UnifiedCompletionRequest> {
@@ -33,7 +46,21 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                     "content": [
                         {
                           "text": "some text",
-                          "type": "string"
+                          "type": "text"
+                        },
+                        {
+                          "image_url": {
+                            "url": "image url value",
+                            "detail": "auto"
+                          },
+                          "type": "image_url"
+                        },
+                        {
+                          "file": {
+                            "file_data": "file data value",
+                            "filename": "file name value"
+                          },
+                          "type": "file"
                         }
                     ],
                     "role": "user",
@@ -82,7 +109,18 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 List.of(
                     new UnifiedCompletionRequest.Message(
                         new UnifiedCompletionRequest.ContentObjects(
-                            List.of(new UnifiedCompletionRequest.ContentObject("some text", "string"))
+                            List.of(
+                                new UnifiedCompletionRequest.ContentObjectText("some text"),
+                                new UnifiedCompletionRequest.ContentObjectImage(
+                                    new UnifiedCompletionRequest.ContentObjectImageUrl(
+                                        "image url value",
+                                        UnifiedCompletionRequest.ImageUrlDetail.AUTO
+                                    )
+                                ),
+                                new UnifiedCompletionRequest.ContentObjectFile(
+                                    new UnifiedCompletionRequest.ContentObjectFileFields("file data value", null, "file name value")
+                                )
+                            )
                         ),
                         "user",
                         "100",
@@ -118,6 +156,7 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             );
 
             assertThat(request, is(expected));
+
             assertThat(
                 Strings.toString(request, UnifiedCompletionRequest.withMaxCompletionTokens("gpt-4o", ToXContent.EMPTY_PARAMS)),
                 is(XContentHelper.stripWhitespace(requestJson))
@@ -186,6 +225,253 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         }
     }
 
+    public void testUnsupportedContentType() throws IOException {
+        String requestJson = """
+            {
+                "messages": [
+                  {
+                    "content": [
+                        {
+                          "text": "input text",
+                          "type": "unknown type"
+                        }
+                    ],
+                    "role": "user"
+                  }
+                ]
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
+                exception,
+                ElasticsearchStatusException.class
+            );
+            assertThat(rootCause.getMessage(), is("Unexpected [type] value [unknown type]. Valid values are [file, image_url, text]"));
+            assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
+    public void testUnknownContentField() throws IOException {
+        String requestJson = """
+            {
+                "messages": [
+                  {
+                    "content": [
+                        {
+                          "text": "input text",
+                          "type": "text",
+                          "unknown field": "value"
+                        }
+                    ],
+                    "role": "user"
+                  }
+                ]
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
+                exception,
+                ElasticsearchStatusException.class
+            );
+            assertThat(rootCause.getMessage(), is("[content] contains unknown fields [unknown field]"));
+            assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
+    public void testUnknownImageContentField() throws IOException {
+        String requestJson = """
+            {
+                "messages": [
+                  {
+                    "content": [
+                        {
+                          "image_url": {
+                            "url": "input image",
+                            "unknown field": "value"
+                          },
+                          "type": "image_url"
+                        }
+                    ],
+                    "role": "user"
+                  }
+                ]
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
+                exception,
+                ElasticsearchStatusException.class
+            );
+            assertThat(rootCause.getMessage(), is("[image_url] contains unknown fields [unknown field]"));
+            assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
+    public void testUnknownFileContentField() throws IOException {
+        String requestJson = """
+            {
+                "messages": [
+                  {
+                    "content": [
+                        {
+                          "file": {
+                            "file_data": "input file",
+                            "filename": "filename value",
+                            "unknown field": "value"
+                          },
+                          "type": "file"
+                        }
+                    ],
+                    "role": "user"
+                  }
+                ]
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
+                exception,
+                ElasticsearchStatusException.class
+            );
+            assertThat(rootCause.getMessage(), is("[file] contains unknown fields [unknown field]"));
+            assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
+    public void testFileContentFileDataRequired() throws IOException {
+        String requestJson = """
+            {
+                "messages": [
+                  {
+                    "content": [
+                        {
+                          "file": {
+                            "filename": "filename value"
+                          },
+                          "type": "file"
+                        }
+                    ],
+                    "role": "user"
+                  }
+                ]
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
+                exception,
+                ElasticsearchStatusException.class
+            );
+            assertThat(rootCause.getMessage(), is("Field [file_data] in object [file] is required but was not found"));
+            assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
+    public void testFileContentFilenameRequired() throws IOException {
+        String requestJson = """
+            {
+                "messages": [
+                  {
+                    "content": [
+                        {
+                          "file": {
+                            "file_data": "file data value"
+                          },
+                          "type": "file"
+                        }
+                    ],
+                    "role": "user"
+                  }
+                ]
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
+                exception,
+                ElasticsearchStatusException.class
+            );
+            assertThat(rootCause.getMessage(), is("Field [filename] in object [file] is required but was not found"));
+            assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
+    public void testFileIdFieldIsNotSupported() throws IOException {
+        String requestJson = """
+            {
+                "messages": [
+                  {
+                    "content": [
+                        {
+                          "file": {
+                            "file_data": "file data value",
+                            "file_id": "file id value",
+                            "filename": "file name value"
+                          },
+                          "type": "file"
+                        }
+                    ],
+                    "role": "user"
+                  }
+                ]
+            }
+            """;
+
+        try (var parser = createParser(JsonXContent.jsonXContent, requestJson)) {
+            var exception = assertThrows(XContentParseException.class, () -> UnifiedCompletionRequest.PARSER.apply(parser, null));
+            ElasticsearchStatusException rootCause = (ElasticsearchStatusException) ExceptionsHelper.unwrap(
+                exception,
+                ElasticsearchStatusException.class
+            );
+            assertThat(rootCause.getMessage(), is("Field [file_id] is not supported for content of type [file]"));
+            assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
+        }
+    }
+
+    // Versions before MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED throw an exception when serializing non-text content
+    // Those are tested in testMultimodalContentIsNotBackwardsCompatible
+    @Override
+    protected Collection<TransportVersion> bwcVersions() {
+        return super.bwcVersions().stream().filter(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)).toList();
+    }
+
+    public void testMultimodalContentIsNotBackwardsCompatible() throws IOException {
+        var unsupportedVersions = DEFAULT_BWC_VERSIONS.stream()
+            .filter(Predicate.not(version -> version.supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)))
+            .toList();
+        for (int runs = 0; runs < NUMBER_OF_TEST_RUNS; runs++) {
+            var testInstance = createTestInstance();
+            for (var unsupportedVersion : unsupportedVersions) {
+                if (testInstance.containsMultimodalContent()) {
+                    var statusException = assertThrows(
+                        ElasticsearchStatusException.class,
+                        () -> copyWriteable(testInstance, getNamedWriteableRegistry(), instanceReader(), unsupportedVersion)
+                    );
+                    assertThat(statusException.status(), is(RestStatus.BAD_REQUEST));
+                    assertThat(
+                        statusException.getMessage(),
+                        is(
+                            "Cannot send a multimodal chat completion request to an older node. "
+                                + "Please wait until all nodes are upgraded before using multimodal chat completion inputs"
+                        )
+                    );
+                } else {
+                    // If the instance doesn't contain multimodal content, assert that it can still be serialized
+                    assertBwcSerialization(testInstance, unsupportedVersion);
+                }
+            }
+        }
+    }
+
     public static UnifiedCompletionRequest randomUnifiedCompletionRequest() {
         return new UnifiedCompletionRequest(
             randomList(5, UnifiedCompletionRequestTests::randomMessage),
@@ -215,7 +501,31 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
     }
 
     public static UnifiedCompletionRequest.ContentObject randomContentObject() {
-        return new UnifiedCompletionRequest.ContentObject(randomAlphaOfLength(10), randomAlphaOfLength(10));
+        return switch (randomFrom(SUPPORTED_CONTENT_OBJECT_TYPES)) {
+            case TEXT_TYPE -> randomContentObjectText();
+            case IMAGE_URL_TYPE -> randomContentObjectImage();
+            case FILE_TYPE -> randomContentObjectFile();
+            default -> throw new IllegalStateException("Illegal randomization branch");
+        };
+    }
+
+    public static UnifiedCompletionRequest.ContentObjectText randomContentObjectText() {
+        return new UnifiedCompletionRequest.ContentObjectText(randomAlphaOfLength(10));
+    }
+
+    public static UnifiedCompletionRequest.ContentObjectImage randomContentObjectImage() {
+        return new UnifiedCompletionRequest.ContentObjectImage(
+            new UnifiedCompletionRequest.ContentObjectImageUrl(
+                randomAlphaOfLength(10),
+                randomFrom(UnifiedCompletionRequest.ImageUrlDetail.values())
+            )
+        );
+    }
+
+    public static UnifiedCompletionRequest.ContentObjectFile randomContentObjectFile() {
+        return new UnifiedCompletionRequest.ContentObjectFile(
+            new UnifiedCompletionRequest.ContentObjectFileFields(randomAlphaOfLength(10), randomAlphaOfLength(10), randomAlphaOfLength(10))
+        );
     }
 
     public static List<UnifiedCompletionRequest.ToolCall> randomToolCallListOrNull() {
@@ -271,6 +581,8 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
 
     @Override
     protected UnifiedCompletionRequest mutateInstanceForVersion(UnifiedCompletionRequest instance, TransportVersion version) {
+        // No need to mutate the instance for backwards compatibility, because unsupported content types cause an exception to be thrown
+        // when serializing to older nodes
         return instance;
     }
 
@@ -297,12 +609,12 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         switch (between(0, 7)) {
             case 0 -> messages = randomValueOtherThan(messages, () -> randomList(5, UnifiedCompletionRequestTests::randomMessage));
             case 1 -> model = randomValueOtherThan(model, () -> randomAlphaOfLength(10));
-            case 2 -> maxCompletionTokens = randomValueOtherThan(maxCompletionTokens, () -> randomNonNegativeLongOrNull());
-            case 3 -> stop = randomValueOtherThan(stop, () -> randomStopOrNull());
-            case 4 -> temperature = randomValueOtherThan(temperature, () -> randomFloatOrNull());
-            case 5 -> toolChoice = randomValueOtherThan(toolChoice, () -> randomToolChoiceOrNull());
-            case 6 -> tools = randomValueOtherThan(tools, () -> randomToolListOrNull());
-            case 7 -> topP = randomValueOtherThan(topP, () -> randomFloatOrNull());
+            case 2 -> maxCompletionTokens = randomValueOtherThan(maxCompletionTokens, ESTestCase::randomNonNegativeLongOrNull);
+            case 3 -> stop = randomValueOtherThan(stop, UnifiedCompletionRequestTests::randomStopOrNull);
+            case 4 -> temperature = randomValueOtherThan(temperature, ESTestCase::randomFloatOrNull);
+            case 5 -> toolChoice = randomValueOtherThan(toolChoice, UnifiedCompletionRequestTests::randomToolChoiceOrNull);
+            case 6 -> tools = randomValueOtherThan(tools, UnifiedCompletionRequestTests::randomToolListOrNull);
+            case 7 -> topP = randomValueOtherThan(topP, ESTestCase::randomFloatOrNull);
             default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new UnifiedCompletionRequest(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, topP);

@@ -67,6 +67,28 @@ public class JsonExtractStaticTests extends ESTestCase {
         assertWarningResult("{\"a\":[1,2]}", "a[]", "invalid path [a[]]");
     }
 
+    // --- JSONPath $ prefix ---
+
+    public void testDollarDotPrefix() {
+        assertResult("{\"name\":\"Alice\"}", "$.name", "Alice");
+    }
+
+    public void testDollarDotNestedPath() {
+        assertResult("{\"user\":{\"address\":{\"city\":\"London\"}}}", "$.user.address.city", "London");
+    }
+
+    public void testDollarDotArrayIndex() {
+        assertResult("{\"tags\":[\"a\",\"b\"]}", "$.tags[0]", "a");
+    }
+
+    public void testDollarDotMixedNesting() {
+        assertResult("{\"orders\":[{\"id\":1},{\"id\":2}]}", "$.orders[1].id", "2");
+    }
+
+    public void testDollarDotAloneIsEmptyPath() {
+        assertWarningResult("{\"a\":1}", "$.", "invalid path: empty path");
+    }
+
     // --- Unicode handling ---
 
     public void testUnicodeKey() {

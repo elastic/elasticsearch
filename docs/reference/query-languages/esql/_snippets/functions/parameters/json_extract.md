@@ -6,5 +6,5 @@
 :   A string containing valid JSON, or the `_source` field. If `null`, the function returns `null`.
 
 `path`
-:   A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). If `null`, the function returns `null`.
+:   A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). An optional JSONPath `$.` prefix is accepted. If `null`, the function returns `null`.
 

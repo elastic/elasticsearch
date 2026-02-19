@@ -108,7 +108,8 @@ public class JsonExtract extends EsqlScalarFunction {
             type = { "keyword", "text" },
             description = "A dot-notation path expression identifying the value to extract. "
                 + "Use dot notation for nested fields (e.g., `user.name`) and bracket notation "
-                + "for array indices (e.g., `items[0]`). If `null`, the function returns `null`."
+                + "for array indices (e.g., `items[0]`). An optional JSONPath `$.` prefix is accepted. "
+                + "If `null`, the function returns `null`."
         ) Expression path
     ) {
         super(source, Arrays.asList(str, path));
@@ -195,6 +196,9 @@ public class JsonExtract extends EsqlScalarFunction {
      * consecutive dots, leading/trailing dots, or empty brackets.
      */
     private static String[] splitPath(String path) {
+        if (path.startsWith("$.")) {
+            path = path.substring(2);
+        }
         if (path.isEmpty()) {
             throw new IllegalArgumentException("invalid path: empty path");
         }

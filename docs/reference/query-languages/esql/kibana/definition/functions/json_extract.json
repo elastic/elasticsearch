@@ -16,7 +16,7 @@
           "name" : "path",
           "type" : "keyword",
           "optional" : false,
-          "description" : "A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). If `null`, the function returns `null`."
+          "description" : "A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). An optional JSONPath `$.` prefix is accepted. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -34,7 +34,7 @@
           "name" : "path",
           "type" : "text",
           "optional" : false,
-          "description" : "A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). If `null`, the function returns `null`."
+          "description" : "A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). An optional JSONPath `$.` prefix is accepted. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -52,7 +52,7 @@
           "name" : "path",
           "type" : "keyword",
           "optional" : false,
-          "description" : "A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). If `null`, the function returns `null`."
+          "description" : "A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). An optional JSONPath `$.` prefix is accepted. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -70,7 +70,7 @@
           "name" : "path",
           "type" : "text",
           "optional" : false,
-          "description" : "A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). If `null`, the function returns `null`."
+          "description" : "A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). An optional JSONPath `$.` prefix is accepted. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -88,7 +88,7 @@
           "name" : "path",
           "type" : "keyword",
           "optional" : false,
-          "description" : "A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). If `null`, the function returns `null`."
+          "description" : "A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). An optional JSONPath `$.` prefix is accepted. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,
@@ -106,7 +106,7 @@
           "name" : "path",
           "type" : "text",
           "optional" : false,
-          "description" : "A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). If `null`, the function returns `null`."
+          "description" : "A dot-notation path expression identifying the value to extract. Use dot notation for nested fields (e.g., `user.name`) and bracket notation for array indices (e.g., `items[0]`). An optional JSONPath `$.` prefix is accepted. If `null`, the function returns `null`."
         }
       ],
       "variadic" : false,

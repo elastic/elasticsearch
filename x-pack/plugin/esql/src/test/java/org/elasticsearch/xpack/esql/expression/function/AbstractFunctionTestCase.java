@@ -853,7 +853,11 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             TestCaseSupplier.TypedData td = data.get(i);
             DataType narrowedType = positionNarrowing.get(i);
             if (narrowedType != null) {
-                args.add(new ReferenceAttribute(Source.synthetic(td.name()), td.name(), narrowedType));
+                if (td.isForceLiteral()) {
+                    args.add(randomLiteral(narrowedType));
+                } else {
+                    args.add(new ReferenceAttribute(Source.synthetic(td.name()), td.name(), narrowedType));
+                }
             } else {
                 args.add(td.asReference());
             }

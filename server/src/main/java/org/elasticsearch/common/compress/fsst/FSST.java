@@ -1021,6 +1021,14 @@ public class FSST {
             this.symbols = symbols;
         }
 
+        public byte[] getLens() {
+            return lens;
+        }
+
+        public long[] getSymbols() {
+            return symbols;
+        }
+
         public static Decoder readFrom(byte[] exportedSymbolTable) throws IOException {
             final int[] i = { 0 };
             return readFrom(() -> exportedSymbolTable[i[0]++]);

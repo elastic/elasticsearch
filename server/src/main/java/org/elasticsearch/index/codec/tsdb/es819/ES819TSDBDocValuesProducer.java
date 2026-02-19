@@ -34,7 +34,6 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
@@ -46,6 +45,7 @@ import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.compress.fsst.FSST;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -1310,6 +1310,80 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
+    /**
+     * A DataInput that lazily decompresses FSST-encoded data one symbol at a time.
+     * Each readByte() decodes just enough from the compressed stream. This avoids
+     * decompressing an entire block when only a few terms are needed (e.g. seekExact
+     * to an early ordinal within a 64-term block).
+     */
+    static final class FsstDataInput extends DataInput {
+        private static final int ESCAPE_BYTE = 255;
+
+        private final byte[] compressed;
+        private int compPos;
+        private final int compLimit;
+        private final byte[] lens;
+        private final long[] symbols;
+
+        private final byte[] symbolBuf = new byte[8];
+        private int symbolPos;
+        private int symbolLen;
+
+        FsstDataInput(byte[] compressed, int offset, int length, FSST.Decoder decoder) {
+            this.compressed = compressed;
+            this.compPos = offset;
+            this.compLimit = offset + length;
+            this.lens = decoder.getLens();
+            this.symbols = decoder.getSymbols();
+        }
+
+        @Override
+        public byte readByte() {
+            if (symbolPos < symbolLen) {
+                return symbolBuf[symbolPos++];
+            }
+            decodeNext();
+            return symbolBuf[symbolPos++];
+        }
+
+        @Override
+        public void readBytes(byte[] b, int offset, int len) {
+            int remaining = len;
+            int dst = offset;
+            while (remaining > 0) {
+                int buffered = symbolLen - symbolPos;
+                if (buffered <= 0) {
+                    decodeNext();
+                    buffered = symbolLen - symbolPos;
+                }
+                int toCopy = Math.min(buffered, remaining);
+                System.arraycopy(symbolBuf, symbolPos, b, dst, toCopy);
+                symbolPos += toCopy;
+                dst += toCopy;
+                remaining -= toCopy;
+            }
+        }
+
+        @Override
+        public void skipBytes(long numBytes) {
+            for (long i = 0; i < numBytes; i++) {
+                readByte();
+            }
+        }
+
+        private void decodeNext() {
+            int code = compressed[compPos++] & 0xFF;
+            if (code == ESCAPE_BYTE) {
+                symbolBuf[0] = compressed[compPos++];
+                symbolLen = 1;
+            } else {
+                ByteUtils.writeLongLE(symbols[code], symbolBuf, 0);
+                symbolLen = lens[code];
+            }
+            symbolPos = 0;
+        }
+    }
+
     private static class TermsDict extends BaseTermsEnum {
 
         final TermsDictEntry entry;
@@ -1322,10 +1396,10 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         final FSST.Decoder fsstDecoder;
         long ord = -1;
 
-        BytesRef blockBuffer = null;
-        ByteArrayDataInput blockInput = null;
+        DataInput blockInput = null;
         long currentCompressedBlockStart = -1;
         long currentCompressedBlockEnd = -1;
+        int currentCompressedLength = 0;
         byte[] compressedBuf;
 
         TermsDict(TermsDictEntry entry, IndexInput data, boolean merging) throws IOException {
@@ -1348,9 +1422,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             bytes.readBytes(symbolTableBytes, 0, symbolTableLen);
             fsstDecoder = FSST.Decoder.readFrom(symbolTableBytes);
 
-            int bufferSize = entry.maxBlockLength + entry.maxTermLength + 8;
-            blockBuffer = new BytesRef(new byte[bufferSize], 0, bufferSize);
-            compressedBuf = new byte[bufferSize];
+            compressedBuf = new byte[entry.maxBlockLength * 2 + 8];
         }
 
         @Override
@@ -1508,17 +1580,14 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         compressedBuf = new byte[compressedLength];
                     }
                     bytes.readBytes(compressedBuf, 0, compressedLength);
-                    blockBuffer.offset = term.length;
-                    System.arraycopy(term.bytes, 0, blockBuffer.bytes, 0, blockBuffer.offset);
-                    int decompressedLen = FSST.decompress(compressedBuf, 0, compressedLength, fsstDecoder, blockBuffer.bytes, blockBuffer.offset);
-                    blockBuffer.length = decompressedLen;
                     currentCompressedBlockStart = offset;
                     currentCompressedBlockEnd = bytes.getFilePointer();
+                    currentCompressedLength = compressedLength;
                 } else {
                     bytes.seek(currentCompressedBlockEnd);
                 }
 
-                blockInput = new ByteArrayDataInput(blockBuffer.bytes, blockBuffer.offset, blockBuffer.length);
+                blockInput = new FsstDataInput(compressedBuf, 0, currentCompressedLength, fsstDecoder);
             }
         }
 

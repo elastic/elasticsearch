@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
@@ -211,7 +212,6 @@ public class CsvIT extends ESTestCase {
         inference.ensureNoFailures();
         views.ensureNoFailures();
 
-        skipUnsupportedCapability(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION);
         skipUnsupportedCapability(EsqlCapabilities.Cap.RERANK);
         skipUnsupportedCapability(EsqlCapabilities.Cap.COMPLETION);
         // runs in a single cluster/single node mode
@@ -290,6 +290,7 @@ public class CsvIT extends ESTestCase {
                     switch (action) {
                         case EsqlQueryAction.NAME -> loadViews();
                         case EsqlResolveFieldsAction.NAME -> loadIndices((FieldCapabilitiesRequest) request);
+                        case GetInferenceModelAction.NAME -> loadInference((GetInferenceModelAction.Request) request);
                     }
                     return true;
                 }
@@ -361,6 +362,10 @@ public class CsvIT extends ESTestCase {
                 return Stream.of(CsvTestsDataLoader.CSV_DATASET_MAP.get(pattern));
             }
         }).filter(Objects::nonNull).forEach(resource -> indices.maybeLoad(resource));
+    }
+
+    private static void loadInference(GetInferenceModelAction.Request request) {
+        inference.maybeLoad(CsvTestsDataLoader.findInferenceConfigByName(request.getInferenceEntityId()));
     }
 
     private static void loadEnrichPolicy(EnrichPolicyResolver.LookupRequest request) {

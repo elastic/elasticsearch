@@ -710,8 +710,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    public Mapping mergeMappings(Mapping incomingMapping, MergeReason reason) {
-        return mergeMappings(incomingMapping, reason, getMaxFieldsToAddDuringMerge(this.mapper, indexSettings, reason));
+    public Mapping mergeMappings(CompressedXContent incomingMappingSource, MergeReason reason) {
+        return mergeMappings(incomingMappingSource, reason, getMaxFieldsToAddDuringMerge(this.mapper, indexSettings, reason));
     }
 
     private static long getMaxFieldsToAddDuringMerge(DocumentMapper currentMapper, IndexSettings indexSettings, MergeReason reason) {
@@ -739,8 +739,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    Mapping mergeMappings(Mapping incomingMapping, MergeReason reason, long newFieldsBudget) {
-        return mergeMappings(MappingBuilder.fromMapping(incomingMapping), reason, newFieldsBudget);
+    Mapping mergeMappings(CompressedXContent incomingMappingSource, MergeReason reason, long newFieldsBudget) {
+        MappingBuilder incomingBuilder = mappingParser.parseToBuilder(SINGLE_MAPPING_NAME, reason, incomingMappingSource);
+        return mergeMappings(incomingBuilder, reason, newFieldsBudget);
     }
 
     Mapping mergeMappings(MappingBuilder incomingBuilder, MergeReason reason, long newFieldsBudget) {

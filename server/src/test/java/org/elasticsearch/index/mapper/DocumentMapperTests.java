@@ -69,7 +69,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         }));
 
         MergeReason reason = randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.INDEX_TEMPLATE, MergeReason.MAPPING_AUTO_UPDATE);
-        Mapping merged = mapperService.mergeMappings(stage2.mapping(), reason, Long.MAX_VALUE);
+        Mapping merged = mapperService.mergeMappings(stage2.mappingSource(), reason, Long.MAX_VALUE);
         // stage1 mapping should not have been modified
         assertThat(stage1.mappers().getMapper("age"), nullValue());
         assertThat(stage1.mappers().getMapper("obj1.prop1"), nullValue());
@@ -97,7 +97,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         assertThat(withDynamicMapper.mapping().getRoot().dynamic(), equalTo(ObjectMapper.Dynamic.FALSE));
 
         Mapping merged = mapperService.mergeMappings(
-            withDynamicMapper.mapping(),
+            withDynamicMapper.mappingSource(),
             randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE),
             Long.MAX_VALUE
         );
@@ -112,14 +112,14 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> objectMapperService.mergeMappings(nestedMapperService.documentMapper().mapping(), reason, Long.MAX_VALUE)
+                () -> objectMapperService.mergeMappings(nestedMapperService.documentMapper().mappingSource(), reason, Long.MAX_VALUE)
             );
             assertThat(e.getMessage(), containsString("can't merge a non-nested mapping [obj] with a nested mapping"));
         }
         {
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> nestedMapperService.mergeMappings(objectMapperService.documentMapper().mapping(), reason, Long.MAX_VALUE)
+                () -> nestedMapperService.mergeMappings(objectMapperService.documentMapper().mappingSource(), reason, Long.MAX_VALUE)
             );
             assertThat(e.getMessage(), containsString("can't merge a non-nested mapping [obj] with a nested mapping"));
         }
@@ -260,7 +260,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
 
         Mapping merged = mapperService.mergeMappings(
-            updatedMapper.mapping(),
+            updatedMapper.mappingSource(),
             randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE),
             Long.MAX_VALUE
         );
@@ -268,7 +268,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
 
         updatedMapper = createDocumentMapper(topMapping(b -> b.startObject("_meta").field("foo", "new_bar").endObject()));
         merged = mapperService.mergeMappings(
-            updatedMapper.mapping(),
+            updatedMapper.mappingSource(),
             randomFrom(MergeReason.MAPPING_UPDATE, MergeReason.MAPPING_AUTO_UPDATE),
             Long.MAX_VALUE
         );
@@ -289,16 +289,14 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        DocumentMapper initMapper = mapperService.documentMapper();
 
         Map<String, Object> expected = Map.of("field", "value", "object", Map.of("field1", "value1", "field2", "value2"));
-        assertThat(initMapper.mapping().getMeta(), equalTo(expected));
+        assertThat(mapperService.documentMapper().mapping().getMeta(), equalTo(expected));
 
-        DocumentMapper updatedMapper = createDocumentMapper(fieldMapping(b -> b.field("type", "text")));
-        Mapping merged = mapperService.mergeMappings(updatedMapper.mapping(), MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
-        assertThat(merged.getMeta(), equalTo(expected));
+        merge(mapperService, MergeReason.INDEX_TEMPLATE, fieldMapping(b -> b.field("type", "text")));
+        assertThat(mapperService.documentMapper().mapping().getMeta(), equalTo(expected));
 
-        updatedMapper = createDocumentMapper(topMapping(b -> {
+        merge(mapperService, MergeReason.INDEX_TEMPLATE, topMapping(b -> {
             b.startObject("_meta");
             {
                 b.field("field", "value");
@@ -311,15 +309,9 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         }));
-        {
-            MappingBuilder existingBuilder = MappingBuilder.fromMapping(merged);
-            MappingBuilder incomingBuilder = MappingBuilder.fromMapping(updatedMapper.mapping());
-            existingBuilder.merge(incomingBuilder, MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
-            merged = existingBuilder.build(MergeReason.INDEX_TEMPLATE);
-        }
 
         expected = Map.of("field", "value", "object", Map.of("field1", "value1", "field2", "new_value", "field3", "value3"));
-        assertThat(merged.getMeta(), equalTo(expected));
+        assertThat(mapperService.documentMapper().mapping().getMeta(), equalTo(expected));
     }
 
     public void testEmptyDocumentMapper() {

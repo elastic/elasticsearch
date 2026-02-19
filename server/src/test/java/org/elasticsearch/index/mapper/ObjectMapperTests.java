@@ -125,11 +125,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "keyword")));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            MergeReason.MAPPING_UPDATE,
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict"))))
-        );
+        CompressedXContent mergeWith = new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict"))));
         Mapping merged = mapperService.mergeMappings(mergeWith, reason, Long.MAX_VALUE);
         assertEquals(Dynamic.STRICT, merged.getRoot().dynamic());
     }
@@ -314,17 +310,13 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         }));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            MergeReason.INDEX_TEMPLATE,
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> {
-                b.startObject("properties").startObject("obj").field("type", "object").field("subobjects", false).startObject("properties");
-                {
-                    b.startObject("my.field").field("type", "long").endObject();
-                }
-                b.endObject().endObject().endObject();
-            })))
-        );
+        CompressedXContent mergeWith = new CompressedXContent(BytesReference.bytes(topMapping(b -> {
+            b.startObject("properties").startObject("obj").field("type", "object").field("subobjects", false).startObject("properties");
+            {
+                b.startObject("my.field").field("type", "long").endObject();
+            }
+            b.endObject().endObject().endObject();
+        })));
 
         // Fails on mapping update.
         IllegalArgumentException exception = expectThrows(
@@ -480,14 +472,10 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "object")));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            MergeReason.MAPPING_UPDATE,
-            new CompressedXContent(BytesReference.bytes(fieldMapping(b -> {
-                b.field("type", "object");
-                b.field("subobjects", "false");
-            })))
-        );
+        CompressedXContent mergeWith = new CompressedXContent(BytesReference.bytes(fieldMapping(b -> {
+            b.field("type", "object");
+            b.field("subobjects", "false");
+        })));
         MapperException exception = expectThrows(
             MapperException.class,
             () -> mapperService.mergeMappings(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
@@ -499,13 +487,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", false)));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            MergeReason.MAPPING_UPDATE,
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> {
-                b.field("subobjects", true);
-            })))
-        );
+        CompressedXContent mergeWith = new CompressedXContent(BytesReference.bytes(topMapping(b -> { b.field("subobjects", true); })));
         MapperException exception = expectThrows(
             MapperException.class,
             () -> mapperService.mergeMappings(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)

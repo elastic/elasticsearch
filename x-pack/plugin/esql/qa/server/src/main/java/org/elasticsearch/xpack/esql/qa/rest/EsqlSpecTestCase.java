@@ -201,11 +201,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 supportsSourceFieldMapping(),
                 supportsSemanticTextInference(),
                 timeSeriesOnly(),
-                supportsExponentialHistograms(),
-                supportsTDigestField(),
-                supportsHistogramDataType(),
-                supportsBFloat16ElementType(),
-                supportsTDigestFieldAsMetric()
+                this::clusterHasCapability
             );
             return null;
         });
@@ -360,27 +356,12 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         return true;
     }
 
-    protected boolean supportsExponentialHistograms() {
-        return RestEsqlTestCase.hasCapabilities(
-            client(),
-            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.capabilityName())
-        );
-    }
-
-    protected boolean supportsTDigestField() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName()));
-    }
-
-    protected boolean supportsTDigestFieldAsMetric() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC.capabilityName()));
-    }
-
-    protected boolean supportsHistogramDataType() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION.capabilityName()));
-    }
-
-    protected boolean supportsBFloat16ElementType() {
-        return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName()));
+    /**
+     * Returns true if the cluster under test supports the given ESQL capability.
+     * Subclasses may override this to check additional clusters (e.g. remote clusters in CCS).
+     */
+    protected boolean clusterHasCapability(EsqlCapabilities.Cap capability) {
+        return hasCapabilities(client(), List.of(capability.capabilityName()));
     }
 
     protected void doTest() throws Throwable {
@@ -539,8 +520,14 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
         if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting()) {
             if (value instanceof Double d) {
+                if (Double.isNaN(d) || Double.isInfinite(d)) {
+                    return d;
+                }
                 return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
             } else if (value instanceof String s) {
+                if ("NaN".equals(s)) {
+                    return Double.NaN;
+                }
                 return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
             }
         }
@@ -550,6 +537,9 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
         }
         if (type == CsvTestUtils.Type.DOUBLE) {
+            if (value instanceof String s && "NaN".equals(s)) {
+                return Double.NaN;
+            }
             return ((Number) value).doubleValue();
         }
         if (type == CsvTestUtils.Type.INTEGER) {
@@ -687,7 +677,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected boolean supportsViews() {
         if (supportsViews == null) {
-            supportsViews = hasCapabilities(adminClient(), List.of("views_with_no_branching"));
+            supportsViews = hasCapabilities(adminClient(), List.of("views_with_no_branching", "views_crud_as_index_actions"));
         }
         return supportsViews;
     }

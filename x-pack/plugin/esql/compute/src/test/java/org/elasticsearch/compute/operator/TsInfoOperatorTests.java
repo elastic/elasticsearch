@@ -520,19 +520,19 @@ public class TsInfoOperatorTests extends OperatorTestCase {
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
             op.addInput(input1);
             long usedAfterOne = blockFactory.breaker().getUsed();
-            assertThat(usedAfterOne - usedBefore, equalTo(TsInfoOperator.ENTRY_RAM_BYTES_USED));
+            assertThat(usedAfterOne - usedBefore, equalTo(TsInfoOperator.SHALLOW_SIZE));
 
             // Second distinct (metric, data stream, dimensions) adds another entry
             Page input2 = buildPage(blockFactory, "{\"disk_io\": 1024, \"host\": \"h1\"}", "index-a");
             op.addInput(input2);
             long usedAfterTwo = blockFactory.breaker().getUsed();
-            assertThat(usedAfterTwo - usedBefore, equalTo(2 * TsInfoOperator.ENTRY_RAM_BYTES_USED));
+            assertThat(usedAfterTwo - usedBefore, equalTo(2 * TsInfoOperator.SHALLOW_SIZE));
 
             // Same (cpu_usage, index-a, {"host":"h1"}) again → no new entry
             Page input3 = buildPage(blockFactory, "{\"cpu_usage\": 0.9, \"host\": \"h1\"}", "index-a");
             op.addInput(input3);
             long usedAfterDuplicate = blockFactory.breaker().getUsed();
-            assertThat(usedAfterDuplicate - usedBefore, equalTo(2 * TsInfoOperator.ENTRY_RAM_BYTES_USED));
+            assertThat(usedAfterDuplicate - usedBefore, equalTo(2 * TsInfoOperator.SHALLOW_SIZE));
 
             op.finish();
             Page output = op.getOutput();
@@ -557,7 +557,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
             );
             op.addInput(page1);
             long usedAfterOne = blockFactory.breaker().getUsed();
-            assertThat(usedAfterOne - usedBefore, equalTo(TsInfoOperator.ENTRY_RAM_BYTES_USED));
+            assertThat(usedAfterOne - usedBefore, equalTo(TsInfoOperator.SHALLOW_SIZE));
 
             // Different (metricName, dimensionsJson) → new entry
             Page page2 = buildFinalPage(
@@ -572,7 +572,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
             );
             op.addInput(page2);
             long usedAfterTwo = blockFactory.breaker().getUsed();
-            assertThat(usedAfterTwo - usedBefore, equalTo(2 * TsInfoOperator.ENTRY_RAM_BYTES_USED));
+            assertThat(usedAfterTwo - usedBefore, equalTo(2 * TsInfoOperator.SHALLOW_SIZE));
 
             // Same signature (cpu_usage, {}, percent, gauge, double) → no new entry
             Page page3 = buildFinalPage(
@@ -587,7 +587,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
             );
             op.addInput(page3);
             long usedAfterDuplicate = blockFactory.breaker().getUsed();
-            assertThat(usedAfterDuplicate - usedBefore, equalTo(2 * TsInfoOperator.ENTRY_RAM_BYTES_USED));
+            assertThat(usedAfterDuplicate - usedBefore, equalTo(2 * TsInfoOperator.SHALLOW_SIZE));
 
             op.finish();
             Page output = op.getOutput();
@@ -603,7 +603,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         TsInfoOperator op = new TsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
         Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
         op.addInput(input);
-        assertThat(blockFactory.breaker().getUsed() - usedBefore, equalTo(TsInfoOperator.ENTRY_RAM_BYTES_USED));
+        assertThat(blockFactory.breaker().getUsed() - usedBefore, equalTo(TsInfoOperator.SHALLOW_SIZE));
 
         op.finish();
         Page output = op.getOutput();

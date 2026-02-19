@@ -155,11 +155,9 @@ public class TsInfoOperator implements Operator {
         }
     }
 
-    /**
-     * Estimated bytes per new entry in {@link #entriesByKey} or {@link #mergedRows}.
-     */
-    static final long ENTRY_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(TsInfoKey.class) + RamUsageEstimator
-        .shallowSizeOfInstance(TsInfoEntry.class) + 5 * RamUsageEstimator.shallowSizeOfInstance(HashSet.class) + 5 * 192 + 64;
+    static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TsInfoKey.class) + RamUsageEstimator.shallowSizeOfInstance(
+        TsInfoEntry.class
+    );
 
     public enum Mode {
         INITIAL,
@@ -167,8 +165,6 @@ public class TsInfoOperator implements Operator {
     }
 
     private final Map<TsInfoKey, TsInfoEntry> entriesByKey = new LinkedHashMap<>();
-    /** Accumulates merged rows in FINAL mode. Null in INITIAL mode. */
-    private final Map<TsSignature, TsInfoRow> mergedRows;
 
     private final Mode mode;
     private final BlockFactory blockFactory;
@@ -201,7 +197,6 @@ public class TsInfoOperator implements Operator {
         this.metadataSourceChannel = metadataSourceChannel;
         this.indexChannel = indexChannel;
         this.finalChannels = null;
-        this.mergedRows = null;
     }
 
     /**
@@ -215,7 +210,6 @@ public class TsInfoOperator implements Operator {
         this.metadataSourceChannel = -1;
         this.indexChannel = -1;
         this.finalChannels = channels;
-        this.mergedRows = new LinkedHashMap<>();
     }
 
     @Override
@@ -262,9 +256,6 @@ public class TsInfoOperator implements Operator {
 
                 collectFields(metadata, null, indexName, dataStreamName, dimensionKeyValues, dimensionKeys, touchedEntries);
 
-                // Build JSON dimensions string
-                String dimensionsJson = buildDimensionsJson(dimensionKeyValues);
-
                 // Assign dimension keys to all metrics touched by this tsid
                 if (dimensionKeys.isEmpty() == false) {
                     for (TsInfoEntry entry : touchedEntries) {
@@ -281,6 +272,17 @@ public class TsInfoOperator implements Operator {
      * Recursively walks the parsed {@code _timeseries_metadata} JSON, classifying each leaf as
      * either a metric (via the field lookup) or a dimension key-value.
      */
+    /**
+     * Recursively walks the parsed {@code _timeseries_metadata} JSON in two passes:
+     * <ol>
+     *   <li>First pass: classifies each leaf — metric fields are skipped (but their keys
+     *       are noted), non-metric leaves are collected as dimension key-values.</li>
+     *   <li>Second pass (at the root level): creates {@link TsInfoEntry} objects for each
+     *       metric, keyed by (metricName, dataStream, dimensionsJson).</li>
+     * </ol>
+     * The field lookup is checked <em>before</em> inspecting the value type so that nested
+     * metric types (histogram, exponential_histogram, tdigest) are not recursed into.
+     */
     @SuppressWarnings("unchecked")
     private void collectFields(
         Map<String, Object> metadata,
@@ -294,7 +296,11 @@ public class TsInfoOperator implements Operator {
         for (Map.Entry<String, Object> entry : metadata.entrySet()) {
             String key = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
             Object value = entry.getValue();
-            if (value instanceof Map<?, ?> nested) {
+
+            MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
+            if (fieldInfo != null) {
+                // metric field — skip in dimension-collection pass
+            } else if (value instanceof Map<?, ?> nested) {
                 collectFields(
                     (Map<String, Object>) nested,
                     key,
@@ -305,11 +311,8 @@ public class TsInfoOperator implements Operator {
                     touchedEntries
                 );
             } else {
-                MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
-                if (fieldInfo == null) {
-                    dimensionKeys.add(key);
-                    dimensionKeyValues.put(key, value == null ? null : value.toString());
-                }
+                dimensionKeys.add(key);
+                dimensionKeyValues.put(key, value == null ? null : value.toString());
             }
         }
 
@@ -320,7 +323,9 @@ public class TsInfoOperator implements Operator {
     }
 
     /**
-     * Second pass to actually create TsInfoEntry objects for each metric leaf.
+     * Second pass: creates {@link TsInfoEntry} objects for each metric field.
+     * The field lookup is checked before inspecting the value type so that nested
+     * metric types (histogram, exponential_histogram, tdigest) are recognized correctly.
      */
     @SuppressWarnings("unchecked")
     private void collectMetrics(
@@ -334,30 +339,29 @@ public class TsInfoOperator implements Operator {
         for (Map.Entry<String, Object> entry : metadata.entrySet()) {
             String key = prefix == null ? entry.getKey() : prefix + "." + entry.getKey();
             Object value = entry.getValue();
-            if (value instanceof Map<?, ?> nested) {
-                collectMetrics((Map<String, Object>) nested, key, indexName, dataStreamName, dimensionsJson, touchedEntries);
-            } else {
-                MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
-                if (fieldInfo != null) {
-                    TsInfoKey infoKey = new TsInfoKey(fieldInfo.name(), dataStreamName, dimensionsJson);
-                    TsInfoEntry tsEntry = entriesByKey.get(infoKey);
-                    if (tsEntry == null) {
-                        trackNewEntry();
-                        tsEntry = new TsInfoEntry(infoKey.metricName(), infoKey.dataStreamName(), infoKey.dimensionsJson());
-                        entriesByKey.put(infoKey, tsEntry);
-                    }
-                    touchedEntries.add(tsEntry);
 
-                    if (fieldInfo.unit() != null) {
-                        tsEntry.units.add(fieldInfo.unit());
-                    }
-                    if (fieldInfo.fieldType() != null) {
-                        tsEntry.fieldTypes.add(fieldInfo.fieldType());
-                    }
-                    if (fieldInfo.metricType() != null) {
-                        tsEntry.metricTypes.add(fieldInfo.metricType());
-                    }
+            MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
+            if (fieldInfo != null) {
+                TsInfoKey infoKey = new TsInfoKey(fieldInfo.name(), dataStreamName, dimensionsJson);
+                TsInfoEntry tsEntry = entriesByKey.get(infoKey);
+                if (tsEntry == null) {
+                    trackNewEntry();
+                    tsEntry = new TsInfoEntry(infoKey.metricName(), infoKey.dataStreamName(), infoKey.dimensionsJson());
+                    entriesByKey.put(infoKey, tsEntry);
                 }
+                touchedEntries.add(tsEntry);
+
+                if (fieldInfo.unit() != null) {
+                    tsEntry.units.add(fieldInfo.unit());
+                }
+                if (fieldInfo.fieldType() != null) {
+                    tsEntry.fieldTypes.add(fieldInfo.fieldType());
+                }
+                if (fieldInfo.metricType() != null) {
+                    tsEntry.metricTypes.add(fieldInfo.metricType());
+                }
+            } else if (value instanceof Map<?, ?> nested) {
+                collectMetrics((Map<String, Object>) nested, key, indexName, dataStreamName, dimensionsJson, touchedEntries);
             }
         }
     }
@@ -392,7 +396,7 @@ public class TsInfoOperator implements Operator {
         return s.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
-    /** FINAL mode: read the 7-column output from data nodes and merge by ts signature. */
+    /** FINAL mode: read the 7-column output from data nodes and accumulate into entriesByKey. */
     private void addInputFinal(Page page) {
         try {
             BytesRefBlock nameBlock = page.getBlock(finalChannels[COL_METRIC_NAME]);
@@ -415,20 +419,25 @@ public class TsInfoOperator implements Operator {
                     dimensionsJson = "{}";
                 }
 
+                Set<String> dataStreams = readMultiValue(dsBlock, pos, scratch);
                 Set<String> units = readMultiValue(unitBlock, pos, scratch);
                 Set<String> fieldTypes = readMultiValue(ftBlock, pos, scratch);
                 Set<String> metricTypes = readMultiValue(mtBlock, pos, scratch);
+                Set<String> dimensionFields = readMultiValue(dfBlock, pos, scratch);
 
-                TsSignature sig = new TsSignature(metricName, dimensionsJson, units, fieldTypes, metricTypes);
-                TsInfoRow row = mergedRows.get(sig);
-                if (row == null) {
-                    trackNewEntry();
-                    row = new TsInfoRow(sig.metricName(), sig.dimensionsJson(), sig.units(), sig.fieldTypes(), sig.metricTypes());
-                    mergedRows.put(sig, row);
+                for (String ds : dataStreams) {
+                    TsInfoKey key = new TsInfoKey(metricName, ds, dimensionsJson);
+                    TsInfoEntry entry = entriesByKey.get(key);
+                    if (entry == null) {
+                        trackNewEntry();
+                        entry = new TsInfoEntry(key.metricName(), key.dataStreamName(), key.dimensionsJson());
+                        entriesByKey.put(key, entry);
+                    }
+                    entry.units.addAll(units);
+                    entry.fieldTypes.addAll(fieldTypes);
+                    entry.metricTypes.addAll(metricTypes);
+                    entry.dimensionFieldKeys.addAll(dimensionFields);
                 }
-
-                row.dataStreams.addAll(readMultiValue(dsBlock, pos, scratch));
-                row.dimensionFieldKeys.addAll(readMultiValue(dfBlock, pos, scratch));
             }
         } finally {
             page.releaseBlocks();
@@ -456,8 +465,8 @@ public class TsInfoOperator implements Operator {
     }
 
     private void trackNewEntry() {
-        breaker.addEstimateBytesAndMaybeBreak(ENTRY_RAM_BYTES_USED, "TsInfoOperator");
-        trackedBytes += ENTRY_RAM_BYTES_USED;
+        breaker.addEstimateBytesAndMaybeBreak(SHALLOW_SIZE, "TsInfoOperator");
+        trackedBytes += SHALLOW_SIZE;
     }
 
     private List<TsInfoRow> mergeRowsBySignature(Map<TsInfoKey, TsInfoEntry> entriesByKey) {
@@ -499,10 +508,6 @@ public class TsInfoOperator implements Operator {
         }
 
         outputProduced = true;
-
-        if (mode == Mode.FINAL) {
-            return mergedRows.isEmpty() ? createEmptyPage() : createOutputPageFromRows(new ArrayList<>(mergedRows.values()));
-        }
 
         if (entriesByKey.isEmpty()) {
             return createEmptyPage();

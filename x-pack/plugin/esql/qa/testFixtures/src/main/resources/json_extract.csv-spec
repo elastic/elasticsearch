@@ -142,6 +142,38 @@ json:keyword                    | result:keyword
 "{""tags"":[""a"",""b""]}"     | null
 ;
 
+jsonExtractDuplicateKeys
+required_capability: fn_json_extract
+// Duplicate keys: returns the first matching value (streaming parser stops at first match).
+// Note: jq and psql return the last value for duplicate keys; our behavior matches first-match semantics.
+ROW json = "{\"foo\":1,\"foo\":2}"
+| EVAL val = JSON_EXTRACT(json, "foo")
+;
+
+json:keyword              | val:keyword
+"{""foo"":1,""foo"":2}"  | 1
+;
+
+jsonExtractDuplicateKeysNested
+required_capability: fn_json_extract
+ROW json = "{\"a\":{\"b\":1},\"a\":{\"b\":2}}"
+| EVAL val = JSON_EXTRACT(json, "a.b")
+;
+
+json:keyword                              | val:keyword
+"{""a"":{""b"":1},""a"":{""b"":2}}"      | 1
+;
+
+jsonExtractNullInArray
+required_capability: fn_json_extract
+ROW json = "{\"items\":[1,null,3]}"
+| EVAL val = JSON_EXTRACT(json, "items[1]")
+;
+
+json:keyword                     | val:keyword
+"{""items"":[1,null,3]}"        | null
+;
+
 jsonExtractNonObjectTraversal
 required_capability: fn_json_extract
 ROW json = "{\"name\":\"Alice\"}"

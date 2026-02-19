@@ -130,6 +130,12 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         // Extract array as JSON string
         suppliers.add(supplier("{\"tags\":[\"a\",\"b\",\"c\"]}", "tags", new BytesRef("[\"a\",\"b\",\"c\"]")));
 
+        // Duplicate keys - returns first match (streaming parser semantics)
+        suppliers.add(supplier("{\"foo\":1,\"foo\":2}", "foo", new BytesRef("1")));
+
+        // Null value inside array
+        suppliers.add(supplier("{\"items\":[1,null,3]}", "items[1]", null));
+
         // Invalid JSON - warning case
         suppliers.add(new TestCaseSupplier("invalid json", types(DataType.KEYWORD, DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(

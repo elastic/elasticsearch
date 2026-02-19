@@ -2277,14 +2277,13 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
-        ExecutorService ioExecutor = Executors.newCachedThreadPool();
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = new SharedBlobCacheService<TestCacheKey>(
                 environment,
                 settings,
                 taskQueue.getThreadPool(),
-                ioExecutor,
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
                 BlobCacheMetrics.NOOP
             )
         ) {
@@ -2336,7 +2335,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
             assertFalse(available);
         }
-        ioExecutor.shutdown();
     }
 
     // Verifies that withByteBufferSlice returns false when the requested range spans multiple

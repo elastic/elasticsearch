@@ -580,8 +580,9 @@ public abstract class AbstractAsyncBulkByScrollAction<
                     false,
                     resumeInfo
                 );
-                listener.onResponse(response);
-                // don't call finishHim as it closes the scroll
+                // Don't call finishHim — it clears the pagination which the relocated task needs.
+                // Do close local resources (e.g. the remote REST client) that won't be reused.
+                paginatedHitSource.cleanUpWithoutClosingPagination(() -> listener.onResponse(response));
                 return;
             }
             // if the task has no node to relocate to, continue. it might finish before shutdown or a suitable node might join the cluster.

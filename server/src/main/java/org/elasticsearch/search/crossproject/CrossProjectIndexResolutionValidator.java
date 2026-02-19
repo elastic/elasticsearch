@@ -155,22 +155,13 @@ public class CrossProjectIndexResolutionValidator {
                 var projectAlias = splitResource[0];
                 var resource = splitResource[1];
 
-                ElasticsearchException remoteException = checkSingleRemoteExpression(
-                    projectAlias,
-                    resource,
-                    remoteExpression
-                );
+                ElasticsearchException remoteException = checkSingleRemoteExpression(projectAlias, resource, remoteExpression);
                 if (remoteException != null) {
                     recordRemoteSecurityException(remoteException, remoteExpression, projectAlias);
                 }
             }
         } else {
-            validateUnqualifiedExpression(
-                localException,
-                originalExpression,
-                localExpressions,
-                remoteExpressions
-            );
+            validateUnqualifiedExpression(localException, originalExpression, localExpressions, remoteExpressions);
         }
     }
 

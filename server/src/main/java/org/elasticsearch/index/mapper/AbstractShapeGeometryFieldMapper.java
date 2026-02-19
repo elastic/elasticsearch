@@ -10,10 +10,13 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
@@ -23,6 +26,7 @@ import org.elasticsearch.lucene.spatial.Extent;
 import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 
 import java.io.IOException;
+import java.nio.ByteOrder;
 import java.util.Map;
 import java.util.function.Function;
 
@@ -355,6 +359,86 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
                 builder.appendDouble(reader.getSumCentroidWeight());
                 builder.appendDouble(reader.getDimensionalShapeType().ordinal());
                 builder.endPositionEntry();
+            }
+
+            @Override
+            public void close() {
+                breaker.addWithoutBreaking(-BLOCK_LOADER_ESTIMATED_SIZE);
+            }
+        }
+
+        /**
+         * Block loader that reconstructs geometry from binary doc-values and returns WKB-encoded bytes.
+         * Used when the optimizer determines that reading from doc-values is sufficient (e.g. when the
+         * field is consumed by ST_SIMPLIFY rather than returned directly).
+         */
+        protected static class GeometryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
+            private final String fieldName;
+            private final CoordinateEncoder encoder;
+
+            protected GeometryBlockLoader(String fieldName, CoordinateEncoder encoder) {
+                this.fieldName = fieldName;
+                this.encoder = encoder;
+            }
+
+            @Override
+            public BlockLoader.ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+                breaker.addEstimateBytesAndMaybeBreak(BLOCK_LOADER_ESTIMATED_SIZE, "load blocks");
+                BinaryDocValues binaryDocValues = context.reader().getBinaryDocValues(fieldName);
+                if (binaryDocValues == null) {
+                    breaker.addWithoutBreaking(-BLOCK_LOADER_ESTIMATED_SIZE);
+                    return ConstantNull.COLUMN_READER;
+                }
+                return new GeometryReader(breaker, binaryDocValues, encoder);
+            }
+
+            @Override
+            public BlockLoader.Builder builder(BlockLoader.BlockFactory factory, int expectedCount) {
+                return factory.bytesRefs(expectedCount);
+            }
+        }
+
+        private static class GeometryReader implements BlockLoader.ColumnAtATimeReader {
+            private final GeometryDocValueReader reader = new GeometryDocValueReader();
+            private final CircuitBreaker breaker;
+            private final BinaryDocValues binaryDocValues;
+            private final CoordinateEncoder encoder;
+
+            private GeometryReader(CircuitBreaker breaker, BinaryDocValues binaryDocValues, CoordinateEncoder encoder) {
+                this.breaker = breaker;
+                this.binaryDocValues = binaryDocValues;
+                this.encoder = encoder;
+            }
+
+            @Override
+            public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
+                throws IOException {
+                try (var builder = factory.bytesRefs(docs.count() - offset)) {
+                    for (int i = offset; i < docs.count(); i++) {
+                        read(docs.get(i), builder);
+                    }
+                    return builder.build();
+                }
+            }
+
+            private void read(int doc, BlockLoader.BytesRefBuilder builder) throws IOException {
+                if (binaryDocValues.advanceExact(doc) == false) {
+                    builder.appendNull();
+                    return;
+                }
+                reader.reset(binaryDocValues.binaryValue());
+                Geometry geometry = reader.getGeometry(encoder);
+                if (geometry == null) {
+                    builder.appendNull();
+                    return;
+                }
+                byte[] wkb = WellKnownBinary.toWKB(geometry, ByteOrder.LITTLE_ENDIAN);
+                builder.appendBytesRef(new BytesRef(wkb));
+            }
+
+            @Override
+            public boolean canReuse(int startingDocID) {
+                return true;
             }
 
             @Override

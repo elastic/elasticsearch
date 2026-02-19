@@ -242,6 +242,11 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 // excluded: they keep no doc value and load their value from the parent.
                 return new GeometrySourceBlockLoader(GeometrySourceDocValuesField.fieldName(name()));
             }
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.DOC_VALUES
+                && hasDocValues()
+                && supportsGeometryDocValueReconstruction()) {
+                return new CartesianGeometryBlockLoader(name());
+            }
 
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
@@ -285,6 +290,12 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 builder.appendDouble(Math.max(extent.negRight, extent.posRight));
                 builder.appendDouble(extent.top);
                 builder.appendDouble(extent.bottom);
+            }
+        }
+
+        static class CartesianGeometryBlockLoader extends GeometryBlockLoader {
+            CartesianGeometryBlockLoader(String fieldName) {
+                super(fieldName, CoordinateEncoder.CARTESIAN);
             }
         }
     }

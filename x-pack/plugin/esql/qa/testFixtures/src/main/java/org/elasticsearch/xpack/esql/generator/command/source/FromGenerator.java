@@ -16,10 +16,17 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.shouldAddUnmappedFieldWithProbabilityIncrease;
 
 public class FromGenerator implements CommandGenerator {
 
     public static final FromGenerator INSTANCE = new FromGenerator();
+
+    /**
+     * Context key used to indicate whether SET unmapped_fields="nullify" was included in the FROM command.
+     * When true, unmapped field names can be used in downstream commands and functions.
+     */
+    public static final String UNMAPPED_FIELDS_ENABLED = "unmappedFieldsEnabled";
 
     @Override
     public CommandDescription generate(
@@ -28,7 +35,12 @@ public class FromGenerator implements CommandGenerator {
         QuerySchema schema,
         QueryExecutor executor
     ) {
-        StringBuilder result = new StringBuilder("from ");
+        boolean useUnmappedFields = shouldAddUnmappedFieldWithProbabilityIncrease(3);
+        StringBuilder result = new StringBuilder();
+        if (useUnmappedFields) {
+            result.append("SET unmapped_fields=\"nullify\";");
+        }
+        result.append("from ");
         int items = randomIntBetween(1, 3);
         List<String> availableIndices = schema.baseIndices();
         for (int i = 0; i < items; i++) {
@@ -39,7 +51,7 @@ public class FromGenerator implements CommandGenerator {
             result.append(pattern);
         }
         String query = result.toString();
-        return new CommandDescription("from", this, query, Map.of());
+        return new CommandDescription("from", this, query, Map.of(UNMAPPED_FIELDS_ENABLED, useUnmappedFields));
     }
 
     @Override

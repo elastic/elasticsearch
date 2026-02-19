@@ -2,7 +2,7 @@
 
 ### `ST_GEOTILE` [esql-st_geotile]
 ```{applies_to}
-stack: preview
+stack: preview 9.2.0
 serverless: preview
 ```
 

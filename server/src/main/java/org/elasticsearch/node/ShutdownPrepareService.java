@@ -111,7 +111,11 @@ public class ShutdownPrepareService {
 
         // first make sure the node can safely be shutdown
         if (terminationHandler != null) {
-            terminationHandler.blockTermination();
+            try {
+                terminationHandler.blockTermination();
+            } catch (RuntimeException e) {
+                logger.warn("termination handler failed; proceeding with shutdown", e);
+            }
         }
 
         record Stopper(String name, SubscribableListener<Void> listener) {
@@ -181,7 +185,10 @@ public class ShutdownPrepareService {
                 millisWaited += pollPeriod.millis();
                 if (TimeValue.ZERO.equals(timeout) == false && millisWaited >= timeout.millis()) {
                     logger.warn(
-                        format("timed out after waiting [%s] for [%d] " + taskName + " tasks to finish", timeout.toString(), tasksRemaining)
+                        "timed out after waiting [{}] for [{}] {} tasks to finish",
+                        timeout.toString(),
+                        tasksRemaining.size(),
+                        taskName
                     );
                     return;
                 }

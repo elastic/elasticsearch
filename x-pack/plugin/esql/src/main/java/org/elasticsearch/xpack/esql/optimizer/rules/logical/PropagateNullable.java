@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
@@ -115,6 +116,23 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
                 return exp.replaceChildren(newChildren);
             }
         }
-        return Literal.of(exp, null);
+
+        Expression replaced = exp.transformDown(e -> {
+            if (e.semanticEquals(nullExp)) {
+                return Literal.of(e, null);
+            }
+            if (e instanceof IsNull isNull && isNull.field().semanticEquals(nullExp)) {
+                return Literal.of(e, true);
+            }
+            if (e instanceof IsNotNull isNotNull && isNotNull.field().semanticEquals(nullExp)) {
+                return Literal.of(e, false);
+            }
+            return e;
+        });
+
+        if (replaced.foldable()) {
+            return Literal.of(replaced, replaced.fold(FoldContext.small()));
+        }
+        return replaced;
     }
 }

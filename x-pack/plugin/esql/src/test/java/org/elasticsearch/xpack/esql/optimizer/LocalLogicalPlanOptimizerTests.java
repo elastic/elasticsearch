@@ -671,6 +671,26 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var source = as(filter.child(), EsRelation.class);
     }
 
+    public void testIsNullFilterDoesNotPruneDisjunctionBranch() {
+        var plan = localPlan("""
+              FROM test
+            | EVAL full = CONCAT(first_name, " ", last_name), lang = languages
+            | KEEP emp_no, full, lang, gender
+            | WHERE `lang` IS NOT NULL OR NOT contains(full, "ssD") AND NOT emp_no <= -30 OR NOT true
+            | KEEP gender, lang
+            | WHERE lang IS NULL
+            """);
+
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var outerFilter = as(limit.child(), Filter.class);
+        assertThat("outer filter should preserve non-null-disjunction branch", outerFilter.condition().toString(), containsString("NOT contains(full"));
+        var eval = as(outerFilter.child(), Eval.class);
+        var innerFilter = as(eval.child(), Filter.class);
+        assertThat("inner filter should retain the lang IS NULL constraint", innerFilter.condition().toString(), containsString("IS NULL"));
+        assertThat("local plan should not be pruned to empty", innerFilter.child(), not(instanceOf(LocalRelation.class)));
+    }
+
     /*
      * Limit[1000[INTEGER],false]
      * \_Filter[RLIKE(first_name{f}#4, "VALÜ*", true)]

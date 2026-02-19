@@ -126,9 +126,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.shared.NodesCachesStatsIntegTests
   method: testNodesCachesStats
   issue: https://github.com/elastic/elasticsearch/issues/129863
-- class: org.elasticsearch.index.IndexingPressureIT
-  method: testWriteCanRejectOnPrimaryBasedOnMaxOperationSize
-  issue: https://github.com/elastic/elasticsearch/issues/130281
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/124447
@@ -374,9 +371,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
-- class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
-  method: testTsIndexConflictingTypes {null}
-  issue: https://github.com/elastic/elasticsearch/issues/142410
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
   method: testBulkScalarVsVectorized {p0=768 p1=1 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/142413

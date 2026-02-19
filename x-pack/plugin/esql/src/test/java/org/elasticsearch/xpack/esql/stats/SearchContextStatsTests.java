@@ -16,7 +16,11 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -25,7 +29,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.Closeable;
 import java.io.IOException;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -126,8 +132,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                 readers.add(reader);
             }
             // create SearchExecutionContext for each index
-            SearchExecutionContext context = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));
-            contexts.add(context);
+            contexts.add(mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader)));
         }
         // create SearchContextStats
         searchStats = SearchContextStats.from(contexts);
@@ -158,6 +163,116 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                 assertEquals(minNanos, min);
                 assertEquals(maxNanos, max);
             }
+        }
+    }
+
+    public void testPointValuesMinMaxRounding() throws IOException {
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
+        };
+        final List<SearchExecutionContext> contexts = new ArrayList<>();
+        final List<Closeable> toClose = new ArrayList<>();
+
+        try {
+            for (int i = 0; i < randomIntBetween(5, 10); i++) {
+                final MapperService mapperService = mapperHelper.createMapperService("""
+                    { "doc": { "properties": { "date": { "type": "date" }, "keyword": { "type": "keyword" }}}}""");
+                final Directory directory = newDirectory();
+                final IndexReader reader;
+                try (RandomIndexWriter writer = new RandomIndexWriter(random(), directory)) {
+                    writer.addDocument(List.of(new StringField("keyword", "value" + i, Field.Store.NO)));
+                    reader = writer.getReader();
+                }
+                toClose.add(reader);
+                toClose.add(mapperService);
+                toClose.add(directory);
+                contexts.add(mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader)));
+            }
+
+            final SearchStats stats = SearchContextStats.from(contexts);
+            final FieldAttribute.FieldName dateFieldName = new FieldAttribute.FieldName("date");
+            assertNull(stats.min(dateFieldName));
+            assertNull(stats.max(dateFieldName));
+            final Rounding.Prepared prepared = new Rounding.Builder(TimeValue.timeValueMinutes(30)).timeZone(ZoneId.of("Europe/Rome"))
+                .build()
+                .prepare(0L, 0L);
+            assertNotNull(prepared);
+            assertEquals(0L, prepared.round(0L));
+        } finally {
+            IOUtils.close(toClose);
+        }
+    }
+
+    public void testDocValuesSkipperMinMaxRounding() throws IOException {
+        final MapperServiceTestCase tsdbHelper = new MapperServiceTestCase() {
+            @Override
+            protected Settings getIndexSettings() {
+                return Settings.builder()
+                    .put(super.getIndexSettings())
+                    .put(IndexSettings.MODE.getKey(), "time_series")
+                    .put("index.routing_path", "dim")
+                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2025-01-01T00:00:00Z")
+                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2025-02-01T00:00:00Z")
+                    .build();
+            }
+        };
+        final MapperServiceTestCase standardHelper = new MapperServiceTestCase() {
+        };
+        final List<SearchExecutionContext> contexts = new ArrayList<>();
+        final List<Closeable> toClose = new ArrayList<>();
+
+        try {
+            final MapperService tsdbMapper = tsdbHelper.createMapperService("""
+                { "_doc": { "properties": {
+                    "@timestamp": { "type": "date" },
+                    "dim": { "type": "keyword", "time_series_dimension": true }
+                }}}""");
+            final Directory tsdbDir = newDirectory();
+            final IndexReader tsdbReader;
+            try (RandomIndexWriter writer = new RandomIndexWriter(random(), tsdbDir)) {
+                writer.addDocument(
+                    List.of(
+                        new LongField("@timestamp", dateTimeToLong("2025-01-15T00:00:00"), Field.Store.NO),
+                        new StringField("dim", "a", Field.Store.NO)
+                    )
+                );
+                tsdbReader = writer.getReader();
+            }
+            toClose.add(tsdbReader);
+            toClose.add(tsdbMapper);
+            toClose.add(tsdbDir);
+            contexts.add(tsdbHelper.createSearchExecutionContext(tsdbMapper, newSearcher(tsdbReader)));
+
+            for (int i = 0; i < randomIntBetween(1, 5); i++) {
+                final MapperService stdMapper = standardHelper.createMapperService("""
+                    { "doc": { "properties": { "@timestamp": { "type": "date" }, "keyword": { "type": "keyword" }}}}""");
+                final Directory stdDir = newDirectory();
+                final IndexReader stdReader;
+                try (RandomIndexWriter writer = new RandomIndexWriter(random(), stdDir)) {
+                    writer.addDocument(
+                        List.of(
+                            new LongField("@timestamp", dateTimeToLong("2025-01-10T00:00:00"), Field.Store.NO),
+                            new StringField("keyword", "value" + i, Field.Store.NO)
+                        )
+                    );
+                    stdReader = writer.getReader();
+                }
+                toClose.add(stdReader);
+                toClose.add(stdMapper);
+                toClose.add(stdDir);
+                contexts.add(standardHelper.createSearchExecutionContext(stdMapper, newSearcher(stdReader)));
+            }
+
+            final SearchStats stats = SearchContextStats.from(contexts);
+            final FieldAttribute.FieldName timestampField = new FieldAttribute.FieldName("@timestamp");
+            assertNull(stats.min(timestampField));
+            assertNull(stats.max(timestampField));
+            final Rounding.Prepared prepared = new Rounding.Builder(TimeValue.timeValueMinutes(30)).timeZone(ZoneId.of("Europe/Rome"))
+                .build()
+                .prepare(0L, 0L);
+            assertNotNull(prepared);
+            assertEquals(0L, prepared.round(0L));
+        } finally {
+            IOUtils.close(toClose);
         }
     }
 

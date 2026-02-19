@@ -246,15 +246,18 @@ public class SearchContextStats implements SearchStats {
             Holder<Boolean> foundMinValue = new Holder<>(false);
             doWithContexts(r -> {
                 long minValue = Long.MAX_VALUE;
+                boolean hasMin = false;
                 if (hasDocValueSkipper) {
                     minValue = DocValuesSkipper.globalMinValue(new IndexSearcher(r), field.string());
+                    hasMin = minValue != Long.MIN_VALUE;
                 } else {
                     byte[] minPackedValue = PointValues.getMinPackedValue(r, field.string());
                     if (minPackedValue != null && minPackedValue.length == 8) {
                         minValue = NumericUtils.sortableBytesToLong(minPackedValue, 0);
+                        hasMin = true;
                     }
                 }
-                if (minValue <= min[0]) {
+                if (hasMin && minValue <= min[0]) {
                     min[0] = minValue;
                     foundMinValue.set(true);
                 }
@@ -281,15 +284,18 @@ public class SearchContextStats implements SearchStats {
             Holder<Boolean> foundMaxValue = new Holder<>(false);
             doWithContexts(r -> {
                 long maxValue = Long.MIN_VALUE;
+                boolean hasMax = false;
                 if (hasDocValueSkipper) {
                     maxValue = DocValuesSkipper.globalMaxValue(new IndexSearcher(r), field.string());
+                    hasMax = maxValue != Long.MAX_VALUE;
                 } else {
                     byte[] maxPackedValue = PointValues.getMaxPackedValue(r, field.string());
                     if (maxPackedValue != null && maxPackedValue.length == 8) {
                         maxValue = NumericUtils.sortableBytesToLong(maxPackedValue, 0);
+                        hasMax = true;
                     }
                 }
-                if (maxValue >= max[0]) {
+                if (hasMax && maxValue >= max[0]) {
                     max[0] = maxValue;
                     foundMaxValue.set(true);
                 }

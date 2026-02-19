@@ -188,7 +188,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             var exec = new EsqlQueryGenerator.Executor() {
                 @Override
                 public void run(CommandGenerator generator, CommandGenerator.CommandDescription current) {
-                    previousCommands.add(current);
                     final String command = current.commandString();
 
                     final QueryExecuted result = previousResult == null
@@ -196,7 +195,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                         : execute(previousResult.query() + command, previousResult.depth());
 
                     final boolean hasException = result.exception() != null;
-                    if (hasException || checkResults(List.of(), generator, current, previousResult, result).success() == false) {
+                    if (hasException || checkResults(previousCommands, generator, current, previousResult, result).success() == false) {
                         if (hasException) {
                             checkException(result);
                         }
@@ -206,6 +205,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                         continueExecuting = true;
                         currentSchema = result.outputSchema();
                     }
+                    previousCommands.add(current);
                     previousResult = result;
                 }
 

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator.command;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.FunctionGenerator;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 
@@ -119,7 +120,15 @@ public interface CommandGenerator {
         return VALIDATION_OK;
     }
 
-    static ValidationResult expectSameColumns(List<Column> previousColumns, List<Column> columns) {
+    static ValidationResult expectSameColumns(
+        List<CommandDescription> previousCommands,
+        List<Column> previousColumns,
+        List<Column> columns
+    ) {
+
+        if (FunctionGenerator.isUnmappedFieldsEnabled(previousCommands)) {
+            return VALIDATION_OK;
+        }
 
         if (previousColumns.stream().anyMatch(x -> x.name().contains("<all-fields-projected>"))) {
             return VALIDATION_OK; // known bug

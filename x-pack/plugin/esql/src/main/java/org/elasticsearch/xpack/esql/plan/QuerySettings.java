@@ -62,7 +62,7 @@ public class QuerySettings {
         "time_zone",
         DataType.KEYWORD,
         false,
-        true,
+        false,
         false,
         (value) -> {
             String timeZone = Foldables.stringLiteralValueOf(value, "Unexpected value");

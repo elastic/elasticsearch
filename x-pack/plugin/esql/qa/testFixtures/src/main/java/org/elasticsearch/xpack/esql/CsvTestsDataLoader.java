@@ -187,7 +187,10 @@ public class CsvTestsDataLoader {
     ).withSetting("k8s-downsampled-settings.json");
     private static final TestDataset ADDRESSES = new TestDataset("addresses");
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
-    private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
+    private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(
+        "test_sparse_inference",
+        "test_dense_inference"
+    );
     private static final TestDataset LOGS = new TestDataset("logs");
     private static final TestDataset DENSE_VECTOR_TEXT = new TestDataset("dense_vector_text");
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
@@ -367,6 +370,47 @@ public class CsvTestsDataLoader {
         EMPLOYEES_NOT_REHIRED
     );
 
+    public static final List<InferenceConfig> INFERENCE_CONFIGS = List.of(
+        new InferenceConfig("test_sparse_inference", TaskType.SPARSE_EMBEDDING, """
+                  {
+                   "service": "test_service",
+                   "service_settings": { "model": "my_model", "api_key": "abc64" },
+                   "task_settings": { }
+                 }
+            """),
+        new InferenceConfig("test_dense_inference", TaskType.TEXT_EMBEDDING, """
+                  {
+                   "service": "text_embedding_test_service",
+                   "service_settings": {
+                        "model": "my_model",
+                        "api_key": "abc64",
+                        "dimensions": 3,
+                        "similarity": "l2_norm",
+                        "element_type": "float"
+                    },
+                   "task_settings": { }
+                 }
+            """),
+        new InferenceConfig("test_reranker", TaskType.RERANK, """
+            {
+                "service": "test_reranking_service",
+                "service_settings": { "model_id": "my_model", "api_key": "abc64" },
+                "task_settings": { "use_text_length": true }
+            }
+            """),
+        new InferenceConfig("test_completion", TaskType.COMPLETION, """
+            {
+                "service": "completion_test_service",
+                "service_settings": { "model": "my_model", "api_key": "abc64" },
+                "task_settings": { "temperature": 3 }
+            }
+            """)
+    );
+
+    public static InferenceConfig findInferenceConfigByName(String name) {
+        return INFERENCE_CONFIGS.stream().filter(c -> c.name().equals(name)).findFirst().get();
+    }
+
     /**
      * <p>
      * Loads spec data on a local ES server.
@@ -521,7 +565,7 @@ public class CsvTestsDataLoader {
         Set<TestDataset> testDataSets = new HashSet<>();
 
         for (TestDataset dataset : CSV_DATASET_MAP.values()) {
-            if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
+            if ((inferenceEnabled || dataset.inferenceEndpoint == null)
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
                 && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
                 && (requiresTimeSeries == false || isTimeSeries(dataset))
@@ -876,6 +920,31 @@ public class CsvTestsDataLoader {
         Request request = new Request("PUT", "/_inference/" + taskType.name() + "/" + inferenceId);
         request.setJsonEntity(modelSettings);
         client.performRequest(request);
+    }
+
+    private static void createInferenceEndpointIfNeeded(RestClient client, InferenceConfig config) throws IOException {
+        if (clusterHasInferenceEndpoint(client, config) == false) {
+            createInferenceEndpoint(client, config);
+        }
+    }
+
+    private static void createInferenceEndpoint(RestClient client, InferenceConfig config) throws IOException {
+        Request request = new Request("PUT", "/_inference/" + config.type.name() + "/" + config.name);
+        request.setJsonEntity(config.definition);
+        client.performRequest(request);
+    }
+
+    private static boolean clusterHasInferenceEndpoint(RestClient client, InferenceConfig config) throws IOException {
+        Request request = new Request("GET", "/_inference/" + config.type.name() + "/" + config.name);
+        try {
+            client.performRequest(request);
+        } catch (ResponseException e) {
+            if (e.getResponse().getStatusLine().getStatusCode() == 404) {
+                return false;
+            }
+            throw e;
+        }
+        return true;
     }
 
     private static boolean clusterHasInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId) throws IOException {
@@ -1280,14 +1349,14 @@ public class CsvTestsDataLoader {
         boolean allowSubFields,
         @Nullable Map<String, String> typeMapping, // Override mappings read from mappings file
         @Nullable Map<String, String> dynamicTypeMapping, // Define mappings not in the mapping files, but available from field-caps
-        boolean requiresInferenceEndpoint
+        @Nullable List<String> inferenceEndpoint
     ) {
         public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, null, false);
+            this(indexName, mappingFileName, dataFileName, null, true, null, null, null);
         }
 
         public TestDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, false);
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, null);
         }
 
         public TestDataset withIndex(String indexName) {
@@ -1299,7 +1368,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                null
             );
         }
 
@@ -1312,7 +1381,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                inferenceEndpoint
             );
         }
 
@@ -1325,7 +1394,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                inferenceEndpoint
             );
         }
 
@@ -1338,7 +1407,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                inferenceEndpoint
             );
         }
 
@@ -1351,7 +1420,7 @@ public class CsvTestsDataLoader {
                 false,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                inferenceEndpoint
             );
         }
 
@@ -1364,7 +1433,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                inferenceEndpoint
             );
         }
 
@@ -1377,11 +1446,11 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint
+                inferenceEndpoint
             );
         }
 
-        public TestDataset withInferenceEndpoint(boolean needsInference) {
+        public TestDataset withInferenceEndpoint(String... needsInference) {
             return new TestDataset(
                 indexName,
                 mappingFileName,
@@ -1390,7 +1459,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                needsInference
+                List.of(needsInference)
             );
         }
 
@@ -1430,6 +1499,8 @@ public class CsvTestsDataLoader {
             return getResourceStream("/enrich/policy/" + policyFileName);
         }
     }
+
+    public record InferenceConfig(String name, TaskType type, String definition) {}
 
     private interface IndexCreator {
         void createIndex(RestClient client, String indexName, String mapping, Settings indexSettings) throws IOException;

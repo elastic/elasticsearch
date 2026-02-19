@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.View;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
@@ -46,6 +47,7 @@ import org.elasticsearch.xpack.constantkeyword.ConstantKeywordMapperPlugin;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.core.enrich.action.ExecuteEnrichPolicyAction;
 import org.elasticsearch.xpack.core.enrich.action.PutEnrichPolicyAction;
+import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.enrich.EnrichPlugin;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
@@ -142,7 +144,10 @@ public class CsvIT extends ESTestCase {
             new NodeConfigurationSource() {
                 @Override
                 public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-                    return Settings.builder().put("xpack.security.enabled", false).build();
+                    return Settings.builder()
+                        .put("xpack.security.enabled", false)
+                        .put("xpack.license.self_generated.type", "trial")
+                        .build();
                 }
 
                 @Override
@@ -191,7 +196,7 @@ public class CsvIT extends ESTestCase {
         enrich.ensureNoFailures();
         views.ensureNoFailures();
 
-        skipUnsupportedCapability(EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS);
+        // skipUnsupportedCapability(EsqlCapabilities.Cap.SEMANTIC_TEXT_FIELD_CAPS);
         skipUnsupportedCapability(EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION);
         skipUnsupportedCapability(EsqlCapabilities.Cap.CATEGORIZE_V6);
         skipUnsupportedCapability(EsqlCapabilities.Cap.CATEGORIZE_OPTIONS);
@@ -343,10 +348,13 @@ public class CsvIT extends ESTestCase {
 
         @Override
         protected void load(CsvTestsDataLoader.TestDataset dataset) throws IOException {
-            if (dataset.requiresInferenceEndpoint()) {
-                return;// TODO inference endpoint
-            }
             logger.info("Loading dataset [{}]", dataset.indexName());
+            if (dataset.inferenceEndpoint() != null) {
+                dataset.inferenceEndpoint()
+                    .stream()
+                    .map(CsvTestsDataLoader::findInferenceConfigByName)
+                    .forEach(c -> inference.maybeLoad(c));
+            }
             assertAcked(
                 cluster.client()
                     .admin()
@@ -405,6 +413,30 @@ public class CsvIT extends ESTestCase {
                 )
                 .actionGet();
             assertTrue(response.getStatus().isCompleted());
+        }
+    };
+
+    private static ResourceLoader<CsvTestsDataLoader.InferenceConfig> inference = new ResourceLoader<>() {
+        @Override
+        protected String name(CsvTestsDataLoader.InferenceConfig resource) {
+            return resource.name();
+        }
+
+        @Override
+        protected void load(CsvTestsDataLoader.InferenceConfig inference) {
+            logger.info("Loading inference [{}]", inference.name());
+            cluster.client()
+                .execute(
+                    PutInferenceModelAction.INSTANCE,
+                    new PutInferenceModelAction.Request(
+                        inference.type(),
+                        inference.name(),
+                        new BytesArray(inference.definition()),
+                        XContentType.JSON,
+                        TEST_REQUEST_TIMEOUT
+                    )
+                )
+                .actionGet();
         }
     };
 

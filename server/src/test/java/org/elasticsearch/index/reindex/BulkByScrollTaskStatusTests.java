@@ -120,7 +120,7 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
         return new BulkByScrollTask.Status(statuses, randomBoolean() ? "test" : null);
     }
 
-    private static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {
+    public static BulkByScrollTask.Status randomWorkingStatus(Integer sliceId) {
         // These all should be believably small because we sum them if we have multiple workers
         int total = between(0, 10000000);
         int updated = between(0, total);

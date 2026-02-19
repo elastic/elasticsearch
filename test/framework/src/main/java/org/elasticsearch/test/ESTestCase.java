@@ -3186,7 +3186,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new BytesRef(newBytesArray, offset, bytesRef.length);
     }
 
-
     private static boolean previousFailureSkipsRemaining;
     @Rule
     public final TestWatcher previousFailureSkipsRemainingRule = new TestWatcher() {
@@ -3195,6 +3194,7 @@ public abstract class ESTestCase extends LuceneTestCase {
             previousFailureSkipsRemaining = shouldFailureSkipRemainingTests();
         }
     };
+
     @Before
     public final void checkPreviousFailureSkipsRemaining() {
         assumeFalse("previous failures broke system under test", previousFailureSkipsRemaining);

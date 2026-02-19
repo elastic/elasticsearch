@@ -377,6 +377,7 @@ public enum DataType implements Writeable {
             .docValues()
             .supportedSince(DataTypesTransportVersions.INDEX_SOURCE, DataTypesTransportVersions.INDEX_SOURCE)
     ),
+    PARTIAL_AGG(builder().esType("partial_agg").estimatedSize(1024).supportedOnAllNodes()),
     AGGREGATE_METRIC_DOUBLE(
         builder().esType("aggregate_metric_double")
             .estimatedSize(Double.BYTES * 3 + Integer.BYTES)
@@ -688,6 +689,7 @@ public enum DataType implements Writeable {
             && t != SCALED_FLOAT
             && t != SOURCE
             && t != HALF_FLOAT
+            && t != PARTIAL_AGG
             && t.isCounter() == false;
     }
 

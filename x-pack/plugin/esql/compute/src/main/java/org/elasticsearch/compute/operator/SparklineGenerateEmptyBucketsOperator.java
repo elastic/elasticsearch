@@ -20,29 +20,32 @@ import java.util.Deque;
 public class SparklineGenerateEmptyBucketsOperator implements Operator {
     public static final int SPARKLINE_VALUE_COUNT_LIMIT = 1000;
 
-    public record Factory(Rounding.Prepared dateBucketRounding, long minDate, long maxDate) implements OperatorFactory {
+    public record Factory(int numValueColumns, Rounding.Prepared dateBucketRounding, long minDate, long maxDate)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new SparklineGenerateEmptyBucketsOperator(driverContext, dateBucketRounding, minDate, maxDate);
+            return new SparklineGenerateEmptyBucketsOperator(driverContext, numValueColumns, dateBucketRounding, minDate, maxDate);
         }
 
         @Override
         public String describe() {
-            return "SparklineGenerateEmptyBucketsOperator[]";
+            return "SparklineGenerateEmptyBucketsOperator[numValueColumns=" + numValueColumns + "]";
         }
-        // TODO: Update the describe to include any values that would be useful for debugging
     }
 
     private final DriverContext driverContext;
     private boolean finished;
     private final Deque<Page> inputPages;
     private final Deque<Page> outputPages;
+    private final int numValueColumns;
     private final Rounding.Prepared dateBucketRounding;
     private final long minDate;
     private final long maxDate;
 
     public SparklineGenerateEmptyBucketsOperator(
         DriverContext driverContext,
+        int numValueColumns,
         Rounding.Prepared dateBucketRounding,
         long minDate,
         long maxDate
@@ -51,6 +54,7 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
         this.finished = false;
         inputPages = new ArrayDeque<>();
         outputPages = new ArrayDeque<>();
+        this.numValueColumns = numValueColumns;
         this.dateBucketRounding = dateBucketRounding;
         this.minDate = minDate;
         this.maxDate = maxDate;
@@ -92,42 +96,53 @@ public class SparklineGenerateEmptyBucketsOperator implements Operator {
         long maxDateBucket = dateBucketRounding.round(maxDate);
 
         for (Page inputPage : inputPages) {
-            // TODO: Instead of making arbitrarily large buckets, we should make them as large as the number of buckets.
-            LongLongBucketedSort bucketedSort = new LongLongBucketedSort(
-                driverContext.bigArrays(),
-                SortOrder.ASC,
-                SPARKLINE_VALUE_COUNT_LIMIT
-            );
-            LongBlock valueBlock = inputPage.getBlock(0);
-            LongBlock dateBlock = inputPage.getBlock(1);
-            int[] groupIds = new int[valueBlock.getPositionCount()];
-
-            for (int groupId = 0; groupId < valueBlock.getPositionCount(); groupId++) {
-                groupIds[groupId] = groupId;
-                int startGroupIndex = valueBlock.getFirstValueIndex(groupId);
-                int endGroupIndex = startGroupIndex + valueBlock.getValueCount(groupId);
-                int currentIndex = startGroupIndex;
-                long currentDateBucket = minDateBucket;
-                while (currentDateBucket <= maxDateBucket) {
-                    if (currentIndex < endGroupIndex && currentDateBucket == dateBlock.getLong(currentIndex)) {
-                        bucketedSort.collect(currentDateBucket, valueBlock.getLong(currentIndex), groupId);
-                        currentIndex++;
-                    } else {
-                        bucketedSort.collect(currentDateBucket, 0L, groupId); // Add a zero value for empty buckets
-                    }
-                    currentDateBucket = dateBucketRounding.nextRoundingValue(currentDateBucket);
-                }
+            LongBlock dateBlock = inputPage.getBlock(numValueColumns);
+            LongBlock firstValueBlock = inputPage.getBlock(0);
+            int positionCount = firstValueBlock.getPositionCount();
+            int[] groupIds = new int[positionCount];
+            for (int g = 0; g < positionCount; g++) {
+                groupIds[g] = g;
             }
-            Block[] blocks = new Block[2];
-            bucketedSort.toBlocks(
-                driverContext.blockFactory(),
-                blocks,
-                0,
-                driverContext.blockFactory().newIntArrayVector(groupIds, valueBlock.getPositionCount())
-            );
 
-            Page outputPage = new Page(blocks[1]);
-            for (int i = 2; i < inputPage.getBlockCount(); i++) {
+            Block[] filledValueBlocks = new Block[numValueColumns];
+            for (int v = 0; v < numValueColumns; v++) {
+                // TODO: Instead of making arbitrarily large buckets, we should make them as large as the number of buckets.
+                LongLongBucketedSort bucketedSort = new LongLongBucketedSort(
+                    driverContext.bigArrays(),
+                    SortOrder.ASC,
+                    SPARKLINE_VALUE_COUNT_LIMIT
+                );
+                LongBlock valueBlock = inputPage.getBlock(v);
+
+                for (int groupId = 0; groupId < positionCount; groupId++) {
+                    int startGroupIndex = valueBlock.getFirstValueIndex(groupId);
+                    int endGroupIndex = startGroupIndex + valueBlock.getValueCount(groupId);
+                    int currentIndex = startGroupIndex;
+                    long currentDateBucket = minDateBucket;
+                    while (currentDateBucket <= maxDateBucket) {
+                        if (currentIndex < endGroupIndex && currentDateBucket == dateBlock.getLong(currentIndex)) {
+                            bucketedSort.collect(currentDateBucket, valueBlock.getLong(currentIndex), groupId);
+                            currentIndex++;
+                        } else {
+                            bucketedSort.collect(currentDateBucket, 0L, groupId);
+                        }
+                        currentDateBucket = dateBucketRounding.nextRoundingValue(currentDateBucket);
+                    }
+                }
+
+                Block[] sortBlocks = new Block[2];
+                bucketedSort.toBlocks(
+                    driverContext.blockFactory(),
+                    sortBlocks,
+                    0,
+                    driverContext.blockFactory().newIntArrayVector(groupIds, positionCount)
+                );
+                filledValueBlocks[v] = sortBlocks[1];
+            }
+
+            Page outputPage = new Page(filledValueBlocks);
+            int passthroughStart = numValueColumns + 1;
+            for (int i = passthroughStart; i < inputPage.getBlockCount(); i++) {
                 outputPage = outputPage.appendBlock(inputPage.getBlock(i));
             }
             outputPages.add(outputPage);

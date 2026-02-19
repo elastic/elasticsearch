@@ -150,11 +150,13 @@ public class MapperUtils {
             return new SparklineGenerateEmptyBucketsExec(
                 sparklineGenerateEmptyBuckets.source(),
                 child,
-                sparklineGenerateEmptyBuckets.value(),
+                sparklineGenerateEmptyBuckets.values(),
                 sparklineGenerateEmptyBuckets.groupings(),
                 sparklineGenerateEmptyBuckets.dateBucketRounding(),
                 sparklineGenerateEmptyBuckets.minDate(),
-                sparklineGenerateEmptyBuckets.maxDate()
+                sparklineGenerateEmptyBuckets.maxDate(),
+                sparklineGenerateEmptyBuckets.passthroughAttributes(),
+                sparklineGenerateEmptyBuckets.output()
             );
         }
 

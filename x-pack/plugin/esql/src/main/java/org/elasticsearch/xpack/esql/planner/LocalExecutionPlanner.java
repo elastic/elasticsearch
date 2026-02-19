@@ -497,7 +497,7 @@ public class LocalExecutionPlanner {
                     AGGREGATE_METRIC_DOUBLE, DENSE_VECTOR, GEOHASH, GEOTILE, GEOHEX, EXPONENTIAL_HISTOGRAM, TDIGEST, HISTOGRAM,
                     TSID_DATA_TYPE, DATE_RANGE -> TopNEncoder.DEFAULT_UNSORTABLE;
                 // unsupported fields are encoded as BytesRef, we'll use the same encoder; all values should be null at this point
-                case UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
+                case PARTIAL_AGG, UNSUPPORTED -> TopNEncoder.UNSUPPORTED;
             };
         }
         List<TopNOperator.SortOrder> orders = topNExec.order().stream().map(order -> {
@@ -953,16 +953,30 @@ public class LocalExecutionPlanner {
         LocalExecutionPlannerContext context
     ) {
         PhysicalOperation source = plan(sparkline.child(), context);
-        Layout.Builder layout = new Layout.Builder();
-        layout.append(sparkline.value());
-        for (Expression grouping : sparkline.groupings()) {
-            layout.append(Expressions.attribute(grouping));
-        }
+        Layout intermediateLayout = new Layout.Builder().append(sparkline.values())
+            .append(sparkline.passthroughAttributes())
+            .append(sparkline.groupings().stream().map(Expressions::attribute).toList())
+            .build();
 
-        return source.with(
-            new SparklineGenerateEmptyBucketsOperator.Factory(sparkline.dateBucketRounding(), sparkline.minDate(), sparkline.maxDate()),
-            layout.build()
+        PhysicalOperation withOperator = source.with(
+            new SparklineGenerateEmptyBucketsOperator.Factory(
+                sparkline.values().size(),
+                sparkline.dateBucketRounding(),
+                sparkline.minDate(),
+                sparkline.maxDate()
+            ),
+            intermediateLayout
         );
+
+        List<Integer> projection = new ArrayList<>();
+        Layout.Builder finalLayoutBuilder = new Layout.Builder();
+        for (Attribute attr : sparkline.output()) {
+            Layout.ChannelAndType input = intermediateLayout.get(attr.id());
+            projection.add(input.channel());
+            finalLayoutBuilder.append(attr);
+        }
+        return withOperator.with(new ProjectOperatorFactory(projection), finalLayoutBuilder.build());
+
     }
 
     /**

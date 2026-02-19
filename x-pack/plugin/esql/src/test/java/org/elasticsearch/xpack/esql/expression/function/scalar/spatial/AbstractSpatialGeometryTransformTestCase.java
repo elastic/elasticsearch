@@ -9,10 +9,12 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
+import org.locationtech.jts.geom.CoordinateFilter;
 import org.locationtech.jts.geom.Geometry;
 
 import java.util.ArrayList;
@@ -24,6 +26,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.CARTESIAN_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
+import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 
 /**
@@ -103,6 +107,23 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
         double paramMin,
         double paramMax
     ) {
+        return buildParameters(evaluatorPrefix, paramName, jtsOp, expectedTypeFunction, paramMin, paramMax, false);
+    }
+
+    /**
+     * @param quantizeByCoordinateType when true, the function under test snaps non-literal geometries to the Lucene encoding grid
+     *                                 of their coordinate type (so results match doc-values), using separate geo and cartesian
+     *                                 evaluators, and expected results are computed the same way
+     */
+    protected static Iterable<Object[]> buildParameters(
+        String evaluatorPrefix,
+        String paramName,
+        BiFunction<Geometry, Double, Geometry> jtsOp,
+        BiFunction<DataType, DataType, DataType> expectedTypeFunction,
+        double paramMin,
+        double paramMax,
+        boolean quantizeByCoordinateType
+    ) {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
         for (DataType spatialType : new DataType[] { GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE }) {
             addTestCaseSuppliers(
@@ -114,7 +135,8 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
                 jtsOp,
                 expectedTypeFunction,
                 paramMin,
-                paramMax
+                paramMax,
+                quantizeByCoordinateType
             );
         }
         var hardcoded = hardcodedSuppliers();
@@ -129,7 +151,8 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
                 jtsOp,
                 expectedTypeFunction,
                 paramMin,
-                paramMax
+                paramMax,
+                quantizeByCoordinateType
             );
         }
 
@@ -151,8 +174,17 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
         BiFunction<Geometry, Double, Geometry> jtsOp,
         BiFunction<DataType, DataType, DataType> expectedTypeFunction,
         double paramMin,
-        double paramMax
+        double paramMax,
+        boolean quantizeByCoordinateType
     ) {
+        SpatialCoordinateTypes coordinateType = quantizeByCoordinateType
+            ? (DataType.isSpatialGeo(spatialType) ? GEO : CARTESIAN)
+            : UNSPECIFIED;
+        String evaluatorInfix = switch (coordinateType) {
+            case GEO -> "NonFoldableGeoShapeAndFoldable";
+            case CARTESIAN -> "NonFoldableCartesianShapeAndFoldable";
+            case UNSPECIFIED -> "NonFoldableGeometryAndFoldable";
+        };
         for (DataType paramType : new DataType[] { DataType.DOUBLE, DataType.FLOAT, DataType.LONG, DataType.INTEGER }) {
             String testName = spatialType.typeName() + " with " + paramName + "[" + paramType.typeName() + "].";
             suppliers.add(new TestCaseSupplier(testName, List.of(spatialType, paramType), () -> {
@@ -163,7 +195,7 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
                     : randomIntBetween((int) paramMin, (int) paramMax);
                 TestCaseSupplier.TypedData paramData = new TestCaseSupplier.TypedData(paramValue, paramType, paramName).forceLiteral();
                 String evaluatorName = evaluatorPrefix
-                    + "NonFoldableGeometryAndFoldable"
+                    + evaluatorInfix
                     + capitalize(paramName)
                     + "Evaluator[geometry=Attribute[channel=0], "
                     + paramName
@@ -171,7 +203,7 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
                     + paramValue
                     + "]";
                 DataType expectedType = expectedTypeFunction.apply(spatialType, paramType);
-                var expectedResult = valueOf(geometry, paramValue, jtsOp);
+                var expectedResult = valueOf(geometry, paramValue, jtsOp, coordinateType);
 
                 return new TestCaseSupplier.TestCase(
                     List.of(geoTypedData, paramData),
@@ -183,12 +215,25 @@ public abstract class AbstractSpatialGeometryTransformTestCase extends AbstractS
         }
     }
 
-    private static BytesRef valueOf(BytesRef wkb, double parameter, BiFunction<Geometry, Double, Geometry> jtsOp) {
+    protected static BytesRef valueOf(
+        BytesRef wkb,
+        double parameter,
+        BiFunction<Geometry, Double, Geometry> jtsOp,
+        SpatialCoordinateTypes coordinateType
+    ) {
         if (wkb == null) {
             return null;
         }
         try {
             Geometry jtsGeometry = UNSPECIFIED.wkbToJtsGeometry(wkb);
+            if (coordinateType != UNSPECIFIED) {
+                jtsGeometry.apply((CoordinateFilter) coord -> {
+                    long encoded = coordinateType.pointAsLong(coord.x, coord.y);
+                    coord.x = coordinateType.decodeX(encoded);
+                    coord.y = coordinateType.decodeY(encoded);
+                });
+                jtsGeometry.geometryChanged();
+            }
             Geometry result = jtsOp.apply(jtsGeometry, parameter);
             return UNSPECIFIED.jtsGeometryToWkb(result);
         } catch (Exception | StackOverflowError e) {

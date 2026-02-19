@@ -27,8 +27,7 @@ import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsServ
 /**
  * Wire serialization tests for {@link CoordinationDiagnosticsDetails}.
  */
-public class CoordinationDiagnosticsDetailsWireSerializingTests
-    extends AbstractWireSerializingTestCase<CoordinationDiagnosticsDetails> {
+public class CoordinationDiagnosticsDetailsWireSerializingTests extends AbstractWireSerializingTestCase<CoordinationDiagnosticsDetails> {
 
     @Override
     protected Writeable.Reader<CoordinationDiagnosticsDetails> instanceReader() {
@@ -50,14 +49,9 @@ public class CoordinationDiagnosticsDetailsWireSerializingTests
 
         int field = between(0, 4);
         switch (field) {
-            case 0 -> currentMaster = randomValueOtherThan(
-                currentMaster,
-                () -> randomBoolean() ? randomDiscoveryNode() : null
-            );
+            case 0 -> currentMaster = randomValueOtherThan(currentMaster, () -> randomBoolean() ? randomDiscoveryNode() : null);
             case 1 -> {
-                List<DiscoveryNode> mutableRecentMasters = recentMasters == null
-                    ? new ArrayList<>()
-                    : new ArrayList<>(recentMasters);
+                List<DiscoveryNode> mutableRecentMasters = recentMasters == null ? new ArrayList<>() : new ArrayList<>(recentMasters);
                 mutableRecentMasters.add(randomDiscoveryNode());
                 recentMasters = mutableRecentMasters;
             }
@@ -112,10 +106,7 @@ public class CoordinationDiagnosticsDetailsWireSerializingTests
         Map<String, String> nodeToClusterFormationDescriptionMap = new HashMap<>();
         int size = between(0, 5);
         for (int i = 0; i < size; i++) {
-            nodeToClusterFormationDescriptionMap.put(
-                randomAlphaOfLengthBetween(1, 20),
-                randomAlphaOfLengthBetween(0, 50)
-            );
+            nodeToClusterFormationDescriptionMap.put(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(0, 50));
         }
         return nodeToClusterFormationDescriptionMap.isEmpty() ? Map.of() : nodeToClusterFormationDescriptionMap;
     }

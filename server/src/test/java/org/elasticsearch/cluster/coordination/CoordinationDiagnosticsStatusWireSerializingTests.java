@@ -19,8 +19,7 @@ import static org.elasticsearch.cluster.coordination.CoordinationDiagnosticsServ
 /**
  * Wire serialization tests for {@link CoordinationDiagnosticsStatus}.
  */
-public class CoordinationDiagnosticsStatusWireSerializingTests
-    extends AbstractWireSerializingTestCase<CoordinationDiagnosticsStatus> {
+public class CoordinationDiagnosticsStatusWireSerializingTests extends AbstractWireSerializingTestCase<CoordinationDiagnosticsStatus> {
 
     @Override
     protected Writeable.Reader<CoordinationDiagnosticsStatus> instanceReader() {

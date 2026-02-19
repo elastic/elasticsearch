@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -121,6 +122,7 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             || plan instanceof Filter
             || plan instanceof OrderBy
             || plan instanceof RegexExtract
+            || plan instanceof CompoundOutputEval<?>
             || plan instanceof TopN) {
 
             LogicalPlan transformed = plan.transformExpressionsOnlyUp(FieldAttribute.class, f -> {

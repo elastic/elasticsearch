@@ -739,9 +739,35 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Validates co- and contra-variance: if a function accepts certain input types, it should also accept strictly narrower types
      * (as defined by {@link DataType#strictlyNarrowerTypes()}) and produce an output type that is the same or narrower than before
-     * (as defined by {@link DataType#canWidenTo(DataType)}).
+     * (as defined by {@link DataType#canWidenTo(DataType)})
      */
     public void testCoAndContraVariance() {
+        checkCoAndContraVariance(DataType::strictlyNarrowerTypes);
+    }
+
+    /**
+     * Validates co- and contra-variance by narrowing inputs exclusively to NULL.
+     */
+    public void testCoAndContraVarianceWithNull() {
+        checkCoAndContraVariance(type -> type == DataType.NULL ? Set.of() : Set.of(DataType.NULL));
+    }
+
+    /**
+     * Validates co- and contra-variance by narrowing inputs exclusively to non-NULL types.
+     */
+    public void testCoAndContraVarianceWithNonNull() {
+        checkCoAndContraVariance(type -> {
+            Set<DataType> narrower = type.strictlyNarrowerTypes();
+            return narrower.stream().filter(t -> t != DataType.NULL).collect(Collectors.toSet());
+        });
+    }
+
+    /**
+     * Shared implementation for co- and contra-variance tests. Randomly narrows one or more input types
+     * using the candidates returned by {@code narrowerTypes} and asserts that the expression still resolves
+     * and its output type is the same or narrower than before.
+     */
+    private void checkCoAndContraVariance(java.util.function.Function<DataType, Set<DataType>> narrowerTypes) {
         assumeTrue("test case expects a type error", testCase.getExpectedTypeError() == null);
 
         List<TestCaseSupplier.TypedData> data = testCase.getData();
@@ -749,7 +775,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         List<Integer> narrowablePositions = new ArrayList<>();
         for (int i = 0; i < data.size(); i++) {
             TestCaseSupplier.TypedData td = data.get(i);
-            if (td.isForceLiteral() == false && td.type().strictlyNarrowerTypes().isEmpty() == false) {
+            if (td.isForceLiteral() == false && narrowerTypes.apply(td.type()).isEmpty() == false) {
                 narrowablePositions.add(i);
             }
         }
@@ -767,7 +793,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         for (int i = 0; i < data.size(); i++) {
             TestCaseSupplier.TypedData td = data.get(i);
             if (positionsToNarrow.contains(i)) {
-                DataType narrowerType = randomFrom(td.type().strictlyNarrowerTypes());
+                DataType narrowerType = randomFrom(narrowerTypes.apply(td.type()));
                 args.add(new ReferenceAttribute(Source.synthetic(td.name()), td.name(), narrowerType));
             } else {
                 args.add(td.asReference());

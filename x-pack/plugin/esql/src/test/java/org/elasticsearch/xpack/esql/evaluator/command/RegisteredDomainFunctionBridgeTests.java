@@ -11,6 +11,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -62,12 +63,7 @@ public class RegisteredDomainFunctionBridgeTests extends AbstractCompoundOutputE
     public void testFullOutput() {
         List<String> requestedFields = List.of(DOMAIN, REGISTERED_DOMAIN, eTLD, SUBDOMAIN);
         List<String> input = List.of("www.example.co.uk");
-        List<Object[]> expected = List.of(
-            new Object[] { "www.example.co.uk" },
-            new Object[] { "example.co.uk" },
-            new Object[] { "co.uk" },
-            new Object[] { "www" }
-        );
+        List<?> expected = List.of("www.example.co.uk", "example.co.uk", "co.uk", "www");
         evaluateAndCompare(input, requestedFields, expected);
     }
 
@@ -85,28 +81,28 @@ public class RegisteredDomainFunctionBridgeTests extends AbstractCompoundOutputE
     public void testPartialFieldsRequested() {
         List<String> requestedFields = List.of(REGISTERED_DOMAIN, eTLD);
         List<String> input = List.of("www.example.co.uk");
-        List<Object[]> expected = List.of(new Object[] { "example.co.uk" }, new Object[] { "co.uk" });
+        List<?> expected = List.of("example.co.uk", "co.uk");
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testInvalidInput() {
         List<String> requestedFields = List.of(DOMAIN, REGISTERED_DOMAIN);
         List<String> input = List.of("$");
-        List<Object[]> expected = List.of(new Object[] { null }, new Object[] { null });
+        List<?> expected = Arrays.asList(null, null);
         evaluateAndCompare(input, requestedFields, expected);
     }
 
     public void testBlankInput() {
         List<String> requestedFields = List.of(DOMAIN, REGISTERED_DOMAIN);
         List<String> input = List.of("  ");
-        List<Object[]> expected = List.of(new Object[] { null }, new Object[] { null });
+        List<?> expected = Arrays.asList(null, null);
         evaluateAndCompare(input, requestedFields, expected);
     }
 
-    public void testDottedPrefix() {
-        List<String> requestedFields = List.of(DOMAIN, REGISTERED_DOMAIN);
+    public void testMultiLevelSubdomain() {
+        List<String> requestedFields = List.of(DOMAIN, REGISTERED_DOMAIN, SUBDOMAIN);
         List<String> input = List.of("a.b.example.com");
-        List<Object[]> expected = List.of(new Object[] { "a.b.example.com" }, new Object[] { "example.com" });
+        List<?> expected = List.of("a.b.example.com", "example.com", "a.b");
         evaluateAndCompare(input, requestedFields, expected);
     }
 

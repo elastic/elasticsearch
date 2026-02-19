@@ -23,7 +23,9 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
@@ -273,6 +275,9 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
 
     @Override
     public void testCoAndContraVarianceWithNonNull() {
-        assumeTrue("MvAppend requires both arguments to have the same type", false);
+        checkCoAndContraVarianceUniformly(type -> {
+            Set<DataType> narrower = type.strictlyNarrowerTypes();
+            return narrower.stream().filter(t -> t != DataType.NULL).collect(Collectors.toSet());
+        });
     }
 }

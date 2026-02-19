@@ -69,7 +69,9 @@ import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -763,9 +765,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
-     * Shared implementation for co- and contra-variance tests. Randomly narrows one or more input types
-     * using the candidates returned by {@code narrowerTypes} and asserts that the expression still resolves
-     * and its output type is the same or narrower than before.
+     * Randomly narrows one or more input types using the candidates returned by {@code narrowerTypes},
+     * choosing independently for each argument position.
      */
     private void checkCoAndContraVariance(java.util.function.Function<DataType, Set<DataType>> narrowerTypes) {
         assumeTrue("test case expects a type error", testCase.getExpectedTypeError() == null);
@@ -775,26 +776,84 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         List<Integer> narrowablePositions = new ArrayList<>();
         for (int i = 0; i < data.size(); i++) {
             TestCaseSupplier.TypedData td = data.get(i);
-            if (td.isForceLiteral() == false && narrowerTypes.apply(td.type()).isEmpty() == false) {
+            if (narrowerTypes.apply(td.type()).isEmpty() == false) {
                 narrowablePositions.add(i);
             }
         }
         assumeTrue("no parameters can be narrowed", narrowablePositions.isEmpty() == false);
 
+        Collections.shuffle(narrowablePositions, random());
+        int count = randomIntBetween(1, narrowablePositions.size());
+
+        Map<Integer, DataType> positionNarrowing = new HashMap<>();
+        for (int idx : narrowablePositions.subList(0, count)) {
+            positionNarrowing.put(idx, randomFrom(narrowerTypes.apply(data.get(idx).type())));
+        }
+
+        assertCoAndContraVariance(data, positionNarrowing);
+    }
+
+    /**
+     * Like {@link #checkCoAndContraVariance}, but narrows all arguments that share the same original type to the same narrower type.
+     * This is useful for functions that require certain arguments to have matching types (e.g. {@code MV_CONTAINTS}, {@code COALESCE}).
+     * {@code KEYWORD} arguments are additionally allowed to be narrowed to {@code TEXT} independently of the above logic because we allow
+     * narrowing individual arguments like this even in functions that require uniform input types in several arguments.
+     */
+    protected void checkCoAndContraVarianceUniformly(java.util.function.Function<DataType, Set<DataType>> narrowerTypes) {
+        assumeTrue("test case expects a type error", testCase.getExpectedTypeError() == null);
+
+        List<TestCaseSupplier.TypedData> data = testCase.getData();
+
+        Map<DataType, Set<DataType>> narrowableTypeMap = new LinkedHashMap<>();
+        for (TestCaseSupplier.TypedData td : data) {
+            Set<DataType> candidates = narrowerTypes.apply(td.type());
+            if (candidates.isEmpty() == false) {
+                narrowableTypeMap.put(td.type(), candidates);
+            }
+        }
+        assumeTrue("no parameters can be narrowed", narrowableTypeMap.isEmpty() == false);
+
+        List<DataType> narrowableTypes = new ArrayList<>(narrowableTypeMap.keySet());
+        Collections.shuffle(narrowableTypes, random());
+        int count = randomIntBetween(1, narrowableTypes.size());
+
+        Map<DataType, DataType> typeNarrowing = new HashMap<>();
+        for (int i = 0; i < count; i++) {
+            DataType typeToNarrow = narrowableTypes.get(i);
+            typeNarrowing.put(typeToNarrow, randomFrom(narrowableTypeMap.get(typeToNarrow)));
+        }
+
+        Map<Integer, DataType> positionNarrowing = new HashMap<>();
+        for (int i = 0; i < data.size(); i++) {
+            TestCaseSupplier.TypedData td = data.get(i);
+            DataType narrowedType = typeNarrowing.get(td.type());
+            if (narrowedType != null) {
+                positionNarrowing.put(i, narrowedType);
+            } else if (td.type() == DataType.KEYWORD && randomBoolean()) {
+                positionNarrowing.put(i, DataType.TEXT);
+            }
+        }
+
+        assertCoAndContraVariance(data, positionNarrowing);
+    }
+
+    /**
+     * Shared implementation: builds original and narrowed expressions, then asserts that the narrowed expression
+     * resolves and its output type is acceptable.
+     * @param data the original test case parameters
+     * @param positionNarrowing maps argument positions to narrower types; positions not in the map keep their original type
+     */
+    private void assertCoAndContraVariance(List<TestCaseSupplier.TypedData> data, Map<Integer, DataType> positionNarrowing) {
         Expression original = build(testCase.getSource(), data.stream().map(TestCaseSupplier.TypedData::asReference).toList());
         assertTrue("original expression should resolve", original.typeResolved().resolved());
         DataType originalOutputType = original.dataType();
 
-        Collections.shuffle(narrowablePositions, random());
-        int count = randomIntBetween(1, narrowablePositions.size());
-        Set<Integer> positionsToNarrow = new HashSet<>(narrowablePositions.subList(0, count));
-
         List<Expression> args = new ArrayList<>(data.size());
         for (int i = 0; i < data.size(); i++) {
             TestCaseSupplier.TypedData td = data.get(i);
-            if (positionsToNarrow.contains(i)) {
-                DataType narrowerType = randomFrom(narrowerTypes.apply(td.type()));
-                args.add(new ReferenceAttribute(Source.synthetic(td.name()), td.name(), narrowerType));
+            DataType narrowedType = positionNarrowing.get(i);
+            if (narrowedType != null) {
+                args.add(new ReferenceAttribute(Source.synthetic(td.name()), td.name(), narrowedType));
             } else {
                 args.add(td.asReference());
             }

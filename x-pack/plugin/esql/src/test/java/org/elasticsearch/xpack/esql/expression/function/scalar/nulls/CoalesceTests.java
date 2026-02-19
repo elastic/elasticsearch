@@ -45,7 +45,9 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
@@ -261,7 +263,10 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
 
     @Override
     public void testCoAndContraVarianceWithNonNull() {
-        assumeTrue("Coalesce requires all arguments to have the same type", false);
+        checkCoAndContraVarianceUniformly(type -> {
+            Set<DataType> narrower = type.strictlyNarrowerTypes();
+            return narrower.stream().filter(t -> t != DataType.NULL).collect(Collectors.toSet());
+        });
     }
 
     public void testCoalesceIsLazy() {

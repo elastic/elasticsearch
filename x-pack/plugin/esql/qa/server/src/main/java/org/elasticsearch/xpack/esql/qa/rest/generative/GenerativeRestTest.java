@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -40,6 +41,7 @@ import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.loadDataSetIntoEs;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_NAME;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_ORIGINAL_TYPES;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.COLUMN_TYPE;
+import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.UNMAPPED_FIELD_NAMES;
 
 public abstract class GenerativeRestTest extends ESRestTestCase implements QueryExecutor {
 
@@ -69,8 +71,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "Data too large", // Circuit breaker exceptions eg. https://github.com/elastic/elasticsearch/issues/130072
         "long overflow", // https://github.com/elastic/elasticsearch/issues/135759
         "can't find input for", // https://github.com/elastic/elasticsearch/issues/136596
-        "out of bounds for length", // https://github.com/elastic/elasticsearch/issues/136851
         "optimized incorrectly due to missing references", // https://github.com/elastic/elasticsearch/issues/138231
+        "'field' must not be null in clamp\\(\\)", // clamp/clamp_min/clamp_max reject NULL field from unmapped fields
+        "must be \\[boolean, date, ip, string or numeric except unsigned_long or counter types\\]", // type mismatch in top() arguments
+        "unsupported logical plan node \\[Join\\]", // https://github.com/elastic/elasticsearch/issues/141978
+        "Unsupported right plan for lookup join \\[Eval\\]", // https://github.com/elastic/elasticsearch/issues/141870
+        "Does not support yet aggregations over constants", // https://github.com/elastic/elasticsearch/issues/118292
+        "illegal data type \\[datetime\\]", // https://github.com/elastic/elasticsearch/issues/142137
+        "Expected to replace a single StubRelation in the plan, but none found", // https://github.com/elastic/elasticsearch/issues/142219
+        "blocks is empty", // https://github.com/elastic/elasticsearch/issues/142473
+        "Overflow to represent absolute value of Integer.MIN_VALUE", // https://github.com/elastic/elasticsearch/issues/142642
 
         // Awaiting fixes for correctness
         "Expecting at most \\[.*\\] columns, got \\[.*\\]", // https://github.com/elastic/elasticsearch/issues/129561
@@ -97,6 +107,51 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         .map(x -> ".*" + x + ".*")
         .map(x -> Pattern.compile(x, Pattern.DOTALL))
         .collect(Collectors.toSet());
+
+    /**
+     * Matches "Unknown column [X]" errors, optionally followed by ", did you mean [Y]?".
+     * This error is expected when an unmapped field is used after a schema-fixing command (KEEP, DROP, STATS)
+     * that included a different unmapped field but not this one, making the second one legitimately unknown.
+     * We only allow this error when the unknown column is an unmapped field name, and if a suggestion is present,
+     * the suggested column must also be an unmapped field name.
+     */
+    private static final Pattern UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN = Pattern.compile(
+        ".*Unknown column \\[([^]]+)], did you mean \\[([^]]+)]\\?.*",
+        Pattern.DOTALL
+    );
+    private static final Pattern UNKNOWN_COLUMN_PATTERN = Pattern.compile(".*Unknown column \\[([^]]+)].*", Pattern.DOTALL);
+    /**
+     * Matches "first argument of [X] is [null] so second argument must also be [null] but was [Y]" errors.
+     * This happens when an unmapped field (which resolves to DataType.NULL) is used in a binary operation
+     * with a non-null typed field. See https://github.com/elastic/elasticsearch/issues/142115
+     */
+    private static final Pattern NULL_TYPE_MISMATCH_PATTERN = Pattern.compile(
+        ".*first argument of \\[([^]]+)] is \\[null] so second argument must also be \\[null] but was \\[.*].*",
+        Pattern.DOTALL
+    );
+    /**
+     * Matches type mismatch errors where a function argument has one of the special types that most scalar functions reject.
+     * For example: "must be [any type except counter types, dense_vector, ...], found value [...] type [counter_long]"
+     */
+    private static final Pattern SCALAR_TYPE_MISMATCH_PATTERN = Pattern.compile(
+        ".*found value \\[[^]]+] type \\[(counter_long|counter_double|counter_integer"
+            + "|aggregate_metric_double|dense_vector|tdigest|histogram|exponential_histogram|date_range)].*",
+        Pattern.DOTALL
+    );
+    /**
+     * Matches FIRST(...) or LAST(...) function calls where the second argument is the literal {@code null}.
+     * See https://github.com/elastic/elasticsearch/issues/142180#issuecomment-3913054718
+     */
+    private static final Pattern FIRST_LAST_NULL_ARG_PATTERN = Pattern.compile("(?i)\\b(?:first|last)\\s*\\(.+?,\\s*null\\s*\\)");
+    /**
+     * Matches FIRST(...) or LAST(...) function calls and captures both arguments.
+     * Used to detect when the same field is passed as both the search and sort parameters.
+     * See https://github.com/elastic/elasticsearch/issues/142180
+     */
+    private static final Pattern FIRST_LAST_CALL_PATTERN = Pattern.compile(
+        "(?i)\\b(?:first|last)\\s*\\(\\s*([^,()]+?)\\s*,\\s*([^,()]+?)\\s*\\)"
+    );
+    private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
 
     @Before
     public void setup() throws IOException {
@@ -133,16 +188,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             var exec = new EsqlQueryGenerator.Executor() {
                 @Override
                 public void run(CommandGenerator generator, CommandGenerator.CommandDescription current) {
-                    previousCommands.add(current);
                     final String command = current.commandString();
 
                     final QueryExecuted result = previousResult == null
                         ? execute(command, 0)
                         : execute(previousResult.query() + command, previousResult.depth());
-                    previousResult = result;
 
                     final boolean hasException = result.exception() != null;
-                    if (hasException || checkResults(List.of(), generator, current, previousResult, result).success() == false) {
+                    if (hasException || checkResults(previousCommands, generator, current, previousResult, result).success() == false) {
                         if (hasException) {
                             checkException(result);
                         }
@@ -152,6 +205,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                         continueExecuting = true;
                         currentSchema = result.outputSchema();
                     }
+                    previousCommands.add(current);
+                    previousResult = result;
                 }
 
                 @Override
@@ -227,6 +282,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     return outputValidation;
                 }
             }
+            if (isUnmappedFieldError(outputValidation.errorMessage()) || isScalarTypeMismatchError(outputValidation.errorMessage())) {
+                return outputValidation;
+            }
+            if (isFirstLastSameFieldError(outputValidation.errorMessage(), result.query())) {
+                return outputValidation;
+            }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
         }
         return outputValidation;
@@ -237,6 +298,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             if (isAllowedError(query.exception().getMessage(), allowedError)) {
                 return;
             }
+        }
+        if (isUnmappedFieldError(query.exception().getMessage()) || isScalarTypeMismatchError(query.exception().getMessage())) {
+            return;
+        }
+        if (isFirstLastSameFieldError(query.exception().getMessage(), query.query())) {
+            return;
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
     }
@@ -250,6 +317,76 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     private static boolean isAllowedError(String errorMessage, Pattern allowedPattern) {
         String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
         return allowedPattern.matcher(errorWithoutLineBreaks).matches();
+    }
+
+    /**
+     * Checks if the error is a known unmapped field error. This covers:
+     * <ul>
+     *   <li>"Unknown column [X], did you mean [Y]?" - both X and Y must be unmapped field names</li>
+     *   <li>"Unknown column [X]" (no suggestion) - X must be an unmapped field name</li>
+     *   <li>"first argument of [X] is [null] so second argument must also be [null] but was [Y]" -
+     *       the expression X must contain an unmapped field name (https://github.com/elastic/elasticsearch/issues/142115)</li>
+     *   <li>"Rule execution limit [100] reached" - can happen with complex plans involving "nullify" unmapped fields</li>
+     * </ul>
+     */
+    private static boolean isUnmappedFieldError(String errorMessage) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        // Try the more specific pattern first (with suggestion)
+        Matcher matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String unknownColumn = matcher.group(1);
+            String suggestedColumn = matcher.group(2);
+            return UNMAPPED_NAMES.contains(unknownColumn) && UNMAPPED_NAMES.contains(suggestedColumn);
+        }
+        // Try the simpler pattern (no suggestion)
+        matcher = UNKNOWN_COLUMN_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String unknownColumn = matcher.group(1);
+            return UNMAPPED_NAMES.contains(unknownColumn);
+        }
+        // NULL type mismatch in binary operations involving unmapped fields
+        matcher = NULL_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String expression = matcher.group(1);
+            return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
+        }
+
+        // https://github.com/elastic/elasticsearch/issues/142390
+        if (errorWithoutLineBreaks.contains("Rule execution limit [100] reached")) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Checks if the error is a type mismatch where a function received a field of a special type that most scalar
+     * functions don't support (counter types, aggregate_metric_double, dense_vector, tdigest, histogram, etc.).
+     * These errors are acceptable since the generative tests may compose function calls with fields of these types.
+     */
+    private static boolean isScalarTypeMismatchError(String errorMessage) {
+        String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
+        return SCALAR_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks).matches();
+    }
+
+    /**
+     * Checks if the error is an {@code ArrayIndexOutOfBoundsException} caused by calling FIRST or LAST
+     * with problematic arguments.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/142180">#142180</a>
+     */
+    private static boolean isFirstLastSameFieldError(String errorMessage, String query) {
+        if (errorMessage.contains("out of bounds for length") == false) {
+            return false;
+        }
+        if (FIRST_LAST_NULL_ARG_PATTERN.matcher(query).find()) {
+            return true;
+        }
+        Matcher matcher = FIRST_LAST_CALL_PATTERN.matcher(query);
+        while (matcher.find()) {
+            if (matcher.group(1).equals(matcher.group(2))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

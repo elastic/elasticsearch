@@ -108,6 +108,12 @@ class KnnIndexer {
     }
 
     void createIndex(KnnIndexTester.Results result) throws IOException, InterruptedException, ExecutionException {
+        try (Directory dir = getDirectory(indexPath)) {
+            createIndex(result, dir);
+        }
+    }
+
+    void createIndex(KnnIndexTester.Results result, Directory dir) throws IOException, InterruptedException, ExecutionException {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE);
         iwc.setCodec(codec);
         iwc.setMaxBufferedDocs(writerMaxBufferedDocs);
@@ -140,7 +146,7 @@ class KnnIndexer {
 
         long start = System.nanoTime();
         AtomicInteger numDocsIndexed = new AtomicInteger();
-        try (Directory dir = getDirectory(indexPath); IndexWriter iw = new IndexWriter(dir, iwc)) {
+        try (IndexWriter iw = new IndexWriter(dir, iwc)) {
             for (Path docsPath : this.docsPath) {
                 int dim = this.dim;
                 try (FileChannel in = FileChannel.open(docsPath)) {
@@ -223,6 +229,12 @@ class KnnIndexer {
     }
 
     void forceMerge(KnnIndexTester.Results results, int maxNumSegments) throws Exception {
+        try (Directory dir = getDirectory(indexPath)) {
+            forceMerge(results, maxNumSegments, dir);
+        }
+    }
+
+    void forceMerge(KnnIndexTester.Results results, int maxNumSegments, Directory dir) throws Exception {
         IndexWriterConfig iwc = new IndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         iwc.setInfoStream(new PrintStreamInfoStream(System.out) {
             @Override
@@ -234,7 +246,7 @@ class KnnIndexer {
         iwc.setUseCompoundFile(false);
         logger.info("KnnIndexer: forceMerge in {} into {} segments", indexPath, maxNumSegments);
         long startNS = System.nanoTime();
-        try (IndexWriter iw = new IndexWriter(getDirectory(indexPath), iwc)) {
+        try (IndexWriter iw = new IndexWriter(dir, iwc)) {
             iw.forceMerge(maxNumSegments);
         }
         long endNS = System.nanoTime();
@@ -253,18 +265,13 @@ class KnnIndexer {
     }
 
     /**
-     * Opens a directory for reading. When {@code useSearchableSnapshot} is true, the data is
-     * read through a searchable snapshot backed directory, otherwise a regular filesystem
-     * directory is returned.
+     * Opens a frozen (searchable snapshot) directory for the given index path.
      */
-    static Directory openReadDirectory(Path indexPath, boolean useSearchableSnapshot) throws IOException {
-        if (useSearchableSnapshot) {
-            Path workPath = indexPath.resolveSibling(indexPath.getFileName() + ".snap_work");
-            Files.createDirectories(workPath);
-            logger.info("Opening searchable snapshot directory for index at {} with work path {}", indexPath, workPath);
-            return openSearchableSnapshotDirectory(indexPath, workPath);
-        }
-        return getDirectory(indexPath);
+    static Directory openFrozenDirectory(Path indexPath) throws IOException {
+        Path workPath = indexPath.resolveSibling(indexPath.getFileName() + ".snap_work");
+        Files.createDirectories(workPath);
+        logger.info("Opening frozen snapshot directory for index at {} with work path {}", indexPath, workPath);
+        return openSearchableSnapshotDirectory(indexPath, workPath);
     }
 
     /**
@@ -280,7 +287,7 @@ class KnnIndexer {
             return (Directory) method.invoke(null, indexPath, workPath);
         } catch (Exception e) {
             throw new IOException(
-                "Failed to create searchable snapshot directory. " + "Ensure the searchable-snapshots test artifact is on the classpath.",
+                "Failed to create searchable snapshot directory. Ensure the searchable-snapshots test artifact is on the classpath.",
                 e
             );
         }

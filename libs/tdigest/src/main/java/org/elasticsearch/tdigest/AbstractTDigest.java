@@ -61,7 +61,7 @@ public abstract class AbstractTDigest extends TDigest {
     }
 
     @Override
-    public void add(TDigest other) {
+    public void add(ReadableTDigest other) {
         for (Centroid centroid : other.centroids()) {
             add(centroid.mean(), centroid.count());
         }

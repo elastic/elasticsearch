@@ -39,7 +39,7 @@ import java.util.Locale;
  * - test coverage roughly at 90%
  * - easy to adapt for use with map-reduce
  */
-public abstract class TDigest implements Releasable, Accountable {
+public abstract class TDigest implements ReadableTDigest, Releasable, Accountable {
     protected ScaleFunction scale = ScaleFunction.K_2;
     double min = Double.POSITIVE_INFINITY;
     double max = Double.NEGATIVE_INFINITY;
@@ -182,11 +182,11 @@ public abstract class TDigest implements Releasable, Accountable {
     }
 
     /**
-     * Add all of the centroids of another TDigest to this one.
+     * Add all of the centroids of another digest to this one.
      *
-     * @param other The other TDigest
+     * @param other The other digest
      */
-    public abstract void add(TDigest other);
+    public abstract void add(ReadableTDigest other);
 
     public abstract int centroidCount();
 

@@ -107,7 +107,7 @@ public class HybridDigest extends AbstractTDigest {
     }
 
     @Override
-    public void add(TDigest other) {
+    public void add(ReadableTDigest other) {
         reserve(other.size());
         if (mergingDigest != null) {
             mergingDigest.add(other);

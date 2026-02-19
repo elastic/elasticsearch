@@ -89,6 +89,32 @@ public class JsonExtractStaticTests extends ESTestCase {
         assertWarningResult("{\"a\":1}", "$.", "invalid path: empty path");
     }
 
+    // --- Bare $ root accessor ---
+
+    public void testBareDollarReturnsObject() {
+        assertResult("{\"a\":1,\"b\":2}", "$", "{\"a\":1,\"b\":2}");
+    }
+
+    public void testBareDollarReturnsArray() {
+        assertResult("[1,2,3]", "$", "[1,2,3]");
+    }
+
+    public void testBareDollarReturnsString() {
+        assertResult("\"hello\"", "$", "hello");
+    }
+
+    public void testBareDollarReturnsNumber() {
+        assertResult("42", "$", "42");
+    }
+
+    public void testBareDollarReturnsBoolean() {
+        assertResult("true", "$", "true");
+    }
+
+    public void testBareDollarReturnsNull() {
+        assertNullResult("null", "$");
+    }
+
     // --- Bracket notation for named keys ---
 
     public void testSingleQuotedKey() {

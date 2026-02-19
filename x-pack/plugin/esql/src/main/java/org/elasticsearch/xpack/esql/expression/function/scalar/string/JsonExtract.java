@@ -203,6 +203,9 @@ public class JsonExtract extends EsqlScalarFunction {
      * consecutive dots, leading/trailing dots, empty brackets, or unterminated quoted keys.
      */
     private static String[] splitPath(String path) {
+        if (path.equals("$")) {
+            return new String[0];
+        }
         if (path.startsWith("$.")) {
             path = path.substring(2);
         } else if (path.startsWith("$[")) {

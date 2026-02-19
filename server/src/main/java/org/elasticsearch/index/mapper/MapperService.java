@@ -393,11 +393,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (newMappingMetadata != null) {
             String type = newMappingMetadata.type();
             CompressedXContent incomingMappingSource = newMappingMetadata.source();
-            Mapping incomingMapping = parseMapping(type, MergeReason.MAPPING_UPDATE, incomingMappingSource);
+            MappingBuilder incomingBuilder = mappingParser.parseToBuilder(type, MergeReason.MAPPING_UPDATE, incomingMappingSource);
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;
-                assert assertRefreshIsNotNeeded(previousMapper, type, incomingMapping);
+                assert assertRefreshIsNotNeeded(previousMapper, type, incomingBuilder);
+                Mapping incomingMapping = buildMapping(incomingBuilder, MergeReason.MAPPING_RECOVERY);
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
                 this.mappingVersion = newIndexMetadata.getMappingVersion();
             }
@@ -412,8 +413,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private boolean assertRefreshIsNotNeeded(DocumentMapper currentMapper, String type, Mapping incomingMapping) {
-        Mapping mergedMapping = mergeMappings(currentMapper, incomingMapping, MergeReason.MAPPING_RECOVERY, indexSettings);
+    private boolean assertRefreshIsNotNeeded(DocumentMapper currentMapper, String type, MappingBuilder incomingBuilder) {
+        long budget = getMaxFieldsToAddDuringMerge(currentMapper, indexSettings, MergeReason.MAPPING_RECOVERY);
+        Mapping mergedMapping = mergeMappings(currentMapper, incomingBuilder, MergeReason.MAPPING_RECOVERY, budget);
+        Mapping incomingMapping = incomingBuilder.build(MergeReason.MAPPING_RECOVERY);
         // skip the runtime section or removed runtime fields will make the assertion fail
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
         CompressedXContent mergedMappingSource;
@@ -743,11 +746,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason, long newFieldsBudget) {
-        MappingBuilder incomingBuilder = MappingBuilder.fromMapping(incomingMapping);
+        return mergeMappings(currentMapper, MappingBuilder.fromMapping(incomingMapping), reason, newFieldsBudget);
+    }
+
+    static Mapping mergeMappings(DocumentMapper currentMapper, MappingBuilder incomingBuilder, MergeReason reason, long newFieldsBudget) {
         if (currentMapper == null) {
-            MappingBuilder shallowBuilder = MappingBuilder.fromMappingWithoutMappers(incomingMapping);
-            shallowBuilder.merge(incomingBuilder, MergeReason.MAPPING_RECOVERY, newFieldsBudget);
-            return shallowBuilder.build(MergeReason.MAPPING_RECOVERY);
+            return applyFieldsBudget(incomingBuilder, newFieldsBudget).build(MergeReason.MAPPING_RECOVERY);
         }
         MappingBuilder existingBuilder = MappingBuilder.fromMapping(currentMapper.mapping());
         existingBuilder.merge(incomingBuilder, reason, newFieldsBudget);

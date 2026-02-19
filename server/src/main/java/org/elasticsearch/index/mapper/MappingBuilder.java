@@ -50,19 +50,6 @@ public class MappingBuilder {
     }
 
     /**
-     * Creates a {@link MappingBuilder} from an existing {@link Mapping} but without any child mappers
-     * in the root. Used to enforce field budget limits by merging fields one-by-one into an
-     * otherwise empty root.
-     */
-    static MappingBuilder fromMappingWithoutMappers(Mapping mapping) {
-        return new MappingBuilder(
-            mapping.getRoot().withoutMappers().toBuilder(),
-            new HashMap<>(mapping.getMetadataMappersMap()),
-            mapping.getMeta()
-        );
-    }
-
-    /**
      * Creates a new {@link MappingBuilder} with the same root settings and metadata but no child
      * mappers in the root. Useful for applying field budget constraints without decomposing a built mapping.
      */

@@ -6,13 +6,9 @@
 | --- | --- | --- |
 | date | date | date |
 | date_nanos | date_nanos | date_nanos |
-| double | double | double |
-| double | integer | double |
-| double | long | double |
-| integer | double | double |
+| double | double, integer, long | double |
 | integer | integer | integer |
-| integer | long | long |
-| long | double | double |
+| integer, long | double | double |
+| integer, long | long | long |
 | long | integer | long |
-| long | long | long |
 

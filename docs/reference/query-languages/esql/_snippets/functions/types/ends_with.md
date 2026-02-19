@@ -4,8 +4,5 @@
 
 | str | suffix | result |
 | --- | --- | --- |
-| keyword | keyword | boolean |
-| keyword | text | boolean |
-| text | keyword | boolean |
-| text | text | boolean |
+| keyword, text | keyword, text | boolean |
 

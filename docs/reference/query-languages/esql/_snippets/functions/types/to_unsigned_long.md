@@ -4,12 +4,5 @@
 
 | field | result |
 | --- | --- |
-| boolean | unsigned_long |
-| date | unsigned_long |
-| double | unsigned_long |
-| integer | unsigned_long |
-| keyword | unsigned_long |
-| long | unsigned_long |
-| text | unsigned_long |
-| unsigned_long | unsigned_long |
+| boolean, date, double, integer, keyword, long, text, unsigned_long | unsigned_long |
 

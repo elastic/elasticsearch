@@ -4,25 +4,17 @@
 
 | lhs | rhs | result |
 | --- | --- | --- |
-| date | date_period | date |
-| date | time_duration | date |
-| date_nanos | date_period | date_nanos |
-| date_nanos | time_duration | date_nanos |
-| date_period | date | date |
-| date_period | date_nanos | date_nanos |
+| date | date_period, time_duration | date |
+| date_nanos | date_period, time_duration | date_nanos |
 | date_period | date_period | date_period |
+| date_period, time_duration | date | date |
+| date_period, time_duration | date_nanos | date_nanos |
 | dense_vector | dense_vector | dense_vector |
-| double | double | double |
-| double | integer | double |
-| double | long | double |
-| integer | double | double |
+| double | double, integer, long | double |
 | integer | integer | integer |
-| integer | long | long |
-| long | double | double |
+| integer, long | double | double |
+| integer, long | long | long |
 | long | integer | long |
-| long | long | long |
-| time_duration | date | date |
-| time_duration | date_nanos | date_nanos |
 | time_duration | time_duration | time_duration |
 | unsigned_long | unsigned_long | unsigned_long |
 

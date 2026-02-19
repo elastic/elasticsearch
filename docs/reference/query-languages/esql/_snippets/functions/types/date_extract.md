@@ -4,8 +4,5 @@
 
 | datePart | date | result |
 | --- | --- | --- |
-| keyword | date | long |
-| keyword | date_nanos | long |
-| text | date | long |
-| text | date_nanos | long |
+| keyword, text | date, date_nanos | long |
 

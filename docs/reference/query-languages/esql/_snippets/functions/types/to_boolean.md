@@ -4,11 +4,5 @@
 
 | field | result |
 | --- | --- |
-| boolean | boolean |
-| double | boolean |
-| integer | boolean |
-| keyword | boolean |
-| long | boolean |
-| text | boolean |
-| unsigned_long | boolean |
+| boolean, double, integer, keyword, long, text, unsigned_long | boolean |
 

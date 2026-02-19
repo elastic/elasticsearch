@@ -4,8 +4,6 @@
 
 | field | result |
 | --- | --- |
-| cartesian_point | cartesian_shape |
-| cartesian_shape | cartesian_shape |
-| geo_point | geo_shape |
-| geo_shape | geo_shape |
+| cartesian_point, cartesian_shape | cartesian_shape |
+| geo_point, geo_shape | geo_shape |
 

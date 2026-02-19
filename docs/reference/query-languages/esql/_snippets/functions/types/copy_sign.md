@@ -4,13 +4,7 @@
 
 | magnitude | sign | result |
 | --- | --- | --- |
-| double | double | double |
-| double | integer | double |
-| double | long | double |
-| integer | double | integer |
-| integer | integer | integer |
-| integer | long | integer |
-| long | double | long |
-| long | integer | long |
-| long | long | long |
+| double | double, integer, long | double |
+| integer | double, integer, long | integer |
+| long | double, integer, long | long |
 

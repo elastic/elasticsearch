@@ -4,18 +4,8 @@
 
 | geomA | geomB | result |
 | --- | --- | --- |
-| cartesian_point | cartesian_point | boolean |
-| cartesian_point | cartesian_shape | boolean |
-| cartesian_shape | cartesian_point | boolean |
-| cartesian_shape | cartesian_shape | boolean |
-| geo_point | geo_point | boolean |
-| geo_point | geo_shape | boolean |
-| geo_point | geohash | boolean |
-| geo_point | geohex | boolean |
-| geo_point | geotile | boolean |
-| geo_shape | geo_point | boolean |
-| geo_shape | geo_shape | boolean |
-| geohash | geo_point | boolean |
-| geohex | geo_point | boolean |
-| geotile | geo_point | boolean |
+| cartesian_point, cartesian_shape | cartesian_point, cartesian_shape | boolean |
+| geo_point | geo_shape, geohash, geohex, geotile | boolean |
+| geo_point, geohash, geohex, geotile | geo_point | boolean |
+| geo_shape | geo_point, geo_shape | boolean |
 

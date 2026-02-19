@@ -10,9 +10,8 @@
 | double | double |
 | integer | integer |
 | ip | ip |
-| keyword | keyword |
+| keyword, text | keyword |
 | long | long |
-| text | keyword |
 | unsigned_long | unsigned_long |
 | version | version |
 

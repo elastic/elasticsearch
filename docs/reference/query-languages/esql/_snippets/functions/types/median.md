@@ -4,8 +4,5 @@
 
 | number | result |
 | --- | --- |
-| double | double |
-| exponential_histogram | double |
-| integer | double |
-| long | double |
+| double, exponential_histogram, integer, long | double |
 

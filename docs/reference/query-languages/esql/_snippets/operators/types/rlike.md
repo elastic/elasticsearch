@@ -4,6 +4,5 @@
 
 | str | pattern | result |
 | --- | --- | --- |
-| keyword | keyword | boolean |
-| text | keyword | boolean |
+| keyword, text | keyword | boolean |
 

@@ -4,8 +4,5 @@
 
 | geometry | result |
 | --- | --- |
-| cartesian_point | integer |
-| cartesian_shape | integer |
-| geo_point | integer |
-| geo_shape | integer |
+| cartesian_point, cartesian_shape, geo_point, geo_shape | integer |
 

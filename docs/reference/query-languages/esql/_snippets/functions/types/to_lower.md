@@ -4,6 +4,5 @@
 
 | str | result |
 | --- | --- |
-| keyword | keyword |
-| text | keyword |
+| keyword, text | keyword |
 

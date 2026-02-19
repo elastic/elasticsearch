@@ -4,30 +4,5 @@
 
 | field | result |
 | --- | --- |
-| aggregate_metric_double | boolean |
-| boolean | boolean |
-| cartesian_point | boolean |
-| cartesian_shape | boolean |
-| counter_double | boolean |
-| counter_integer | boolean |
-| counter_long | boolean |
-| date | boolean |
-| date_nanos | boolean |
-| dense_vector | boolean |
-| double | boolean |
-| exponential_histogram | boolean |
-| geo_point | boolean |
-| geo_shape | boolean |
-| geohash | boolean |
-| geohex | boolean |
-| geotile | boolean |
-| histogram | boolean |
-| integer | boolean |
-| ip | boolean |
-| keyword | boolean |
-| long | boolean |
-| tdigest | boolean |
-| text | boolean |
-| unsigned_long | boolean |
-| version | boolean |
+| aggregate_metric_double, boolean, cartesian_point, cartesian_shape, counter_double, counter_integer, counter_long, date, date_nanos, dense_vector, double, exponential_histogram, geo_point, geo_shape, geohash, geohex, geotile, histogram, integer, ip, keyword, long, tdigest, text, unsigned_long, version | boolean |
 

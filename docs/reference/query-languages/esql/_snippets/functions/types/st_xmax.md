@@ -4,8 +4,5 @@
 
 | point | result |
 | --- | --- |
-| cartesian_point | double |
-| cartesian_shape | double |
-| geo_point | double |
-| geo_shape | double |
+| cartesian_point, cartesian_shape, geo_point, geo_shape | double |
 

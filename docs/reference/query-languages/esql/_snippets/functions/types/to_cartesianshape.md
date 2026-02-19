@@ -4,8 +4,5 @@
 
 | field | result |
 | --- | --- |
-| cartesian_point | cartesian_shape |
-| cartesian_shape | cartesian_shape |
-| keyword | cartesian_shape |
-| text | cartesian_shape |
+| cartesian_point, cartesian_shape, keyword, text | cartesian_shape |
 

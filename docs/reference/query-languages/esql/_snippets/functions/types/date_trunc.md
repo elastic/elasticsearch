@@ -4,8 +4,6 @@
 
 | interval | date | result |
 | --- | --- | --- |
-| date_period | date | date |
-| date_period | date_nanos | date_nanos |
-| time_duration | date | date |
-| time_duration | date_nanos | date_nanos |
+| date_period, time_duration | date | date |
+| date_period, time_duration | date_nanos | date_nanos |
 

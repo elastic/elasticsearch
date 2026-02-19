@@ -4,13 +4,5 @@
 
 | number | weight | result |
 | --- | --- | --- |
-| double | double | double |
-| double | integer | double |
-| double | long | double |
-| integer | double | double |
-| integer | integer | double |
-| integer | long | double |
-| long | double | double |
-| long | integer | double |
-| long | long | double |
+| double, integer, long | double, integer, long | double |
 

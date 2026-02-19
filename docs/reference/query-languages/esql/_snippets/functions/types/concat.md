@@ -4,8 +4,5 @@
 
 | string1 | string2 | result |
 | --- | --- | --- |
-| keyword | keyword | keyword |
-| keyword | text | keyword |
-| text | keyword | keyword |
-| text | text | keyword |
+| keyword, text | keyword, text | keyword |
 

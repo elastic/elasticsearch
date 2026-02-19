@@ -4,6 +4,5 @@
 
 | date | result |
 | --- | --- |
-| date | keyword |
-| date_nanos | keyword |
+| date, date_nanos | keyword |
 

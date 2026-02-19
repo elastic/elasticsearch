@@ -4,12 +4,5 @@
 
 | d | scaleFactor | result |
 | --- | --- | --- |
-| double | integer | double |
-| double | long | double |
-| integer | integer | double |
-| integer | long | double |
-| long | integer | double |
-| long | long | double |
-| unsigned_long | integer | double |
-| unsigned_long | long | double |
+| double, integer, long, unsigned_long | integer, long | double |
 

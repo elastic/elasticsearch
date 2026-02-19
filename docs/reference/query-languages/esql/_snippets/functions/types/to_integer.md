@@ -4,19 +4,6 @@
 
 | field | base | result |
 | --- | --- | --- |
-| boolean | | integer |
-| counter_integer | | integer |
-| date | | integer |
-| double | | integer |
-| integer | | integer |
-| keyword | integer | integer |
-| keyword | long | integer |
-| keyword | unsigned_long | integer |
-| keyword | | integer |
-| long | | integer |
-| text | integer | integer |
-| text | long | integer |
-| text | unsigned_long | integer |
-| text | | integer |
-| unsigned_long | | integer |
+| boolean, counter_integer, date, double, integer, keyword, long, text, unsigned_long |  | integer |
+| keyword, text | integer, long, unsigned_long | integer |
 

@@ -4,6 +4,5 @@
 
 | field | options | result |
 | --- | --- | --- |
-| keyword | | keyword |
-| text | | keyword |
+| keyword, text | named parameters | keyword |
 

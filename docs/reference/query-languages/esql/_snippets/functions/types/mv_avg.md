@@ -4,8 +4,5 @@
 
 | number | result |
 | --- | --- |
-| double | double |
-| integer | double |
-| long | double |
-| unsigned_long | double |
+| double, integer, long, unsigned_long | double |
 

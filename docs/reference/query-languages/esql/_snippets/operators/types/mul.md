@@ -5,14 +5,10 @@
 | lhs | rhs | result |
 | --- | --- | --- |
 | dense_vector | dense_vector | dense_vector |
-| double | double | double |
-| double | integer | double |
-| double | long | double |
-| integer | double | double |
+| double | integer, long | double |
+| double, integer, long | double | double |
 | integer | integer | integer |
-| integer | long | long |
-| long | double | double |
+| integer, long | long | long |
 | long | integer | long |
-| long | long | long |
 | unsigned_long | unsigned_long | unsigned_long |
 

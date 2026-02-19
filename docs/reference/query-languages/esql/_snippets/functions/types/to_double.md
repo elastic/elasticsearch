@@ -4,15 +4,5 @@
 
 | field | result |
 | --- | --- |
-| boolean | double |
-| counter_double | double |
-| counter_integer | double |
-| counter_long | double |
-| date | double |
-| double | double |
-| integer | double |
-| keyword | double |
-| long | double |
-| text | double |
-| unsigned_long | double |
+| boolean, counter_double, counter_integer, counter_long, date, double, integer, keyword, long, text, unsigned_long | double |
 

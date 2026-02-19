@@ -4,7 +4,5 @@
 
 | field | result |
 | --- | --- |
-| keyword | time_duration |
-| text | time_duration |
-| time_duration | time_duration |
+| keyword, text, time_duration | time_duration |
 

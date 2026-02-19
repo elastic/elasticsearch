@@ -4,6 +4,5 @@
 
 | field | result |
 | --- | --- |
-| histogram | tdigest |
-| tdigest | tdigest |
+| histogram, tdigest | tdigest |
 

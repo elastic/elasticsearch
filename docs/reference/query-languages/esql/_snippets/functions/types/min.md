@@ -4,18 +4,14 @@
 
 | field | result |
 | --- | --- |
-| aggregate_metric_double | double |
-| boolean | boolean |
-| date | date |
-| date_nanos | date_nanos |
-| double | double |
-| exponential_histogram | double |
-| integer | integer |
-| ip | ip |
-| keyword | keyword |
-| long | long |
-| tdigest | double |
-| text | keyword |
+| aggregate_metric_double, double, exponential_histogram, tdigest {applies_to}`stack: ga 9.2.0` | double |
+| boolean {applies_to}`stack: ga 9.2.0` | boolean |
+| date {applies_to}`stack: ga 9.2.0` | date |
+| date_nanos {applies_to}`stack: ga 9.2.0` | date_nanos |
+| integer {applies_to}`stack: ga 9.2.0` | integer |
+| ip {applies_to}`stack: ga 9.2.0` | ip |
+| keyword, text {applies_to}`stack: ga 9.2.0` | keyword |
+| long {applies_to}`stack: ga 9.2.0` | long |
 | unsigned_long {applies_to}`stack: ga 9.2.0` | unsigned_long |
-| version | version |
+| version {applies_to}`stack: ga 9.2.0` | version |
 

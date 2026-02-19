@@ -4,22 +4,5 @@
 
 | field | result |
 | --- | --- |
-| boolean | integer |
-| cartesian_point | integer |
-| cartesian_shape | integer |
-| date | integer |
-| date_nanos | integer |
-| double | integer |
-| geo_point | integer |
-| geo_shape | integer |
-| geohash | integer |
-| geohex | integer |
-| geotile | integer |
-| integer | integer |
-| ip | integer |
-| keyword | integer |
-| long | integer |
-| text | integer |
-| unsigned_long | integer |
-| version | integer |
+| boolean, cartesian_point, cartesian_shape, date, date_nanos, double, geo_point, geo_shape, geohash, geohex, geotile, integer, ip, keyword, long, text, unsigned_long, version | integer |
 

@@ -4,24 +4,6 @@
 
 | field | base | result |
 | --- | --- | --- |
-| boolean | | long |
-| counter_integer | | long |
-| counter_long | | long |
-| date | | long |
-| date_nanos | | long |
-| double | | long |
-| geohash | | long |
-| geohex | | long |
-| geotile | | long |
-| integer | | long |
-| keyword | integer | long |
-| keyword | long | long |
-| keyword | unsigned_long | long |
-| keyword | | long |
-| long | | long |
-| text | integer | long |
-| text | long | long |
-| text | unsigned_long | long |
-| text | | long |
-| unsigned_long | | long |
+| boolean, counter_integer, counter_long, date, date_nanos, double, geohash, geohex, geotile, integer, keyword, long, text, unsigned_long |  | long |
+| keyword, text | integer, long, unsigned_long | long |
 

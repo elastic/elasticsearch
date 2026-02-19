@@ -4,8 +4,6 @@
 
 | field | result |
 | --- | --- |
-| cartesian_point | cartesian_point |
-| cartesian_shape {applies_to}`stack: preview 9.4.0` | cartesian_point |
-| geo_point | geo_point |
-| geo_shape {applies_to}`stack: preview 9.4.0` | geo_point |
+| cartesian_point, cartesian_shape {applies_to}`stack: preview 9.4.0` | cartesian_point |
+| geo_point, geo_shape {applies_to}`stack: preview 9.4.0` | geo_point |
 

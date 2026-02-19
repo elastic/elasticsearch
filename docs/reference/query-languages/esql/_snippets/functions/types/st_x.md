@@ -4,6 +4,5 @@
 
 | point | result |
 | --- | --- |
-| cartesian_point | double |
-| geo_point | double |
+| cartesian_point, geo_point | double |
 

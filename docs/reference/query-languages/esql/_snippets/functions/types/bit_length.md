@@ -4,6 +4,5 @@
 
 | string | result |
 | --- | --- |
-| keyword | integer |
-| text | integer |
+| keyword, text | integer |
 

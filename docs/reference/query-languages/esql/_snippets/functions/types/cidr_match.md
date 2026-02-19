@@ -4,6 +4,5 @@
 
 | ip | blockX | result |
 | --- | --- | --- |
-| ip | keyword | boolean |
-| ip | text | boolean |
+| ip | keyword, text | boolean |
 

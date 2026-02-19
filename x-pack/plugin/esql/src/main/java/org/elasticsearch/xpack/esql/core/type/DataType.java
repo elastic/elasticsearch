@@ -547,7 +547,10 @@ public enum DataType implements Writeable {
         LONG,
         Set.of(DOUBLE),
         DATETIME,
-        Set.of(DATE_NANOS)
+        Set.of(DATE_NANOS),
+        // We allow TEXT to be used where KEYWORD is expected because we load text fields without analysis, so they behave like keywords.
+        TEXT,
+        Set.of(KEYWORD)
     );
 
     /**

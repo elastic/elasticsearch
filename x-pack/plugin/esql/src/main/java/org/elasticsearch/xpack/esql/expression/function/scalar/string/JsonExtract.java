@@ -66,6 +66,7 @@ public class JsonExtract extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "keyword",
+        preview = true,
         description = """
             Extracts a value from a JSON string using a dot-notation path expression.
             Path matching is case-sensitive (per the JSON specification).

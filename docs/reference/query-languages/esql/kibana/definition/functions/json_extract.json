@@ -117,6 +117,6 @@
     "ROW json = \"{\\\\\"name\\\\\":\\\\\"Alice\\\\\",\\\\\"age\\\\\":30}\"\n| EVAL name = JSON_EXTRACT(json, \"name\")",
     "ROW json = \"{\\\\\"user\\\\\":{\\\\\"address\\\\\":{\\\\\"city\\\\\":\\\\\"London\\\\\"}}}\"\n| EVAL city = JSON_EXTRACT(json, \"user.address.city\")"
   ],
-  "preview" : false,
-  "snapshot_only" : false
+  "preview" : true,
+  "snapshot_only" : true
 }

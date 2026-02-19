@@ -435,7 +435,6 @@ public class EsqlFunctionRegistry {
                 def(Contains.class, Contains::new, "contains"),
                 def(EndsWith.class, EndsWith::new, "ends_with"),
                 def(Hash.class, Hash::new, "hash"),
-                def(JsonExtract.class, JsonExtract::new, "json_extract"),
                 def(LTrim.class, LTrim::new, "ltrim"),
                 def(Left.class, Left::new, "left"),
                 def(Length.class, Length::new, "length"),
@@ -597,6 +596,7 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
+                def(JsonExtract.class, JsonExtract::new, "json_extract"),
                 // dense vector functions
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange") } };

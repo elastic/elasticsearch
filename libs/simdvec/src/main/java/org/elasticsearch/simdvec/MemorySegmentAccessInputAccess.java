@@ -13,8 +13,10 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 
 public interface MemorySegmentAccessInputAccess {
+    /** Returns the underlying {@link MemorySegmentAccessInput}, or {@code null} if not available. */
     MemorySegmentAccessInput get();
 
+    /** Unwraps to the underlying {@link MemorySegmentAccessInput} if available, otherwise returns the input unchanged. */
     static IndexInput unwrap(IndexInput input) {
         if (input instanceof MemorySegmentAccessInputAccess msaia) {
             var unwrapped = msaia.get();

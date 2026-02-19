@@ -13,6 +13,5 @@ import org.elasticsearch.plugins.Plugin;
 
 public class CodecsCommonPlugin extends Plugin {
 
-    public CodecsCommonPlugin() {
-    }
+    public CodecsCommonPlugin() {}
 }

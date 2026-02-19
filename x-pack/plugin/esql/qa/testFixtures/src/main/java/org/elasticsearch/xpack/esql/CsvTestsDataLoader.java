@@ -301,7 +301,7 @@ public class CsvTestsDataLoader {
     }
 
     private static boolean isSourceMappingDataset(TestDataset dataset) throws IOException {
-        if (dataset.mappingFileName() == null) {
+        if (dataset.mappingFileName == null) {
             return true;
         }
         JsonNode mappingNode = new ObjectMapper().readTree(dataset.streamMapping());
@@ -1064,10 +1064,6 @@ public class CsvTestsDataLoader {
             return indexName;
         }
 
-        public String mappingFileName() {
-            return mappingFileName;
-        }
-
         public String dataFileName() {
             return dataFileName;
         }
@@ -1090,10 +1086,6 @@ public class CsvTestsDataLoader {
 
         public boolean requiresInferenceEndpoint() {
             return requiresInferenceEndpoint;
-        }
-
-        public List<EsqlCapabilities.Cap> requiredCapabilities() {
-            return requiredCapabilities;
         }
 
         public Settings loadSettings() throws IOException {

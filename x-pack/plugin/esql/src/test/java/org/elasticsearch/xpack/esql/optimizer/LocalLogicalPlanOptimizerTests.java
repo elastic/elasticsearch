@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.function.vector.VectorSimilarityFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
@@ -674,25 +676,44 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
     public void testIsNullFilterDoesNotPruneDisjunctionBranch() {
         var plan = localPlan("""
               FROM test
-            | EVAL full = CONCAT(first_name, " ", last_name), lang = languages
-            | KEEP emp_no, full, lang, gender
-            | WHERE `lang` IS NOT NULL OR NOT contains(full, "ssD") AND NOT emp_no <= -30 OR NOT true
-            | KEEP gender, lang
-            | WHERE lang IS NULL
+            | EVAL nullable = languages
+            | KEEP emp_no, nullable
+            | WHERE nullable IS NOT NULL OR emp_no > 10000
+            | WHERE nullable IS NULL
             """);
 
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        var outerFilter = as(limit.child(), Filter.class);
-        assertThat(
-            "outer filter should preserve non-null-disjunction branch",
-            outerFilter.condition().toString(),
-            containsString("NOT contains(full")
-        );
-        var eval = as(outerFilter.child(), Eval.class);
-        var innerFilter = as(eval.child(), Filter.class);
-        assertThat("inner filter should retain the lang IS NULL constraint", innerFilter.condition().toString(), containsString("IS NULL"));
-        assertThat("local plan should not be pruned to empty", innerFilter.child(), not(instanceOf(LocalRelation.class)));
+        List<Expression> conjuncts = new ArrayList<>();
+        LogicalPlan cursor = plan;
+        while (cursor instanceof UnaryPlan unary) {
+            if (cursor instanceof Filter filter) {
+                conjuncts.addAll(Predicates.splitAnd(filter.condition()));
+            }
+            cursor = unary.child();
+        }
+
+        assertThat("local plan should not be pruned to empty", cursor, not(instanceOf(LocalRelation.class)));
+
+        boolean hasIsNullNullable = conjuncts.stream().anyMatch(e -> {
+            if (e instanceof IsNull == false) {
+                return false;
+            }
+            IsNull isNull = (IsNull) e;
+            return "nullable".equals(Expressions.name(isNull.field())) || "languages".equals(Expressions.name(isNull.field()));
+        });
+        assertTrue("expected null constraint to be preserved", hasIsNullNullable);
+
+        boolean hasEmpNoResidual = conjuncts.stream().anyMatch(e -> {
+            if (e instanceof GreaterThan == false) {
+                return false;
+            }
+            GreaterThan gt = (GreaterThan) e;
+            if (gt.left() instanceof FieldAttribute == false) {
+                return false;
+            }
+            FieldAttribute field = (FieldAttribute) gt.left();
+            return "emp_no".equals(field.name());
+        });
+        assertTrue("expected disjunction residual branch to be preserved", hasEmpNoResidual);
     }
 
     /*

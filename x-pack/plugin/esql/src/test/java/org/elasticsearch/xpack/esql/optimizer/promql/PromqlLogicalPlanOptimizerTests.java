@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -215,6 +216,60 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         // Verify window is 10 minutes
         var sum = tsAggregate.aggregates().getFirst().collect(Sum.class).getFirst();
         assertThat(sum.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+    }
+
+    public void testImplicitRangeSelectorUsesStepWindow() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=5m rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+    }
+
+    public void testImplicitRangeSelectorUsesScrapeIntervalWhenStepIsSmaller() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=15s rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+    }
+
+    public void testImplicitRangeSelectorRoundsWindowToStepMultiple() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=20s scrape_interval=1m rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+    }
+
+    public void testImplicitRangeSelectorUsesInferredStepFromDefaultBuckets() {
+        var plan = planPromql("""
+            PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+    }
+
+    public void testImplicitRangeSelectorUsesInferredStepFromBuckets() {
+        var plan = planPromql("""
+            PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" buckets=6 rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
     }
 
     public void testStartEndStep() {
@@ -474,6 +529,64 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(tsAgg.timeBucket().buckets().fold(null), equalTo(Duration.ofMinutes(1)));
         LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
         assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.total_bytes_in"));
+    }
+
+    public void testBinaryAcrossSeriesAggregations() {
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.total_bytes_in) / max(network.total_bytes_in))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("ratio", "step")));
+
+        // Find the outer Aggregate (not TimeSeriesAggregate) that should contain both sum and max
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("binary agg expressions should fold into a single outer Aggregate", outerAggs, hasSize(1));
+
+        var aggregate = outerAggs.getFirst();
+        // Aggregates should contain both sum and max
+        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Sum.class::isInstance)).count(), equalTo(1L));
+        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Max.class::isInstance)).count(), equalTo(1L));
+    }
+
+    public void testBinaryAcrossSeriesAggregationsDoNotLoseReferences() {
+        // Verifies that both aggregate expressions are preserved when folding (using different fields)
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.total_bytes_in) / max(network.bytes_in))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("ratio", "step")));
+
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("both aggregations should be folded into single outer Aggregate", outerAggs, hasSize(1));
+
+        var aggregate = outerAggs.getFirst();
+        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Sum.class::isInstance)).count(), equalTo(1L));
+        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Max.class::isInstance)).count(), equalTo(1L));
+    }
+
+    public void testNestedBinaryAggregationsWithScalar() {
+        // Pattern: (agg op agg) op scalar
+        var plan = planPromql("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) / max(network.total_bytes_in) * 100)");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("all aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
+    }
+
+    public void testFunctionOnBinaryAggregations() {
+        // Pattern: func(agg op agg) - tests that Eval nodes for function are preserved
+        var plan = planPromql("PROMQL index=k8s step=1m result=(ceil(sum(network.total_bytes_in) / max(network.total_bytes_in)))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
+
+        // Verify ceil is applied via Eval
+        var evals = plan.collect(Eval.class);
+        assertThat("should have Eval nodes for ceil and value conversion", evals.size(), org.hamcrest.Matchers.greaterThanOrEqualTo(1));
+    }
+
+    public void testBinaryAggregationsWithAddition() {
+        // Two aggregates combined with addition
+        var plan = planPromql("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) + max(network.total_bytes_in))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("all aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
     }
 
     public void testAcrossSeriesMultiplicationLiteral() {

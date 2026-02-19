@@ -136,21 +136,21 @@ public class JsonExtract extends EsqlScalarFunction {
         return DataType.KEYWORD;
     }
 
-    /**
-     * Returns true if the given type is a string type or SOURCE (for _source field).
-     */
-    private static boolean isStringOrSource(DataType t) {
-        return DataType.isString(t) || t == DataType.SOURCE;
-    }
-
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
 
-        // First parameter accepts string types or SOURCE (for _source field)
-        TypeResolution resolution = isType(str, JsonExtract::isStringOrSource, sourceText(), FIRST, "keyword", "text", "_source");
+        TypeResolution resolution = isType(
+            str,
+            t -> DataType.isString(t) || t == DataType.SOURCE,
+            sourceText(),
+            FIRST,
+            "keyword",
+            "text",
+            "_source"
+        );
         if (resolution.unresolved()) {
             return resolution;
         }

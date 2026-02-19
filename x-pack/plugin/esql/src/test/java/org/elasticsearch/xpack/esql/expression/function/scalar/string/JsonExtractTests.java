@@ -170,28 +170,27 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         }
 
         // Constant path - nested dot notation
-        suppliers.add(constantPathSupplier(
-            "constant nested path",
-            "{\"user\":{\"address\":{\"city\":\"London\"}}}",
-            "user.address.city",
-            equalTo(new BytesRef("London"))
-        ));
+        suppliers.add(
+            constantPathSupplier(
+                "constant nested path",
+                "{\"user\":{\"address\":{\"city\":\"London\"}}}",
+                "user.address.city",
+                equalTo(new BytesRef("London"))
+            )
+        );
 
         // Constant path - array bracket notation
-        suppliers.add(constantPathSupplier(
-            "constant array path",
-            "{\"tags\":[\"a\",\"b\",\"c\"]}",
-            "tags[0]",
-            equalTo(new BytesRef("a"))
-        ));
+        suppliers.add(constantPathSupplier("constant array path", "{\"tags\":[\"a\",\"b\",\"c\"]}", "tags[0]", equalTo(new BytesRef("a"))));
 
         // Constant path - mixed nesting (array + dot)
-        suppliers.add(constantPathSupplier(
-            "constant mixed path",
-            "{\"orders\":[{\"id\":1,\"item\":\"book\"},{\"id\":2,\"item\":\"pen\"}]}",
-            "orders[1].item",
-            equalTo(new BytesRef("pen"))
-        ));
+        suppliers.add(
+            constantPathSupplier(
+                "constant mixed path",
+                "{\"orders\":[{\"id\":1,\"item\":\"book\"},{\"id\":2,\"item\":\"pen\"}]}",
+                "orders[1].item",
+                equalTo(new BytesRef("pen"))
+            )
+        );
 
         // Constant path - missing path (warning case)
         suppliers.add(new TestCaseSupplier("constant missing path", types(DataType.KEYWORD, DataType.KEYWORD), () -> {
@@ -239,12 +238,14 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         suppliers.add(constantPathSupplier("constant json null", "{\"value\":null}", "value", nullValue()));
 
         // Constant path - extract object as JSON string
-        suppliers.add(constantPathSupplier(
-            "constant extract object",
-            "{\"user\":{\"name\":\"Alice\",\"age\":30}}",
-            "user",
-            equalTo(new BytesRef("{\"name\":\"Alice\",\"age\":30}"))
-        ));
+        suppliers.add(
+            constantPathSupplier(
+                "constant extract object",
+                "{\"user\":{\"name\":\"Alice\",\"age\":30}}",
+                "user",
+                equalTo(new BytesRef("{\"name\":\"Alice\",\"age\":30}"))
+            )
+        );
 
         // SOURCE type support (for _source field)
         for (DataType pathType : DataType.stringTypes()) {
@@ -274,7 +275,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
     }
 
     private static TestCaseSupplier supplier(String json, String path, BytesRef expectedValue) {
-        String name = String.format("extract \"%s\" from json", path);
+        String name = "extract \"" + path + "\" from json";
         return new TestCaseSupplier(name, types(DataType.KEYWORD, DataType.KEYWORD), () -> {
             return new TestCaseSupplier.TestCase(
                 List.of(

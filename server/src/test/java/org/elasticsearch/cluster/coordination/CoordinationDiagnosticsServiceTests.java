@@ -1160,6 +1160,58 @@ public class CoordinationDiagnosticsServiceTests extends AbstractCoordinatorTest
         );
     }
 
+    /**
+     * Verifies that {@link CoordinationDiagnosticsService.CoordinationDiagnosticsDetails#EMPTY} has all components null.
+     */
+    public void testCoordinationDiagnosticsDetailsEmptyConstant() {
+        CoordinationDiagnosticsService.CoordinationDiagnosticsDetails empty =
+            CoordinationDiagnosticsService.CoordinationDiagnosticsDetails.EMPTY;
+        assertThat(empty.currentMaster(), equalTo(null));
+        assertThat(empty.recentMasters(), equalTo(null));
+        assertThat(empty.remoteExceptionMessage(), emptyOrNullString());
+        assertThat(empty.remoteExceptionStackTrace(), emptyOrNullString());
+        assertThat(empty.nodeToClusterFormationDescriptionMap(), equalTo(null));
+    }
+
+    /**
+     * Verifies that the {@link CoordinationDiagnosticsService.CoordinationDiagnosticsDetails} constructor that accepts an
+     * {@link Exception} sets {@code remoteExceptionMessage} and {@code remoteExceptionStackTrace} from that exception.
+     */
+    public void testCoordinationDiagnosticsDetailsConstructorWithException() {
+        String message = "test exception message";
+        RuntimeException exception = new RuntimeException(message);
+        CoordinationDiagnosticsService.CoordinationDiagnosticsDetails details =
+            new CoordinationDiagnosticsService.CoordinationDiagnosticsDetails(
+                node1,
+                List.of(node1),
+                exception,
+                Map.of()
+            );
+        assertThat(details.currentMaster(), equalTo(node1));
+        assertThat(details.recentMasters(), equalTo(List.of(node1)));
+        assertThat(details.remoteExceptionMessage(), equalTo(message));
+        assertThat(details.remoteExceptionStackTrace(), containsString("java.lang.RuntimeException: " + message));
+        assertThat(details.nodeToClusterFormationDescriptionMap(), equalTo(Map.of()));
+    }
+
+    /**
+     * Verifies that when {@code verbose} is false, {@link CoordinationDiagnosticsService#diagnoseMasterStability} returns
+     * a result whose details are {@link CoordinationDiagnosticsService.CoordinationDiagnosticsDetails#EMPTY}.
+     */
+    public void testDiagnoseMasterStabilityNonVerboseReturnsEmptyDetails() throws Exception {
+        AtomicReference<ClusterState> currentClusterState = new AtomicReference<>(node1MasterClusterState);
+        ClusterService clusterService = createClusterService(currentClusterState::get);
+        MasterHistoryService masterHistoryService = createMasterHistoryService(clusterService);
+        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        CoordinationDiagnosticsService service = createCoordinationDiagnosticsService(clusterService, masterHistoryService);
+        CoordinationDiagnosticsService.CoordinationDiagnosticsResult result = service.diagnoseMasterStability(false);
+        assertThat(
+            result.details(),
+            equalTo(CoordinationDiagnosticsService.CoordinationDiagnosticsDetails.EMPTY)
+        );
+    }
+
     public void testRandomMasterEligibleNode() throws Exception {
         ClusterService clusterService = createClusterService(nullMasterClusterState);
         MasterHistoryService masterHistoryService = createMasterHistoryService(clusterService);

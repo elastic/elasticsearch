@@ -859,7 +859,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         assumeTrue("no parameters can be narrowed after filtering", positionNarrowing.isEmpty() == false);
 
         Expression original = build(testCase.getSource(), data.stream().map(TestCaseSupplier.TypedData::asReference).toList());
-        assertTrue("original expression should resolve", original.typeResolved().resolved());
+        assertTrue(
+            "original expression should resolve, but got: " + original.typeResolved().message(),
+            original.typeResolved().resolved()
+        );
         DataType originalOutputType = original.dataType();
 
         List<Expression> args = new ArrayList<>(data.size());

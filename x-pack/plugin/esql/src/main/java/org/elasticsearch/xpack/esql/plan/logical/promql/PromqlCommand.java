@@ -162,6 +162,23 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         );
     }
 
+    public PromqlCommand withStartEnd(Literal start, Literal end) {
+        return new PromqlCommand(
+            source(),
+            child(),
+            promqlPlan(),
+            start,
+            end,
+            step(),
+            buckets(),
+            scrapeInterval(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
+    }
+
     @Override
     public boolean expressionsResolved() {
         return promqlPlan.resolved() && timestamp.resolved();
@@ -210,6 +227,10 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
      */
     public Literal scrapeInterval() {
         return scrapeInterval;
+    }
+
+    public boolean hasTimeRange() {
+        return start.value() != null && end.value() != null;
     }
 
     public boolean isInstantQuery() {

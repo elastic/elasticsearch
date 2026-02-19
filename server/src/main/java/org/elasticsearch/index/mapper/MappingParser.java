@@ -30,7 +30,7 @@ import java.util.function.Supplier;
  */
 public final class MappingParser {
     private final Supplier<MappingParserContext> mappingParserContextSupplier;
-    private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
+    private final Supplier<Map<String, MetadataFieldMapper.Builder>> metadataBuildersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MappingParser.class);
@@ -38,12 +38,12 @@ public final class MappingParser {
     MappingParser(
         Supplier<MappingParserContext> mappingParserContextSupplier,
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers,
-        Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier,
+        Supplier<Map<String, MetadataFieldMapper.Builder>> metadataBuildersSupplier,
         Function<String, String> documentTypeResolver
     ) {
         this.mappingParserContextSupplier = mappingParserContextSupplier;
         this.metadataMapperParsers = metadataMapperParsers;
-        this.metadataMappersSupplier = metadataMappersSupplier;
+        this.metadataBuildersSupplier = metadataBuildersSupplier;
         this.documentTypeResolver = documentTypeResolver;
     }
 
@@ -149,7 +149,7 @@ public final class MappingParser {
 
         RootObjectMapper.Builder rootObjectMapper = RootObjectMapper.parse(type, mappingSource, mappingParserContext);
 
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = metadataMappersSupplier.get();
+        Map<String, MetadataFieldMapper.Builder> metadataBuilders = metadataBuildersSupplier.get();
         Map<String, Object> meta = null;
 
         Iterator<Map.Entry<String, Object>> iterator = mappingSource.entrySet().iterator();
@@ -172,8 +172,8 @@ public final class MappingParser {
                     && SourceFieldMapper.onOrAfterDeprecateModeVersion(mappingParserContext.indexVersionCreated())) {
                     deprecationLogger.critical(DeprecationCategory.MAPPINGS, "mapping_source_mode", SourceFieldMapper.DEPRECATION_WARNING);
                 }
-                MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, mappingParserContext).build();
-                metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
+                MetadataFieldMapper.Builder parsedBuilder = typeParser.parse(fieldName, fieldNodeMap, mappingParserContext);
+                metadataBuilders.put(fieldName, parsedBuilder);
                 assert fieldNodeMap.isEmpty();
             }
         }
@@ -202,6 +202,6 @@ public final class MappingParser {
             checkNoRemainingFields(mappingSource, "Root mapping definition has unsupported parameters: ");
         }
 
-        return new MappingBuilder(rootObjectMapper, metadataMappers, meta);
+        return new MappingBuilder(rootObjectMapper, metadataBuilders, meta);
     }
 }

@@ -295,7 +295,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.mappingParser = new MappingParser(
             mappingParserContextSupplier,
             metadataMapperParsers,
-            this::getMetadataMappers,
+            this::getMetadataBuilders,
             this::resolveDocumentType
         );
         this.bitSetProducer = bitSetProducer;
@@ -323,28 +323,22 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return this.documentParser;
     }
 
-    Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> getMetadataMappers() {
+    Map<String, MetadataFieldMapper.Builder> getMetadataBuilders() {
         final MappingParserContext mappingParserContext = parserContext();
-        final DocumentMapper existingMapper = mapper;
         final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        if (existingMapper == null) {
-            for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
-                MetadataFieldMapper metadataFieldMapper = parser.getDefault(mappingParserContext);
-                // A MetadataFieldMapper may choose to not be added to the metadata mappers
-                // of an index (eg TimeSeriesIdFieldMapper is only added to time series indices)
-                // In this case its TypeParser will return null instead of the MetadataFieldMapper
-                // instance.
-                if (metadataFieldMapper != null) {
-                    metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
-                }
+        Map<String, MetadataFieldMapper.Builder> metadataBuilders = new LinkedHashMap<>();
+        for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
+            // A MetadataFieldMapper may choose to not be added to the metadata mappers
+            // of an index (eg TimeSeriesIdFieldMapper is only added to time series indices)
+            // In this case its TypeParser will return null.
+            MetadataFieldMapper.Builder builder = parser.getDefaultBuilder(mappingParserContext);
+            if (builder != null) {
+                metadataBuilders.put(builder.leafName(), builder);
             }
-        } else {
-            metadataMappers.putAll(existingMapper.mapping().getMetadataMappersMap());
         }
-        return metadataMappers;
+        return metadataBuilders;
     }
 
     /**

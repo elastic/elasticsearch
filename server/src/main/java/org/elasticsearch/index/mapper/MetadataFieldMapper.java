@@ -39,6 +39,18 @@ public abstract class MetadataFieldMapper extends FieldMapper {
          * @param parserContext context that may be useful to build the field like analyzers
          */
         MetadataFieldMapper getDefault(MappingParserContext parserContext);
+
+        /**
+         * Get a default {@link Builder} for this metadata field, using the given parser context.
+         * Returns null if this metadata field is not applicable for the current index.
+         */
+        default Builder getDefaultBuilder(MappingParserContext parserContext) {
+            MetadataFieldMapper mapper = getDefault(parserContext);
+            if (mapper == null) {
+                return null;
+            }
+            return (Builder) mapper.getMergeBuilder();
+        }
     }
 
     /**
@@ -114,6 +126,14 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
             return defaultMapperParser.apply(parserContext);
         }
+
+        @Override
+        public Builder getDefaultBuilder(MappingParserContext parserContext) {
+            if (defaultMapperParser.apply(parserContext) == null) {
+                return null;
+            }
+            return builderFunction.apply(parserContext);
+        }
     }
 
     public abstract static class Builder extends FieldMapper.Builder {
@@ -183,17 +203,45 @@ public abstract class MetadataFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return null;    // by default, things can't be configured so we have no builder
+        return new ConstantBuilder(this);
+    }
+
+    /**
+     * A trivial builder for non-configurable metadata field mappers that have no parameters.
+     * Wraps a built mapper and returns it unchanged from {@link #build()}.
+     */
+    static final class ConstantBuilder extends Builder {
+        private final MetadataFieldMapper mapper;
+
+        ConstantBuilder(MetadataFieldMapper mapper) {
+            super(mapper.fullPath());
+            this.mapper = mapper;
+        }
+
+        @Override
+        protected Parameter<?>[] getParameters() {
+            return EMPTY_PARAMETERS;
+        }
+
+        @Override
+        public MetadataFieldMapper build() {
+            return mapper;
+        }
+
+        @Override
+        public String contentType() {
+            return mapper.typeName();
+        }
     }
 
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         MetadataFieldMapper.Builder mergeBuilder = (MetadataFieldMapper.Builder) getMergeBuilder();
-        if (mergeBuilder == null || mergeBuilder.isConfigured() == false) {
+        if (mergeBuilder.isConfigured() == false) {
             return builder;
         }
         builder.startObject(leafName());
-        getMergeBuilder().toXContent(builder, params);
+        mergeBuilder.toXContent(builder, params);
         return builder.endObject();
     }
 

@@ -70,16 +70,18 @@ public class MappingParserTests extends MapperServiceTestCase {
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()
         );
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
-        metadataMapperParsers.values().stream().map(parser -> parser.getDefault(mappingParserContextSupplier.get())).forEach(m -> {
-            if (m != null) {
-                metadataMappers.put(m.getClass(), m);
+        MappingParserContext ctx = mappingParserContextSupplier.get();
+        Map<String, MetadataFieldMapper.Builder> metadataBuilders = new LinkedHashMap<>();
+        for (MetadataFieldMapper.TypeParser parser : metadataMapperParsers.values()) {
+            MetadataFieldMapper.Builder builder = parser.getDefaultBuilder(ctx);
+            if (builder != null) {
+                metadataBuilders.put(builder.leafName(), builder);
             }
-        });
+        }
         return new MappingParser(
             mappingParserContextSupplier,
             metadataMapperParsers,
-            () -> metadataMappers,
+            () -> metadataBuilders,
             type -> MapperService.SINGLE_MAPPING_NAME
         );
     }

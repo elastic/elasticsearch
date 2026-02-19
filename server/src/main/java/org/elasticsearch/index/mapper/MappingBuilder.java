@@ -13,11 +13,11 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Mutable builder for a {@link Mapping}. Holds a {@link RootObjectMapper.Builder} and metadata field mappers,
+ * Mutable builder for a {@link Mapping}. Holds a {@link RootObjectMapper.Builder} and metadata field builders,
  * allowing merge operations to happen at the builder level before building the final immutable {@link Mapping}.
  * <p>
  * The intent is that incoming mappings (from parsing or from existing {@link Mapping} objects) are converted
@@ -27,17 +27,17 @@ import java.util.Map;
 public class MappingBuilder {
 
     private final RootObjectMapper.Builder rootBuilder;
-    private final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers;
+    private final Map<String, MetadataFieldMapper.Builder> metadataBuilders;
     @Nullable
     private Map<String, Object> meta;
 
     public MappingBuilder(
         RootObjectMapper.Builder rootBuilder,
-        Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers,
+        Map<String, MetadataFieldMapper.Builder> metadataBuilders,
         @Nullable Map<String, Object> meta
     ) {
         this.rootBuilder = rootBuilder;
-        this.metadataMappers = metadataMappers;
+        this.metadataBuilders = metadataBuilders;
         this.meta = meta;
     }
 
@@ -46,7 +46,7 @@ public class MappingBuilder {
      * mappers in the root. Useful for applying field budget constraints without decomposing a built mapping.
      */
     MappingBuilder withoutMappers() {
-        return new MappingBuilder(rootBuilder.newEmptyBuilder(), new HashMap<>(metadataMappers), meta);
+        return new MappingBuilder(rootBuilder.newEmptyBuilder(), new LinkedHashMap<>(metadataBuilders), meta);
     }
 
     public RootObjectMapper.Builder rootBuilder() {
@@ -67,23 +67,19 @@ public class MappingBuilder {
         MapperMergeContext objectMergeContext = mergeContext.createChildContext(null, rootBuilder.dynamic);
         rootBuilder.merge(incoming.rootBuilder, objectMergeContext, rootBuilder.leafName());
 
-        // Merge metadata fields: for INDEX_TEMPLATE incoming wins, otherwise merge
-        for (var entry : incoming.metadataMappers.entrySet()) {
-            MetadataFieldMapper existing = this.metadataMappers.get(entry.getKey());
-            MetadataFieldMapper merged;
-            if (existing == null || reason == MergeReason.INDEX_TEMPLATE) {
-                merged = entry.getValue();
-            } else {
-                FieldMapper.Builder existingBuilder = existing.getMergeBuilder();
-                FieldMapper.Builder incomingBuilder = entry.getValue().getMergeBuilder();
-                if (existingBuilder != null && incomingBuilder != null) {
-                    merged = (MetadataFieldMapper) existingBuilder.mergeWith(incomingBuilder, mergeContext)
-                        .build(mergeContext.getMapperBuilderContext());
-                } else {
-                    merged = entry.getValue();
-                }
+        // Merge metadata field builders, skipping unconfigured incoming builders
+        // (if a metadata field wasn't explicitly set in the incoming mapping, there's nothing to merge)
+        for (var entry : incoming.metadataBuilders.entrySet()) {
+            MetadataFieldMapper.Builder incomingBuilder = entry.getValue();
+            MetadataFieldMapper.Builder existingBuilder = this.metadataBuilders.get(entry.getKey());
+            if (existingBuilder == null || reason == MergeReason.INDEX_TEMPLATE) {
+                this.metadataBuilders.put(entry.getKey(), incomingBuilder);
+            } else if (incomingBuilder.isConfigured()) {
+                this.metadataBuilders.put(
+                    entry.getKey(),
+                    (MetadataFieldMapper.Builder) existingBuilder.mergeWith(incomingBuilder, mergeContext)
+                );
             }
-            this.metadataMappers.put(merged.getClass(), merged);
         }
 
         // Merge _meta: for INDEX_TEMPLATE, deep-merge incoming over existing.
@@ -93,7 +89,7 @@ public class MappingBuilder {
                 meta = incoming.meta;
             } else {
                 Map<String, Object> existingMeta = meta;
-                meta = new HashMap<>(incoming.meta);
+                meta = new LinkedHashMap<>(incoming.meta);
                 XContentHelper.mergeDefaults(meta, existingMeta);
             }
         }
@@ -108,24 +104,20 @@ public class MappingBuilder {
     public Mapping build(MergeReason reason) {
         MapperBuilderContext rootContext = MapperBuilderContext.root(isSourceSynthetic(), isDataStream(), reason);
         RootObjectMapper root = rootBuilder.build(rootContext);
-        return new Mapping(root, metadataMappers.values().toArray(new MetadataFieldMapper[0]), meta);
+        MetadataFieldMapper[] metadataMappers = metadataBuilders.values()
+            .stream()
+            .map(MetadataFieldMapper.Builder::build)
+            .toArray(MetadataFieldMapper[]::new);
+        return new Mapping(root, metadataMappers, meta);
     }
 
     private boolean isSourceSynthetic() {
-        for (MetadataFieldMapper mapper : metadataMappers.values()) {
-            if (mapper instanceof SourceFieldMapper sfm) {
-                return sfm.isSynthetic();
-            }
-        }
-        return false;
+        MetadataFieldMapper.Builder builder = metadataBuilders.get(SourceFieldMapper.NAME);
+        return builder instanceof SourceFieldMapper.Builder sfb && sfb.isSynthetic();
     }
 
     private boolean isDataStream() {
-        for (MetadataFieldMapper mapper : metadataMappers.values()) {
-            if (mapper instanceof DataStreamTimestampFieldMapper dsfm) {
-                return dsfm.isEnabled();
-            }
-        }
-        return false;
+        MetadataFieldMapper.Builder builder = metadataBuilders.get(DataStreamTimestampFieldMapper.NAME);
+        return builder instanceof DataStreamTimestampFieldMapper.Builder dsfb && dsfb.isEnabled();
     }
 }

@@ -87,6 +87,10 @@ public class DataStreamTimestampFieldMapper extends MetadataFieldMapper {
             super(NAME);
         }
 
+        public boolean isEnabled() {
+            return enabled.getValue();
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { enabled };

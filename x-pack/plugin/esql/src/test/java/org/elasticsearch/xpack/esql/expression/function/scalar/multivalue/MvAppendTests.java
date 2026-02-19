@@ -265,4 +265,14 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
             );
         }));
     }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("MvAppend requires both arguments to have the same type", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        assumeTrue("MvAppend requires both arguments to have the same type", false);
+    }
 }

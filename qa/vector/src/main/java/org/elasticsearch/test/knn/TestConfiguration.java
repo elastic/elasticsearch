@@ -495,6 +495,20 @@ record TestConfiguration(
             return this;
         }
 
+        /*
+         * Each dataset has a descriptor file, expected to be at gs://<bucket>/<dataset>/<dataset>.json, with contents of:
+           {
+             "data": [
+               "<corpus_1>.fvec",
+               "<corpus_2>.fvec"
+             ],
+             "queries": "<queries>.fvec",
+             "dimensions": 512,
+             "vector_space": "cosine",
+             "num_doc_vectors": 10000000,
+             "num_query_vectors": 5000
+           }
+         */
         private void resolveDataset() throws Exception {
             final String datasetBucketRoot = "gs://knnindextester";
 

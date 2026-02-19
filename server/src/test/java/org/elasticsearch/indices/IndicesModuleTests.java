@@ -248,8 +248,7 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testGetFieldFilter() {
-        List<MapperPlugin> mapperPlugins = List.of(new MapperPlugin() {
-        }, new MapperPlugin() {
+        List<MapperPlugin> mapperPlugins = List.of(new MapperPlugin() {}, new MapperPlugin() {
             @Override
             public Function<String, FieldPredicate> getFieldFilter() {
                 return index -> index.equals("hidden_index") ? HIDDEN_INDEX : FieldPredicate.ACCEPT_ALL;
@@ -291,8 +290,7 @@ public class IndicesModuleTests extends ESTestCase {
         int numPlugins = randomIntBetween(0, 10);
         List<MapperPlugin> mapperPlugins = new ArrayList<>(numPlugins);
         for (int i = 0; i < numPlugins; i++) {
-            mapperPlugins.add(new MapperPlugin() {
-            });
+            mapperPlugins.add(new MapperPlugin() {});
         }
         IndicesModule indicesModule = new IndicesModule(mapperPlugins);
         Function<String, FieldPredicate> fieldFilter = indicesModule.getMapperRegistry().getFieldFilter();
@@ -300,8 +298,7 @@ public class IndicesModuleTests extends ESTestCase {
     }
 
     public void testNoOpFieldPredicate() {
-        List<MapperPlugin> mapperPlugins = Arrays.asList(new MapperPlugin() {
-        }, new MapperPlugin() {
+        List<MapperPlugin> mapperPlugins = Arrays.asList(new MapperPlugin() {}, new MapperPlugin() {
             @Override
             public Function<String, FieldPredicate> getFieldFilter() {
                 return index -> index.equals("hidden_index") ? HIDDEN_INDEX : FieldPredicate.ACCEPT_ALL;

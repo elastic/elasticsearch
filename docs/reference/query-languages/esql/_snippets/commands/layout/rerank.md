@@ -1,7 +1,7 @@
 
 ```yaml {applies_to}
-serverless: preview
-stack: preview 9.2.0
+serverless: ga
+stack: preview 9.2-9.3, ga 9.4.0+
 ```
 
 The `RERANK` command uses an inference model to compute a new relevance score
@@ -90,6 +90,10 @@ retrieve an initial set of documents. This set is often sorted by `_score` and
 reduced to the top results (for example, 100) using `LIMIT`. The `RERANK`
 command then processes this smaller, refined subset, which is a good balance
 between performance and accuracy.
+
+When using `RERANK` with a multivalue column, each value is ranked individually.
+The score column is then assigned the maximum score resulting from ranking the
+individual values.
 
 **Requirements**
 

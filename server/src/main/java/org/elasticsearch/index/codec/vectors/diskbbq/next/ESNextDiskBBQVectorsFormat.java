@@ -74,7 +74,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int MAX_VECTORS_PER_CLUSTER = 1 << 16; // 65536
     public static final int DEFAULT_CENTROIDS_PER_PARENT_CLUSTER = 16;
     public static final int MIN_CENTROIDS_PER_PARENT_CLUSTER = 2;
-    public static final int MAX_CENTROIDS_PER_PARENT_CLUSTER = 1 << 8; // 256
+    public static final int MAX_CENTROIDS_PER_PARENT_CLUSTER = DEFAULT_VECTORS_PER_CLUSTER; // 384
     public static final int DEFAULT_PRECONDITIONING_BLOCK_DIMENSION = 32;
     public static final int MIN_PRECONDITIONING_BLOCK_DIMS = 8;
     public static final int MAX_PRECONDITIONING_BLOCK_DIMS = 384;

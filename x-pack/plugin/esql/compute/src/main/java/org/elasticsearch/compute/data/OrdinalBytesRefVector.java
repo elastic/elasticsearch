@@ -98,7 +98,7 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public BytesRefVector filter(int... positions) {
+    public BytesRefVector filter(boolean mayContainDuplicates, int... positions) {
         // Do not build a filtered block using the same dictionary, because dictionary entries that are not referenced
         // may reappear when hashing the dictionary in BlockHash.
         final BytesRef scratch = new BytesRef();

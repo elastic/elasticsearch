@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AllFirst;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AllLast;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AvgOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
@@ -128,9 +126,12 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.NetworkDirection;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.CopySign;
@@ -162,6 +163,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvCoun
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvDedupe;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvFirst;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersection;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvIntersects;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvLast;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMedian;
@@ -383,7 +385,9 @@ public class EsqlFunctionRegistry {
                 def(Values.class, uni(Values::new), "values"),
                 def(WeightedAvg.class, bi(WeightedAvg::new), "weighted_avg"),
                 def(Present.class, uni(Present::new), "present"),
-                def(Absent.class, uni(Absent::new), "absent") },
+                def(Absent.class, uni(Absent::new), "absent"),
+                def(First.class, bi(First::new), "first"),
+                def(Last.class, bi(Last::new), "last"), },
             // math
             new FunctionDefinition[] {
                 def(Abs.class, Abs::new, "abs"),
@@ -395,6 +399,9 @@ public class EsqlFunctionRegistry {
                 def(Ceil.class, Ceil::new, "ceil"),
                 def(Cos.class, Cos::new, "cos"),
                 def(Cosh.class, Cosh::new, "cosh"),
+                def(Acosh.class, Acosh::new, "acosh"),
+                def(Asinh.class, Asinh::new, "asinh"),
+                def(Atanh.class, Atanh::new, "atanh"),
                 def(E.class, E::new, "e"),
                 def(Exp.class, Exp::new, "exp"),
                 def(Floor.class, Floor::new, "floor"),
@@ -462,9 +469,9 @@ public class EsqlFunctionRegistry {
                 defTS(TRange.class, TRange::new, "trange") },
             // spatial
             new FunctionDefinition[] {
-                def(SpatialCentroid.class, SpatialCentroid::new, "st_centroid_agg"),
+                def(SpatialCentroid.class, uni(SpatialCentroid::new), "st_centroid_agg"),
                 def(SpatialContains.class, SpatialContains::new, "st_contains"),
-                def(SpatialExtent.class, SpatialExtent::new, "st_extent_agg"),
+                def(SpatialExtent.class, uni(SpatialExtent::new), "st_extent_agg"),
                 def(SpatialDisjoint.class, SpatialDisjoint::new, "st_disjoint"),
                 def(SpatialIntersects.class, SpatialIntersects::new, "st_intersects"),
                 def(SpatialWithin.class, SpatialWithin::new, "st_within"),
@@ -532,6 +539,7 @@ public class EsqlFunctionRegistry {
                 def(MvMedian.class, MvMedian::new, "mv_median"),
                 def(MvMedianAbsoluteDeviation.class, MvMedianAbsoluteDeviation::new, "mv_median_absolute_deviation"),
                 def(MvMin.class, MvMin::new, "mv_min"),
+                def(MvIntersects.class, MvIntersects::new, "mv_intersects"),
                 def(MvPercentile.class, MvPercentile::new, "mv_percentile"),
                 def(MvPSeriesWeightedSum.class, MvPSeriesWeightedSum::new, "mv_pseries_weighted_sum"),
                 def(MvSort.class, MvSort::new, "mv_sort"),
@@ -587,10 +595,6 @@ public class EsqlFunctionRegistry {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
-                def(First.class, bi(First::new), "first"),
-                def(AllFirst.class, bi(AllFirst::new), "all_first"),
-                def(AllLast.class, bi(AllLast::new), "all_last"),
-                def(Last.class, bi(Last::new), "last"),
                 // dense vector functions
                 def(Magnitude.class, Magnitude::new, "v_magnitude"),
                 def(ToDateRange.class, ToDateRange::new, "to_date_range", "to_daterange") } };

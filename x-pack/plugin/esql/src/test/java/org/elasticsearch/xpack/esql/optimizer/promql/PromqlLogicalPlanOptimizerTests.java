@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -47,16 +48,18 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Not
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
-import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.hamcrest.Matcher;
 import org.junit.BeforeClass;
 
@@ -65,6 +68,7 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Collections.emptyMap;
@@ -75,8 +79,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.plan.QuerySettings.UNMAPPED_FIELDS;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 
@@ -115,10 +121,7 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var project = as(plan, Project.class);
         assertThat(project.projections(), hasSize(3));
 
-        var evalOuter = as(project.child(), Eval.class);
-        var limit = as(evalOuter.child(), Limit.class);
-
-        var aggregate = as(limit.child(), Aggregate.class);
+        var aggregate = plan.collect(Aggregate.class).getFirst();
         assertThat(aggregate.groupings(), hasSize(2));
 
         var evalMiddle = as(aggregate.child(), Eval.class);
@@ -215,6 +218,60 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(sum.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
     }
 
+    public void testImplicitRangeSelectorUsesStepWindow() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=5m rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+    }
+
+    public void testImplicitRangeSelectorUsesScrapeIntervalWhenStepIsSmaller() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=15s rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+    }
+
+    public void testImplicitRangeSelectorRoundsWindowToStepMultiple() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=20s scrape_interval=1m rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+    }
+
+    public void testImplicitRangeSelectorUsesInferredStepFromDefaultBuckets() {
+        var plan = planPromql("""
+            PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+    }
+
+    public void testImplicitRangeSelectorUsesInferredStepFromBuckets() {
+        var plan = planPromql("""
+            PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" buckets=6 rate=(rate(network.total_bytes_in))
+            """);
+
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+
+        Rate rate = tsAggregate.aggregates().getFirst().collect(Rate.class).getFirst();
+        assertThat(rate.window().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+    }
+
     public void testStartEndStep() {
         String testQuery = """
             PROMQL index=k8s start=$now-1h end=$now step=5m (
@@ -223,10 +280,45 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        var filters = plan.collect(Filter.class::isInstance);
-        assertThat(filters, hasSize(1));
-        var filter = (Filter) filters.getFirst();
-        assertThat(filter.condition().collect(e -> e instanceof FieldAttribute a && a.name().equals("@timestamp")), hasSize(2));
+        var filters = plan.collect(Filter.class);
+        assertThat(
+            filters.stream()
+                .map(Filter::condition)
+                .flatMap(c -> c.collect(FieldAttribute.class).stream())
+                .map(FieldAttribute::name)
+                .filter("@timestamp"::equals)
+                .count(),
+            equalTo(2L)
+        );
+    }
+
+    public void testInferredStepUsesDefaultBuckets() {
+        var plan = planPromql("""
+            PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" (
+                avg(avg_over_time(network.bytes_in[6m]))
+              )
+            """);
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(1)));
+    }
+
+    public void testInferredStepMinStepIsUnknownParameter() {
+        ParsingException e = assertThrows(ParsingException.class, () -> planPromql("""
+            PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" min_step=1s (
+                avg(avg_over_time(network.bytes_in[6m]))
+              )
+            """));
+        assertThat(e.getMessage(), containsString("Unknown parameter [min_step]"));
+    }
+
+    public void testInferredStepUsesBuckets() {
+        var plan = planPromql("""
+            PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T01:00:00.000Z" buckets=6 (
+                avg(avg_over_time(network.bytes_in[1h]))
+              )
+            """);
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
     }
 
     public void testLabelSelector() {
@@ -235,10 +327,11 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
                 max by (pod) (avg_over_time(network.bytes_in{pod=~"host-0|host-1|host-2"}[5m]))
               )
             """);
-        var filters = plan.collect(Filter.class::isInstance);
-        assertThat(filters, hasSize(1));
-        var filter = (Filter) filters.getFirst();
-        assertThat(filter.condition().anyMatch(In.class::isInstance), equalTo(true));
+        var filters = plan.collect(Filter.class);
+        Optional<In> in = filters.stream().map(Filter::condition).filter(In.class::isInstance).map(In.class::cast).findAny();
+        assertThat(in.isPresent(), equalTo(true));
+        assertThat(in.get().value().sourceText(), equalTo("pod"));
+        assertThat(in.get().list().stream().map(Expression::toString).toList(), containsInAnyOrder("host-0", "host-1", "host-2"));
     }
 
     public void testLabelSelectorPrefix() {
@@ -249,11 +342,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
             """;
 
         var plan = planPromql(testQuery);
-        var filters = plan.collect(Filter.class::isInstance);
-        assertThat(filters, hasSize(1));
-        var filter = (Filter) filters.getFirst();
-        assertThat(filter.condition().anyMatch(StartsWith.class::isInstance), equalTo(true));
-        assertThat(filter.condition().anyMatch(NotEquals.class::isInstance), equalTo(false));
+        var filters = plan.collect(Filter.class);
+        assertThat(filters.stream().map(Filter::condition).anyMatch(StartsWith.class::isInstance), equalTo(true));
+        assertThat(filters.stream().map(Filter::condition).anyMatch(NotEquals.class::isInstance), equalTo(false));
     }
 
     public void testLabelSelectorProperPrefix() {
@@ -263,11 +354,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
               )
             """);
 
-        var filters = plan.collect(Filter.class::isInstance);
-        assertThat(filters, hasSize(1));
-        var filter = (Filter) filters.getFirst();
-        assertThat(filter.condition().anyMatch(StartsWith.class::isInstance), equalTo(true));
-        assertThat(filter.condition().anyMatch(NotEquals.class::isInstance), equalTo(true));
+        var filters = plan.collect(Filter.class);
+        assertThat(filters.stream().anyMatch(f -> f.condition().anyMatch(StartsWith.class::isInstance)), equalTo(true));
+        assertThat(filters.stream().anyMatch(f -> f.condition().anyMatch(NotEquals.class::isInstance)), equalTo(true));
     }
 
     public void testLabelSelectorRegex() {
@@ -277,17 +366,20 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
               )
             """);
 
-        var filters = plan.collect(Filter.class::isInstance);
-        assertThat(filters, hasSize(1));
-        var filter = (Filter) filters.getFirst();
-        assertThat(filter.condition().anyMatch(RegexMatch.class::isInstance), equalTo(true));
+        var filters = plan.collect(Filter.class);
+        assertThat(filters.stream().map(Filter::condition).anyMatch(RegexMatch.class::isInstance), equalTo(true));
     }
 
     public void testLabelSelectorNotEquals() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\"})");
 
-        var filter = plan.collect(Filter.class).getFirst();
-        var not = filter.condition().collect(Not.class).getFirst();
+        var not = plan.collect(Filter.class)
+            .stream()
+            .map(Filter::condition)
+            .filter(Not.class::isInstance)
+            .map(Not.class::cast)
+            .findFirst()
+            .get();
         var in = as(not.field(), In.class);
         assertThat(as(in.value(), FieldAttribute.class).name(), equalTo("pod"));
         assertThat(in.list(), hasSize(1));
@@ -297,8 +389,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     public void testLabelSelectorRegexNegation() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!~\"f.o\"})");
 
-        var filter = plan.collect(Filter.class).getFirst();
-        var not = filter.condition().collect(Not.class).getFirst();
+        var filters = plan.collect(Filter.class);
+        var not = filters.stream().map(Filter::condition).filter(Not.class::isInstance).map(Not.class::cast).findFirst().get();
         var rLike = as(not.field(), RLike.class);
         assertThat(as(rLike.field(), FieldAttribute.class).name(), equalTo("pod"));
         assertThat(rLike.pattern().pattern(), equalTo("f.o"));
@@ -307,8 +399,8 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     public void testLabelSelectors() {
         var plan = planPromql("PROMQL index=k8s step=1m avg(network.bytes_in{pod!=\"foo\",cluster=~\"bar|baz\",region!~\"us-.*\"})");
 
-        var filter = plan.collect(Filter.class).getFirst();
-        var and = as(filter.condition(), And.class);
+        var filters = plan.collect(Filter.class);
+        var and = filters.stream().map(Filter::condition).filter(And.class::isInstance).map(And.class::cast).findFirst().get();
         if (and.left() instanceof IsNotNull) {
             and = as(and.right(), And.class);
         }
@@ -329,7 +421,13 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     public void testScalarAndInstantVectorArithmeticOperators() {
         LogicalPlan plan;
         plan = planPromql("PROMQL index=k8s step=5m max(network.bytes_in / 1024) by (pod)");
-        Div div = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Div.class);
+        Div div = plan.collect(Eval.class)
+            .stream()
+            .map(e -> e.fields().getLast().child())
+            .filter(Div.class::isInstance)
+            .map(Div.class::cast)
+            .findFirst()
+            .get();
         assertThat(div.left().sourceText(), equalTo("network.bytes_in"));
         assertThat(as(div.right(), Literal.class).value(), equalTo(1024.0));
     }
@@ -348,7 +446,13 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
               )
             | SORT in_n_out""");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("in_n_out", "step", "_timeseries")));
-        Add add = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Add.class);
+        Add add = plan.collect(Eval.class)
+            .stream()
+            .map(e -> e.fields().getLast().child())
+            .filter(Add.class::isInstance)
+            .map(Add.class::cast)
+            .findFirst()
+            .get();
         assertThat(add.children().stream().map(Expression::sourceText).toList(), containsInAnyOrder("network.eth0.rx", "network.eth0.tx"));
     }
 
@@ -361,7 +465,13 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         var plan = planPromql("PROMQL index=k8s step=1m bits=(network.bytes_in * 8)");
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step", "_timeseries")));
 
-        Mul mul = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Mul.class);
+        Mul mul = plan.collect(Eval.class)
+            .stream()
+            .map(e -> e.fields().getLast().child())
+            .filter(Mul.class::isInstance)
+            .map(Mul.class::cast)
+            .findFirst()
+            .get();
         assertThat(as(as(mul.left(), ToDouble.class).field(), ReferenceAttribute.class).sourceText(), equalTo("network.bytes_in"));
         assertThat(as(mul.right(), Literal.class).fold(null), equalTo(8.0));
 
@@ -380,7 +490,13 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         }
         assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("bits", "step", "_timeseries")));
 
-        Sub sub = as(plan.collect(Eval.class).get(1).fields().getLast().child(), Sub.class);
+        Sub sub = plan.collect(Eval.class)
+            .stream()
+            .map(e -> e.fields().getLast().child())
+            .filter(Sub.class::isInstance)
+            .map(Sub.class::cast)
+            .findFirst()
+            .get();
         Expression piExpression = piFirst ? sub.left() : sub.right();
         assertThat((double) as(piExpression, Literal.class).fold(null), closeTo(Math.PI, 1e-9));
 
@@ -413,6 +529,64 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(tsAgg.timeBucket().buckets().fold(null), equalTo(Duration.ofMinutes(1)));
         LastOverTime last = as(Alias.unwrap(tsAgg.aggregates().getFirst()), LastOverTime.class);
         assertThat(as(last.field(), FieldAttribute.class).sourceText(), equalTo("network.total_bytes_in"));
+    }
+
+    public void testBinaryAcrossSeriesAggregations() {
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.total_bytes_in) / max(network.total_bytes_in))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("ratio", "step")));
+
+        // Find the outer Aggregate (not TimeSeriesAggregate) that should contain both sum and max
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("binary agg expressions should fold into a single outer Aggregate", outerAggs, hasSize(1));
+
+        var aggregate = outerAggs.getFirst();
+        // Aggregates should contain both sum and max
+        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Sum.class::isInstance)).count(), equalTo(1L));
+        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Max.class::isInstance)).count(), equalTo(1L));
+    }
+
+    public void testBinaryAcrossSeriesAggregationsDoNotLoseReferences() {
+        // Verifies that both aggregate expressions are preserved when folding (using different fields)
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.total_bytes_in) / max(network.bytes_in))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("ratio", "step")));
+
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("both aggregations should be folded into single outer Aggregate", outerAggs, hasSize(1));
+
+        var aggregate = outerAggs.getFirst();
+        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Sum.class::isInstance)).count(), equalTo(1L));
+        assertThat(aggregate.aggregates().stream().filter(e -> e.anyMatch(Max.class::isInstance)).count(), equalTo(1L));
+    }
+
+    public void testNestedBinaryAggregationsWithScalar() {
+        // Pattern: (agg op agg) op scalar
+        var plan = planPromql("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) / max(network.total_bytes_in) * 100)");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("all aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
+    }
+
+    public void testFunctionOnBinaryAggregations() {
+        // Pattern: func(agg op agg) - tests that Eval nodes for function are preserved
+        var plan = planPromql("PROMQL index=k8s step=1m result=(ceil(sum(network.total_bytes_in) / max(network.total_bytes_in)))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
+
+        // Verify ceil is applied via Eval
+        var evals = plan.collect(Eval.class);
+        assertThat("should have Eval nodes for ceil and value conversion", evals.size(), org.hamcrest.Matchers.greaterThanOrEqualTo(1));
+    }
+
+    public void testBinaryAggregationsWithAddition() {
+        // Two aggregates combined with addition
+        var plan = planPromql("PROMQL index=k8s step=1m result=(sum(network.total_bytes_in) + max(network.total_bytes_in))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var outerAggs = plan.collect(Aggregate.class).stream().filter(a -> a instanceof TimeSeriesAggregate == false).toList();
+        assertThat("all aggregations should fold into single outer Aggregate", outerAggs, hasSize(1));
     }
 
     public void testAcrossSeriesMultiplicationLiteral() {
@@ -482,14 +656,43 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
 
     public void testComparisonAcrossSeriesWithScalar() {
         var plan = planPromql("PROMQL index=k8s step=1m max(network.eth0.rx) > 1000");
-        Filter filter = plan.collect(Filter.class).getFirst();
-        GreaterThan gt = as(filter.condition(), GreaterThan.class);
+        GreaterThan gt = plan.collect(Filter.class)
+            .stream()
+            .map(Filter::condition)
+            .filter(GreaterThan.class::isInstance)
+            .map(GreaterThan.class::cast)
+            .findAny()
+            .get();
         assertThat(gt.left().sourceText(), equalTo("max(network.eth0.rx)"));
         assertThat(as(gt.right(), Literal.class).fold(null), equalTo(1000.0));
 
         Aggregate acrossSeries = plan.collect(Aggregate.class).getFirst();
         Max max = as(Alias.unwrap(acrossSeries.aggregates().getFirst()), Max.class);
         assertThat(as(max.field(), ReferenceAttribute.class).sourceText(), equalTo("network.eth0.rx"));
+    }
+
+    public void testNonExistentFieldsOptimizesToEmptyPlan() {
+        List.of("non_existent_metric", "network.eth0.rx{non_existent_label=\"value\"}", "avg(non_existent_metric)"
+        // TODO because we wrap group-by-all aggregates into Values, this does not optimize away yet
+        // "rate(non_existent_metric[5m])"
+        ).forEach(query -> {
+            var plan = planPromql("PROMQL index=k8s step=1m " + query);
+            assertThat(as(plan, LocalRelation.class).supplier(), equalTo(EmptyLocalSupplier.EMPTY));
+        });
+    }
+
+    public void testGroupByNonExistentLabel() {
+        var plan = planPromql("PROMQL index=k8s step=1m result=(sum by (non_existent_label) (network.eth0.rx))");
+        // equivalent to avg(network.eth0.rx) since the label does not exist
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+        // the non-existent label should not appear in the groupings
+        plan.collect(Aggregate.class)
+            .forEach(
+                agg -> assertThat(
+                    agg.groupings().stream().map(Attribute.class::cast).map(Attribute::name).toList(),
+                    not(hasItem("non_existent_label"))
+                )
+            );
     }
 
     private void assertConstantResult(String query, Matcher<Double> matcher) {
@@ -512,6 +715,77 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
         assertThat(bucketAlias.id(), equalTo(step.id()));
     }
 
+    /**
+     * Project[[result, step]]
+     * \_Limit
+     *   \_Filter[ISNOTNULL(result)]
+     *     \_Eval[[CASE(count == 1, TODOUBLE(max), NaN) AS result, TODOUBLE(result) AS result]]
+     *       \_Aggregate[[step],[COUNT(result) AS $$COUNT$result$0, MAX(result) AS $$MAX$result$1, step]]
+     *         \_Aggregate[[step, pack_cluster],[SUM(...) AS result, step]]
+     *           \_Eval[[PACKDIMENSION(cluster) AS pack_cluster]]
+     *             \_TimeSeriesAggregate
+     *               \_Eval[[BUCKET(@timestamp, PT1H) AS step]]
+     *                 \_EsRelation[k8s]
+     */
+    public void testScalarInnerAggregate() {
+        var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(sum by (cluster) (network.bytes_in)))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var project = as(plan, Project.class);
+        var filter = project.collect(Filter.class).getFirst();
+
+        var eval = as(filter.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+
+        var scalarAgg = as(eval.child(), Aggregate.class);
+        assertThat(scalarAgg.groupings(), hasSize(1));
+        assertThat(Expressions.attribute(scalarAgg.groupings().getFirst()).name(), equalTo("step"));
+
+        assertThat(scalarAgg.aggregates(), hasSize(3));
+
+        var sumAgg = as(scalarAgg.child(), Aggregate.class);
+        assertThat(sumAgg.groupings(), hasSize(2));
+        assertThat(sumAgg.aggregates().getFirst().collect(Sum.class), not(empty()));
+
+        var tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));
+    }
+
+    /**
+     * Project[[result, step]]
+     * \_Limit
+     *   \_Filter[ISNOTNULL(result)]
+     *     \_Eval[[CASE(count == 1, TODOUBLE(max), NaN) AS result, TODOUBLE(result) AS result]]
+     *       \_Aggregate[[step],[COUNT(...) AS $$COUNT$result$0, MAX(...) AS $$MAX$result$1, step]]
+     *         \_TimeSeriesAggregate[[_tsid, step],[LASTOVERTIME(...) AS LASTOVERTIME_$1, step], BUCKET(@timestamp, PT1H)]
+     *           \_Eval[[BUCKET(@timestamp, PT1H) AS step]]
+     *             \_EsRelation[k8s]
+     */
+    public void testScalar() {
+        var plan = planPromql("PROMQL index=k8s step=1h result=(scalar(network.bytes_in))");
+        assertThat(plan.output().stream().map(Attribute::name).toList(), equalTo(List.of("result", "step")));
+
+        var project = as(plan, Project.class);
+        var filter = project.collect(Filter.class).getFirst();
+        as(filter.condition(), IsNotNull.class);
+
+        var eval = as(filter.child(), Eval.class);
+        assertThat(eval.fields(), hasSize(2));
+
+        var scalarAgg = as(eval.child(), Aggregate.class);
+        assertThat(scalarAgg.groupings(), hasSize(1));
+        assertThat(Expressions.attribute(scalarAgg.groupings().getFirst()).name(), equalTo("step"));
+        assertThat(scalarAgg.aggregates(), hasSize(3));
+
+        var tsAgg = as(scalarAgg.child(), TimeSeriesAggregate.class);
+        assertThat(tsAgg.aggregates().getFirst().collect(LastOverTime.class), not(empty()));
+
+        var bucketEval = as(tsAgg.child(), Eval.class);
+        var bucketAlias = as(bucketEval.fields().getFirst(), Alias.class);
+        var bucket = as(bucketAlias.child(), Bucket.class);
+        assertThat(bucket.buckets().fold(FoldContext.small()), equalTo(Duration.ofHours(1)));
+    }
+
     protected LogicalPlan planPromql(String query) {
         return planPromql(query, false);
     }
@@ -521,8 +795,9 @@ public class PromqlLogicalPlanOptimizerTests extends AbstractLogicalPlanOptimize
     }
 
     protected LogicalPlan planPromql(String query, boolean allowEmptyReferences) {
-        query = query.replace("$now-1h", '"' + Instant.now().minus(1, ChronoUnit.HOURS).toString() + '"');
-        query = query.replace("$now", '"' + Instant.now().toString() + '"');
+        var now = Instant.now();
+        query = query.replace("$now-1h", "\"" + now.minus(1, ChronoUnit.HOURS) + "\"");
+        query = query.replace("$now", "\"" + now + "\"");
         var analyzed = tsAnalyzer.analyze(parser.parseQuery(query));
         AttributeSet.Builder references = AttributeSet.builder();
         analyzed.forEachDown(lp -> references.addAll(lp.references()));

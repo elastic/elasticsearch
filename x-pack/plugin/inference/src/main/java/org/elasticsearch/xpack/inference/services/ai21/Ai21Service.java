@@ -33,12 +33,14 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ai21.action.Ai21ActionCreator;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionResponseHandler;
 import org.elasticsearch.xpack.inference.services.ai21.request.Ai21ChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
@@ -53,7 +55,6 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
@@ -75,6 +76,13 @@ public class Ai21Service extends SenderService {
 
     private static final TransportVersion ML_INFERENCE_AI21_COMPLETION_ADDED = TransportVersion.fromName(
         "ml_inference_ai21_completion_added"
+    );
+    private static final Ai21ChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new Ai21ChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends Ai21Model>> MODEL_CREATORS = Map.of(
+        TaskType.CHAT_COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.COMPLETION,
+        COMPLETION_MODEL_CREATOR
     );
 
     public Ai21Service(
@@ -209,6 +217,17 @@ public class Ai21Service extends SenderService {
     }
 
     @Override
+    public Ai21Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
+    }
+
+    @Override
     public Ai21Model parsePersistedConfig(String modelId, TaskType taskType, Map<String, Object> config) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
         removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
@@ -227,18 +246,22 @@ public class Ai21Service extends SenderService {
     }
 
     private static Ai21Model createModel(
-        String modelId,
+        String inferenceId,
         TaskType taskType,
         Map<String, Object> serviceSettings,
         @Nullable Map<String, Object> secretSettings,
         ConfigurationParseContext context
     ) {
-        switch (taskType) {
-            case CHAT_COMPLETION, COMPLETION:
-                return new Ai21ChatCompletionModel(modelId, taskType, NAME, serviceSettings, secretSettings, context);
-            default:
-                throw createInvalidTaskTypeException(modelId, NAME, taskType, context);
-        }
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceId, taskType, NAME, context).createFromMaps(
+            inferenceId,
+            taskType,
+            NAME,
+            serviceSettings,
+            null,
+            null,
+            secretSettings,
+            context
+        );
     }
 
     private Ai21Model createModelFromPersistent(

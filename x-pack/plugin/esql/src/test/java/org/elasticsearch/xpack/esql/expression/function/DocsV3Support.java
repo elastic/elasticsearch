@@ -1230,7 +1230,7 @@ public abstract class DocsV3Support {
             }
         }
 
-        void renderKibanaCommandDefinition() throws Exception {
+        public void renderKibanaCommandDefinition() throws Exception {
             org.elasticsearch.xpack.esql.expression.function.Param param = param(setting);
             MapParam mapParam = mapParam(setting);
             assert param != null || mapParam != null;

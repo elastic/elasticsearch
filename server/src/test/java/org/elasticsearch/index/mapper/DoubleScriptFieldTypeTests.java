@@ -294,7 +294,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
                 BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
                 assertThat(loader, instanceOf(DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader.class));
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
+                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).get();
                 assertThat(columnAtATimeLoader, instanceOf(DoubleScriptBlockDocValuesReader.class));
                 var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
                 assertThat(rowStrideReader, instanceOf(DoubleScriptBlockDocValuesReader.class));

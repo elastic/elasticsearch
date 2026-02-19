@@ -29,10 +29,10 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.util.LongValues;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.codec.vectors.cluster.KmeansFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -137,10 +137,14 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         return rawVectorDelegate;
     }
 
-    public abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues) throws IOException;
-
-    public abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, FloatVectorValues floatVectorValues, MergeState mergeState)
+    public abstract CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues)
         throws IOException;
+
+    public abstract CentroidAssignments calculateCentroids(
+        FieldInfo fieldInfo,
+        KMeansFloatVectorValues floatVectorValues,
+        MergeState mergeState
+    ) throws IOException;
 
     public record CentroidOffsetAndLength(LongValues offsets, LongValues lengths) {}
 
@@ -191,6 +195,8 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         float[] globalCentroid
     ) throws IOException;
 
+    public abstract CentroidSupplier createCentroidSupplier(FieldInfo info, float[][] centroids, float[] globalCentroid) throws IOException;
+
     protected abstract Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException;
 
     protected abstract Preconditioner createPreconditioner(int dimension);
@@ -214,7 +220,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 continue;
             }
             // build a float vector values with random access
-            FloatVectorValues floatVectorValues = getFloatVectorValues(
+            KMeansFloatVectorValues floatVectorValues = getKMeansFloatVectorValues(
                 fieldWriter.fieldInfo,
                 fieldWriter.delegate,
                 maxDoc,
@@ -223,10 +229,10 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
 
             // build centroids
             final CentroidAssignments centroidAssignments = calculateCentroids(fieldWriter.fieldInfo, floatVectorValues);
-            // wrap centroids with a supplier
-            final CentroidSupplier centroidSupplier = CentroidSupplier.fromArray(
+            final CentroidSupplier centroidSupplier = createCentroidSupplier(
+                fieldWriter.fieldInfo,
                 centroidAssignments.centroids(),
-                fieldWriter.fieldInfo.getVectorDimension()
+                centroidAssignments.globalCentroid()
             );
             // write posting lists
             final long postingListOffset = ivfClusters.alignFilePointer(Float.BYTES);
@@ -270,7 +276,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private static FloatVectorValues getFloatVectorValues(
+    private static KMeansFloatVectorValues getKMeansFloatVectorValues(
         FieldInfo fieldInfo,
         FlatFieldVectorsWriter<float[]> fieldVectorsWriter,
         int maxDoc,
@@ -279,7 +285,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         List<float[]> vectors = fieldVectorsWriter.getVectors();
         vectorTransform.accept(vectors);
         if (vectors.size() == maxDoc) {
-            return KmeansFloatVectorValues.build(vectors, null, fieldInfo.getVectorDimension());
+            return KMeansFloatVectorValues.build(vectors, null, fieldInfo.getVectorDimension());
         }
         final DocIdSetIterator iterator = fieldVectorsWriter.getDocsWithFieldSet().iterator();
         final int[] docIds = new int[vectors.size()];
@@ -287,7 +293,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             docIds[i] = iterator.nextDoc();
         }
         assert iterator.nextDoc() == NO_MORE_DOCS;
-        return KmeansFloatVectorValues.build(vectors, docIds, fieldInfo.getVectorDimension());
+        return KMeansFloatVectorValues.build(vectors, docIds, fieldInfo.getVectorDimension());
     }
 
     @Override
@@ -329,7 +335,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
             final ByteBuffer buffer = ByteBuffer.allocate(globalCentroid.length * Float.BYTES).order(ByteOrder.LITTLE_ENDIAN);
             buffer.asFloatBuffer().put(globalCentroid);
             ivfMeta.writeBytes(buffer.array(), buffer.array().length);
-            ivfMeta.writeInt(Float.floatToIntBits(VectorUtil.dotProduct(globalCentroid, globalCentroid)));
+            ivfMeta.writeInt(Float.floatToIntBits(ESVectorUtil.dotProduct(globalCentroid, globalCentroid)));
         }
         doWriteMeta(ivfMeta, field, numCentroids, preconditionerOffset, preconditionerLength);
     }
@@ -404,7 +410,7 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
                 ? null
                 : mergeState.segmentInfo.dir.openInput(docsFileName, IOContext.DEFAULT.withHints(DataAccessHint.SEQUENTIAL))
         ) {
-            final FloatVectorValues floatVectorValues = getFloatVectorValues(fieldInfo, docs, vectors, numVectors);
+            final KMeansFloatVectorValues floatVectorValues = getKMeansFloatVectorValues(fieldInfo, docs, vectors, numVectors);
 
             final long centroidOffset;
             final long centroidLength;
@@ -512,9 +518,13 @@ public abstract class IVFVectorsWriter extends KnnVectorsWriter {
         }
     }
 
-    private static FloatVectorValues getFloatVectorValues(FieldInfo fieldInfo, IndexInput docs, IndexInput vectors, int numVectors)
-        throws IOException {
-        return KmeansFloatVectorValues.build(vectors, docs, numVectors, fieldInfo.getVectorDimension());
+    private static KMeansFloatVectorValues getKMeansFloatVectorValues(
+        FieldInfo fieldInfo,
+        IndexInput docs,
+        IndexInput vectors,
+        int numVectors
+    ) throws IOException {
+        return KMeansFloatVectorValues.build(vectors, docs, numVectors, fieldInfo.getVectorDimension());
     }
 
     private static int writeFloatVectorValues(

@@ -62,8 +62,49 @@ public abstract class DockerEnvironmentAwareTestContainer extends GenericContain
 
     @Override
     public void stop() {
-        LOGGER.info("Stopping container {}", getContainerId());
+        String containerId = getContainerId();
+        LOGGER.info("Stopping container {}", containerId);
         super.stop();
+        ensureContainerFullyStopped(containerId);
+    }
+
+    /**
+     * Ensures the container is fully stopped and all resources (especially bind mounts) are released.
+     * This prevents race conditions where Docker hasn't fully released resources when cleanup happens.
+     *
+     * @param containerId the container ID to wait for, or null if container was never started
+     */
+    protected void ensureContainerFullyStopped(String containerId) {
+        if (containerId == null) {
+            return;
+        }
+
+        int maxAttempts = 10;
+        int attemptDelayMs = 50;
+
+        for (int attempt = 0; attempt < maxAttempts; attempt++) {
+            try {
+                var containerInfo = getDockerClient().inspectContainerCmd(containerId).exec();
+                if (Boolean.FALSE.equals(containerInfo.getState().getRunning())) {
+                    // Container is stopped, give it a moment to release bind mounts and other resources
+                    if (attempt > 0) {
+                        Thread.sleep(attemptDelayMs);
+                    }
+                    return;
+                }
+                Thread.sleep(attemptDelayMs);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                LOGGER.warn("Interrupted while waiting for container {} to stop", containerId);
+                return;
+            } catch (Exception e) {
+                // Container might already be removed, which is fine
+                LOGGER.debug("Error inspecting container {} (may already be removed): {}", containerId, e.getMessage());
+                return;
+            }
+        }
+
+        LOGGER.warn("Container {} did not stop within expected time, proceeding with cleanup anyway", containerId);
     }
 
     @Override

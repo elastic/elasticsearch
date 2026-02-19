@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 141267
+pr: 141711
+summary: Avoid a possible NPE by throwing an EIAE instead with more info
+type: bug

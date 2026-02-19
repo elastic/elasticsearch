@@ -994,6 +994,22 @@ M
 null
 ;
 
+
+aggsByFirstNameWithoutStats
+from employees | stats by f=first_name | stats c = count(f);
+
+c:long
+90
+;
+
+aggsByLastNameWithoutStats
+from employees | stats by f=last_name | stats c = count(f);
+
+c:long
+96
+;
+
+
 aggsWithoutStatsTwo
 FROM employees | STATS BY gender, still_hired | SORT gender, still_hired;
 
@@ -1124,10 +1140,11 @@ ca:l|cn:l|cf:l|gender:s
 
 countMultiValue
 from employees | where emp_no == 10010 | stats c = count(job_positions) by job_positions;
+ignoreOrder:true
 
 c:l |  job_positions:s  
 4   |Architect        
-4   |Purchase Manager 
+4   |Purchase Manager
 4   |Reporting Analyst
 4   |Tech Lead    
 ;
@@ -1159,6 +1176,7 @@ c:long
 
 twoCountStarInStatsOnRealData-Ignore
 from employees | stats  a = count(*), b = count(*) | stats  c = count(*);
+ignoreOrder:true
 
 c:long
 1

@@ -67,7 +67,7 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     OrdinalBytesRefBlock asOrdinals();
 
     @Override
-    BytesRefBlock filter(int... positions);
+    BytesRefBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

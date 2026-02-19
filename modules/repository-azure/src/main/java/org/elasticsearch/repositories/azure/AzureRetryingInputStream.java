@@ -12,6 +12,7 @@ package org.elasticsearch.repositories.azure;
 import com.azure.core.exception.HttpResponseException;
 import com.azure.core.http.policy.RetryStrategy;
 
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.RetryingInputStream;
@@ -92,7 +93,7 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
          */
         @Override
         public boolean isRetryableException(StreamAction action, Exception e) {
-            return true;
+            return e instanceof AlreadyClosedException == false;
         }
     }
 }

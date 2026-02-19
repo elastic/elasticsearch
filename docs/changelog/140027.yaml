@@ -1,6 +1,0 @@
-pr: 140027
-summary: "ESQL: Fix `INLINE STATS GROUP BY null` being incorrectly pruned"
-area: ES|QL
-type: bug
-issues:
-  - 139887

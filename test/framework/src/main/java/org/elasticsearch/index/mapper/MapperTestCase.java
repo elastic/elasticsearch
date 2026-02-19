@@ -127,6 +127,33 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     /**
+     * When creating a mapper service on an index version in this set, no exceptions should be thrown.
+     * Default: all IndexVersions
+     * @return a set of supported IndexVersions
+     */
+    protected Set<IndexVersion> getSupportedVersions() {
+        return IndexVersionUtils.allReleasedVersions();
+    }
+
+    /**
+     * When creating a mapper service on an index version in this set, a
+     * {@link MapperException} should be thrown. There should be no
+     * deprecation warnings. Default: no IndexVersions.
+     * @return a set of unsupported IndexVersions
+     */
+    protected Set<IndexVersion> getUnsupportedVersions() {
+        return Set.of();
+    }
+
+    /**
+     * Test that we get expected warnings for a specific indexVersion. Default: no-op
+     * @param indexVersion to test
+     */
+    protected void assertWarningsForIndexVersion(IndexVersion indexVersion) {
+        // no-op
+    }
+
+    /**
      * Writes the field and a sample value for it to the provided {@link XContentBuilder}.
      * To be overridden in case the field should not be written at all in documents,
      * like in the case of runtime fields.
@@ -1275,8 +1302,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                     start,
                     maxDocs,
                     true,
-                    randomBoolean(),
-                    IndexVersion.current()
+                    randomBoolean()
                 );
                 for (int i = start; i < maxDocs; i++) {
                     var example = examples.get(i);
@@ -1636,7 +1662,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(reader.numDocs(), equalTo(3));
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
-                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
+                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context).get());
                 assertThat(
                     ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues(),
                     instanceOf(BlockLoader.OptionalColumnAtATimeReader.class)
@@ -1664,7 +1690,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(reader.numDocs(), equalTo(3));
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
-                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
+                BlockDocValuesReader columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context).get());
                 var docBlock = TestBlock.docs(IntStream.range(0, 3).toArray());
                 var block = (TestBlock) columnReader.read(TestBlock.factory(), docBlock, 0, false);
                 assertThat(block.get(0), equalTo(expectedSampleValues[0]));
@@ -1672,7 +1698,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(block.get(2), equalTo(expectedSampleValues[2]));
 
                 docBlock = TestBlock.docs(0, 2);
-                columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context));
+                columnReader = readerCast.apply(blockLoader.columnAtATimeReader(context).get());
                 var numeric = ((BlockDocValuesReader.NumericDocValuesAccessor) columnReader).numericDocValues();
                 assertThat(numeric, instanceOf(BlockLoader.OptionalColumnAtATimeReader.class));
                 var directReader = (BlockLoader.OptionalColumnAtATimeReader) numeric;
@@ -1705,7 +1731,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(reader.numDocs(), equalTo(3));
                 LeafReaderContext context = reader.leaves().get(0);
                 var blockLoader = mapperService.fieldType("field").blockLoader(mockBlockContext);
-                var columnReader = blockLoader.columnAtATimeReader(context);
+                var columnReader = blockLoader.columnAtATimeReader(context).get();
                 assertThat(
                     columnReader,
                     anyOf(
@@ -1721,6 +1747,30 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
                 assertThat(block.get(2), equalTo(expectedSampleValues[2]));
             };
             withLuceneIndex(mapperService, builder, test);
+        }
+    }
+
+    public void testSupportedIndexVersions() throws IOException {
+        Set<IndexVersion> supportedVersions = getSupportedVersions();
+        for (int i = 0; i < Math.min(supportedVersions.size(), 100); i++) {
+            IndexVersion indexVersion = randomFrom(supportedVersions);
+            try {
+                MapperService mapperService = createMapperService(indexVersion, fieldMapping(this::minimalMapping));
+            } catch (MapperException e) {
+                fail(e, "failed on version=%s msg=%s", indexVersion, e.getMessage());
+            }
+            assertWarningsForIndexVersion(indexVersion);
+        }
+    }
+
+    public void testUnsupportedIndexVersions() {
+        Set<IndexVersion> unsupportedVersions = getUnsupportedVersions();
+        for (int i = 0; i < Math.min(unsupportedVersions.size(), 100); i++) {
+            IndexVersion indexVersion = randomFrom(unsupportedVersions);
+
+            expectThrows(MapperException.class, () -> {
+                MapperService mapperService = createMapperService(indexVersion, fieldMapping(this::minimalMapping));
+            });
         }
     }
 

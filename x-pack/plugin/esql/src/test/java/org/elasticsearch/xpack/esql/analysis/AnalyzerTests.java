@@ -107,6 +107,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -130,6 +131,16 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.web.UriParts.DOMAIN;
+import static org.elasticsearch.web.UriParts.EXTENSION;
+import static org.elasticsearch.web.UriParts.FRAGMENT;
+import static org.elasticsearch.web.UriParts.PASSWORD;
+import static org.elasticsearch.web.UriParts.PATH;
+import static org.elasticsearch.web.UriParts.PORT;
+import static org.elasticsearch.web.UriParts.QUERY;
+import static org.elasticsearch.web.UriParts.SCHEME;
+import static org.elasticsearch.web.UriParts.USERNAME;
+import static org.elasticsearch.web.UriParts.USER_INFO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -1654,6 +1665,15 @@ public class AnalyzerTests extends ESTestCase {
             """, errorMsg);
     }
 
+    public void testUnsupportedFieldsInUriParts() {
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
+        verifyUnsupported("""
+            from test
+            | uri_parts p = unsupported
+            """, errorMsg);
+    }
+
     public void testRegexOnInt() {
         for (String op : new String[] { "like", "rlike" }) {
             var e = expectThrows(VerificationException.class, () -> analyze("""
@@ -2605,6 +2625,99 @@ public class AnalyzerTests extends ESTestCase {
         var plan = analyze(query, analyzer);
         var limit = as(plan, Limit.class);
         assertThat(query, as(limit.limit(), Literal.class).value(), equalTo(expectedLimit));
+    }
+
+    public void testImplicitTimestampSortForTsQuery() {
+        // TS query without STATS or SORT should have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test", analyzer);
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var order = orders.get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        assertThat(order.nullsPosition(), equalTo(Order.NullsPosition.LAST));
+        var orderChild = as(order.child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
+    public void testImplicitTimestampSortWithKeep() {
+        // TS query with KEEP should have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | KEEP @timestamp, host", analyzer);
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var order = orders.get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        var orderChild = as(order.child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
+    public void testImplicitTimestampSortWithExplicitLimit() {
+        // TS query with explicit LIMIT should still have implicit sort below the user's limit
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | KEEP @timestamp, host | LIMIT 5", analyzer);
+
+        // AddImplicitLimit wraps the user's Limit in a cap Limit
+        var outerLimit = as(plan, Limit.class);
+        var innerLimit = as(outerLimit.child(), Limit.class);
+        // The OrderBy should be injected below the innermost Limit
+        var orderBy = as(innerLimit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var order = orders.get(0);
+        assertThat(order.direction(), equalTo(Order.OrderDirection.DESC));
+        var orderChild = as(order.child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("@timestamp"));
+    }
+
+    public void testNoImplicitTimestampSortWithStats() {
+        // TS query with STATS should NOT have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | STATS avg(rate(network.bytes_in))", analyzer);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), not(instanceOf(OrderBy.class)));
+    }
+
+    public void testNoImplicitTimestampSortWithExplicitSort() {
+        // TS query with explicit sort should keep it
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | SORT host", analyzer);
+
+        var limit = as(plan, Limit.class);
+        var orderBy = as(limit.child(), OrderBy.class);
+        var orders = orderBy.order();
+        assertThat(orders, hasSize(1));
+
+        var orderChild = as(orders.get(0).child(), FieldAttribute.class);
+        assertThat(orderChild.name(), equalTo("host"));
+    }
+
+    public void testNoImplicitTimestampSortWhenTimestampDropped() {
+        // TS query with @timestamp dropped
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("TS test | DROP @timestamp", analyzer);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), not(instanceOf(OrderBy.class)));
+    }
+
+    public void testNoImplicitTimestampSortForNotTsQuery() {
+        // Not TS query should NOT have implicit sort
+        Analyzer analyzer = analyzer(tsdbIndexResolution());
+        var plan = analyze("FROM test", analyzer);
+
+        var limit = as(plan, Limit.class);
+        assertThat(limit.child(), not(instanceOf(OrderBy.class)));
     }
 
     public void testRateRequiresCounterTypes() {
@@ -3744,16 +3857,18 @@ public class AnalyzerTests extends ESTestCase {
             from test
             | fuse
             """));
-        assertThat(e.getMessage(), containsString("Unknown column [_score]"));
-        assertThat(e.getMessage(), containsString("Unknown column [_fork]"));
+        assertThat(e.getMessage(), containsString("FUSE requires a score column, default [_score] column not found."));
+        assertThat(e.getMessage(), containsString("FUSE requires a column to group by, default [_fork] column not found."));
+        assertThat(e.getMessage(), containsString("FUSE requires a key column, default [_index] column not found"));
+        assertThat(e.getMessage(), containsString("FUSE requires a key column, default [_id] column not found"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
-            from test
+            from test metadata _id, _index
             | FORK ( WHERE emp_no == 1 )
                    ( WHERE emp_no > 1 )
             | FUSE
             """));
-        assertThat(e.getMessage(), containsString("Unknown column [_score]"));
+        assertThat(e.getMessage(), containsString("FUSE requires a score column, default [_score] column not found."));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
             from test metadata _score, _id
@@ -3761,7 +3876,7 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 1 )
             | FUSE
             """));
-        assertThat(e.getMessage(), containsString("Unknown column [_index]"));
+        assertThat(e.getMessage(), containsString("FUSE requires a key column, default [_index] column not found"));
 
         e = expectThrows(VerificationException.class, () -> analyze("""
             from test metadata _score, _index
@@ -3769,7 +3884,7 @@ public class AnalyzerTests extends ESTestCase {
                    ( WHERE emp_no > 1 )
             | FUSE
             """));
-        assertThat(e.getMessage(), containsString("Unknown column [_id]"));
+        assertThat(e.getMessage(), containsString("FUSE requires a key column, default [_id] column not found"));
     }
 
     // TODO There's too much boilerplate involved here! We need a better way of creating FieldCapabilitiesResponses from a mapping or index.
@@ -4323,6 +4438,7 @@ public class AnalyzerTests extends ESTestCase {
         CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
         assertThat(completionFunction.prompt(), equalTo(string("Translate this text in French")));
         assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
+        assertThat(completionFunction.taskSettings(), equalTo(new MapExpression(Source.EMPTY, List.of())));
         assertThat(completionFunction.taskType(), equalTo(org.elasticsearch.inference.TaskType.COMPLETION));
     }
 
@@ -4343,6 +4459,7 @@ public class AnalyzerTests extends ESTestCase {
         CompletionFunction completionFunction = as(alias.child(), CompletionFunction.class);
         assertThat(completionFunction.prompt(), equalTo(string("Translate this text")));
         assertThat(completionFunction.inferenceId(), equalTo(string("completion-inference-id")));
+        assertThat(completionFunction.taskSettings(), equalTo(new MapExpression(Source.EMPTY, List.of())));
     }
 
     public void testFoldableCompletionWithFoldableExpressionTransformedToEval() {
@@ -6077,6 +6194,42 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(2, metadata.size());
         verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index", DataType.KEYWORD);
         verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index_mode", DataType.KEYWORD);
+    }
+
+    public void testUriParts() {
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        LogicalPlan plan = analyze("ROW uri=\"http://user:pass@host.com:8080/path/file.ext?query=1#frag\" | uri_parts p = uri");
+
+        Limit limit = as(plan, Limit.class);
+        UriParts parts = as(limit.child(), UriParts.class);
+
+        final List<Attribute> attributes = parts.generatedAttributes();
+
+        // verify that the attributes list is unmodifiable
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+
+        // detect output schema changes by matching attributes explicitly to known fields
+        assertContainsAttribute(attributes, "p." + DOMAIN, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + FRAGMENT, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + PATH, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + EXTENSION, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + PORT, DataType.INTEGER);
+        assertContainsAttribute(attributes, "p." + QUERY, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + SCHEME, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + USER_INFO, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + USERNAME, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + PASSWORD, DataType.KEYWORD);
+        assertEquals(10, attributes.size());
+
+        // Test invalid input type
+        VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW uri=123 | uri_parts p = uri"));
+        assertThat(e.getMessage(), containsString("Input for URI_PARTS must be of type [string] but is [integer]"));
+    }
+
+    private void assertContainsAttribute(List<Attribute> attributes, String expectedName, DataType expectedType) {
+        Attribute attr = attributes.stream().filter(a -> a.name().equals(expectedName)).findFirst().orElse(null);
+        assertNotNull("Expected attribute " + expectedName + " not found", attr);
+        assertEquals("Data type mismatch for attribute " + expectedName, expectedType, attr.dataType());
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

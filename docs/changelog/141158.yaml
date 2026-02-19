@@ -1,5 +1,0 @@
-pr: 141158
-summary: Ensure we parse `on_disk_rescore` as its valid to pass false
-area: Vector Search
-type: bug
-issues: []

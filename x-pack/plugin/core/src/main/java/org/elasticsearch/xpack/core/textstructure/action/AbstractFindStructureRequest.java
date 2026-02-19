@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.textstructure.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,6 +27,10 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
 
+    private static final TransportVersion RECURSIVE_PARSING_SUPPORT = TransportVersion.fromName(
+        "find_structure_request_should_parse_recursively"
+    );
+
     public static final int MIN_SAMPLE_LINE_COUNT = 2;
 
     public static final ParseField LINES_TO_SAMPLE = new ParseField("lines_to_sample");
@@ -39,6 +44,7 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
     public static final ParseField DELIMITER = TextStructure.DELIMITER;
     public static final ParseField QUOTE = TextStructure.QUOTE;
     public static final ParseField SHOULD_TRIM_FIELDS = TextStructure.SHOULD_TRIM_FIELDS;
+    public static final ParseField SHOULD_PARSE_RECURSIVELY = new ParseField("should_parse_recursively");
     public static final ParseField GROK_PATTERN = TextStructure.GROK_PATTERN;
     // This one is plural in FileStructure, but singular in FileStructureOverrides
     public static final ParseField TIMESTAMP_FORMAT = new ParseField("timestamp_format");
@@ -60,6 +66,7 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
     private Character delimiter;
     private Character quote;
     private Boolean shouldTrimFields;
+    private Boolean shouldParseRecursively;
     private String grokPattern;
     private String ecsCompatibility;
     private String timestampFormat;
@@ -79,6 +86,9 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
         delimiter = in.readBoolean() ? (char) in.readVInt() : null;
         quote = in.readBoolean() ? (char) in.readVInt() : null;
         shouldTrimFields = in.readOptionalBoolean();
+        if (in.getTransportVersion().supports(RECURSIVE_PARSING_SUPPORT)) {
+            shouldParseRecursively = in.readOptionalBoolean();
+        }
         grokPattern = in.readOptionalString();
         ecsCompatibility = in.readOptionalString();
         timestampFormat = in.readOptionalString();
@@ -191,6 +201,14 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
 
     public void setShouldTrimFields(Boolean shouldTrimFields) {
         this.shouldTrimFields = shouldTrimFields;
+    }
+
+    public Boolean getShouldParseRecursively() {
+        return shouldParseRecursively;
+    }
+
+    public void setShouldParseRecursively(Boolean shouldParseRecursively) {
+        this.shouldParseRecursively = shouldParseRecursively;
     }
 
     public String getGrokPattern() {
@@ -321,6 +339,9 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
             out.writeVInt(quote);
         }
         out.writeOptionalBoolean(shouldTrimFields);
+        if (out.getTransportVersion().supports(RECURSIVE_PARSING_SUPPORT)) {
+            out.writeOptionalBoolean(shouldParseRecursively);
+        }
         out.writeOptionalString(grokPattern);
         out.writeOptionalString(ecsCompatibility);
         out.writeOptionalString(timestampFormat);
@@ -338,6 +359,9 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
             columnNames,
             hasHeaderRow,
             delimiter,
+            quote,
+            shouldTrimFields,
+            shouldParseRecursively,
             grokPattern,
             ecsCompatibility,
             timestampFormat,
@@ -362,6 +386,9 @@ public abstract class AbstractFindStructureRequest extends LegacyActionRequest {
             && Objects.equals(this.columnNames, that.columnNames)
             && Objects.equals(this.hasHeaderRow, that.hasHeaderRow)
             && Objects.equals(this.delimiter, that.delimiter)
+            && Objects.equals(this.quote, that.quote)
+            && Objects.equals(this.shouldTrimFields, that.shouldTrimFields)
+            && Objects.equals(this.shouldParseRecursively, that.shouldParseRecursively)
             && Objects.equals(this.grokPattern, that.grokPattern)
             && Objects.equals(this.ecsCompatibility, that.ecsCompatibility)
             && Objects.equals(this.timestampFormat, that.timestampFormat)

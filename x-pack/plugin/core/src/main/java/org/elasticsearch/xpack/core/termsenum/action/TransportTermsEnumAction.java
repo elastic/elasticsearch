@@ -445,7 +445,9 @@ public class TransportTermsEnumAction extends HandledTransportAction<TermsEnumRe
                     null,
                     request::nodeStartedTimeMillis,
                     null,
-                    Collections.emptyMap()
+                    Collections.emptyMap(),
+                    null,
+                    null
                 );
 
                 // Current user has potentially many roles and therefore potentially many queries

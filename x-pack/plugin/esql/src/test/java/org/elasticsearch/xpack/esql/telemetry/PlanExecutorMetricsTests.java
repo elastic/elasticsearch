@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.session.Versioned;
+import org.elasticsearch.xpack.esql.view.InMemoryViewService;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
@@ -132,40 +133,24 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
         var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L), mockQueryLog(), List.of());
-        var enrichResolver = mockEnrichResolver();
 
         var request = new EsqlQueryRequest();
         // test a failed query: xyz field doesn't exist
         request.query("from test | stats m = max(xyz)");
         request.allowPartialResults(false);
         EsqlSession.PlanRunner runPhase = (p, configuration, foldContext, planTimeProfile, r) -> fail("this shouldn't happen");
-        IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions, returnLocalAll) -> Map.of(
-            "",
-            new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
-        );
 
-        planExecutor.esql(
-            request,
-            randomAlphaOfLength(10),
-            TransportVersion.current(),
-            queryClusterSettings(),
-            enrichResolver,
-            createEsqlExecutionInfo(randomBoolean()),
-            groupIndicesByCluster,
-            runPhase,
-            EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Versioned<Result> result) {
-                    fail("this shouldn't happen");
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    assertThat(e, instanceOf(VerificationException.class));
-                }
+        executeEsql(planExecutor, request, runPhase, new ActionListener<>() {
+            @Override
+            public void onResponse(Versioned<Result> result) {
+                fail("this shouldn't happen");
             }
-        );
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, instanceOf(VerificationException.class));
+            }
+        });
 
         // check we recorded the failure and that the query actually came
         assertEquals(1, planExecutor.metrics().stats().get("queries._all.failed"));
@@ -175,31 +160,47 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         // fix the failing query: foo field does exist
         request.query("from test | stats m = max(foo)");
         runPhase = (p, configuration, foldContext, planTimeProfile, r) -> r.onResponse(null);
-        planExecutor.esql(
-            request,
-            randomAlphaOfLength(10),
-            TransportVersion.current(),
-            queryClusterSettings(),
-            enrichResolver,
-            createEsqlExecutionInfo(randomBoolean()),
-            groupIndicesByCluster,
-            runPhase,
-            EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
-            new ActionListener<>() {
-                @Override
-                public void onResponse(Versioned<Result> result) {}
+        executeEsql(planExecutor, request, runPhase, new ActionListener<>() {
+            @Override
+            public void onResponse(Versioned<Result> result) {}
 
-                @Override
-                public void onFailure(Exception e) {
-                    fail("this shouldn't happen");
-                }
+            @Override
+            public void onFailure(Exception e) {
+                fail("this shouldn't happen");
             }
-        );
+        });
 
         // check the new metrics
         assertEquals(1, planExecutor.metrics().stats().get("queries._all.failed"));
         assertEquals(2, planExecutor.metrics().stats().get("queries._all.total"));
         assertEquals(1, planExecutor.metrics().stats().get("features.stats"));
+    }
+
+    private void executeEsql(
+        PlanExecutor planExecutor,
+        EsqlQueryRequest request,
+        EsqlSession.PlanRunner runPhase,
+        ActionListener<Versioned<Result>> listener
+    ) {
+        IndicesExpressionGrouper groupIndicesByCluster = (indicesOptions, indexExpressions, returnLocalAll) -> Map.of(
+            "",
+            new OriginalIndices(new String[] { "test" }, IndicesOptions.DEFAULT)
+        );
+        try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
+            planExecutor.esql(
+                request,
+                randomAlphaOfLength(10),
+                TransportVersion.current(),
+                queryClusterSettings(),
+                mockEnrichResolver(),
+                viewService.getViewResolver(),
+                createEsqlExecutionInfo(randomBoolean()),
+                groupIndicesByCluster,
+                runPhase,
+                EsqlTestUtils.MOCK_TRANSPORT_ACTION_SERVICES,
+                listener
+            );
+        }
     }
 
     private List<FieldCapabilitiesIndexResponse> indexFieldCapabilities(String[] indices) {

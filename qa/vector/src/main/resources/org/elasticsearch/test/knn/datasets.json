@@ -9,6 +9,20 @@
     "num_doc_vectors": 1000000,
     "num_query_vectors": 1000
   },
+  "dbpedia-entity-arctic": {
+    "data": [
+      "gs://knnindextester/dbpedia-entity-arctic/corpus-dbpedia-entity-arctic-0.fvec",
+      "gs://knnindextester/dbpedia-entity-arctic/corpus-dbpedia-entity-arctic-1.fvec",
+      "gs://knnindextester/dbpedia-entity-arctic/corpus-dbpedia-entity-arctic-2.fvec",
+      "gs://knnindextester/dbpedia-entity-arctic/corpus-dbpedia-entity-arctic-3.fvec",
+      "gs://knnindextester/dbpedia-entity-arctic/corpus-dbpedia-entity-arctic-4.fvec"
+    ],
+    "queries": "gs://knnindextester/dbpedia-entity-arctic/queries-dbpedia-entity-arctic-0.fvec",
+    "dimensions": 768,
+    "vector_space": "cosine",
+    "num_doc_vectors": 4635922,
+    "num_query_vectors": 467
+  },
   "dbpedia-entity-E5-small": {
     "data": [
       "gs://knnindextester/dbpedia-entity-E5-small/corpus-dbpedia-entity-E5-small-0.fvec",
@@ -22,6 +36,16 @@
     "vector_space": "cosine",
     "num_doc_vectors": 4635922,
     "num_query_vectors": 467
+  },
+  "fiqa-arctic": {
+    "data": [
+      "gs://knnindextester/fiqa-arctic/corpus-fiqa-arctic-0.fvec"
+    ],
+    "queries": "gs://knnindextester/fiqa-arctic/queries-fiqa-arctic-0.fvec",
+    "dimensions": 768,
+    "vector_space": "cosine",
+    "num_doc_vectors": 57638,
+    "num_query_vectors": 6648
   },
   "glove-200": {
     "data": [
@@ -47,6 +71,36 @@
     "vector_space": "cosine",
     "num_doc_vectors": 433329,
     "num_query_vectors": 97852
+  },
+  "quora-arctic": {
+    "data": [
+      "gs://knnindextester/quora-arctic/corpus-quora-arctic-0.fvec"
+    ],
+    "queries": "gs://knnindextester/quora-arctic/queries-quora-arctic-0.fvec",
+    "dimensions": 768,
+    "vector_space": "cosine",
+    "num_doc_vectors": 522931,
+    "num_query_vectors": 15000
+  },
+  "quora-E5-small": {
+    "data": [
+      "gs://knnindextester/quora-arctic/corpus-quora-E5-small.fvec"
+    ],
+    "queries": "gs://knnindextester/quora-arctic/queries-quora-E5-small.fvec",
+    "dimensions": 384,
+    "vector_space": "cosine",
+    "num_doc_vectors": 522931,
+    "num_query_vectors": 10000
+  },
+  "quora-gte-base": {
+    "data": [
+      "gs://knnindextester/quora-arctic/corpus-quora-gte-base-0.fvec"
+    ],
+    "queries": "gs://knnindextester/quora-arctic/queries-quora-gte-base-0.fvec",
+    "dimensions": 768,
+    "vector_space": "cosine",
+    "num_doc_vectors": 522931,
+    "num_query_vectors": 15000
   },
   "wiki-cohere": {
     "data": [

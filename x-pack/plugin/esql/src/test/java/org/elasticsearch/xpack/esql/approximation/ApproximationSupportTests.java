@@ -149,7 +149,6 @@ public class ApproximationSupportTests extends ESTestCase {
         Explain.class,
         ShowInfo.class,
         LocalRelation.class,
-        ExternalRelation.class,
         MetricsInfo.class,
 
         // The plans are superclasses of other plans.

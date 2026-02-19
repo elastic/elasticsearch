@@ -177,6 +177,14 @@ public class KnnTests extends AbstractFunctionTestCase {
         return newExpression.replaceChildren(expression.children());
     }
 
+    @Override
+    protected void filterCoAndContraVarianceNarrowing(
+        Map<Integer, DataType> positionNarrowing,
+        List<TestCaseSupplier.TypedData> data
+    ) {
+        positionNarrowing.entrySet().removeIf(e -> e.getKey() > 0 && e.getValue() == DataType.NULL);
+    }
+
     public void testSerializationOfSimple() {
         // do nothing
         assumeTrue("can't serialize function", canSerialize());

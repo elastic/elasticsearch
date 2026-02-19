@@ -684,7 +684,11 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         var project = as(plan, Project.class);
         var limit = as(project.child(), Limit.class);
         var outerFilter = as(limit.child(), Filter.class);
-        assertThat("outer filter should preserve non-null-disjunction branch", outerFilter.condition().toString(), containsString("NOT contains(full"));
+        assertThat(
+            "outer filter should preserve non-null-disjunction branch",
+            outerFilter.condition().toString(),
+            containsString("NOT contains(full")
+        );
         var eval = as(outerFilter.child(), Eval.class);
         var innerFilter = as(eval.child(), Filter.class);
         assertThat("inner filter should retain the lang IS NULL constraint", innerFilter.condition().toString(), containsString("IS NULL"));

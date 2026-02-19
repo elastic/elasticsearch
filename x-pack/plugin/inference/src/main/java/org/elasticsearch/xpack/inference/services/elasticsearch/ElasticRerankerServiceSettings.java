@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
@@ -186,9 +185,9 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
     }
 
     @Override
-    public ElasticRerankerServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public ElasticRerankerServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         serviceSettings = new HashMap<>(serviceSettings);
-        ServiceSettings updated = super.updateServiceSettings(serviceSettings, taskType);
+        ServiceSettings updated = super.updateServiceSettings(serviceSettings);
         if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
             return new ElasticRerankerServiceSettings(esSettings, longDocumentStrategy, maxChunksPerDoc);
         } else {

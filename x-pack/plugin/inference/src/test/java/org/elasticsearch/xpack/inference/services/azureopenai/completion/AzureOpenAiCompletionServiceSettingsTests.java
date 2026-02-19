@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -59,7 +58,7 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSeria
             INITIAL_TEST_DEPLOYMENT_ID,
             INITIAL_TEST_API_VERSION,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(settingsMap, TaskType.CHAT_COMPLETION);
+        ).updateServiceSettings(settingsMap);
 
         assertThat(
             serviceSettings,
@@ -80,7 +79,7 @@ public class AzureOpenAiCompletionServiceSettingsTests extends AbstractWireSeria
             INITIAL_TEST_DEPLOYMENT_ID,
             INITIAL_TEST_API_VERSION,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(new HashMap<>(), TaskType.CHAT_COMPLETION);
+        ).updateServiceSettings(new HashMap<>());
 
         assertThat(
             serviceSettings,

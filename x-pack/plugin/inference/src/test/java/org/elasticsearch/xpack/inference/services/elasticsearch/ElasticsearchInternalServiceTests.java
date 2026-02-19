@@ -2255,7 +2255,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         Map<String, Object> serviceSettingsWithNumThreads = Map.of(ElasticsearchInternalServiceSettings.NUM_THREADS, 8);
         var exception = expectThrows(
             ValidationException.class,
-            () -> existingSettings.updateServiceSettings(serviceSettingsWithNumThreads, TaskType.TEXT_EMBEDDING)
+            () -> existingSettings.updateServiceSettings(serviceSettingsWithNumThreads)
         );
         assertThat(exception.getMessage(), containsString("[num_threads] cannot be updated"));
     }

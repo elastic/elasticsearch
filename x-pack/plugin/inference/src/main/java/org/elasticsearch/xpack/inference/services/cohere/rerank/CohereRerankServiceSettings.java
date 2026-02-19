@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -126,7 +125,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
     }
 
     @Override
-    public CohereRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public CohereRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
 
         var extractedUri = extractOptionalUri(serviceSettings, URL, validationException);

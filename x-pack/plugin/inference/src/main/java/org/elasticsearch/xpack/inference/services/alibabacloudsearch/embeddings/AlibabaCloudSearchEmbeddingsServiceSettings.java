@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -110,9 +109,9 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
     }
 
     @Override
-    public AlibabaCloudSearchEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public AlibabaCloudSearchEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
-        var commonServiceSettings = commonSettings.updateServiceSettings(serviceSettings, taskType);
+        var commonServiceSettings = commonSettings.updateServiceSettings(serviceSettings);
 
         var extractedSimilarity = extractSimilarity(serviceSettings, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var extractedDimensions = extractOptionalPositiveInteger(

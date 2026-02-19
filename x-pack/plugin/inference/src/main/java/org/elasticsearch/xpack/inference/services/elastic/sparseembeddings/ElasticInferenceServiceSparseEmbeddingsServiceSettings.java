@@ -190,7 +190,7 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
     }
 
     @Override
-    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
         serviceSettings = new HashMap<>(serviceSettings);
 

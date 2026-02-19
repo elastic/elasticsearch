@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.contextualai.rerank;
 
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -44,7 +43,7 @@ public class ContextualAiRerankServiceSettingsTests extends ESTestCase {
             ServiceUtils.createUri(INITIAL_TEST_URL),
             INITIAL_TEST_MODEL_ID,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(settingsMap, TaskType.RERANK);
+        ).updateServiceSettings(settingsMap);
 
         MatcherAssert.assertThat(
             serviceSettings,
@@ -64,7 +63,7 @@ public class ContextualAiRerankServiceSettingsTests extends ESTestCase {
             INITIAL_TEST_MODEL_ID,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
 
-        ).updateServiceSettings(new HashMap<>(), TaskType.RERANK);
+        ).updateServiceSettings(new HashMap<>());
 
         MatcherAssert.assertThat(
             serviceSettings,

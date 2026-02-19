@@ -1370,7 +1370,7 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
             }
 
             @Override
-            public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+            public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
                 return this;
             }
 

@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
@@ -229,7 +228,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     }
 
     @Override
-    public ElasticsearchInternalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public ElasticsearchInternalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
         var mutableServiceSettings = new HashMap<>(serviceSettings);
 

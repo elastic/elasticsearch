@@ -225,10 +225,7 @@ public class MinimalServiceSettingsTests extends AbstractBWCSerializationTestCas
 
     public void testUpdateServiceSettings_SameInstance() {
         MinimalServiceSettings minimalServiceSettings = randomInstance();
-        assertThat(
-            minimalServiceSettings.updateServiceSettings(Map.of("some_key", "some_value"), TaskType.TEXT_EMBEDDING),
-            sameInstance(minimalServiceSettings)
-        );
+        assertThat(minimalServiceSettings.updateServiceSettings(Map.of("some_key", "some_value")), sameInstance(minimalServiceSettings));
     }
 
     @Override

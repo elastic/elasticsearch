@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -48,8 +47,8 @@ public class AlibabaCloudSearchRerankServiceSettings implements ServiceSettings 
     }
 
     @Override
-    public AlibabaCloudSearchRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
-        return new AlibabaCloudSearchRerankServiceSettings(commonSettings.updateServiceSettings(serviceSettings, taskType));
+    public AlibabaCloudSearchRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        return new AlibabaCloudSearchRerankServiceSettings(commonSettings.updateServiceSettings(serviceSettings));
     }
 
     @Override

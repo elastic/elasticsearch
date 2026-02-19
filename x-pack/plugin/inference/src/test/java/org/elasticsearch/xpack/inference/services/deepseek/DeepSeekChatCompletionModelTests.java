@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.deepseek;
 
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
@@ -30,13 +29,13 @@ public class DeepSeekChatCompletionModelTests extends ESTestCase {
             Map.of(ServiceFields.URL, TEST_URL.toString(), ServiceFields.MODEL_ID, TEST_MODEL_ID)
         );
 
-        var serviceSettings = createInitialDeepSeekServiceSettings().updateServiceSettings(settingsMap, TaskType.COMPLETION);
+        var serviceSettings = createInitialDeepSeekServiceSettings().updateServiceSettings(settingsMap);
 
         MatcherAssert.assertThat(serviceSettings, is(new DeepSeekChatCompletionModel.DeepSeekServiceSettings(TEST_MODEL_ID, TEST_URL)));
     }
 
     public void testUpdateServiceSettings_EmptyMap_Success() {
-        var serviceSettings = createInitialDeepSeekServiceSettings().updateServiceSettings(new HashMap<>(), TaskType.COMPLETION);
+        var serviceSettings = createInitialDeepSeekServiceSettings().updateServiceSettings(new HashMap<>());
 
         MatcherAssert.assertThat(serviceSettings, is(createInitialDeepSeekServiceSettings()));
     }

@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -66,7 +65,7 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
             INITIAL_TEST_MODEL_ID,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
             TEST_INITIAL_COHERE_API_VERSION
-        ).updateServiceSettings(settingsMap, TaskType.RERANK);
+        ).updateServiceSettings(settingsMap);
 
         MatcherAssert.assertThat(
             serviceSettings,
@@ -80,7 +79,7 @@ public class CohereRerankServiceSettingsTests extends AbstractBWCWireSerializati
             INITIAL_TEST_MODEL_ID,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
             TEST_INITIAL_COHERE_API_VERSION
-        ).updateServiceSettings(new HashMap<>(), TaskType.RERANK);
+        ).updateServiceSettings(new HashMap<>());
 
         MatcherAssert.assertThat(
             serviceSettings,

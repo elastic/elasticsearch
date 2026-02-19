@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -73,8 +72,7 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractBWCWireSeria
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
                 )
-            ),
-            TaskType.CHAT_COMPLETION
+            )
         );
 
         MatcherAssert.assertThat(
@@ -98,7 +96,7 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractBWCWireSeria
             INITIAL_TEST_WORKSPACE_NAME,
             INITIAL_TEST_HTTP_SCHEMA,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(new HashMap<>(), TaskType.CHAT_COMPLETION);
+        ).updateServiceSettings(new HashMap<>());
 
         MatcherAssert.assertThat(
             serviceSettings,

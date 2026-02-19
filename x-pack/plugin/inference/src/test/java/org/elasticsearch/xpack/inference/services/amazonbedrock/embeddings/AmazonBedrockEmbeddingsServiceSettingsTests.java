@@ -13,7 +13,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -86,7 +85,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_SIMILARITY,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(newSettingsMap, TaskType.TEXT_EMBEDDING);
+        ).updateServiceSettings(newSettingsMap);
 
         assertThat(
             serviceSettings,
@@ -128,7 +127,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
                 INITIAL_TEST_MAX_INPUT_TOKENS,
                 INITIAL_TEST_SIMILARITY,
                 new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-            ).updateServiceSettings(newSettingsMap, TaskType.TEXT_EMBEDDING)
+            ).updateServiceSettings(newSettingsMap)
         );
 
         assertThat(
@@ -155,7 +154,7 @@ public class AmazonBedrockEmbeddingsServiceSettingsTests extends AbstractBWCWire
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_SIMILARITY,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(new HashMap<>(), TaskType.TEXT_EMBEDDING);
+        ).updateServiceSettings(new HashMap<>());
 
         assertThat(
             serviceSettings,

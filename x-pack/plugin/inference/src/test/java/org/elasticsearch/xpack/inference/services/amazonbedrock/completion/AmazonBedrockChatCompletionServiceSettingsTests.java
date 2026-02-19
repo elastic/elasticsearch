@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -47,7 +46,7 @@ public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWC
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_PROVIDER,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(newSettingsMap, TaskType.CHAT_COMPLETION);
+        ).updateServiceSettings(newSettingsMap);
 
         assertThat(
             serviceSettings,
@@ -68,7 +67,7 @@ public class AmazonBedrockChatCompletionServiceSettingsTests extends AbstractBWC
             INITIAL_TEST_MODEL_ID,
             INITIAL_TEST_PROVIDER,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(new HashMap<>(), TaskType.CHAT_COMPLETION);
+        ).updateServiceSettings(new HashMap<>());
 
         assertThat(
             serviceSettings,

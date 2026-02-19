@@ -329,7 +329,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 QueryParameters.EMPTY,
                 "{\"input\":${input}}",
                 parser,
-                new RateLimitSettings(10_000)
+                new RateLimitSettings(10_000),
+                TaskType.TEXT_EMBEDDING
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray())))
@@ -358,7 +359,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 parser,
                 new RateLimitSettings(10_000),
                 batchSize,
-                InputTypeTranslator.EMPTY_TRANSLATOR
+                InputTypeTranslator.EMPTY_TRANSLATOR,
+                TaskType.TEXT_EMBEDDING
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray()))),
@@ -383,7 +385,8 @@ public class CustomServiceTests extends AbstractInferenceServiceTests {
                 QueryParameters.EMPTY,
                 "{\"input\":${input}}",
                 customResponseParser,
-                new RateLimitSettings(10_000)
+                new RateLimitSettings(10_000),
+                taskType
             ),
             new CustomTaskSettings(Map.of("key", "test_value")),
             new CustomSecretSettings(Map.of("test_key", new SecureString("test_value".toCharArray()))),

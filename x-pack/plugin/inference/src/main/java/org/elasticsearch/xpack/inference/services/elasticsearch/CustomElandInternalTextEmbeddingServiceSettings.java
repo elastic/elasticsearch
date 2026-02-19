@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
@@ -233,9 +232,9 @@ public class CustomElandInternalTextEmbeddingServiceSettings extends Elasticsear
     }
 
     @Override
-    public CustomElandInternalTextEmbeddingServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public CustomElandInternalTextEmbeddingServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         serviceSettings = new HashMap<>(serviceSettings);
-        ServiceSettings updated = super.updateServiceSettings(serviceSettings, taskType);
+        ServiceSettings updated = super.updateServiceSettings(serviceSettings);
         if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
             return new CustomElandInternalTextEmbeddingServiceSettings(esSettings, dimensions, similarityMeasure, elementType);
         } else {

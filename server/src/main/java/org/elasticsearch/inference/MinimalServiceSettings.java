@@ -214,7 +214,7 @@ public record MinimalServiceSettings(
     }
 
     @Override
-    public MinimalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public MinimalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         // Update operation is not expected to be called on MinimalServiceSettings
         return this;
     }

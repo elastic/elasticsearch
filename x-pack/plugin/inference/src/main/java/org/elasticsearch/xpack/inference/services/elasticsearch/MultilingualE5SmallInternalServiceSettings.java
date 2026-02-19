@@ -14,7 +14,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
@@ -120,9 +119,9 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     }
 
     @Override
-    public MultilingualE5SmallInternalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public MultilingualE5SmallInternalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         serviceSettings = new HashMap<>(serviceSettings);
-        ServiceSettings updated = super.updateServiceSettings(serviceSettings, taskType);
+        ServiceSettings updated = super.updateServiceSettings(serviceSettings);
         if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
             return new MultilingualE5SmallInternalServiceSettings(esSettings);
         } else {

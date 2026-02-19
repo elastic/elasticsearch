@@ -210,7 +210,7 @@ public class DeepSeekChatCompletionModel extends Model {
         }
 
         @Override
-        public DeepSeekServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        public DeepSeekServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
             var validationException = new ValidationException();
 
             var extractedModelId = extractOptionalString(

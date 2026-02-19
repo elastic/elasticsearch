@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -30,17 +29,12 @@ abstract class AbstractElasticsearchInternalServiceSettingsTests<T extends Elast
 
     protected abstract void assertUpdated(T original, T updated);
 
-    protected TaskType getSupportedTask() {
-        return TaskType.TEXT_EMBEDDING;
-    }
-
     @SuppressWarnings("unchecked")
     public void testUpdateNumAllocations() {
         var testInstance = createTestInstance();
         var expectedNumAllocations = testInstance.getNumAllocations() != null ? testInstance.getNumAllocations() + 1 : 1;
         var updatedInstance = testInstance.updateServiceSettings(
-            Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, expectedNumAllocations),
-            getSupportedTask()
+            Map.of(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, expectedNumAllocations)
         );
 
         assertThat("update should create a new instance", updatedInstance, not(equalTo(testInstance)));
@@ -59,8 +53,7 @@ abstract class AbstractElasticsearchInternalServiceSettingsTests<T extends Elast
         var testInstance = createTestInstance();
         var expectedAdaptiveAllocations = adaptiveAllocationSettings(testInstance.getAdaptiveAllocationsSettings());
         var updatedInstance = testInstance.updateServiceSettings(
-            Map.of(ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS, toMap(expectedAdaptiveAllocations)),
-            getSupportedTask()
+            Map.of(ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS, toMap(expectedAdaptiveAllocations))
         );
 
         assertThat("update should create a new instance", updatedInstance, not(equalTo(testInstance)));
@@ -80,8 +73,7 @@ abstract class AbstractElasticsearchInternalServiceSettingsTests<T extends Elast
                 Map.ofEntries(
                     Map.entry(ElasticsearchInternalServiceSettings.NUM_ALLOCATIONS, 1),
                     Map.entry(ElasticsearchInternalServiceSettings.ADAPTIVE_ALLOCATIONS, toMap(adaptiveAllocationSettings(null)))
-                ),
-                getSupportedTask()
+                )
             );
         });
         assertThat(
@@ -91,10 +83,7 @@ abstract class AbstractElasticsearchInternalServiceSettingsTests<T extends Elast
     }
 
     public void testUpdateWithNoNumAllocationsAndAdaptiveAllocations() {
-        var validationException = assertThrows(
-            ValidationException.class,
-            () -> createTestInstance().updateServiceSettings(Map.of(), getSupportedTask())
-        );
+        var validationException = assertThrows(ValidationException.class, () -> createTestInstance().updateServiceSettings(Map.of()));
         assertThat(validationException.getMessage(), equalTo("""
             Validation Failed: 1: [service_settings] does not contain one of the required settings \
             [num_allocations, adaptive_allocations];"""));

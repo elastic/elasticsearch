@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
@@ -88,8 +87,7 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractBW
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
                 )
-            ),
-            TaskType.TEXT_EMBEDDING
+            )
         );
 
         MatcherAssert.assertThat(
@@ -123,7 +121,7 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractBW
             INITIAL_TEST_SIMILARITY_MEASURE,
             INITIAL_TEST_DIMENSIONS,
             INITIAL_TEST_MAX_INPUT_TOKENS
-        ).updateServiceSettings(new HashMap<>(), TaskType.TEXT_EMBEDDING);
+        ).updateServiceSettings(new HashMap<>());
 
         MatcherAssert.assertThat(
             serviceSettings,

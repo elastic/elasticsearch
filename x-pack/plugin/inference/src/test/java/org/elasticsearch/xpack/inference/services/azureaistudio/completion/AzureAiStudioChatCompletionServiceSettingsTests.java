@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -49,7 +48,7 @@ public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractBWC
             INITIAL_TEST_PROVIDER,
             INITIAL_TEST_ENDPOINT_TYPE,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(settingsMap, TaskType.CHAT_COMPLETION);
+        ).updateServiceSettings(settingsMap);
 
         assertThat(
             serviceSettings,
@@ -70,7 +69,7 @@ public class AzureAiStudioChatCompletionServiceSettingsTests extends AbstractBWC
             INITIAL_TEST_PROVIDER,
             INITIAL_TEST_ENDPOINT_TYPE,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(new HashMap<>(), TaskType.CHAT_COMPLETION);
+        ).updateServiceSettings(new HashMap<>());
 
         assertThat(
             serviceSettings,

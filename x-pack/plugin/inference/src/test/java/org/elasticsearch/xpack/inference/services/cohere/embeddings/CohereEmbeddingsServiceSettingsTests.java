@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -96,7 +95,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                 TEST_INITIAL_COHERE_API_VERSION
             ),
             TEST_INITIAL_COHERE_EMBEDDING_TYPE
-        ).updateServiceSettings(settingsMap, TaskType.TEXT_EMBEDDING);
+        ).updateServiceSettings(settingsMap);
 
         MatcherAssert.assertThat(
             serviceSettings,
@@ -129,7 +128,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                 TEST_INITIAL_COHERE_API_VERSION
             ),
             TEST_INITIAL_COHERE_EMBEDDING_TYPE
-        ).updateServiceSettings(new HashMap<>(), TaskType.TEXT_EMBEDDING);
+        ).updateServiceSettings(new HashMap<>());
 
         MatcherAssert.assertThat(
             serviceSettings,

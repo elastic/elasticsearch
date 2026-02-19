@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
@@ -67,9 +66,9 @@ public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSe
     }
 
     @Override
-    public ElserInternalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public ElserInternalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         serviceSettings = new HashMap<>(serviceSettings);
-        ServiceSettings updated = super.updateServiceSettings(serviceSettings, taskType);
+        ServiceSettings updated = super.updateServiceSettings(serviceSettings);
         if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
             return new ElserInternalServiceSettings(esSettings);
         } else {

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.cohere.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -69,7 +68,7 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
             INITIAL_TEST_MODEL_ID,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
             TEST_INITIAL_COHERE_API_VERSION
-        ).updateServiceSettings(settingsMap, TaskType.COMPLETION);
+        ).updateServiceSettings(settingsMap);
 
         MatcherAssert.assertThat(
             serviceSettings,
@@ -90,7 +89,7 @@ public class CohereCompletionServiceSettingsTests extends AbstractBWCWireSeriali
             INITIAL_TEST_MODEL_ID,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
             TEST_INITIAL_COHERE_API_VERSION
-        ).updateServiceSettings(new HashMap<>(), TaskType.COMPLETION);
+        ).updateServiceSettings(new HashMap<>());
 
         MatcherAssert.assertThat(
             serviceSettings,

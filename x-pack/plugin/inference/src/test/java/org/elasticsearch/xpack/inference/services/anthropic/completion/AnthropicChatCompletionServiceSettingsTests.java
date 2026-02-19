@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.anthropic.completion;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -45,7 +44,7 @@ public class AnthropicChatCompletionServiceSettingsTests extends AbstractBWCWire
         var serviceSettings = new AnthropicChatCompletionServiceSettings(
             INITIAL_TEST_MODEL_ID,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(newSettingsMap, TaskType.CHAT_COMPLETION);
+        ).updateServiceSettings(newSettingsMap);
 
         assertThat(serviceSettings, is(new AnthropicChatCompletionServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
@@ -54,7 +53,7 @@ public class AnthropicChatCompletionServiceSettingsTests extends AbstractBWCWire
         var serviceSettings = new AnthropicChatCompletionServiceSettings(
             INITIAL_TEST_MODEL_ID,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(new HashMap<>(), TaskType.CHAT_COMPLETION);
+        ).updateServiceSettings(new HashMap<>());
 
         assertThat(
             serviceSettings,

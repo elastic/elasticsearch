@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.amazonbedrock.completion;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProvider;
@@ -91,7 +90,7 @@ public class AmazonBedrockChatCompletionServiceSettings extends AmazonBedrockSer
     }
 
     @Override
-    public AmazonBedrockChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public AmazonBedrockChatCompletionServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var updatedBaseAmazonBedrockCommonSettings = updateBaseAmazonBedrockCommonSettings(serviceSettings);
         return new AmazonBedrockChatCompletionServiceSettings(
             updatedBaseAmazonBedrockCommonSettings.region(),

@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -153,9 +152,9 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     }
 
     @Override
-    public CohereEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public CohereEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
-        var commonServiceSettings = this.commonSettings.updateServiceSettings(serviceSettings, taskType);
+        var commonServiceSettings = this.commonSettings.updateServiceSettings(serviceSettings);
 
         var extractedEmbeddingType = extractOptionalEnum(
             serviceSettings,

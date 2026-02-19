@@ -17,7 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -250,7 +249,7 @@ public class CohereServiceSettings extends FilteredXContentObject implements Ser
     }
 
     @Override
-    public CohereServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public CohereServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
 
         var extractedUri = extractOptionalUri(serviceSettings, URL, validationException);

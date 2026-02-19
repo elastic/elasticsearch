@@ -65,7 +65,8 @@ public class CustomRequestTests extends ESTestCase {
             new DenseEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
             new RateLimitSettings(10_000),
             null,
-            new InputTypeTranslator(Map.of(InputType.INGEST, "value"), "default")
+            new InputTypeTranslator(Map.of(InputType.INGEST, "value"), "default"),
+            TaskType.TEXT_EMBEDDING
         );
 
         var model = CustomModelTests.createModel(
@@ -125,7 +126,8 @@ public class CustomRequestTests extends ESTestCase {
             new DenseEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
             new RateLimitSettings(10_000),
             null,
-            new InputTypeTranslator(Map.of(InputType.INGEST, "value"), "default")
+            new InputTypeTranslator(Map.of(InputType.INGEST, "value"), "default"),
+            TaskType.TEXT_EMBEDDING
         );
 
         var model = CustomModelTests.createModel(
@@ -181,7 +183,8 @@ public class CustomRequestTests extends ESTestCase {
             new QueryParameters(List.of(new QueryParameters.Parameter("key", "value"), new QueryParameters.Parameter("key", "value2"))),
             requestContentString,
             new DenseEmbeddingResponseParser("$.result.embeddings", CustomServiceEmbeddingType.FLOAT),
-            new RateLimitSettings(10_000)
+            new RateLimitSettings(10_000),
+            TaskType.TEXT_EMBEDDING
         );
 
         var model = CustomModelTests.createModel(
@@ -234,7 +237,8 @@ public class CustomRequestTests extends ESTestCase {
             null,
             requestContentString,
             new RerankResponseParser("$.result.score"),
-            new RateLimitSettings(10_000)
+            new RateLimitSettings(10_000),
+            TaskType.RERANK
         );
 
         var model = CustomModelTests.createModel(
@@ -279,7 +283,8 @@ public class CustomRequestTests extends ESTestCase {
             null,
             requestContentString,
             new RerankResponseParser("$.result.score"),
-            new RateLimitSettings(10_000)
+            new RateLimitSettings(10_000),
+            TaskType.RERANK
         );
 
         var model = CustomModelTests.createModel(
@@ -326,7 +331,8 @@ public class CustomRequestTests extends ESTestCase {
             null,
             requestContentString,
             new RerankResponseParser("$.result.score"),
-            new RateLimitSettings(10_000)
+            new RateLimitSettings(10_000),
+            TaskType.RERANK
         );
 
         var model = CustomModelTests.createModel(
@@ -363,7 +369,8 @@ public class CustomRequestTests extends ESTestCase {
             null,
             requestContentString,
             new RerankResponseParser("$.result.score"),
-            new RateLimitSettings(10_000)
+            new RateLimitSettings(10_000),
+            TaskType.RERANK
         );
 
         var model = CustomModelTests.createModel(

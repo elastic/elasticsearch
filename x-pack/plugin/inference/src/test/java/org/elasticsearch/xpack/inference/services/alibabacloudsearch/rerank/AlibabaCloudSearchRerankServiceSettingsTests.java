@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettingsTests;
@@ -65,8 +64,7 @@ public class AlibabaCloudSearchRerankServiceSettingsTests extends AbstractBWCWir
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
                 )
-            ),
-            TaskType.COMPLETION
+            )
         );
 
         MatcherAssert.assertThat(
@@ -94,7 +92,7 @@ public class AlibabaCloudSearchRerankServiceSettingsTests extends AbstractBWCWir
                 INITIAL_TEST_HTTP_SCHEMA,
                 new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
             )
-        ).updateServiceSettings(new HashMap<>(), TaskType.CHAT_COMPLETION);
+        ).updateServiceSettings(new HashMap<>());
 
         MatcherAssert.assertThat(
             serviceSettings,

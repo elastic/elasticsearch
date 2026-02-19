@@ -13,7 +13,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -82,7 +81,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_SIMILARITY_MEASURE,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(settingsMap, TaskType.TEXT_EMBEDDING);
+        ).updateServiceSettings(settingsMap);
 
         MatcherAssert.assertThat(
             serviceSettings,
@@ -119,7 +118,7 @@ public class AzureAiStudioEmbeddingsServiceSettingsTests extends AbstractBWCWire
             INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_SIMILARITY_MEASURE,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(new HashMap<>(), TaskType.TEXT_EMBEDDING);
+        ).updateServiceSettings(new HashMap<>());
 
         MatcherAssert.assertThat(
             serviceSettings,

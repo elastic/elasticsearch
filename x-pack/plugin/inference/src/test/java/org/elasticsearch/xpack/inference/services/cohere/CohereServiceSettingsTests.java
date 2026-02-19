@@ -13,7 +13,6 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -90,10 +89,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
     public void testUpdateServiceSettings_AllFields_Success() {
         HashMap<String, Object> settingsMap = createSettingsMap(TEST_MODEL_ID, null, TEST_COHERE_API_VERSION);
 
-        var serviceSettings = createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID).updateServiceSettings(
-            settingsMap,
-            TaskType.TEXT_EMBEDDING
-        );
+        var serviceSettings = createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID).updateServiceSettings(settingsMap);
 
         MatcherAssert.assertThat(serviceSettings, is(createExpectedCohereServiceSettings(TEST_MODEL_ID, TEST_COHERE_API_VERSION)));
     }
@@ -101,10 +97,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
     public void testUpdateServiceSettings_AllFields_OldModelId_Success() {
         HashMap<String, Object> settingsMap = createSettingsMap(null, TEST_LEGACY_MODEL_ID, TEST_COHERE_API_VERSION);
 
-        var serviceSettings = createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID).updateServiceSettings(
-            settingsMap,
-            TaskType.TEXT_EMBEDDING
-        );
+        var serviceSettings = createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID).updateServiceSettings(settingsMap);
 
         MatcherAssert.assertThat(serviceSettings, is(createExpectedCohereServiceSettings(TEST_LEGACY_MODEL_ID, TEST_COHERE_API_VERSION)));
     }
@@ -112,10 +105,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
     public void testUpdateServiceSettings_AllFields_BothNewAndOldModelIds_Success() {
         HashMap<String, Object> settingsMap = createSettingsMap(TEST_MODEL_ID, TEST_LEGACY_MODEL_ID, TEST_COHERE_API_VERSION);
 
-        var serviceSettings = createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID).updateServiceSettings(
-            settingsMap,
-            TaskType.TEXT_EMBEDDING
-        );
+        var serviceSettings = createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID).updateServiceSettings(settingsMap);
 
         MatcherAssert.assertThat(serviceSettings, is(createExpectedCohereServiceSettings(TEST_MODEL_ID, TEST_COHERE_API_VERSION)));
     }
@@ -125,7 +115,7 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
 
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> createInitialCohereServiceSettings(null).updateServiceSettings(settingsMap, TaskType.TEXT_EMBEDDING)
+            () -> createInitialCohereServiceSettings(null).updateServiceSettings(settingsMap)
         );
 
         MatcherAssert.assertThat(
@@ -137,16 +127,13 @@ public class CohereServiceSettingsTests extends AbstractBWCWireSerializationTest
     public void testUpdateServiceSettings_ApiVersionV1_NoModelIds_Success() {
         HashMap<String, Object> settingsMap = createSettingsMap(null, null, TEST_INITIAL_COHERE_API_VERSION);
 
-        var serviceSettings = createInitialCohereServiceSettings(null).updateServiceSettings(settingsMap, TaskType.TEXT_EMBEDDING);
+        var serviceSettings = createInitialCohereServiceSettings(null).updateServiceSettings(settingsMap);
 
         MatcherAssert.assertThat(serviceSettings, is(createExpectedCohereServiceSettings(null, TEST_INITIAL_COHERE_API_VERSION)));
     }
 
     public void testUpdateServiceSettings_EmptyMap_Success() {
-        var serviceSettings = createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID).updateServiceSettings(
-            new HashMap<>(),
-            TaskType.TEXT_EMBEDDING
-        );
+        var serviceSettings = createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID).updateServiceSettings(new HashMap<>());
 
         MatcherAssert.assertThat(serviceSettings, is(createInitialCohereServiceSettings(INITIAL_TEST_MODEL_ID)));
     }

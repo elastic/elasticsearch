@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -90,7 +89,7 @@ public class ContextualAiRerankServiceSettings extends FilteredXContentObject
     }
 
     @Override
-    public ContextualAiRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public ContextualAiRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
 
         var extractedUri = extractOptionalUri(serviceSettings, ServiceFields.URL, validationException);

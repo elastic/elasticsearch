@@ -129,7 +129,7 @@ public class ModelTests extends AbstractBWCWireSerializationTestCase<Model> {
         }
 
         @Override
-        public TestServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+        public TestServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
             var validationException = new ValidationException();
             var modelValue = serviceSettings.getOrDefault("model", this.modelId());
             var dimensionsValue = serviceSettings.getOrDefault("dimensions", this.dimensions());

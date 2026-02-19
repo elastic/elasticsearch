@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -50,7 +49,7 @@ public class AzureAiStudioRerankServiceSettings extends AzureAiStudioServiceSett
     }
 
     @Override
-    public AzureAiStudioRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public AzureAiStudioRerankServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         final var validationException = new ValidationException();
 
         final var settings = updateRerankServiceSettings(serviceSettings, validationException);

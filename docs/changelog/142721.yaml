@@ -1,5 +1,7 @@
 area: "ES|QL, ES|QL"
-issues: []
+issues:
+ - 139296
+ - 141413
 pr: 142721
 summary: TS_INFO information retrieval command
 type: enhancement

@@ -128,6 +128,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.tartarus.snowball.ext.DutchStemmer;
 import org.tartarus.snowball.ext.FrenchStemmer;
 
@@ -147,6 +148,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
     private final SetOnce<ScriptService> scriptServiceHolder = new SetOnce<>();
     private final SetOnce<SynonymsManagementAPIService> synonymsManagementServiceHolder = new SetOnce<>();
     private final SetOnce<CircuitBreakerService> circuitBreakerServiceHolder = new SetOnce<>();
+    private final SetOnce<ThreadPool> threadPoolHolder = new SetOnce<>();
     private final SetOnce<CustomDictionaryService> customDictionaryServiceHolder = new SetOnce<>();
 
     @Override
@@ -154,6 +156,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         this.scriptServiceHolder.set(services.scriptService());
         this.synonymsManagementServiceHolder.set(new SynonymsManagementAPIService(services.client()));
         this.circuitBreakerServiceHolder.set(services.indicesService().getCircuitBreakerService());
+        this.threadPoolHolder.set(services.threadPool());
         this.customDictionaryServiceHolder.set(new CustomDictionaryService(services.client()));
         return Collections.emptyList();
     }
@@ -271,7 +274,9 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("indic_normalization", IndicNormalizationFilterFactory::new);
         filters.put(
             "keep",
-            requiresAnalysisSettings((i, e, n, s) -> new KeepWordFilterFactory(i, e, n, s, customDictionaryServiceHolder.get()))
+            requiresAnalysisSettings(
+                (i, e, n, s) -> new KeepWordFilterFactory(i, e, n, s, threadPoolHolder.get(), customDictionaryServiceHolder.get())
+            )
         );
         filters.put("keep_types", requiresAnalysisSettings(KeepTypesFilterFactory::new));
         filters.put("keyword_marker", requiresAnalysisSettings(KeywordMarkerTokenFilterFactory::new));

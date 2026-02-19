@@ -12,6 +12,8 @@ package org.elasticsearch.analysis.common;
 import org.apache.lucene.analysis.CharArraySet;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.KeepWordFilter;
+import org.elasticsearch.action.ActionRunnable;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.analysis.common.async.AsyncInitKeepWordFilter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.dictionary.CustomDictionaryService;
@@ -21,6 +23,7 @@ import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.StopTokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.List;
 import java.util.function.Supplier;
@@ -53,19 +56,21 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
     // unsupported ancient option
     private static final String ENABLE_POS_INC_KEY = "enable_position_increments";
 
-    private final Supplier<CharArraySet> keepWordsSupplier;
+    private final PlainActionFuture<CharArraySet> keepWordsFuture;
 
     KeepWordFilterFactory(
         IndexSettings indexSettings,
         Environment env,
         String name,
         Settings settings,
+        ThreadPool threadPool,
         CustomDictionaryService customDictionaryService
     ) {
         super(name);
-
         validateSettings(settings);
-        this.keepWordsSupplier = Analysis.getWordSetSupplier(
+
+        this.keepWordsFuture = new PlainActionFuture<>();
+        final Supplier<CharArraySet> keepWordsSupplier = Analysis.getWordSetSupplier(
             customDictionaryService,
             env,
             settings,
@@ -75,11 +80,13 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
             KEEP_WORDS_CASE_KEY,
             true
         );
+        // TODO: Use SEARCH_COORDINATION thread pool?
+        threadPool.executor(ThreadPool.Names.ANALYZE).execute(ActionRunnable.supply(keepWordsFuture, keepWordsSupplier::get));
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        return new AsyncInitKeepWordFilter(tokenStream, keepWordsSupplier);
+        return new AsyncInitKeepWordFilter(tokenStream, keepWordsFuture, KeepWordFilter::new);
     }
 
     private static void validateSettings(Settings settings) {

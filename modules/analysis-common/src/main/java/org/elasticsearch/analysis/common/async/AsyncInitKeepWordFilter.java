@@ -10,32 +10,28 @@
 package org.elasticsearch.analysis.common.async;
 
 import org.apache.lucene.analysis.CharArraySet;
-import org.apache.lucene.analysis.FilteringTokenFilter;
+import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.action.support.PlainActionFuture;
 
-import java.io.IOException;
-import java.util.Objects;
-import java.util.function.Supplier;
+import java.util.function.BiFunction;
 
-public class AsyncInitKeepWordFilter extends FilteringTokenFilter {
-    private final Supplier<CharArraySet> wordsSupplier;
-    private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
-
-    public AsyncInitKeepWordFilter(TokenStream in, Supplier<CharArraySet> wordsSupplier) {
-        super(in);
-        this.wordsSupplier = Objects.requireNonNull(wordsSupplier);
+public class AsyncInitKeepWordFilter extends AsyncInitTokenFilter<CharArraySet> {
+    public AsyncInitKeepWordFilter(
+        TokenStream input,
+        PlainActionFuture<CharArraySet> resourceFuture,
+        BiFunction<TokenStream, CharArraySet, TokenFilter> tokenFilterBuilder
+    ) {
+        super(input, resourceFuture, tokenFilterBuilder);
     }
 
     @Override
-    protected boolean accept() throws IOException {
-        CharArraySet words = wordsSupplier.get();
-        if (words == null) {
-            throw new ElasticsearchStatusException("keep words supplier not yet initialized", RestStatus.TOO_MANY_REQUESTS);
-        }
+    protected String resourceNotReadyErrorMessage() {
+        return "Keep words loading in progress";
+    }
 
-        return words.contains(termAtt.buffer(), 0, termAtt.length());
+    @Override
+    protected String resourceFutureFailedErrorMessage() {
+        return "Keep words loading failed";
     }
 }

@@ -14,8 +14,8 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.lucene.DataPartitioning;
-import org.elasticsearch.compute.lucene.LuceneSliceQueue;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
+import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.core.TimeValue;
@@ -222,6 +222,20 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean forkImplicitLimit() {
         return FORK_IMPLICIT_LIMIT.get(settings);
+    }
+
+    public int partialAggregationEmitKeysThreshold(int defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey())) {
+            return PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
+    }
+
+    public double partialAggregationEmitUniquenessThreshold(double defaultThreshold) {
+        if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey())) {
+            return PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.get(settings);
+        }
+        return defaultThreshold;
     }
 
     public boolean isEmpty() {

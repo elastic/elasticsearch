@@ -27,10 +27,15 @@ import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.operator.DriverProfile;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.OperatorStatus;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.Index;
@@ -54,6 +59,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -1346,7 +1352,7 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     /**
      * This test covers the scenarios where Lucene is throwing a {@link org.apache.lucene.search.CollectionTerminatedException} when
      * it's signaling that it could stop collecting hits early. For example, in the case the index is sorted in the same order as the query.
-     * The {@link org.elasticsearch.compute.lucene.LuceneTopNSourceOperator#getOutput()} is handling this exception by
+     * The {@link LuceneTopNSourceOperator#getOutput()} is handling this exception by
      * ignoring it (which is the right thing to do) and sort of cleaning up and moving to the next docs collection.
      */
     public void testTopNPushedToLuceneOnSortedIndex() {
@@ -1985,6 +1991,84 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
                 val += 10000.0;
             }
             assertThat(meterColumn, equalTo(expectedMeterColumn));
+        }
+    }
+
+    public void testAggregationEmitPartialResultPeriodically() {
+        String index = "test-agg";
+        createIndex(index, indexSettings(1, 0).build());
+        int numHosts = 20;
+        for (int h = 0; h < numHosts; h++) {
+            int numDocs = 10;
+            String host = "host-" + h;
+            for (int t = 0; t < numDocs; t++) {
+                Map<String, Object> doc = new HashMap<>();
+                doc.put("v", randomInt());
+                doc.put("host", host);
+                doc.put("t", t);
+                index(index, UUIDs.base64UUID(), doc);
+            }
+        }
+        client().admin().indices().prepareForceMerge(index).setMaxNumSegments(1).get();
+        refresh(index);
+        Settings pragma = Settings.builder()
+            .put(QueryPragmas.TASK_CONCURRENCY.getKey(), "1")
+            .put(QueryPragmas.PAGE_SIZE.getKey(), 1)
+            .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getKey(), 5)
+            .put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), 0.1)
+            .build();
+
+        EsqlQueryRequest request = new EsqlQueryRequest();
+        request.query("FROM " + index + " | STATS sum(v) BY host, t");
+        request.profile(true);
+        request.pragmas(new QueryPragmas(pragma));
+        request.acceptedPragmaRisks(true);
+        // enable partial periodic emit because of low keys threshold and uniqueness threshold
+        try (var result = run(request)) {
+            EsqlQueryResponse.Profile profile = result.profile();
+            List<DriverProfile> dataNodes = profile.drivers().stream().filter(d -> d.description().contains("data")).toList();
+            assertThat(dataNodes, hasSize(1));
+            List<OperatorStatus> hashOperator = dataNodes.get(0)
+                .operators()
+                .stream()
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .toList();
+            assertThat(hashOperator, hasSize(1));
+            HashAggregationOperator.Status partialAgg = (HashAggregationOperator.Status) hashOperator.get(0).status();
+            assertThat(partialAgg.emitCount(), greaterThan(4L));
+        }
+        // disable partial periodic emit because of high uniqueness threshold
+        pragma = Settings.builder().put(pragma).put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), 0.5).build();
+        request.pragmas(new QueryPragmas(pragma));
+        try (var result = run(request)) {
+            EsqlQueryResponse.Profile profile = result.profile();
+            List<DriverProfile> dataNodes = profile.drivers().stream().filter(d -> d.description().contains("data")).toList();
+            assertThat(dataNodes, hasSize(1));
+            List<OperatorStatus> hashOperator = dataNodes.get(0)
+                .operators()
+                .stream()
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .toList();
+            assertThat(hashOperator, hasSize(1));
+            HashAggregationOperator.Status partialAgg = (HashAggregationOperator.Status) hashOperator.get(0).status();
+            assertThat(partialAgg.emitCount(), greaterThan(1L));
+        }
+        // the final should emit once
+        pragma = Settings.builder().put(pragma).put(PlannerSettings.PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getKey(), 0.1).build();
+        request.query("FROM " + index + " | STATS BY host, t");
+        request.pragmas(new QueryPragmas(pragma));
+        try (var result = run(request)) {
+            EsqlQueryResponse.Profile profile = result.profile();
+            List<DriverProfile> dataNodes = profile.drivers().stream().filter(d -> d.description().contains("final")).toList();
+            assertThat(dataNodes, hasSize(1));
+            List<OperatorStatus> hashOperator = dataNodes.get(0)
+                .operators()
+                .stream()
+                .filter(o -> o.status() instanceof HashAggregationOperator.Status)
+                .toList();
+            assertThat(hashOperator, hasSize(1));
+            HashAggregationOperator.Status partialAgg = (HashAggregationOperator.Status) hashOperator.get(0).status();
+            assertThat(partialAgg.emitCount(), equalTo(1L));
         }
     }
 

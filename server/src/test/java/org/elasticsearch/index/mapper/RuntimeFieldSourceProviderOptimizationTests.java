@@ -67,7 +67,7 @@ public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTes
             try (var indexReader = DirectoryReader.open(iw)) {
                 var searcher = new IndexSearcher(indexReader);
                 LeafReaderContext leafReaderContext = indexReader.leaves().getFirst();
-                var context = indexService.newSearchExecutionContext(0, 0, searcher, () -> 1L, null, Map.of());
+                var context = indexService.newSearchExecutionContext(0, 0, searcher, () -> 1L, null, Map.of(), null, null);
                 var fieldType = (AbstractScriptFieldType<?>) indexService.mapperService().fieldType("field");
 
                 // The other_field should have been filtered out, otherwise the mechanism that pushes field name as source filter to
@@ -121,7 +121,7 @@ public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTes
             try (var indexReader = DirectoryReader.open(iw)) {
                 var searcher = new IndexSearcher(indexReader);
                 LeafReaderContext leafReaderContext = indexReader.leaves().getFirst();
-                var context = indexService.newSearchExecutionContext(0, 0, searcher, () -> 1L, null, Map.of());
+                var context = indexService.newSearchExecutionContext(0, 0, searcher, () -> 1L, null, Map.of(), null, null);
                 var fieldType = (AbstractScriptFieldType<?>) indexService.mapperService().fieldType("field");
 
                 var leafFactory = (LongFieldScript.LeafFactory) fieldType.leafFactory(context);
@@ -170,7 +170,7 @@ public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTes
             iw.addDocument(new Document());
             try (var indexReader = DirectoryReader.open(iw)) {
                 var searcher = new IndexSearcher(indexReader);
-                var context = indexService.newSearchExecutionContext(0, 0, searcher, () -> 1L, null, Map.of());
+                var context = indexService.newSearchExecutionContext(0, 0, searcher, () -> 1L, null, Map.of(), null, null);
 
                 // field name 'field' is both mapped as runtime and normal field and so LongScriptBlockLoader is expected:
                 BlockLoader loader = fieldType1.blockLoader(blContext(settings, context.lookup()));

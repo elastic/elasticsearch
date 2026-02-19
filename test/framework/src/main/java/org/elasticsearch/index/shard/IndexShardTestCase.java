@@ -41,6 +41,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.CloseUtils;
+import org.elasticsearch.index.EngineTestUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -83,11 +84,11 @@ import org.elasticsearch.indices.recovery.StartRecoveryRequest;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.recovery.plan.RecoveryPlannerService;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContext;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.ESBlobStoreRepositoryIntegTestCase;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.test.DummyShardLock;
@@ -126,8 +127,7 @@ import static org.mockito.Mockito.doAnswer;
  */
 public abstract class IndexShardTestCase extends ESTestCase {
 
-    public static final IndexEventListener EMPTY_EVENT_LISTENER = new IndexEventListener() {
-    };
+    public static final IndexEventListener EMPTY_EVENT_LISTENER = new IndexEventListener() {};
 
     public static final GlobalCheckpointSyncer NOOP_GCP_SYNCER = shardId -> {};
 
@@ -1092,20 +1092,24 @@ public abstract class IndexShardTestCase extends ESTestCase {
         return safeAwait(listener);
     }
 
-    public static Set<String> getShardDocUIDs(final IndexShard shard) throws IOException {
+    protected Set<String> getShardDocIDs(final IndexShard shard) throws IOException {
         return getDocIdAndSeqNos(shard).stream().map(DocIdSeqNoAndSource::id).collect(Collectors.toSet());
     }
 
-    public static List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard) throws IOException {
-        return EngineTestCase.getDocIds(shard.getEngine(), true);
+    protected List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard) throws IOException {
+        return getDocIdAndSeqNos(shard, true);
     }
 
-    protected void assertDocCount(IndexShard shard, int docDount) throws IOException {
-        assertThat(getShardDocUIDs(shard), hasSize(docDount));
+    protected List<DocIdSeqNoAndSource> getDocIdAndSeqNos(final IndexShard shard, final boolean refresh) throws IOException {
+        return shard.withEngineException(engine -> EngineTestUtils.getDocIds(engine, refresh));
+    }
+
+    protected void assertDocCount(IndexShard shard, int docCount) throws IOException {
+        assertThat(getShardDocIDs(shard), hasSize(docCount));
     }
 
     protected void assertDocs(IndexShard shard, String... ids) throws IOException {
-        final Set<String> shardDocUIDs = getShardDocUIDs(shard);
+        final Set<String> shardDocUIDs = getShardDocIDs(shard);
         assertThat(shardDocUIDs, contains(ids));
         assertThat(shardDocUIDs, hasSize(ids.length));
     }
@@ -1282,7 +1286,7 @@ public abstract class IndexShardTestCase extends ESTestCase {
         final ShardGeneration shardGen;
         try (Engine.IndexCommitRef indexCommitRef = shard.acquireLastIndexCommit(true)) {
             repository.snapshotShard(
-                new SnapshotShardContext(
+                new LocalPrimarySnapshotShardContext(
                     shard.store(),
                     shard.mapperService(),
                     snapshot.getSnapshotId(),

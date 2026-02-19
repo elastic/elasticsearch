@@ -123,6 +123,15 @@ public class CategorizeBlockHash extends BlockHash {
     }
 
     @Override
+    public int numKeys() {
+        if (seenNull) {
+            return categorizer.getCategoryCount() + 1;
+        } else {
+            return categorizer.getCategoryCount();
+        }
+    }
+
+    @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new Range(seenNull ? 0 : 1, Math.toIntExact(categorizer.getCategoryCount() + 1)).seenGroupIds(bigArrays);
     }

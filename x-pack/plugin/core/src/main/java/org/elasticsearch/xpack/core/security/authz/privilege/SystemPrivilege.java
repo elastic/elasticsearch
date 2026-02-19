@@ -27,6 +27,7 @@ public final class SystemPrivilege extends Privilege {
 
     private static final Predicate<String> ALLOWED_ACTIONS = StringMatcher.of(
         "internal:*",
+        "cluster:internal/readiness",
         "indices:monitor/*", // added for monitoring
         "cluster:monitor/*",  // added for monitoring
         "cluster:admin/bootstrap/*", // for the bootstrap service

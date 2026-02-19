@@ -354,10 +354,18 @@ public class IpFieldMapper extends FieldMapper {
                 }
             }
             if (hasPoints) {
+                if (hasDocValues()) {
+                    return convertToIndexOrDocValuesQuery(query);
+                }
                 return query;
             } else {
                 return convertToDocValuesQuery(query);
             }
+        }
+
+        static Query convertToIndexOrDocValuesQuery(Query query) {
+            assert query instanceof PointRangeQuery;
+            return new IndexOrDocValuesQuery(query, convertToDocValuesQuery(query));
         }
 
         static Query convertToDocValuesQuery(Query query) {
@@ -476,7 +484,9 @@ public class IpFieldMapper extends FieldMapper {
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
             }
-
+            if (blContext.blockLoaderFunctionConfig() != null) {
+                throw new UnsupportedOperationException("function fusing only supported for doc values");
+            }
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
@@ -500,7 +510,7 @@ public class IpFieldMapper extends FieldMapper {
                     default -> false;
                 };
             }
-            return true;
+            return false;
         }
 
         private BlockLoader blockLoaderFromFallbackSyntheticSource(BlockLoaderContext blContext) {

@@ -461,6 +461,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#metricsInfoCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -472,6 +478,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitUriPartsCommand(EsqlBaseParser.UriPartsCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree
@@ -504,12 +516,6 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitMmrQueryVectorExpression(EsqlBaseParser.MmrQueryVectorExpressionContext ctx);
-  /**
-   * Visit a parse tree produced by {@link EsqlBaseParser#mmrOptionalQueryVector}.
-   * @param ctx the parse tree
-   * @return the visitor result
-   */
-  T visitMmrOptionalQueryVector(EsqlBaseParser.MmrOptionalQueryVectorContext ctx);
   /**
    * Visit a parse tree produced by the {@code matchExpression}
    * labeled alternative in {@link EsqlBaseParser#booleanExpression}.

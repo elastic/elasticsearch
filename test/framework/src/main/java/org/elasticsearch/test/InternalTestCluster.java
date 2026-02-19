@@ -77,7 +77,6 @@ import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexingPressure;
-import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
@@ -1573,50 +1572,7 @@ public final class InternalTestCluster extends TestCluster {
      * Asserts that all shards with the same shardId should have document Ids.
      */
     public void assertSameDocIdsOnShards() throws Exception {
-        assertBusy(() -> {
-            ClusterState state = internalClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-            for (var indexRoutingTable : state.routingTable().indicesRouting().values()) {
-                for (int i = 0; i < indexRoutingTable.size(); i++) {
-                    IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
-                    ShardRouting primaryShardRouting = indexShardRoutingTable.primaryShard();
-                    IndexShard primaryShard = getShardOrNull(state, primaryShardRouting);
-                    if (primaryShard == null) {
-                        continue;
-                    }
-                    final List<DocIdSeqNoAndSource> docsOnPrimary;
-                    try {
-                        docsOnPrimary = IndexShardTestCase.getDocIdAndSeqNos(primaryShard);
-                    } catch (AlreadyClosedException ex) {
-                        continue;
-                    }
-                    for (ShardRouting replicaShardRouting : indexShardRoutingTable.replicaShards()) {
-                        IndexShard replicaShard = getShardOrNull(state, replicaShardRouting);
-                        if (replicaShard == null) {
-                            continue;
-                        }
-                        final List<DocIdSeqNoAndSource> docsOnReplica;
-                        try {
-                            docsOnReplica = IndexShardTestCase.getDocIdAndSeqNos(replicaShard);
-                        } catch (AlreadyClosedException ex) {
-                            continue;
-                        }
-                        assertThat(
-                            "out of sync shards: primary=["
-                                + primaryShardRouting
-                                + "] num_docs_on_primary=["
-                                + docsOnPrimary.size()
-                                + "] vs replica=["
-                                + replicaShardRouting
-                                + "] num_docs_on_replica=["
-                                + docsOnReplica.size()
-                                + "]",
-                            docsOnReplica,
-                            equalTo(docsOnPrimary)
-                        );
-                    }
-                }
-            }
-        });
+        assertBusy(() -> ESIntegTestCase.assertSameDocIdsOnShards(this));
     }
 
     private void randomlyResetClients() {

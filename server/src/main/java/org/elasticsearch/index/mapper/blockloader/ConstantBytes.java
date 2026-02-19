@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper.blockloader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -32,8 +33,8 @@ public class ConstantBytes implements BlockLoader {
     }
 
     @Override
-    public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
-        return reader;
+    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+        return () -> reader;
     }
 
     @Override

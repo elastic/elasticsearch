@@ -1446,6 +1446,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         });
     }
 
+    public ShardSearchStats shardSearchStats() {
+        return searchStats;
+    }
+
     public SearchStats searchStats(String... groups) {
         return searchStats.stats(groups);
     }

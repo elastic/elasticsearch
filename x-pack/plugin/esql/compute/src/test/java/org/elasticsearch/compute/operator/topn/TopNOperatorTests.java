@@ -32,15 +32,17 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.compute.operator.TupleDocLongBlockSourceOperator;
+import org.elasticsearch.compute.operator.topn.TopNOperator.InputOrdering;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
 import org.elasticsearch.compute.test.TestBlockBuilder;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
-import org.elasticsearch.compute.test.TupleAbstractBlockSourceOperator;
-import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.TupleAbstractBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.TupleDocLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
@@ -100,6 +102,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class TopNOperatorTests extends OperatorTestCase {
     private final int pageSize = randomPageSize();
@@ -150,7 +153,8 @@ public class TopNOperatorTests extends OperatorTestCase {
             List.of(LONG),
             List.of(DEFAULT_UNSORTABLE),
             List.of(new TopNOperator.SortOrder(0, true, false)),
-            pageSize
+            pageSize,
+            InputOrdering.NOT_SORTED
         );
     }
 
@@ -158,7 +162,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     protected Matcher<String> expectedDescriptionOfSimple() {
         return equalTo(
             "TopNOperator[count=4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
-                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]"
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], inputOrdering=NOT_SORTED]"
         );
     }
 
@@ -166,7 +170,7 @@ public class TopNOperatorTests extends OperatorTestCase {
     protected Matcher<String> expectedToStringOfSimple() {
         return equalTo(
             "TopNOperator[count=0/4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
-                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]]]"
+                + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], inputOrdering=NOT_SORTED]"
         );
     }
 
@@ -175,6 +179,16 @@ public class TopNOperatorTests extends OperatorTestCase {
         return new SequenceLongBlockSourceOperator(
             blockFactory,
             LongStream.range(0, size).map(l -> ESTestCase.randomLong()),
+            between(1, size * 2)
+        );
+    }
+
+    protected SourceOperator simpleInput(BlockFactory blockFactory, int size, InputOrdering sortedInput) {
+        var longs = LongStream.range(0, size).map(l -> ESTestCase.randomLong());
+
+        return new SequenceLongBlockSourceOperator(
+            blockFactory,
+            sortedInput == InputOrdering.SORTED ? longs.sorted() : longs,
             between(1, size * 2)
         );
     }
@@ -203,47 +217,50 @@ public class TopNOperatorTests extends OperatorTestCase {
     }
 
     public void testRamBytesUsed() {
-        RamUsageTester.Accumulator acc = new RamUsageTester.Accumulator() {
-            @Override
-            public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
-                if (o instanceof ElementType) {
-                    return 0; // shared
+        for (var sortedInput : InputOrdering.values()) {
+            RamUsageTester.Accumulator acc = new RamUsageTester.Accumulator() {
+                @Override
+                public long accumulateObject(Object o, long shallowSize, Map<Field, Object> fieldValues, Collection<Object> queue) {
+                    if (o instanceof ElementType) {
+                        return 0; // shared
+                    }
+                    if (o instanceof TopNEncoder) {
+                        return 0; // shared
+                    }
+                    if (o instanceof CircuitBreaker) {
+                        return 0; // shared
+                    }
+                    if (o instanceof BlockFactory) {
+                        return 0; // shard
+                    }
+                    return super.accumulateObject(o, shallowSize, fieldValues, queue);
                 }
-                if (o instanceof TopNEncoder) {
-                    return 0; // shared
+            };
+            int topCount = 10_000;
+            // We under-count by a few bytes because of the lists. In that end that's fine, but we need to account for it here.
+            long underCount = 200;
+            DriverContext context = driverContext();
+            try (
+                TopNOperator op = new TopNOperator.TopNOperatorFactory(
+                    topCount,
+                    List.of(LONG),
+                    List.of(DEFAULT_UNSORTABLE),
+                    List.of(new TopNOperator.SortOrder(0, true, false)),
+                    pageSize,
+                    sortedInput
+                ).get(context)
+            ) {
+                long actualEmpty = RamUsageTester.ramUsed(op, acc);
+                assertThat(op.ramBytesUsed(), both(greaterThan(actualEmpty - underCount)).and(lessThan(actualEmpty)));
+                // But when we fill it then we're quite close
+                for (Page p : CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), topCount, sortedInput))) {
+                    op.addInput(p);
                 }
-                if (o instanceof CircuitBreaker) {
-                    return 0; // shared
-                }
-                if (o instanceof BlockFactory) {
-                    return 0; // shard
-                }
-                return super.accumulateObject(o, shallowSize, fieldValues, queue);
-            }
-        };
-        int topCount = 10_000;
-        // We under-count by a few bytes because of the lists. In that end that's fine, but we need to account for it here.
-        long underCount = 200;
-        DriverContext context = driverContext();
-        try (
-            TopNOperator op = new TopNOperator.TopNOperatorFactory(
-                topCount,
-                List.of(LONG),
-                List.of(DEFAULT_UNSORTABLE),
-                List.of(new TopNOperator.SortOrder(0, true, false)),
-                pageSize
-            ).get(context)
-        ) {
-            long actualEmpty = RamUsageTester.ramUsed(op, acc);
-            assertThat(op.ramBytesUsed(), both(greaterThan(actualEmpty - underCount)).and(lessThan(actualEmpty)));
-            // But when we fill it then we're quite close
-            for (Page p : CannedSourceOperator.collectPages(simpleInput(context.blockFactory(), topCount))) {
-                op.addInput(p);
-            }
-            long actualFull = RamUsageTester.ramUsed(op, acc);
-            assertThat(op.ramBytesUsed(), both(greaterThan(actualFull - underCount)).and(lessThan(actualFull)));
+                long actualFull = RamUsageTester.ramUsed(op, acc);
+                assertThat(op.ramBytesUsed(), both(greaterThan(actualFull - underCount)).and(lessThan(actualFull)));
 
-            // TODO empty it again and check.
+                // TODO empty it again and check.
+            }
         }
     }
 
@@ -270,6 +287,372 @@ public class TopNOperatorTests extends OperatorTestCase {
         List<Long> expectedValues = inputValues.stream().sorted(comparator).limit(limit).toList();
         List<Long> outputValues = topNLong(context, inputValues, limit, asc, false);
         assertThat(outputValues, equalTo(expectedValues));
+    }
+
+    private void testTopNSortedInput(int topNCount, List<List<Integer>> pagesValues, List<List<Integer>> expectedResult, boolean asc) {
+        testTopNSortedInput(topNCount, pagesValues, expectedResult, asc, true);
+    }
+
+    public static boolean isSorted(List<Integer> list, boolean asc, boolean nullsFirst) {
+        Comparator<Integer> comparator = Integer::compare;
+
+        if (asc == false) {
+            comparator = comparator.reversed();
+        }
+        comparator = nullsFirst ? Comparator.nullsFirst(comparator) : Comparator.nullsLast(comparator);
+
+        for (int i = 1; i < list.size(); i++) {
+            if (comparator.compare(list.get(i - 1), list.get(i)) > 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private void testTopNSortedInput(
+        int topNCount,
+        List<List<Integer>> pagesValues,
+        List<List<Integer>> expectedResult,
+        boolean asc,
+        boolean nullsFirst
+    ) {
+        List<Page> pages = new ArrayList<>(pagesValues.size());
+
+        for (var pageValues : pagesValues) {
+            assert isSorted(pageValues, asc, nullsFirst);
+            List<Block> blocks = new ArrayList<>(pageValues.size());
+            try (Block.Builder column = INT.newBlockBuilder(8, driverContext().blockFactory());) {
+                for (var value : pageValues) {
+                    append(column, value);
+                }
+                blocks.add(column.build());
+            }
+            pages.add(new Page(blocks.toArray(Block[]::new)));
+        }
+        List<List<Object>> actual = new ArrayList<>();
+        DriverContext driverContext = driverContext();
+
+        try (
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                new CannedSourceOperator(pages.iterator()),
+                List.of(
+                    new TopNOperator(
+                        driverContext.blockFactory(),
+                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        topNCount,
+                        List.of(INT),
+                        List.of(DEFAULT_SORTABLE),
+                        List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
+                        randomPageSize(),
+                        InputOrdering.SORTED
+                    )
+                ),
+                new PageConsumerOperator(p -> readInto(actual, p))
+            )
+        ) {
+            new TestDriverRunner().run(driver);
+        }
+
+        assertThat(actual, equalTo(expectedResult));
+    }
+
+    private void testTopNSortedInputWithTwoColumns(
+        int topNCount,
+        List<List<Tuple<Integer, Integer>>> pagesValues,
+        List<List<Integer>> expectedResult,
+        boolean asc,
+        boolean nullsFirst
+    ) {
+        List<Page> pages = new ArrayList<>(pagesValues.size());
+
+        for (var pageValues : pagesValues) {
+            List<Block> blocks = new ArrayList<>(pageValues.size());
+
+            try (
+                Block.Builder firstColumn = INT.newBlockBuilder(8, driverContext().blockFactory());
+                Block.Builder secondColumn = INT.newBlockBuilder(8, driverContext().blockFactory());
+            ) {
+                for (var value : pageValues) {
+                    append(firstColumn, value.v1());
+                    append(secondColumn, value.v2());
+                }
+                blocks.add(firstColumn.build());
+                blocks.add(secondColumn.build());
+            }
+            pages.add(new Page(blocks.toArray(Block[]::new)));
+        }
+        List<List<Object>> actual = new ArrayList<>();
+        DriverContext driverContext = driverContext();
+
+        try (
+            Driver driver = TestDriverFactory.create(
+                driverContext,
+                new CannedSourceOperator(pages.iterator()),
+                List.of(
+                    new TopNOperator(
+                        driverContext.blockFactory(),
+                        nonBreakingBigArrays().breakerService().getBreaker("request"),
+                        topNCount,
+                        List.of(INT, INT),
+                        List.of(DEFAULT_SORTABLE, DEFAULT_SORTABLE),
+                        List.of(new TopNOperator.SortOrder(0, asc, nullsFirst), new TopNOperator.SortOrder(1, asc, nullsFirst)),
+                        randomPageSize(),
+                        InputOrdering.SORTED
+                    )
+                ),
+                new PageConsumerOperator(p -> readInto(actual, p))
+            )
+        ) {
+            new TestDriverRunner().run(driver);
+        }
+
+        assertThat(actual, equalTo(expectedResult));
+    }
+
+    public final void testTopNWithSortedInputToString() {
+        var topN = new TopNOperator.TopNOperatorFactory(
+            4,
+            List.of(LONG),
+            List.of(DEFAULT_UNSORTABLE),
+            List.of(new TopNOperator.SortOrder(0, true, false)),
+            pageSize,
+            InputOrdering.SORTED
+        );
+        var expectedDescription = "TopNOperator[count=0/4, elementTypes=[LONG], encoders=[DefaultUnsortable], "
+            + "sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], inputOrdering=SORTED]";
+        try (Operator operator = topN.get(driverContext())) {
+            assertThat(operator.toString(), equalTo(expectedDescription));
+        }
+    }
+
+    public void testTopNWithSortedInputAsc() {
+        testTopNSortedInput(
+            5,
+            Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
+            Arrays.asList(Arrays.asList(1, 2, 4, 4, 5)),
+            true
+        );
+
+        testTopNSortedInput(
+            6,
+            Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
+            Arrays.asList(Arrays.asList(1, 2, 4, 4, 5, 10)),
+            true
+        );
+
+        testTopNSortedInput(
+            3,
+            Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
+            Arrays.asList(Arrays.asList(1, 2, 4)),
+            true
+        );
+
+        testTopNSortedInput(
+            1,
+            Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
+            Arrays.asList(Arrays.asList(1)),
+            true
+        );
+
+        testTopNSortedInput(
+            0,
+            Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
+            Arrays.asList(),
+            true,
+            true
+        );
+    }
+
+    public void testTopNWithSortedInputDesc() {
+        testTopNSortedInput(
+            6,
+            Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)),
+            Arrays.asList(Arrays.asList(100, 20, 10, 5, 4, 4)),
+            false
+        );
+
+        testTopNSortedInput(
+            3,
+            Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)),
+            Arrays.asList(Arrays.asList(100, 20, 10)),
+            false
+        );
+
+        testTopNSortedInput(
+            2,
+            Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)),
+            Arrays.asList(Arrays.asList(100, 20)),
+            false
+        );
+
+        testTopNSortedInput(
+            1,
+            Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)),
+            Arrays.asList(Arrays.asList(100)),
+            false
+        );
+
+        testTopNSortedInput(
+            0,
+            Arrays.asList(Arrays.asList(100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(10, 5)),
+            Arrays.asList(),
+            false
+        );
+    }
+
+    public void testTopNWithSortedInputAscAndTwoColumns() {
+        testTopNSortedInputWithTwoColumns(
+            3,
+            Arrays.asList(
+                Arrays.asList(new Tuple<>(1, 0), new Tuple<>(2, 0), new Tuple<>(4, 2)),
+                Arrays.asList(new Tuple<>(4, 1), new Tuple<>(10, 2), new Tuple<>(100, 0)),
+                Arrays.asList(new Tuple<>(5, 0), new Tuple<>(10, 1))
+            ),
+            Arrays.asList(Arrays.asList(1, 2, 4), Arrays.asList(0, 0, 1)),
+            true,
+            true
+        );
+
+        testTopNSortedInputWithTwoColumns(
+            3,
+            Arrays.asList(
+                Arrays.asList(new Tuple<>(null, 0), new Tuple<>(2, 0), new Tuple<>(4, 2)),
+                Arrays.asList(new Tuple<>(4, null), new Tuple<>(10, 2), new Tuple<>(100, 0)),
+                Arrays.asList(new Tuple<>(5, 0), new Tuple<>(10, 1))
+            ),
+            Arrays.asList(Arrays.asList(null, 2, 4), Arrays.asList(0, 0, null)),
+            true,
+            true
+        );
+
+        testTopNSortedInputWithTwoColumns(
+            3,
+            Arrays.asList(
+                Arrays.asList(new Tuple<>(2, 0), new Tuple<>(4, 2), new Tuple<>(null, 0)),
+                Arrays.asList(new Tuple<>(4, null), new Tuple<>(10, 2), new Tuple<>(100, 0)),
+                Arrays.asList(new Tuple<>(5, 0), new Tuple<>(10, 1))
+            ),
+            Arrays.asList(Arrays.asList(2, 4, 4), Arrays.asList(0, 2, null)),
+            true,
+            false
+        );
+
+    }
+
+    public void testTopNWithSortedInputAscWithEmptyPages() {
+        testTopNSortedInput(
+            4,
+            Arrays.asList(Arrays.asList(), Arrays.asList(4, 20, 100), Arrays.asList(5, 10)),
+            Arrays.asList(Arrays.asList(4, 5, 10, 20)),
+            true
+        );
+
+        testTopNSortedInput(
+            20,
+            Arrays.asList(Arrays.asList(), Arrays.asList(4, 20, 100), Arrays.asList()),
+            Arrays.asList(Arrays.asList(4, 20, 100)),
+            true
+        );
+
+        testTopNSortedInput(
+            3,
+            Arrays.asList(Arrays.asList(), Arrays.asList(100, 20, 4), Arrays.asList(10, 5)),
+            Arrays.asList(Arrays.asList(100, 20, 10)),
+            false
+        );
+
+        testTopNSortedInput(
+            20,
+            Arrays.asList(Arrays.asList(), Arrays.asList(100, 20, 4), Arrays.asList()),
+            Arrays.asList(Arrays.asList(100, 20, 4)),
+            false
+        );
+    }
+
+    public void testTopNWithSortedInputAscWithNulls() {
+        testTopNSortedInput(
+            5,
+            Arrays.asList(Arrays.asList(1, 2, 4, null), Arrays.asList(4, 20, 100, null), Arrays.asList(5, 10, null)),
+            Arrays.asList(Arrays.asList(1, 2, 4, 4, 5)),
+            true,
+            false
+        );
+
+        testTopNSortedInput(
+            10,
+            Arrays.asList(Arrays.asList(1, 2, 4, null), Arrays.asList(4, 20, 100, null), Arrays.asList(5, 10, null)),
+            Arrays.asList(Arrays.asList(1, 2, 4, 4, 5, 10, 20, 100, null, null)),
+            true,
+            false
+        );
+
+        testTopNSortedInput(
+            10,
+            Arrays.asList(Arrays.asList(null, 1, 2, 4), Arrays.asList(null, 4, 20, 100), Arrays.asList(null, 5, 10)),
+            Arrays.asList(Arrays.asList(null, null, null, 1, 2, 4, 4, 5, 10, 20)),
+            true,
+            true
+        );
+
+        testTopNSortedInput(
+            3,
+            Arrays.asList(Arrays.asList(null, 1, 2, 4), Arrays.asList(null, 4, 20, 100), Arrays.asList(null, 5, 10)),
+            Arrays.asList(Arrays.asList(null, null, null)),
+            true,
+            true
+        );
+
+        testTopNSortedInput(
+            5,
+            Arrays.asList(Arrays.asList(null, 1, 2, 4), Arrays.asList(null, 4, 20, 100), Arrays.asList(null, 5, 10)),
+            Arrays.asList(Arrays.asList(null, null, null, 1, 2)),
+            true,
+            true
+        );
+
+        testTopNSortedInput(
+            7,
+            Arrays.asList(Arrays.asList(null, 1, 2, 4), Arrays.asList(null, 4, 20, 100), Arrays.asList(null, 5, 10)),
+            Arrays.asList(Arrays.asList(null, null, null, 1, 2, 4, 4)),
+            true,
+            true
+        );
+    }
+
+    public void testTopNWithSortedInputDescWithNulls() {
+        testTopNSortedInput(
+            6,
+            Arrays.asList(Arrays.asList(100, 20, 4, null), Arrays.asList(4, 2, 1, null), Arrays.asList(10, 5, null)),
+            Arrays.asList(Arrays.asList(100, 20, 10, 5, 4, 4)),
+            false,
+            false
+        );
+
+        testTopNSortedInput(
+            6,
+            Arrays.asList(Arrays.asList(null, 100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(null, 10, 5)),
+            Arrays.asList(Arrays.asList(null, null, 100, 20, 10, 5)),
+            false,
+            true
+        );
+
+        testTopNSortedInput(
+            3,
+            Arrays.asList(Arrays.asList(null, 100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(null, 10, 5)),
+            Arrays.asList(Arrays.asList(null, null, 100)),
+            false,
+            true
+        );
+
+        testTopNSortedInput(
+            2,
+            Arrays.asList(Arrays.asList(null, 100, 20, 4), Arrays.asList(4, 2, 1), Arrays.asList(null, 10, 5)),
+            Arrays.asList(Arrays.asList(null, null)),
+            false,
+            true
+        );
     }
 
     public void testBasicTopN() {
@@ -405,19 +788,21 @@ public class TopNOperatorTests extends OperatorTestCase {
 
     private void testCompare(Page page, ElementType elementType, TopNEncoder encoder) {
         Block nullBlock = TestBlockFactory.getNonBreakingInstance().newConstantNullBlock(1);
-        Page nullPage = new Page(new Block[] { nullBlock, nullBlock, nullBlock, nullBlock, nullBlock });
+        Page nullPage = new Page(nullBlock, nullBlock, nullBlock, nullBlock, nullBlock);
 
         for (int b = 0; b < page.getBlockCount(); b++) {
             // Non-null identity
             for (int p = 0; p < page.getPositionCount(); p++) {
                 TopNOperator.Row row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), page, p);
-                assertEquals(0, TopNOperator.compareRows(row, row));
+                assertThat(row, equalTo(row));
+                assertThat(row.compareTo(row), equalTo(0));
             }
 
             // Null identity
             for (int p = 0; p < page.getPositionCount(); p++) {
                 TopNOperator.Row row = row(elementType, encoder, b, randomBoolean(), randomBoolean(), nullPage, p);
-                assertEquals(0, TopNOperator.compareRows(row, row));
+                assertThat(row, equalTo(row));
+                assertThat(row.compareTo(row), equalTo(0));
             }
 
             // nulls first
@@ -425,8 +810,9 @@ public class TopNOperatorTests extends OperatorTestCase {
                 boolean asc = randomBoolean();
                 TopNOperator.Row nonNullRow = row(elementType, encoder, b, asc, true, page, p);
                 TopNOperator.Row nullRow = row(elementType, encoder, b, asc, true, nullPage, p);
-                assertEquals(-1, TopNOperator.compareRows(nonNullRow, nullRow));
-                assertEquals(1, TopNOperator.compareRows(nullRow, nonNullRow));
+                assertThat(nonNullRow, not(equalTo(nullRow)));
+                assertThat(nonNullRow, lessThan(nullRow));
+                assertThat(nullRow, greaterThan(nonNullRow));
             }
 
             // nulls last
@@ -434,8 +820,9 @@ public class TopNOperatorTests extends OperatorTestCase {
                 boolean asc = randomBoolean();
                 TopNOperator.Row nonNullRow = row(elementType, encoder, b, asc, false, page, p);
                 TopNOperator.Row nullRow = row(elementType, encoder, b, asc, false, nullPage, p);
-                assertEquals(1, TopNOperator.compareRows(nonNullRow, nullRow));
-                assertEquals(-1, TopNOperator.compareRows(nullRow, nonNullRow));
+                assertThat(nonNullRow, not(equalTo(nullRow)));
+                assertThat(nonNullRow, greaterThan(nullRow));
+                assertThat(nullRow, lessThan(nonNullRow));
             }
 
             // ascending
@@ -443,16 +830,18 @@ public class TopNOperatorTests extends OperatorTestCase {
                 boolean nullsFirst = randomBoolean();
                 TopNOperator.Row r1 = row(elementType, encoder, b, true, nullsFirst, page, 0);
                 TopNOperator.Row r2 = row(elementType, encoder, b, true, nullsFirst, page, 1);
-                assertThat(TopNOperator.compareRows(r1, r2), greaterThan(0));
-                assertThat(TopNOperator.compareRows(r2, r1), lessThan(0));
+                assertThat(r1, not(equalTo(r2)));
+                assertThat(r1, greaterThan(r2));
+                assertThat(r2, lessThan(r1));
             }
             // descending
             {
                 boolean nullsFirst = randomBoolean();
                 TopNOperator.Row r1 = row(elementType, encoder, b, false, nullsFirst, page, 0);
                 TopNOperator.Row r2 = row(elementType, encoder, b, false, nullsFirst, page, 1);
-                assertThat(TopNOperator.compareRows(r1, r2), lessThan(0));
-                assertThat(TopNOperator.compareRows(r2, r1), greaterThan(0));
+                assertThat(r1, not(equalTo(r2)));
+                assertThat(r1, lessThan(r2));
+                assertThat(r2, greaterThan(r1));
             }
         }
         page.releaseBlocks();
@@ -468,13 +857,16 @@ public class TopNOperatorTests extends OperatorTestCase {
         int position
     ) {
         final var sortOrders = List.of(new TopNOperator.SortOrder(channel, asc, nullsFirst));
+        boolean[] channelInKey = new boolean[page.getBlockCount()];
+        channelInKey[channel] = true;
         TopNOperator.RowFiller rf = new TopNOperator.RowFiller(
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> elementType).toList(),
             IntStream.range(0, page.getBlockCount()).mapToObj(i -> encoder).toList(),
             sortOrders,
+            channelInKey,
             page
         );
-        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), sortOrders, 0, 0);
+        TopNOperator.Row row = new TopNOperator.Row(nonBreakingBigArrays().breakerService().getBreaker("request"), 0, 0);
         rf.writeKey(position, row);
         rf.writeValues(position, row);
         return row;
@@ -570,13 +962,14 @@ public class TopNOperatorTests extends OperatorTestCase {
                         elementTypes,
                         encoders,
                         List.of(new TopNOperator.SortOrder(0, false, false)),
-                        randomPageSize()
+                        randomPageSize(),
+                        InputOrdering.NOT_SORTED
                     )
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
             )
         ) {
-            runDriver(driver);
+            new TestDriverRunner().run(driver);
         }
 
         assertMap(actualTop, matchesList(expectedTop));
@@ -664,13 +1057,14 @@ public class TopNOperatorTests extends OperatorTestCase {
                         elementTypes,
                         encoders,
                         List.of(new TopNOperator.SortOrder(0, false, false)),
-                        randomPageSize()
+                        randomPageSize(),
+                        InputOrdering.NOT_SORTED
                     )
                 ),
                 new PageConsumerOperator(page -> readInto(actualTop, page))
             )
         ) {
-            runDriver(driver);
+            new TestDriverRunner().run(driver);
         }
 
         assertMap(actualTop, matchesList(expectedTop));
@@ -732,13 +1126,14 @@ public class TopNOperatorTests extends OperatorTestCase {
                             sourceOperator.elementTypes(),
                             encoder,
                             sortOrders,
-                            randomPageSize()
+                            randomPageSize(),
+                            InputOrdering.NOT_SORTED
                         )
                     ),
                     new PageConsumerOperator(pages::add)
                 )
             ) {
-                runDriver(driver);
+                new TestDriverRunner().run(driver);
             }
             assertDriverContext(driverContext);
             success = true;
@@ -778,18 +1173,19 @@ public class TopNOperatorTests extends OperatorTestCase {
         TopNOperator.TopNOperatorFactory factory = new TopNOperator.TopNOperatorFactory(
             10,
             List.of(BYTES_REF, BYTES_REF),
-            List.of(UTF8, new FixedLengthTopNEncoder(fixedLength)),
-            List.of(new TopNOperator.SortOrder(1, false, false), new TopNOperator.SortOrder(3, false, true)),
-            randomPageSize()
+            List.of(UTF8, new FixedLengthAscTopNEncoder(fixedLength)),
+            List.of(new TopNOperator.SortOrder(0, false, false), new TopNOperator.SortOrder(1, false, true)),
+            randomPageSize(),
+            InputOrdering.NOT_SORTED
         );
-        String sorts = List.of("SortOrder[channel=1, asc=false, nullsFirst=false]", "SortOrder[channel=3, asc=false, nullsFirst=true]")
+        String sorts = List.of("SortOrder[channel=0, asc=false, nullsFirst=false]", "SortOrder[channel=1, asc=false, nullsFirst=true]")
             .stream()
             .collect(Collectors.joining(", "));
-        String tail = ", elementTypes=[BYTES_REF, BYTES_REF], encoders=[UTF8TopNEncoder, FixedLengthTopNEncoder["
+        String tail = ", elementTypes=[BYTES_REF, BYTES_REF], encoders=[Utf8Asc, FixedLengthAsc["
             + fixedLength
             + "]], sortOrders=["
             + sorts
-            + "]]";
+            + "], inputOrdering=NOT_SORTED]";
         assertThat(factory.describe(), equalTo("TopNOperator[count=10" + tail));
         try (Operator operator = factory.get(driverContext())) {
             assertThat(operator.toString(), equalTo("TopNOperator[count=0/10" + tail));
@@ -1022,13 +1418,14 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(blockType),
                         List.of(encoder),
                         List.of(sortOrders),
-                        randomPageSize()
+                        randomPageSize(),
+                        InputOrdering.NOT_SORTED
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actualValues, p))
             )
         ) {
-            runDriver(driver);
+            new TestDriverRunner().run(driver);
         }
         assertMap(actualValues, matchesList(List.of(expectedValues.subList(0, topCount))));
     }
@@ -1150,19 +1547,20 @@ public class TopNOperatorTests extends OperatorTestCase {
         }
 
         List<List<List<Object>>> actualValues = new ArrayList<>();
-        List<Page> results = drive(
-            new TopNOperator(
-                driverContext.blockFactory(),
-                nonBreakingBigArrays().breakerService().getBreaker("request"),
-                topCount,
-                elementTypes,
-                encoders,
-                uniqueOrders.stream().toList(),
-                rows
-            ),
-            List.of(new Page(blocks.toArray(Block[]::new))).iterator(),
-            driverContext
-        );
+        List<Page> results = new TestDriverRunner().builder(driverContext)
+            .input(blocks)
+            .run(
+                new TopNOperator(
+                    driverContext.blockFactory(),
+                    nonBreakingBigArrays().breakerService().getBreaker("request"),
+                    topCount,
+                    elementTypes,
+                    encoders,
+                    uniqueOrders.stream().toList(),
+                    rows,
+                    InputOrdering.NOT_SORTED
+                )
+            );
         for (Page p : results) {
             readAsRows(actualValues, p);
             p.releaseBlocks();
@@ -1201,13 +1599,14 @@ public class TopNOperatorTests extends OperatorTestCase {
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
                             List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
-                            randomPageSize()
+                            randomPageSize(),
+                            InputOrdering.NOT_SORTED
                         )
                     ),
                     new PageConsumerOperator(p -> readInto(actual, p))
                 )
             ) {
-                runDriver(driver);
+                new TestDriverRunner().run(driver);
             }
 
             assertThat(actual.size(), equalTo(1));
@@ -1327,13 +1726,14 @@ public class TopNOperatorTests extends OperatorTestCase {
                             List.of(BYTES_REF),
                             List.of(TopNEncoder.IP),
                             List.of(new TopNOperator.SortOrder(0, asc, nullsFirst)),
-                            randomPageSize()
+                            randomPageSize(),
+                            InputOrdering.NOT_SORTED
                         )
                     ),
                     new PageConsumerOperator(p -> readInto(actual, p))
                 )
             ) {
-                runDriver(driver);
+                new TestDriverRunner().run(driver);
             }
 
             assertThat(actual.size(), equalTo(1));
@@ -1417,13 +1817,14 @@ public class TopNOperatorTests extends OperatorTestCase {
                             new TopNOperator.SortOrder(0, true, randomBoolean()),
                             new TopNOperator.SortOrder(1, randomBoolean(), randomBoolean())
                         ),
-                        randomPageSize()
+                        randomPageSize(),
+                        InputOrdering.NOT_SORTED
                     )
                 ),
                 new PageConsumerOperator(p -> readInto(actual, p))
             )
         ) {
-            runDriver(driver);
+            new TestDriverRunner().run(driver);
         }
 
         assertThat(actual.size(), equalTo(2));
@@ -1453,7 +1854,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                         List.of(LONG),
                         List.of(DEFAULT_UNSORTABLE),
                         List.of(new TopNOperator.SortOrder(0, true, randomBoolean())),
-                        maxPageSize
+                        maxPageSize,
+                        InputOrdering.NOT_SORTED
                     )
                 ),
                 new PageConsumerOperator(p -> {
@@ -1467,7 +1869,7 @@ public class TopNOperatorTests extends OperatorTestCase {
                 })
             )
         ) {
-            Exception e = expectThrows(RuntimeException.class, () -> runDriver(driver));
+            Exception e = expectThrows(RuntimeException.class, () -> new TestDriverRunner().run(driver));
             assertThat(e.getMessage(), equalTo("boo"));
         }
 
@@ -1488,7 +1890,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 List.of(INT),
                 List.of(DEFAULT_UNSORTABLE),
                 List.of(new TopNOperator.SortOrder(0, randomBoolean(), randomBoolean())),
-                randomPageSize()
+                randomPageSize(),
+                InputOrdering.NOT_SORTED
             )
         ) {
             op.addInput(new Page(blockFactory().newIntArrayVector(new int[] { 1 }, 1).asBlock()));
@@ -1512,7 +1915,8 @@ public class TopNOperatorTests extends OperatorTestCase {
                 types,
                 encoders,
                 List.of(new TopNOperator.SortOrder(0, asc, randomBoolean())),
-                randomPageSize()
+                randomPageSize(),
+                InputOrdering.NOT_SORTED
             )
         ) {
             int[] blockValues = IntStream.range(0, rows).toArray();
@@ -1525,10 +1929,10 @@ public class TopNOperatorTests extends OperatorTestCase {
             block.decRef();
             op.addInput(new Page(blocks));
 
-            // 105 are from the objects
+            // 94 are from the objects
             // 1 is for the min-heap itself
             // -1 IF we're sorting ascending. We encode one less value.
-            assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 105L : 106L));
+            assertThat(breaker.getMemoryRequestCount(), equalTo(asc ? 94L : 95L));
         }
     }
 

@@ -343,12 +343,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 finishPages = dropDocBlockOperator(request.extractFields);
             }
             releasables.add(finishPages);
-            var warnings = Warnings.createWarnings(
-                DriverContext.WarningsMode.COLLECT,
-                request.source.source().getLineNumber(),
-                request.source.source().getColumnNumber(),
-                request.source.text()
-            );
+            var warnings = Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, request.source);
             LookupEnrichQueryGenerator queryList = queryList(request, shardContext.executionContext, aliasFilter, warnings);
             var queryOperator = new EnrichQuerySourceOperator(
                 driverContext.blockFactory(),
@@ -471,6 +466,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                     EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY)
                 )
             ),
+            true,
             0
         );
     }

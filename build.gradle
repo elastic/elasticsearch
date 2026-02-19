@@ -20,6 +20,7 @@ import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.plugins.ide.eclipse.model.AccessRule
+import org.elasticsearch.gradle.internal.testfixtures.DockerComposeThrottle
 
 import groovy.xml.XmlParser;
 import groovy.xml.XmlNodePrinter;
@@ -342,9 +343,14 @@ allprojects {
     if (project.path == ':') {
       resolveJavaToolChain = true
     }
+    project.pluginManager.withPlugin('elasticsearch.mrjar') {
+      // ensure we implicitly resolve all jdks needed from the java toolchain resolution
+      println "Configuring resolveAllDependencies to depend on JavaCompile tasks for project ${project.path} because it applies the mrjar plugin"
+      dependsOn project.getTasks().withType(JavaCompile.class)
+    }
     // we run the packer script for all active branches. so we should be able to skip bwc here
     if(project.path.startsWith(":distribution:bwc:")) {
-      enabled = false
+      dependsOn project.tasks.matching { it.name == 'buildBwcLinuxTar' }
     }
     if (project.path.contains("fixture")) {
       dependsOn tasks.withType(ComposePull)
@@ -438,19 +444,6 @@ allprojects {
     tasks.matching { it.name.equals('integTest') }.configureEach { integTestTask ->
       integTestTask.mustRunAfter tasks.matching { it.name.equals("test") }
     }
-
-/*    configurations.matching { it.canBeResolved }.all { Configuration configuration ->
-      dependencies.matching { it instanceof ProjectDependency }.all { ProjectDependency dep ->
-        Project upstreamProject = dep.dependencyProject
-        if (project.path != upstreamProject?.path) {
-          for (String taskName : ['test', 'integTest']) {
-            project.tasks.matching { it.name == taskName }.configureEach { task ->
-              task.shouldRunAfter(upstreamProject.tasks.matching { upStreamTask -> upStreamTask.name == taskName })
-            }
-          }
-        }
-      }
-    }*/
   }
 
   apply plugin: 'elasticsearch.formatting'

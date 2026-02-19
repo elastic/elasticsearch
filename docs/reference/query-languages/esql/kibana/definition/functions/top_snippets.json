@@ -10,13 +10,13 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input to chunk."
+          "description" : "The field to extract snippets from. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, snippets are extracted from each value separately."
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed. "
+          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed."
         }
       ],
       "variadic" : false,
@@ -28,13 +28,13 @@
           "name" : "field",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input to chunk."
+          "description" : "The field to extract snippets from. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, snippets are extracted from each value separately."
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed. "
+          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed."
         },
         {
           "name" : "options",
@@ -53,13 +53,13 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "The input to chunk."
+          "description" : "The field to extract snippets from. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, snippets are extracted from each value separately."
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed. "
+          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed."
         }
       ],
       "variadic" : false,
@@ -71,13 +71,13 @@
           "name" : "field",
           "type" : "text",
           "optional" : false,
-          "description" : "The input to chunk."
+          "description" : "The field to extract snippets from. The input can be a single-valued or multi-valued field. In the case of a multi-valued argument, snippets are extracted from each value separately."
         },
         {
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed. "
+          "description" : "The input text containing only query terms for snippet extraction. Lucene query syntax, operators, and wildcards are not allowed."
         },
         {
           "name" : "options",

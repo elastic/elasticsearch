@@ -305,7 +305,10 @@ public abstract class DownsamplingIntegTestCase extends ESIntegTestCase {
                             assertThat(fieldMapping.get("type"), equalTo("aggregate_metric_double"));
                         }
                     }
-                    case HISTOGRAM -> assertThat(fieldMapping.get("type"), anyOf(equalTo("exponential_histogram"), equalTo("histogram")));
+                    case HISTOGRAM -> assertThat(
+                        fieldMapping.get("type"),
+                        anyOf(equalTo("exponential_histogram"), equalTo("histogram"), equalTo("tdigest"))
+                    );
                     default -> fail("Unsupported field type");
                 }
                 assertThat(fieldMapping.get("time_series_metric"), equalTo(metricType.toString()));

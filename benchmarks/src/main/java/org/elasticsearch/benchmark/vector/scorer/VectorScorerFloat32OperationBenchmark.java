@@ -31,6 +31,7 @@ import org.openjdk.jmh.annotations.Warmup;
 import java.lang.foreign.Arena;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
+import java.lang.invoke.MethodHandle;
 import java.nio.ByteOrder;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
@@ -72,13 +73,8 @@ public class VectorScorerFloat32OperationBenchmark {
         float run(float[] vec1, float[] vec2);
     }
 
-    @FunctionalInterface
-    private interface NativeFunction {
-        float run(MemorySegment vec1, MemorySegment vec2, int length);
-    }
-
     private LuceneFunction luceneImpl;
-    private NativeFunction nativeImpl;
+    private MethodHandle nativeImpl;
 
     @Setup(Level.Iteration)
     public void init() {
@@ -105,11 +101,11 @@ public class VectorScorerFloat32OperationBenchmark {
             case EUCLIDEAN -> VectorUtil::squareDistance;
             default -> throw new UnsupportedOperationException("Not used");
         };
-        nativeImpl = switch (function) {
-            case DOT_PRODUCT -> VectorScorerFloat32OperationBenchmark::dotProductFloat32;
-            case EUCLIDEAN -> VectorScorerFloat32OperationBenchmark::squareDistanceFloat32;
-            default -> throw new UnsupportedOperationException("Not used");
-        };
+        nativeImpl = vectorSimilarityFunctions.getHandle(switch (function) {
+            case DOT_PRODUCT -> VectorSimilarityFunctions.Function.DOT_PRODUCT;
+            case EUCLIDEAN -> VectorSimilarityFunctions.Function.SQUARE_DISTANCE;
+            default -> throw new IllegalArgumentException(function.toString());
+        }, VectorSimilarityFunctions.DataType.FLOAT32, VectorSimilarityFunctions.Operation.SINGLE);
     }
 
     @TearDown
@@ -131,29 +127,21 @@ public class VectorScorerFloat32OperationBenchmark {
 
     @Benchmark
     public float nativeWithNativeSeg() {
-        return nativeImpl.run(nativeSegA, nativeSegB, size);
+        try {
+            return (float) nativeImpl.invokeExact(nativeSegA, nativeSegB, size);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
     }
 
     @Benchmark
     public float nativeWithHeapSeg() {
-        return nativeImpl.run(heapSegA, heapSegB, size);
+        try {
+            return (float) nativeImpl.invokeExact(heapSegA, heapSegB, size);
+        } catch (Throwable t) {
+            throw rethrow(t);
+        }
     }
 
     static final VectorSimilarityFunctions vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions().orElseThrow();
-
-    static float dotProductFloat32(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (float) vectorSimilarityFunctions.dotProductHandleFloat32().invokeExact(a, b, length);
-        } catch (Throwable e) {
-            throw rethrow(e);
-        }
-    }
-
-    static float squareDistanceFloat32(MemorySegment a, MemorySegment b, int length) {
-        try {
-            return (float) vectorSimilarityFunctions.squareDistanceHandleFloat32().invokeExact(a, b, length);
-        } catch (Throwable e) {
-            throw rethrow(e);
-        }
-    }
 }

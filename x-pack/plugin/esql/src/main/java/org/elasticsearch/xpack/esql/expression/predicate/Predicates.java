@@ -42,15 +42,15 @@ public abstract class Predicates {
         return singletonList(exp);
     }
 
-    public static Expression combineOr(List<Expression> exps) {
+    public static Expression combineOr(List<? extends Expression> exps) {
         return combine(exps, (l, r) -> new Or(l.source(), l, r));
     }
 
-    public static Expression combineAnd(List<Expression> exps) {
+    public static Expression combineAnd(List<? extends Expression> exps) {
         return combine(exps, (l, r) -> new And(l.source(), l, r));
     }
 
-    public static Expression combineAndWithSource(List<Expression> exps, Source source) {
+    public static Expression combineAndWithSource(List<? extends Expression> exps, Source source) {
         return combine(exps, (l, r) -> new And(source, l, r));
     }
 
@@ -69,7 +69,7 @@ public abstract class Predicates {
      * While a bit longer, this method creates a balanced tree as opposed to a plain
      * recursive approach which creates an unbalanced one (either to the left or right).
      */
-    private static Expression combine(List<Expression> exps, BiFunction<Expression, Expression, Expression> combiner) {
+    private static Expression combine(List<? extends Expression> exps, BiFunction<Expression, Expression, Expression> combiner) {
         if (exps.isEmpty()) {
             return null;
         }

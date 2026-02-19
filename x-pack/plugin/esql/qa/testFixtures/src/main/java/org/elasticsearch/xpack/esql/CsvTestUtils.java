@@ -39,12 +39,12 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
-import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -55,9 +55,9 @@ import org.supercsv.prefs.CsvPreference;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.math.BigDecimal;
-import java.net.URL;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -93,9 +93,20 @@ public final class CsvTestUtils {
     public static final String COMMA_ESCAPING_REGEX = "(?<!\\" + ESCAPE_CHAR + "),";
     public static final String ESCAPED_COMMA_SEQUENCE = ESCAPE_CHAR + ",";
 
+    /**
+     * Matches any value.
+     */
+    public static final String ANY = "{any}";
+
+    /**
+     * Matches any value in the range [lowerBound, upperBound].
+     */
     public record Range(Object lowerBound, Object upperBound) {
         @SuppressWarnings("unchecked")
         <T extends Comparable<T>> boolean includes(Object value) {
+            if (value == null || value instanceof List) {
+                return false;
+            }
             return ((T) value).compareTo((T) lowerBound) >= 0 && ((T) value).compareTo((T) upperBound) <= 0;
         }
     }
@@ -149,7 +160,7 @@ public final class CsvTestUtils {
         return null;
     }
 
-    public static Tuple<Page, List<String>> loadPageFromCsv(URL source, Map<String, String> typeMapping) throws Exception {
+    public static Tuple<Page, List<String>> loadPageFromCsv(InputStream source, Map<String, String> typeMapping) throws Exception {
 
         record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {
@@ -507,6 +518,7 @@ public final class CsvTestUtils {
             Instant parsed = DateFormatters.from(ISO_DATE_WITH_NANOS.parse(x)).toInstant();
             return DateUtils.toLong(parsed);
         }, (l, r) -> l instanceof Long maybeIP ? maybeIP.compareTo((Long) r) : l.toString().compareTo(r.toString()), Long.class),
+
         BOOLEAN(Booleans::parseBoolean, Boolean.class),
         GEO_POINT(x -> x == null ? null : GEO.wktToWkb(x), BytesRef.class),
         CARTESIAN_POINT(x -> x == null ? null : CARTESIAN.wktToWkb(x), BytesRef.class),
@@ -517,6 +529,7 @@ public final class CsvTestUtils {
         GEOHEX(x -> x == null ? null : H3.stringToH3(x), Long.class),
         AGGREGATE_METRIC_DOUBLE(
             x -> x == null ? null : stringToAggregateMetricDoubleLiteral(x),
+            CsvTestUtils::compareAggregateMetricDouble,
             AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral.class
         ),
         DENSE_VECTOR(Float::parseFloat, Float.class, false),
@@ -645,6 +658,9 @@ public final class CsvTestUtils {
                 Object lowerBound = converter.apply(value.substring(0, separator).trim());
                 Object upperBound = converter.apply(value.substring(separator + 2).trim());
                 return new Range(lowerBound, upperBound);
+            } else if (ANY.equals(value)) {
+                // The token "{any}" indicates that any value is accepted.
+                return ANY;
             } else {
                 return converter.apply(value);
             }
@@ -852,5 +868,15 @@ public final class CsvTestUtils {
         } catch (IOException e) {
             throw new IllegalArgumentException(e);
         }
+    }
+
+    static int compareAggregateMetricDouble(Object lhs, Object rhs) {
+        return toAggregateMetricDouble(lhs).compareTo(toAggregateMetricDouble(rhs));
+    }
+
+    static AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral toAggregateMetricDouble(Object v) {
+        return v instanceof AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral amd
+            ? amd
+            : stringToAggregateMetricDoubleLiteral(v.toString());
     }
 }

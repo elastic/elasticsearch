@@ -204,7 +204,7 @@ public class LlamaEmbeddingsServiceSettings extends FilteredXContentObject imple
         out.writeString(modelId);
         out.writeString(uri.toString());
         out.writeOptionalVInt(dimensions);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(maxInputTokens);
         rateLimitSettings.writeTo(out);
     }

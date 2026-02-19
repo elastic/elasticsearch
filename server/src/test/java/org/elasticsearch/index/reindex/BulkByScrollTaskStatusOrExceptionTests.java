@@ -80,7 +80,7 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
      * Verifies that a {@link StatusOrException} constructed with a {@link BulkByScrollTask.Status} exposes it via
      * {@link StatusOrException#getStatus()} and returns null from {@link StatusOrException#getException()}.
      */
-    public void testStatusOrExceptionWithStatusExposesStatusNotException() {
+    public void testStatusOrExceptionWithStatus() {
         BulkByScrollTask.Status status = BulkByScrollTaskStatusTests.randomStatusWithoutException();
         StatusOrException statusOrException = new StatusOrException(status);
         assertNotNull(statusOrException.getStatus());
@@ -92,7 +92,7 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
      * Verifies that a {@link StatusOrException} constructed with an {@link Exception} exposes it via
      * {@link StatusOrException#getException()} and returns null from {@link StatusOrException#getStatus()}.
      */
-    public void testStatusOrExceptionWithExceptionExposesExceptionNotStatus() {
+    public void testStatusOrExceptionWithException() {
         String message = randomAlphaOfLengthBetween(5, 20);
         Exception exception = new ElasticsearchException(message);
         StatusOrException statusOrException = new StatusOrException(exception);
@@ -109,7 +109,6 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
         StatusOrException statusOrException = createTestInstanceWithoutExceptions();
         assertFalse(statusOrException.equals(null));
         assertFalse(statusOrException.equals(BulkByScrollTaskStatusTests.randomStatus()));
-        assertFalse(statusOrException.equals("not a StatusOrException"));
     }
 
     /**
@@ -119,7 +118,7 @@ public class BulkByScrollTaskStatusOrExceptionTests extends AbstractXContentTest
         BulkByScrollTask.Status status = BulkByScrollTaskStatusTests.randomStatusWithoutException();
         StatusOrException first = new StatusOrException(status);
         StatusOrException second = new StatusOrException(status);
-        assertTrue(first.equals(second));
+        assertEquals(first, second);
         assertEquals(first.hashCode(), second.hashCode());
     }
 

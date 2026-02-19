@@ -21,9 +21,13 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContent;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
@@ -37,6 +41,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
@@ -275,6 +280,41 @@ public class RemoteRequestBuildersTests extends ESTestCase {
         assertThat(e.getCause().getMessage(), containsString("Unexpected character (',' (code 44))"));
         e = expectThrows(RuntimeException.class, () -> initialSearch(searchRequest, new BytesArray("{"), remoteVersion));
         assertThat(e.getCause().getMessage(), containsString("Unexpected end-of-input"));
+    }
+
+    public void testInitialSearchSliced_defaultField() throws IOException {
+        BytesReference query = new BytesArray("{}");
+        int numSlices = randomIntBetween(2, 10);
+        int sliceId = randomIntBetween(0, numSlices - 1);
+        SearchRequest searchRequest = new SearchRequest().source(
+            new SearchSourceBuilder().slice(new SliceBuilder(null, sliceId, numSlices))
+        );
+        Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
+
+        HttpEntity entity = initialSearch(searchRequest, query, remoteVersion).getEntity();
+        try (InputStream content = entity.getContent()) {
+            XContent xContent = XContentType.fromMediaType(entity.getContentType().getValue()).xContent();
+            Map<String, Object> parsedContent = XContentHelper.convertToMap(xContent, content, false);
+            assertThat(parsedContent.get("slice"), equalTo(Map.of("id", sliceId, "max", numSlices)));
+        }
+    }
+
+    public void testInitialSearchSliced_namedField() throws IOException {
+        BytesReference query = new BytesArray("{}");
+        String field = randomIdentifier();
+        int numSlices = randomIntBetween(2, 10);
+        int sliceId = randomIntBetween(0, numSlices - 1);
+        SearchRequest searchRequest = new SearchRequest().source(
+            new SearchSourceBuilder().slice(new SliceBuilder(field, sliceId, numSlices))
+        );
+        Version remoteVersion = Version.fromId(between(0, Version.CURRENT.id));
+
+        HttpEntity entity = initialSearch(searchRequest, query, remoteVersion).getEntity();
+        try (InputStream content = entity.getContent()) {
+            XContent xContent = XContentType.fromMediaType(entity.getContentType().getValue()).xContent();
+            Map<String, Object> parsedContent = XContentHelper.convertToMap(xContent, content, false);
+            assertThat(parsedContent.get("slice"), equalTo(Map.of("id", sliceId, "max", numSlices, "field", field)));
+        }
     }
 
     public void testScrollParams() {

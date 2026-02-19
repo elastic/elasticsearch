@@ -326,7 +326,19 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
         filters.put("serbian_normalization", SerbianNormalizationFilterFactory::new);
         filters.put("snowball", SnowballTokenFilterFactory::new);
         filters.put("sorani_normalization", SoraniNormalizationFilterFactory::new);
-        filters.put("stemmer_override", requiresAnalysisSettings(StemmerOverrideTokenFilterFactory::new));
+        filters.put(
+            "stemmer_override",
+            requiresAnalysisSettings(
+                (i, e, n, s) -> new StemmerOverrideTokenFilterFactory(
+                    i,
+                    e,
+                    n,
+                    s,
+                    threadPoolHolder.get(),
+                    customDictionaryServiceHolder.get()
+                )
+            )
+        );
         filters.put("stemmer", StemmerTokenFilterFactory::new);
         // It doesn't really matter which child circuit breaker we use in the synonym filters because we only use them to trip on real
         // memory usage, which is only checked by the parent circuit breaker

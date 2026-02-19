@@ -838,12 +838,26 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
+     * Filters the proposed position narrowings before they are applied. Subclasses can override this to remove
+     * narrowings that are not valid for specific argument positions, e.g. to prevent NULL in a literal-only argument.
+     * @param positionNarrowing mutable map from argument position to narrowed type; remove entries to prevent narrowing
+     * @param data the original test case parameters for context
+     */
+    protected void filterCoAndContraVarianceNarrowing(
+        Map<Integer, DataType> positionNarrowing,
+        List<TestCaseSupplier.TypedData> data
+    ) {}
+
+    /**
      * Shared implementation: builds original and narrowed expressions, then asserts that the narrowed expression
      * resolves and its output type is acceptable.
      * @param data the original test case parameters
      * @param positionNarrowing maps argument positions to narrower types; positions not in the map keep their original type
      */
     private void assertCoAndContraVariance(List<TestCaseSupplier.TypedData> data, Map<Integer, DataType> positionNarrowing) {
+        filterCoAndContraVarianceNarrowing(positionNarrowing, data);
+        assumeTrue("no parameters can be narrowed after filtering", positionNarrowing.isEmpty() == false);
+
         Expression original = build(testCase.getSource(), data.stream().map(TestCaseSupplier.TypedData::asReference).toList());
         assertTrue("original expression should resolve", original.typeResolved().resolved());
         DataType originalOutputType = original.dataType();

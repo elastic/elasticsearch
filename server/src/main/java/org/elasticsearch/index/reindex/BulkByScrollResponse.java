@@ -67,7 +67,7 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         TimeValue took,
         BulkByScrollTask.Status status,
         List<Failure> bulkFailures,
-        List<ScrollableHitSource.SearchFailure> searchFailures,
+        List<PaginatedHitSource.SearchFailure> searchFailures,
         boolean timedOut,
         @Nullable ResumeInfo resumeInfo
     ) {

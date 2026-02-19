@@ -96,19 +96,19 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
         for (String rule : rules) {
             String[] sides = rule.split(mappingSep, -1);
             if (sides.length != 2) {
-                throw new RuntimeException("Invalid Keyword override Rule:" + rule);
+                throw new IllegalArgumentException("Invalid Keyword override Rule:" + rule);
             }
 
             String[] keys = sides[0].split(",", -1);
             String override = sides[1].trim();
             if (override.isEmpty() || override.indexOf(',') != -1) {
-                throw new RuntimeException("Invalid Keyword override Rule:" + rule);
+                throw new IllegalArgumentException("Invalid Keyword override Rule:" + rule);
             }
 
             for (String key : keys) {
                 String trimmedKey = key.trim();
                 if (trimmedKey.isEmpty()) {
-                    throw new RuntimeException("Invalid Keyword override Rule:" + rule);
+                    throw new IllegalArgumentException("Invalid Keyword override Rule:" + rule);
                 }
                 builder.add(trimmedKey, override);
             }

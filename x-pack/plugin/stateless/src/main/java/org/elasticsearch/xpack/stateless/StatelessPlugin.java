@@ -33,7 +33,6 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.create.AutoCreateAction;
 import org.elasticsearch.action.termvectors.EnsureDocsSearchableAction;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -54,7 +53,6 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RerouteService;
@@ -73,10 +71,8 @@ import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -88,7 +84,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
@@ -134,8 +129,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
-import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -190,14 +183,11 @@ import org.elasticsearch.xpack.stateless.autoscaling.search.load.AverageSearchLo
 import org.elasticsearch.xpack.stateless.autoscaling.search.load.SearchLoadProbe;
 import org.elasticsearch.xpack.stateless.autoscaling.search.load.SearchLoadSampler;
 import org.elasticsearch.xpack.stateless.autoscaling.search.load.TransportPublishSearchLoads;
-import org.elasticsearch.xpack.stateless.cache.ClearBlobCacheRestHandler;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcher;
 import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
-import org.elasticsearch.xpack.stateless.cache.action.ClearBlobCacheNodesResponse;
-import org.elasticsearch.xpack.stateless.cache.action.TransportClearBlobCacheAction;
 import org.elasticsearch.xpack.stateless.cache.reader.AtomicMutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
@@ -233,9 +223,6 @@ import org.elasticsearch.xpack.stateless.lucene.stats.GetAllShardSizesAction;
 import org.elasticsearch.xpack.stateless.lucene.stats.GetShardSizeAction;
 import org.elasticsearch.xpack.stateless.lucene.stats.ShardSizeStatsClient;
 import org.elasticsearch.xpack.stateless.lucene.stats.ShardSizeStatsReaderImpl;
-import org.elasticsearch.xpack.stateless.metering.GetBlobStoreStatsRestHandler;
-import org.elasticsearch.xpack.stateless.metering.action.GetBlobStoreStatsNodesResponse;
-import org.elasticsearch.xpack.stateless.metering.action.TransportGetBlobStoreStatsAction;
 import org.elasticsearch.xpack.stateless.multiproject.ProjectLifeCycleService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.gc.ObjectStoreGCTask;
@@ -253,7 +240,6 @@ import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformati
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
-import org.elasticsearch.xpack.stateless.reshard.RestReshardSplitAction;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.reshard.TransportReshardAction;
@@ -369,14 +355,6 @@ public class StatelessPlugin extends Plugin
      * The set of {@link ShardRouting.Role}s that we expect to see in a stateless deployment
      */
     public static final Set<ShardRouting.Role> STATELESS_SHARD_ROLES = Set.of(ShardRouting.Role.INDEX_ONLY, ShardRouting.Role.SEARCH_ONLY);
-
-    public static final ActionType<GetBlobStoreStatsNodesResponse> GET_BLOB_STORE_STATS_ACTION = new ActionType<>(
-        "cluster:monitor/stateless/blob_store/stats/get"
-    );
-
-    public static final ActionType<ClearBlobCacheNodesResponse> CLEAR_BLOB_CACHE_ACTION = new ActionType<>(
-        "cluster:admin/stateless/blob_cache/clear"
-    );
 
     /** Temporary feature flag setting for creating indices with a refresh block. Defaults to false. **/
     public static final Setting<Boolean> USE_INDEX_REFRESH_BLOCK_SETTING = Setting.boolSetting(
@@ -698,9 +676,6 @@ public class StatelessPlugin extends Plugin
                 TransportPublishIndexingOperationsHeapMemoryRequirements.class
             ),
             new ActionHandler(TransportPublishMergeMemoryEstimate.INSTANCE, TransportPublishMergeMemoryEstimate.class),
-
-            new ActionHandler(CLEAR_BLOB_CACHE_ACTION, TransportClearBlobCacheAction.class),
-            new ActionHandler(GET_BLOB_STORE_STATS_ACTION, TransportGetBlobStoreStatsAction.class),
             new ActionHandler(TransportNewCommitNotificationAction.TYPE, TransportNewCommitNotificationAction.class),
             new ActionHandler(TransportFetchShardCommitsInUseAction.TYPE, TransportFetchShardCommitsInUseAction.class),
             new ActionHandler(
@@ -721,21 +696,6 @@ public class StatelessPlugin extends Plugin
             new ActionHandler(StatelessUnpromotableRelocationAction.TYPE, TransportStatelessUnpromotableRelocationAction.class),
             new ActionHandler(TransportFetchSearchShardInformationAction.TYPE, TransportFetchSearchShardInformationAction.class)
         );
-    }
-
-    @Override
-    public Collection<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster,
-        Predicate<NodeFeature> clusterSupportsFeature
-    ) {
-        return List.of(new ClearBlobCacheRestHandler(), new GetBlobStoreStatsRestHandler(), new RestReshardSplitAction(settings));
     }
 
     @Override
@@ -1453,7 +1413,6 @@ public class StatelessPlugin extends Plugin
             StatelessThrottlingConcurrentRecoveriesAllocationDecider.CONCURRENT_PRIMARY_RECOVERIES_PER_HEAP_GB,
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING,
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
-            RestReshardSplitAction.RESHARD_ALLOWED,
             AutoCreateAction.AUTO_CREATE_INDEX_PRIORITY_SETTING,
             AutoCreateAction.AUTO_CREATE_INDEX_MAX_TIMEOUT_SETTING,
             MetadataCreateIndexService.CREATE_INDEX_PRIORITY_SETTING,

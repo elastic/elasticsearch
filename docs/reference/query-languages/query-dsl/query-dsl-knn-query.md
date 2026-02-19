@@ -66,24 +66,7 @@ PUT my-image-index
     ```
     % TEST[continued]
 
-3. You can also provide a base64-encoded query vector string. For example, `[-5, 9, -12]` encoded as float32 big-endian bytes is `wKAAAEEQAADBQAAA`.
-
-    ```console
-    POST my-image-index/_search
-    {
-      "size" : 3,
-      "query" : {
-        "knn": {
-          "field": "image-vector",
-          "query_vector": "wKAAAEEQAADBQAAA",
-          "k": 10
-        }
-      }
-    }
-    ```
-    % TEST[continued]
-
-4. You can also provide a hex-encoded query vector string. Hex query vectors are byte-oriented (one byte per dimension, represented as two hex characters). For example, `[-5, 9, -12]` as signed bytes is `fb09f4`.
+3. You can also provide a hex-encoded query vector string. Hex query vectors are byte-oriented (one byte per dimension, represented as two hex characters). For example, `[-5, 9, -12]` as signed bytes is `fb09f4`.
 
     ```console
     POST my-image-index/_search
@@ -100,6 +83,28 @@ PUT my-image-index
     ```
     % TEST[continued]
 
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+
+4. You can also provide a base64-encoded query vector string. For example, `[-5, 9, -12]` encoded as float32 big-endian bytes is `wKAAAEEQAADBQAAA`.
+
+    ```console
+    POST my-image-index/_search
+    {
+      "size" : 3,
+      "query" : {
+        "knn": {
+          "field": "image-vector",
+          "query_vector": "wKAAAEEQAADBQAAA",
+          "k": 10
+        }
+      }
+    }
+    ```
+    % TEST[continued]
+
 
 ## Top-level parameters for `knn` [knn-query-top-level-parameters]
 
@@ -108,7 +113,10 @@ PUT my-image-index
 
 
 `query_vector`
-:   (Optional, array of floats or string) Query vector. Must have the same number of dimensions as the vector field you are searching against. Must be either an array of floats, a hex-encoded byte vector (one byte per dimension; for `bit`, one byte per 8 dimensions), or a base64-encoded vector string. Base64 supports `float`, `bfloat16`, `byte`, and `bit` encodings depending on the target field type. Either this or `query_vector_builder` must be provided.
+:   (Optional, array of floats or string) Query vector. Must have the same number of dimensions as the vector field you are searching against.
+    Must be either an array of floats or a hex-encoded byte vector (one byte per dimension; for `bit`, one byte per 8 dimensions).
+    It can also be a base64-encoded vector string. Base64 supports `float`, `bfloat16`, `byte`, and `bit` encodings depending on the target field type. {applies_to}`stack: ga 9.4` {applies_to}`serverless: ga`
+    Either this or `query_vector_builder` must be provided.
 
 
 `query_vector_builder`

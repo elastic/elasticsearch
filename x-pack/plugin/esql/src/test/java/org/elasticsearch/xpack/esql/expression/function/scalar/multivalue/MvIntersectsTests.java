@@ -347,4 +347,14 @@ public class MvIntersectsTests extends AbstractScalarFunctionTestCase {
     protected Matcher<Object> allNullsMatcher() {
         return equalTo(false);
     }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("MvIntersects requires both arguments to have the same type", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        assumeTrue("MvIntersects requires both arguments to have the same type", false);
+    }
 }

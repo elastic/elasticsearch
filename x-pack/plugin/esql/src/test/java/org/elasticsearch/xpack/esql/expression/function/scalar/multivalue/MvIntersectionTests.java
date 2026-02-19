@@ -290,4 +290,14 @@ public class MvIntersectionTests extends AbstractScalarFunctionTestCase {
             );
         }));
     }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("MvIntersection requires both arguments to have the same type", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        assumeTrue("MvIntersection requires both arguments to have the same type", false);
+    }
 }

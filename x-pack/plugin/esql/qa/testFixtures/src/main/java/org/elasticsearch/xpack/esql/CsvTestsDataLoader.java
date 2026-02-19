@@ -887,325 +887,160 @@ public class CsvTestsDataLoader {
     }
 
     public enum TestDataset {
-        EMPLOYEES("employees", "mapping-default.json", "employees.csv", null, false, null, null, false, List.of()),
-        VOYAGER("voyager", "mapping-voyager.json", "voyager.csv", null, false, null, null, false, List.of()),
+        EMPLOYEES(builder("employees").mapping("mapping-default.json").data("employees.csv").noSubfields()),
+        VOYAGER(builder("voyager").mapping("mapping-voyager.json").data("voyager.csv").noSubfields()),
         EMPLOYEES_INCOMPATIBLE(
-            "employees_incompatible",
-            "mapping-default-incompatible.json",
-            "employees_incompatible.csv",
-            null,
-            false,
-            null,
-            null,
-            false,
-            List.of()
+            builder("employees_incompatible").mapping("mapping-default-incompatible.json").data("employees_incompatible.csv").noSubfields()
         ),
-        ALL_TYPES("all_types", "mapping-all-types.json", "all-types.csv"),
-        HOSTS("hosts"),
-        APPS("apps"),
-        APPS_SHORT("apps_short", "mapping-apps.json", "apps.csv", null, true, Map.of("id", "short"), null, false, List.of()),
-        MULTI_COLUMN_JOINABLE("multi_column_joinable", "mapping-multi_column_joinable.json", "multi_column_joinable.csv"),
+        ALL_TYPES(builder("all_types").mapping("mapping-all-types.json").data("all-types.csv")),
+        HOSTS(builder("hosts")),
+        APPS(builder("apps")),
+        APPS_SHORT(builder("apps_short").mapping("mapping-apps.json").data("apps.csv").typeMapping(Map.of("id", "short"))),
+        MULTI_COLUMN_JOINABLE(
+            builder("multi_column_joinable").mapping("mapping-multi_column_joinable.json").data("multi_column_joinable.csv")
+        ),
         MULTI_COLUMN_JOINABLE_LOOKUP(
-            "multi_column_joinable_lookup",
-            "mapping-multi_column_joinable_lookup.json",
-            "multi_column_joinable_lookup.csv",
-            "lookup-settings.json",
-            true,
-            null,
-            null,
-            false,
-            List.of()
+            builder("multi_column_joinable_lookup").mapping("mapping-multi_column_joinable_lookup.json")
+                .data("multi_column_joinable_lookup.csv")
+                .setting("lookup-settings.json")
         ),
-        LANGUAGES("languages"),
+        LANGUAGES(builder("languages")),
         LANGUAGES_LOOKUP(
-            "languages_lookup",
-            "mapping-languages.json",
-            "languages.csv",
-            "lookup-settings.json",
-            true,
-            null,
-            null,
-            false,
-            List.of()
+            builder("languages_lookup").mapping("mapping-languages.json").data("languages.csv").setting("lookup-settings.json")
         ),
-        LANGUAGES_NON_UNIQUE_KEY("languages_non_unique_key"),
+        LANGUAGES_NON_UNIQUE_KEY(builder("languages_non_unique_key")),
         LANGUAGES_LOOKUP_NON_UNIQUE_KEY(
-            "languages_lookup_non_unique_key",
-            "mapping-languages.json",
-            "languages_non_unique_key.csv",
-            "lookup-settings.json",
-            true,
-            null,
-            Map.of("country", "text"),
-            false,
-            List.of()
+            builder("languages_lookup_non_unique_key").mapping("mapping-languages.json")
+                .data("languages_non_unique_key.csv")
+                .setting("lookup-settings.json")
+                .dynamicTypeMapping(Map.of("country", "text"))
         ),
         LANGUAGES_NESTED_FIELDS(
-            "languages_nested_fields",
-            "mapping-languages_nested_fields.json",
-            "languages_nested_fields.csv",
-            "lookup-settings.json",
-            true,
-            null,
-            null,
-            false,
-            List.of()
+            builder("languages_nested_fields").mapping("mapping-languages_nested_fields.json")
+                .data("languages_nested_fields.csv")
+                .setting("lookup-settings.json")
         ),
-        LANGUAGES_MIX_NUMERICS(
-            "languages_mixed_numerics",
-            "mapping-languages_mixed_numerics.json",
-            "languages_mixed_numerics.csv",
-            "lookup-settings.json",
-            true,
-            null,
-            null,
-            false,
-            List.of()
-        ),
-        ALERTS("alerts"),
-        UL_LOGS("ul_logs"),
-        SAMPLE_DATA("sample_data"),
-        MV_SAMPLE_DATA("mv_sample_data"),
+        LANGUAGES_MIX_NUMERICS(builder("languages_mixed_numerics").setting("lookup-settings.json")),
+        ALERTS(builder("alerts")),
+        UL_LOGS(builder("ul_logs")),
+        SAMPLE_DATA(builder("sample_data")),
+        MV_SAMPLE_DATA(builder("mv_sample_data")),
         SAMPLE_DATA_STR(
-            "sample_data_str",
-            "mapping-sample_data.json",
-            "sample_data.csv",
-            null,
-            true,
-            Map.of("client_ip", "keyword"),
-            null,
-            false,
-            List.of()
+            builder("sample_data_str").mapping("mapping-sample_data.json")
+                .data("sample_data.csv")
+                .typeMapping(Map.of("client_ip", "keyword"))
         ),
         SAMPLE_DATA_TS_LONG(
-            "sample_data_ts_long",
-            "mapping-sample_data.json",
-            "sample_data_ts_long.csv",
-            null,
-            true,
-            Map.of("@timestamp", "long"),
-            null,
-            false,
-            List.of()
+            builder("sample_data_ts_long").mapping("mapping-sample_data.json")
+                .data("sample_data_ts_long.csv")
+                .typeMapping(Map.of("@timestamp", "long"))
         ),
         SAMPLE_DATA_TS_NANOS(
-            "sample_data_ts_nanos",
-            "mapping-sample_data.json",
-            "sample_data_ts_nanos.csv",
-            null,
-            true,
-            Map.of("@timestamp", "date_nanos"),
-            null,
-            false,
-            List.of()
+            builder("sample_data_ts_nanos").mapping("mapping-sample_data.json")
+                .data("sample_data_ts_nanos.csv")
+                .typeMapping(Map.of("@timestamp", "date_nanos"))
         ),
         // the double underscore is meant to not match `sample_data*`, but do match `sample_*`
         SAMPLE_DATA_TS_NANOS_LOOKUP(
-            "sample__data_ts_nanos_lookup",
-            "mapping-sample_data.json",
-            "sample_data_ts_nanos.csv",
-            "lookup-settings.json",
-            true,
-            Map.of("@timestamp", "date_nanos"),
-            null,
-            false,
-            List.of()
+            builder("sample__data_ts_nanos_lookup").mapping("mapping-sample_data.json")
+                .data("sample_data_ts_nanos.csv")
+                .setting("lookup-settings.json")
+                .typeMapping(Map.of("@timestamp", "date_nanos"))
         ),
-        MISSING_IP_SAMPLE_DATA("missing_ip_sample_data"),
-        SAMPLE_DATA_PARTIAL_MAPPING("partial_mapping_sample_data"),
+        MISSING_IP_SAMPLE_DATA(builder("missing_ip_sample_data")),
+        SAMPLE_DATA_PARTIAL_MAPPING(builder("partial_mapping_sample_data")),
         SAMPLE_DATA_NO_MAPPING(
-            "no_mapping_sample_data",
-            "mapping-no_mapping_sample_data.json",
-            "partial_mapping_sample_data.csv",
-            null,
-            true,
-            Map.of("timestamp", "keyword", "client_ip", "keyword", "event_duration", "keyword"),
-            null,
-            false,
-            List.of()
+            builder("no_mapping_sample_data").mapping("mapping-no_mapping_sample_data.json")
+                .data("partial_mapping_sample_data.csv")
+                .typeMapping(Map.of("timestamp", "keyword", "client_ip", "keyword", "event_duration", "keyword"))
         ),
         SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE(
-            "partial_mapping_no_source_sample_data",
-            "mapping-partial_mapping_no_source_sample_data.json",
-            "partial_mapping_sample_data.csv"
+            builder("partial_mapping_no_source_sample_data").mapping("mapping-partial_mapping_no_source_sample_data.json")
+                .data("partial_mapping_sample_data.csv")
         ),
         SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE(
-            "partial_mapping_excluded_source_sample_data",
-            "mapping-partial_mapping_excluded_source_sample_data.json",
-            "partial_mapping_sample_data.csv"
+            builder("partial_mapping_excluded_source_sample_data").mapping("mapping-partial_mapping_excluded_source_sample_data.json")
+                .data("partial_mapping_sample_data.csv")
         ),
-        CLIENT_IPS("clientips"),
+        CLIENT_IPS(builder("clientips")),
         CLIENT_IPS_LOOKUP(
-            "clientips_lookup",
-            "mapping-clientips.json",
-            "clientips.csv",
-            "lookup-settings.json",
-            true,
-            null,
-            null,
-            false,
-            List.of()
+            builder("clientips_lookup").mapping("mapping-clientips.json").data("clientips.csv").setting("lookup-settings.json")
         ),
-        MESSAGE_TYPES("message_types"),
+        MESSAGE_TYPES(builder("message_types")),
         MESSAGE_TYPES_LOOKUP(
-            "message_types_lookup",
-            "mapping-message_types.json",
-            "message_types.csv",
-            "lookup-settings.json",
-            true,
-            null,
-            null,
-            false,
-            List.of()
+            builder("message_types_lookup").mapping("mapping-message_types.json").data("message_types.csv").setting("lookup-settings.json")
         ),
-        FIREWALL_LOGS("firewall_logs", "mapping-firewall_logs.json", null),
-        THREAT_LIST("threat_list", "mapping-threat_list.json", null, "lookup-settings.json", true, null, null, false, List.of()),
-        APP_LOGS("app_logs", "mapping-app_logs.json", null),
-        SERVICE_OWNERS("service_owners", "mapping-service_owners.json", null, "lookup-settings.json", true, null, null, false, List.of()),
-        SYSTEM_METRICS("system_metrics", "mapping-system_metrics.json", null),
-        HOST_INVENTORY("host_inventory", "mapping-host_inventory.json", null, "lookup-settings.json", true, null, null, false, List.of()),
-        OWNERSHIPS("ownerships", "mapping-ownerships.json", null, "lookup-settings.json", true, null, null, false, List.of()),
-        CLIENT_CIDR("client_cidr"),
-        AGES("ages"),
-        HEIGHTS("heights"),
-        DECADES("decades"),
-        AIRPORTS("airports"),
-        AIRPORTS_MP("airports_mp", "mapping-airports.json", "airports_mp.csv", "lookup-settings.json", true, null, null, false, List.of()),
-        AIRPORTS_NO_DOC_VALUES("airports_no_doc_values", "mapping-airports_no_doc_values.json", "airports.csv"),
-        AIRPORTS_NOT_INDEXED("airports_not_indexed", "mapping-airports_not_indexed.json", "airports.csv"),
-        AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES(
-            "airports_not_indexed_nor_doc_values",
-            "mapping-airports_not_indexed_nor_doc_values.json",
-            "airports.csv"
-        ),
-        AIRPORTS_WEB("airports_web"),
-        DATE_NANOS("date_nanos"),
-        DATE_NANOS_UNION_TYPES("date_nanos_union_types"),
-        COUNTRIES_BBOX("countries_bbox"),
-        COUNTRIES_BBOX_WEB("countries_bbox_web"),
-        AIRPORT_CITY_BOUNDARIES(
-            "airport_city_boundaries",
-            "mapping-airport_city_boundaries.json",
-            "airport_city_boundaries.csv",
-            "lookup-settings.json",
-            true,
-            null,
-            null,
-            false,
-            List.of()
-        ),
-        CARTESIAN_MULTIPOLYGONS("cartesian_multipolygons"),
-        CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES(
-            "cartesian_multipolygons_no_doc_values",
-            "mapping-cartesian_multipolygons_no_doc_values.json",
-            "cartesian_multipolygons.csv"
-        ),
-        MULTIVALUE_GEOMETRIES("multivalue_geometries"),
-        MULTIVALUE_POINTS("multivalue_points"),
-        DISTANCES("distances"),
-        K8S("k8s", "k8s-mappings.json", "k8s.csv", "k8s-settings.json", true, null, null, false, List.of()),
-        K8S_DATENANOS("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv", "k8s-settings.json", true, null, null, false, List.of()),
+        FIREWALL_LOGS(builder("firewall_logs").noData()),
+        THREAT_LIST(builder("threat_list").noData().setting("lookup-settings.json")),
+        APP_LOGS(builder("app_logs").noData()),
+        SERVICE_OWNERS(builder("service_owners").noData().setting("lookup-settings.json")),
+        SYSTEM_METRICS(builder("system_metrics").noData()),
+        HOST_INVENTORY(builder("host_inventory").noData().setting("lookup-settings.json")),
+        OWNERSHIPS(builder("ownerships").noData().setting("lookup-settings.json")),
+        CLIENT_CIDR(builder("client_cidr")),
+        AGES(builder("ages")),
+        HEIGHTS(builder("heights")),
+        DECADES(builder("decades")),
+        AIRPORTS(builder("airports")),
+        AIRPORTS_MP(builder("airports_mp").mapping("mapping-airports.json").data("airports_mp.csv").setting("lookup-settings.json")),
+        AIRPORTS_NO_DOC_VALUES(builder("airports_no_doc_values").data("airports.csv")),
+        AIRPORTS_NOT_INDEXED(builder("airports_not_indexed").data("airports.csv")),
+        AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES(builder("airports_not_indexed_nor_doc_values").data("airports.csv")),
+        AIRPORTS_WEB(builder("airports_web")),
+        DATE_NANOS(builder("date_nanos")),
+        DATE_NANOS_UNION_TYPES(builder("date_nanos_union_types")),
+        COUNTRIES_BBOX(builder("countries_bbox")),
+        COUNTRIES_BBOX_WEB(builder("countries_bbox_web")),
+        AIRPORT_CITY_BOUNDARIES(builder("airport_city_boundaries").setting("lookup-settings.json")),
+        CARTESIAN_MULTIPOLYGONS(builder("cartesian_multipolygons")),
+        CARTESIAN_MULTIPOLYGONS_NO_DOC_VALUES(builder("cartesian_multipolygons_no_doc_values").data("cartesian_multipolygons.csv")),
+        MULTIVALUE_GEOMETRIES(builder("multivalue_geometries")),
+        MULTIVALUE_POINTS(builder("multivalue_points")),
+        DISTANCES(builder("distances")),
+        K8S(builder("k8s").mapping("k8s-mappings.json").data("k8s.csv").setting("k8s-settings.json")),
+        K8S_DATENANOS(builder("datenanos-k8s").mapping("k8s-mappings-date_nanos.json").data("k8s.csv").setting("k8s-settings.json")),
         K8S_DOWNSAMPLED(
-            "k8s-downsampled",
-            "k8s-downsampled-mappings.json",
-            "k8s-downsampled.csv",
-            "k8s-downsampled-settings.json",
-            true,
-            null,
-            null,
-            false,
-            List.of()
+            builder("k8s-downsampled").mapping("k8s-downsampled-mappings.json")
+                .data("k8s-downsampled.csv")
+                .setting("k8s-downsampled-settings.json")
         ),
-        ADDRESSES("addresses"),
-        BOOKS("books", "mapping-books.json", "books.csv", "books-settings.json", true, null, null, false, List.of()),
-        SEMANTIC_TEXT("semantic_text", "mapping-semantic_text.json", "semantic_text.csv", null, true, null, null, true, List.of()),
-        LOGS("logs"),
-        DENSE_VECTOR_TEXT("dense_vector_text"),
-        MV_TEXT("mv_text"),
-        DENSE_VECTOR("dense_vector"),
-        DENSE_VECTOR_BFLOAT16(
-            "dense_vector_bfloat16",
-            "mapping-dense_vector_bfloat16.json",
-            "dense_vector_bfloat16.csv",
-            null,
-            true,
-            null,
-            null,
-            false,
-            List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT)
-        ),
-        DENSE_VECTOR_ARITHMETIC("dense_vector_arithmetic"),
-        WEB_LOGS("web_logs"),
-        COLORS("colors"),
-        COLORS_CMYK_LOOKUP(
-            "colors_cmyk",
-            "mapping-colors_cmyk.json",
-            "colors_cmyk.csv",
-            "lookup-settings.json",
-            true,
-            null,
-            null,
-            false,
-            List.of()
-        ),
-        BASE_CONVERSION("base_conversion"),
+        ADDRESSES(builder("addresses")),
+        BOOKS(builder("books").setting("books-settings.json")),
+        SEMANTIC_TEXT(builder("semantic_text").inferenceEndpoint()),
+        LOGS(builder("logs")),
+        DENSE_VECTOR_TEXT(builder("dense_vector_text")),
+        MV_TEXT(builder("mv_text")),
+        DENSE_VECTOR(builder("dense_vector")),
+        DENSE_VECTOR_BFLOAT16(builder("dense_vector_bfloat16").requiredCapabilities(List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT))),
+        DENSE_VECTOR_ARITHMETIC(builder("dense_vector_arithmetic")),
+        WEB_LOGS(builder("web_logs")),
+        COLORS(builder("colors")),
+        COLORS_CMYK_LOOKUP(builder("colors_cmyk").setting("lookup-settings.json")),
+        BASE_CONVERSION(builder("base_conversion")),
         EXP_HISTO_SAMPLE(
-            "exp_histo_sample",
-            "exp_histo_sample-mappings.json",
-            "exp_histo_sample.csv",
-            "exp_histo_sample-settings.json",
-            true,
-            null,
-            null,
-            false,
-            List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW)
+            builder("exp_histo_sample").mapping("exp_histo_sample-mappings.json")
+                .data("exp_histo_sample.csv")
+                .setting("exp_histo_sample-settings.json")
+                .requiredCapabilities(List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW))
         ),
-        TDIGEST_STANDARD_INDEX(
-            "tdigest_standard_index",
-            "mapping-tdigest_standard_index.json",
-            "tdigest_standard_index.csv",
-            null,
-            true,
-            null,
-            null,
-            false,
-            List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW)
-        ),
+        TDIGEST_STANDARD_INDEX(builder("tdigest_standard_index").requiredCapabilities(List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW))),
         HISTOGRAM_STANDARD_INDEX(
-            "histogram_standard_index",
-            "mapping-histogram_standard_index.json",
-            "histogram_standard_index.csv",
-            null,
-            true,
-            null,
-            null,
-            false,
-            List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION)
+            builder("histogram_standard_index").requiredCapabilities(List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION))
         ),
         TDIGEST_TIMESERIES_INDEX(
-            "tdigest_timeseries_index",
-            "tdigest_timeseries_index-mappings.json",
-            "tdigest_standard_index.csv",
-            "tdigest_timeseries_index-settings.json",
-            true,
-            null,
-            null,
-            false,
-            List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW, EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC)
+            builder("tdigest_timeseries_index").mapping("tdigest_timeseries_index-mappings.json")
+                .data("tdigest_standard_index.csv")
+                .setting("tdigest_timeseries_index-settings.json")
+                .requiredCapabilities(List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW, EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC))
         ),
         HISTOGRAM_TIMESERIES_INDEX(
-            "histogram_timeseries_index",
-            "mapping-histogram_time_series_index.json",
-            "histogram_standard_index.csv",
-            "settings-histogram_time_series_index.json",
-            true,
-            null,
-            null,
-            false,
-            List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION)
+            builder("histogram_timeseries_index").mapping("mapping-histogram_time_series_index.json")
+                .data("histogram_standard_index.csv")
+                .setting("settings-histogram_time_series_index.json")
+                .requiredCapabilities(List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION))
         ),
-        MANY_NUMBERS("many_numbers"),
-        MMR_TEXT_VECTOR_KEYWORD("mmr_text_vector_keyword");
+        MANY_NUMBERS(builder("many_numbers")),
+        MMR_TEXT_VECTOR_KEYWORD(builder("mmr_text_vector_keyword"));
 
         private final String indexName;
         private final String mappingFileName;
@@ -1219,34 +1054,20 @@ public class CsvTestsDataLoader {
         private final boolean requiresInferenceEndpoint;
         private final List<EsqlCapabilities.Cap> requiredCapabilities;
 
-        TestDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, false, List.of());
+        TestDataset(Builder builder) {
+            this.indexName = builder.indexName;
+            this.mappingFileName = builder.mappingFileName;
+            this.dataFileName = builder.dataFileName;
+            this.settingFileName = builder.settingFileName;
+            this.allowSubFields = builder.allowSubFields;
+            this.typeMapping = builder.typeMapping;
+            this.dynamicTypeMapping = builder.dynamicTypeMapping;
+            this.requiresInferenceEndpoint = builder.requiresInferenceEndpoint;
+            this.requiredCapabilities = builder.requiredCapabilities;
         }
 
-        TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, null, false, List.of());
-        }
-
-        TestDataset(
-            String indexName,
-            String mappingFileName,
-            String dataFileName,
-            String settingFileName,
-            boolean allowSubFields,
-            @Nullable Map<String, String> typeMapping,
-            @Nullable Map<String, String> dynamicTypeMapping,
-            boolean requiresInferenceEndpoint,
-            List<EsqlCapabilities.Cap> requiredCapabilities
-        ) {
-            this.indexName = indexName;
-            this.mappingFileName = mappingFileName;
-            this.dataFileName = dataFileName;
-            this.settingFileName = settingFileName;
-            this.allowSubFields = allowSubFields;
-            this.typeMapping = typeMapping;
-            this.dynamicTypeMapping = dynamicTypeMapping;
-            this.requiresInferenceEndpoint = requiresInferenceEndpoint;
-            this.requiredCapabilities = requiredCapabilities;
+        private static Builder builder(String indexName) {
+            return new Builder(indexName);
         }
 
         public String indexName() {
@@ -1303,6 +1124,69 @@ public class CsvTestsDataLoader {
 
         public InputStream streamData() {
             return getResourceStream("/data/" + dataFileName);
+        }
+
+        private static class Builder {
+            private final String indexName;
+            private String mappingFileName;
+            private String dataFileName;
+            private String settingFileName;
+            private boolean allowSubFields = true;
+            private Map<String, String> typeMapping;
+            private Map<String, String> dynamicTypeMapping;
+            private boolean requiresInferenceEndpoint;
+            private List<EsqlCapabilities.Cap> requiredCapabilities = List.of();
+
+            Builder(String indexName) {
+                this.indexName = indexName;
+                this.mappingFileName = "mapping-" + indexName + ".json";
+                this.dataFileName = indexName + ".csv";
+            }
+
+            Builder mapping(String mappingFileName) {
+                this.mappingFileName = mappingFileName;
+                return this;
+            }
+
+            Builder data(String dataFileName) {
+                this.dataFileName = dataFileName;
+                return this;
+            }
+
+            Builder noData() {
+                this.dataFileName = null;
+                return this;
+            }
+
+            Builder setting(String settingFileName) {
+                this.settingFileName = settingFileName;
+                return this;
+            }
+
+            Builder noSubfields() {
+                this.allowSubFields = false;
+                return this;
+            }
+
+            Builder typeMapping(Map<String, String> typeMapping) {
+                this.typeMapping = typeMapping;
+                return this;
+            }
+
+            Builder dynamicTypeMapping(Map<String, String> dynamicTypeMapping) {
+                this.dynamicTypeMapping = dynamicTypeMapping;
+                return this;
+            }
+
+            Builder inferenceEndpoint() {
+                this.requiresInferenceEndpoint = true;
+                return this;
+            }
+
+            Builder requiredCapabilities(List<EsqlCapabilities.Cap> requiredCapabilities) {
+                this.requiredCapabilities = requiredCapabilities;
+                return this;
+            }
         }
     }
 

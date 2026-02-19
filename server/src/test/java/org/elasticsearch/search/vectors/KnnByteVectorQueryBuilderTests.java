@@ -26,7 +26,7 @@ public class KnnByteVectorQueryBuilderTests extends AbstractKnnVectorQueryBuilde
         RescoreVectorBuilder rescoreVectorBuilder,
         Float similarity
     ) {
-        byte[] vector = new byte[vectorDimensions];
+        float[] vector = new float[vectorDimensions];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomByte();
         }

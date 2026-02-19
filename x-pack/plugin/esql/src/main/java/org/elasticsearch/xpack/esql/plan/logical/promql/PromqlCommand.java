@@ -55,6 +55,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     private final Literal start;
     private final Literal end;
     private final Literal step;
+    private final Literal buckets;
+    private final Literal scrapeInterval;
     // TODO: this should be made available through the planner
     private final Expression timestamp;
     private final String valueColumnName;
@@ -70,10 +72,12 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         Literal start,
         Literal end,
         Literal step,
+        Literal buckets,
+        Literal scrapeInterval,
         String valueColumnName,
         Expression timestamp
     ) {
-        this(source, child, promqlPlan, start, end, step, valueColumnName, new NameId(), new NameId(), timestamp);
+        this(source, child, promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, new NameId(), new NameId(), timestamp);
     }
 
     // Range query constructor
@@ -84,6 +88,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         Literal start,
         Literal end,
         Literal step,
+        Literal buckets,
+        Literal scrapeInterval,
         String valueColumnName,
         NameId valueId,
         NameId stepId,
@@ -94,6 +100,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         this.start = start;
         this.end = end;
         this.step = step;
+        this.buckets = buckets;
+        this.scrapeInterval = scrapeInterval;
         this.valueColumnName = valueColumnName;
         this.valueId = valueId;
         this.stepId = stepId;
@@ -110,6 +118,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
             start(),
             end(),
             step(),
+            buckets(),
+            scrapeInterval(),
             valueColumnName(),
             valueId(),
             stepId(),
@@ -126,6 +136,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
             start(),
             end(),
             step(),
+            buckets(),
+            scrapeInterval(),
             valueColumnName(),
             valueId(),
             stepId(),
@@ -141,6 +153,25 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
             start(),
             end(),
             step(),
+            buckets(),
+            scrapeInterval(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
+    }
+
+    public PromqlCommand withStartEnd(Literal start, Literal end) {
+        return new PromqlCommand(
+            source(),
+            child(),
+            promqlPlan(),
+            start,
+            end,
+            step(),
+            buckets(),
+            scrapeInterval(),
             valueColumnName(),
             valueId(),
             stepId(),
@@ -184,12 +215,30 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         return step;
     }
 
+    /**
+     * Number of buckets for auto-derived range-query bucket size.
+     */
+    public Literal buckets() {
+        return buckets;
+    }
+
+    /**
+     * The expected scrape interval used to derive implicit range selector windows.
+     */
+    public Literal scrapeInterval() {
+        return scrapeInterval;
+    }
+
+    public boolean hasTimeRange() {
+        return start.value() != null && end.value() != null;
+    }
+
     public boolean isInstantQuery() {
-        return step.value() == null;
+        return step.value() == null && buckets.value() == null;
     }
 
     public boolean isRangeQuery() {
-        return step.value() != null;
+        return isInstantQuery() == false;
     }
 
     public String valueColumnName() {
@@ -223,7 +272,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), promqlPlan, start, end, step, valueColumnName, valueId, stepId, timestamp);
+        return Objects.hash(child(), promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, valueId, stepId, timestamp);
     }
 
     @Override
@@ -236,6 +285,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                 && Objects.equals(start, other.start)
                 && Objects.equals(end, other.end)
                 && Objects.equals(step, other.step)
+                && Objects.equals(buckets, other.buckets)
+                && Objects.equals(scrapeInterval, other.scrapeInterval)
                 && Objects.equals(valueColumnName, other.valueColumnName)
                 && Objects.equals(valueId, other.valueId)
                 && Objects.equals(stepId, other.stepId)
@@ -252,6 +303,8 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         sb.append(" start=[").append(start);
         sb.append("] end=[").append(end);
         sb.append("] step=[").append(step);
+        sb.append("] buckets=[").append(buckets);
+        sb.append("] scrape_interval=[").append(scrapeInterval);
         sb.append("] valueColumnName=[").append(valueColumnName);
         sb.append("] promql=[<>\n");
         sb.append(promqlPlan.toString());
@@ -270,6 +323,22 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     @Override
     public void postAnalysisVerification(Failures failures) {
         LogicalPlan p = promqlPlan();
+        boolean hasStep = step.value() != null;
+        boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;
+        if (hasStep == false && hasRangeAndBuckets == false) {
+            failures.add(
+                fail(
+                    this,
+                    "unable to create a bucket; provide either [{}] or all of [{}], [{}], and [{}] [{}]",
+                    "step",
+                    "start",
+                    "end",
+                    "buckets",
+                    sourceText()
+                )
+            );
+            return;
+        }
         // TODO(sidosera): Remove once instant query support is added.
         if (isInstantQuery()) {
             failures.add(fail(p, "instant queries are not supported at this time [{}]", sourceText()));

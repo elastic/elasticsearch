@@ -3229,6 +3229,14 @@ public class FieldNameUtilsTests extends ESTestCase {
         );
     }
 
+    public void testUriPartsResolvesOnlyInput() {
+        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assertFieldNames("""
+            from employees
+            | uri_parts u = first_name
+            | keep u.domain""", Set.of("_index", "first_name", "first_name.*"));
+    }
+
     private void assertFieldNames(String query, Set<String> expected) {
         assertFieldNames(query, false, expected, Set.of());
     }

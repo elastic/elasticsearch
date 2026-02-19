@@ -78,3 +78,9 @@ The [`STATS`](/reference/query-languages/esql/commands/stats-by.md) and [`INLINE
 
 :::{include} ../_snippets/functions/layout/last.md
 :::
+
+:::{include} ../_snippets/functions/layout/earliest.md
+:::
+
+:::{include} ../_snippets/functions/layout/latest.md
+:::

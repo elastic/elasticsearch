@@ -17,5 +17,7 @@
 * [`VALUES`](../../functions-operators/aggregation-functions.md#esql-values) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`VARIANCE`](../../functions-operators/aggregation-functions.md#esql-variance)
 * [`WEIGHTED_AVG`](../../functions-operators/aggregation-functions.md#esql-weighted_avg)
-* [`FIRST`](../../functions-operators/aggregation-functions.md#esql-first)
-* [`LAST`](../../functions-operators/aggregation-functions.md#esql-last)
+* [`FIRST`](../../functions-operators/aggregation-functions.md#esql-first) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+* [`LAST`](../../functions-operators/aggregation-functions.md#esql-last) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+* [`EARLIEST`](../../functions-operators/aggregation-functions.md#esql-earliest) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`
+* [`LATEST`](../../functions-operators/aggregation-functions.md#esql-latest) {applies_to}`stack: preview 9.4.0` {applies_to}`serverless: preview`

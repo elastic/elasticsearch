@@ -2183,6 +2183,11 @@ public class EsqlCapabilities {
          */
         REGISTERED_DOMAIN_COMMAND,
 
+        /**
+         * An alias for calling FIRST (or LAST) and only passing the search field. The sort field is implicit, and it set to @timestamp.
+         */
+        EARLIEST_LATEST_AGGS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

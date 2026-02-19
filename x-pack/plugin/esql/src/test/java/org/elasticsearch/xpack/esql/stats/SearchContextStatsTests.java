@@ -166,8 +166,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     }
 
     public void testPointValuesMinMaxRounding() throws IOException {
-        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
-        };
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
         final List<SearchExecutionContext> contexts = new ArrayList<>();
         final List<Closeable> toClose = new ArrayList<>();
 
@@ -214,8 +213,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
                     .build();
             }
         };
-        final MapperServiceTestCase standardHelper = new MapperServiceTestCase() {
-        };
+        final MapperServiceTestCase standardHelper = new MapperServiceTestCase() {};
         final List<SearchExecutionContext> contexts = new ArrayList<>();
         final List<Closeable> toClose = new ArrayList<>();
 

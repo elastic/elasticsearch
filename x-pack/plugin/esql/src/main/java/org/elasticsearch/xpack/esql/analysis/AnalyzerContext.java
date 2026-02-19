@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -31,7 +30,6 @@ public class AnalyzerContext {
     private final Map<String, IndexResolution> lookupResolution;
     private final EnrichResolution enrichResolution;
     private final InferenceResolution inferenceResolution;
-    private final ExternalSourceResolution externalSourceResolution;
     private final TransportVersion minimumVersion;
     private final ProjectMetadata projectMetadata;
     private Boolean hasRemoteIndices;
@@ -45,7 +43,6 @@ public class AnalyzerContext {
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
-        ExternalSourceResolution externalSourceResolution,
         TransportVersion minimumVersion,
         UnmappedResolution unmappedResolution
     ) {
@@ -56,7 +53,6 @@ public class AnalyzerContext {
         this.lookupResolution = lookupResolution;
         this.enrichResolution = enrichResolution;
         this.inferenceResolution = inferenceResolution;
-        this.externalSourceResolution = externalSourceResolution;
         this.minimumVersion = minimumVersion;
         this.unmappedResolution = unmappedResolution;
 
@@ -84,7 +80,6 @@ public class AnalyzerContext {
             lookupResolution,
             enrichResolution,
             inferenceResolution,
-            ExternalSourceResolution.EMPTY,
             minimumVersion,
             unmappedResolution
         );
@@ -112,10 +107,6 @@ public class AnalyzerContext {
 
     public InferenceResolution inferenceResolution() {
         return inferenceResolution;
-    }
-
-    public ExternalSourceResolution externalSourceResolution() {
-        return externalSourceResolution;
     }
 
     public TransportVersion minimumVersion() {
@@ -173,7 +164,6 @@ public class AnalyzerContext {
             result.lookupIndices(),
             result.enrichResolution(),
             result.inferenceResolution(),
-            result.externalSourceResolution(),
             result.minimumTransportVersion(),
             unmappedResolution
         );

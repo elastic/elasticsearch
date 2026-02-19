@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
-import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
@@ -66,12 +65,6 @@ public class MapperUtils {
     static PhysicalPlan mapLeaf(LeafPlan p) {
         if (p instanceof LocalRelation local) {
             return new LocalSourceExec(local.source(), local.output(), local.supplier());
-        }
-
-        // External data sources (Iceberg, Parquet, etc.)
-        // These are executed on the coordinator only, bypassing FragmentExec/ExchangeExec dispatch
-        if (p instanceof ExternalRelation external) {
-            return external.toPhysicalExec();
         }
 
         // Commands

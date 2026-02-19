@@ -93,15 +93,19 @@ class NativeWindowsServiceControl implements WindowsServiceControl {
             try {
                 MemorySegment service = openService(scManager, serviceId, arena);
                 try {
-                    MemorySegment buffer = arena.allocate(Advapi32.SERVICE_STATUS_PROCESS_LAYOUT);
                     MemorySegment bytesNeeded = arena.allocate(JAVA_INT);
-                    if (advapi32.queryServiceStatusEx(
-                        service,
-                        buffer,
-                        (int) Advapi32.SERVICE_STATUS_PROCESS_LAYOUT.byteSize(),
-                        bytesNeeded
-                    ) == false) {
-                        throw new WindowsServiceException("Failed to query status of service '" + serviceId + "'", advapi32.getLastError());
+                    // Call QueryServiceStatusEx with a NULL buffer to get the required buffer size
+                    advapi32.queryServiceStatusEx(service, MemorySegment.NULL, 0, bytesNeeded);
+                    var lastError = advapi32.getLastError();
+                    if (lastError != Advapi32.ERROR_INSUFFICIENT_BUFFER) {
+                        throw new WindowsServiceException("Failed to query status of service '" + serviceId + "'", lastError);
+                    }
+
+                    // Then call it again with a correctly sized buffer
+                    var bufferSize = bytesNeeded.get(JAVA_INT, 0);
+                    MemorySegment buffer = arena.allocate(bufferSize);
+                    if (advapi32.queryServiceStatusEx(service, buffer, bufferSize, bytesNeeded) == false) {
+                        throw new WindowsServiceException("Failed to query status of service '" + serviceId + "'", lastError);
                     }
                     return new ServiceStatus(
                         (int) Advapi32.dwCurrentState$vh.get(buffer),

@@ -20,6 +20,7 @@ import org.elasticsearch.service.windows.WindowsServiceException;
 
 import java.time.Duration;
 import java.util.Locale;
+import java.util.function.Predicate;
 
 /**
  * Stops the Elasticsearch Windows service.
@@ -37,6 +38,7 @@ class WindowsServiceStopCommand extends ScmCommand {
     static final Duration DEFAULT_STOP_TIMEOUT = Duration.ofMinutes(5);
     static final Duration MIN_POLL_INTERVAL = Duration.ofSeconds(1);
     static final Duration MAX_POLL_INTERVAL = Duration.ofSeconds(10);
+    static final Duration DEFAULT_POLL_INTERVAL = Duration.ofSeconds(2);
 
     WindowsServiceStopCommand() {
         this(WindowsServiceControl.create());
@@ -53,18 +55,16 @@ class WindowsServiceStopCommand extends ScmCommand {
 
     @Override
     protected void postExecute(Terminal terminal, ProcessInfo pinfo, String serviceId) throws Exception {
-        Duration timeout = getStopTimeout(pinfo);
-        waitForStopped(terminal, serviceId, timeout);
+        waitForStopped(terminal, serviceId, getStopTimeout(pinfo));
     }
 
     /**
      * Polls the service status until it reaches STOPPED or the timeout expires.
      * Uses {@code dwWaitHint} from the service to determine poll intervals.
      */
-    void waitForStopped(Terminal terminal, String serviceId, Duration timeout) throws UserException {
+    void waitForStopped(Terminal terminal, String serviceId, Predicate<Duration> isTimedOut) throws UserException {
         terminal.println(String.format(Locale.ROOT, "Waiting for service '%s' to stop...", serviceId));
         long start = System.currentTimeMillis();
-        int lastCheckPoint = -1;
 
         while (true) {
             ServiceStatus status = queryStatus(serviceId);
@@ -73,7 +73,7 @@ class WindowsServiceStopCommand extends ScmCommand {
             }
 
             Duration elapsed = Duration.ofMillis(System.currentTimeMillis() - start);
-            if (elapsed.compareTo(timeout) > 0) {
+            if (isTimedOut.test(elapsed)) {
                 String msg = String.format(
                     Locale.ROOT,
                     "Timed out after %s waiting for service '%s' to stop (last state: %s)",
@@ -92,10 +92,6 @@ class WindowsServiceStopCommand extends ScmCommand {
                 );
             }
 
-            if (status.checkPoint() != lastCheckPoint) {
-                lastCheckPoint = status.checkPoint();
-            }
-
             Duration pollInterval = computePollInterval(status);
             logger.debug("Service [{}] in state [{}], waiting [{}]", serviceId, status.stateName(), pollInterval);
             terminal.println(
@@ -104,6 +100,8 @@ class WindowsServiceStopCommand extends ScmCommand {
             );
 
             try {
+                // It is OK call sleep here, we need to wait for the service to stop
+                // noinspection BusyWait
                 Thread.sleep(pollInterval.toMillis());
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -131,7 +129,7 @@ class WindowsServiceStopCommand extends ScmCommand {
             }
             return Duration.ofMillis(interval);
         }
-        return Duration.ofSeconds(2);
+        return DEFAULT_POLL_INTERVAL;
     }
 
     ServiceStatus queryStatus(String serviceId) {
@@ -143,16 +141,23 @@ class WindowsServiceStopCommand extends ScmCommand {
         }
     }
 
-    private static Duration getStopTimeout(ProcessInfo pinfo) {
+    private static Predicate<Duration> getStopTimeout(ProcessInfo pinfo) {
         String timeoutStr = pinfo.envVars().get("ES_STOP_TIMEOUT");
         if (timeoutStr != null && timeoutStr.isBlank() == false) {
             try {
-                return Duration.ofSeconds(Long.parseLong(timeoutStr));
+                long timeoutInSeconds = Long.parseLong(timeoutStr);
+                if (timeoutInSeconds > 0) {
+                    var timeout = Duration.ofSeconds(timeoutInSeconds);
+                    return elapsed -> elapsed.compareTo(timeout) > 0;
+                } else {
+                    // 0 means no timeout
+                    return elapsed -> false;
+                }
             } catch (NumberFormatException e) {
                 logger.warn("Invalid ES_STOP_TIMEOUT value [{}], using default", timeoutStr);
             }
         }
-        return DEFAULT_STOP_TIMEOUT;
+        return elapsed -> elapsed.compareTo(DEFAULT_STOP_TIMEOUT) > 0;
     }
 
     @Override

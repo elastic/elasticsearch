@@ -30,6 +30,9 @@ import static java.lang.foreign.ValueLayout.JAVA_INT;
  */
 class Advapi32 {
 
+    // See https://learn.microsoft.com/en-us/windows/win32/debug/system-error-codes--0-499-
+    public static final int ERROR_INSUFFICIENT_BUFFER = 0x7A;
+
     // --- Access rights ---
 
     /** Required to connect to the SCM and enumerate/open services. */

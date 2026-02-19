@@ -474,6 +474,11 @@ public final class EsqlTestUtils {
         }
 
         @Override
+        public boolean supportsGeometryDocValueReconstruction(FieldName name) {
+            return true;
+        }
+
+        @Override
         public Map<ShardId, IndexMetadata> targetShards() {
             return Map.of();
         }
@@ -497,7 +502,8 @@ public final class EsqlTestUtils {
             INDEXED,
             DOC_VALUES,
             EXACT_SUBFIELD,
-            VALUE_QUERIES
+            VALUE_QUERIES,
+            GEOMETRY_DOC_VALUE_RECONSTRUCTION
         }
 
         private final Map<Config, Set<String>> includes = new HashMap<>();
@@ -561,6 +567,11 @@ public final class EsqlTestUtils {
         @Override
         public String constantValue(FieldName name) {
             return constantValues.get(name.string());
+        }
+
+        @Override
+        public boolean supportsGeometryDocValueReconstruction(FieldName field) {
+            return isConfigationSet(Config.GEOMETRY_DOC_VALUE_RECONSTRUCTION, field.string());
         }
 
         @Override

@@ -35,23 +35,24 @@ wkt:keyword | simplified:geo_point
 stSimplifyCityBoundaries
 required_capability: st_intersects
 required_capability: st_simplify
+required_capability: st_npoints
 
 // tag::st_simplify_city_boundaries[]
 FROM airport_city_boundaries
 | WHERE ST_INTERSECTS(city_location, TO_GEOSHAPE("POLYGON ((7.998 53.827, 9.470 53.068, 15.754 53.801, 16.523 57.160, 11.162 57.868, 8.064 57.445, 6.219 55.317, 7.998 53.827))"))
-| EVAL o_len = LENGTH(TO_STRING(city_boundary))
+| EVAL o_len = ST_NPOINTS(city_boundary)
 | EVAL city_boundary = ST_SIMPLIFY(city_boundary, 0.05)
-| EVAL s_len = LENGTH(TO_STRING(city_boundary))
+| EVAL s_len = ST_NPOINTS(city_boundary)
 | SORT city
 | KEEP city, o_len, s_len, city_boundary
 // end::st_simplify_city_boundaries[]
 ;
 
 // tag::st_simplify_city_boundaries-result[]
-city:keyword | o_len:i | s_len:i | city_boundary:geo_shape
-Copenhagen   | 265     | 76      | POLYGON ((12.453 55.7122, 12.5332 55.6318, 12.6398 55.7224, 12.453 55.7122))
-Gothenburg   | 112     | 78      | POLYGON ((11.8941 57.6889, 12.0885 57.6823, 12.0541 57.7338, 11.8941 57.6889))
-Norderstedt  | 221     | 75      | POLYGON ((9.9348 53.6785, 10.0729 53.7097, 9.9833 53.7595, 9.9348 53.6785))
+city:keyword | o_len:integer | s_len:integer | city_boundary:geo_shape
+Copenhagen   | 15            | 4             | POLYGON ((12.45299999602139 55.71219999343157, 12.533199973404408 55.63179998192936, 12.639799928292632 55.72239997331053, 12.45299999602139 55.71219999343157))
+Gothenburg   | 6             | 4             | POLYGON ((11.894099973142147 57.68889998551458, 12.088499944657087 57.68229999113828, 12.054099943488836 57.73379999678582, 11.894099973142147 57.68889998551458))
+Norderstedt  | 13            | 4             | POLYGON ((9.934799931943417 53.678499958477914, 10.072899917140603 53.70969995856285, 9.983299970626831 53.759499988518655, 9.934799931943417 53.678499958477914))
 // end::st_simplify_city_boundaries-result[]
 ;
 
@@ -124,8 +125,8 @@ ROW wkt = ["POINT(-97.11 95.53)", "POINT(80.93 72.77)"]
 ;
 
 result:cartesian_point
-POINT (-97.11 95.53)
-POINT (80.93 72.77)
+POINT (-97.11000061035156 95.52999877929688)
+POINT (80.93000030517578 72.7699966430664)
 ;
 
 stSimplifyCartesianShape
@@ -139,7 +140,7 @@ ROW wkt = ["POINT(97.11 75.53)", "POLYGON((0 0, 1 0.1, 2 0, 2 2, 1 1.9, 0 2, 0 0
 ;
 
 result:cartesian_shape
-POINT (97.11 75.53)
+POINT (97.11000061035156 75.52999877929688)
 POLYGON ((0.0 0.0, 2.0 0.0, 2.0 2.0, 0.0 2.0, 0.0 0.0))
 ;
 

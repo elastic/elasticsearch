@@ -409,6 +409,11 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                 // excluded: they keep no doc value and load their value from the parent.
                 return new GeometrySourceBlockLoader(GeometrySourceDocValuesField.fieldName(name()));
             }
+            if (blContext.fieldExtractPreference() == FieldExtractPreference.DOC_VALUES
+                && hasDocValues()
+                && supportsGeometryDocValueReconstruction()) {
+                return new GeoGeometryBlockLoader(name());
+            }
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return blockLoaderFromFallbackSyntheticSource(blContext);
@@ -436,6 +441,12 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
 
             GeoBoundsAndCentroidBlockLoader(String fieldName, GeometryDocValueFormat format) {
                 super(fieldName, CoordinateEncoder.GEO, format);
+            }
+        }
+
+        static class GeoGeometryBlockLoader extends AbstractShapeGeometryFieldMapper.AbstractShapeGeometryFieldType.GeometryBlockLoader {
+            GeoGeometryBlockLoader(String fieldName) {
+                super(fieldName, CoordinateEncoder.GEO);
             }
         }
     }

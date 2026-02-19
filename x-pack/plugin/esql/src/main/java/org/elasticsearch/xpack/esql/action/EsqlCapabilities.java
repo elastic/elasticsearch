@@ -2168,6 +2168,11 @@ public class EsqlCapabilities {
          */
         URI_PARTS_COMMAND,
 
+        /**
+         * Support for {@code MEDIAN} aggregation on {@code tdigest} type fields.
+         */
+        TDIGEST_MEDIAN,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

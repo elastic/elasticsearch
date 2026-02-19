@@ -887,38 +887,32 @@ public class CsvTestsDataLoader {
     }
 
     public enum TestDataset {
-        EMPLOYEES(builder("employees").mapping("mapping-default.json").data("employees.csv").noSubfields()),
-        VOYAGER(builder("voyager").mapping("mapping-voyager.json").data("voyager.csv").noSubfields()),
+        EMPLOYEES(builder("employees", "mapping-default.json", "employees.csv").noSubfields()),
+        VOYAGER(builder("voyager", "mapping-voyager.json", "voyager.csv").noSubfields()),
         EMPLOYEES_INCOMPATIBLE(
-            builder("employees_incompatible").mapping("mapping-default-incompatible.json").data("employees_incompatible.csv").noSubfields()
+            builder("employees_incompatible", "mapping-default-incompatible.json", "employees_incompatible.csv").noSubfields()
         ),
-        ALL_TYPES(builder("all_types").mapping("mapping-all-types.json").data("all-types.csv")),
+        ALL_TYPES(builder("all_types", "mapping-all-types.json", "all-types.csv")),
         HOSTS(builder("hosts")),
         APPS(builder("apps")),
-        APPS_SHORT(builder("apps_short").mapping("mapping-apps.json").data("apps.csv").typeMapping(Map.of("id", "short"))),
-        MULTI_COLUMN_JOINABLE(
-            builder("multi_column_joinable").mapping("mapping-multi_column_joinable.json").data("multi_column_joinable.csv")
-        ),
+        APPS_SHORT(builder("apps_short", "mapping-apps.json", "apps.csv").typeMapping(Map.of("id", "short"))),
+        MULTI_COLUMN_JOINABLE(builder("multi_column_joinable", "mapping-multi_column_joinable.json", "multi_column_joinable.csv")),
         MULTI_COLUMN_JOINABLE_LOOKUP(
-            builder("multi_column_joinable_lookup").mapping("mapping-multi_column_joinable_lookup.json")
-                .data("multi_column_joinable_lookup.csv")
+            builder("multi_column_joinable_lookup", "mapping-multi_column_joinable_lookup.json", "multi_column_joinable_lookup.csv")
                 .setting("lookup-settings.json")
         ),
         LANGUAGES(builder("languages")),
-        LANGUAGES_LOOKUP(
-            builder("languages_lookup").mapping("mapping-languages.json").data("languages.csv").setting("lookup-settings.json")
-        ),
+        LANGUAGES_LOOKUP(builder("languages_lookup", "mapping-languages.json", "languages.csv").setting("lookup-settings.json")),
         LANGUAGES_NON_UNIQUE_KEY(builder("languages_non_unique_key")),
         LANGUAGES_LOOKUP_NON_UNIQUE_KEY(
-            builder("languages_lookup_non_unique_key").mapping("mapping-languages.json")
-                .data("languages_non_unique_key.csv")
-                .setting("lookup-settings.json")
-                .dynamicTypeMapping(Map.of("country", "text"))
+            builder("languages_lookup_non_unique_key", "mapping-languages.json", "languages_non_unique_key.csv").setting(
+                "lookup-settings.json"
+            ).dynamicTypeMapping(Map.of("country", "text"))
         ),
         LANGUAGES_NESTED_FIELDS(
-            builder("languages_nested_fields").mapping("mapping-languages_nested_fields.json")
-                .data("languages_nested_fields.csv")
-                .setting("lookup-settings.json")
+            builder("languages_nested_fields", "mapping-languages_nested_fields.json", "languages_nested_fields.csv").setting(
+                "lookup-settings.json"
+            )
         ),
         LANGUAGES_MIX_NUMERICS(builder("languages_mixed_numerics").setting("lookup-settings.json")),
         ALERTS(builder("alerts")),
@@ -926,49 +920,47 @@ public class CsvTestsDataLoader {
         SAMPLE_DATA(builder("sample_data")),
         MV_SAMPLE_DATA(builder("mv_sample_data")),
         SAMPLE_DATA_STR(
-            builder("sample_data_str").mapping("mapping-sample_data.json")
-                .data("sample_data.csv")
-                .typeMapping(Map.of("client_ip", "keyword"))
+            builder("sample_data_str", "mapping-sample_data.json", "sample_data.csv").typeMapping(Map.of("client_ip", "keyword"))
         ),
         SAMPLE_DATA_TS_LONG(
-            builder("sample_data_ts_long").mapping("mapping-sample_data.json")
-                .data("sample_data_ts_long.csv")
-                .typeMapping(Map.of("@timestamp", "long"))
+            builder("sample_data_ts_long", "mapping-sample_data.json", "sample_data_ts_long.csv").typeMapping(Map.of("@timestamp", "long"))
         ),
         SAMPLE_DATA_TS_NANOS(
-            builder("sample_data_ts_nanos").mapping("mapping-sample_data.json")
-                .data("sample_data_ts_nanos.csv")
-                .typeMapping(Map.of("@timestamp", "date_nanos"))
+            builder("sample_data_ts_nanos", "mapping-sample_data.json", "sample_data_ts_nanos.csv").typeMapping(
+                Map.of("@timestamp", "date_nanos")
+            )
         ),
         // the double underscore is meant to not match `sample_data*`, but do match `sample_*`
         SAMPLE_DATA_TS_NANOS_LOOKUP(
-            builder("sample__data_ts_nanos_lookup").mapping("mapping-sample_data.json")
-                .data("sample_data_ts_nanos.csv")
-                .setting("lookup-settings.json")
+            builder("sample__data_ts_nanos_lookup", "mapping-sample_data.json", "sample_data_ts_nanos.csv").setting("lookup-settings.json")
                 .typeMapping(Map.of("@timestamp", "date_nanos"))
         ),
         MISSING_IP_SAMPLE_DATA(builder("missing_ip_sample_data")),
         SAMPLE_DATA_PARTIAL_MAPPING(builder("partial_mapping_sample_data")),
         SAMPLE_DATA_NO_MAPPING(
-            builder("no_mapping_sample_data").mapping("mapping-no_mapping_sample_data.json")
-                .data("partial_mapping_sample_data.csv")
-                .typeMapping(Map.of("timestamp", "keyword", "client_ip", "keyword", "event_duration", "keyword"))
+            builder("no_mapping_sample_data", "mapping-no_mapping_sample_data.json", "partial_mapping_sample_data.csv").typeMapping(
+                Map.of("timestamp", "keyword", "client_ip", "keyword", "event_duration", "keyword")
+            )
         ),
         SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE(
-            builder("partial_mapping_no_source_sample_data").mapping("mapping-partial_mapping_no_source_sample_data.json")
-                .data("partial_mapping_sample_data.csv")
+            builder(
+                "partial_mapping_no_source_sample_data",
+                "mapping-partial_mapping_no_source_sample_data.json",
+                "partial_mapping_sample_data.csv"
+            )
         ),
         SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE(
-            builder("partial_mapping_excluded_source_sample_data").mapping("mapping-partial_mapping_excluded_source_sample_data.json")
-                .data("partial_mapping_sample_data.csv")
+            builder(
+                "partial_mapping_excluded_source_sample_data",
+                "mapping-partial_mapping_excluded_source_sample_data.json",
+                "partial_mapping_sample_data.csv"
+            )
         ),
         CLIENT_IPS(builder("clientips")),
-        CLIENT_IPS_LOOKUP(
-            builder("clientips_lookup").mapping("mapping-clientips.json").data("clientips.csv").setting("lookup-settings.json")
-        ),
+        CLIENT_IPS_LOOKUP(builder("clientips_lookup", "mapping-clientips.json", "clientips.csv").setting("lookup-settings.json")),
         MESSAGE_TYPES(builder("message_types")),
         MESSAGE_TYPES_LOOKUP(
-            builder("message_types_lookup").mapping("mapping-message_types.json").data("message_types.csv").setting("lookup-settings.json")
+            builder("message_types_lookup", "mapping-message_types.json", "message_types.csv").setting("lookup-settings.json")
         ),
         FIREWALL_LOGS(builder("firewall_logs").noData()),
         THREAT_LIST(builder("threat_list").noData().setting("lookup-settings.json")),
@@ -982,7 +974,7 @@ public class CsvTestsDataLoader {
         HEIGHTS(builder("heights")),
         DECADES(builder("decades")),
         AIRPORTS(builder("airports")),
-        AIRPORTS_MP(builder("airports_mp").mapping("mapping-airports.json").data("airports_mp.csv").setting("lookup-settings.json")),
+        AIRPORTS_MP(builder("airports_mp", "mapping-airports.json", "airports_mp.csv").setting("lookup-settings.json")),
         AIRPORTS_NO_DOC_VALUES(builder("airports_no_doc_values").data("airports.csv")),
         AIRPORTS_NOT_INDEXED(builder("airports_not_indexed").data("airports.csv")),
         AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES(builder("airports_not_indexed_nor_doc_values").data("airports.csv")),
@@ -997,12 +989,10 @@ public class CsvTestsDataLoader {
         MULTIVALUE_GEOMETRIES(builder("multivalue_geometries")),
         MULTIVALUE_POINTS(builder("multivalue_points")),
         DISTANCES(builder("distances")),
-        K8S(builder("k8s").mapping("k8s-mappings.json").data("k8s.csv").setting("k8s-settings.json")),
-        K8S_DATENANOS(builder("datenanos-k8s").mapping("k8s-mappings-date_nanos.json").data("k8s.csv").setting("k8s-settings.json")),
+        K8S(builder("k8s", "k8s-mappings.json", "k8s.csv").setting("k8s-settings.json")),
+        K8S_DATENANOS(builder("datenanos-k8s", "k8s-mappings-date_nanos.json", "k8s.csv").setting("k8s-settings.json")),
         K8S_DOWNSAMPLED(
-            builder("k8s-downsampled").mapping("k8s-downsampled-mappings.json")
-                .data("k8s-downsampled.csv")
-                .setting("k8s-downsampled-settings.json")
+            builder("k8s-downsampled", "k8s-downsampled-mappings.json", "k8s-downsampled.csv").setting("k8s-downsampled-settings.json")
         ),
         ADDRESSES(builder("addresses")),
         BOOKS(builder("books").setting("books-settings.json")),
@@ -1018,9 +1008,7 @@ public class CsvTestsDataLoader {
         COLORS_CMYK_LOOKUP(builder("colors_cmyk").setting("lookup-settings.json")),
         BASE_CONVERSION(builder("base_conversion")),
         EXP_HISTO_SAMPLE(
-            builder("exp_histo_sample").mapping("exp_histo_sample-mappings.json")
-                .data("exp_histo_sample.csv")
-                .setting("exp_histo_sample-settings.json")
+            builder("exp_histo_sample", "exp_histo_sample-mappings.json", "exp_histo_sample.csv").setting("exp_histo_sample-settings.json")
                 .requiredCapabilities(List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW))
         ),
         TDIGEST_STANDARD_INDEX(builder("tdigest_standard_index").requiredCapabilities(List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW))),
@@ -1028,16 +1016,14 @@ public class CsvTestsDataLoader {
             builder("histogram_standard_index").requiredCapabilities(List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION))
         ),
         TDIGEST_TIMESERIES_INDEX(
-            builder("tdigest_timeseries_index").mapping("tdigest_timeseries_index-mappings.json")
-                .data("tdigest_standard_index.csv")
-                .setting("tdigest_timeseries_index-settings.json")
-                .requiredCapabilities(List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW, EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC))
+            builder("tdigest_timeseries_index", "tdigest_timeseries_index-mappings.json", "tdigest_standard_index.csv").setting(
+                "tdigest_timeseries_index-settings.json"
+            ).requiredCapabilities(List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW, EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC))
         ),
         HISTOGRAM_TIMESERIES_INDEX(
-            builder("histogram_timeseries_index").mapping("mapping-histogram_time_series_index.json")
-                .data("histogram_standard_index.csv")
-                .setting("settings-histogram_time_series_index.json")
-                .requiredCapabilities(List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION))
+            builder("histogram_timeseries_index", "mapping-histogram_time_series_index.json", "histogram_standard_index.csv").setting(
+                "settings-histogram_time_series_index.json"
+            ).requiredCapabilities(List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION))
         ),
         MANY_NUMBERS(builder("many_numbers")),
         MMR_TEXT_VECTOR_KEYWORD(builder("mmr_text_vector_keyword"));
@@ -1068,6 +1054,10 @@ public class CsvTestsDataLoader {
 
         private static Builder builder(String indexName) {
             return new Builder(indexName);
+        }
+
+        private static Builder builder(String indexName, String mappingFileName, String dataFileName) {
+            return new Builder(indexName, mappingFileName, dataFileName);
         }
 
         public String indexName() {
@@ -1138,14 +1128,13 @@ public class CsvTestsDataLoader {
             private List<EsqlCapabilities.Cap> requiredCapabilities = List.of();
 
             Builder(String indexName) {
-                this.indexName = indexName;
-                this.mappingFileName = "mapping-" + indexName + ".json";
-                this.dataFileName = indexName + ".csv";
+                this(indexName, "mapping-" + indexName + ".json", indexName + ".csv");
             }
 
-            Builder mapping(String mappingFileName) {
+            Builder(String indexName, String mappingFileName, String dataFileName) {
+                this.indexName = indexName;
                 this.mappingFileName = mappingFileName;
-                return this;
+                this.dataFileName = dataFileName;
             }
 
             Builder data(String dataFileName) {

@@ -41,6 +41,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileOver
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Scalar;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialExtent;
@@ -52,6 +53,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -80,6 +82,7 @@ import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PlaceholderRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlFunctionCall;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.VectorConversionFunction;
@@ -152,6 +155,7 @@ public class ApproximationSupportTests extends ESTestCase {
         UnaryPlan.class,
         BinaryPlan.class,
         InferencePlan.class,
+        CompoundOutputEval.class,
 
         // These plans don't occur in a correct analyzed query.
         UnresolvedRelation.class,
@@ -171,6 +175,7 @@ public class ApproximationSupportTests extends ESTestCase {
         WithinSeriesAggregate.class,
         AcrossSeriesAggregate.class,
         PlaceholderRelation.class,
+        ScalarConversionFunction.class,
         ScalarFunction.class,
         ValueTransformationFunction.class,
         VectorBinarySet.class,
@@ -242,7 +247,8 @@ public class ApproximationSupportTests extends ESTestCase {
         Rate.class,
         StddevOverTime.class,
         SumOverTime.class,
-        VarianceOverTime.class
+        VarianceOverTime.class,
+        Scalar.class
     );
 
     private static List<Class<?>> getClassesInPackage(String packageName) throws Exception {

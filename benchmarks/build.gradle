@@ -53,6 +53,11 @@ dependencies {
   implementation project(path: ':libs:simdvec')
   implementation project(path: ':libs:swisshash')
   implementation project(path: ':libs:exponential-histogram')
+  implementation(project(':x-pack:plugin:searchable-snapshots')) {
+    capabilities {
+      requireCapability("org.elasticsearch.plugin:searchable-snapshots-test-artifacts")
+    }
+  }
   expression(project(path: ':modules:lang-expression', configuration: 'zip'))
   painless(project(path: ':modules:lang-painless', configuration: 'zip'))
   nativeLib(project(':libs:native'))

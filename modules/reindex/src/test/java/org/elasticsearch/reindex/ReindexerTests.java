@@ -22,12 +22,12 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
@@ -113,7 +113,7 @@ public class ReindexerTests extends ESTestCase {
         Exception anotherException = new Exception("another failure");
         BulkByScrollResponse response = reindexResponseWithBulkAndSearchFailures(
             null,
-            List.of(new ScrollableHitSource.SearchFailure(exception), new ScrollableHitSource.SearchFailure(anotherException))
+            List.of(new PaginatedHitSource.SearchFailure(exception), new PaginatedHitSource.SearchFailure(anotherException))
         );
         wrapped.onResponse(response);
 
@@ -128,7 +128,7 @@ public class ReindexerTests extends ESTestCase {
     public void testListenerWithRelocationsPassesThroughForWorkerWithParent() {
         assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final Reindexer reindexer = reindexerWithRelocation();
-        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", 99), true);
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(new TaskId("node", 99));
         task.setWorker(Float.POSITIVE_INFINITY, null);
 
         final ActionListener<BulkByScrollResponse> original = spy(ActionListener.noop());
@@ -141,7 +141,7 @@ public class ReindexerTests extends ESTestCase {
     public void testListenerWithRelocationsPassesThroughWhenNoRelocationRequested() {
         assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final Reindexer reindexer = reindexerWithRelocation();
-        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID, true);
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
         task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
         // do NOT call task.requestRelocation()
@@ -160,7 +160,7 @@ public class ReindexerTests extends ESTestCase {
     public void testListenerWithRelocationsPassesThroughWhenNoResumeInfo() {
         assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final Reindexer reindexer = reindexerWithRelocation();
-        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID, true);
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
         task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
         task.requestRelocation();
@@ -197,7 +197,7 @@ public class ReindexerTests extends ESTestCase {
         }).when(transportService).sendRequest(eq(targetNode), eq(ResumeReindexAction.NAME), any(ResumeBulkByScrollRequest.class), any());
 
         final Reindexer reindexer = reindexerWithRelocation(clusterService, transportService);
-        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID, true);
+        final BulkByScrollTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
         task.getWorkerState().setNodeToRelocateToSupplier(() -> Optional.of("target-node"));
         task.requestRelocation();
@@ -261,7 +261,7 @@ public class ReindexerTests extends ESTestCase {
 
     private BulkByScrollResponse reindexResponseWithBulkAndSearchFailures(
         final List<BulkItemResponse.Failure> bulkFailures,
-        final List<ScrollableHitSource.SearchFailure> searchFailures
+        List<PaginatedHitSource.SearchFailure> searchFailures
     ) {
         return new BulkByScrollResponse(
             TimeValue.ZERO,
@@ -289,11 +289,8 @@ public class ReindexerTests extends ESTestCase {
         );
     }
 
-    private static BulkByScrollTask createTaskWithParentIdAndRelocationEnabled(
-        final TaskId parentTaskId,
-        final boolean eligibleForRelocation
-    ) {
-        return new BulkByScrollTask(987, "test_type", "test_action", "test", parentTaskId, Collections.emptyMap(), eligibleForRelocation);
+    private static BulkByScrollTask createTaskWithParentIdAndRelocationEnabled(final TaskId parentTaskId) {
+        return new BulkByScrollTask(987, "test_type", "test_action", "test", parentTaskId, Collections.emptyMap(), true);
     }
 
     private static Reindexer reindexerWithRelocation() {

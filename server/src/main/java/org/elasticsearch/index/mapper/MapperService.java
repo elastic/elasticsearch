@@ -397,7 +397,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper previousMapper;
             synchronized (this) {
                 previousMapper = this.mapper;
-                assert assertRefreshIsNotNeeded(previousMapper, type, incomingBuilder);
+                assert assertRefreshIsNotNeeded(type, incomingBuilder);
                 Mapping incomingMapping = buildMapping(incomingBuilder, MergeReason.MAPPING_RECOVERY);
                 this.mapper = newDocumentMapper(incomingMapping, MergeReason.MAPPING_RECOVERY, incomingMappingSource);
                 this.mappingVersion = newIndexMetadata.getMappingVersion();
@@ -413,9 +413,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private boolean assertRefreshIsNotNeeded(DocumentMapper currentMapper, String type, MappingBuilder incomingBuilder) {
-        long budget = getMaxFieldsToAddDuringMerge(currentMapper, indexSettings, MergeReason.MAPPING_RECOVERY);
-        Mapping mergedMapping = mergeMappings(currentMapper, incomingBuilder, MergeReason.MAPPING_RECOVERY, budget);
+    private boolean assertRefreshIsNotNeeded(String type, MappingBuilder incomingBuilder) {
+        Mapping mergedMapping = mergeBuilders(incomingBuilder, MergeReason.MAPPING_RECOVERY);
         Mapping incomingMapping = incomingBuilder.build(MergeReason.MAPPING_RECOVERY);
         // skip the runtime section or removed runtime fields will make the assertion fail
         ToXContent.MapParams params = new ToXContent.MapParams(Collections.singletonMap(RootObjectMapper.TOXCONTENT_SKIP_RUNTIME, "true"));
@@ -630,13 +629,13 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
         if (reason == MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT) {
             // only doing a merge without updating the actual #mapper field, no need to synchronize
-            Mapping mapping = mergeBuilders(this.mapper, incomingBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT);
+            Mapping mapping = mergeBuilders(incomingBuilder, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT);
             return newDocumentMapper(mapping, MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT, mapping.toCompressedXContent());
         } else {
             // synchronized concurrent mapper updates are guaranteed to set merged mappers derived from the mapper value previously read
             // TODO: can we even have concurrent updates here?
             synchronized (this) {
-                Mapping mapping = mergeBuilders(this.mapper, incomingBuilder, reason);
+                Mapping mapping = mergeBuilders(incomingBuilder, reason);
                 DocumentMapper newMapper = newDocumentMapper(mapping, reason, mapping.toCompressedXContent());
                 this.mapper = newMapper;
                 assert assertSerialization(newMapper, reason);
@@ -645,12 +644,12 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    private Mapping mergeBuilders(DocumentMapper currentMapper, MappingBuilder incomingBuilder, MergeReason reason) {
-        long newFieldsBudget = getMaxFieldsToAddDuringMerge(currentMapper, indexSettings, reason);
-        if (currentMapper == null) {
+    private Mapping mergeBuilders(MappingBuilder incomingBuilder, MergeReason reason) {
+        long newFieldsBudget = getMaxFieldsToAddDuringMerge(this.mapper, indexSettings, reason);
+        if (this.mapper == null) {
             return buildMapping(applyFieldsBudget(incomingBuilder, newFieldsBudget), reason);
         }
-        MappingBuilder existingBuilder = mappingParser.parseToBuilder(currentMapper.type(), reason, currentMapper.mappingSource());
+        MappingBuilder existingBuilder = mappingParser.parseToBuilder(this.mapper.type(), reason, this.mapper.mappingSource());
         try {
             existingBuilder.merge(incomingBuilder, reason, newFieldsBudget);
         } catch (MapperParsingException e) {
@@ -711,13 +710,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    public static Mapping mergeMappings(
-        DocumentMapper currentMapper,
-        Mapping incomingMapping,
-        MergeReason reason,
-        IndexSettings indexSettings
-    ) {
-        return mergeMappings(currentMapper, incomingMapping, reason, getMaxFieldsToAddDuringMerge(currentMapper, indexSettings, reason));
+    public Mapping mergeMappings(Mapping incomingMapping, MergeReason reason) {
+        return mergeMappings(incomingMapping, reason, getMaxFieldsToAddDuringMerge(this.mapper, indexSettings, reason));
     }
 
     private static long getMaxFieldsToAddDuringMerge(DocumentMapper currentMapper, IndexSettings indexSettings, MergeReason reason) {
@@ -745,15 +739,15 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     }
 
-    static Mapping mergeMappings(DocumentMapper currentMapper, Mapping incomingMapping, MergeReason reason, long newFieldsBudget) {
-        return mergeMappings(currentMapper, MappingBuilder.fromMapping(incomingMapping), reason, newFieldsBudget);
+    Mapping mergeMappings(Mapping incomingMapping, MergeReason reason, long newFieldsBudget) {
+        return mergeMappings(MappingBuilder.fromMapping(incomingMapping), reason, newFieldsBudget);
     }
 
-    static Mapping mergeMappings(DocumentMapper currentMapper, MappingBuilder incomingBuilder, MergeReason reason, long newFieldsBudget) {
-        if (currentMapper == null) {
+    Mapping mergeMappings(MappingBuilder incomingBuilder, MergeReason reason, long newFieldsBudget) {
+        if (this.mapper == null) {
             return applyFieldsBudget(incomingBuilder, newFieldsBudget).build(MergeReason.MAPPING_RECOVERY);
         }
-        MappingBuilder existingBuilder = MappingBuilder.fromMapping(currentMapper.mapping());
+        MappingBuilder existingBuilder = mappingParser.parseToBuilder(this.mapper.type(), reason, this.mapper.mappingSource());
         existingBuilder.merge(incomingBuilder, reason, newFieldsBudget);
         return existingBuilder.build(reason);
     }

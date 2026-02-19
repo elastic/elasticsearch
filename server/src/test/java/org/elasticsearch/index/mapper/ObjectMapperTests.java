@@ -130,7 +130,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             MergeReason.MAPPING_UPDATE,
             new CompressedXContent(BytesReference.bytes(topMapping(b -> b.field("dynamic", "strict"))))
         );
-        Mapping merged = MapperService.mergeMappings(mapper, mergeWith, reason, Long.MAX_VALUE);
+        Mapping merged = mapperService.mergeMappings(mergeWith, reason, Long.MAX_VALUE);
         assertEquals(Dynamic.STRICT, merged.getRoot().dynamic());
     }
 
@@ -329,12 +329,12 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         // Fails on mapping update.
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> MapperService.mergeMappings(mapper, mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
+            () -> mapperService.mergeMappings(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
         );
         assertEquals("mapper [obj.my.field] cannot be changed from type [keyword] to [long]", exception.getMessage());
 
         // Passes on template merging.
-        Mapping merged = MapperService.mergeMappings(mapper, mergeWith, MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
+        Mapping merged = mapperService.mergeMappings(mergeWith, MergeReason.INDEX_TEMPLATE, Long.MAX_VALUE);
         assertThat(((ObjectMapper) merged.getRoot().getMapper("obj")).getMapper("my.field"), instanceOf(NumberFieldMapper.class));
     }
 
@@ -490,7 +490,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         );
         MapperException exception = expectThrows(
             MapperException.class,
-            () -> MapperService.mergeMappings(mapper, mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
+            () -> mapperService.mergeMappings(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
         );
         assertEquals("the [subobjects] parameter can't be updated for the object mapping [field]", exception.getMessage());
     }
@@ -508,7 +508,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         );
         MapperException exception = expectThrows(
             MapperException.class,
-            () -> MapperService.mergeMappings(mapper, mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
+            () -> mapperService.mergeMappings(mergeWith, MergeReason.MAPPING_UPDATE, Long.MAX_VALUE)
         );
         assertEquals("the [subobjects] parameter can't be updated for the object mapping [_doc]", exception.getMessage());
     }

@@ -47,8 +47,8 @@ public class JsonExtractStaticTests extends ESTestCase {
 
     // --- Path parsing edge cases ---
 
-    public void testEmptyPath() {
-        assertWarningResult("{\"a\":1}", "", "invalid path: empty path");
+    public void testEmptyPathReturnsRoot() {
+        assertResult("{\"a\":1}", "", "{\"a\":1}");
     }
 
     public void testConsecutiveDots() {
@@ -85,8 +85,8 @@ public class JsonExtractStaticTests extends ESTestCase {
         assertResult("{\"orders\":[{\"id\":1},{\"id\":2}]}", "$.orders[1].id", "2");
     }
 
-    public void testDollarDotAloneIsEmptyPath() {
-        assertWarningResult("{\"a\":1}", "$.", "invalid path: empty path");
+    public void testDollarDotAloneReturnsRoot() {
+        assertResult("{\"a\":1}", "$.", "{\"a\":1}");
     }
 
     // --- Bare $ root accessor ---

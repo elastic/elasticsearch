@@ -212,7 +212,7 @@ public class JsonExtract extends EsqlScalarFunction {
             path = path.substring(1);
         }
         if (path.isEmpty()) {
-            throw new IllegalArgumentException("invalid path: empty path");
+            return new String[0];
         }
         List<String> segments = new ArrayList<>();
         int start = 0;

@@ -398,6 +398,16 @@ public class SubTests extends AbstractConfigurationFunctionTestCase {
         return new Sub(source, args.get(0), args.get(1), configuration);
     }
 
+    @Override
+    protected void assertCoAndContraVarianceOutputType(
+        List<DataType> originalTypes,
+        List<DataType> narrowedTypes,
+        DataType originalOutputType,
+        DataType narrowedOutputType
+    ) {
+        AddTests.assertArithmeticCoAndContraVarianceOutputType(originalTypes, narrowedTypes, originalOutputType, narrowedOutputType);
+    }
+
     private static Object subtractDatesAndTemporalAmount(Object lhs, Object rhs, ToLongBiFunction<Instant, TemporalAmount> subtract) {
         // this weird casting dance makes the expected value lambda symmetric
         Instant date;

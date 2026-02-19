@@ -806,15 +806,41 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         Expression narrowed = build(testCase.getSource(), args);
 
         assertTrue(
-            "narrowing " + originalTypes + " to " + narrowedTypes + ": expression should resolve, but got: "
+            "narrowing "
+                + originalTypes
+                + " to "
+                + narrowedTypes
+                + ": expression should resolve, but got: "
                 + narrowed.typeResolved().message(),
             narrowed.typeResolved().resolved()
         );
 
-        DataType narrowedOutputType = narrowed.dataType();
+        assertCoAndContraVarianceOutputType(originalTypes, narrowedTypes, originalOutputType, narrowed.dataType());
+    }
+
+    /**
+     * Asserts that the output type of the narrowed expression is acceptable relative to the original output type.
+     * By default, the narrowed output type must be the same as or widen to the original. Subclasses can override
+     * this for functions where the output type legitimately depends on input types in ways that don't follow
+     * the widening hierarchy, e.g. for date arithmetic where {@code NULL + DATE_PERIOD -> DATE_PERIOD}
+     * rather than {@code DATE_NANOS}.
+     */
+    protected void assertCoAndContraVarianceOutputType(
+        List<DataType> originalTypes,
+        List<DataType> narrowedTypes,
+        DataType originalOutputType,
+        DataType narrowedOutputType
+    ) {
         assertTrue(
-            "narrowing " + originalTypes + " to " + narrowedTypes + ": output type [" + narrowedOutputType
-                + "] should be the same as or widen to [" + originalOutputType + "]",
+            "narrowing "
+                + originalTypes
+                + " to "
+                + narrowedTypes
+                + ": output type ["
+                + narrowedOutputType
+                + "] should be the same as or widen to ["
+                + originalOutputType
+                + "]",
             narrowedOutputType.canWidenTo(originalOutputType)
         );
     }

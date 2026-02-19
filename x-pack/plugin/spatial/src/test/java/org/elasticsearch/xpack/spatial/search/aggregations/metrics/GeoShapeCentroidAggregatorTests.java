@@ -19,6 +19,7 @@ import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.lucene.spatial.CentroidCalculator;
 import org.elasticsearch.lucene.spatial.DimensionalShapeType;
@@ -68,6 +69,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                 null,
                 null,
                 false,
+                IndexVersion.current(),
                 Map.of()
             );
             try (IndexReader reader = w.getReader()) {
@@ -96,6 +98,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     null,
                     null,
                     false,
+                    IndexVersion.current(),
                     Map.of()
                 );
                 InternalGeoCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
@@ -111,6 +114,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     null,
                     null,
                     false,
+                    IndexVersion.current(),
                     Map.of()
                 );
                 result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
@@ -142,6 +146,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
                     null,
                     null,
                     false,
+                    IndexVersion.current(),
                     Map.of()
                 );
                 InternalGeoCentroid result = searchAndReduce(reader, new AggTestConfig(aggBuilder, fieldType));
@@ -219,6 +224,7 @@ public class GeoShapeCentroidAggregatorTests extends AggregatorTestCase {
             null,
             null,
             false,
+            IndexVersion.current(),
             Map.of()
         );
         GeoCentroidAggregationBuilder aggBuilder = new GeoCentroidAggregationBuilder("my_agg").field("field");

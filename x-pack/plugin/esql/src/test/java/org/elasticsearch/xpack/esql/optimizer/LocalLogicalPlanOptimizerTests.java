@@ -697,7 +697,10 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         var isNull = conjuncts.stream().filter(IsNull.class::isInstance).map(IsNull.class::cast).findFirst().orElseThrow();
         String nullableName = Expressions.name(isNull.field());
-        assertTrue("expected nullable field null-check to be preserved", "nullable".equals(nullableName) || "languages".equals(nullableName));
+        assertTrue(
+            "expected nullable field null-check to be preserved",
+            "nullable".equals(nullableName) || "languages".equals(nullableName)
+        );
         assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
     }
 

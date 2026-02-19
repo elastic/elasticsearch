@@ -181,7 +181,7 @@ public class VectorScorerOSQBenchmark {
         scorer = switch (implementation) {
             case SCALAR -> new ESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length);
             case VECTORIZED -> ESVectorizationProvider.getInstance()
-                .newESNextOSQVectorsScorerForTesting(input, (byte) queryBits, (byte) docBits, dims, length, bulkSize);
+                .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length, bulkSize);
         };
         scratchScores = new float[bulkSize];
         corrections = new float[3];

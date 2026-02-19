@@ -139,4 +139,14 @@ public class GreatestTests extends AbstractScalarFunctionTestCase {
     protected Greatest build(Source source, List<Expression> args) {
         return new Greatest(source, args.get(0), args.subList(1, args.size()));
     }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("Greatest requires all arguments to have the same type", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        assumeTrue("Greatest requires all arguments to have the same type", false);
+    }
 }

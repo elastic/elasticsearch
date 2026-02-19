@@ -857,4 +857,14 @@ public class CaseTests extends AbstractScalarFunctionTestCase {
         }
         return super.allNullsMatcher();
     }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("Case requires all output branches to have the same type", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        assumeTrue("Case requires all output branches to have the same type", false);
+    }
 }

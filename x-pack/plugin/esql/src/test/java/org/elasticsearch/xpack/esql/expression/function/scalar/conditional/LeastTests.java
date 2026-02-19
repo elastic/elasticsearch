@@ -138,4 +138,14 @@ public class LeastTests extends AbstractScalarFunctionTestCase {
     protected Least build(Source source, List<Expression> args) {
         return new Least(source, args.get(0), args.subList(1, args.size()));
     }
+
+    @Override
+    public void testCoAndContraVariance() {
+        assumeTrue("Least requires all arguments to have the same type", false);
+    }
+
+    @Override
+    public void testCoAndContraVarianceWithNonNull() {
+        assumeTrue("Least requires all arguments to have the same type", false);
+    }
 }

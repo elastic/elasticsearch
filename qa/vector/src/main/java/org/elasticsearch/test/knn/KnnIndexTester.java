@@ -58,13 +58,13 @@ import java.lang.management.ThreadInfo;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
@@ -342,9 +342,8 @@ public class KnnIndexTester {
             String indexPathName = formatIndexPath(testConfiguration);
             String indexType = testConfiguration.indexType().name().toLowerCase(Locale.ROOT);
             Results indexResults = new Results(indexPathName, indexType, testConfiguration.numDocs());
-            Results[] results = IntStream.range(0, testConfiguration.numberOfSearchRuns())
-                .mapToObj(i -> new Results(indexPathName, indexType, testConfiguration.numDocs()))
-                .toArray(Results[]::new);
+            Results[] results = new Results[testConfiguration.numberOfSearchRuns()];
+            Arrays.setAll(results, i -> new Results(indexPathName, indexType, testConfiguration.numDocs()));
             logger.info("Running with Java: " + Runtime.version());
             logger.info("Running KNN index tester with arguments: " + testConfiguration);
             final ExecutorService exec;

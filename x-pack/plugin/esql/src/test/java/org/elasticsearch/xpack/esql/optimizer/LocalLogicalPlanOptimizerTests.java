@@ -682,38 +682,23 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             | WHERE nullable IS NULL
             """);
 
-        List<Expression> conjuncts = new ArrayList<>();
-        LogicalPlan cursor = plan;
-        while (cursor instanceof UnaryPlan unary) {
-            if (cursor instanceof Filter filter) {
-                conjuncts.addAll(Predicates.splitAnd(filter.condition()));
-            }
-            cursor = unary.child();
-        }
+        var project = as(plan, Project.class);
+        var limit = as(project.child(), Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var conjuncts = Predicates.splitAnd(filter.condition());
 
-        assertThat("local plan should not be pruned to empty", cursor, not(instanceOf(LocalRelation.class)));
+        var residualBranch = conjuncts.stream()
+            .filter(GreaterThan.class::isInstance)
+            .map(GreaterThan.class::cast)
+            .findFirst()
+            .orElseThrow();
+        var residualField = as(residualBranch.left(), FieldAttribute.class);
+        assertEquals("emp_no", residualField.name());
 
-        boolean hasIsNullNullable = conjuncts.stream().anyMatch(e -> {
-            if (e instanceof IsNull == false) {
-                return false;
-            }
-            IsNull isNull = (IsNull) e;
-            return "nullable".equals(Expressions.name(isNull.field())) || "languages".equals(Expressions.name(isNull.field()));
-        });
-        assertTrue("expected null constraint to be preserved", hasIsNullNullable);
-
-        boolean hasEmpNoResidual = conjuncts.stream().anyMatch(e -> {
-            if (e instanceof GreaterThan == false) {
-                return false;
-            }
-            GreaterThan gt = (GreaterThan) e;
-            if (gt.left() instanceof FieldAttribute == false) {
-                return false;
-            }
-            FieldAttribute field = (FieldAttribute) gt.left();
-            return "emp_no".equals(field.name());
-        });
-        assertTrue("expected disjunction residual branch to be preserved", hasEmpNoResidual);
+        var isNull = conjuncts.stream().filter(IsNull.class::isInstance).map(IsNull.class::cast).findFirst().orElseThrow();
+        String nullableName = Expressions.name(isNull.field());
+        assertTrue("expected nullable field null-check to be preserved", "nullable".equals(nullableName) || "languages".equals(nullableName));
+        assertThat("local plan should not be pruned to empty", filter.child(), not(instanceOf(LocalRelation.class)));
     }
 
     /*

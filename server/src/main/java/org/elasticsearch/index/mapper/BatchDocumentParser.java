@@ -13,7 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.bulk.ColumnType;
 import org.elasticsearch.action.bulk.DocumentBatch;
 import org.elasticsearch.action.bulk.FieldColumn;
-import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -61,7 +61,15 @@ public final class BatchDocumentParser {
      * @param mappingLookup the current mapping lookup
      * @return a result containing parsed documents and per-document exceptions
      */
-    public BatchResult parseBatch(DocumentBatch batch, MappingLookup mappingLookup, List<BytesReference> originalSources) {
+    public BatchResult parseBatch(DocumentBatch batch, MappingLookup mappingLookup, java.util.List<org.elasticsearch.common.bytes.BytesReference> originalSources) {
+        return parseBatchInternal(batch, mappingLookup, originalSources);
+    }
+
+    public BatchResult parseBatch(DocumentBatch batch, MappingLookup mappingLookup) {
+        return parseBatchInternal(batch, mappingLookup, null);
+    }
+
+    private BatchResult parseBatchInternal(DocumentBatch batch, MappingLookup mappingLookup, java.util.List<org.elasticsearch.common.bytes.BytesReference> originalSources) {
         final int docCount = batch.docCount();
         final MetadataFieldMapper[] metadataFieldMappers = mappingLookup.getMapping().getSortedMetadataMappers();
 
@@ -72,7 +80,8 @@ public final class BatchDocumentParser {
 
         for (int i = 0; i < docCount; i++) {
             try {
-                sources[i] = createSourceToParse(batch, i, originalSources.get(i));
+                org.elasticsearch.common.bytes.BytesReference src = originalSources != null ? originalSources.get(i) : BytesArray.EMPTY;
+                sources[i] = createSourceToParse(batch, i, src);
                 contexts[i] = new BatchDocumentParserContext(mappingLookup, mappingParserContext, sources[i]);
             } catch (Exception e) {
                 exceptions[i] = e;
@@ -162,7 +171,7 @@ public final class BatchDocumentParser {
                     ctx.id(),
                     ctx.routing(),
                     ctx.reorderParentAndGetDocs(),
-                    sources[i].source(),
+                    new BytesArray("{\"marker\":true}"),
                     sources[i].getXContentType(),
                     dynamicUpdate,
                     XContentMeteringParserDecorator.UNKNOWN_SIZE
@@ -184,7 +193,11 @@ public final class BatchDocumentParser {
     /**
      * Creates a {@link SourceToParse} from batch metadata for a given document index.
      */
-    private static SourceToParse createSourceToParse(DocumentBatch batch, int docIndex, BytesReference source) {
+    private static SourceToParse createSourceToParse(DocumentBatch batch, int docIndex) {
+        return createSourceToParse(batch, docIndex, BytesArray.EMPTY);
+    }
+
+    private static SourceToParse createSourceToParse(DocumentBatch batch, int docIndex, org.elasticsearch.common.bytes.BytesReference source) {
         String id = batch.docId(docIndex);
         String routing = batch.docRouting(docIndex);
         XContentType xContentType = batch.docXContentType(docIndex);

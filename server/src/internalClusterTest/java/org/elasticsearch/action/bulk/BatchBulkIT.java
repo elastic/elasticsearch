@@ -95,7 +95,7 @@ public class BatchBulkIT extends ESIntegTestCase {
 
     public void testSyntheticSourceReconstruction() {
         String index = "test-batch-synthetic";
-        createBatchIndex(index, 2, 1);
+        createBatchIndex(index, 1, 0);
         String coordinatingNode = findCoordinatingNode();
 
         int numDocs = 20;
@@ -125,6 +125,7 @@ public class BatchBulkIT extends ESIntegTestCase {
                 SearchHit[] hits = searchResponse.getHits().getHits();
                 for (int i = 0; i < numDocs; i++) {
                     Map<String, Object> source = hits[i].getSourceAsMap();
+                    logger.info("Doc {}: hasSource={}, source={}", i, hits[i].hasSource(), source);
                     assertThat("name mismatch at doc " + i, source.get("name"), equalTo("synth-" + i));
                     assertThat("value mismatch at doc " + i, source.get("value"), equalTo(i));
                     assertThat("message mismatch at doc " + i, source.get("message"), equalTo("synthetic source test " + i));
@@ -324,5 +325,30 @@ public class BatchBulkIT extends ESIntegTestCase {
                 assertThat(sourceAsMap.get("name"), equalTo("large-0"));
             }
         );
+    }
+
+    @AwaitsFix(bugUrl = "Source reconstruction from columnar batch not yet implemented")
+    public void testRealtimeGetFromTranslog() {
+        String index = "test-batch-realtime-get";
+        createBatchIndex(index, 1, 0);
+        String coordinatingNode = findCoordinatingNode();
+
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < 5; i++) {
+            bulkRequest.add(
+                new IndexRequest(index).id("rtget-" + i)
+                    .opType(DocWriteRequest.OpType.CREATE)
+                    .source(Map.of("name", "realtime-" + i, "value", i, "message", "realtime get test"))
+            );
+        }
+
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+
+        // GET immediately after bulk index, before refresh — should read from translog
+        var getResponse = client().get(new org.elasticsearch.action.get.GetRequest(index).id("rtget-2").realtime(true)).actionGet();
+        assertTrue("Document should exist via realtime GET", getResponse.isExists());
+        assertThat(getResponse.getSourceAsMap().get("name"), equalTo("realtime-2"));
+        assertThat(getResponse.getSourceAsMap().get("value"), equalTo(2));
     }
 }

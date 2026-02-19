@@ -702,9 +702,10 @@ public abstract class Engine implements Closeable {
      * All documents are indexed in a single Lucene addDocuments call and a single translog write.
      *
      * @param operations the index operations to perform
+     * @param batchData  the raw DocumentBatch bytes for translog storage
      * @return list of IndexResults, one per operation, in the same order
      */
-    public List<IndexResult> indexBatch(List<Index> operations) throws IOException {
+    public List<IndexResult> indexBatch(List<Index> operations, byte[] batchData) throws IOException {
         // Default implementation: fall back to serial indexing
         List<IndexResult> results = new java.util.ArrayList<>(operations.size());
         for (Index op : operations) {

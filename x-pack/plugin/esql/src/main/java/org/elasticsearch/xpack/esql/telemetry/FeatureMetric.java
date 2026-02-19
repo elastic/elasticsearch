@@ -85,8 +85,7 @@ public enum FeatureMetric {
     MMR(MMR.class::isInstance),
     PROMQL(PromqlCommand.class::isInstance),
     URI_PARTS(UriParts.class::isInstance),
-    METRICS_INFO(MetricsInfo.class::isInstance);
-    URI_PARTS(UriParts.class::isInstance),
+    METRICS_INFO(MetricsInfo.class::isInstance),
     REGISTERED_DOMAIN(RegisteredDomain.class::isInstance);
 
     /**

@@ -18,4 +18,5 @@
 * [`SORT`](/reference/query-languages/esql/commands/sort.md)
 * [`STATS`](/reference/query-languages/esql/commands/stats-by.md)
 * [`URI_PARTS`](/reference/query-languages/esql/commands/uri-parts.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
+* [`REGISTERED_DOMAIN`](/reference/query-languages/esql/commands/registered-domain.md) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`WHERE`](/reference/query-languages/esql/commands/where.md)

@@ -70,18 +70,29 @@ public class JsonExtract extends EsqlScalarFunction {
         returnType = "keyword",
         preview = true,
         description = """
-            Extracts a value from a JSON string using a dot-notation path expression.
-            Path matching is case-sensitive (per the JSON specification).
-            Returns the extracted value as a keyword string. String values are returned without
-            surrounding quotes, numbers and booleans are returned as their string representation,
-            and objects or arrays are returned as JSON strings. Returns `null` if either parameter
-            is `null` or if the extracted JSON value is `null`. A JSON `null` inside an array
-            (e.g., `[1, null, 3]`) is also returned as `null` without a warning.
-            When duplicate keys exist in a JSON object, the first matching value is returned.
+            Extracts a value from a JSON string using a subset of
+            https://datatracker.ietf.org/doc/rfc9535/[JSONPath] syntax.
+            Paths can be written with or without the JSONPath `$` prefix
+            (`$.name` and `name` are equivalent). The supported JSONPath
+            features are dot notation for nested fields (`user.address.city`),
+            bracket notation for array indices (`items[0]`), quoted bracket
+            notation for keys with special characters (`['user.name']`),
+            the `$` root selector, and any combination of these
+            (`$.store['items'][0].name`). Path matching is case-sensitive
+            per the JSON specification.
+
+            The extracted value is returned as a `keyword` string: string values without
+            surrounding quotes, numbers and booleans as their string representation,
+            and objects or arrays as JSON strings. Returns `null` if either parameter
+            is `null` or if the extracted JSON value is `null`.
+
             Returns `null` and emits a warning if the input is not valid JSON, the path is
-            malformed (e.g., empty, leading/trailing dot, consecutive dots, empty brackets),
-            the path does not exist, the array index is out of bounds, or the path attempts
-            to traverse through a non-object/non-array value.""",
+            malformed, the path does not exist, the array index is out of bounds, or the
+            path attempts to traverse through a non-object/non-array value.
+
+            This function does not support wildcards (`*`), recursive descent (`..`),
+            array slicing (`[0:3]`), filter expressions (`?(@.price<10)`), or negative
+            array indices (`[-1]`).""",
         examples = {
             @Example(file = "json_extract", tag = "json_extract"),
             @Example(file = "json_extract", tag = "json_extract_nested", description = "Extract a nested value using dot-notation:"),
@@ -106,11 +117,10 @@ public class JsonExtract extends EsqlScalarFunction {
         @Param(
             name = "path",
             type = { "keyword", "text" },
-            description = "A dot-notation path expression identifying the value to extract. "
-                + "Use dot notation for nested fields (e.g., `user.name`), bracket notation "
-                + "for array indices (e.g., `items[0]`), and quoted bracket notation for keys "
-                + "containing special characters (e.g., `['user.name']` or `[\"Content-Type\"]`). "
-                + "An optional JSONPath `$.` prefix is accepted. "
+            description = "A path expression identifying the value to extract, using a subset of "
+                + "JSONPath syntax. Supports dot notation (`user.name`), bracket notation for "
+                + "array indices (`items[0]`), and quoted brackets for keys with special characters "
+                + "(`['user.name']`). The `$` prefix is optional. "
                 + "If `null`, the function returns `null`."
         ) Expression path
     ) {

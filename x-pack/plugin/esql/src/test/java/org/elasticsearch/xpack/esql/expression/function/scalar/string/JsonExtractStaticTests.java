@@ -317,6 +317,48 @@ public class JsonExtractStaticTests extends ESTestCase {
         assertWarningResult("{}", "anything", "path [anything] does not exist");
     }
 
+    // --- Unsupported JSONPath features ---
+
+    public void testWildcardDotStar() {
+        // $.* is parsed as key "*" — not found
+        assertWarningResult("{\"a\":1,\"b\":2}", "*", "path [*] does not exist");
+    }
+
+    public void testWildcardBracketStar() {
+        // $[*] — "*" is not a valid array index
+        assertWarningResult("[1,2,3]", "$[*]", "path [$[*]] does not exist");
+    }
+
+    public void testRecursiveDescent() {
+        // $..name — leading dot after stripping "$." → invalid path
+        assertWarningResult("{\"a\":{\"name\":1}}", "$..name", "invalid path [.name]");
+    }
+
+    public void testRecursiveDescentBare() {
+        // ..name without $ — leading dot → invalid path
+        assertWarningResult("{\"a\":{\"name\":1}}", "..name", "invalid path [..name]");
+    }
+
+    public void testArraySlice() {
+        // [0:3] — "0:3" is not a valid integer index
+        assertWarningResult("{\"arr\":[1,2,3,4]}", "arr[0:3]", "path [arr[0:3]] does not exist");
+    }
+
+    public void testArraySliceWithStep() {
+        // [::2] — "::2" is treated as a literal segment, fails parseInt on array
+        assertWarningResult("{\"arr\":[1,2,3,4]}", "arr[::2]", "path [arr[::2]] does not exist");
+    }
+
+    public void testFilterExpression() {
+        // ?(@.price<10) — "?(@.price<10)" is treated as a literal key, not found
+        assertWarningResult("{\"items\":[{\"price\":5}]}", "items[?(@.price<10)]", "path [items[?(@.price<10)]] does not exist");
+    }
+
+    public void testUnionMultipleIndices() {
+        // [0,1] — "0,1" is not a valid integer index
+        assertWarningResult("{\"arr\":[1,2,3]}", "arr[0,1]", "path [arr[0,1]] does not exist");
+    }
+
     // --- Helper methods ---
 
     private String extract(String json, String path) {

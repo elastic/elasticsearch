@@ -12,6 +12,9 @@ package org.elasticsearch.reindex;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.tasks.TaskId;
 
+import java.util.List;
+import java.util.Optional;
+
 /** Reason for a task failing because it's been relocated to another node to continue execution. */
 public class TaskRelocatedException extends ElasticsearchException {
 
@@ -22,5 +25,11 @@ public class TaskRelocatedException extends ElasticsearchException {
     public void setOriginalAndRelocatedTaskIdMetadata(final TaskId originalTaskId, final TaskId relocatedTaskId) {
         this.addMetadata("es.original_task_id", originalTaskId.toString()); // implicit nullchecks
         this.addMetadata("es.relocated_task_id", relocatedTaskId.toString());
+    }
+
+    public Optional<String> getRelocatedTaskId() {
+        return Optional.ofNullable(this.getMetadata("es.relocated_task_id"))
+            .filter(taskIds -> taskIds.size() == 1)
+            .map(List::getFirst);
     }
 }

@@ -24,7 +24,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.LoggingTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -75,15 +74,16 @@ public abstract class AbstractBaseReindexRestHandler<
         }
         final var responseListener = new SubscribableListener<BulkByScrollResponse>();
         final var task = client.executeLocally(action, internal, responseListener);
-        final ActionListener<BulkByScrollResponse> listener = new LoggingTaskListener<>(task);
-        responseListener.addListener(listener.delegateResponse((l, e) -> {
+        final ActionListener<BulkByScrollResponse> loggingListener = ActionListener.wrap(response -> {
+            logger.info("{} finished with response {}", task.getId(), response);
+        }, e -> {
             if (e instanceof TaskRelocatedException relocatedException) {
-                // LoggingTaskListener will log failure at WARN, which we don't want
-                logger.info(relocatedException.getMessage());
+                logger.info("{} was relocated to {}", task.getId(), relocatedException.getRelocatedTaskId().orElseThrow());
             } else {
-                l.onFailure(e);
+                logger.warn("{} failed with exception", task.getId(), e);
             }
-        }));
+        });
+        responseListener.addListener(loggingListener);
         return sendTask(client.getLocalNodeId(), task);
     }
 

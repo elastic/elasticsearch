@@ -47,19 +47,10 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
     private boolean includeUpdated;
     private boolean includeCreated;
 
-    public void testBulkByTaskStatus() throws IOException {
-        BulkByScrollTask.Status status = randomStatus();
-        BytesStreamOutput out = new BytesStreamOutput();
-        status.writeTo(out);
-        BulkByScrollTask.Status tripped = new BulkByScrollTask.Status(out.bytes().streamInput());
-        assertTaskStatusEquals(out.getTransportVersion(), status, tripped);
-    }
-
     /**
      * Assert that two task statuses are equal after serialization.
-     * @param version the version at which expected was serialized
      */
-    public static void assertTaskStatusEquals(TransportVersion version, BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
+    public static void assertTaskStatusEquals(BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
         assertEquals(expected.getTotal(), actual.getTotal());
         assertEquals(expected.getUpdated(), actual.getUpdated());
         assertEquals(expected.getCreated(), actual.getCreated());
@@ -80,7 +71,7 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
                 assertNull(actual.getSliceStatuses().get(i));
             } else if (sliceStatus.getException() == null) {
                 assertNull(actual.getSliceStatuses().get(i).getException());
-                assertTaskStatusEquals(version, sliceStatus.getStatus(), actual.getSliceStatuses().get(i).getStatus());
+                assertTaskStatusEquals(sliceStatus.getStatus(), actual.getSliceStatuses().get(i).getStatus());
             } else {
                 assertNull(actual.getSliceStatuses().get(i).getStatus());
                 // Just check the message because we're not testing exception serialization in general here.

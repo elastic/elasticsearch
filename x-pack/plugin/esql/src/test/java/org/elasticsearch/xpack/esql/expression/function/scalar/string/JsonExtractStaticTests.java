@@ -48,28 +48,23 @@ public class JsonExtractStaticTests extends ESTestCase {
     // --- Path parsing edge cases ---
 
     public void testEmptyPath() {
-        // Empty path → 0 segments → returns the root value as JSON string
-        assertResult("{\"a\":1}", "", "{\"a\":1}");
+        assertWarningResult("{\"a\":1}", "", "invalid path: empty path");
     }
 
     public void testConsecutiveDots() {
-        // Consecutive dots → splitPath skips empty segments → equivalent to "a.b"
-        assertResult("{\"a\":{\"b\":1}}", "a..b", "1");
+        assertWarningResult("{\"a\":{\"b\":1}}", "a..b", "invalid path [a..b]");
     }
 
     public void testTrailingDot() {
-        // Trailing dot → splitPath skips empty final segment → equivalent to "a"
-        assertResult("{\"a\":1}", "a.", "1");
+        assertWarningResult("{\"a\":1}", "a.", "invalid path [a.]");
     }
 
     public void testLeadingDot() {
-        // Leading dot → splitPath skips empty first segment → equivalent to "a"
-        assertResult("{\"a\":1}", ".a", "1");
+        assertWarningResult("{\"a\":1}", ".a", "invalid path [.a]");
     }
 
     public void testEmptyBrackets() {
-        // Empty brackets → splitPath skips empty segment → equivalent to "a"
-        assertResult("{\"a\":[1,2]}", "a[]", "[1,2]");
+        assertWarningResult("{\"a\":[1,2]}", "a[]", "invalid path [a[]]");
     }
 
     // --- Unicode handling ---

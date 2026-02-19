@@ -78,9 +78,10 @@ public class JsonExtract extends EsqlScalarFunction {
             is `null` or if the extracted JSON value is `null`. A JSON `null` inside an array
             (e.g., `[1, null, 3]`) is also returned as `null` without a warning.
             When duplicate keys exist in a JSON object, the first matching value is returned.
-            Returns `null` and emits a warning if the input is not valid JSON, the path does not
-            exist, the array index is out of bounds, or the path attempts to traverse through a
-            non-object/non-array value.""",
+            Returns `null` and emits a warning if the input is not valid JSON, the path is
+            malformed (e.g., empty, leading/trailing dot, consecutive dots, empty brackets),
+            the path does not exist, the array index is out of bounds, or the path attempts
+            to traverse through a non-object/non-array value.""",
         examples = {
             @Example(file = "json_extract", tag = "json_extract"),
             @Example(file = "json_extract", tag = "json_extract_nested", description = "Extract a nested value using dot-notation:"),
@@ -189,29 +190,54 @@ public class JsonExtract extends EsqlScalarFunction {
      * <p>
      * Uses manual character iteration instead of {@code String.split(regex)} to avoid
      * regex compilation overhead on every invocation.
+     * <p>
+     * Throws {@link IllegalArgumentException} for malformed paths such as empty paths,
+     * consecutive dots, leading/trailing dots, or empty brackets.
      */
     private static String[] splitPath(String path) {
         if (path.isEmpty()) {
-            return new String[0];
+            throw new IllegalArgumentException("invalid path: empty path");
         }
         List<String> segments = new ArrayList<>();
         int start = 0;
+        boolean afterBracket = false;
         for (int i = 0; i < path.length(); i++) {
             char c = path.charAt(i);
-            if (c == '.' || c == '[') {
+            if (c == '.') {
+                if (afterBracket) {
+                    // Skip the dot after ']' — e.g., "orders[1].item"
+                    afterBracket = false;
+                    start = i + 1;
+                } else if (i == start) {
+                    throw new IllegalArgumentException("invalid path [" + path + "]");
+                } else {
+                    segments.add(path.substring(start, i));
+                    start = i + 1;
+                }
+            } else if (c == '[') {
+                if (i == start && !afterBracket) {
+                    throw new IllegalArgumentException("invalid path [" + path + "]");
+                }
                 if (i > start) {
                     segments.add(path.substring(start, i));
                 }
+                afterBracket = false;
                 start = i + 1;
             } else if (c == ']') {
-                if (i > start) {
-                    segments.add(path.substring(start, i));
+                if (i == start) {
+                    throw new IllegalArgumentException("invalid path [" + path + "]");
                 }
+                segments.add(path.substring(start, i));
+                afterBracket = true;
                 start = i + 1;
+            } else {
+                afterBracket = false;
             }
         }
         if (start < path.length()) {
             segments.add(path.substring(start));
+        } else if (segments.isEmpty() || (!afterBracket && start == path.length())) {
+            throw new IllegalArgumentException("invalid path [" + path + "]");
         }
         return segments.toArray(new String[0]);
     }

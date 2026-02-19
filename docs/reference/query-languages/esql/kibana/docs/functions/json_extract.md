@@ -9,9 +9,10 @@ and objects or arrays are returned as JSON strings. Returns `null` if either par
 is `null` or if the extracted JSON value is `null`. A JSON `null` inside an array
 (e.g., `[1, null, 3]`) is also returned as `null` without a warning.
 When duplicate keys exist in a JSON object, the first matching value is returned.
-Returns `null` and emits a warning if the input is not valid JSON, the path does not
-exist, the array index is out of bounds, or the path attempts to traverse through a
-non-object/non-array value.
+Returns `null` and emits a warning if the input is not valid JSON, the path is
+malformed (e.g., empty, leading/trailing dot, consecutive dots, empty brackets),
+the path does not exist, the array index is out of bounds, or the path attempts
+to traverse through a non-object/non-array value.
 
 ```esql
 ROW json = "{\\"name\\":\\"Alice\\",\\"age\\":30}"

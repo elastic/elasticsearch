@@ -35,12 +35,7 @@ public class CoordinationMetadataWireSerializingTests extends AbstractWireSerial
         VotingConfiguration lastCommittedConfiguration = randomVotingConfiguration();
         VotingConfiguration lastAcceptedConfiguration = randomVotingConfiguration();
         Set<VotingConfigExclusion> votingConfigExclusions = randomVotingConfigExclusions();
-        return new CoordinationMetadata(
-            term,
-            lastCommittedConfiguration,
-            lastAcceptedConfiguration,
-            votingConfigExclusions
-        );
+        return new CoordinationMetadata(term, lastCommittedConfiguration, lastAcceptedConfiguration, votingConfigExclusions);
     }
 
     @Override
@@ -53,14 +48,8 @@ public class CoordinationMetadataWireSerializingTests extends AbstractWireSerial
         int field = between(0, 3);
         switch (field) {
             case 0 -> term = randomValueOtherThan(term, () -> randomNonNegativeLong());
-            case 1 -> lastCommittedConfiguration = randomValueOtherThan(
-                lastCommittedConfiguration,
-                this::randomVotingConfiguration
-            );
-            case 2 -> lastAcceptedConfiguration = randomValueOtherThan(
-                lastAcceptedConfiguration,
-                this::randomVotingConfiguration
-            );
+            case 1 -> lastCommittedConfiguration = randomValueOtherThan(lastCommittedConfiguration, this::randomVotingConfiguration);
+            case 2 -> lastAcceptedConfiguration = randomValueOtherThan(lastAcceptedConfiguration, this::randomVotingConfiguration);
             default -> {
                 Set<VotingConfigExclusion> mutableExclusions = new HashSet<>(votingConfigExclusions);
                 mutableExclusions.add(randomVotingConfigExclusion());
@@ -68,12 +57,7 @@ public class CoordinationMetadataWireSerializingTests extends AbstractWireSerial
             }
         }
 
-        return new CoordinationMetadata(
-            term,
-            lastCommittedConfiguration,
-            lastAcceptedConfiguration,
-            votingConfigExclusions
-        );
+        return new CoordinationMetadata(term, lastCommittedConfiguration, lastAcceptedConfiguration, votingConfigExclusions);
     }
 
     private VotingConfiguration randomVotingConfiguration() {

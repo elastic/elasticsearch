@@ -24,8 +24,8 @@ import java.util.Objects;
  * messages instead of instance identity), matching
  * {@link BulkByScrollTaskStatusOrExceptionTests#assertEqualStatusOrException}.
  */
-public class BulkByScrollTaskStatusOrExceptionWireSerializingTests
-    extends AbstractWireSerializingTestCase<BulkByScrollTaskStatusOrExceptionWireSerializingTests.StatusOrExceptionWrapper> {
+public class BulkByScrollTaskStatusOrExceptionWireSerializingTests extends AbstractWireSerializingTestCase<
+    BulkByScrollTaskStatusOrExceptionWireSerializingTests.StatusOrExceptionWrapper> {
 
     @Override
     protected Writeable.Reader<StatusOrExceptionWrapper> instanceReader() {
@@ -45,12 +45,12 @@ public class BulkByScrollTaskStatusOrExceptionWireSerializingTests
         if (field == 0) {
             if (statusOrException.getStatus() != null) {
                 return new StatusOrExceptionWrapper(
-                    new BulkByScrollTask.StatusOrException(BulkByScrollTaskStatusWireSerializingTests.mutateStatus(statusOrException.getStatus()))
+                    new BulkByScrollTask.StatusOrException(
+                        BulkByScrollTaskStatusWireSerializingTests.mutateStatus(statusOrException.getStatus())
+                    )
                 );
             } else {
-                return new StatusOrExceptionWrapper(
-                    new BulkByScrollTask.StatusOrException(BulkByScrollTaskStatusTests.randomStatus())
-                );
+                return new StatusOrExceptionWrapper(new BulkByScrollTask.StatusOrException(BulkByScrollTaskStatusTests.randomStatus()));
             }
         } else {
             if (statusOrException.getException() != null) {

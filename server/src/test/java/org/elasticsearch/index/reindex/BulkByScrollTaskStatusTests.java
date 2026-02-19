@@ -14,7 +14,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
@@ -49,8 +48,9 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
 
     /**
      * Assert that two task statuses are equal after serialization.
+     * @param version the version at which expected was serialized
      */
-    public static void assertTaskStatusEquals(BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
+    public static void assertTaskStatusEquals(TransportVersion version, BulkByScrollTask.Status expected, BulkByScrollTask.Status actual) {
         assertEquals(expected.getTotal(), actual.getTotal());
         assertEquals(expected.getUpdated(), actual.getUpdated());
         assertEquals(expected.getCreated(), actual.getCreated());
@@ -71,7 +71,7 @@ public class BulkByScrollTaskStatusTests extends AbstractXContentTestCase<BulkBy
                 assertNull(actual.getSliceStatuses().get(i));
             } else if (sliceStatus.getException() == null) {
                 assertNull(actual.getSliceStatuses().get(i).getException());
-                assertTaskStatusEquals(sliceStatus.getStatus(), actual.getSliceStatuses().get(i).getStatus());
+                assertTaskStatusEquals(version, sliceStatus.getStatus(), actual.getSliceStatuses().get(i).getStatus());
             } else {
                 assertNull(actual.getSliceStatuses().get(i).getStatus());
                 // Just check the message because we're not testing exception serialization in general here.

@@ -17,13 +17,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 import static java.lang.Math.abs;
 
@@ -32,7 +30,8 @@ import static java.lang.Math.abs;
  * Uses a wrapper type so that equality after round-trip is semantic (e.g. exception messages
  * instead of instance identity), matching {@link BulkByScrollTaskStatusTests#assertTaskStatusEquals}.
  */
-public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSerializingTestCase<BulkByScrollTaskStatusWireSerializingTests.StatusWrapper> {
+public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSerializingTestCase<
+    BulkByScrollTaskStatusWireSerializingTests.StatusWrapper> {
 
     @Override
     protected Writeable.Reader<StatusWrapper> instanceReader() {
@@ -116,7 +115,10 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
     private static BulkByScrollTask.Status mutateMergedStatus(BulkByScrollTask.Status status) {
         int field = between(0, 1);
         if (field == 0) {
-            String reasonCancelled = randomValueOtherThan(status.getReasonCancelled(), () -> randomBoolean() ? null : randomAlphaOfLength(10));
+            String reasonCancelled = randomValueOtherThan(
+                status.getReasonCancelled(),
+                () -> randomBoolean() ? null : randomAlphaOfLength(10)
+            );
             return new BulkByScrollTask.Status(status.getSliceStatuses(), reasonCancelled);
         } else {
             List<BulkByScrollTask.StatusOrException> newSlices = new ArrayList<>(status.getSliceStatuses());
@@ -199,10 +201,7 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
             return true;
         }
 
-        private static boolean statusOrExceptionEquals(
-            BulkByScrollTask.StatusOrException a,
-            BulkByScrollTask.StatusOrException b
-        ) {
+        private static boolean statusOrExceptionEquals(BulkByScrollTask.StatusOrException a, BulkByScrollTask.StatusOrException b) {
             if (a == b) return true;
             if (a == null || b == null) return false;
             if (a.getStatus() != null && b.getStatus() != null) return statusEquals(a.getStatus(), b.getStatus());

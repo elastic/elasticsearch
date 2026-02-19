@@ -192,15 +192,17 @@ public class ElasticInferenceServiceSparseEmbeddingsServiceSettings extends Filt
     }
 
     @Override
-    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
         serviceSettings = new HashMap<>(serviceSettings);
 
-        var extractedMaxBatchSize = ElasticInferenceServiceSettingsUtils.parseMaxBatchSize(serviceSettings, validationException);
+        Integer maxBatchSize = ElasticInferenceServiceSettingsUtils.parseMaxBatchSize(serviceSettings, validationException);
 
-        validationException.throwIfValidationErrorsExist();
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
 
-        return createBuilderWithCopy().maxBatchSize(extractedMaxBatchSize).build();
+        return createBuilderWithCopy().maxBatchSize(maxBatchSize).build();
     }
 
     private static class Builder {

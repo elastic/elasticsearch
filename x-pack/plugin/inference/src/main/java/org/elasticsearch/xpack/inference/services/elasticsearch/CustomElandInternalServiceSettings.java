@@ -8,9 +8,7 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -34,13 +32,13 @@ public class CustomElandInternalServiceSettings extends ElasticsearchInternalSer
     }
 
     @Override
-    public CustomElandInternalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         serviceSettings = new HashMap<>(serviceSettings);
-        ServiceSettings updated = super.updateServiceSettings(serviceSettings, taskType);
+        ServiceSettings updated = super.updateServiceSettings(serviceSettings);
         if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
             return new CustomElandInternalServiceSettings(esSettings);
         } else {
-            throw new IllegalStateException(Strings.format("Unexpected service settings type [%s]", updated.getClass().getName()));
+            throw new IllegalStateException("Unexpected service settings type [" + updated.getClass().getName() + "]");
         }
     }
 }

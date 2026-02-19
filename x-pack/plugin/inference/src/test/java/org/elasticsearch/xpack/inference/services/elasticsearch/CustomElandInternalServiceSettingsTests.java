@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.inference.TaskType;
 
 import java.io.IOException;
 
@@ -37,10 +36,5 @@ public class CustomElandInternalServiceSettingsTests extends AbstractElasticsear
     @Override
     protected void assertUpdated(CustomElandInternalServiceSettings original, CustomElandInternalServiceSettings updated) {
         // Nothing to do as there are no additional properties
-    }
-
-    @Override
-    protected TaskType getSupportedTask() {
-        return TaskType.RERANK;
     }
 }

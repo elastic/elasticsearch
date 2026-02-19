@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
@@ -229,7 +228,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     }
 
     @Override
-    public ElasticsearchInternalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
         var mutableServiceSettings = new HashMap<>(serviceSettings);
 
@@ -237,19 +236,19 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
             validationException.addValidationError(Strings.format("[%s] cannot be updated", NUM_THREADS));
         }
 
-        var extractedNumAllocations = extractOptionalPositiveInteger(
+        var numAllocations = extractOptionalPositiveInteger(
             mutableServiceSettings,
             NUM_ALLOCATIONS,
             ModelConfigurations.SERVICE_SETTINGS,
             validationException
         );
-        var extractedAdaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
+        var adaptiveAllocationsSettings = ServiceUtils.removeAsAdaptiveAllocationsSettings(
             mutableServiceSettings,
             ADAPTIVE_ALLOCATIONS,
             validationException
         );
 
-        if (extractedNumAllocations == null && extractedAdaptiveAllocationsSettings == null) {
+        if (numAllocations == null && adaptiveAllocationsSettings == null) {
             validationException.addValidationError(
                 ServiceUtils.missingOneOfSettingsErrorMsg(
                     List.of(NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS),
@@ -257,16 +256,14 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
                 )
             );
         }
-        if (extractedNumAllocations != null && extractedAdaptiveAllocationsSettings != null) {
+        if (numAllocations != null && adaptiveAllocationsSettings != null) {
             validationException.addValidationError(
                 Strings.format("[%s] cannot be set if [%s] is set", NUM_ALLOCATIONS, ADAPTIVE_ALLOCATIONS)
             );
         }
         validationException.throwIfValidationErrorsExist();
 
-        return toBuilder().setNumAllocations(extractedNumAllocations)
-            .setAdaptiveAllocationsSettings(extractedAdaptiveAllocationsSettings)
-            .build();
+        return toBuilder().setNumAllocations(numAllocations).setAdaptiveAllocationsSettings(adaptiveAllocationsSettings).build();
     }
 
     public Builder toBuilder() {

@@ -12,7 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -46,8 +45,7 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCWireSeria
                         RateLimitSettings.FIELD_NAME,
                         new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
                     )
-                ),
-                TaskType.CHAT_COMPLETION
+                )
             );
 
         assertThat(
@@ -58,7 +56,7 @@ public class Ai21ChatCompletionServiceSettingsTests extends AbstractBWCWireSeria
 
     public void testUpdateServiceSettings_EmptyMap_Success() {
         var serviceSettings = new Ai21ChatCompletionServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT))
-            .updateServiceSettings(new HashMap<>(), TaskType.CHAT_COMPLETION);
+            .updateServiceSettings(new HashMap<>());
 
         assertThat(
             serviceSettings,

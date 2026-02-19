@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -127,11 +126,11 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
     }
 
     @Override
-    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
         serviceSettings = new HashMap<>(serviceSettings);
 
-        var extractedMaxBatchSize = extractOptionalPositiveIntegerLessThanOrEqualToMax(
+        Integer maxBatchSize = extractOptionalPositiveIntegerLessThanOrEqualToMax(
             serviceSettings,
             MAX_BATCH_SIZE,
             EMBEDDING_MAX_BATCH_SIZE,
@@ -139,9 +138,11 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
             validationException
         );
 
-        validationException.throwIfValidationErrorsExist();
+        if (validationException.validationErrors().isEmpty() == false) {
+            throw validationException;
+        }
 
-        return new GoogleVertexAiEmbeddingsServiceSettings(this, extractedMaxBatchSize);
+        return new GoogleVertexAiEmbeddingsServiceSettings(this, maxBatchSize);
     }
 
     private final String location;
@@ -225,7 +226,6 @@ public class GoogleVertexAiEmbeddingsServiceSettings extends FilteredXContentObj
         return modelId;
     }
 
-    @Override
     public Boolean dimensionsSetByUser() {
         return dimensionsSetByUser;
     }

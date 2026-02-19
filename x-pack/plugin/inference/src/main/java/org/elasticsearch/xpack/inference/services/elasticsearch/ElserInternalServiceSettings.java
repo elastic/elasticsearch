@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.ServiceSettings;
-import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
@@ -67,13 +65,13 @@ public class ElserInternalServiceSettings extends ElasticsearchInternalServiceSe
     }
 
     @Override
-    public ElserInternalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings, TaskType taskType) {
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         serviceSettings = new HashMap<>(serviceSettings);
-        ServiceSettings updated = super.updateServiceSettings(serviceSettings, taskType);
+        ServiceSettings updated = super.updateServiceSettings(serviceSettings);
         if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
             return new ElserInternalServiceSettings(esSettings);
         } else {
-            throw new IllegalStateException(Strings.format("Unexpected service settings type [%s]", updated.getClass().getName()));
+            throw new IllegalStateException("Unexpected service settings type [" + updated.getClass().getName() + "]");
         }
     }
 }

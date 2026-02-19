@@ -234,10 +234,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         ServiceSettings mergedServiceSettings = existingServiceSettings;
 
         if (newSettings.serviceSettings() != null) {
-            mergedServiceSettings = mergedServiceSettings.updateServiceSettings(
-                newSettings.serviceSettings(),
-                existingParsedModel.getTaskType()
-            );
+            mergedServiceSettings = mergedServiceSettings.updateServiceSettings(newSettings.serviceSettings());
         }
         if (newSettings.taskSettings() != null) {
             mergedTaskSettings = mergedTaskSettings.updatedTaskSettings(newSettings.taskSettings());

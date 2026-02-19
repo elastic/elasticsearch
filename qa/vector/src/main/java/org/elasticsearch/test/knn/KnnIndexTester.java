@@ -413,8 +413,7 @@ public class KnnIndexTester {
     private static void checkQuantizeBits(TestConfiguration args) {
         switch (args.indexType()) {
             case IVF:
-                // also checks for null quantizeBits
-                if (!Set.of(1, 2, 4).contains(args.quantizeBits())) {
+                if (args.quantizeBits() == null || !Set.of(1, 2, 4).contains(args.quantizeBits())) {
                     throw new IllegalArgumentException(
                         "IVF index type only supports 1, 2 or 4 bits quantization, but got: " + args.quantizeBits()
                     );

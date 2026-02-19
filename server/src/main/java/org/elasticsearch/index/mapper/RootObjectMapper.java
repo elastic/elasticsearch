@@ -117,6 +117,14 @@ public class RootObjectMapper extends ObjectMapper {
         }
 
         @Override
+        RootObjectMapper.Builder newEmptyBuilder() {
+            RootObjectMapper.Builder builder = new RootObjectMapper.Builder(leafName(), subobjects);
+            builder.enabled = this.enabled;
+            builder.dynamic = this.dynamic;
+            return builder;
+        }
+
+        @Override
         public Mapper.Builder mergeWith(Mapper.Builder incoming, MapperMergeContext parentContext) {
             MapperMergeContext objectMergeContext = parentContext.createChildContext(null, this.dynamic);
             if (incoming instanceof ObjectMapper.Builder incomingObj) {

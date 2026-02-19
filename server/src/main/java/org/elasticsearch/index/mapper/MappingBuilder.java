@@ -62,6 +62,14 @@ public class MappingBuilder {
         );
     }
 
+    /**
+     * Creates a new {@link MappingBuilder} with the same root settings and metadata but no child
+     * mappers in the root. Useful for applying field budget constraints without decomposing a built mapping.
+     */
+    MappingBuilder withoutMappers() {
+        return new MappingBuilder(rootBuilder.newEmptyBuilder(), new HashMap<>(metadataMappers), meta);
+    }
+
     public RootObjectMapper.Builder rootBuilder() {
         return rootBuilder;
     }

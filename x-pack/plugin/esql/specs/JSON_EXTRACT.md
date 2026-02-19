@@ -63,15 +63,15 @@ When `$` is used, it must be followed by `.` or `[` — bare `$name` is not vali
 
 These JSONPath (RFC 9535) features are not supported and will not be added to this function. They require multi-value return semantics, which would need a separate function (e.g., `JSON_QUERY`).
 
-| Feature | Syntax | Reason |
-|---------|--------|--------|
-| Wildcard | `$.*`, `$[*]` | Returns multiple values |
-| Recursive descent | `$..name` | Returns multiple values |
-| Array slicing | `$[0:3]`, `$[::2]` | Returns multiple values |
-| Union / multiple indices | `$[0,1]`, `$['a','b']` | Returns multiple values |
-| Filter expressions | `$[?(@.price < 10)]` | Returns multiple values |
-| Negative array indices | `$[-1]` | Not supported (consistent with ClickHouse) |
-| Built-in functions | `length()`, `count()` | Different return type semantics |
+| Feature | Syntax |
+|---------|--------|
+| Wildcard | `$.*`, `$[*]` |
+| Recursive descent | `$..name` |
+| Array slicing | `$[0:3]`, `$[::2]` |
+| Union / multiple indices | `$[0,1]`, `$['a','b']` |
+| Filter expressions | `$[?(@.price < 10)]` |
+| Negative array indices | `$[-1]` |
+| Built-in functions | `length()`, `count()` |
 
 ## Error and Edge Case Behavior
 

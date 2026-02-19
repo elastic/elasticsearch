@@ -3186,7 +3186,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         return new BytesRef(newBytesArray, offset, bytesRef.length);
     }
 
-
     private static boolean previousFailureSkipsRemaining;
     @Rule
     public final TestWatcher previousFailureSkipsRemainingRule = new TestWatcher() {
@@ -3195,13 +3194,14 @@ public abstract class ESTestCase extends LuceneTestCase {
             previousFailureSkipsRemaining = shouldFailureSkipRemainingTests();
         }
     };
+
     @Before
     public final void checkPreviousFailureSkipsRemaining() {
         assumeFalse("previous failures broke system under test", previousFailureSkipsRemaining);
     }
 
     /**
-     * Should a failure cause subsequent tests to be squipped?
+     * Should a failure cause subsequent tests to be skipped?
      */
     protected boolean shouldFailureSkipRemainingTests() {
         return false;
@@ -3211,7 +3211,7 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Have previous failures forced us to skip the test?
      * <p>
      *     This should only be used in rare cases where the system being tested
-     *     is typically poised by test failures. ESQL's HeapAttack tests are
+     *     is typically poisoned by test failures. ESQL's HeapAttack tests are
      *     like this. As are packaging tests.
      * </p>
      * <p>

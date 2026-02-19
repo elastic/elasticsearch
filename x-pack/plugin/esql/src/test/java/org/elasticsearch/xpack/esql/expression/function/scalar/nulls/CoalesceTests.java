@@ -22,6 +22,7 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -49,6 +50,8 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.randomDenseVector;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -160,6 +163,20 @@ public class CoalesceTests extends AbstractScalarFunctionTestCase {
                 "CoalesceBytesRefEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
                 DataType.HISTOGRAM,
                 equalTo(firstHisto == null ? secondHisto : firstHisto)
+            );
+        }));
+        noNullsSuppliers.add(new TestCaseSupplier(List.of(DataType.DENSE_VECTOR, DataType.DENSE_VECTOR), () -> {
+            int dimensions = between(64, 128);
+            List<Float> firstVector = randomBoolean() ? null : randomDenseVector(dimensions);
+            List<Float> secondVector = randomDenseVector(dimensions);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(firstVector, DataType.DENSE_VECTOR, "first"),
+                    new TestCaseSupplier.TypedData(secondVector, DataType.DENSE_VECTOR, "second")
+                ),
+                "CoalesceFloatEagerEvaluator[values=[Attribute[channel=0], Attribute[channel=1]]]",
+                DataType.DENSE_VECTOR,
+                equalTo(firstVector == null ? secondVector : firstVector)
             );
         }));
         List<TestCaseSupplier> suppliers = new ArrayList<>(noNullsSuppliers);

@@ -193,6 +193,7 @@ public class CsvTestsDataLoader {
     private static final TestDataset DENSE_VECTOR_TEXT = new TestDataset("dense_vector_text");
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
+    private static final TestDataset DENSE_VECTOR_COALESCE = new TestDataset("dense_vector_coalesce");
     private static final TestDataset DENSE_VECTOR_BFLOAT16 = new TestDataset("dense_vector_bfloat16");
     private static final TestDataset DENSE_VECTOR_ARITHMETIC = new TestDataset("dense_vector_arithmetic");
     private static final TestDataset WEB_LOGS = new TestDataset("web_logs");
@@ -301,6 +302,7 @@ public class CsvTestsDataLoader {
         Map.entry(DENSE_VECTOR_TEXT.indexName, DENSE_VECTOR_TEXT),
         Map.entry(MV_TEXT.indexName, MV_TEXT),
         Map.entry(DENSE_VECTOR.indexName, DENSE_VECTOR),
+        Map.entry(DENSE_VECTOR_COALESCE.indexName, DENSE_VECTOR_COALESCE),
         Map.entry(DENSE_VECTOR_BFLOAT16.indexName, DENSE_VECTOR_BFLOAT16),
         Map.entry(DENSE_VECTOR_ARITHMETIC.indexName, DENSE_VECTOR_ARITHMETIC),
         Map.entry(WEB_LOGS.indexName, WEB_LOGS),

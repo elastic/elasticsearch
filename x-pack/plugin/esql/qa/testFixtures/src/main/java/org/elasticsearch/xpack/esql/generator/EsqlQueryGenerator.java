@@ -34,8 +34,10 @@ import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.TimeSeriesGenerator;
 import org.elasticsearch.xpack.esql.parser.ParserUtils;
 
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -163,13 +165,9 @@ public class EsqlQueryGenerator {
         CommandGenerator.CommandDescription desc;
 
         if (commandGenerator instanceof PromQLGenerator promQLGenerator) {
-            // do a dummy query to get available fields first
-            // TODO: modify when METRICS_INFO available https://github.com/elastic/elasticsearch/issues/141413
             String index = promQLGenerator.generateIndices(schema);
-            var fromDesc = new CommandGenerator.CommandDescription("from", FromGenerator.INSTANCE, "FROM " + index, Map.of());
-            executor.run(FromGenerator.INSTANCE, fromDesc);
-            executor.clearCommandHistory();
-            desc = promQLGenerator.generateWithIndices(List.of(), executor.currentSchema(), schema, queryExecutor, index);
+            List<Column> fieldSchema = discoverFieldsViaMetricsInfo(index, queryExecutor);
+            desc = promQLGenerator.generateWithIndices(List.of(), fieldSchema, schema, queryExecutor, index);
             canGenerateTimeSeries = false;
         } else {
             desc = commandGenerator.generate(List.of(), List.of(), schema, queryExecutor);
@@ -734,6 +732,124 @@ public class EsqlQueryGenerator {
             return ParserUtils.unquoteIdString(colName);
         }
         return colName;
+    }
+
+    /**
+     * Runs {@code TS <index> | METRICS_INFO} or {@code TS <index> | TS_INFO} (chosen randomly)
+     * and converts the result rows into {@link Column} objects suitable for {@link PromQLGenerator}.
+     * <p>
+     * Each metric row produces a Column whose name is the metric field name and whose type
+     * reflects the metric_type (gauge → raw field_type, counter → "counter_" + field_type).
+     * Dimension fields are added as keyword columns, and {@code @timestamp} is always included.
+     */
+    static List<Column> discoverFieldsViaMetricsInfo(String index, QueryExecutor queryExecutor) {
+        String command = randomBoolean() ? "METRICS_INFO" : "TS_INFO";
+        QueryExecuted result = queryExecutor.execute("TS " + index + " | " + command, 0);
+        if (result.exception() != null || result.outputSchema() == null || result.result() == null) {
+            return List.of();
+        }
+
+        int metricNameIdx = -1;
+        int metricTypeIdx = -1;
+        int fieldTypeIdx = -1;
+        int dimFieldsIdx = -1;
+        List<Column> outputSchema = result.outputSchema();
+        for (int i = 0; i < outputSchema.size(); i++) {
+            switch (outputSchema.get(i).name()) {
+                case "metric_name" -> metricNameIdx = i;
+                case "metric_type" -> metricTypeIdx = i;
+                case "field_type" -> fieldTypeIdx = i;
+                case "dimension_fields" -> dimFieldsIdx = i;
+                default -> {
+                }
+            }
+        }
+        if (metricNameIdx < 0 || metricTypeIdx < 0 || fieldTypeIdx < 0) {
+            return List.of();
+        }
+
+        Set<String> seenMetrics = new HashSet<>();
+        Set<String> dimensionFields = new LinkedHashSet<>();
+        List<Column> columns = new ArrayList<>();
+        columns.add(new Column("@timestamp", "datetime", List.of("datetime")));
+
+        for (List<Object> row : result.result()) {
+            String metricName = asString(row.get(metricNameIdx));
+            String metricType = asString(row.get(metricTypeIdx));
+            String fieldType = asString(row.get(fieldTypeIdx));
+
+            if (metricName != null && isAggMetricSubField(metricName) == false) {
+                if (seenMetrics.add(metricName)) {
+                    String type = resolveColumnType(metricType, fieldType);
+                    columns.add(new Column(metricName, type, List.of(type)));
+                }
+            }
+
+            if (dimFieldsIdx >= 0) {
+                Object dimFieldsVal = row.get(dimFieldsIdx);
+                if (dimFieldsVal instanceof List<?> dimList) {
+                    for (Object dim : dimList) {
+                        String dimName = dim instanceof String s ? s : null;
+                        if (dimName != null && isAggMetricSubField(dimName) == false) {
+                            dimensionFields.add(dimName);
+                        }
+                    }
+                } else if (dimFieldsVal instanceof String dimStr) {
+                    if (isAggMetricSubField(dimStr) == false) {
+                        dimensionFields.add(dimStr);
+                    }
+                }
+            }
+        }
+
+        for (String dim : dimensionFields) {
+            columns.add(new Column(dim, "keyword", List.of("keyword")));
+        }
+
+        return columns;
+    }
+
+    private static final List<String> AGG_METRIC_SUFFIXES = List.of(".value_count", ".sum", ".max", ".min");
+
+    /**
+     * Returns {@code true} if the metric name looks like an {@code aggregate_metric_double} sub-field
+     * (e.g. {@code network.eth0.rx.value_count}). These sub-fields appear in METRICS_INFO / TS_INFO
+     * output for downsampled indices and should be dropped — the parent field (e.g.
+     * {@code network.eth0.rx}) already covers them with type {@code aggregate_metric_double}.
+     */
+    private static boolean isAggMetricSubField(String metricName) {
+        for (String suffix : AGG_METRIC_SUFFIXES) {
+            if (metricName.endsWith(suffix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Safely extracts a {@code String} from a REST API result cell that may be a plain String
+     * or a single-element List (for multi-valued columns). Returns the first element if a list,
+     * the string itself if scalar, or {@code null} otherwise.
+     */
+    private static String asString(Object value) {
+        if (value instanceof String s) {
+            return s;
+        }
+        if (value instanceof List<?> list && list.isEmpty() == false) {
+            Object first = list.get(0);
+            return first instanceof String s ? s : null;
+        }
+        return null;
+    }
+
+    private static String resolveColumnType(String metricType, String fieldType) {
+        if (fieldType == null) {
+            return "unsupported";
+        }
+        if ("counter".equals(metricType)) {
+            return "counter_" + fieldType;
+        }
+        return fieldType;
     }
 
 }

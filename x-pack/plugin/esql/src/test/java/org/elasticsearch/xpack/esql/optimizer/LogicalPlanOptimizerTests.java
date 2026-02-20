@@ -9965,10 +9965,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
     }
 
     public void testTopSnippetsQueryMustBeFoldable() {
-        var e = expectThrows(
-            VerificationException.class,
-            () -> optimizedPlan("FROM test | EVAL x = TOP_SNIPPETS(first_name, last_name)")
-        );
+        var e = expectThrows(VerificationException.class, () -> optimizedPlan("FROM test | EVAL x = TOP_SNIPPETS(first_name, last_name)"));
         assertThat(e.getMessage(), containsString("Query must be a valid string"));
     }
 

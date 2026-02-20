@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 
-import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -47,10 +46,7 @@ public class TopSnippetsValidationTests extends ESTestCase {
         topSnippets.postOptimizationVerification(failures);
 
         assertThat(failures.failures(), hasSize(1));
-        assertThat(
-            failures.failures().iterator().next().message(),
-            containsString("Query must be a valid string")
-        );
+        assertThat(failures.failures().iterator().next().message(), containsString("Query must be a valid string"));
     }
 
     private static FieldAttribute fieldAttribute(String name, DataType type) {

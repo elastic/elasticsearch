@@ -69,6 +69,9 @@ The following search settings are supported:
 
 
 ## Search task watchdog settings [search-task-watchdog-settings]
+```{applies_to}
+stack: ga 9.4
+```
 
 The search task watchdog monitors long-running search tasks and logs hot threads when thresholds are exceeded.
 This helps diagnose slow searches by capturing threads activity while the search is still running, rather

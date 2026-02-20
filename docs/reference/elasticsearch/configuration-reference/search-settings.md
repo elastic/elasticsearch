@@ -78,10 +78,10 @@ This helps diagnose slow searches by capturing threads activity while the search
 than just logging after completion.
 
 On data nodes, it logs hot threads when a shard-level search operation (query/fetch phase)
-exceeds the data node threshold. On coordinator nodes, it logs hot threads when the reduce/merge phase
-exceeds the coordinator threshold, but only after all shards have responded to avoid logging when
-the coordinator is simply waiting for slow shards (the slow shards will log the hot threads
-themselves).
+exceeds the data node threshold. On coordinator nodes, it logs hot threads for long-running
+coordinator search tasks only when they have no outstanding shard child requests. This avoids
+logging while the coordinator is mainly waiting for slow shards (those shards will log hot
+threads themselves).
 
 The hot threads output is gzip compressed and base64-encoded. To decode it, use:
 
@@ -100,7 +100,8 @@ $$$search-task-watchdog-coordinator-threshold$$$
 
 `search.task_watchdog.coordinator_threshold`
 :   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting), [time value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) Threshold for coordinator tasks. When a search task on the coordinator node exceeds
-this duration and has no outstanding shard requests (i.e., is in the reduce/merge phase), hot threads are logged. Set to `-1ms` to disable coordinator task monitoring.
+this duration and has no outstanding shard child requests, hot threads are logged. Set to `-1ms`
+to disable coordinator task monitoring.
 Defaults to `3s`.
 
 $$$search-task-watchdog-data-node-threshold$$$

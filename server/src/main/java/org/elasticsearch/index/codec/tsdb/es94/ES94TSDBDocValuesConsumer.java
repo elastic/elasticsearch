@@ -46,14 +46,14 @@ import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
-import org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor;
+import org.elasticsearch.index.codec.tsdb.pipeline.BlockSizeResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptorWriter;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
-import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolutionPolicy;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockEncoder;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -88,8 +88,9 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
     final BinaryDVCompressionMode binaryDVCompressionMode;
     private final boolean enablePerBlockCompression;
 
-    private final PipelineResolutionPolicy resolutionPolicy;
-    private final NumericCodecFactory numericCodecFactory;
+    private final FieldContextResolver fieldContextResolver;
+    private final BlockSizeResolver blockSizeResolver;
+    private final PipelineResolver pipelineResolver;
 
     ES94TSDBDocValuesConsumer(
         BinaryDVCompressionMode binaryDVCompressionMode,
@@ -99,8 +100,9 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
         int minDocsPerOrdinalForOrdinalRangeEncoding,
         boolean enableOptimizedMerge,
         int numericBlockShift,
-        final NumericCodecFactory numericCodecFactory,
-        final PipelineResolutionPolicy resolutionPolicy,
+        final FieldContextResolver fieldContextResolver,
+        final BlockSizeResolver blockSizeResolver,
+        final PipelineResolver pipelineResolver,
         String dataCodec,
         String dataExtension,
         String metaCodec,
@@ -114,8 +116,9 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
         this.minDocsPerOrdinalForOrdinalRangeEncoding = minDocsPerOrdinalForOrdinalRangeEncoding;
         this.primarySortFieldNumber = ES94TSDBDocValuesProducer.primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
         this.context = state.context;
-        this.numericCodecFactory = numericCodecFactory;
-        this.resolutionPolicy = resolutionPolicy;
+        this.fieldContextResolver = fieldContextResolver;
+        this.blockSizeResolver = blockSizeResolver;
+        this.pipelineResolver = pipelineResolver;
 
         boolean success = false;
         try {
@@ -153,40 +156,40 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
         }
     }
 
-    private NumericEncoder newEncoder(final PipelineConfig pipelineConfig) {
-        return numericCodecFactory.createEncoder(pipelineConfig);
-    }
-
     @Override
     public void addNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(ES94TSDBDocValuesFormat.NUMERIC);
-        var producer = new TsdbDocValuesProducer(valuesProducer) {
+        final TsdbDocValuesProducer producer = new TsdbDocValuesProducer(valuesProducer) {
             @Override
             public SortedNumericDocValues getSortedNumeric(FieldInfo field) throws IOException {
                 return DocValues.singleton(valuesProducer.getNumeric(field));
             }
         };
-        final PipelineConfig pipelineConfig = resolvePipelineConfig(field.name);
-        final NumericEncoder encoder = newEncoder(pipelineConfig);
-        logger.trace("addNumericField [{}] descriptor=[{}]", field.name, encoder.descriptor());
-        FieldDescriptor.write(meta, encoder.descriptor());
+        final PipelineResolver.FieldContext ctx = resolveFieldContext(field.name);
+        final int blockSize = resolveBlockSize(ctx);
         if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
             writeSkipIndex(field, producer);
         }
-        writeField(field, producer, -1, null, encoder.newBlockEncoder());
+        writeField(field, producer, -1, null, ctx, blockSize);
     }
 
-    private PipelineConfig resolvePipelineConfig(final String fieldName) {
-        if (resolutionPolicy != null) {
-            final PipelineConfig resolved = resolutionPolicy.resolve(fieldName);
-            if (resolved.isDefault() == false) {
-                logger.trace("resolvePipelineConfig [{}] -> custom [{}]", fieldName, resolved);
-                return resolved;
-            }
+    @Nullable
+    private PipelineResolver.FieldContext resolveFieldContext(final String fieldName) {
+        return fieldContextResolver != null ? fieldContextResolver.resolve(fieldName) : null;
+    }
+
+    private int resolveBlockSize(@Nullable final PipelineResolver.FieldContext ctx) {
+        return ctx != null ? blockSizeResolver.resolve(ctx) : numericBlockSize;
+    }
+
+    private PipelineConfig resolvePipelineConfig(@Nullable final PipelineResolver.FieldContext ctx, final long[] sample, int sampleSize) {
+        if (ctx == null) {
+            return PipelineConfig.defaultConfig();
         }
-        logger.trace("resolvePipelineConfig [{}] -> default blockSize=[{}]", fieldName, numericBlockSize);
-        return PipelineConfig.defaultConfig(numericBlockSize);
+        final PipelineConfig config = pipelineResolver.resolve(ctx, sample, sampleSize);
+        logger.trace("pipeline resolve [{}] config=[{}]", ctx.fieldName(), config);
+        return config;
     }
 
     private boolean shouldEncodeOrdinalRange(FieldInfo field, long maxOrd, int numDocsWithValue, long numValues) {
@@ -196,16 +199,17 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
             && (numDocsWithValue / maxOrd) >= minDocsPerOrdinalForOrdinalRangeEncoding;
     }
 
+    // NOTE: instead of using the segment-level blockSize we use the per-field blockSize
+    // which allows us to write segment numeric blocks and their index adapting to each field block size.
+    // The FieldDescriptorWriter is created lazily on the first full block so the PipelineResolver sees real data.
     private long[] writeField(
         FieldInfo field,
         TsdbDocValuesProducer valuesProducer,
         long maxOrd,
         OffsetsAccumulator offsetsAccumulator,
-        NumericBlockEncoder encoder
-        // NOTE: instead of using the segment-level blockSize we use the per-field blockSize
-        // which allows us to write segment numeric blocks and their index adapting to each field block size.
+        @Nullable PipelineResolver.FieldContext pipelineContext,
+        int blockSize
     ) throws IOException {
-        int blockSize = encoder.blockSize();
         final int blockShift = Integer.numberOfTrailingZeros(blockSize);
         int numDocsWithValue = 0;
         long numValues = 0;
@@ -275,6 +279,7 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
                     meta.writeInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
                     final long[] buffer = new long[blockSize];
                     int bufferSize = 0;
+                    FieldDescriptorWriter writer = null;
                     values = valuesProducer.getSortedNumeric(field);
                     final int bitsPerOrd = maxOrd >= 0 ? PackedInts.bitsRequired(maxOrd - 1) : -1;
                     final TSDBDocValuesEncoder ordinalEncoder = maxOrd >= 0 ? new TSDBDocValuesEncoder(blockSize) : null;
@@ -296,7 +301,14 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
                                 if (maxOrd >= 0) {
                                     ordinalEncoder.encodeOrdinals(buffer, data, bitsPerOrd);
                                 } else {
-                                    encoder.encode(buffer, blockSize, data);
+                                    if (writer == null) {
+                                        writer = new FieldDescriptorWriter(
+                                            meta,
+                                            resolvePipelineConfig(pipelineContext, buffer, blockSize),
+                                            blockSize
+                                        );
+                                    }
+                                    writer.encode(buffer, blockSize, data);
                                 }
                                 bufferSize = 0;
                             }
@@ -308,8 +320,18 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
                         if (maxOrd >= 0) {
                             ordinalEncoder.encodeOrdinals(buffer, data, bitsPerOrd);
                         } else {
-                            encoder.encode(buffer, blockSize, data);
+                            if (writer == null) {
+                                writer = new FieldDescriptorWriter(
+                                    meta,
+                                    resolvePipelineConfig(pipelineContext, buffer, bufferSize),
+                                    blockSize
+                                );
+                            }
+                            writer.encode(buffer, blockSize, data);
                         }
+                    }
+                    if (writer != null) {
+                        logger.trace("pipeline field [{}] descriptor=[{}]", field.name, writer.descriptor());
                     }
                 }
 
@@ -1012,11 +1034,9 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
     public void addSortedNumericField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
         meta.writeInt(field.number);
         meta.writeByte(ES94TSDBDocValuesFormat.SORTED_NUMERIC);
-        final PipelineConfig pipelineConfig = resolvePipelineConfig(field.name);
-        final NumericEncoder encoder = newEncoder(pipelineConfig);
-        logger.trace("addSortedNumericField [{}] descriptor=[{}]", field.name, encoder.descriptor());
-        FieldDescriptor.write(meta, encoder.descriptor());
-        writeSortedNumericField(field, new TsdbDocValuesProducer(valuesProducer), -1, encoder.newBlockEncoder());
+        final PipelineResolver.FieldContext ctx = resolveFieldContext(field.name);
+        final int blockSize = resolveBlockSize(ctx);
+        writeSortedNumericField(field, new TsdbDocValuesProducer(valuesProducer), -1, ctx, blockSize);
     }
 
     private void writeSortedNumericField(FieldInfo field, TsdbDocValuesProducer valuesProducer, long maxOrd) throws IOException {
@@ -1069,8 +1089,13 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
         }
     }
 
-    private void writeSortedNumericField(FieldInfo field, TsdbDocValuesProducer valuesProducer, long maxOrd, NumericBlockEncoder encoder)
-        throws IOException {
+    private void writeSortedNumericField(
+        FieldInfo field,
+        TsdbDocValuesProducer valuesProducer,
+        long maxOrd,
+        @Nullable PipelineResolver.FieldContext pipelineContext,
+        int pipelineBlockSize
+    ) throws IOException {
         if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
             writeSkipIndex(field, valuesProducer);
         }
@@ -1082,16 +1107,16 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
             int numDocsWithField = valuesProducer.mergeStats.sumNumDocsWithField();
             long numValues = valuesProducer.mergeStats.sumNumValues();
             if (numDocsWithField == numValues) {
-                writeField(field, valuesProducer, maxOrd, null, encoder);
+                writeField(field, valuesProducer, maxOrd, null, pipelineContext, pipelineBlockSize);
             } else {
                 assert numValues > numDocsWithField;
-                try (var accumulator = new OffsetsAccumulator(dir, context, data, numDocsWithField)) {
-                    writeField(field, valuesProducer, maxOrd, accumulator, encoder);
+                try (OffsetsAccumulator accumulator = new OffsetsAccumulator(dir, context, data, numDocsWithField)) {
+                    writeField(field, valuesProducer, maxOrd, accumulator, pipelineContext, pipelineBlockSize);
                     accumulator.build(meta, data);
                 }
             }
         } else {
-            long[] stats = writeField(field, valuesProducer, maxOrd, null, encoder);
+            long[] stats = writeField(field, valuesProducer, maxOrd, null, pipelineContext, pipelineBlockSize);
             int numDocsWithField = Math.toIntExact(stats[0]);
             long numValues = stats[1];
             assert numValues >= numDocsWithField;

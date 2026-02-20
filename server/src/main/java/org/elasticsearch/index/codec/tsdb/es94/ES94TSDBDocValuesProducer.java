@@ -1607,20 +1607,13 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                 throw new CorruptIndexException("Invalid field number: " + fieldNumber, meta);
             }
             byte type = meta.readByte();
-            final PipelineDescriptor pipelineDesc;
-            if (type == ES94TSDBDocValuesFormat.NUMERIC || type == ES94TSDBDocValuesFormat.SORTED_NUMERIC) {
-                pipelineDesc = FieldDescriptor.read(meta);
-            } else {
-                pipelineDesc = null;
-            }
             if (info.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {
                 skippers.put(info.number, readDocValueSkipperMeta(meta));
             }
             if (type == ES94TSDBDocValuesFormat.NUMERIC) {
-                // NOTE: instead of using the segment-level blockShift we use the per-field blockShift
-                // which allows us to read numeric blocks and their index adapting to each field block size.
-                final NumericEntry entry = readNumeric(meta, pipelineDesc.blockShift());
-                entry.pipelineDescriptor = pipelineDesc;
+                // NOTE: descriptor is read inside readNumeric, after numValues/numDocsWithValue,
+                // so the pipeline resolver can use real first-block data for profiling.
+                final NumericEntry entry = readNumeric(meta, numericBlockShift, true);
                 numerics.put(info.number, entry);
             } else if (type == ES94TSDBDocValuesFormat.BINARY) {
                 binaries.put(info.number, readBinary(meta));
@@ -1629,10 +1622,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
             } else if (type == ES94TSDBDocValuesFormat.SORTED_SET) {
                 sortedSets.put(info.number, readSortedSet(meta, numericBlockShift));
             } else if (type == ES94TSDBDocValuesFormat.SORTED_NUMERIC) {
-                // NOTE: instead of using the segment-level blockShift we use the per-field blockShift
-                // which allows us to read numeric blocks and their index adapting to each field block size.
-                final SortedNumericEntry entry = readSortedNumeric(meta, pipelineDesc.blockShift());
-                entry.pipelineDescriptor = pipelineDesc;
+                final SortedNumericEntry entry = readSortedNumeric(meta, numericBlockShift, true);
                 sortedNumerics.put(info.number, entry);
             } else {
                 throw new CorruptIndexException("invalid type: " + type, meta);
@@ -1640,9 +1630,9 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    private static NumericEntry readNumeric(IndexInput meta, int numericBlockShift) throws IOException {
+    private static NumericEntry readNumeric(IndexInput meta, int numericBlockShift, boolean readDescriptor) throws IOException {
         NumericEntry entry = new NumericEntry();
-        readNumeric(meta, entry, numericBlockShift);
+        readNumeric(meta, entry, numericBlockShift, readDescriptor);
         return entry;
     }
 
@@ -1657,7 +1647,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID);
     }
 
-    private static void readNumeric(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {
+    private static void readNumeric(IndexInput meta, NumericEntry entry, int numericBlockShift, boolean readDescriptor) throws IOException {
         entry.numValues = meta.readLong();
         // Change compared to ES87TSDBDocValuesProducer:
         entry.numDocsWithField = meta.readInt();
@@ -1671,6 +1661,12 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                 final int blockShift = meta.readByte();
                 entry.sortedOrdinals = DirectMonotonicReader.loadMeta(meta, numOrds + 1, blockShift);
             } else {
+                // NOTE: descriptor is written by the first encode() call in the consumer,
+                // so it appears here after BLOCK_SHIFT but before the block index metadata.
+                if (readDescriptor) {
+                    entry.pipelineDescriptor = FieldDescriptor.read(meta);
+                    numericBlockShift = entry.pipelineDescriptor.blockShift();
+                }
                 entry.indexMeta = DirectMonotonicReader.loadMeta(meta, 1 + ((entry.numValues - 1) >>> numericBlockShift), indexBlockShift);
             }
             entry.indexOffset = meta.readLong();
@@ -1730,15 +1726,19 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
         return entry;
     }
 
-    private static SortedNumericEntry readSortedNumeric(IndexInput meta, int numericBlockShift) throws IOException {
+    private static SortedNumericEntry readSortedNumeric(IndexInput meta, int numericBlockShift, boolean readDescriptor) throws IOException {
         SortedNumericEntry entry = new SortedNumericEntry();
-        readSortedNumeric(meta, entry, numericBlockShift);
+        readSortedNumeric(meta, entry, numericBlockShift, readDescriptor);
         return entry;
     }
 
-    private static SortedNumericEntry readSortedNumeric(IndexInput meta, SortedNumericEntry entry, int numericBlockShift)
-        throws IOException {
-        readNumeric(meta, entry, numericBlockShift);
+    private static SortedNumericEntry readSortedNumeric(
+        IndexInput meta,
+        SortedNumericEntry entry,
+        int numericBlockShift,
+        boolean readDescriptor
+    ) throws IOException {
+        readNumeric(meta, entry, numericBlockShift, readDescriptor);
         // We don't read numDocsWithField here any more.
         if (entry.numDocsWithField != entry.numValues) {
             entry.addressesOffset = meta.readLong();
@@ -1752,7 +1752,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
     private static SortedEntry readSorted(IndexInput meta, int numericBlockShift) throws IOException {
         SortedEntry entry = new SortedEntry();
         entry.ordsEntry = new NumericEntry();
-        readNumeric(meta, entry.ordsEntry, numericBlockShift);
+        readNumeric(meta, entry.ordsEntry, numericBlockShift, false);
         entry.termsDictEntry = new TermsDictEntry();
         readTermDict(meta, entry.termsDictEntry);
         return entry;
@@ -1771,7 +1771,7 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
                 throw new CorruptIndexException("Invalid multiValued flag: " + multiValued, meta);
         }
         entry.ordsEntry = new SortedNumericEntry();
-        readSortedNumeric(meta, entry.ordsEntry, numericBlockShift);
+        readSortedNumeric(meta, entry.ordsEntry, numericBlockShift, false);
         entry.termsDictEntry = new TermsDictEntry();
         readTermDict(meta, entry.termsDictEntry);
         return entry;

@@ -16,9 +16,11 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.util.LenientBooleans;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
+import org.elasticsearch.index.codec.tsdb.pipeline.BlockSizeResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
-import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolutionPolicy;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder;
@@ -135,13 +137,20 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     final boolean enableOptimizedMerge;
     final BinaryDVCompressionMode binaryDVCompressionMode;
     final boolean enablePerBlockCompression;
-    final PipelineResolutionPolicy resolutionPolicy;
+    final FieldContextResolver fieldContextResolver;
+    final BlockSizeResolver blockSizeResolver;
+    final PipelineResolver pipelineResolver;
 
     public static ES94TSDBDocValuesFormat getInstance(boolean useLargeNumericBlock) {
         return useLargeNumericBlock ? new ES94TSDBDocValuesFormat(NUMERIC_LARGE_BLOCK_SHIFT) : new ES94TSDBDocValuesFormat();
     }
 
-    public static ES94TSDBDocValuesFormat getInstance(boolean useLargeNumericBlock, PipelineResolutionPolicy resolutionPolicy) {
+    public static ES94TSDBDocValuesFormat getInstance(
+        boolean useLargeNumericBlock,
+        final FieldContextResolver fieldContextResolver,
+        final BlockSizeResolver blockSizeResolver,
+        final PipelineResolver pipelineResolver
+    ) {
         int blockShift = useLargeNumericBlock ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT;
         return new ES94TSDBDocValuesFormat(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
@@ -150,7 +159,9 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
             BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
             true,
             blockShift,
-            resolutionPolicy
+            fieldContextResolver,
+            blockSizeResolver,
+            pipelineResolver
         );
     }
 
@@ -173,7 +184,11 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         this(NUMERIC_BLOCK_SHIFT);
     }
 
-    public ES94TSDBDocValuesFormat(final PipelineResolutionPolicy resolutionPolicy) {
+    public ES94TSDBDocValuesFormat(
+        final FieldContextResolver fieldContextResolver,
+        final BlockSizeResolver blockSizeResolver,
+        final PipelineResolver pipelineResolver
+    ) {
         this(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
@@ -181,7 +196,9 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
             BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
             true,
             NUMERIC_BLOCK_SHIFT,
-            resolutionPolicy
+            fieldContextResolver,
+            blockSizeResolver,
+            pipelineResolver
         );
     }
 
@@ -251,6 +268,8 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
             binaryDVCompressionMode,
             enablePerBlockCompression,
             numericBlockShift,
+            null,
+            null,
             null
         );
     }
@@ -262,7 +281,9 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         BinaryDVCompressionMode binaryDVCompressionMode,
         final boolean enablePerBlockCompression,
         final int numericBlockShift,
-        final PipelineResolutionPolicy resolutionPolicy
+        final FieldContextResolver fieldContextResolver,
+        final BlockSizeResolver blockSizeResolver,
+        final PipelineResolver pipelineResolver
     ) {
         super(CODEC_NAME);
         assert numericBlockShift == NUMERIC_BLOCK_SHIFT || numericBlockShift == NUMERIC_LARGE_BLOCK_SHIFT : numericBlockShift;
@@ -275,7 +296,9 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         this.binaryDVCompressionMode = binaryDVCompressionMode;
         this.enablePerBlockCompression = enablePerBlockCompression;
         this.numericBlockShift = numericBlockShift;
-        this.resolutionPolicy = resolutionPolicy;
+        this.fieldContextResolver = fieldContextResolver;
+        this.blockSizeResolver = blockSizeResolver;
+        this.pipelineResolver = pipelineResolver;
     }
 
     @Override
@@ -288,8 +311,9 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
             minDocsPerOrdinalForRangeEncoding,
             enableOptimizedMerge,
             numericBlockShift,
-            NUMERIC_CODEC_FACTORY,
-            resolutionPolicy,
+            fieldContextResolver,
+            blockSizeResolver,
+            pipelineResolver,
             DATA_CODEC,
             DATA_EXTENSION,
             META_CODEC,

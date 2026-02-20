@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -308,10 +309,7 @@ public class ES94TSDBDocValuesFormatTests extends ESTestCase {
 
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
-                return new ES94TSDBDocValuesFormat(fieldName -> {
-                    PipelineConfig config = fieldPipelines.get(fieldName);
-                    return config != null ? config : PipelineConfig.defaultConfig();
-                });
+                return formatFromPipelineMap(fieldPipelines);
             }
         });
 
@@ -405,10 +403,7 @@ public class ES94TSDBDocValuesFormatTests extends ESTestCase {
 
             @Override
             public DocValuesFormat getDocValuesFormatForField(String field) {
-                return new ES94TSDBDocValuesFormat(fieldName -> {
-                    PipelineConfig pipelineConfig = fieldPipelines.get(fieldName);
-                    return pipelineConfig != null ? pipelineConfig : PipelineConfig.defaultConfig();
-                });
+                return formatFromPipelineMap(fieldPipelines);
             }
         });
 
@@ -479,6 +474,20 @@ public class ES94TSDBDocValuesFormatTests extends ESTestCase {
 
     private static Integer randomBlockSize() {
         return randomFrom(128, 256, 512, 1024, 2048, 4096);
+    }
+
+    private static ES94TSDBDocValuesFormat formatFromPipelineMap(final Map<String, PipelineConfig> fieldPipelines) {
+        return new ES94TSDBDocValuesFormat(
+            fieldName -> new PipelineResolver.FieldContext(fieldName, null, null, null, PipelineConfig.DataType.LONG),
+            ctx -> {
+                final PipelineConfig config = fieldPipelines.get(ctx.fieldName());
+                return config != null ? config.blockSize() : ES94TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
+            },
+            (ctx, sample, sampleSize) -> {
+                final PipelineConfig config = fieldPipelines.get(ctx.fieldName());
+                return config != null ? config : PipelineConfig.defaultConfig();
+            }
+        );
     }
 
 }

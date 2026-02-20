@@ -14,7 +14,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 /**
- * Resolves a pipeline configuration based on field name and context.
+ * Resolves a pipeline configuration based on field context and an optional data sample.
  */
 public interface PipelineResolver {
 
@@ -24,8 +24,13 @@ public interface PipelineResolver {
         BALANCED
     }
 
-    record FieldContext(IndexMode indexMode, MappedFieldType fieldType, @Nullable OptimizeFor hint) {}
+    record FieldContext(
+        String fieldName,
+        IndexMode indexMode,
+        @Nullable MappedFieldType fieldType,
+        @Nullable OptimizeFor hint,
+        PipelineConfig.DataType dataType
+    ) {}
 
-    /** Resolves the pipeline configuration for the given field and context. */
-    PipelineConfig resolve(String fieldName, FieldContext context);
+    PipelineConfig resolve(FieldContext context, long[] sample, int sampleSize);
 }

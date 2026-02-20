@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.FrequencyCappedAction;
 import org.elasticsearch.common.collect.Iterators;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
@@ -63,18 +64,12 @@ import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getEx
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
 /**
- * Shards allocator used when {@code cluster.routing.allocation.type} is set to {@code balanced}.
- * Allocates and balances shards on the cluster nodes using a local weight function. Fully independent
- * from {@link BalancedShardsAllocator} so that changes to BalancedShardsAllocator and its dependencies
- * do not affect this allocator. The balancing attempts to:
- * <ul>
- *     <li>even shard count across nodes (weighted by cluster.routing.allocation.balance.shard)</li>
- *     <li>spread shards of the same index across different nodes (weighted by cluster.routing.allocation.balance.index)</li>
- *     <li>even write load of the data streams write indices across nodes (weighted by cluster.routing.allocation.balance.write_load)</li>
- *     <li>even disk usage across nodes (weighted by cluster.routing.allocation.balance.disk_usage)</li>
- * </ul>
- * The sensitivity of the algorithm is defined by cluster.routing.allocation.balance.threshold.
- * Allocator takes into account constraints set by {@code AllocationDeciders} when allocating and balancing shards.
+ * THIS CLASS SHOULD NOT BE UNDER FURTHER DEVELOPMENT!
+ * Support for pre v8.6 version balancing will eventually be removed. This class encapsulates the pre v8.6 logic until then.
+ *
+ * This allocator is used when {@link org.elasticsearch.cluster.ClusterModule#SHARDS_ALLOCATOR_TYPE_SETTING} is set to
+ * {@link org.elasticsearch.cluster.ClusterModule#BALANCED_ALLOCATOR}. Fully independent from {@link BalancedShardsAllocator} so that
+ * changes to BalancedShardsAllocator and its dependencies do not affect this allocator.
  */
 public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
 
@@ -87,18 +82,39 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
 
     private final BalancerSettings balancerSettings;
     private final WriteLoadForecaster writeLoadForecaster;
+    private final PreDesiredBalancingWeightsFactory preDesiredBalancingWeightsFactory;
     private final FrequencyCappedAction logInvalidWeights;
+
+    public PreDesiredBalanceShardsAllocator(Settings settings) {
+        this(new BalancerSettings(settings), WriteLoadForecaster.DEFAULT);
+    }
 
     public PreDesiredBalanceShardsAllocator(BalancerSettings balancerSettings, WriteLoadForecaster writeLoadForecaster) {
         this.balancerSettings = balancerSettings;
         this.writeLoadForecaster = writeLoadForecaster;
+        // Cannot delegate to the other constructor because DefaultPreDesiredBalancingWeightsFactory depends on the above variables.
+        this.preDesiredBalancingWeightsFactory = new DefaultPreDesiredBalancingWeightsFactory();
         this.logInvalidWeights = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
         balancerSettings.getClusterSettings()
-            .initializeAndWatch(BalancedShardsAllocator.INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL, logInvalidWeights::setMinInterval);
+            .initializeAndWatch(BalancerSettings.INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL, logInvalidWeights::setMinInterval);
+    }
+
+    public PreDesiredBalanceShardsAllocator(
+        BalancerSettings balancerSettings,
+        WriteLoadForecaster writeLoadForecaster,
+        PreDesiredBalancingWeightsFactory factory
+    ) {
+        this.balancerSettings = balancerSettings;
+        this.writeLoadForecaster = writeLoadForecaster;
+        this.preDesiredBalancingWeightsFactory = factory;
+        this.logInvalidWeights = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
+        balancerSettings.getClusterSettings()
+            .initializeAndWatch(BalancerSettings.INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL, logInvalidWeights::setMinInterval);
     }
 
     @Override
     public void allocate(RoutingAllocation allocation) {
+        final PreDesiredBalancingWeights balancingWeights = preDesiredBalancingWeightsFactory.create();
         assert allocation.isSimulating() == false || balancerSettings.completeEarlyOnShardAssignmentChange()
             : "inconsistent states: isSimulating ["
                 + allocation.isSimulating()
@@ -120,7 +136,6 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
             failAllocationOfNewPrimaries(allocation);
             return;
         }
-        final LocalBalancingWeights balancingWeights = createLocalBalancingWeights();
         final Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,
@@ -177,7 +192,11 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
         return true;
     }
 
-    private void collectAndRecordNodeWeightStats(Balancer balancer, LocalBalancingWeights balancingWeights, RoutingAllocation allocation) {
+    private void collectAndRecordNodeWeightStats(
+        Balancer balancer,
+        PreDesiredBalancingWeights balancingWeights,
+        RoutingAllocation allocation
+    ) {
         Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeLevelWeights = new HashMap<>();
         for (var entry : balancer.nodes.entrySet()) {
             var node = entry.getValue();
@@ -200,10 +219,11 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
 
     @Override
     public ShardAllocationDecision explainShardAllocation(final ShardRouting shard, final RoutingAllocation allocation) {
+        final PreDesiredBalancingWeights balancingWeights = preDesiredBalancingWeightsFactory.create();
         Balancer balancer = new Balancer(
             writeLoadForecaster,
             allocation,
-            createLocalBalancingWeights(),
+            balancingWeights,
             balancerSettings.completeEarlyOnShardAssignmentChange(),
             logInvalidWeights
         );
@@ -247,10 +267,6 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
                 );
             }
         }
-    }
-
-    private LocalBalancingWeights createLocalBalancingWeights() {
-        return new LocalBalancingWeights(balancerSettings, writeLoadForecaster);
     }
 
     private static float avgShardPerNode(Metadata metadata, RoutingNodes routingNodes) {
@@ -333,15 +349,15 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
         private final double avgWriteLoadPerNode;
         private final double avgDiskUsageInBytesPerNode;
         private final Map<String, ModelNode> nodes;
-        private final LocalBalancingWeights balancingWeights;
-        private final LocalNodeSorters nodeSorters;
+        private final PreDesiredBalancingWeights balancingWeights;
+        private final PreDesiredNodeSorters nodeSorters;
         private final boolean completeEarlyOnShardAssignmentChange;
         private final FrequencyCappedAction logInvalidWeights;
 
         private Balancer(
             WriteLoadForecaster writeLoadForecaster,
             RoutingAllocation allocation,
-            LocalBalancingWeights balancingWeights,
+            PreDesiredBalancingWeights balancingWeights,
             boolean completeEarlyOnShardAssignmentChange,
             FrequencyCappedAction logInvalidWeights
         ) {
@@ -434,7 +450,7 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
 
         /**
          * Returns {@code true} iff the weight delta between two nodes is under a defined threshold.
-         * See {@link BalancedShardsAllocator#THRESHOLD_SETTING} for defining the threshold.
+         * See {@link BalancerSettings#THRESHOLD_SETTING} for defining the threshold.
          */
         private static boolean lessThan(float delta, float threshold) {
             /* deltas close to the threshold are "rounded" to the threshold manually
@@ -1456,7 +1472,7 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
          * is of type {@link Type#NO}, then the assigned node will be null.
          */
         private AllocateUnassignedDecision decideAllocateUnassigned(final ProjectIndex index, final ShardRouting shard) {
-            LocalWeightFunction weightFunction = balancingWeights.weightFunctionForShard(shard);
+            PreDesiredWeightFunction weightFunction = balancingWeights.weightFunctionForShard(shard);
             index.assertMatch(shard);
             if (shard.assignedToNode()) {
                 // we only make decisions for unassigned shards here
@@ -1865,7 +1881,7 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
         final ModelNode[] modelNodes;
         /** The nodes weights with respect to the current weight function / index */
         final float[] weights;
-        private final LocalWeightFunction function;
+        private final PreDesiredWeightFunction function;
         private final Balancer balancer;
         private final float threshold;
         private ProjectIndex index;
@@ -1873,7 +1889,7 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
         private int invalidCount;
         private int sortedCount;
 
-        public NodeSorter(ModelNode[] modelNodes, LocalWeightFunction function, Balancer balancer, float threshold) {
+        public NodeSorter(ModelNode[] modelNodes, PreDesiredWeightFunction function, Balancer balancer, float threshold) {
             this.function = function;
             this.balancer = balancer;
             this.modelNodes = modelNodes;
@@ -2004,7 +2020,7 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
             return weights[validSortedCount() - 1] - weights[0];
         }
 
-        public LocalWeightFunction getWeightFunction() {
+        public PreDesiredWeightFunction getWeightFunction() {
             return function;
         }
 
@@ -2031,10 +2047,42 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     /**
+     * Creates a weight function from the same balance factors used by the default local weights.
+     * Useful for tests that need a custom partition with specific factors.
+     */
+    public static PreDesiredWeightFunction createWeightFunction(
+        float shardBalanceFactor,
+        float indexBalanceFactor,
+        float writeLoadBalanceFactor,
+        float diskUsageBalanceFactor
+    ) {
+        return new LocalWeightFunction(shardBalanceFactor, indexBalanceFactor, writeLoadBalanceFactor, diskUsageBalanceFactor);
+    }
+
+    /**
+     * Weight function used by this allocator's balancer. Implementations provide node weight and
+     * min-delta for sorting and balancing.
+     */
+    public interface PreDesiredWeightFunction {
+        float calculateNodeWeightWithIndex(Balancer balancer, ModelNode node, ProjectIndex index);
+
+        float calculateNodeWeight(
+            int nodeNumShards,
+            float avgShardsPerNode,
+            double nodeWriteLoad,
+            double avgWriteLoadPerNode,
+            double diskUsageInBytes,
+            double avgDiskUsageInBytesPerNode
+        );
+
+        float minWeightDelta(float shardWriteLoad, float shardSizeBytes);
+    }
+
+    /**
      * Local weight function for this allocator; same formula as {@link WeightFunction} but operates on
      * this class's Balancer and ModelNode types so this allocator stays independent.
      */
-    private static final class LocalWeightFunction {
+    static class LocalWeightFunction implements PreDesiredWeightFunction {
         private final float theta0;
         private final float theta1;
         private final float theta2;
@@ -2051,7 +2099,8 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
             theta3 = diskUsageBalance / sum;
         }
 
-        float calculateNodeWeightWithIndex(Balancer balancer, ModelNode node, ProjectIndex index) {
+        @Override
+        public float calculateNodeWeightWithIndex(Balancer balancer, ModelNode node, ProjectIndex index) {
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
             final float nodeWeight = calculateNodeWeight(
                 node.numShards(),
@@ -2064,7 +2113,8 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
             return nodeWeight + theta1 * weightIndex;
         }
 
-        float calculateNodeWeight(
+        @Override
+        public float calculateNodeWeight(
             int nodeNumShards,
             float avgShardsPerNode,
             double nodeWriteLoad,
@@ -2078,8 +2128,43 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
             return theta0 * weightShard + theta2 * ingestLoad + theta3 * diskUsage;
         }
 
-        float minWeightDelta(float shardWriteLoad, float shardSizeBytes) {
+        @Override
+        public float minWeightDelta(float shardWriteLoad, float shardSizeBytes) {
             return theta0 * 1 + theta1 * 1 + theta2 * shardWriteLoad + theta3 * shardSizeBytes;
+        }
+    }
+
+    /**
+     * Node sorters for the balancer; provides per-shard sorter and iteration over sorters.
+     */
+    public interface PreDesiredNodeSorters extends Iterable<NodeSorter> {
+        NodeSorter sorterForShard(ShardRouting shard);
+    }
+
+    /**
+     * Balancing weights for this allocator; provides weight functions and node sorters.
+     */
+    public interface PreDesiredBalancingWeights {
+        PreDesiredWeightFunction weightFunctionForShard(ShardRouting shard);
+
+        PreDesiredWeightFunction weightFunctionForNode(RoutingNode node);
+
+        PreDesiredNodeSorters createNodeSorters(ModelNode[] modelNodes, Balancer balancer);
+
+        boolean diskUsageIgnored();
+    }
+
+    /**
+     * Factory for custom balancing weights that use this allocator's types.
+     */
+    public interface PreDesiredBalancingWeightsFactory {
+        PreDesiredBalancingWeights create();
+    }
+
+    private final class DefaultPreDesiredBalancingWeightsFactory implements PreDesiredBalancingWeightsFactory {
+        @Override
+        public PreDesiredBalancingWeights create() {
+            return new LocalBalancingWeights(balancerSettings, writeLoadForecaster);
         }
     }
 
@@ -2087,7 +2172,7 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
      * Local balancing weights for a single partition; holds one LocalWeightFunction so this allocator
      * does not depend on {@link BalancingWeights} or {@link BalancingWeightsFactory}.
      */
-    private final class LocalBalancingWeights {
+    private final class LocalBalancingWeights implements PreDesiredBalancingWeights {
         private final LocalWeightFunction weightFunction;
         private final boolean diskUsageIgnored;
         private final float threshold;
@@ -2104,19 +2189,23 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
             this.threshold = settings.getThreshold();
         }
 
-        LocalWeightFunction weightFunctionForShard(ShardRouting shard) {
+        @Override
+        public PreDesiredWeightFunction weightFunctionForShard(ShardRouting shard) {
             return weightFunction;
         }
 
-        LocalWeightFunction weightFunctionForNode(RoutingNode node) {
+        @Override
+        public PreDesiredWeightFunction weightFunctionForNode(RoutingNode node) {
             return weightFunction;
         }
 
-        LocalNodeSorters createNodeSorters(ModelNode[] modelNodes, Balancer balancer) {
+        @Override
+        public PreDesiredNodeSorters createNodeSorters(ModelNode[] modelNodes, Balancer balancer) {
             return new LocalNodeSorters(new NodeSorter(modelNodes, weightFunction, balancer, threshold));
         }
 
-        boolean diskUsageIgnored() {
+        @Override
+        public boolean diskUsageIgnored() {
             return diskUsageIgnored;
         }
     }
@@ -2125,14 +2214,15 @@ public class PreDesiredBalanceShardsAllocator implements ShardsAllocator {
      * Holds a single NodeSorter for the cluster partition; allows this allocator to avoid
      * depending on {@link NodeSorters} which is tied to BalancedShardsAllocator.
      */
-    private static final class LocalNodeSorters implements Iterable<NodeSorter> {
+    private static final class LocalNodeSorters implements PreDesiredNodeSorters, Iterable<NodeSorter> {
         private final NodeSorter nodeSorter;
 
         LocalNodeSorters(NodeSorter nodeSorter) {
             this.nodeSorter = nodeSorter;
         }
 
-        NodeSorter sorterForShard(ShardRouting shard) {
+        @Override
+        public NodeSorter sorterForShard(ShardRouting shard) {
             return nodeSorter;
         }
 

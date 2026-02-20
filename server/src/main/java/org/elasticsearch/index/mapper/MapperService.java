@@ -641,7 +641,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private Mapping mergeBuilders(MappingBuilder incomingBuilder, MergeReason reason) {
         long newFieldsBudget = getMaxFieldsToAddDuringMerge(this.mapper, indexSettings, reason);
         if (this.mapper == null) {
-            return buildMapping(applyFieldsBudget(incomingBuilder, newFieldsBudget), reason);
+            return buildMapping(applyFieldsBudget(incomingBuilder, newFieldsBudget, reason), reason);
         }
         MappingBuilder existingBuilder = mappingParser.parseToBuilder(this.mapper.type(), reason, this.mapper.mappingSource());
         try {
@@ -652,9 +652,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return buildMapping(existingBuilder, reason);
     }
 
-    private static MappingBuilder applyFieldsBudget(MappingBuilder builder, long fieldsBudget) {
+    private static MappingBuilder applyFieldsBudget(MappingBuilder builder, long fieldsBudget, MergeReason reason) {
         MappingBuilder shallowBuilder = builder.withoutMappers();
-        shallowBuilder.merge(builder, MergeReason.MAPPING_RECOVERY, fieldsBudget);
+        shallowBuilder.merge(builder, reason, fieldsBudget);
         return shallowBuilder;
     }
 
@@ -736,7 +736,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private Mapping mergeMappings(MappingBuilder incomingBuilder, MergeReason reason, long newFieldsBudget) {
         if (this.mapper == null) {
-            return applyFieldsBudget(incomingBuilder, newFieldsBudget).build(MergeReason.MAPPING_RECOVERY);
+            return applyFieldsBudget(incomingBuilder, newFieldsBudget, reason).build(reason);
         }
         MappingBuilder existingBuilder = mappingParser.parseToBuilder(this.mapper.type(), reason, this.mapper.mappingSource());
         existingBuilder.merge(incomingBuilder, reason, newFieldsBudget);

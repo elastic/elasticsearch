@@ -364,7 +364,8 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             null,
             null,
             null,
-            esPhysicalOperationProviders(shardContexts)
+            esPhysicalOperationProviders(shardContexts),
+            null  // OperatorFactoryRegistry - not needed for these tests
         );
     }
 

@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.PreDesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -135,7 +134,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             new AllocationService(
                 allocationDeciders,
                 new TestGatewayAllocator(),
-                randomBoolean() ? new BalancedShardsAllocator(Settings.EMPTY) : new PreDesiredBalanceShardsAllocator(Settings.EMPTY),
+                new BalancedShardsAllocator(Settings.EMPTY),
                 EmptyClusterInfoService.INSTANCE,
                 EmptySnapshotsInfoService.INSTANCE,
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
@@ -194,7 +193,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             new AllocationService(
                 allocationDeciders,
                 new TestGatewayAllocator(),
-                randomBoolean() ? new BalancedShardsAllocator(Settings.EMPTY) : new PreDesiredBalanceShardsAllocator(Settings.EMPTY),
+                new BalancedShardsAllocator(Settings.EMPTY),
                 EmptyClusterInfoService.INSTANCE,
                 EmptySnapshotsInfoService.INSTANCE,
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
@@ -251,7 +250,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             new AllocationService(
                 allocationDeciders,
                 new TestGatewayAllocator(),
-                randomBoolean() ? new BalancedShardsAllocator(Settings.EMPTY) : new PreDesiredBalanceShardsAllocator(Settings.EMPTY),
+                new BalancedShardsAllocator(Settings.EMPTY),
                 EmptyClusterInfoService.INSTANCE,
                 EmptySnapshotsInfoService.INSTANCE,
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
@@ -306,7 +305,7 @@ public class ClusterAllocationExplainActionTests extends ESTestCase {
             new AllocationService(
                 allocationDeciders,
                 new TestGatewayAllocator(),
-                randomBoolean() ? new BalancedShardsAllocator(Settings.EMPTY) : new PreDesiredBalanceShardsAllocator(Settings.EMPTY),
+                new BalancedShardsAllocator(Settings.EMPTY),
                 EmptyClusterInfoService.INSTANCE,
                 EmptySnapshotsInfoService.INSTANCE,
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY

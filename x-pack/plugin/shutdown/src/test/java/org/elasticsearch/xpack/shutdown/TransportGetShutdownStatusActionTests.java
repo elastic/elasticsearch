@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.PreDesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -144,7 +145,7 @@ public class TransportGetShutdownStatusActionTests extends ESTestCase {
         snapshotsInfoService = () -> new SnapshotShardSizeInfo(Map.of());
         allocationService = new AllocationService(
             allocationDeciders,
-            new BalancedShardsAllocator(Settings.EMPTY),
+            randomBoolean() ? new BalancedShardsAllocator(Settings.EMPTY) : new PreDesiredBalanceShardsAllocator(Settings.EMPTY),
             clusterInfoService,
             snapshotsInfoService,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY

@@ -22,8 +22,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
-import org.elasticsearch.cluster.routing.allocation.allocator.PreDesiredBalanceShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -51,9 +49,7 @@ import static org.hamcrest.Matchers.lessThan;
 public class BalancedSingleShardTests extends ESAllocationTestCase {
 
     public void testRebalanceNonStartedShardNotAllowed() {
-        ShardsAllocator allocator = randomBoolean()
-            ? new BalancedShardsAllocator(Settings.EMPTY)
-            : new PreDesiredBalanceShardsAllocator(Settings.EMPTY);
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         ClusterState clusterState = ClusterStateCreationUtils.state(
             "idx",
             randomBoolean(),
@@ -71,9 +67,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
     }
 
     public void testRebalanceNotAllowedDuringPendingAsyncFetch() {
-        ShardsAllocator allocator = randomBoolean()
-            ? new BalancedShardsAllocator(Settings.EMPTY)
-            : new PreDesiredBalanceShardsAllocator(Settings.EMPTY);
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.STARTED);
 
         assertThat(clusterState.metadata().projects(), aMapWithSize(1));
@@ -100,9 +94,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
                 return allocation.decision(canRebalanceDecision, "TEST", "foobar");
             }
         };
-        ShardsAllocator allocator = randomBoolean()
-            ? new BalancedShardsAllocator(Settings.EMPTY)
-            : new PreDesiredBalanceShardsAllocator(Settings.EMPTY);
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", randomBoolean(), ShardRoutingState.STARTED);
 
         assertThat(clusterState.metadata().projects(), aMapWithSize(1));
@@ -242,9 +234,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         List<AllocationDecider> allocationDeciders = Arrays.asList(rebalanceDecider, allocationDecider);
         RoutingAllocation routingAllocation = newRoutingAllocation(new AllocationDeciders(allocationDeciders), clusterState);
         // allocate and get the node that is now relocating
-        ShardsAllocator allocator = randomBoolean()
-            ? new BalancedShardsAllocator(Settings.EMPTY)
-            : new PreDesiredBalanceShardsAllocator(Settings.EMPTY);
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         allocator.allocate(routingAllocation);
         ShardRouting shardToRebalance = null;
         for (RoutingNode routingNode : routingAllocation.routingNodes()) {
@@ -347,9 +337,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
                 return Decision.YES;
             }
         };
-        ShardsAllocator allocator = randomBoolean()
-            ? new BalancedShardsAllocator(Settings.EMPTY)
-            : new PreDesiredBalanceShardsAllocator(Settings.EMPTY);
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
         RoutingAllocation routingAllocation = newRoutingAllocation(
             new AllocationDeciders(Arrays.asList(allocationDecider, rebalanceDecider)),
             clusterState
@@ -383,9 +371,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
         };
         List<AllocationDecider> allocationDeciders = Arrays.asList(rebalanceDecider, allocationDecider);
         final int numShards = randomIntBetween(8, 13);
-        ShardsAllocator allocator = randomBoolean()
-            ? new BalancedShardsAllocator(balancerSettings)
-            : new PreDesiredBalanceShardsAllocator(balancerSettings);
+        BalancedShardsAllocator allocator = new BalancedShardsAllocator(balancerSettings);
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", 2, numShards);
         // add a new node so shards can be rebalanced there
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder(clusterState.nodes());
@@ -420,7 +406,7 @@ public class BalancedSingleShardTests extends ESAllocationTestCase {
     }
 
     private void assertAssignedNodeRemainsSame(
-        ShardsAllocator allocator,
+        BalancedShardsAllocator allocator,
         RoutingAllocation routingAllocation,
         ShardRouting originalRouting
     ) {

@@ -11,15 +11,55 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.THRESHOLD_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING;
+import org.elasticsearch.core.TimeValue;
 
 public class BalancerSettings {
+
+    public static final Setting<Float> SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.shard",
+        0.45f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<Float> INDEX_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.index",
+        0.55f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<Float> WRITE_LOAD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.write_load",
+        10.0f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<Float> DISK_USAGE_BALANCE_FACTOR_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.disk_usage",
+        2e-11f,
+        0.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
+        "cluster.routing.allocation.balance.threshold",
+        1.0f,
+        1.0f,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+    public static final Setting<TimeValue> INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL = Setting.timeSetting(
+        "cluster.routing.allocation.balance.invalid_weights_log_min_interval",
+        TimeValue.timeValueMinutes(5),
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     public static final BalancerSettings DEFAULT = new BalancerSettings(ClusterSettings.createBuiltInClusterSettings());
 
     private volatile float indexBalanceFactor;

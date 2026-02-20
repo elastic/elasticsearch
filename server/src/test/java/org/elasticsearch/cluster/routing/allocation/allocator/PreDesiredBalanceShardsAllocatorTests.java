@@ -39,7 +39,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator;
+import org.elasticsearch.cluster.routing.allocation.allocator.PreDesiredBalanceShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -88,8 +88,8 @@ import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO;
 import static org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings.DISK_USAGE_BALANCE_FACTOR_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.allocator.PreDesiredBalanceShardsAllocator.Balancer.PrioritiseByShardWriteLoadComparator.THRESHOLD_RATIO;
 import static org.elasticsearch.cluster.routing.allocation.allocator.WeightFunction.getIndexDiskUsageInBytes;
 import static org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider.SETTING_IGNORE_DISK_WATERMARKS;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -103,12 +103,20 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
-public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
+/**
+ * THESE TESTS SHOULD NOT HAVE FURTHER DEVELOPMENT!
+ *
+ * Copies the testing in {@link BalancedShardsAllocatorTests}, using the {@link PreDesiredBalanceShardsAllocator}.
+ */
+public class PreDesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
     private static final Settings WITH_DISK_BALANCING = Settings.builder().put(DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), "1e-9").build();
 
     public void testExplainShardAllocation() {
-        BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
+        PreDesiredBalanceShardsAllocator allocator = new PreDesiredBalanceShardsAllocator(
+            new BalancerSettings(Settings.EMPTY),
+            WriteLoadForecaster.DEFAULT
+        );
         ClusterState clusterState = ClusterStateCreationUtils.state("idx", false, ShardRoutingState.STARTED);
         assertEquals(clusterState.nodes().getSize(), 3);
 
@@ -220,7 +228,10 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             assertThat(unassigned.iterator().next().getIndexName(), equalTo(indexName));
         }
 
-        final BalancedShardsAllocator allocator = new BalancedShardsAllocator(Settings.EMPTY);
+        final PreDesiredBalanceShardsAllocator allocator = new PreDesiredBalanceShardsAllocator(
+            new BalancerSettings(Settings.EMPTY),
+            WriteLoadForecaster.DEFAULT
+        );
         final RoutingAllocation allocation = createRoutingAllocation(clusterState);
         final ShardRouting shard = clusterState.globalRoutingTable()
             .routingTable(origProject.id())
@@ -250,7 +261,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var allocationService = new MockAllocationService(
             yesAllocationDeciders(),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
+            new PreDesiredBalanceShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
             EmptyClusterInfoService.INSTANCE,
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
@@ -584,13 +595,21 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final var badValue = (float) randomDoubleBetween(0.0, Math.nextDown(1.0f), true);
         expectThrows(
             IllegalArgumentException.class,
-            () -> new BalancerSettings(Settings.builder().put(BalancerSettings.THRESHOLD_SETTING.getKey(), badValue).build())
+            () -> new BalancerSettings(
+                Settings.builder()
+                    .put(org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings.THRESHOLD_SETTING.getKey(), badValue)
+                    .build()
+            )
         );
 
         final var goodValue = (float) randomDoubleBetween(1.0, 10.0, true);
         assertEquals(
             goodValue,
-            new BalancerSettings(Settings.builder().put(BalancerSettings.THRESHOLD_SETTING.getKey(), goodValue).build()).getThreshold(),
+            new BalancerSettings(
+                Settings.builder()
+                    .put(org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings.THRESHOLD_SETTING.getKey(), goodValue)
+                    .build()
+            ).getThreshold(),
             0.0f
         );
     }
@@ -638,11 +657,16 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var allocationService = new MockAllocationService(
             prefixAllocationDeciders(),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(
+            new PreDesiredBalanceShardsAllocator(
                 BalancerSettings.DEFAULT,
                 TEST_WRITE_LOAD_FORECASTER,
                 PrefixBalancingWeightsFactory.withDefaultThreshold(
-                    Map.of("shardsOnly", new WeightFunction(1, 0, 0, 0), "weightsOnly", new WeightFunction(0, 0, 1, 0))
+                    Map.of(
+                        "shardsOnly",
+                        PreDesiredBalanceShardsAllocator.createWeightFunction(1, 0, 0, 0),
+                        "weightsOnly",
+                        PreDesiredBalanceShardsAllocator.createWeightFunction(0, 0, 1, 0)
+                    )
                 )
             ),
             EmptyClusterInfoService.INSTANCE,
@@ -704,15 +728,21 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         final var allocationService = new MockAllocationService(
             prefixAllocationDeciders(),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(
+            new PreDesiredBalanceShardsAllocator(
                 BalancerSettings.DEFAULT,
                 TEST_WRITE_LOAD_FORECASTER,
                 new PrefixBalancingWeightsFactory(
                     Map.of(
                         "1_threshold",
-                        new PrefixBalancingWeightsFactory.WeightFunctionAndThreshold(new WeightFunction(1, 0, 0, 0), 1),
+                        new PrefixBalancingWeightsFactory.WeightFunctionAndThreshold(
+                            PreDesiredBalanceShardsAllocator.createWeightFunction(1, 0, 0, 0),
+                            1
+                        ),
                         "100_threshold",
-                        new PrefixBalancingWeightsFactory.WeightFunctionAndThreshold(new WeightFunction(1, 0, 0, 0), 100)
+                        new PrefixBalancingWeightsFactory.WeightFunctionAndThreshold(
+                            PreDesiredBalanceShardsAllocator.createWeightFunction(1, 0, 0, 0),
+                            100
+                        )
                     )
                 )
             ),
@@ -751,46 +781,46 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     public void testSkipDiskUsageComputation() {
-        final var modelNodesRef = new AtomicReference<BalancedShardsAllocator.ModelNode[]>();
-        final var balancerRef = new AtomicReference<BalancedShardsAllocator.Balancer>();
-        // Intentionally configure disk weight factor to be non-zero so that the test would fail if disk usage is not ignored
-        final var weightFunction = new WeightFunction(1, 1, 1, 1);
-        final var allocator = new BalancedShardsAllocator(
+        final var modelNodesRef = new AtomicReference<PreDesiredBalanceShardsAllocator.ModelNode[]>();
+        final var balancerRef = new AtomicReference<PreDesiredBalanceShardsAllocator.Balancer>();
+        // Intentionally use non-zero disk factor so the test would fail if disk usage is not ignored
+        final var weightFunction = PreDesiredBalanceShardsAllocator.createWeightFunction(1, 1, 1, 1);
+        final var allocator = new PreDesiredBalanceShardsAllocator(
             BalancerSettings.DEFAULT,
             TEST_WRITE_LOAD_FORECASTER,
-            () -> new BalancingWeights() {
+            () -> new PreDesiredBalanceShardsAllocator.PreDesiredBalancingWeights() {
                 @Override
-                public WeightFunction weightFunctionForShard(ShardRouting shard) {
+                public PreDesiredBalanceShardsAllocator.PreDesiredWeightFunction weightFunctionForShard(ShardRouting shard) {
                     return weightFunction;
                 }
 
                 @Override
-                public WeightFunction weightFunctionForNode(RoutingNode node) {
+                public PreDesiredBalanceShardsAllocator.PreDesiredWeightFunction weightFunctionForNode(RoutingNode node) {
                     return weightFunction;
                 }
 
                 @Override
-                public NodeSorters createNodeSorters(
-                    BalancedShardsAllocator.ModelNode[] modelNodes,
-                    BalancedShardsAllocator.Balancer balancer
+                public PreDesiredBalanceShardsAllocator.PreDesiredNodeSorters createNodeSorters(
+                    PreDesiredBalanceShardsAllocator.ModelNode[] modelNodes,
+                    PreDesiredBalanceShardsAllocator.Balancer balancer
                 ) {
                     modelNodesRef.set(modelNodes);
                     balancerRef.set(balancer);
-                    final BalancedShardsAllocator.NodeSorter nodeSorter = new BalancedShardsAllocator.NodeSorter(
+                    final var nodeSorter = new PreDesiredBalanceShardsAllocator.NodeSorter(
                         modelNodes,
                         weightFunction,
                         balancer,
                         BalancerSettings.DEFAULT.getThreshold()
                     );
-                    return new NodeSorters() {
+                    return new PreDesiredBalanceShardsAllocator.PreDesiredNodeSorters() {
                         @Override
-                        public BalancedShardsAllocator.NodeSorter sorterForShard(ShardRouting shard) {
-                            return nodeSorter;
+                        public Iterator<PreDesiredBalanceShardsAllocator.NodeSorter> iterator() {
+                            return Iterators.single(nodeSorter);
                         }
 
                         @Override
-                        public Iterator<BalancedShardsAllocator.NodeSorter> iterator() {
-                            return Iterators.single(nodeSorter);
+                        public PreDesiredBalanceShardsAllocator.NodeSorter sorterForShard(ShardRouting shard) {
+                            return nodeSorter;
                         }
                     };
                 }
@@ -828,7 +858,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         var allocationService = new MockAllocationService(
             prefixAllocationDeciders(),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
+            new PreDesiredBalanceShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER),
             () -> ClusterInfo.builder().shardWriteLoads(shardWriteLoads).build(),
             SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
@@ -1063,16 +1093,12 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.not_preferred:DEBUG",
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.PreDesiredBalanceShardsAllocator.not_preferred:DEBUG",
         reason = "debug logging for test"
     )
     public void testNotPreferredMovementIsLoggedAtDebugLevel() {
         final var clusterState = ClusterStateCreationUtils.state(randomIdentifier(), 3, 3);
-        final var balancedShardsAllocator = new BalancedShardsAllocator(
-            BalancerSettings.DEFAULT,
-            TEST_WRITE_LOAD_FORECASTER,
-            new GlobalBalancingWeightsFactory(BalancerSettings.DEFAULT)
-        );
+        final var allocator = new PreDesiredBalanceShardsAllocator(BalancerSettings.DEFAULT, TEST_WRITE_LOAD_FORECASTER);
 
         final var allocation = new RoutingAllocation(new AllocationDeciders(List.<AllocationDecider>of(new AllocationDecider() {
             @Override
@@ -1086,9 +1112,9 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
             }
         })), clusterState.getRoutingNodes().mutableCopy(), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L);
 
-        final var notPreferredLoggerName = BalancedShardsAllocator.class.getName() + ".not_preferred";
+        final var notPreferredLoggerName = PreDesiredBalanceShardsAllocator.class.getName() + ".not_preferred";
         MockLog.assertThatLogger(
-            () -> balancedShardsAllocator.allocate(allocation),
+            () -> allocator.allocate(allocation),
             notPreferredLoggerName,
             new MockLog.SeenEventExpectation(
                 "moved a NOT_PREFERRED allocation",
@@ -1255,7 +1281,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     @TestLogging(
-        value = "org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.not_preferred:DEBUG",
+        value = "org.elasticsearch.cluster.routing.allocation.allocator.PreDesiredBalanceShardsAllocator.not_preferred:DEBUG",
         reason = "this bug only manifests with not preferred logger turned on"
     )
     public void testBugWhenNotPreferredAndYesDecisionsArePresent() {
@@ -1317,8 +1343,11 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         );
 
         // This would throw an assertion error when the bug was present
-        new BalancedShardsAllocator(BalancerSettings.DEFAULT, WriteLoadForecaster.DEFAULT, new NodeNameDrivenBalancingWeightsFactory())
-            .allocate(allocation);
+        new PreDesiredBalanceShardsAllocator(
+            BalancerSettings.DEFAULT,
+            WriteLoadForecaster.DEFAULT,
+            new NodeNameDrivenBalancingWeightsFactory()
+        ).allocate(allocation);
 
         // We should have relocated the shard to the YES node
         assertThat(allocation.routingNodes().getRelocatingShardCount(), equalTo(1));
@@ -1326,7 +1355,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     private void assertUnassigned(
         AllocationDeciders allocationDeciders,
-        BalancingWeightsFactory balancingWeightsFactory,
+        PreDesiredBalanceShardsAllocator.PreDesiredBalancingWeightsFactory balancingWeightsFactory,
         List<String> allNodeIds
     ) {
         assertAssignedTo(allocationDeciders, balancingWeightsFactory, null, allNodeIds);
@@ -1334,7 +1363,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     private void assertAssignedTo(
         AllocationDeciders allocationDeciders,
-        BalancingWeightsFactory balancingWeightsFactory,
+        PreDesiredBalanceShardsAllocator.PreDesiredBalancingWeightsFactory balancingWeightsFactory,
         @Nullable String expectedNodeId,
         List<String> allNodeIds
     ) {
@@ -1364,7 +1393,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
 
     private ClusterState runAssignment(
         AllocationDeciders allocationDeciders,
-        BalancingWeightsFactory balancingWeightsFactory,
+        PreDesiredBalanceShardsAllocator.PreDesiredBalancingWeightsFactory balancingWeightsFactory,
         ClusterState clusterState
     ) {
         final var routingAllocation = new RoutingAllocation(
@@ -1379,34 +1408,32 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         // Debug mode should not change the outcome
         routingAllocation.setDebugMode(randomFrom(RoutingAllocation.DebugMode.values()));
 
-        final var balancedShardsAllocator = new BalancedShardsAllocator(
+        final var allocator = new PreDesiredBalanceShardsAllocator(
             BalancerSettings.DEFAULT,
             TEST_WRITE_LOAD_FORECASTER,
             balancingWeightsFactory
         );
-        balancedShardsAllocator.allocate(routingAllocation);
+        allocator.allocate(routingAllocation);
         return ClusterState.builder(clusterState)
             .routingTable(clusterState.globalRoutingTable().rebuild(routingAllocation.routingNodes(), clusterState.metadata()))
             .build();
     }
 
     /**
-     * Returns specific values for {@link WeightFunction#calculateNodeWeightWithIndex} depending on the
-     * suffix of the node name.
+     * Returns specific values for node weight depending on the suffix of the node name.
+     * Uses only PreDesiredBalanceShardsAllocator types.
      */
-    private static class NodeNameDrivenBalancingWeightsFactory implements BalancingWeightsFactory {
+    private static class NodeNameDrivenBalancingWeightsFactory
+        implements
+            PreDesiredBalanceShardsAllocator.PreDesiredBalancingWeightsFactory {
 
-        private static class NodeNameDrivenWeightFunction extends WeightFunction {
-
-            NodeNameDrivenWeightFunction() {
-                super(1.0f, 1.0f, 1.0f, 1.0f);
-            }
+        private static class NodeNameDrivenWeightFunction implements PreDesiredBalanceShardsAllocator.PreDesiredWeightFunction {
 
             @Override
             public float calculateNodeWeightWithIndex(
-                BalancedShardsAllocator.Balancer balancer,
-                BalancedShardsAllocator.ModelNode node,
-                BalancedShardsAllocator.ProjectIndex index
+                PreDesiredBalanceShardsAllocator.Balancer balancer,
+                PreDesiredBalanceShardsAllocator.ModelNode node,
+                PreDesiredBalanceShardsAllocator.ProjectIndex index
             ) {
                 final var nodeId = node.getNodeId();
                 if (nodeId.endsWith("-high")) {
@@ -1417,37 +1444,54 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
                     return 5.0f;
                 }
             }
+
+            @Override
+            public float calculateNodeWeight(
+                int nodeNumShards,
+                float avgShardsPerNode,
+                double nodeWriteLoad,
+                double avgWriteLoadPerNode,
+                double diskUsageInBytes,
+                double avgDiskUsageInBytesPerNode
+            ) {
+                return 5.0f;
+            }
+
+            @Override
+            public float minWeightDelta(float shardWriteLoad, float shardSizeBytes) {
+                return 0.0f;
+            }
         }
 
-        private static class NodeNameDrivenBalancingWeights implements BalancingWeights {
+        private static class NodeNameDrivenBalancingWeights implements PreDesiredBalanceShardsAllocator.PreDesiredBalancingWeights {
 
             private final NodeNameDrivenWeightFunction weightFunction = new NodeNameDrivenWeightFunction();
 
             @Override
-            public WeightFunction weightFunctionForShard(ShardRouting shard) {
+            public PreDesiredBalanceShardsAllocator.PreDesiredWeightFunction weightFunctionForShard(ShardRouting shard) {
                 return weightFunction;
             }
 
             @Override
-            public WeightFunction weightFunctionForNode(RoutingNode node) {
+            public PreDesiredBalanceShardsAllocator.PreDesiredWeightFunction weightFunctionForNode(RoutingNode node) {
                 return weightFunction;
             }
 
             @Override
-            public NodeSorters createNodeSorters(
-                BalancedShardsAllocator.ModelNode[] modelNodes,
-                BalancedShardsAllocator.Balancer balancer
+            public PreDesiredBalanceShardsAllocator.PreDesiredNodeSorters createNodeSorters(
+                PreDesiredBalanceShardsAllocator.ModelNode[] modelNodes,
+                PreDesiredBalanceShardsAllocator.Balancer balancer
             ) {
-                final var nodeSorter = new BalancedShardsAllocator.NodeSorter(modelNodes, weightFunction, balancer, 1);
-                return new NodeSorters() {
+                final var nodeSorter = new PreDesiredBalanceShardsAllocator.NodeSorter(modelNodes, weightFunction, balancer, 1);
+                return new PreDesiredBalanceShardsAllocator.PreDesiredNodeSorters() {
                     @Override
-                    public BalancedShardsAllocator.NodeSorter sorterForShard(ShardRouting shard) {
-                        return nodeSorter;
+                    public Iterator<PreDesiredBalanceShardsAllocator.NodeSorter> iterator() {
+                        return List.of(nodeSorter).iterator();
                     }
 
                     @Override
-                    public Iterator<BalancedShardsAllocator.NodeSorter> iterator() {
-                        return List.of(nodeSorter).iterator();
+                    public PreDesiredBalanceShardsAllocator.NodeSorter sorterForShard(ShardRouting shard) {
+                        return nodeSorter;
                     }
                 };
             }
@@ -1459,7 +1503,7 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
         }
 
         @Override
-        public BalancingWeights create() {
+        public PreDesiredBalanceShardsAllocator.PreDesiredBalancingWeights create() {
             return new NodeNameDrivenBalancingWeights();
         }
     }
@@ -1611,70 +1655,69 @@ public class BalancedShardsAllocatorTests extends ESAllocationTestCase {
     }
 
     /**
-     * A {@link BalancingWeightsFactory} that assumes the cluster is partitioned by the prefix
-     * of the node and shard names before the `-`.
+     * A factory that assumes the cluster is partitioned by the prefix of the node and shard names
+     * before the `-`. Uses only PreDesiredBalanceShardsAllocator types.
      */
-    static class PrefixBalancingWeightsFactory implements BalancingWeightsFactory {
+    static class PrefixBalancingWeightsFactory implements PreDesiredBalanceShardsAllocator.PreDesiredBalancingWeightsFactory {
 
         private final Map<String, WeightFunctionAndThreshold> prefixWeightsAndThresholds;
 
-        record WeightFunctionAndThreshold(WeightFunction weightFunction, float threshold) {}
+        record WeightFunctionAndThreshold(PreDesiredBalanceShardsAllocator.PreDesiredWeightFunction weightFunction, float threshold) {}
 
         PrefixBalancingWeightsFactory(Map<String, WeightFunctionAndThreshold> prefixWeightsAndThresholds) {
             this.prefixWeightsAndThresholds = prefixWeightsAndThresholds;
         }
 
-        public static PrefixBalancingWeightsFactory withDefaultThreshold(Map<String, WeightFunction> weightFunctions) {
-            return new PrefixBalancingWeightsFactory(
-                Maps.transformValues(weightFunctions, weightFunction -> new WeightFunctionAndThreshold(weightFunction, 1))
-            );
+        public static PrefixBalancingWeightsFactory withDefaultThreshold(
+            Map<String, PreDesiredBalanceShardsAllocator.PreDesiredWeightFunction> weightFunctions
+        ) {
+            return new PrefixBalancingWeightsFactory(Maps.transformValues(weightFunctions, wf -> new WeightFunctionAndThreshold(wf, 1)));
         }
 
         @Override
-        public BalancingWeights create() {
+        public PreDesiredBalanceShardsAllocator.PreDesiredBalancingWeights create() {
             return new PrefixBalancingWeights();
         }
 
-        class PrefixBalancingWeights implements BalancingWeights {
+        class PrefixBalancingWeights implements PreDesiredBalanceShardsAllocator.PreDesiredBalancingWeights {
 
             @Override
-            public WeightFunction weightFunctionForShard(ShardRouting shard) {
+            public PreDesiredBalanceShardsAllocator.PreDesiredWeightFunction weightFunctionForShard(ShardRouting shard) {
                 return prefixWeightsAndThresholds.get(prefix(shard.getIndexName())).weightFunction();
             }
 
             @Override
-            public WeightFunction weightFunctionForNode(RoutingNode node) {
+            public PreDesiredBalanceShardsAllocator.PreDesiredWeightFunction weightFunctionForNode(RoutingNode node) {
                 return prefixWeightsAndThresholds.get(prefix(node.node().getId())).weightFunction();
             }
 
             @Override
-            public NodeSorters createNodeSorters(
-                BalancedShardsAllocator.ModelNode[] modelNodes,
-                BalancedShardsAllocator.Balancer balancer
+            public PreDesiredBalanceShardsAllocator.PreDesiredNodeSorters createNodeSorters(
+                PreDesiredBalanceShardsAllocator.ModelNode[] modelNodes,
+                PreDesiredBalanceShardsAllocator.Balancer balancer
             ) {
-                final HashMap<String, BalancedShardsAllocator.NodeSorter> prefixNodeSorters = new HashMap<>();
+                final HashMap<String, PreDesiredBalanceShardsAllocator.NodeSorter> prefixNodeSorters = new HashMap<>();
                 for (var entry : prefixWeightsAndThresholds.entrySet()) {
                     prefixNodeSorters.put(
                         entry.getKey(),
-                        new BalancedShardsAllocator.NodeSorter(
+                        new PreDesiredBalanceShardsAllocator.NodeSorter(
                             Arrays.stream(modelNodes)
                                 .filter(node -> prefix(node.getRoutingNode().node().getId()).equals(entry.getKey()))
-                                .toArray(BalancedShardsAllocator.ModelNode[]::new),
+                                .toArray(PreDesiredBalanceShardsAllocator.ModelNode[]::new),
                             entry.getValue().weightFunction(),
                             balancer,
                             entry.getValue().threshold()
                         )
                     );
                 }
-                return new NodeSorters() {
-
+                return new PreDesiredBalanceShardsAllocator.PreDesiredNodeSorters() {
                     @Override
-                    public Iterator<BalancedShardsAllocator.NodeSorter> iterator() {
+                    public Iterator<PreDesiredBalanceShardsAllocator.NodeSorter> iterator() {
                         return prefixNodeSorters.values().iterator();
                     }
 
                     @Override
-                    public BalancedShardsAllocator.NodeSorter sorterForShard(ShardRouting shard) {
+                    public PreDesiredBalanceShardsAllocator.NodeSorter sorterForShard(ShardRouting shard) {
                         return prefixNodeSorters.get(prefix(shard.getIndexName()));
                     }
                 };

@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.GlobalRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.PreDesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -53,7 +54,7 @@ public class MaxRetryAllocationDeciderTests extends ESAllocationTestCase {
     private final AllocationService strategy = new AllocationService(
         new AllocationDeciders(List.of(decider)),
         new TestGatewayAllocator(),
-        new BalancedShardsAllocator(Settings.EMPTY),
+        randomBoolean() ? new BalancedShardsAllocator(Settings.EMPTY) : new PreDesiredBalanceShardsAllocator(Settings.EMPTY),
         EmptyClusterInfoService.INSTANCE,
         EmptySnapshotsInfoService.INSTANCE,
         TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY

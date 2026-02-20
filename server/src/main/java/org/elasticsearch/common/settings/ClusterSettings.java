@@ -51,7 +51,7 @@ import org.elasticsearch.cluster.routing.allocation.IndexBalanceConstraintSettin
 import org.elasticsearch.cluster.routing.allocation.ShardWriteLoadDistributionMetrics;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationBalancingRoundSummaryService;
-import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancerSettings;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler;
 import org.elasticsearch.cluster.routing.allocation.allocator.UndesiredAllocationsTracker;
@@ -227,12 +227,12 @@ public final class ClusterSettings extends AbstractScopedSettings {
         AllocationBalancingRoundSummaryService.BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING,
         AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
         AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
-        BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING,
-        BalancedShardsAllocator.SHARD_BALANCE_FACTOR_SETTING,
-        BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING,
-        BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING,
-        BalancedShardsAllocator.THRESHOLD_SETTING,
-        BalancedShardsAllocator.INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL,
+        BalancerSettings.INDEX_BALANCE_FACTOR_SETTING,
+        BalancerSettings.SHARD_BALANCE_FACTOR_SETTING,
+        BalancerSettings.WRITE_LOAD_BALANCE_FACTOR_SETTING,
+        BalancerSettings.DISK_USAGE_BALANCE_FACTOR_SETTING,
+        BalancerSettings.THRESHOLD_SETTING,
+        BalancerSettings.INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL,
         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_COOLDOWN,
         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN,
         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING,

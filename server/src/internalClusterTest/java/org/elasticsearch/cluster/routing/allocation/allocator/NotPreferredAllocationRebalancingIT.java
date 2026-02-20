@@ -64,15 +64,15 @@ public class NotPreferredAllocationRebalancingIT extends ESIntegTestCase {
 
     public void testAllocatorDoesNotMoveShardsToNotPreferredNode() {
         final Settings settings = Settings.builder()
-            .put(BalancedShardsAllocator.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
-            .put(BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
-            .put(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
+            .put(BalancerSettings.INDEX_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
+            .put(BalancerSettings.WRITE_LOAD_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
+            .put(BalancerSettings.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey(), 0.0f)
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), false)
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
                 WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED
             )
-            .put(BalancedShardsAllocator.THRESHOLD_SETTING.getKey(), 1.0f)
+            .put(BalancerSettings.THRESHOLD_SETTING.getKey(), 1.0f)
             .build();
 
         /* set up a node that has a bunch of indices, add a bunch of nodes with allocation turned off,

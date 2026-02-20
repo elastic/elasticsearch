@@ -36,8 +36,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
 import org.elasticsearch.common.FrequencyCappedAction;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
@@ -82,47 +80,6 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     private static final Logger logger = LogManager.getLogger(BalancedShardsAllocator.class);
     private static final Logger notPreferredLogger = LogManager.getLogger(BalancedShardsAllocator.class.getName() + ".not_preferred");
 
-    public static final Setting<Float> SHARD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
-        "cluster.routing.allocation.balance.shard",
-        0.45f,
-        0.0f,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-    public static final Setting<Float> INDEX_BALANCE_FACTOR_SETTING = Setting.floatSetting(
-        "cluster.routing.allocation.balance.index",
-        0.55f,
-        0.0f,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-    public static final Setting<Float> WRITE_LOAD_BALANCE_FACTOR_SETTING = Setting.floatSetting(
-        "cluster.routing.allocation.balance.write_load",
-        10.0f,
-        0.0f,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-    public static final Setting<Float> DISK_USAGE_BALANCE_FACTOR_SETTING = Setting.floatSetting(
-        "cluster.routing.allocation.balance.disk_usage",
-        2e-11f,
-        0.0f,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-    public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
-        "cluster.routing.allocation.balance.threshold",
-        1.0f,
-        1.0f,
-        Property.Dynamic,
-        Property.NodeScope
-    );
-    public static final Setting<TimeValue> INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL = Setting.timeSetting(
-        "cluster.routing.allocation.balance.invalid_weights_log_min_interval",
-        TimeValue.timeValueMinutes(5),
-        Property.Dynamic,
-        Property.NodeScope
-    );
     private static boolean enableInvalidWeightsAssertion = true;
 
     private final BalancerSettings balancerSettings;
@@ -152,7 +109,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         this.writeLoadForecaster = writeLoadForecaster;
         this.balancingWeightsFactory = balancingWeightsFactory;
         this.logInvalidWeights = new FrequencyCappedAction(System::currentTimeMillis, TimeValue.ZERO);
-        balancerSettings.getClusterSettings().initializeAndWatch(INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL, logInvalidWeights::setMinInterval);
+        balancerSettings.getClusterSettings()
+            .initializeAndWatch(BalancerSettings.INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL, logInvalidWeights::setMinInterval);
     }
 
     @Override
@@ -421,7 +379,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
 
         /**
          * Returns {@code true} iff the weight delta between two nodes is under a defined threshold.
-         * See {@link #THRESHOLD_SETTING} for defining the threshold.
+         * See {@link BalancerSettings#THRESHOLD_SETTING} for defining the threshold.
          */
         private static boolean lessThan(float delta, float threshold) {
             /* deltas close to the threshold are "rounded" to the threshold manually

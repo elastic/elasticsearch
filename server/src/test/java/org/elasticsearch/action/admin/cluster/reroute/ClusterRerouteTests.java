@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.PreDesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
@@ -77,7 +78,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         AllocationService allocationService = new AllocationService(
             new AllocationDeciders(List.of(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
+            randomBoolean() ? new BalancedShardsAllocator(Settings.EMPTY) : new PreDesiredBalanceShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
@@ -106,7 +107,7 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         AllocationService allocationService = new AllocationService(
             new AllocationDeciders(List.of(new MaxRetryAllocationDecider())),
             new TestGatewayAllocator(),
-            new BalancedShardsAllocator(Settings.EMPTY),
+            randomBoolean() ? new BalancedShardsAllocator(Settings.EMPTY) : new PreDesiredBalanceShardsAllocator(Settings.EMPTY),
             EmptyClusterInfoService.INSTANCE,
             EmptySnapshotsInfoService.INSTANCE,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY

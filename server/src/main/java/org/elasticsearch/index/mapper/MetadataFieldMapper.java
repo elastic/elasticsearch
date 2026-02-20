@@ -34,23 +34,10 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             throws MapperParsingException;
 
         /**
-         * Get the default {@link MetadataFieldMapper} to use, if nothing had to be parsed.
-         *
-         * @param parserContext context that may be useful to build the field like analyzers
-         */
-        MetadataFieldMapper getDefault(MappingParserContext parserContext);
-
-        /**
          * Get a default {@link Builder} for this metadata field, using the given parser context.
          * Returns null if this metadata field is not applicable for the current index.
          */
-        default Builder getDefaultBuilder(MappingParserContext parserContext) {
-            MetadataFieldMapper mapper = getDefault(parserContext);
-            if (mapper == null) {
-                return null;
-            }
-            return (Builder) mapper.getMergeBuilder();
-        }
+        Builder getDefaultBuilder(MappingParserContext parserContext);
     }
 
     /**
@@ -97,21 +84,20 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
-            return mapperParser.apply(parserContext);
+        public Builder getDefaultBuilder(MappingParserContext parserContext) {
+            MetadataFieldMapper mapper = mapperParser.apply(parserContext);
+            if (mapper == null) {
+                return null;
+            }
+            return new ConstantBuilder(mapper);
         }
     }
 
     public static class ConfigurableTypeParser implements TypeParser {
 
-        final Function<MappingParserContext, MetadataFieldMapper> defaultMapperParser;
         final Function<MappingParserContext, Builder> builderFunction;
 
-        public ConfigurableTypeParser(
-            Function<MappingParserContext, MetadataFieldMapper> defaultMapperParser,
-            Function<MappingParserContext, Builder> builderFunction
-        ) {
-            this.defaultMapperParser = defaultMapperParser;
+        public ConfigurableTypeParser(Function<MappingParserContext, Builder> builderFunction) {
             this.builderFunction = builderFunction;
         }
 
@@ -123,15 +109,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         }
 
         @Override
-        public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
-            return defaultMapperParser.apply(parserContext);
-        }
-
-        @Override
         public Builder getDefaultBuilder(MappingParserContext parserContext) {
-            if (defaultMapperParser.apply(parserContext) == null) {
-                return null;
-            }
             return builderFunction.apply(parserContext);
         }
     }

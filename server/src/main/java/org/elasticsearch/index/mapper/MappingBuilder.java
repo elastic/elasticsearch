@@ -19,10 +19,6 @@ import java.util.Map;
 /**
  * Mutable builder for a {@link Mapping}. Holds a {@link RootObjectMapper.Builder} and metadata field builders,
  * allowing merge operations to happen at the builder level before building the final immutable {@link Mapping}.
- * <p>
- * The intent is that incoming mappings (from parsing or from existing {@link Mapping} objects) are converted
- * into {@link MappingBuilder}s, merged together, and only built into concrete {@link Mapping} objects at the
- * very end. This avoids creating transient intermediate {@link Mapper} objects during merges.
  */
 public class MappingBuilder {
 

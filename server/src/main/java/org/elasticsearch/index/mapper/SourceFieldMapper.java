@@ -309,34 +309,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         };
     }
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> {
-        final IndexMode indexMode = c.getIndexSettings().getMode();
-
-        if (indexMode == IndexMode.TIME_SERIES && c.getIndexSettings().getIndexVersionCreated().before(IndexVersions.V_8_7_0)) {
-            return DEFAULT;
-        }
-
-        final Mode settingSourceMode = IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(c.getSettings());
-        // Needed for bwc so that "mode" is not serialized in case of standard index with stored source.
-        if (indexMode == IndexMode.STANDARD && settingSourceMode == Mode.STORED) {
-            return DEFAULT;
-        }
-        SourceFieldMapper sourceFieldMapper;
-        if (onOrAfterDeprecateModeVersion(c.indexVersionCreated())) {
-            sourceFieldMapper = resolveStaticInstance(settingSourceMode);
-        } else {
-            sourceFieldMapper = new SourceFieldMapper(
-                settingSourceMode,
-                Explicit.IMPLICIT_TRUE,
-                Strings.EMPTY_ARRAY,
-                Strings.EMPTY_ARRAY,
-                true,
-                c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_MODE_ATTRIBUTE_NOOP)
-            );
-        }
-        indexMode.validateSourceFieldMapper(sourceFieldMapper);
-        return sourceFieldMapper;
-    },
+    public static final TypeParser PARSER = new ConfigurableTypeParser(
         c -> new Builder(
             c.getIndexSettings().getMode(),
             c.getSettings(),

@@ -107,10 +107,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
 
     private static final FieldNamesFieldMapper DEFAULT_OLD = new FieldNamesFieldMapper(Defaults.ENABLED, false);
 
-    public static final TypeParser PARSER = new ConfigurableTypeParser(
-        c -> c.indexVersionCreated().onOrAfter(IndexVersions.V_8_0_0) ? DEFAULT : DEFAULT_OLD,
-        c -> new Builder(c.indexVersionCreated())
-    );
+    public static final TypeParser PARSER = new ConfigurableTypeParser(c -> new Builder(c.indexVersionCreated()));
 
     public static final class FieldNamesFieldType extends TermBasedFieldType {
 

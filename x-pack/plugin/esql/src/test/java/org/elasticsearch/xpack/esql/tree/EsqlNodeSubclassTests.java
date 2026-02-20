@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.FileSet;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -441,6 +442,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == Grok.Parser.class) {
             // Grok.Parser is a record / final, cannot be mocked
             return Grok.pattern(Source.EMPTY, randomGrokPattern());
+        } else if (argClass == FileSet.class) {
+            // FileSet is final, cannot be mocked
+            return FileSet.UNRESOLVED;
         } else if (argClass == EsQueryExec.FieldSort.class) {
             // TODO: It appears neither FieldSort nor GeoDistanceSort are ever actually tested
             return randomFieldSort();

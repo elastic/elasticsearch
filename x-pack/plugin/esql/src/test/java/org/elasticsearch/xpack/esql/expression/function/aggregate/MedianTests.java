@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
@@ -26,6 +28,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileTests.getExpectedPercentileForExponentialHistograms;
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.PercentileTests.getExpectedPercentileForTDigests;
 import static org.hamcrest.Matchers.closeTo;
@@ -43,9 +46,14 @@ public class MedianTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
-            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100),
-            MultiRowTestCaseSupplier.tdigestCases(1, 100)
+            MultiRowTestCaseSupplier.exponentialHistogramCases(1, 100)
         ).flatMap(List::stream).map(MedianTests::makeSupplier).collect(Collectors.toCollection(ArrayList::new));
+
+        // TDigest was added in 9.4
+        FunctionAppliesTo shapeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.4.0", "", true);
+        Stream.of(
+            MultiRowTestCaseSupplier.tdigestCases(1, 100)
+        ).flatMap(List::stream).map(s -> s.withAppliesTo(shapeAppliesTo)).map(MedianTests::makeSupplier).forEach(suppliers::add);
 
         suppliers.addAll(
             List.of(

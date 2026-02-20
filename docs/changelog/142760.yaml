@@ -1,0 +1,5 @@
+area: Searchable Snapshots
+issues: []
+pr: 142760
+summary: Blob cache lock free by removing LRU
+type: enhancement

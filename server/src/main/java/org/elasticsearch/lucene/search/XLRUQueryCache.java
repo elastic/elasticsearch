@@ -90,6 +90,7 @@ import static org.apache.lucene.util.RamUsageEstimator.QUERY_DEFAULT_RAM_BYTES_U
  * perform heavy computations in these methods though since they are called synchronously and under
  * a lock.
  */
+// TODO: Remove this fork one after Lucene 10.5 or Lucene 11
 public class XLRUQueryCache implements QueryCache, Accountable {
 
     private final int maxSize;

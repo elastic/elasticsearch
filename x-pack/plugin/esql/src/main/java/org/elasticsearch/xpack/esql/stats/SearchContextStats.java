@@ -303,6 +303,7 @@ public class SearchContextStats implements SearchStats {
         return Math.max(a, b);
     }
 
+    // TODO: replace these helpers with a unified Lucene min/max API once https://github.com/apache/lucene/issues/15740 is resolved
     private static Long docValuesSkipperMinValue(final LeafReaderContext leafContext, final String field) throws IOException {
         long value = DocValuesSkipper.globalMinValue(new IndexSearcher(leafContext.reader()), field);
         return (value == Long.MAX_VALUE || value == Long.MIN_VALUE) ? null : value;

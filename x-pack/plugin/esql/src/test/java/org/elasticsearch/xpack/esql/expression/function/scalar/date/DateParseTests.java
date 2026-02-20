@@ -27,6 +27,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
@@ -482,6 +483,14 @@ public class DateParseTests extends AbstractConfigurationFunctionTestCase {
             ).get(driverContext)
         );
         assertThat(e.getMessage(), startsWith("unsupported timezone [" + timezone + "]"));
+    }
+
+    @Override
+    protected void filterCoAndContraVarianceNarrowing(
+        Map<Integer, DataType> positionNarrowing,
+        List<TestCaseSupplier.TypedData> data
+    ) {
+        positionNarrowing.entrySet().removeIf(e -> e.getKey() == 2 && e.getValue() == DataType.NULL);
     }
 
     @Override

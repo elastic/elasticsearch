@@ -471,6 +471,64 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         throw new AssumptionViolatedException("not supported");
     }
 
+    public void testValueFetcherWithMissingFieldSegment() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "pattern_text")));
+        MappedFieldType ft = mapperService.fieldType("field");
+
+        withLuceneIndex(mapperService, iw -> {
+            // Segment 1: document with the pattern_text field
+            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "hello world"))).rootDoc();
+            iw.addDocument(doc1);
+            iw.commit();
+
+            // Segment 2: document without the pattern_text field
+            LuceneDocument doc2 = mapperService.documentMapper().parse(source(b -> {})).rootDoc();
+            iw.addDocument(doc2);
+            iw.commit();
+        }, reader -> {
+            assertEquals(2, reader.leaves().size());
+
+            SearchExecutionContext ctx = createSearchExecutionContext(mapperService, newSearcher(reader));
+            ValueFetcher fetcher = ft.valueFetcher(ctx, null);
+
+            // Segment with the field should work normally
+            fetcher.setNextReader(reader.leaves().get(0));
+            List<Object> values = fetcher.fetchValues(null, 0, new ArrayList<>());
+            assertEquals(1, values.size());
+            assertEquals("hello world", values.get(0));
+
+            // Segment without the field should return empty, not throw NPE
+            fetcher.setNextReader(reader.leaves().get(1));
+            List<Object> emptyValues = fetcher.fetchValues(null, 0, new ArrayList<>());
+            assertEquals(0, emptyValues.size());
+        });
+    }
+
+    public void testFieldDataWithMissingFieldSegment() throws IOException {
+        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "pattern_text")));
+        MappedFieldType ft = mapperService.fieldType("field");
+
+        withLuceneIndex(mapperService, iw -> {
+            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "hello world"))).rootDoc();
+            iw.addDocument(doc1);
+            iw.commit();
+
+            LuceneDocument doc2 = mapperService.documentMapper().parse(source(b -> {})).rootDoc();
+            iw.addDocument(doc2);
+            iw.commit();
+        }, reader -> {
+            assertEquals(2, reader.leaves().size());
+
+            var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+            var fieldData = ft.fielddataBuilder(fieldDataContext).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+
+            // Segment without the field should not throw NPE
+            var leafData = fieldData.load(reader.leaves().get(1));
+            var bytesValues = leafData.getBytesValues();
+            assertFalse(bytesValues.advanceExact(0));
+        });
+    }
+
     @Override
     protected List<SortShortcutSupport> getSortShortcutSupport() {
         return List.of();

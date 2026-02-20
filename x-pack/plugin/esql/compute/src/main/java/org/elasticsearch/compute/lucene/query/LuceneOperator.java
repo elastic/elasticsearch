@@ -16,6 +16,7 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -25,6 +26,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.core.RefCounted;
@@ -75,6 +77,8 @@ public abstract class LuceneOperator extends SourceOperator {
      * Count of rows this operator has emitted.
      */
     long rowsEmitted;
+
+    private IsBlockedResult blocked = Operator.NOT_BLOCKED;
 
     protected LuceneOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
@@ -159,6 +163,7 @@ public abstract class LuceneOperator extends SourceOperator {
     protected void additionalClose() { /* Override this method to add any additional cleanup logic if needed */ }
 
     LuceneScorer getCurrentOrLoadNextScorer() {
+        SubscribableListener<Void> sliceBlocked = null;
         while (currentScorer == null || currentScorer.isDone()) {
             if (currentSlice == null || sliceIndex >= currentSlice.numLeaves()) {
                 sliceIndex = 0;
@@ -180,10 +185,19 @@ public abstract class LuceneOperator extends SourceOperator {
                 final Weight weight = currentSlice.weight();
                 processedQueries.add(weight.getQuery());
                 currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
+                sliceBlocked = currentSlice.isBlockedOnCaching(currentScorer.leafReaderContext());
+                if (sliceBlocked == null || sliceBlocked.isDone()) {
+                    currentScorer.reinitialize();
+                }
             }
             assert currentScorer.maxPosition <= partialLeaf.maxDoc() : currentScorer.maxPosition + ">" + partialLeaf.maxDoc();
             currentScorer.maxPosition = partialLeaf.maxDoc();
             currentScorer.position = Math.max(currentScorer.position, partialLeaf.minDoc());
+        }
+        if (sliceBlocked != null && sliceBlocked.isDone() == false) {
+            blocked = new IsBlockedResult(sliceBlocked, "segment is being cached");
+            currentScorer.executingThread = null; // force to use the cached iterator next time
+            return null;
         }
         if (Thread.currentThread() != currentScorer.executingThread) {
             currentScorer.reinitialize();
@@ -191,10 +205,30 @@ public abstract class LuceneOperator extends SourceOperator {
         return currentScorer;
     }
 
+    @Override
+    public IsBlockedResult isBlocked() {
+        if (blocked.listener().isDone()) {
+            blocked = NOT_BLOCKED;
+        }
+        return blocked;
+    }
+
     /**
      * Wraps a {@link BulkScorer} with shard information
      */
     static final class LuceneScorer {
+        private final static BulkScorer NOT_INITIALIZED_BULK_SCORER = new BulkScorer() {
+            @Override
+            public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long cost() {
+                throw new UnsupportedOperationException();
+            }
+        };
+
         private final ShardContext shardContext;
         private final Weight weight;
         private final LeafReaderContext leafReaderContext;
@@ -210,7 +244,7 @@ public abstract class LuceneOperator extends SourceOperator {
             this.weight = weight;
             this.tags = tags;
             this.leafReaderContext = leafReaderContext;
-            reinitialize();
+            this.bulkScorer = NOT_INITIALIZED_BULK_SCORER;
         }
 
         private void reinitialize() {

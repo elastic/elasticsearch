@@ -7,11 +7,14 @@
 
 package org.elasticsearch.compute.lucene.query;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Weight;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
 
 import java.util.List;
+import java.util.function.Function;
 
 /**
  * Holds a list of multiple partial Lucene segments
@@ -22,7 +25,8 @@ public record LuceneSlice(
     ShardContext shardContext,
     List<PartialLeafReaderContext> leaves,
     Weight weight,
-    List<Object> tags
+    List<Object> tags,
+    Function<LeafReaderContext, SubscribableListener<Void>> blockedOnCaching
 ) {
     int numLeaves() {
         return leaves.size();
@@ -30,5 +34,9 @@ public record LuceneSlice(
 
     PartialLeafReaderContext getLeaf(int index) {
         return leaves.get(index);
+    }
+
+    SubscribableListener<Void> isBlockedOnCaching(LeafReaderContext leaf) {
+        return blockedOnCaching.apply(leaf);
     }
 }

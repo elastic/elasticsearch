@@ -59,7 +59,6 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
         super(breaker);
         this.script = script;
         this.byteSize = byteSize;
-
     }
 
     @Override

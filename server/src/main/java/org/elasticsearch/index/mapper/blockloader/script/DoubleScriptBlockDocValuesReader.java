@@ -29,7 +29,6 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
         public DoubleScriptBlockLoader(DoubleFieldScript.LeafFactory factory, ByteSizeValue byteSize) {
             this.factory = factory;
             this.byteSize = byteSize.getBytes();
-
         }
 
         @Override

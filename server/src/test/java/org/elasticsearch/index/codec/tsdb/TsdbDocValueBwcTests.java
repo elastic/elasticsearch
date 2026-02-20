@@ -532,9 +532,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 tsdbDvReader.checkIntegrity();
                 assertThat(
                     tsdbDvReader,
-                    Matchers.instanceOf(
-                        Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer")
-                    )
+                    Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
                 );
             } else {
                 if (System.getSecurityManager() != null) {
@@ -551,9 +549,7 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 tsdbDvReader.checkIntegrity();
                 assertThat(
                     tsdbDvReader,
-                    Matchers.instanceOf(
-                        Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer")
-                    )
+                    Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
                 );
             }
         }

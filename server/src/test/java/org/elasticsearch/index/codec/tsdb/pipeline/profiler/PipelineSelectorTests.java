@@ -191,4 +191,64 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Delta.class))));
         assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Gcd.class))));
     }
+
+    public void testConstantDoublePreservesDataType() {
+        final long[] values = new long[512];
+        Arrays.fill(values, 42L);
+        final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.DOUBLE, null);
+
+        assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
+    }
+
+    public void testMonotonicDoubleCounterSelectsDeltaDelta() {
+        final long[] values = new long[512];
+        final long base = NumericDataGenerators.doublesToSortableLongs(new double[] { 100.0 })[0];
+        final long step = NumericDataGenerators.doublesToSortableLongs(new double[] { 100.001 })[0] - base;
+        for (int i = 0; i < 512; i++) {
+            values[i] = base + i * step;
+        }
+        final BlockProfile profile = profiler.profile(values, 512);
+        assertTrue(profile.isMonotonicallyIncreasing());
+
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null);
+
+        assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.DeltaDelta.class)));
+    }
+
+    public void testMonotonicFloatCounterPreservesDataType() {
+        final long[] values = new long[512];
+        for (int i = 0; i < 512; i++) {
+            values[i] = 1000L + i * 10L;
+        }
+        final BlockProfile profile = profiler.profile(values, 512);
+        assertTrue(profile.isMonotonicallyIncreasing());
+
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null);
+
+        assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
+    }
+
+    public void testGcdDoublePreservesDataType() {
+        final long[] values = new long[512];
+        for (int i = 0; i < 512; i++) {
+            values[i] = (i % 100) * 50L;
+        }
+        final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.DOUBLE, null);
+
+        assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+    }
+
+    public void testRleDoublePreservesDataType() {
+        final long[] values = new long[512];
+        for (int i = 0; i < 512; i++) {
+            values[i] = i / 256;
+        }
+        final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.DOUBLE, null);
+
+        assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
+    }
 }

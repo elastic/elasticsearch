@@ -56,73 +56,98 @@ public final class PipelineSelector {
         final PipelineConfig.DataType dataType,
         @Nullable OptimizeFor hint
     ) {
+        return switch (dataType) {
+            case LONG -> selectLong(profile, blockSize);
+            case DOUBLE -> selectDouble(profile, blockSize, hint);
+            case FLOAT -> selectFloat(profile, blockSize, hint);
+        };
+    }
+
+    private PipelineConfig selectLong(final BlockProfile profile, int blockSize) {
         if (profile.range() == 0) {
-            // NOTE: all values are identical, offset reduces to a single base value and RLE collapses the block
             return PipelineConfig.forLongs(blockSize).offset().rle().bitPack();
         }
-        final double runRatio = (double) profile.runCount() / profile.valueCount();
         if (isRleProfitable(profile)) {
-            // NOTE: cost model confirms RLE saves more bytes than its metadata costs
             return PipelineConfig.forLongs(blockSize).offset().rle().bitPack();
         }
         if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
             if (profile.deltaDeltaMaxBits() <= DELTA_DELTA_MAX_BITS_THRESHOLD) {
-                // NOTE: nearly linear monotonic sequence (e.g. steady-rate timestamps or counters),
-                // second-order deltas are very compact. PatchedPFor handles the rare outliers.
+                // NOTE: nearly linear (e.g. steady-rate timestamps), second-order deltas are very compact
                 return PipelineConfig.forLongs(blockSize).deltaDelta().offset().gcd().patchedPFor().bitPack();
             }
-            // NOTE: monotonic but with irregular steps (jittery counters, irregular timestamps),
-            // plain delta removes the trend but second-order deltas are too noisy to help
+            // NOTE: monotonic but irregular steps, plain delta removes the trend
             return PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
         }
         if (profile.gcd() > 1) {
-            // NOTE: values share a common divisor (e.g. millisecond timestamps aligned to seconds),
-            // GCD division reduces bit-width without lossy transforms
             return PipelineConfig.forLongs(blockSize).offset().gcd().bitPack();
         }
         if (profile.xorMaxBits() < profile.rawMaxBits()) {
-            // NOTE: XOR between consecutive values uses fewer bits than raw values,
-            // meaning the data has smooth, slowly-changing patterns — delegate to gauge-smooth
-            return selectGaugeSmooth(blockSize, dataType, hint);
+            // NOTE: smooth longs — delta captures the slow drift
+            return PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
         }
-        if (dataType != PipelineConfig.DataType.LONG) {
-            // NOTE: floating-point data with no detectable structure — delegate to gauge-noisy
-            return selectGaugeNoisy(blockSize, dataType, hint);
-        }
+        final double runRatio = (double) profile.runCount() / profile.valueCount();
         if (runRatio > HIGH_CARDINALITY_RUN_RATIO_THRESHOLD && profile.gcd() == 1) {
-            // NOTE: high-cardinality longs with no GCD structure,
-            // no exploitable pattern remains — offset reduces magnitude and bitpack encodes the rest
             return PipelineConfig.forLongs(blockSize).offset().bitPack();
         }
-        // NOTE: unstructured long data with no exploitable pattern, fall back to offset + bitpack
-        return selectGaugeNoisy(blockSize, dataType, hint);
+        return PipelineConfig.forLongs(blockSize).offset().bitPack();
     }
 
-    private static PipelineConfig selectGaugeSmooth(int blockSize, PipelineConfig.DataType dataType, @Nullable OptimizeFor hint) {
-        return switch (dataType) {
+    private PipelineConfig selectDouble(final BlockProfile profile, int blockSize, @Nullable OptimizeFor hint) {
+        if (profile.range() == 0) {
+            return PipelineConfig.forDoubles(blockSize).offset().rle().bitPack();
+        }
+        if (isRleProfitable(profile)) {
+            return PipelineConfig.forDoubles(blockSize).offset().rle().bitPack();
+        }
+        if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
+            if (profile.deltaDeltaMaxBits() <= DELTA_DELTA_MAX_BITS_THRESHOLD) {
+                // NOTE: nearly linear double counter, second-order deltas on sortable longs are very compact
+                return PipelineConfig.forDoubles(blockSize).deltaDelta().offset().gcd().patchedPFor().bitPack();
+            }
+            // NOTE: monotonic but irregular steps, plain delta removes the trend
+            return PipelineConfig.forDoubles(blockSize).delta().offset().gcd().bitPack();
+        }
+        if (profile.gcd() > 1) {
+            return PipelineConfig.forDoubles(blockSize).offset().gcd().bitPack();
+        }
+        if (profile.xorMaxBits() < profile.rawMaxBits()) {
             // NOTE: smooth doubles — ALP exploits decimal structure for best compression,
             // XOR + patchedPFor is faster but less compact
-            case DOUBLE -> hint == OptimizeFor.SPEED
+            return hint == OptimizeFor.SPEED
                 ? PipelineConfig.forDoubles(blockSize).xor().patchedPFor().bitPack()
                 : PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack();
-            // NOTE: smooth floats — same tradeoff as doubles but with ALP float variant
-            case FLOAT -> hint == OptimizeFor.SPEED
-                ? PipelineConfig.forFloats(blockSize).xor().patchedPFor().bitPack()
-                : PipelineConfig.forFloats(blockSize).alpFloatStage().offset().gcd().bitPack();
-            // NOTE: smooth longs — delta captures the slow drift, then offset + GCD + bitpack
-            case LONG -> PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
-        };
+        }
+        // NOTE: noisy doubles — XOR provides no bit-width reduction, use offset + patchedPFor
+        return PipelineConfig.forDoubles(blockSize).offset().patchedPFor().bitPack();
     }
 
-    // NOTE: only called when xorMaxBits >= rawMaxBits, meaning XOR provides no bit-width reduction.
-    // Skip XOR and FPC (both rely on consecutive-value correlation) and use offset + patchedPFor
-    // to handle magnitude and outliers without adding unnecessary encode/decode overhead.
-    private static PipelineConfig selectGaugeNoisy(int blockSize, PipelineConfig.DataType dataType, @Nullable OptimizeFor hint) {
-        return switch (dataType) {
-            case DOUBLE -> PipelineConfig.forDoubles(blockSize).offset().patchedPFor().bitPack();
-            case FLOAT -> PipelineConfig.forFloats(blockSize).offset().patchedPFor().bitPack();
-            case LONG -> PipelineConfig.forLongs(blockSize).offset().bitPack();
-        };
+    private PipelineConfig selectFloat(final BlockProfile profile, int blockSize, @Nullable OptimizeFor hint) {
+        if (profile.range() == 0) {
+            return PipelineConfig.forFloats(blockSize).offset().rle().bitPack();
+        }
+        if (isRleProfitable(profile)) {
+            return PipelineConfig.forFloats(blockSize).offset().rle().bitPack();
+        }
+        if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
+            if (profile.deltaDeltaMaxBits() <= DELTA_DELTA_MAX_BITS_THRESHOLD) {
+                // NOTE: nearly linear float counter, second-order deltas on sortable longs are very compact
+                return PipelineConfig.forFloats(blockSize).deltaDelta().offset().gcd().patchedPFor().bitPack();
+            }
+            // NOTE: monotonic but irregular steps, plain delta removes the trend
+            return PipelineConfig.forFloats(blockSize).delta().offset().gcd().bitPack();
+        }
+        if (profile.gcd() > 1) {
+            return PipelineConfig.forFloats(blockSize).offset().gcd().bitPack();
+        }
+        if (profile.xorMaxBits() < profile.rawMaxBits()) {
+            // NOTE: smooth floats — ALP exploits decimal structure for best compression,
+            // XOR + patchedPFor is faster but less compact
+            return hint == OptimizeFor.SPEED
+                ? PipelineConfig.forFloats(blockSize).xor().patchedPFor().bitPack()
+                : PipelineConfig.forFloats(blockSize).alpFloatStage().offset().gcd().bitPack();
+        }
+        // NOTE: noisy floats — XOR provides no bit-width reduction, use offset + patchedPFor
+        return PipelineConfig.forFloats(blockSize).offset().patchedPFor().bitPack();
     }
 
     // NOTE: estimates whether RLE saves more bytes than its metadata costs, accounting for

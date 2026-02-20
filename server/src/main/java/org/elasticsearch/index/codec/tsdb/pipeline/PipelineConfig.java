@@ -207,9 +207,13 @@ public final class PipelineConfig {
             this.blockSize = blockSize;
         }
 
-        // Transform stages from LongBuilder
         public DoubleBuilder delta() {
             specs.add(new StageSpec.Delta());
+            return this;
+        }
+
+        public DoubleBuilder deltaDelta() {
+            specs.add(new StageSpec.DeltaDelta());
             return this;
         }
 
@@ -238,7 +242,6 @@ public final class PipelineConfig {
             return this;
         }
 
-        // Double-specific transform stages
         public DoubleBuilder quantizeDouble(double maxError) {
             specs.add(new StageSpec.QuantizeDouble(maxError));
             return this;
@@ -304,7 +307,6 @@ public final class PipelineConfig {
             return this;
         }
 
-        // Terminal payload stages (from LongBuilder)
         public PipelineConfig bitPack() {
             specs.add(new StageSpec.BitPack());
             return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
@@ -330,7 +332,6 @@ public final class PipelineConfig {
             return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
         }
 
-        // Double-specific terminal payload stages
         public PipelineConfig gorilla() {
             specs.add(new StageSpec.Gorilla());
             return new PipelineConfig(DataType.DOUBLE, blockSize, specs);
@@ -367,6 +368,11 @@ public final class PipelineConfig {
 
         public FloatBuilder delta() {
             specs.add(new StageSpec.Delta());
+            return this;
+        }
+
+        public FloatBuilder deltaDelta() {
+            specs.add(new StageSpec.DeltaDelta());
             return this;
         }
 

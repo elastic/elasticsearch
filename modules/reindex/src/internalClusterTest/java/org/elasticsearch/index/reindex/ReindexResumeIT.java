@@ -334,7 +334,7 @@ public class ReindexResumeIT extends ESIntegTestCase {
                 searchResponse.decRef();
             }
         }
-        // destination contains completed slices plus resumed slices excluding each pending slice first batch
+        // the first manual search batch per slice creates the scroll and is not indexed; resume indexes the rest
         final long expectedDocsDest = totalDocs - sliceFirstBatchDocs.values().stream().mapToLong(Long::longValue).sum();
 
         ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)

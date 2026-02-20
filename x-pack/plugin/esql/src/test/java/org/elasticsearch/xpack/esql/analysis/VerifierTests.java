@@ -3009,6 +3009,13 @@ public class VerifierTests extends ESTestCase {
                 containsString("1:50: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
             );
         }
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(100)", sampleDataAnalyzer),
+            equalTo(
+                "1:42: [tbucket(100)] requires a time range;"
+                    + " provide explicit from/to parameters or add a @timestamp range to the query filter"
+            )
+        );
     }
 
     public void testFuse() {

@@ -49,12 +49,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.COMMA_ESCAPING_REGEX;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ESCAPED_COMMA_SEQUENCE;
@@ -130,7 +131,7 @@ public class CsvTestsDataLoader {
         "no_mapping_sample_data",
         "mapping-no_mapping_sample_data.json",
         "partial_mapping_sample_data.csv"
-    ).withTypeMapping(Stream.of("timestamp", "client_ip", "event_duration").collect(Collectors.toMap(k -> k, k -> "keyword")));
+    ).withTypeMapping(Stream.of("timestamp", "client_ip", "event_duration").collect(toMap(k -> k, k -> "keyword")));
     private static final TestDataset SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE = new TestDataset(
         "partial_mapping_no_source_sample_data",
         "mapping-partial_mapping_no_source_sample_data.json",
@@ -364,6 +365,13 @@ public class CsvTestsDataLoader {
         CITY_LOCATIONS_ENRICH,
         COLORS_ENRICH
     );
+
+    public static final Map<String, InferenceConfig> INFERENCE_CONFIGS = Stream.of(
+        new InferenceConfig("test_sparse_inference", TaskType.SPARSE_EMBEDDING),
+        new InferenceConfig("test_dense_inference", TaskType.TEXT_EMBEDDING),
+        new InferenceConfig("test_reranker", TaskType.RERANK),
+        new InferenceConfig("test_completion", TaskType.COMPLETION)
+    ).collect(toMap(InferenceConfig::id, Function.identity()));
 
     private static final ViewConfig COUNTRY_ADDRESSES = new ViewConfig("country_addresses");
     private static final ViewConfig COUNTRY_AIRPORTS = new ViewConfig("country_airports");
@@ -672,118 +680,27 @@ public class CsvTestsDataLoader {
     }
 
     public static void createInferenceEndpoints(RestClient client) throws IOException {
-        if (clusterHasSparseEmbeddingInferenceEndpoint(client) == false) {
-            createSparseEmbeddingInferenceEndpoint(client);
-        }
-
-        if (clusterHasTextEmbeddingInferenceEndpoint(client) == false) {
-            createTextEmbeddingInferenceEndpoint(client);
-        }
-
-        if (clusterHasRerankInferenceEndpoint(client) == false) {
-            createRerankInferenceEndpoint(client);
-        }
-
-        if (clusterHasCompletionInferenceEndpoint(client) == false) {
-            createCompletionInferenceEndpoint(client);
+        for (var config : INFERENCE_CONFIGS.values()) {
+            if (hasInferenceEndpoint(client, config) == false) {
+                createInferenceEndpoint(client, config);
+            }
         }
     }
 
     public static void deleteInferenceEndpoints(RestClient client) throws IOException {
-        deleteSparseEmbeddingInferenceEndpoint(client);
-        deleteTextEmbeddingInferenceEndpoint(client);
-        deleteRerankInferenceEndpoint(client);
-        deleteCompletionInferenceEndpoint(client);
+        for (var config : INFERENCE_CONFIGS.values()) {
+            deleteInferenceEndpoint(client, config.id);
+        }
     }
 
-    /** The semantic_text mapping type requires inference endpoints that need to be setup before creating the index. */
-    public static void createSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
-        createInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference", """
-                  {
-                   "service": "test_service",
-                   "service_settings": { "model": "my_model", "api_key": "abc64" },
-                   "task_settings": { }
-                 }
-            """);
-    }
-
-    public static void createTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
-        createInferenceEndpoint(client, TaskType.TEXT_EMBEDDING, "test_dense_inference", """
-                  {
-                   "service": "text_embedding_test_service",
-                   "service_settings": {
-                        "model": "my_model",
-                        "api_key": "abc64",
-                        "dimensions": 3,
-                        "similarity": "l2_norm",
-                        "element_type": "float"
-                    },
-                   "task_settings": { }
-                 }
-            """);
-    }
-
-    public static void deleteSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
-        deleteInferenceEndpoint(client, "test_sparse_inference");
-    }
-
-    public static void deleteTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
-        deleteInferenceEndpoint(client, "test_dense_inference");
-    }
-
-    public static boolean clusterHasSparseEmbeddingInferenceEndpoint(RestClient client) throws IOException {
-        return clusterHasInferenceEndpoint(client, TaskType.SPARSE_EMBEDDING, "test_sparse_inference");
-    }
-
-    public static boolean clusterHasTextEmbeddingInferenceEndpoint(RestClient client) throws IOException {
-        return clusterHasInferenceEndpoint(client, TaskType.TEXT_EMBEDDING, "test_dense_inference");
-    }
-
-    public static void createRerankInferenceEndpoint(RestClient client) throws IOException {
-        createInferenceEndpoint(client, TaskType.RERANK, "test_reranker", """
-            {
-                "service": "test_reranking_service",
-                "service_settings": { "model_id": "my_model", "api_key": "abc64" },
-                "task_settings": { "use_text_length": true }
-            }
-            """);
-    }
-
-    public static void deleteRerankInferenceEndpoint(RestClient client) throws IOException {
-        deleteInferenceEndpoint(client, "test_reranker");
-    }
-
-    public static boolean clusterHasRerankInferenceEndpoint(RestClient client) throws IOException {
-        return clusterHasInferenceEndpoint(client, TaskType.RERANK, "test_reranker");
-    }
-
-    public static void createCompletionInferenceEndpoint(RestClient client) throws IOException {
-        createInferenceEndpoint(client, TaskType.COMPLETION, "test_completion", """
-            {
-                "service": "completion_test_service",
-                "service_settings": { "model": "my_model", "api_key": "abc64" },
-                "task_settings": { "temperature": 3 }
-            }
-            """);
-    }
-
-    public static void deleteCompletionInferenceEndpoint(RestClient client) throws IOException {
-        deleteInferenceEndpoint(client, "test_completion");
-    }
-
-    public static boolean clusterHasCompletionInferenceEndpoint(RestClient client) throws IOException {
-        return clusterHasInferenceEndpoint(client, TaskType.COMPLETION, "test_completion");
-    }
-
-    private static void createInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId, String modelSettings)
-        throws IOException {
-        Request request = new Request("PUT", "/_inference/" + taskType.name() + "/" + inferenceId);
-        request.setJsonEntity(modelSettings);
+    public static void createInferenceEndpoint(RestClient client, InferenceConfig config) throws IOException {
+        Request request = new Request("PUT", "/_inference/" + config.type.name() + "/" + config.id);
+        request.setJsonEntity(config.loadConfig());
         client.performRequest(request);
     }
 
-    private static boolean clusterHasInferenceEndpoint(RestClient client, TaskType taskType, String inferenceId) throws IOException {
-        Request request = new Request("GET", "/_inference/" + taskType.name() + "/" + inferenceId);
+    private static boolean hasInferenceEndpoint(RestClient client, InferenceConfig config) throws IOException {
+        Request request = new Request("GET", "/_inference/" + config.type.name() + "/" + config.id);
         try {
             client.performRequest(request);
         } catch (ResponseException e) {
@@ -795,7 +712,7 @@ public class CsvTestsDataLoader {
         return true;
     }
 
-    private static void deleteInferenceEndpoint(RestClient client, String inferenceId) throws IOException {
+    public static void deleteInferenceEndpoint(RestClient client, String inferenceId) throws IOException {
         try {
             client.performRequest(new Request("DELETE", "/_inference/" + inferenceId));
         } catch (ResponseException e) {
@@ -1050,7 +967,7 @@ public class CsvTestsDataLoader {
     }
 
     private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");
-    private  static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";
+    private static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";
 
     private static String toJson(String type, String value) {
         return switch (type == null ? "" : type) {
@@ -1290,12 +1207,6 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record ViewConfig(String name) {
-        public String loadQuery() {
-            return getResourceString("/views/" + name + ".esql");
-        }
-    }
-
     public record EnrichConfig(String policyName, String policyFileName) {
         public String loadPolicy() {
             return getResourceString("/enrich/policy/" + policyFileName);
@@ -1303,6 +1214,18 @@ public class CsvTestsDataLoader {
 
         public InputStream streamPolicy() {
             return getResourceStream("/enrich/policy/" + policyFileName);
+        }
+    }
+
+    public record InferenceConfig(String id, TaskType type) {
+        public String loadConfig() {
+            return getResourceString("/inference/" + id + ".json");
+        }
+    }
+
+    public record ViewConfig(String name) {
+        public String loadQuery() {
+            return getResourceString("/views/" + name + ".esql");
         }
     }
 

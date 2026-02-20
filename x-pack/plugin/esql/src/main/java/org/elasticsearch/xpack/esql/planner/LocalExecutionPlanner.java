@@ -26,6 +26,7 @@ import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.operator.ChangePointOperator;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.ColumnLoadOperator;
+import org.elasticsearch.compute.operator.DistinctByOperator;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
@@ -35,6 +36,8 @@ import org.elasticsearch.compute.operator.LimitOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.LocalSourceOperator.LocalSourceFactory;
 import org.elasticsearch.compute.operator.MMROperator;
+import org.elasticsearch.compute.operator.MetricFieldInfo;
+import org.elasticsearch.compute.operator.MetricsInfoOperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
@@ -65,6 +68,10 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
+import org.elasticsearch.index.mapper.blockloader.BlockLoaderFunctionConfig;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.Node;
@@ -85,7 +92,15 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceOperatorFactory;
+import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
@@ -112,6 +127,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -122,6 +138,7 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -139,6 +156,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -175,6 +193,7 @@ public class LocalExecutionPlanner {
     private final LookupFromIndexService lookupFromIndexService;
     private final InferenceService inferenceService;
     private final PhysicalOperationProviders physicalOperationProviders;
+    private final OperatorFactoryRegistry operatorFactoryRegistry;
 
     public LocalExecutionPlanner(
         String sessionId,
@@ -189,7 +208,8 @@ public class LocalExecutionPlanner {
         EnrichLookupService enrichLookupService,
         LookupFromIndexService lookupFromIndexService,
         InferenceService inferenceService,
-        PhysicalOperationProviders physicalOperationProviders
+        PhysicalOperationProviders physicalOperationProviders,
+        OperatorFactoryRegistry operatorFactoryRegistry
     ) {
 
         this.sessionId = sessionId;
@@ -205,6 +225,7 @@ public class LocalExecutionPlanner {
         this.lookupFromIndexService = lookupFromIndexService;
         this.inferenceService = inferenceService;
         this.physicalOperationProviders = physicalOperationProviders;
+        this.operatorFactoryRegistry = operatorFactoryRegistry;
     }
 
     /**
@@ -292,6 +313,8 @@ public class LocalExecutionPlanner {
             return planSample(Sample, context);
         } else if (node instanceof CompoundOutputEvalExec coe) {
             return planCompoundOutputEval(coe, context);
+        } else if (node instanceof MetricsInfoExec metricsInfo) {
+            return planMetricsInfo(metricsInfo, context);
         }
 
         // source nodes
@@ -305,6 +328,8 @@ public class LocalExecutionPlanner {
             return planShow(show);
         } else if (node instanceof ExchangeSourceExec exchangeSource) {
             return planExchangeSource(exchangeSource, exchangeSourceSupplier);
+        } else if (node instanceof ExternalSourceExec externalSource) {
+            return planExternalSource(externalSource, context);
         }
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
@@ -880,6 +905,247 @@ public class LocalExecutionPlanner {
         LocalSourceOperator.PageSupplier supplier = () -> localSourceExec.supplier().get();
         var operator = new LocalSourceOperator(supplier);
         return PhysicalOperation.fromSource(new LocalSourceFactory(() -> operator), layout.build());
+    }
+
+    private PhysicalOperation planMetricsInfo(MetricsInfoExec metricsInfoExec, LocalExecutionPlannerContext context) {
+        if (metricsInfoExec.mode() == MetricsInfoExec.Mode.FINAL || metricsInfoExec.mode() == MetricsInfoExec.Mode.INTERMEDIATE) {
+            return planMetricsInfoFinal(metricsInfoExec, context);
+        }
+        // INITIAL mode: extraction on data nodes.
+        // Step 1: Extract _tsid only
+        FieldAttribute tsidAttr = new FieldAttribute(
+            metricsInfoExec.source(),
+            null,
+            null,
+            MetadataAttribute.TSID_FIELD,
+            new EsField(MetadataAttribute.TSID_FIELD, DataType.TSID_DATA_TYPE, Map.of(), false, EsField.TimeSeriesFieldType.NONE),
+            true
+        );
+
+        FieldExtractExec tsidExtractExec = new FieldExtractExec(
+            metricsInfoExec.source(),
+            metricsInfoExec.child(),
+            List.of(tsidAttr),
+            MappedFieldType.FieldExtractPreference.DOC_VALUES
+        );
+
+        PhysicalOperation tsidSource = planFieldExtractNode(tsidExtractExec, context);
+
+        // Step 2: Dedup by _tsid
+        int tsidChannel = tsidSource.layout.get(tsidAttr.id()).channel();
+        PhysicalOperation dedupedSource = tsidSource.with(new DistinctByOperator.Factory(tsidChannel), tsidSource.layout);
+
+        // Step 3: Extract _timeseries metadata (dimensions + metrics) from synthetic source
+        FieldAttribute metadataSourceAttr = new FieldAttribute(
+            metricsInfoExec.source(),
+            null,
+            null,
+            "_timeseries_metadata",
+            new FunctionEsField(
+                new EsField(SourceFieldMapper.NAME, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.DIMENSION),
+                DataType.KEYWORD,
+                new BlockLoaderFunctionConfig.JustFunction(BlockLoaderFunctionConfig.Function.TIME_SERIES_METRICS_AND_DIMENSIONS)
+            ),
+            true
+        );
+
+        FieldAttribute indexAttr = new FieldAttribute(
+            metricsInfoExec.source(),
+            null,
+            null,
+            MetadataAttribute.INDEX,
+            new EsField(MetadataAttribute.INDEX, DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE),
+            true
+        );
+
+        FieldExtractExec metadataExtractExec = new FieldExtractExec(
+            metricsInfoExec.source(),
+            tsidExtractExec,
+            List.of(metadataSourceAttr, indexAttr),
+            MappedFieldType.FieldExtractPreference.NONE
+        );
+
+        PhysicalOperation sourceWithMetadata = physicalOperationProviders.fieldExtractPhysicalOperation(
+            metadataExtractExec,
+            dedupedSource,
+            context
+        );
+
+        int metadataSourceChannel = sourceWithMetadata.layout.get(metadataSourceAttr.id()).channel();
+        int indexChannel = sourceWithMetadata.layout.get(indexAttr.id()).channel();
+
+        Layout.Builder layoutBuilder = new Layout.Builder();
+        layoutBuilder.append(metricsInfoExec.output());
+
+        MetricsInfoOperator.MetricFieldLookup fieldLookup = createMetricFieldLookup(context.shardContexts);
+
+        return sourceWithMetadata.with(
+            new MetricsInfoOperator.Factory(fieldLookup, metadataSourceChannel, indexChannel),
+            layoutBuilder.build()
+        );
+    }
+
+    /**
+     * FINAL mode: runs on the coordinator. Reads the 6-column MetricsInfo output from the
+     * exchange (produced by data-node INITIAL phases) and merges rows by metric signature.
+     */
+    private PhysicalOperation planMetricsInfoFinal(MetricsInfoExec metricsInfoExec, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(metricsInfoExec.child(), context);
+
+        List<Attribute> outputAttrs = metricsInfoExec.output();
+        int[] channels = new int[outputAttrs.size()];
+        for (int i = 0; i < outputAttrs.size(); i++) {
+            channels[i] = source.layout.get(outputAttrs.get(i).id()).channel();
+        }
+
+        Layout.Builder layoutBuilder = new Layout.Builder();
+        layoutBuilder.append(outputAttrs);
+
+        return source.with(new MetricsInfoOperator.FinalFactory(channels), layoutBuilder.build());
+    }
+
+    private static MetricsInfoOperator.MetricFieldLookup createMetricFieldLookup(IndexedByShardId<? extends ShardContext> shardContexts) {
+        Map<String, MappingLookup> mappingsByIndex = new HashMap<>();
+        for (ShardContext shard : shardContexts.iterable()) {
+            if (shard.indexSettings().getMode() == IndexMode.TIME_SERIES) {
+                mappingsByIndex.putIfAbsent(shard.indexSettings().getIndex().getName(), shard.mappingLookup());
+            }
+        }
+
+        return (indexName, fieldName) -> {
+            MappingLookup mappingLookup = mappingsByIndex.get(indexName);
+            if (mappingLookup == null) {
+                return null;
+            }
+            MappedFieldType fieldType = mappingLookup.getFieldType(fieldName);
+            if (fieldType == null) {
+                return null;
+            }
+            TimeSeriesParams.MetricType tsMetricType = fieldType.getMetricType();
+            if (tsMetricType == null) {
+                return null;
+            }
+            String unit = fieldType.meta().get("unit");
+            if (unit != null && unit.isBlank()) {
+                unit = null;
+            }
+            return new MetricFieldInfo(fieldName, indexName, fieldType.typeName(), tsMetricType.toString(), unit);
+        };
+    }
+
+    /**
+     * Plans a generic external source using the OperatorFactoryRegistry.
+     *
+     * <p>This method uses the registry to create the appropriate operator factory based on
+     * the source type and path. The registry will:
+     * <ol>
+     *   <li>Check if a plugin has registered a custom factory for the source type</li>
+     *   <li>Fall back to the generic AsyncExternalSourceOperatorFactory using
+     *       storage and format registries</li>
+     * </ol>
+     *
+     * <p>Example usage:
+     * <pre>
+     * // The OperatorFactoryRegistry is injected into LocalExecutionPlanner
+     * // It contains all registered storage providers, format readers, and plugin factories
+     * return planExternalSourceGeneric(externalSource, context);
+     * </pre>
+     *
+     * @param externalSource the external source physical plan node
+     * @param context the planner context
+     * @return the physical operation
+     */
+    private PhysicalOperation planExternalSource(ExternalSourceExec externalSource, LocalExecutionPlannerContext context) {
+        // Create layout with output attributes
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(externalSource.output());
+
+        // Determine page size based on estimated row size
+        Integer estimatedRowSize = externalSource.estimatedRowSize();
+        int pageSize = (estimatedRowSize != null && estimatedRowSize > 0)
+            ? Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize)
+            : 1000;
+
+        // Parse the storage path
+        StoragePath path = StoragePath.of(externalSource.sourcePath());
+
+        // Extract column names from attributes
+        List<String> projectedColumns = new ArrayList<>();
+        for (Attribute attr : externalSource.output()) {
+            projectedColumns.add(attr.name());
+        }
+
+        // Create the operator factory using the registry
+        SourceOperator.SourceOperatorFactory factory;
+        if (operatorFactoryRegistry != null) {
+            // Build the operator context with all available metadata
+            SourceOperatorContext operatorContext = SourceOperatorContext.builder()
+                .sourceType(externalSource.sourceType())
+                .path(path)
+                .projectedColumns(projectedColumns)
+                .attributes(externalSource.output())
+                .batchSize(pageSize)
+                .maxBufferSize(10)
+                .executor(operatorFactoryRegistry.executor())
+                .config(externalSource.config())
+                .sourceMetadata(externalSource.sourceMetadata())
+                .pushedFilter(externalSource.pushedFilter())
+                .fileSet(externalSource.fileSet())
+                .build();
+
+            factory = operatorFactoryRegistry.factory(operatorContext);
+        } else {
+            throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
+        }
+
+        // Set driver parallelism to 1 for now (can be optimized later with file splitting)
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
+
+        return PhysicalOperation.fromSource(factory, layout.build());
+    }
+
+    /**
+     * Plans a generic external source using explicit StorageProvider and FormatReader.
+     * This method is kept for backward compatibility and testing.
+     *
+     * @param externalSource the external source physical plan node
+     * @param storageProvider the storage provider for the source
+     * @param formatReader the format reader for the source
+     * @param context the planner context
+     * @return the physical operation
+     */
+    private PhysicalOperation planExternalSourceGeneric(
+        ExternalSourceExec externalSource,
+        StorageProvider storageProvider,
+        FormatReader formatReader,
+        LocalExecutionPlannerContext context
+    ) {
+        // Create layout with output attributes
+        Layout.Builder layout = new Layout.Builder();
+        layout.append(externalSource.output());
+
+        // Determine page size based on estimated row size
+        Integer estimatedRowSize = externalSource.estimatedRowSize();
+        int pageSize = (estimatedRowSize != null && estimatedRowSize > 0)
+            ? Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize)
+            : 1000;
+
+        // Parse the storage path
+        StoragePath path = StoragePath.of(externalSource.sourcePath());
+
+        // Create the operator factory using the generic abstraction
+        SourceOperator.SourceOperatorFactory factory = new ExternalSourceOperatorFactory(
+            storageProvider,
+            formatReader,
+            path,
+            externalSource.output(),
+            pageSize
+        );
+
+        // Set driver parallelism to 1 for now (can be optimized later with file splitting)
+        context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
+
+        return PhysicalOperation.fromSource(factory, layout.build());
     }
 
     private PhysicalOperation planShow(ShowExec showExec) {

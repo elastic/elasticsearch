@@ -609,7 +609,7 @@ POST /my-bit-vectors/_bulk?refresh
 % TEST[continued]
 
 1. 5 bytes representing the 40 bit dimensioned vector
-2. A hexidecimal string representing the 40 bit dimensioned vector
+2. A hexadecimal string representing the 40 bit dimensioned vector
 
 
 Then, when searching, you can use the `knn` query to search for similar bit vectors:

@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Locale;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
@@ -126,7 +127,7 @@ public class PutCustomDictionaryAction extends ActionType<PutCustomDictionaryAct
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            builder.field("result", result.name().toLowerCase());
+            builder.field("result", result.name().toLowerCase(Locale.ROOT));
             builder.endObject();
             return builder;
         }

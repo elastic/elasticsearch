@@ -42,15 +42,28 @@ public abstract class AsyncInitTokenFilter<T> extends TokenFilter {
     public final boolean incrementToken() throws IOException {
         boolean hasTokens = true;
         if (tokenFilter == null) {
+            RuntimeException tokenFilterBuildException = null;
             if (resourceFuture.isDone()) {
-                tokenFilter = tokenFilterBuilder.apply(input, getResultFromCompletedFuture(resourceFuture));
-            } else {
+                try {
+                    tokenFilter = tokenFilterBuilder.apply(input, getResultFromCompletedFuture(resourceFuture));
+                } catch (RuntimeException e) {
+                    tokenFilterBuildException = e;
+                }
+            }
+
+            if (tokenFilter == null) {
+                // The token filter hasn't been built yet, either because the resource isn't ready or there was an error while building it.
+                // We use an empty token stream to validate analysis component compatibility with Elasticsearch when an analyzer is
+                // constructed. We don't want to report token filter build errors in this case.
                 hasTokens = input.incrementToken();
                 if (hasTokens) {
-                    // We use an empty token stream to validate analysis component compatibility with Elasticsearch when an analyzer is
-                    // constructed. If the token stream is not empty, it means that we're processing a real token stream and our async
-                    // initializing analyzer is not ready yet, so we have to fail.
-                    throw new ElasticsearchStatusException(resourceNotReadyErrorMessage(), RestStatus.TOO_MANY_REQUESTS);
+                    // We are processing a real token stream, and we don't have a token filter to process it. Report the reason for this
+                    // to the user.
+                    if (tokenFilterBuildException != null) {
+                        throw tokenFilterBuildException;
+                    } else {
+                        throw new ElasticsearchStatusException(resourceNotReadyErrorMessage(), RestStatus.TOO_MANY_REQUESTS);
+                    }
                 }
             }
         }

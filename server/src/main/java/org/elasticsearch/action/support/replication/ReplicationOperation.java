@@ -728,4 +728,22 @@ public class ReplicationOperation<
             return operationAppliedOnPrimary;
         }
     }
+
+    public interface PrimaryResult<RequestT extends ReplicationRequest<RequestT>> {
+
+        /**
+         * @return null if no operation needs to be sent to a replica
+         * (for example when the operation failed on the primary due to a parsing exception)
+         */
+        @Nullable
+        RequestT replicaRequest();
+
+        void setShardInfo(ReplicationResponse.ShardInfo shardInfo);
+
+        /**
+         * Run actions to be triggered post replication
+         * @param listener callback that is invoked after post replication actions have completed
+         * */
+        void runPostReplicationActions(ActionListener<Void> listener);
+    }
 }

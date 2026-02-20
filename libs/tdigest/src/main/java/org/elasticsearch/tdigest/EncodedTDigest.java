@@ -43,7 +43,6 @@ import java.util.Objects;
  * </ul>
  */
 public class EncodedTDigest implements ReadableTDigest {
-    private static final BytesRef EMPTY_BYTES = new BytesRef();
 
     private final BytesRef encodedDigest = new BytesRef();
     private long cachedSize = -1L;
@@ -61,12 +60,13 @@ public class EncodedTDigest implements ReadableTDigest {
      * All decoding happens lazily when methods like {@link #size()} or {@link #cdf(double)} are called.
      * The provided {@code encodedDigest} is copied shallowly, so the caller is responsible for ensuring
      * that the bytes remain unchanged for the lifetime of this instance.
+     *
+     * @param encodedDigest The new encoded digest bytes. Must not be null, but may be empty.
      */
     public void reset(BytesRef encodedDigest) {
-        BytesRef source = Objects.requireNonNullElse(encodedDigest, EMPTY_BYTES);
-        this.encodedDigest.bytes = source.bytes;
-        this.encodedDigest.offset = source.offset;
-        this.encodedDigest.length = source.length;
+        this.encodedDigest.bytes = encodedDigest.bytes;
+        this.encodedDigest.offset = encodedDigest.offset;
+        this.encodedDigest.length = encodedDigest.length;
         this.cachedSize = -1L;
         this.cachedMax = Double.NaN;
         this.cachedCentroidCount = -1;
@@ -90,7 +90,6 @@ public class EncodedTDigest implements ReadableTDigest {
      * Encodes the provided centroids into a {@link BytesRef}.
      */
     public static BytesRef encodeCentroids(List<? extends Centroid> centroids) {
-        Objects.requireNonNull(centroids);
         return encodeCentroidsFromIterator(new CentroidIterator() {
             private int index = 0;
 
@@ -101,12 +100,12 @@ public class EncodedTDigest implements ReadableTDigest {
 
             @Override
             public long peekCount() {
-                return currentCentroid().count();
+                return centroids.get(index).count();
             }
 
             @Override
             public double peekMean() {
-                return currentCentroid().mean();
+                return centroids.get(index).mean();
             }
 
             @Override
@@ -114,9 +113,6 @@ public class EncodedTDigest implements ReadableTDigest {
                 index++;
             }
 
-            private Centroid currentCentroid() {
-                return Objects.requireNonNull(centroids.get(index));
-            }
         });
     }
 
@@ -124,11 +120,7 @@ public class EncodedTDigest implements ReadableTDigest {
      * Encodes centroids represented by independent means and counts lists.
      */
     public static BytesRef encodeCentroids(List<Double> means, List<Long> counts) {
-        Objects.requireNonNull(means);
-        Objects.requireNonNull(counts);
-        if (means.size() != counts.size()) {
-            throw new IllegalArgumentException("centroids and counts must have equal size");
-        }
+        assert  means.size() == counts.size() : "centroids and counts must have equal size";
         return encodeCentroidsFromIterator(new CentroidIterator() {
             private int index = 0;
 

@@ -9983,7 +9983,7 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var failures = LogicalVerifier.INSTANCE.verify(plan, plan.output());
         assertThat(failures.failures(), is(empty()));
     }
-                                                                                                        
+
     public void testPushDownSampleAndLimitThroughUriParts() {
         assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         var query = "FROM test | URI_PARTS parts = \"http://example.com/foo/bar?baz=qux\" | SAMPLE .5";

@@ -126,10 +126,7 @@ public class SampleTests extends AbstractAggregationTestCase {
     }
 
     @Override
-    protected void filterCoAndContraVarianceNarrowing(
-        Map<Integer, DataType> positionNarrowing,
-        List<TestCaseSupplier.TypedData> data
-    ) {
+    protected void filterCoAndContraVarianceNarrowing(Map<Integer, DataType> positionNarrowing, List<TestCaseSupplier.TypedData> data) {
         positionNarrowing.entrySet().removeIf(e -> e.getKey() == 1 && e.getValue() == DataType.NULL);
     }
 

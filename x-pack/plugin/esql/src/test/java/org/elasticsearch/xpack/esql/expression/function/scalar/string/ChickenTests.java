@@ -246,10 +246,7 @@ public class ChickenTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected void filterCoAndContraVarianceNarrowing(
-        Map<Integer, DataType> positionNarrowing,
-        List<TestCaseSupplier.TypedData> data
-    ) {
+    protected void filterCoAndContraVarianceNarrowing(Map<Integer, DataType> positionNarrowing, List<TestCaseSupplier.TypedData> data) {
         positionNarrowing.entrySet().removeIf(e -> e.getKey() > 0 && e.getValue() == DataType.NULL);
     }
 }

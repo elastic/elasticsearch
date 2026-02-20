@@ -476,7 +476,7 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = mapperService.fieldType("field");
 
         withLuceneIndex(mapperService, iw -> {
-            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "hello world"))).rootDoc();
+            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "abc 123"))).rootDoc();
             iw.addDocument(doc1);
             iw.commit();
 
@@ -492,7 +492,7 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             fetcher.setNextReader(reader.leaves().get(0));
             List<Object> values = fetcher.fetchValues(null, 0, new ArrayList<>());
             assertEquals(1, values.size());
-            assertEquals("hello world", values.get(0));
+            assertEquals("abc 123", values.get(0));
 
             fetcher.setNextReader(reader.leaves().get(1));
             List<Object> emptyValues = fetcher.fetchValues(null, 0, new ArrayList<>());
@@ -505,7 +505,7 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = mapperService.fieldType("field");
 
         withLuceneIndex(mapperService, iw -> {
-            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "hello world"))).rootDoc();
+            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "abc 123"))).rootDoc();
             iw.addDocument(doc1);
             iw.commit();
 
@@ -521,7 +521,7 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             var leafData0 = fieldData.load(reader.leaves().get(0));
             var bytesValues0 = leafData0.getBytesValues();
             assertTrue(bytesValues0.advanceExact(0));
-            assertEquals("hello world", bytesValues0.nextValue().utf8ToString());
+            assertEquals("abc 123", bytesValues0.nextValue().utf8ToString());
 
             var leafData1 = fieldData.load(reader.leaves().get(1));
             var bytesValues1 = leafData1.getBytesValues();
@@ -537,11 +537,11 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = mapperService.fieldType("field");
 
         withLuceneIndex(mapperService, iw -> {
-            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "hello world"))).rootDoc();
+            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "abc 123"))).rootDoc();
             iw.addDocument(doc1);
             iw.commit();
 
-            LuceneDocument doc2 = mapperService.documentMapper().parse(source(b -> b.field("field", "foo bar"))).rootDoc();
+            LuceneDocument doc2 = mapperService.documentMapper().parse(source(b -> b.field("field", "foo 12"))).rootDoc();
             iw.addDocument(doc2);
             iw.commit();
         }, reader -> {
@@ -553,12 +553,12 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             fetcher.setNextReader(reader.leaves().get(0));
             List<Object> values0 = fetcher.fetchValues(null, 0, new ArrayList<>());
             assertEquals(1, values0.size());
-            assertEquals("hello world", values0.get(0));
+            assertEquals("abc 123", values0.get(0));
 
             fetcher.setNextReader(reader.leaves().get(1));
             List<Object> values1 = fetcher.fetchValues(null, 0, new ArrayList<>());
             assertEquals(1, values1.size());
-            assertEquals("foo bar", values1.get(0));
+            assertEquals("foo 12", values1.get(0));
         });
     }
 
@@ -570,7 +570,7 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = mapperService.fieldType("field");
 
         withLuceneIndex(mapperService, iw -> {
-            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "hello world"))).rootDoc();
+            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "abc 123"))).rootDoc();
             iw.addDocument(doc1);
             iw.commit();
 
@@ -586,7 +586,7 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             fetcher.setNextReader(reader.leaves().get(0));
             List<Object> values = fetcher.fetchValues(null, 0, new ArrayList<>());
             assertEquals(1, values.size());
-            assertEquals("hello world", values.get(0));
+            assertEquals("abc 123", values.get(0));
 
             fetcher.setNextReader(reader.leaves().get(1));
             List<Object> emptyValues = fetcher.fetchValues(null, 0, new ArrayList<>());
@@ -602,7 +602,7 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = mapperService.fieldType("field");
 
         withLuceneIndex(mapperService, iw -> {
-            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "hello world"))).rootDoc();
+            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "abc 123"))).rootDoc();
             iw.addDocument(doc1);
             iw.commit();
 
@@ -618,7 +618,7 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             var leafData0 = fieldData.load(reader.leaves().get(0));
             var bytesValues0 = leafData0.getBytesValues();
             assertTrue(bytesValues0.advanceExact(0));
-            assertEquals("hello world", bytesValues0.nextValue().utf8ToString());
+            assertEquals("abc 123", bytesValues0.nextValue().utf8ToString());
 
             var leafData1 = fieldData.load(reader.leaves().get(1));
             var bytesValues1 = leafData1.getBytesValues();
@@ -634,11 +634,11 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = mapperService.fieldType("field");
 
         withLuceneIndex(mapperService, iw -> {
-            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "hello world"))).rootDoc();
+            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "abc 123"))).rootDoc();
             iw.addDocument(doc1);
             iw.commit();
 
-            LuceneDocument doc2 = mapperService.documentMapper().parse(source(b -> b.field("field", "foo bar"))).rootDoc();
+            LuceneDocument doc2 = mapperService.documentMapper().parse(source(b -> b.field("field", "foo 12"))).rootDoc();
             iw.addDocument(doc2);
             iw.commit();
         }, reader -> {
@@ -650,12 +650,12 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             var leafData0 = fieldData.load(reader.leaves().get(0));
             var bytesValues0 = leafData0.getBytesValues();
             assertTrue(bytesValues0.advanceExact(0));
-            assertEquals("hello world", bytesValues0.nextValue().utf8ToString());
+            assertEquals("abc 123", bytesValues0.nextValue().utf8ToString());
 
             var leafData1 = fieldData.load(reader.leaves().get(1));
             var bytesValues1 = leafData1.getBytesValues();
             assertTrue(bytesValues1.advanceExact(0));
-            assertEquals("foo bar", bytesValues1.nextValue().utf8ToString());
+            assertEquals("foo 12", bytesValues1.nextValue().utf8ToString());
         });
     }
 

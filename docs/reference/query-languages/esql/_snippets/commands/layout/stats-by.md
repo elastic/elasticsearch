@@ -106,6 +106,20 @@ optional as well:
 :::{include} ../examples/stats.csv-spec/aggFilteringNoGroup.md
 :::
 
+The `WHERE` clause can also filter on the grouping key. Note that this is
+different from filtering with `WHERE` before `STATS`, because the group
+itself will still appear in the output, but with a default value for
+the aggregation:
+
+:::{include} ../examples/stats.csv-spec/aggFilteringOnGroup.md
+:::
+
+Compare this to filtering with `WHERE` before `STATS`, which excludes
+non-matching groups entirely:
+
+:::{include} ../examples/stats.csv-spec/aggFilteringBefore.md
+:::
+
 It’s also possible to group by multiple values:
 
 :::{include} ../examples/stats.csv-spec/statsGroupByMultipleValues.md

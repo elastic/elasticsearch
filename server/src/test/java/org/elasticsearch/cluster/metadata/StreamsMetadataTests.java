@@ -12,6 +12,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -39,5 +40,61 @@ public class StreamsMetadataTests extends AbstractChunkedSerializingTestCase<Str
             case 2 -> new StreamsMetadata(instance.logsEnabled, instance.logsECSEnabled, instance.logsOTelEnabled == false);
             default -> throw new IllegalArgumentException("Illegal randomisation branch");
         };
+    }
+
+    public void testParsing() throws IOException {
+        String emptyMeta = "{}";
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, emptyMeta)) {
+            StreamsMetadata meta = StreamsMetadata.fromXContent(jsonParser);
+            assertFalse(meta.isLogsEnabled());
+            assertFalse(meta.isLogsOTelEnabled());
+            assertFalse(meta.isLogsECSEnabled());
+        }
+        String onlyLogs = """
+            {
+              "logs_enabled": true
+            }
+            """;
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, onlyLogs)) {
+            StreamsMetadata meta = StreamsMetadata.fromXContent(jsonParser);
+            assertTrue(meta.isLogsEnabled());
+            assertFalse(meta.isLogsOTelEnabled());
+            assertFalse(meta.isLogsECSEnabled());
+        }
+        String onlyLogsOtel = """
+            {
+              "logs_otel_enabled": true
+            }
+            """;
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, onlyLogsOtel)) {
+            StreamsMetadata meta = StreamsMetadata.fromXContent(jsonParser);
+            assertFalse(meta.isLogsEnabled());
+            assertTrue(meta.isLogsOTelEnabled());
+            assertFalse(meta.isLogsECSEnabled());
+        }
+        String onlyLogsECS = """
+            {
+              "logs_ecs_enabled": true
+            }
+            """;
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, onlyLogsECS)) {
+            StreamsMetadata meta = StreamsMetadata.fromXContent(jsonParser);
+            assertFalse(meta.isLogsEnabled());
+            assertFalse(meta.isLogsOTelEnabled());
+            assertTrue(meta.isLogsECSEnabled());
+        }
+        String allEnabled = """
+            {
+              "logs_enabled": true,
+              "logs_otel_enabled": true,
+              "logs_ecs_enabled": true
+            }
+            """;
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, allEnabled)) {
+            StreamsMetadata meta = StreamsMetadata.fromXContent(jsonParser);
+            assertTrue(meta.isLogsEnabled());
+            assertTrue(meta.isLogsOTelEnabled());
+            assertTrue(meta.isLogsECSEnabled());
+        }
     }
 }

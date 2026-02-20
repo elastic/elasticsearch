@@ -273,7 +273,7 @@ public class Upper2RestIT extends ESRestTestCase {
         for (List<Object> row : values) {
             String original = (String) row.get(0);
             String upper = (String) row.get(1);
-            assertThat(upper, equalTo(original.toUpperCase()));
+            assertThat(upper, equalTo(original.toUpperCase(java.util.Locale.ROOT)));
         }
     }
 }

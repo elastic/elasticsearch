@@ -131,7 +131,8 @@ public class Concat2RestIT extends ESRestTestCase {
 
     public void testManyArguments() throws IOException {
         Map<String, Object> result = runQuery(
-            "ROW a = \\\"a\\\", b = \\\"b\\\", c = \\\"c\\\", d = \\\"d\\\", e = \\\"e\\\" | EVAL result = concat2(a, b, c, d, e) | KEEP result"
+            "ROW a = \\\"a\\\", b = \\\"b\\\", c = \\\"c\\\", d = \\\"d\\\", e = \\\"e\\\" "
+                + "| EVAL result = concat2(a, b, c, d, e) | KEEP result"
         );
 
         @SuppressWarnings("unchecked")
@@ -181,9 +182,7 @@ public class Concat2RestIT extends ESRestTestCase {
         bulkRequest.addParameter("refresh", "true");
         client().performRequest(bulkRequest);
 
-        Map<String, Object> result = runQuery(
-            "FROM " + TEST_INDEX + " | EVAL result = concat2(a, b, c) | SORT a | KEEP a, b, c, result"
-        );
+        Map<String, Object> result = runQuery("FROM " + TEST_INDEX + " | EVAL result = concat2(a, b, c) | SORT a | KEEP a, b, c, result");
 
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) result.get("values");

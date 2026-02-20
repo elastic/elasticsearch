@@ -46,15 +46,12 @@ public class MvSum2 extends AbstractMultivalueFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long" },
-        description = "Converts a multivalued field into a single valued field containing the sum of all values (test function using runtime generation)."
+        description = "Converts a multivalued field into a single valued field containing the sum of all values "
+            + "(test function using runtime generation)."
     )
     public MvSum2(
         Source source,
-        @Param(
-            name = "number",
-            type = { "double", "integer", "long" },
-            description = "Multivalue expression."
-        ) Expression field
+        @Param(name = "number", type = { "double", "integer", "long" }, description = "Multivalue expression.") Expression field
     ) {
         super(source, field);
     }

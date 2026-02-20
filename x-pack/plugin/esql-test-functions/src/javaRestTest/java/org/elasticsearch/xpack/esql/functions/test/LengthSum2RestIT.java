@@ -85,7 +85,9 @@ public class LengthSum2RestIT extends ESRestTestCase {
     public void testLengthSum2EmptyResult() throws IOException {
         createTestIndex();
 
-        Map<String, Object> responseMap = runQuery("FROM test_length_sum2 | WHERE name == \\\"nonexistent\\\" | STATS total = length_sum2(name)");
+        Map<String, Object> responseMap = runQuery(
+            "FROM test_length_sum2 | WHERE name == \\\"nonexistent\\\" | STATS total = length_sum2(name)"
+        );
 
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) responseMap.get("values");

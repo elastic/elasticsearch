@@ -46,15 +46,12 @@ public class MvMax2 extends AbstractMultivalueFunction {
 
     @FunctionInfo(
         returnType = { "double", "integer", "long" },
-        description = "Returns the maximum value from a multivalued field (test function using runtime generation with ascending optimization)."
+        description = "Returns the maximum value from a multivalued field "
+            + "(test function using runtime generation with ascending optimization)."
     )
     public MvMax2(
         Source source,
-        @Param(
-            name = "number",
-            type = { "double", "integer", "long" },
-            description = "Multivalue expression."
-        ) Expression field
+        @Param(name = "number", type = { "double", "integer", "long" }, description = "Multivalue expression.") Expression field
     ) {
         super(source, field);
     }

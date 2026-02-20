@@ -132,7 +132,9 @@ public class MvMax2RestIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMvMax2CompareWithBuiltin() throws IOException {
-        Map<String, Object> result = runQuery("FROM test_mv_max2 | EVAL max1 = mv_max(values), max2 = mv_max2(values) | KEEP max1, max2 | SORT max1");
+        Map<String, Object> result = runQuery(
+            "FROM test_mv_max2 | EVAL max1 = mv_max(values), max2 = mv_max2(values) | KEEP max1, max2 | SORT max1"
+        );
         List<List<Object>> values = (List<List<Object>>) result.get("values");
         assertThat(values, hasSize(3));
         assertThat(values.get(0).get(0), equalTo(values.get(0).get(1)));

@@ -26,8 +26,7 @@ import org.elasticsearch.compute.ann.RuntimeIntermediateState;
 @RuntimeAggregator(
     intermediateState = {
         @RuntimeIntermediateState(name = "sum", type = "INT"),
-        @RuntimeIntermediateState(name = "seen", type = "BOOLEAN")
-    }
+        @RuntimeIntermediateState(name = "seen", type = "BOOLEAN") }
 )
 public class IntCount2Aggregator {
 

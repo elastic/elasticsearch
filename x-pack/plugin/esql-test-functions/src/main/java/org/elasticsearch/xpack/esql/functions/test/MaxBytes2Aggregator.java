@@ -40,8 +40,7 @@ import java.util.Set;
 @RuntimeAggregator(
     intermediateState = {
         @RuntimeIntermediateState(name = "max", type = "BYTES_REF"),
-        @RuntimeIntermediateState(name = "seen", type = "BOOLEAN")
-    },
+        @RuntimeIntermediateState(name = "seen", type = "BOOLEAN") },
     grouping = true
 )
 public class MaxBytes2Aggregator {

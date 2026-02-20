@@ -20,8 +20,7 @@ import org.elasticsearch.compute.ann.RuntimeIntermediateState;
 @RuntimeAggregator(
     intermediateState = {
         @RuntimeIntermediateState(name = "sum", type = "DOUBLE"),
-        @RuntimeIntermediateState(name = "seen", type = "BOOLEAN")
-    }
+        @RuntimeIntermediateState(name = "seen", type = "BOOLEAN") }
 )
 public class DoubleSum2Aggregator {
 

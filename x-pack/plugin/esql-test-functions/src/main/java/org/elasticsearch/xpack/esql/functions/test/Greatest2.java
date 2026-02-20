@@ -69,10 +69,7 @@ public class Greatest2 extends EsqlScalarFunction {
     }
 
     private Greatest2(StreamInput in) throws IOException {
-        super(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteableCollectionAsList(Expression.class)
-        );
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Expression.class));
     }
 
     @Override
@@ -119,9 +116,7 @@ public class Greatest2 extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        List<ExpressionEvaluator.Factory> factories = children().stream()
-            .map(toEvaluator::apply)
-            .collect(Collectors.toList());
+        List<ExpressionEvaluator.Factory> factories = children().stream().map(toEvaluator::apply).collect(Collectors.toList());
         DataType type = dataType();
 
         // Use RuntimeEvaluatorSupport to create the variadic factory

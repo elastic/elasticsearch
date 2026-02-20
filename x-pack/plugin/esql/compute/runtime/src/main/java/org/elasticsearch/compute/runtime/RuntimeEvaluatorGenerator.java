@@ -796,15 +796,45 @@ public final class RuntimeEvaluatorGenerator {
                 // Local variables layout (for evaluatedParamCount >= 1):
                 // 0: this
                 // 1: page (parameter)
-                // 2 to 2+N-1: blocks[0..N-1] for evaluated params only
-                // 2+N to 2+2N-1: vectors[0..N-1] for evaluated params only
-                // 2+2N: allVectors (boolean as int)
-                // 2+2N+1: result
+                // 2: blocksArray (Block[] for Releasables.wrap pattern)
+                // 3: blocksRelease (Releasable from Releasables.wrap)
+                // 4 to 4+N-1: blocks[0..N-1] for evaluated params only
+                // 4+N to 4+2N-1: vectors[0..N-1] for evaluated params only
+                // 4+2N: allVectors (boolean as int)
+                // 4+2N+1: result
+                // 4+2N+2: exception (for finally handler)
 
-                int blocksStartSlot = 2;
+                int blocksArraySlot = 2;
+                int blocksReleaseSlot = 3;
+                int blocksStartSlot = 4;
                 int vectorsStartSlot = blocksStartSlot + evaluatedParamCount;
                 int allVectorsSlot = vectorsStartSlot + evaluatedParamCount;
                 int resultSlot = allVectorsSlot + 1;
+
+                // Create Block[] array for Releasables.wrap pattern
+                // This ensures all blocks are closed even if evaluation fails partway through
+                methodVisitor.visitIntInsn(Opcodes.BIPUSH, evaluatedParamCount);
+                methodVisitor.visitTypeInsn(Opcodes.ANEWARRAY, Type.getInternalName(Block.class));
+                methodVisitor.visitVarInsn(Opcodes.ASTORE, blocksArraySlot);
+
+                // Releasable blocksRelease = Releasables.wrap(blocksArray)
+                methodVisitor.visitVarInsn(Opcodes.ALOAD, blocksArraySlot);
+                methodVisitor.visitMethodInsn(
+                    Opcodes.INVOKESTATIC,
+                    Type.getInternalName(Releasables.class),
+                    "wrap",
+                    "([Lorg/elasticsearch/core/Releasable;)Lorg/elasticsearch/core/Releasable;",
+                    false
+                );
+                methodVisitor.visitVarInsn(Opcodes.ASTORE, blocksReleaseSlot);
+
+                // Set up try-finally BEFORE evaluating blocks
+                // This ensures blocks are closed even if evaluation fails partway through
+                Label tryStart = new Label();
+                Label tryEnd = new Label();
+                Label finallyHandler = new Label();
+
+                methodVisitor.visitLabel(tryStart);
 
                 // Evaluate only non-fixed child evaluators and store blocks
                 // Track which local slot corresponds to which original param index
@@ -816,7 +846,10 @@ public final class RuntimeEvaluatorGenerator {
 
                     String blockType = getBlockTypeInternal(spec.parameterType(i));
 
-                    // Block block_evalIdx = (BlockType) field_i.eval(page)
+                    // blocksArray[evalIdx] = (BlockType) field_i.eval(page)
+                    // Also store in individual slot for later use
+                    methodVisitor.visitVarInsn(Opcodes.ALOAD, blocksArraySlot);
+                    methodVisitor.visitIntInsn(Opcodes.BIPUSH, evalIdx);
                     methodVisitor.visitVarInsn(Opcodes.ALOAD, 0); // this
                     methodVisitor.visitFieldInsn(
                         Opcodes.GETFIELD,
@@ -833,7 +866,9 @@ public final class RuntimeEvaluatorGenerator {
                         true
                     );
                     methodVisitor.visitTypeInsn(Opcodes.CHECKCAST, blockType);
+                    methodVisitor.visitInsn(Opcodes.DUP); // Duplicate for both array store and local store
                     methodVisitor.visitVarInsn(Opcodes.ASTORE, blocksStartSlot + evalIdx);
+                    methodVisitor.visitInsn(Opcodes.AASTORE); // Store in array
                     evalIdx++;
                 }
 
@@ -869,7 +904,7 @@ public final class RuntimeEvaluatorGenerator {
                 methodVisitor.visitLabel(firstNotNull);
                 methodVisitor.visitFrame(
                     Opcodes.F_FULL,
-                    2 + 2 * evaluatedParamCount,
+                    4 + 2 * evaluatedParamCount,
                     buildFullFrameLocalsWithoutAllVectorsForEvaluated(className, evaluatedParamCount, spec),
                     0,
                     null
@@ -878,7 +913,7 @@ public final class RuntimeEvaluatorGenerator {
                 methodVisitor.visitLabel(afterFirstCheck);
                 methodVisitor.visitFrame(
                     Opcodes.F_FULL,
-                    2 + 2 * evaluatedParamCount,
+                    4 + 2 * evaluatedParamCount,
                     buildFullFrameLocalsWithoutAllVectorsForEvaluated(className, evaluatedParamCount, spec),
                     1,
                     new Object[] { Opcodes.INTEGER }
@@ -897,7 +932,7 @@ public final class RuntimeEvaluatorGenerator {
                     methodVisitor.visitLabel(notNull);
                     methodVisitor.visitFrame(
                         Opcodes.F_FULL,
-                        2 + 2 * evaluatedParamCount + 1,
+                        4 + 2 * evaluatedParamCount + 1,
                         buildFullFrameLocalsForEvaluated(className, evaluatedParamCount, spec),
                         1,
                         new Object[] { Opcodes.INTEGER }
@@ -906,7 +941,7 @@ public final class RuntimeEvaluatorGenerator {
                     methodVisitor.visitLabel(afterCheck);
                     methodVisitor.visitFrame(
                         Opcodes.F_FULL,
-                        2 + 2 * evaluatedParamCount + 1,
+                        4 + 2 * evaluatedParamCount + 1,
                         buildFullFrameLocalsForEvaluated(className, evaluatedParamCount, spec),
                         2,
                         new Object[] { Opcodes.INTEGER, Opcodes.INTEGER }
@@ -932,19 +967,11 @@ public final class RuntimeEvaluatorGenerator {
                 methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, className, "eval", blockEvalDesc, false);
                 methodVisitor.visitVarInsn(Opcodes.ASTORE, resultSlot);
 
-                // Close all evaluated blocks
-                for (int i = 0; i < evaluatedParamCount; i++) {
-                    methodVisitor.visitVarInsn(Opcodes.ALOAD, blocksStartSlot + i);
-                    methodVisitor.visitMethodInsn(
-                        Opcodes.INVOKESTATIC,
-                        Type.getInternalName(Releasables.class),
-                        "closeExpectNoException",
-                        Type.getMethodDescriptor(Type.VOID_TYPE, Type.getType(Releasable.class)),
-                        false
-                    );
-                }
+                // Close blocksRelease (normal path - block)
+                methodVisitor.visitVarInsn(Opcodes.ALOAD, blocksReleaseSlot);
+                methodVisitor.visitMethodInsn(Opcodes.INVOKEINTERFACE, Type.getInternalName(Releasable.class), "close", "()V", true);
 
-                // return result
+                // return result (block path)
                 methodVisitor.visitVarInsn(Opcodes.ALOAD, resultSlot);
                 methodVisitor.visitInsn(Opcodes.ARETURN);
 
@@ -965,66 +992,96 @@ public final class RuntimeEvaluatorGenerator {
                 methodVisitor.visitMethodInsn(Opcodes.INVOKEVIRTUAL, className, "eval", vectorEvalDesc, false);
                 methodVisitor.visitVarInsn(Opcodes.ASTORE, resultSlot);
 
-                // Close all evaluated blocks
-                for (int i = 0; i < evaluatedParamCount; i++) {
-                    methodVisitor.visitVarInsn(Opcodes.ALOAD, blocksStartSlot + i);
-                    methodVisitor.visitMethodInsn(
-                        Opcodes.INVOKESTATIC,
-                        Type.getInternalName(Releasables.class),
-                        "closeExpectNoException",
-                        Type.getMethodDescriptor(Type.VOID_TYPE, Type.getType(Releasable.class)),
-                        false
-                    );
-                }
+                methodVisitor.visitLabel(tryEnd);
 
-                // return result
+                // Close blocksRelease (normal path - vector)
+                methodVisitor.visitVarInsn(Opcodes.ALOAD, blocksReleaseSlot);
+                methodVisitor.visitMethodInsn(Opcodes.INVOKEINTERFACE, Type.getInternalName(Releasable.class), "close", "()V", true);
+
+                // return result (vector path)
                 methodVisitor.visitVarInsn(Opcodes.ALOAD, resultSlot);
                 methodVisitor.visitInsn(Opcodes.ARETURN);
 
-                return new ByteCodeAppender.Size(evaluatedParamCount + 5, resultSlot + 2);
+                // Finally handler - catches any throwable, closes blocksRelease, re-throws
+                // Frame only includes locals guaranteed to be initialized at tryStart:
+                // this, page, blocksArray, blocksRelease
+                methodVisitor.visitLabel(finallyHandler);
+                methodVisitor.visitFrame(
+                    Opcodes.F_FULL,
+                    4,
+                    new Object[] {
+                        className,
+                        Type.getInternalName(Page.class),
+                        "[Lorg/elasticsearch/compute/data/Block;",
+                        "org/elasticsearch/core/Releasable" },
+                    1,
+                    new Object[] { "java/lang/Throwable" }
+                );
+                // Store exception in a slot that doesn't conflict with uninitialized locals
+                // Use slot 4 since blocks start at slot 4 but may not be initialized
+                int finallyExceptionSlot = 4;
+                methodVisitor.visitVarInsn(Opcodes.ASTORE, finallyExceptionSlot);
+
+                // Close blocksRelease in finally
+                methodVisitor.visitVarInsn(Opcodes.ALOAD, blocksReleaseSlot);
+                methodVisitor.visitMethodInsn(Opcodes.INVOKEINTERFACE, Type.getInternalName(Releasable.class), "close", "()V", true);
+
+                // Re-throw the exception
+                methodVisitor.visitVarInsn(Opcodes.ALOAD, finallyExceptionSlot);
+                methodVisitor.visitInsn(Opcodes.ATHROW);
+
+                // Register the try-finally handler (null type catches all throwables)
+                methodVisitor.visitTryCatchBlock(tryStart, tryEnd, finallyHandler, null);
+
+                return new ByteCodeAppender.Size(evaluatedParamCount + 7, resultSlot + 1);
             };
         }
 
         // Helper methods for building frame locals - these work with EVALUATED parameters only
+        // Layout: this, page, blocksArray, blocksRelease, blocks..., vectors..., allVectors
         private Object[] buildFullFrameLocalsForEvaluated(String className, int evaluatedParamCount, EvaluatorSpec spec) {
-            // this, page, blocks..., vectors..., allVectors (for evaluated params only)
-            Object[] locals = new Object[2 + 2 * evaluatedParamCount + 1];
+            // this, page, blocksArray, blocksRelease, blocks..., vectors..., allVectors (for evaluated params only)
+            Object[] locals = new Object[4 + 2 * evaluatedParamCount + 1];
             locals[0] = className;
             locals[1] = Type.getInternalName(Page.class);
+            locals[2] = "[Lorg/elasticsearch/compute/data/Block;"; // blocksArray
+            locals[3] = "org/elasticsearch/core/Releasable"; // blocksRelease
             int evalIdx = 0;
             for (int i = 0; i < spec.parameterCount(); i++) {
                 if (spec.isFixed(i) == false) {
-                    locals[2 + evalIdx] = getBlockTypeInternal(spec.parameterType(i));
+                    locals[4 + evalIdx] = getBlockTypeInternal(spec.parameterType(i));
                     evalIdx++;
                 }
             }
             evalIdx = 0;
             for (int i = 0; i < spec.parameterCount(); i++) {
                 if (spec.isFixed(i) == false) {
-                    locals[2 + evaluatedParamCount + evalIdx] = getVectorTypeInternal(spec.parameterType(i));
+                    locals[4 + evaluatedParamCount + evalIdx] = getVectorTypeInternal(spec.parameterType(i));
                     evalIdx++;
                 }
             }
-            locals[2 + 2 * evaluatedParamCount] = Opcodes.INTEGER;
+            locals[4 + 2 * evaluatedParamCount] = Opcodes.INTEGER;
             return locals;
         }
 
         private Object[] buildFullFrameLocalsWithoutAllVectorsForEvaluated(String className, int evaluatedParamCount, EvaluatorSpec spec) {
-            // this, page, blocks..., vectors... (no allVectors yet, for evaluated params only)
-            Object[] locals = new Object[2 + 2 * evaluatedParamCount];
+            // this, page, blocksArray, blocksRelease, blocks..., vectors... (no allVectors yet, for evaluated params only)
+            Object[] locals = new Object[4 + 2 * evaluatedParamCount];
             locals[0] = className;
             locals[1] = Type.getInternalName(Page.class);
+            locals[2] = "[Lorg/elasticsearch/compute/data/Block;"; // blocksArray
+            locals[3] = "org/elasticsearch/core/Releasable"; // blocksRelease
             int evalIdx = 0;
             for (int i = 0; i < spec.parameterCount(); i++) {
                 if (spec.isFixed(i) == false) {
-                    locals[2 + evalIdx] = getBlockTypeInternal(spec.parameterType(i));
+                    locals[4 + evalIdx] = getBlockTypeInternal(spec.parameterType(i));
                     evalIdx++;
                 }
             }
             evalIdx = 0;
             for (int i = 0; i < spec.parameterCount(); i++) {
                 if (spec.isFixed(i) == false) {
-                    locals[2 + evaluatedParamCount + evalIdx] = getVectorTypeInternal(spec.parameterType(i));
+                    locals[4 + evaluatedParamCount + evalIdx] = getVectorTypeInternal(spec.parameterType(i));
                     evalIdx++;
                 }
             }

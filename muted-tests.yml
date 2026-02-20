@@ -344,9 +344,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationIT
   method: testWithOnlyTrainingRowsAndTrainingPercentIsFifty_DependentVariableIsKeyword
   issue: https://github.com/elastic/elasticsearch/issues/142282
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testBulkScalarVsVectorized {p0=1024 p1=2 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/142289
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
@@ -443,6 +440,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/142739
+- class: org.elasticsearch.index.reindex.ReindexResumeIT
+  method: testLocalResumeReindexFromScroll_slicedAuto
+  issue: https://github.com/elastic/elasticsearch/issues/142749
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/142426
 
 # Examples:
 #

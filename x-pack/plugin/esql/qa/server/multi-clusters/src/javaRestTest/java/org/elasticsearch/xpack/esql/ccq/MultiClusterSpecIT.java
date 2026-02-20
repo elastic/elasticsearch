@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.SpecReader;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
-import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -58,6 +57,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINE_ST
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_LOOKUP_V12;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METRICS_INFO_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.RERANK;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TEXT_EMBEDDING_FUNCTION;
@@ -212,6 +212,13 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // MultiCluster CCS does not yet support VIEWS, due to rewriting FROM name to FROM *:name
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_NO_BRANCHING.capabilityName()));
         assumeFalse("VIEWS not yet supported in CCS", testCase.requiredCapabilities.contains(VIEWS_WITH_BRANCHING.capabilityName()));
+
+        if (testCase.requiredCapabilities.contains(METRICS_INFO_COMMAND.capabilityName())) {
+            assumeFalse(
+                "METRICS_INFO not supported in CCS",
+                hasCapabilities(remoteClusterClient(), List.of(METRICS_INFO_COMMAND.capabilityName()))
+            );
+        }
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {
@@ -422,68 +429,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
     }
 
     @Override
-    protected boolean supportsExponentialHistograms() {
+    protected boolean clusterHasCapability(EsqlCapabilities.Cap capability) {
         try {
-            return RestEsqlTestCase.hasCapabilities(
-                client(),
-                List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.capabilityName())
-            )
-                && RestEsqlTestCase.hasCapabilities(
-                    remoteClusterClient(),
-                    List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW.capabilityName())
-                );
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    protected boolean supportsTDigestField() {
-        try {
-            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName()))
-                && RestEsqlTestCase.hasCapabilities(
-                    remoteClusterClient(),
-                    List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW.capabilityName())
-                );
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    protected boolean supportsTDigestFieldAsMetric() {
-        try {
-            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC.capabilityName()))
-                && RestEsqlTestCase.hasCapabilities(
-                    remoteClusterClient(),
-                    List.of(EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC.capabilityName())
-                );
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    protected boolean supportsHistogramDataType() {
-        try {
-            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION.capabilityName()))
-                && RestEsqlTestCase.hasCapabilities(
-                    remoteClusterClient(),
-                    List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION.capabilityName())
-                );
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    @Override
-    protected boolean supportsBFloat16ElementType() {
-        try {
-            return RestEsqlTestCase.hasCapabilities(client(), List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName()))
-                && RestEsqlTestCase.hasCapabilities(
-                    remoteClusterClient(),
-                    List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT.capabilityName())
-                );
+            return super.clusterHasCapability(capability) && hasCapabilities(remoteClusterClient(), List.of(capability.capabilityName()));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

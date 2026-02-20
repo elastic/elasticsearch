@@ -75,6 +75,7 @@ public class SkipperPruningTests extends ESTestCase {
         comparator.hitsThresholdReached = true;
         comparator.bottom = Long.MAX_VALUE;
         var leafComparator = comparator.getLeafComparator(reader.leaves().getFirst());
+        leafComparator.setScorer(null);
         assertThat(leafComparator.competitiveIterator().nextDoc(), equalTo(DocIdSetIterator.NO_MORE_DOCS));
 
         reader.close();

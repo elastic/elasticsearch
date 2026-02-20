@@ -2100,6 +2100,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             }
             level.count--;
+            assert level.count >= 0 && level.count <= numRegions;
             entry.next = null;
             entry.prev = null;
             assert invariant(entry, false);

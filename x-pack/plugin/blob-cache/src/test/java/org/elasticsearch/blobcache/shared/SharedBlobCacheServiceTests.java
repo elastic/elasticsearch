@@ -65,6 +65,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.IntConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.blobcache.BlobCacheMetrics.BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
@@ -496,6 +497,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             final var region0Again = cacheService.get(cacheKey1, size(250), 0);
             assertSame(region0Again, region0);
+            cacheService.drainPendingPromotions();
             assertEquals(3, cacheService.getFreq(region0));
             assertEquals(1, cacheService.getFreq(region1));
             assertEquals(1, cacheService.getFreq(region2));
@@ -503,6 +505,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             triggerDecay.run();
 
             cacheService.get(cacheKey1, size(250), 0);
+            cacheService.drainPendingPromotions();
             assertEquals(4, cacheService.getFreq(region0));
             cacheService.get(cacheKey1, size(250), 0);
             assertEquals(4, cacheService.getFreq(region0));
@@ -512,6 +515,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // ensure no freq=0 entries
             cacheService.get(cacheKey2, size(250), 1);
             cacheService.get(cacheKey3, size(250), 1);
+            cacheService.drainPendingPromotions();
             assertEquals(2, cacheService.getFreq(region1));
             assertEquals(2, cacheService.getFreq(region2));
 
@@ -529,6 +533,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // ensure no freq=0 entries
             cacheService.get(cacheKey2, size(250), 1);
             cacheService.get(cacheKey3, size(250), 1);
+            cacheService.drainPendingPromotions();
             assertEquals(2, cacheService.getFreq(region1));
             assertEquals(2, cacheService.getFreq(region2));
 
@@ -723,7 +728,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             Map<Integer, Integer> freqs = new HashMap<>();
             for (int i = maxRounds; i < regions + maxRounds; ++i) {
-                int freq = cacheService.getFreq(cacheService.get(cacheKey, fileLength, i)) - 2;
+                var entry = cacheService.get(cacheKey, fileLength, i);
+                cacheService.drainPendingPromotions();
+                int freq = cacheService.getFreq(entry) - 2;
                 freqs.compute(freq, (k, v) -> v == null ? 1 : v + 1);
                 if (Integer.bitCount(i) == 1) {
                     logger.debug("did {} gets", i);
@@ -1089,6 +1096,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // touch some random cache entries
             var usedCacheKeys = Set.copyOf(randomSubsetOf(cacheEntries.keySet()));
             usedCacheKeys.forEach(key -> cacheService.get(key, regionSize, 0));
+            cacheService.drainPendingPromotions();
 
             cacheEntries.forEach(
                 (key, entry) -> assertThat(cacheService.getFreq(entry), usedCacheKeys.contains(key) ? equalTo(3) : equalTo(1))
@@ -2112,6 +2120,300 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertBusy(() -> assertThat(factoryClosed.get(), is(true)));
         } finally {
             threadPool.shutdown();
+        }
+    }
+
+    /**
+     * Verifies that pending (deferred) promotions are drained before eviction decisions,
+     * so recently-accessed entries are promoted and protected from premature eviction.
+     */
+    public void testDeferredPromotionProtectsFromEviction() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            assertEquals(5, cacheService.freeRegionCount());
+
+            final var protectedKey1 = generateCacheKey();
+            final var protectedKey2 = generateCacheKey();
+            final var victimKey1 = generateCacheKey();
+            final var victimKey2 = generateCacheKey();
+            final var victimKey3 = generateCacheKey();
+
+            final var protectedRegion1 = cacheService.get(protectedKey1, size(250), 0);
+            final var protectedRegion2 = cacheService.get(protectedKey2, size(250), 0);
+            final var victimRegion1 = cacheService.get(victimKey1, size(250), 0);
+            final var victimRegion2 = cacheService.get(victimKey2, size(250), 0);
+            final var victimRegion3 = cacheService.get(victimKey3, size(250), 0);
+            assertEquals(0, cacheService.freeRegionCount());
+
+            // decay to move all entries to freq 0 and advance epoch to 1
+            cacheService.maybeScheduleDecayAndNewEpoch();
+            taskQueue.runAllRunnableTasks();
+            assertThat(cacheService.epoch(), equalTo(1L));
+
+            assertEquals(0, cacheService.getFreq(protectedRegion1));
+            assertEquals(0, cacheService.getFreq(protectedRegion2));
+            assertEquals(0, cacheService.getFreq(victimRegion1));
+
+            // access the protected entries at epoch 1 (creates deferred promotions)
+            cacheService.get(protectedKey1, size(250), 0);
+            cacheService.get(protectedKey2, size(250), 0);
+
+            // maybeEvictLeastUsed drains pending promotions before scanning freq 0,
+            // so protected entries move to freq 2 and only victims can be evicted
+            assertThat(cacheService.maybeEvictLeastUsed(), is(true));
+            assertEquals(1, cacheService.freeRegionCount());
+
+            assertEquals(2, cacheService.getFreq(protectedRegion1));
+            assertEquals(2, cacheService.getFreq(protectedRegion2));
+            assertFalse(protectedRegion1.isEvicted());
+            assertFalse(protectedRegion2.isEvicted());
+
+            // one of the victims was evicted
+            long evictedVictims = Stream.of(victimRegion1, victimRegion2, victimRegion3)
+                .filter(SharedBlobCacheService.CacheFileRegion::isEvicted)
+                .count();
+            assertEquals(1, evictedVictims);
+        }
+    }
+
+    /**
+     * Verifies that a pending promotion for an entry that was force-evicted is silently
+     * skipped during drain, without corruption or exceptions.
+     */
+    public void testPromotionOfEvictedEntryIsSkipped() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(300)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            assertEquals(3, cacheService.freeRegionCount());
+
+            final var key1 = generateCacheKey();
+            final var key2 = generateCacheKey();
+            final var key3 = generateCacheKey();
+
+            final var region1 = cacheService.get(key1, size(250), 0);
+            final var region2 = cacheService.get(key2, size(250), 0);
+            final var region3 = cacheService.get(key3, size(250), 0);
+            assertEquals(0, cacheService.freeRegionCount());
+
+            // advance epoch to 1
+            cacheService.maybeScheduleDecayAndNewEpoch();
+            taskQueue.runAllRunnableTasks();
+            assertThat(cacheService.epoch(), equalTo(1L));
+
+            // access all entries at epoch 1, creating deferred promotions for all three
+            cacheService.get(key1, size(250), 0);
+            cacheService.get(key2, size(250), 0);
+            cacheService.get(key3, size(250), 0);
+
+            // force-evict key1 while its promotion is still pending in the queue
+            assertEquals(1, cacheService.forceEvict(k -> k.equals(key1)));
+            assertTrue(region1.isEvicted());
+
+            // trigger decay, which drains pending promotions;
+            // key1's promotion should be silently skipped
+            cacheService.maybeScheduleDecayAndNewEpoch();
+            taskQueue.runAllRunnableTasks();
+            assertThat(cacheService.epoch(), equalTo(2L));
+
+            // key2 and key3: promoted 0->2 during drain, then decayed to 1
+            assertEquals(1, cacheService.getFreq(region2));
+            assertEquals(1, cacheService.getFreq(region3));
+            assertFalse(region2.isEvicted());
+            assertFalse(region3.isEvicted());
+        }
+    }
+
+    /**
+     * Verifies that multiple accesses to the same entry within a single epoch result
+     * in exactly one promotion (+2 frequency), not multiple.
+     */
+    public void testMultipleAccessesSameEpochDoNotOverPromote() throws IOException {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(200)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                taskQueue.getThreadPool(),
+                taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var key = generateCacheKey();
+            final var region = cacheService.get(key, size(250), 0);
+            assertEquals(1, cacheService.getFreq(region));
+
+            // advance epoch to 1
+            cacheService.maybeScheduleDecayAndNewEpoch();
+            taskQueue.runAllRunnableTasks();
+            assertThat(cacheService.epoch(), equalTo(1L));
+            assertEquals(0, cacheService.getFreq(region));
+
+            // access the same entry many times within the same epoch;
+            // only the first access should enqueue a promotion
+            for (int i = 0; i < 10; i++) {
+                cacheService.get(key, size(250), 0);
+            }
+
+            // should be promoted by exactly +2, not +20
+            cacheService.drainPendingPromotions();
+            assertEquals(2, cacheService.getFreq(region));
+        }
+    }
+
+    /**
+     * Verifies that concurrent accesses to the same entry within a single epoch result in
+     * exactly one promotion (+2 frequency), not more. The CAS on lastAccessedEpoch ensures
+     * that only one thread wins per epoch transition, bounding over-promotion.
+     */
+    public void testConcurrentAccessSameEntryBoundedPromotion() throws Exception {
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
+            .put("path.home", createTempDir())
+            .build();
+        ThreadPool threadPool = new TestThreadPool("testConcurrentAccessSameEntryBoundedPromotion");
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final var key = generateCacheKey();
+            final var region = cacheService.get(key, size(250), 0);
+            assertEquals(1, cacheService.getFreq(region));
+
+            // advance epoch to 1
+            cacheService.maybeScheduleDecayAndNewEpoch();
+            assertBusy(() -> assertThat(cacheService.epoch(), equalTo(1L)));
+            assertEquals(0, cacheService.getFreq(region));
+
+            // many threads concurrently access the same entry at epoch 1
+            final int numThreads = between(2, 16);
+            final CyclicBarrier barrier = new CyclicBarrier(numThreads);
+            List<Thread> threads = IntStream.range(0, numThreads).mapToObj(t -> new Thread(() -> {
+                safeAwait(barrier);
+                for (int i = 0; i < 100; i++) {
+                    cacheService.get(key, size(250), 0);
+                }
+            })).toList();
+
+            threads.forEach(Thread::start);
+            for (Thread thread : threads) {
+                safeJoin(thread);
+                assertFalse("Thread did not finish in time", thread.isAlive());
+            }
+
+            // CAS deduplication: exactly one promotion enqueued, so freq is exactly +2
+            cacheService.drainPendingPromotions();
+            assertEquals(2, cacheService.getFreq(region));
+        } finally {
+            threadPool.shutdownNow();
+        }
+    }
+
+    /**
+     * Exercises concurrent gets (which enqueue deferred promotions) alongside eviction and decay
+     * to verify no assertion errors or data structure corruption under contention.
+     */
+    public void testConcurrentDeferredPromotions() throws Exception {
+        final int numRegions = between(10, 30);
+        final int numKeys = between(1, 100);
+        Settings settings = Settings.builder()
+            .put(NODE_NAME_SETTING.getKey(), "node")
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(numRegions * 100L)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
+            .put("path.home", createTempDir())
+            .build();
+        ThreadPool threadPool = new TestThreadPool("testConcurrentDeferredPromotions");
+        try (
+            NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
+            var cacheService = new SharedBlobCacheService<TestCacheKey>(
+                environment,
+                settings,
+                threadPool,
+                threadPool.executor(ThreadPool.Names.GENERIC),
+                BlobCacheMetrics.NOOP
+            )
+        ) {
+            final long fileLength = size(500);
+            final TestCacheKey[] keys = new TestCacheKey[numKeys];
+            for (int i = 0; i < numKeys; i++) {
+                keys[i] = generateCacheKey();
+            }
+
+            final int numThreads = between(2, 8);
+            final CyclicBarrier barrier = new CyclicBarrier(numThreads);
+            List<Thread> threadList = IntStream.range(0, numThreads).mapToObj(t -> {
+                final int iterations = between(100, 500);
+                final int[] keyIndices = IntStream.range(0, iterations).map(i -> randomIntBetween(0, numKeys - 1)).toArray();
+                final int[] decayEvery = IntStream.range(0, iterations).map(i -> between(0, 49)).toArray();
+                return new Thread(() -> {
+                    safeAwait(barrier);
+                    for (int i = 0; i < iterations; i++) {
+                        try {
+                            cacheService.get(keys[keyIndices[i]], fileLength, 0);
+                        } catch (AlreadyClosedException e) {
+                            // expected when eviction races with get
+                        }
+                        if (decayEvery[i] == 0) {
+                            cacheService.computeDecay();
+                        }
+                    }
+                });
+            }).toList();
+
+            threadList.forEach(Thread::start);
+            for (Thread thread : threadList) {
+                safeJoin(thread);
+                assertFalse("Thread did not finish in time", thread.isAlive());
+            }
+        } finally {
+            threadPool.shutdownNow();
         }
     }
 

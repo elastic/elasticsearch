@@ -987,8 +987,12 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
         safeAwait(sourceNotificationReceived);
         safeAwait(sourceGetChunkRequestReceived);
 
-        // check that the target indexing shard sent a new commit notification with the correct generation and node id
-        final var targetNotificationReceived = new CountDownLatch(1);
+        // check that the target indexing shard sent a new commit notification with the correct generation and node id.
+        // Since the target node would flush, it'll send two notifications for the afterGeneration commit, hence we should
+        // wait until both notifications are received. This ensures that we'll end up executing all the delayedActions as otherwise
+        // there could be a race condition between setting delayedActions to false and when the uploaded notification is added to the
+        // queue.
+        final var targetNotificationReceived = new CountDownLatch(2);
         MockTransportService.getInstance(searchNode)
             .addRequestHandlingBehavior(TransportNewCommitNotificationAction.NAME + "[u]", (handler, request, channel, task) -> {
                 var notification = asInstanceOf(NewCommitNotificationRequest.class, request);
@@ -1001,16 +1005,12 @@ public class IndexingShardRelocationIT extends AbstractStatelessPluginIntegTestC
                         equalTo(getNodeId(indexNodeTarget))
                     );
                     // Delayed the uploaded notification to ensure fetching from the indexing node
-                    if (notification.isUploaded()) {
-                        if (delayActions.get()) {
-                            delayedActions.add(() -> handler.messageReceived(request, channel, task));
-                        } else {
-                            handler.messageReceived(request, channel, task);
-                        }
+                    if (notification.isUploaded() && delayActions.get()) {
+                        delayedActions.add(() -> handler.messageReceived(request, channel, task));
                     } else {
-                        targetNotificationReceived.countDown();
                         handler.messageReceived(request, channel, task);
                     }
+                    targetNotificationReceived.countDown();
                 } else {
                     handler.messageReceived(request, channel, task);
                 }

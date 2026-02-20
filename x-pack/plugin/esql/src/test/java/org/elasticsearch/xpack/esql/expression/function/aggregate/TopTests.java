@@ -544,6 +544,17 @@ public class TopTests extends AbstractAggregationTestCase {
     }
 
     @Override
+    protected void filterCoAndContraVarianceNarrowing(
+        Map<Integer, DataType> positionNarrowing,
+        List<TestCaseSupplier.TypedData> data
+    ) {
+        // The limit argument is always required to be a constant integer; narrowing to `NULL` does not make sense.
+        positionNarrowing.remove(1);
+        // The order argument is always required to be a literal "asc" or "desc"; narrowing to `NULL` or `TEXT` does not make sense.
+        positionNarrowing.remove(2);
+    }
+
+    @Override
     protected Expression serializeDeserializeExpression(Expression expression) {
         // TODO: This aggregation doesn't serialize the Source, and must be fixed.
         return expression;

@@ -640,20 +640,21 @@ public class TaskManagerTests extends ESTestCase {
         };
     }
 
-    public void testForEachCancellableTaskIteratesOverTasks() {
+    public void testForEachCancellableTaskIteratesOverTasks() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
 
         Task task1 = taskManager.register("transport", "action1", new CancellableRequest("1"));
         Task task2 = taskManager.register("transport", "action2", new CancellableRequest("2"));
         Task task3 = taskManager.register("transport", "action3", new CancellableRequest("3"));
         try {
-            Set<Long> visitedTaskIds = new HashSet<>();
-            taskManager.forEachCancellableTask(1, info -> {
-                visitedTaskIds.add(info.task().getId());
-                return true;
+            assertBusy(() -> {
+                Set<Long> visitedTaskIds = new HashSet<>();
+                taskManager.forEachCancellableTask(1, info -> {
+                    visitedTaskIds.add(info.task().getId());
+                    return true;
+                });
+                assertThat(visitedTaskIds, is(Set.of(task1.getId(), task2.getId(), task3.getId())));
             });
-
-            assertThat(visitedTaskIds, is(Set.of(task1.getId(), task2.getId(), task3.getId())));
         } finally {
             taskManager.unregister(task1);
             taskManager.unregister(task2);
@@ -661,20 +662,21 @@ public class TaskManagerTests extends ESTestCase {
         }
     }
 
-    public void testForEachCancellableTaskEarlyTermination() {
+    public void testForEachCancellableTaskEarlyTermination() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
 
         Task task1 = taskManager.register("transport", "action1", new CancellableRequest("1"));
         Task task2 = taskManager.register("transport", "action2", new CancellableRequest("2"));
         Task task3 = taskManager.register("transport", "action3", new CancellableRequest("3"));
         try {
-            List<Long> visitedTaskIds = new ArrayList<>();
-            taskManager.forEachCancellableTask(1, info -> {
-                visitedTaskIds.add(info.task().getId());
-                return false;
+            assertBusy(() -> {
+                List<Long> visitedTaskIds = new ArrayList<>();
+                taskManager.forEachCancellableTask(1, info -> {
+                    visitedTaskIds.add(info.task().getId());
+                    return false;
+                });
+                assertThat(visitedTaskIds.size(), is(1));
             });
-
-            assertThat(visitedTaskIds.size(), is(1));
         } finally {
             taskManager.unregister(task1);
             taskManager.unregister(task2);
@@ -717,18 +719,20 @@ public class TaskManagerTests extends ESTestCase {
         try {
             CancellableTask cancellableParent = (CancellableTask) parentTask;
 
-            List<TaskManager.CancellableTaskInfo> infos = new ArrayList<>();
-            taskManager.forEachCancellableTask(1, info -> {
-                infos.add(info);
-                return true;
+            assertBusy(() -> {
+                List<TaskManager.CancellableTaskInfo> infos = new ArrayList<>();
+                taskManager.forEachCancellableTask(1, info -> {
+                    infos.add(info);
+                    return true;
+                });
+                assertThat(infos.size(), is(1));
+                assertThat(infos.getFirst().hasOutstandingChildren(), is(false));
             });
-            assertThat(infos.size(), is(1));
-            assertThat(infos.getFirst().hasOutstandingChildren(), is(false));
 
             MockConnection connection = new MockConnection();
             taskManager.registerChildConnection(cancellableParent.getId(), connection);
 
-            infos.clear();
+            List<TaskManager.CancellableTaskInfo> infos = new ArrayList<>();
             taskManager.forEachCancellableTask(1, info -> {
                 infos.add(info);
                 return true;

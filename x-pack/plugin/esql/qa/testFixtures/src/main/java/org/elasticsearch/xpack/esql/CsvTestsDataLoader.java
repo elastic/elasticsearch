@@ -232,18 +232,12 @@ public class CsvTestsDataLoader {
     private static final TestDataset MMR_TEXT_VECTOR_KEYWORD = new TestDataset("mmr_text_vector_keyword");
 
     private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
-        .setWarningsHandler(warnings -> {
-            if (warnings.isEmpty()) {
-                return false;
-            } else {
-                for (String warning : warnings) {
-                    if ("Parameter [default_metric] is deprecated and will be removed in a future version".equals(warning) == false) {
-                        return true;
-                    }
-                }
-                return false;
-            }
-        })
+        .setWarningsHandler(
+            warnings -> warnings.stream()
+                .anyMatch(
+                    warning -> "Parameter [default_metric] is deprecated and will be removed in a future version".equals(warning) == false
+                )
+        )
         .build();
 
     public static final Map<String, TestDataset> CSV_DATASET_MAP = Map.ofEntries(
@@ -330,40 +324,18 @@ public class CsvTestsDataLoader {
         Map.entry(MMR_TEXT_VECTOR_KEYWORD.indexName, MMR_TEXT_VECTOR_KEYWORD)
     );
 
-    private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
-    private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");
-    private static final EnrichConfig CLIENT_CIDR_ENRICH = new EnrichConfig("client_cidr_policy", "enrich-policy-client_cidr.json");
-    private static final EnrichConfig AGES_ENRICH = new EnrichConfig("ages_policy", "enrich-policy-ages.json");
-    private static final EnrichConfig HEIGHTS_ENRICH = new EnrichConfig("heights_policy", "enrich-policy-heights.json");
-    private static final EnrichConfig DECADES_ENRICH = new EnrichConfig("decades_policy", "enrich-policy-decades.json");
-    private static final EnrichConfig CITY_NAMES_ENRICH = new EnrichConfig("city_names", "enrich-policy-city_names.json");
-    private static final EnrichConfig CITY_BOUNDARIES_ENRICH = new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json");
-    private static final EnrichConfig CITY_AIRPORTS_ENRICH = new EnrichConfig("city_airports", "enrich-policy-city_airports.json");
-    private static final EnrichConfig CITY_LOCATIONS_ENRICH = new EnrichConfig("city_locations", "enrich-policy-city_locations.json");
-    private static final EnrichConfig COLORS_ENRICH = new EnrichConfig("colors_policy", "enrich-policy-colors_cmyk.json");
-
-    public static final List<String> ENRICH_SOURCE_INDICES = List.of(
-        "languages",
-        "clientips",
-        "client_cidr",
-        "ages",
-        "heights",
-        "decades",
-        "airport_city_boundaries",
-        "colors_cmyk"
-    );
     public static final List<EnrichConfig> ENRICH_POLICIES = List.of(
-        LANGUAGES_ENRICH,
-        CLIENT_IPS_ENRICH,
-        CLIENT_CIDR_ENRICH,
-        AGES_ENRICH,
-        HEIGHTS_ENRICH,
-        DECADES_ENRICH,
-        CITY_NAMES_ENRICH,
-        CITY_BOUNDARIES_ENRICH,
-        CITY_AIRPORTS_ENRICH,
-        CITY_LOCATIONS_ENRICH,
-        COLORS_ENRICH
+        new EnrichConfig("languages_policy", "enrich-policy-languages.json", "languages"),
+        new EnrichConfig("clientip_policy", "enrich-policy-clientips.json", "clientips"),
+        new EnrichConfig("client_cidr_policy", "enrich-policy-client_cidr.json", "client_cidr"),
+        new EnrichConfig("ages_policy", "enrich-policy-ages.json", "ages"),
+        new EnrichConfig("heights_policy", "enrich-policy-heights.json", "heights"),
+        new EnrichConfig("decades_policy", "enrich-policy-decades.json", "decades"),
+        new EnrichConfig("city_names", "enrich-policy-city_names.json", "airport_city_boundaries"),
+        new EnrichConfig("city_boundaries", "enrich-policy-city_boundaries.json", "airport_city_boundaries"),
+        new EnrichConfig("city_airports", "enrich-policy-city_airports.json", "airport_city_boundaries"),
+        new EnrichConfig("city_locations", "enrich-policy-city_locations.json", "airport_city_boundaries"),
+        new EnrichConfig("colors_policy", "enrich-policy-colors_cmyk.json", "colors_cmyk")
     );
 
     public static final Map<String, InferenceConfig> INFERENCE_CONFIGS = Stream.of(
@@ -373,19 +345,13 @@ public class CsvTestsDataLoader {
         new InferenceConfig("test_completion", TaskType.COMPLETION)
     ).collect(toMap(InferenceConfig::id, Function.identity()));
 
-    private static final ViewConfig COUNTRY_ADDRESSES = new ViewConfig("country_addresses");
-    private static final ViewConfig COUNTRY_AIRPORTS = new ViewConfig("country_airports");
-    private static final ViewConfig COUNTRY_LANGUAGES = new ViewConfig("country_languages");
-    private static final ViewConfig AIRPORTS_MP_FILTERED = new ViewConfig("airports_mp_filtered");
-    private static final ViewConfig EMPLOYEES_REHIRED = new ViewConfig("employees_rehired");
-    private static final ViewConfig EMPLOYEES_NOT_REHIRED = new ViewConfig("employees_not_rehired");
     public static final List<ViewConfig> VIEW_CONFIGS = List.of(
-        COUNTRY_ADDRESSES,
-        COUNTRY_AIRPORTS,
-        COUNTRY_LANGUAGES,
-        AIRPORTS_MP_FILTERED,
-        EMPLOYEES_REHIRED,
-        EMPLOYEES_NOT_REHIRED
+        new ViewConfig("country_addresses"),
+        new ViewConfig("country_airports"),
+        new ViewConfig("country_languages"),
+        new ViewConfig("airports_mp_filtered"),
+        new ViewConfig("employees_rehired"),
+        new ViewConfig("employees_not_rehired")
     );
 
     /**
@@ -1207,7 +1173,7 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record EnrichConfig(String policyName, String policyFileName) {
+    public record EnrichConfig(String policyName, String policyFileName, String index) {
         public String loadPolicy() {
             return getResourceString("/enrich/policy/" + policyFileName);
         }

@@ -308,6 +308,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         return ((LFUCache) cache).epoch.get();
     }
 
+    // used in tests
+    void drainPendingPromotions() {
+        if (cache instanceof LFUCache lfuCache) {
+            synchronized (this) {
+                lfuCache.drainPendingPromotions();
+            }
+        }
+    }
+
     private interface Cache<K, T> extends Releasable {
         CacheEntry<T> get(K cacheKey, long fileLength, int region);
 
@@ -1734,6 +1743,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     private class LFUCache implements Cache<KeyType, CacheFileRegion<KeyType>> {
 
         class LFUCacheEntry extends CacheEntry<CacheFileRegion<KeyType>> {
+            private static final VarHandle VH_LAST_ACCESSED_EPOCH;
+
+            static {
+                try {
+                    var lookup = MethodHandles.lookup();
+                    VH_LAST_ACCESSED_EPOCH = lookup.findVarHandle(lookup.lookupClass(), "lastAccessedEpoch", long.class);
+                } catch (NoSuchFieldException | IllegalAccessException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+
             LFUCacheEntry prev;
             LFUCacheEntry next;
             int freq;
@@ -1762,6 +1782,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private final LFUCacheEntry[] freqs;
         private final int maxFreq;
         private final DecayAndNewEpochTask decayAndNewEpochTask;
+
+        private final ConcurrentLinkedQueue<LFUCacheEntry> pendingPromotions = new ConcurrentLinkedQueue<>();
 
         private final AtomicLong epoch = new AtomicLong();
         private final AtomicLong initialFreeRegions = new AtomicLong();
@@ -2037,12 +2059,20 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         private void maybePromote(long epoch, LFUCacheEntry entry) {
-            synchronized (SharedBlobCacheService.this) {
-                if (epoch > entry.lastAccessedEpoch && entry.freq < maxFreq - 1 && entry.chunk.isEvicted() == false) {
+            long lastAccessed = entry.lastAccessedEpoch;
+            if (epoch > lastAccessed && LFUCacheEntry.VH_LAST_ACCESSED_EPOCH.compareAndSet(entry, lastAccessed, epoch)) {
+                pendingPromotions.add(entry);
+            }
+        }
+
+        private void drainPendingPromotions() {
+            assert Thread.holdsLock(SharedBlobCacheService.this);
+            LFUCacheEntry entry;
+            while ((entry = pendingPromotions.poll()) != null) {
+                if (entry.chunk.isEvicted() == false && entry.freq < maxFreq - 1) {
+                    assert entry.prev != null : "non-evicted entry must be linked";
                     unlink(entry);
-                    // go 2 up per epoch, allowing us to decay 1 every epoch.
                     entry.freq = Math.min(entry.freq + 2, maxFreq - 1);
-                    entry.lastAccessedEpoch = epoch;
                     pushEntryToBack(entry);
                 }
             }
@@ -2124,6 +2154,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          */
         private SharedBytes.IO maybeEvictAndTake(Runnable evictedNotification) {
             assert Thread.holdsLock(SharedBlobCacheService.this);
+            drainPendingPromotions();
             long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
             SharedBytes.IO freq0 = maybeEvictAndTakeForFrequency(evictedNotification, 0);
             if (freqs[0] == null) {
@@ -2196,6 +2227,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          */
         public boolean maybeEvictLeastUsed() {
             synchronized (SharedBlobCacheService.this) {
+                drainPendingPromotions();
                 for (LFUCacheEntry entry = freqs[0]; entry != null; entry = entry.next) {
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.volatileIO() != null) {
@@ -2214,6 +2246,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             long end;
             synchronized (SharedBlobCacheService.this) {
                 afterLock = threadPool.rawRelativeTimeInMillis();
+                drainPendingPromotions();
                 appendLevel1ToLevel0();
                 for (int i = 2; i < maxFreq; i++) {
                     assert freqs[i - 1] == null;

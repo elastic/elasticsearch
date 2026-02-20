@@ -405,6 +405,8 @@ correct base state during publication.
 
 [SnapshotService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/SnapshotsService.java
 
+[ClusterStateTaskExecutor]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateTaskExecutor.java
+
 The [MasterService] is the single-threaded coordinator for all cluster state updates on the master node. It organizes
 pending cluster state update tasks into [Priority]-based queues: `IMMEDIATE`, `URGENT`, `HIGH`, `NORMAL`, `LOW`, and
 `LANGUID`. It processes them in that order, highest priority first.
@@ -415,7 +417,18 @@ for each individual task, which would be very costly.
 
 Producers of cluster state update tasks, such as [SnapshotService] , can
 then [define](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1516)
-their own task queues and batch executors, which the [MasterService] uses to group and process related tasks together.
+their own task queues, priority and batch executors ([ClusterStateTaskExecutor]), which the [MasterService] uses to
+group and process related tasks
+together.
+
+A [queue processor](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1313),
+backed by a single-threaded `java.util.concurrent.ExecutorService`, processes batches one at a time.
+The [executeAndPublishBatch](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L336)
+method takes the next batch, invokes the batch's [ClusterStateTaskExecutor] to compute a new [ClusterState], and
+publishes the result.
+
+If the new state is identical to the previous one (by reference), no publication takes place. Otherwise, the master
+assigns a new `version` and `stateUUID` to the state and proceeds to publication.
 
 #### Cluster State Publication
 

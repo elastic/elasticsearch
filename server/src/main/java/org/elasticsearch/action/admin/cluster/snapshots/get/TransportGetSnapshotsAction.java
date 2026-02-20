@@ -200,9 +200,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final SortOrder order;
         @Nullable
         private final String fromSortValue;
-        private final int offset;
         private final Predicate<SnapshotInfo> afterPredicate;
-        private final int size;
 
         // current state
         private final SnapshotsInProgress snapshotsInProgress;
@@ -216,7 +214,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final GetSnapshotInfoExecutor getSnapshotInfoExecutor;
 
         // results
-        private final List<SnapshotInfo> allSnapshotInfos = Collections.synchronizedList(new ArrayList<>());
+        private final SnapshotInfoCollector snapshotInfoCollector;
 
         /**
          * Accumulates number of snapshots that match the name/fromSortValue/slmPolicy predicates, to be returned in the response.
@@ -248,8 +246,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.sortBy = sortBy;
             this.order = order;
             this.fromSortValue = fromSortValue;
-            this.offset = offset;
-            this.size = size;
             this.snapshotsInProgress = snapshotsInProgress;
             this.verbose = verbose;
             this.indices = indices;
@@ -264,6 +260,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 threadPool.info(ThreadPool.Names.SNAPSHOT_META).getMax(),
                 cancellableTask::isCancelled
             );
+
+            this.snapshotInfoCollector = SnapshotInfoCollector.create(sortBy.getSnapshotInfoComparator(order), size, offset);
 
             if (verbose == false) {
                 assert fromSortValuePredicates.isMatchAll() : "filtering is not supported in non-verbose mode";
@@ -287,7 +285,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         /**
-         * Populate the results fields ({@link #allSnapshotInfos} and {@link #totalCount}).
+         * Populate the results fields ({@link #snapshotInfoCollector} and {@link #totalCount}).
          */
         private void populateResults(ActionListener<Void> listener) {
             try (var listeners = new RefCountingListener(listener)) {
@@ -345,7 +343,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                             if (matchesPredicates(snapshotInfo)) {
                                                 totalCount.incrementAndGet();
                                                 if (afterPredicate.test(snapshotInfo)) {
-                                                    allSnapshotInfos.add(snapshotInfo.maybeWithoutIndices(indices));
+                                                    snapshotInfoCollector.add(snapshotInfo.maybeWithoutIndices(indices));
                                                 }
                                             }
                                             refListener.onResponse(null);
@@ -550,37 +548,24 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private GetSnapshotsResponse buildResponse() {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT); // see [NOTE ON THREADING]
             cancellableTask.ensureNotCancelled();
-            int remaining = 0;
-            final var resultsStream = allSnapshotInfos.stream()
-                .peek(this::assertSatisfiesAllPredicates)
-                .sorted(sortBy.getSnapshotInfoComparator(order))
-                .skip(offset);
-            final List<SnapshotInfo> snapshotInfos;
-            if (size == GetSnapshotsRequest.NO_LIMIT || allSnapshotInfos.size() <= size) {
-                snapshotInfos = resultsStream.toList();
-            } else {
-                snapshotInfos = new ArrayList<>(size);
-                for (var iterator = resultsStream.iterator(); iterator.hasNext();) {
-                    final var snapshotInfo = iterator.next();
-                    if (snapshotInfos.size() < size) {
-                        snapshotInfos.add(snapshotInfo);
-                    } else {
-                        remaining += 1;
-                    }
-                }
-            }
+            final var snapshotInfos = snapshotInfoCollector.getSnapshotInfos();
+            assert assertSatisfiesAllPredicates(snapshotInfos);
+            final int remaining = snapshotInfoCollector.getRemaining();
             return new GetSnapshotsResponse(
                 snapshotInfos,
-                remaining > 0 ? sortBy.encodeAfterQueryParam(snapshotInfos.get(snapshotInfos.size() - 1)) : null,
+                remaining > 0 ? sortBy.encodeAfterQueryParam(snapshotInfos.getLast()) : null,
                 totalCount.get(),
                 remaining
             );
         }
 
-        private void assertSatisfiesAllPredicates(SnapshotInfo snapshotInfo) {
-            assert matchesPredicates(snapshotInfo);
-            assert afterPredicate.test(snapshotInfo);
-            assert indices || snapshotInfo.indices().isEmpty();
+        private boolean assertSatisfiesAllPredicates(List<SnapshotInfo> snapshotInfos) {
+            snapshotInfos.forEach(snapshotInfo -> {
+                assert matchesPredicates(snapshotInfo);
+                assert afterPredicate.test(snapshotInfo);
+                assert indices || snapshotInfo.indices().isEmpty();
+            });
+            return true;
         }
 
         private boolean matchesPredicates(SnapshotId snapshotId, RepositoryData repositoryData) {

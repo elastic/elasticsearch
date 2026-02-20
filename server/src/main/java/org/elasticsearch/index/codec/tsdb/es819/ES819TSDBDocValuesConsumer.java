@@ -39,6 +39,7 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.LongsRef;
+import org.apache.lucene.util.MathUtil;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
@@ -600,13 +601,32 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {
             int numOffsets = numDocsInCurrentBlock + 1;
             // delta encode
-            int maxDelta = 0;
             for (int i = numOffsets - 1; i > 0; i--) {
                 docOffsets[i] -= docOffsets[i - 1];
-                maxDelta = Math.max(maxDelta, docOffsets[i]);
             }
-            int bitsPerValue = maxDelta == 0 ? 0 : PackedInts.bitsRequired(maxDelta);
+            // compute GCD of all deltas (skip first element which is always 0)
+            long gcd = 0;
+            for (int i = 1; i < numOffsets; i++) {
+                gcd = MathUtil.gcd(gcd, docOffsets[i]);
+                if (gcd == 1) {
+                    break;
+                }
+            }
+            int gcdInt = (int) gcd;
+            // apply GCD encoding if beneficial
+            if (gcdInt > 1) {
+                for (int i = 1; i < numOffsets; i++) {
+                    docOffsets[i] /= gcdInt;
+                }
+            }
+            // find max value after GCD encoding
+            int maxValue = 0;
+            for (int i = 0; i < numOffsets; i++) {
+                maxValue = Math.max(maxValue, docOffsets[i]);
+            }
+            int bitsPerValue = maxValue == 0 ? 0 : PackedInts.bitsRequired(maxValue);
             output.writeByte((byte) bitsPerValue);
+            output.writeVInt(gcdInt);
             if (bitsPerValue > 0) {
                 long accumulator = 0;
                 int bitsInAccumulator = 0;

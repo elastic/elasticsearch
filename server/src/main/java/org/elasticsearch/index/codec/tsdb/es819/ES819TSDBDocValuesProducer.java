@@ -608,6 +608,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         void decompressDocOffsets(int numDocsInBlock, DataInput input) throws IOException {
             int numOffsets = numDocsInBlock + 1;
             int bitsPerValue = input.readByte() & 0xFF;
+            int gcd = input.readVInt();
             if (bitsPerValue == 0) {
                 Arrays.fill(uncompressedDocStarts, 0, numOffsets, 0);
             } else {
@@ -624,6 +625,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         bitsInAccumulator -= bitsPerValue;
                         uncompressedDocStarts[offsetIndex++] = (int) ((accumulator >>> bitsInAccumulator) & mask);
                     }
+                }
+            }
+            // apply GCD decoding (multiply by GCD) before delta decoding
+            if (gcd > 1) {
+                for (int i = 1; i < numOffsets; i++) {
+                    uncompressedDocStarts[i] *= gcd;
                 }
             }
             deltaDecode(uncompressedDocStarts, numOffsets);

@@ -622,6 +622,7 @@ tests:
 - class: org.elasticsearch.index.codec.PerFieldMapperCodecTests
   methods:
   - testUseEs812PostingsFormatForIdField
+  - testUseBloomFilter
   - testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter
   - testUseBloomFilterWithTimestampFieldEnabled
   issue: https://github.com/elastic/elasticsearch/pull/142366
@@ -632,6 +633,15 @@ tests:
   method: testDefaultsForTimeSeriesIndex
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapperTests
+  method: testRetrievedFromIdInTimeSeriesMode
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.cluster.routing.IndexRoutingTests
+  method: testRoutingPathOneSub
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.datastreams.TSDBIndexingIT
+  method: testTrimId
   issue: https://github.com/elastic/elasticsearch/pull/142366
 
 # Examples:

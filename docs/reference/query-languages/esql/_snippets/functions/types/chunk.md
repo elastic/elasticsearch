@@ -4,5 +4,6 @@
 
 | field | chunking_settings | result |
 | --- | --- | --- |
+| keyword, text |  | keyword |
 | keyword, text | named parameters | keyword |
 

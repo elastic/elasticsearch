@@ -4,27 +4,48 @@
 
 | condition | trueValue | elseValue | result |
 | --- | --- | --- | --- |
+| boolean | aggregate_metric_double |  | aggregate_metric_double |
 | boolean | aggregate_metric_double | aggregate_metric_double | aggregate_metric_double |
+| boolean | boolean |  | boolean |
 | boolean | boolean | boolean | boolean |
+| boolean | cartesian_point |  | cartesian_point |
 | boolean | cartesian_point | cartesian_point | cartesian_point |
+| boolean | cartesian_shape |  | cartesian_shape |
 | boolean | cartesian_shape | cartesian_shape | cartesian_shape |
+| boolean | date |  | date |
 | boolean | date | date | date |
+| boolean | date_nanos |  | date_nanos |
 | boolean | date_nanos | date_nanos | date_nanos |
+| boolean | dense_vector |  | dense_vector |
 | boolean | dense_vector | dense_vector | dense_vector |
+| boolean | double |  | double |
 | boolean | double | double | double |
+| boolean | exponential_histogram |  | exponential_histogram |
 | boolean | exponential_histogram | exponential_histogram | exponential_histogram |
+| boolean | geo_point |  | geo_point |
 | boolean | geo_point | geo_point | geo_point |
+| boolean | geo_shape |  | geo_shape |
 | boolean | geo_shape | geo_shape | geo_shape |
+| boolean | geohash |  | geohash |
 | boolean | geohash | geohash | geohash |
+| boolean | geohex |  | geohex |
 | boolean | geohex | geohex | geohex |
+| boolean | geotile |  | geotile |
 | boolean | geotile | geotile | geotile |
+| boolean | histogram |  | histogram |
 | boolean | histogram | histogram | histogram |
+| boolean | integer |  | integer |
 | boolean | integer | integer | integer |
+| boolean | ip |  | ip |
 | boolean | ip | ip | ip |
+| boolean | keyword, text |  | keyword |
 | boolean | keyword, text | keyword, text | keyword |
+| boolean | long |  | long |
 | boolean | long | long | long |
+| boolean | tdigest |  | tdigest |
 | boolean | tdigest | tdigest | tdigest |
-| boolean | text |  | keyword |
+| boolean | unsigned_long |  | unsigned_long |
 | boolean | unsigned_long | unsigned_long | unsigned_long |
+| boolean | version |  | version |
 | boolean | version | version | version |
 

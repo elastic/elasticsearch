@@ -4,5 +4,6 @@
 
 | geometry | precision | bounds | result |
 | --- | --- | --- | --- |
+| geo_point | integer |  | geohash |
 | geo_point | integer | geo_shape | geohash |
 

@@ -4,6 +4,7 @@
 
 | first | rest | result |
 | --- | --- | --- |
+| boolean |  | boolean |
 | boolean | boolean | boolean |
 | cartesian_point | cartesian_point | cartesian_point |
 | cartesian_shape | cartesian_shape | cartesian_shape |
@@ -16,10 +17,12 @@
 | geohex | geohex | geohex |
 | geotile | geotile | geotile |
 | histogram | histogram | histogram |
+| integer |  | integer |
 | integer | integer | integer |
 | ip | ip | ip |
 | keyword | keyword | keyword |
 | keyword, text |  | keyword |
+| long |  | long |
 | long | long | long |
 | tdigest | tdigest | tdigest |
 | text | text | keyword |

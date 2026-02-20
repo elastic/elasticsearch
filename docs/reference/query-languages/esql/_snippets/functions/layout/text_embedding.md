@@ -2,7 +2,7 @@
 
 ## `TEXT_EMBEDDING` [esql-text_embedding]
 ```{applies_to}
-stack: ga 9.4.0, preview 9.3.0
+stack: preview 9.3.0, ga 9.4.0
 ```
 
 **Syntax**

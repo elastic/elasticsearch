@@ -4,13 +4,17 @@
 
 | first | rest | result |
 | --- | --- | --- |
+| boolean |  | boolean |
 | boolean | boolean | boolean |
 | date | date | date |
 | date_nanos | date_nanos | date_nanos |
 | double | double | double |
+| integer |  | integer |
 | integer | integer | integer |
 | ip | ip | ip |
 | keyword | keyword | keyword |
+| keyword, text |  | keyword |
+| long |  | long |
 | long | long | long |
 | text | text | keyword |
 | version | version | version |

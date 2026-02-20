@@ -9,10 +9,5 @@
 | date_nanos | date_period, time_duration |  |  | date_nanos |
 | date_nanos | integer | date, keyword, text | date, keyword, text | date_nanos |
 | double, integer, long | double, integer, long |  |  | double |
-| double, integer, long | integer | integer | double, integer | double |
-| double, integer, long | integer | long | double, integer, long | double |
-| double, long | integer | double | double, integer | double |
-| double, long | integer | double, integer | long | double |
-| integer | integer | double | double, integer, long | double |
-| integer | integer | integer | long | double |
+| double, integer, long | integer | double, integer, long | double, integer, long | double |
 

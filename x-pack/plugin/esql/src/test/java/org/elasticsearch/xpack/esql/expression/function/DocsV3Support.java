@@ -1376,9 +1376,9 @@ public abstract class DocsV3Support {
     ) {
         StringBuilder b = new StringBuilder("| ");
         for (int i = 0; i < args.size(); i++) {
-            if (args.get(i).mapArg()) {
+            if (args.get(i).mapArg() && row.get(i).types().isEmpty() == false) {
                 b.append("named parameters");
-            } else {
+            } else if (args.get(i).mapArg() == false) {
                 DocsV3SupportSignaturesMerger.ParamCell cell = row.get(i);
                 if (cell.types().isEmpty() == false) {
                     b.append(cell.types().stream().map(DataType::esNameIfPossible).sorted().collect(Collectors.joining(", ")));
@@ -1622,7 +1622,7 @@ public abstract class DocsV3Support {
                     builder.endObject();
                 }
                 builder.endArray();
-                license = licenseChecker.invoke(sig.argTypes().stream().map(Param::dataType).toList());
+                license = licenseChecker.invoke(sig.argTypes().stream().map(DocsV3Support.Param::dataType).toList());
                 if (license != null && license != License.OperationMode.BASIC) {
                     builder.field("license", license.toString());
                 }

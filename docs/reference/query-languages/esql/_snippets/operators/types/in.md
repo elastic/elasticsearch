@@ -12,10 +12,7 @@
 | geo_shape | geo_shape | boolean |
 | integer | integer | boolean |
 | ip | ip | boolean |
-| keyword | keyword | boolean |
-| keyword | text | boolean |
+| keyword, text | keyword, text | boolean |
 | long | long | boolean |
-| text | keyword | boolean |
-| text | text | boolean |
 | version | version | boolean |
 

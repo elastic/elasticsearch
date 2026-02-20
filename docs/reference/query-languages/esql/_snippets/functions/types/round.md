@@ -4,8 +4,12 @@
 
 | number | decimals | result |
 | --- | --- | --- |
+| double |  | double |
 | double | integer, long | double |
+| integer |  | integer |
 | integer | integer, long | integer |
+| long |  | long |
 | long | integer, long | long |
+| unsigned_long |  | unsigned_long |
 | unsigned_long | integer, long | unsigned_long |
 

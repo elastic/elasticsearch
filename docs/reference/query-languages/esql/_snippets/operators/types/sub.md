@@ -9,11 +9,11 @@
 | date_period | date_period | date_period |
 | date_period, time_duration | date_nanos | date_nanos |
 | dense_vector | dense_vector | dense_vector |
-| double | integer, long | double |
-| double, integer, long | double | double |
+| double | double, integer, long | double |
 | integer | integer | integer |
-| integer | long | long |
-| long | integer, long | long |
+| integer, long | double | double |
+| integer, long | long | long |
+| long | integer | long |
 | time_duration | time_duration | time_duration |
 | unsigned_long | unsigned_long | unsigned_long |
 

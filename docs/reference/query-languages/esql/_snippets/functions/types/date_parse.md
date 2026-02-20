@@ -4,8 +4,8 @@
 
 | datePattern | dateString | options | result |
 | --- | --- | --- | --- |
-|  | keyword | named parameters | date |
-| keyword | keyword | named parameters | date |
+|  | keyword, text |  | date |
+|  | keyword, text | named parameters | date |
+| keyword, text | keyword, text |  | date |
 | keyword, text | keyword, text | named parameters | date |
-| text | text | named parameters | date |
 

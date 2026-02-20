@@ -4,5 +4,6 @@
 
 | string | substring | start | result |
 | --- | --- | --- | --- |
+| keyword, text | keyword, text |  | integer |
 | keyword, text | keyword, text | integer | integer |
 

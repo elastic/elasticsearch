@@ -5,7 +5,7 @@
 | geomA | geomB | result |
 | --- | --- | --- |
 | cartesian_point, cartesian_shape | cartesian_point, cartesian_shape | boolean |
-| geo_point | geo_shape, geohash, geohex, geotile | boolean |
-| geo_point, geohash, geohex, geotile | geo_point | boolean |
+| geo_point | geo_point, geo_shape, geohash, geohex, geotile | boolean |
 | geo_shape | geo_point, geo_shape | boolean |
+| geohash, geohex, geotile | geo_point | boolean |
 

@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase.shouldHideSignature;
 import static org.elasticsearch.xpack.esql.expression.function.DocsV3Support.getFirstParametersIndexForSignature;
@@ -24,7 +25,7 @@ public class DocsV3SupportSignaturesMerger {
 
     /**
      * A cell in the merged types table, carrying both the set of allowed data types and the appliesTo annotation.
-     * Two cells are equal only when both parts match, which prevents merging rows with different appliesTo annotations.
+     * Two params are equal only when both parts match, which prevents merging rows with different appliesTo annotations.
      */
     public record ParamCell(Set<DataType> types, Set<FunctionAppliesTo> appliesTo) {
         static final ParamCell EMPTY = new ParamCell(Set.of(), Set.of());
@@ -44,17 +45,17 @@ public class DocsV3SupportSignaturesMerger {
 
     /**
      * Builds an unmerged types table:
-     * for each return type, a list of rows, where each row is a list of {@link ParamCell}s (length always {@code args.size()}).
+     * for each return type, a set of rows, where each row is a list of {@link ParamCell}s (total length always {@code args.size()}).
      * <p>
      *     Optional args not provided in a signature are represented as {@link ParamCell#EMPTY} so all rows have the same length.
      * </p>
      */
-    private static Map<DataType, List<List<ParamCell>>> signaturesToRawTypesTable(
+    private static Map<DataType, Set<List<ParamCell>>> signaturesToRawTypesTable(
         List<EsqlFunctionRegistry.ArgSignature> args,
         Set<DocsV3Support.TypeSignature> signatures
     ) {
         int rowLength = args.size();
-        Map<DataType, List<List<ParamCell>>> byReturnType = new LinkedHashMap<>();
+        Map<DataType, Set<List<ParamCell>>> byReturnType = new LinkedHashMap<>();
         for (DocsV3Support.TypeSignature sig : signatures) {
             if (shouldHideSignature(sig.argTypes(), sig.returnType())) {
                 continue;
@@ -74,9 +75,11 @@ public class DocsV3SupportSignaturesMerger {
             for (int i = 0; i < sig.argTypes().size(); i++) {
                 DocsV3Support.Param param = sig.argTypes().get(i);
                 Set<FunctionAppliesTo> appliesTo = param.appliesTo() != null ? new HashSet<>(param.appliesTo()) : Set.of();
-                row.set(start + i, new ParamCell(Set.of(param.dataType()), appliesTo));
+                HashSet<DataType> types = new HashSet<>();
+                types.add(param.dataType());
+                row.set(start + i, new ParamCell(types, appliesTo));
             }
-            byReturnType.computeIfAbsent(returnType, k -> new ArrayList<>()).add(row);
+            byReturnType.computeIfAbsent(returnType, k -> new HashSet<>()).add(row);
         }
         return byReturnType;
     }
@@ -86,9 +89,9 @@ public class DocsV3SupportSignaturesMerger {
      * by replacing that position with the union of the values. Repeat until no more rows are merged.
      * The result allows exactly the same function call types as the original signatures.
      */
-    private static Map<DataType, Set<List<ParamCell>>> mergeTypesTable(Map<DataType, List<List<ParamCell>>> unmerged) {
+    private static Map<DataType, Set<List<ParamCell>>> mergeTypesTable(Map<DataType, Set<List<ParamCell>>> unmerged) {
         Map<DataType, Set<List<ParamCell>>> result = new LinkedHashMap<>();
-        for (Map.Entry<DataType, List<List<ParamCell>>> e : unmerged.entrySet()) {
+        for (Map.Entry<DataType, Set<List<ParamCell>>> e : unmerged.entrySet()) {
             result.put(e.getKey(), reduceDecisionTable(e.getValue()));
         }
         return result;
@@ -101,50 +104,59 @@ public class DocsV3SupportSignaturesMerger {
      * - Repeat until no more merges are possible.
      * @return A set of reduced rows (order-independent).
      */
-    private static Set<List<ParamCell>> reduceDecisionTable(List<List<ParamCell>> rows) {
-        if (rows.isEmpty()) {
+    private static Set<List<ParamCell>> reduceDecisionTable(Set<List<ParamCell>> unmergedRows) {
+        if (unmergedRows.isEmpty()) {
             return Set.of();
         }
 
-        int rowLength = rows.getFirst().size();
-        List<List<ParamCell>> current = new ArrayList<>();
-        for (List<ParamCell> row : rows) {
-            assert row.size() == rowLength : "All rows must have the same length (missing optional params must be EMPTY)";
-            List<ParamCell> mutableRow = new ArrayList<>(rowLength);
-            for (ParamCell cell : row) {
-                mutableRow.add(new ParamCell(new HashSet<>(cell.types()), cell.appliesTo()));
-            }
-            current.add(mutableRow);
-        }
+        // Deterministically sort the cells: lexicographically on the types, then lexicographically on the appliesTo
+        // Done to avoid different results in different runs of the docs generations, given some tables can be reduced in multiple ways
+        List<List<ParamCell>> rows = unmergedRows.stream().sorted((a, b) -> {
+            for (int i = 0; i < a.size(); i++) {
+                ParamCell cellA = a.get(i);
+                ParamCell cellB = b.get(i);
+                String aTypes = cellA.types().stream().map(DataType::esNameIfPossible).sorted().collect(Collectors.joining(","));
+                String bTypes = cellB.types().stream().map(DataType::esNameIfPossible).sorted().collect(Collectors.joining(","));
+                int cmp = aTypes.compareTo(bTypes);
+                if (cmp != 0) return cmp;
 
+                String aApplies = cellA.appliesTo().stream().map(Object::toString).sorted().collect(Collectors.joining(","));
+                String bApplies = cellB.appliesTo().stream().map(Object::toString).sorted().collect(Collectors.joining(","));
+                cmp = aApplies.compareTo(bApplies);
+                if (cmp != 0) return cmp;
+            }
+            return 0;
+        }).collect(Collectors.toCollection(ArrayList::new));
+
+        int maxIterations = rows.size();
         int iterations = 0;
         boolean changed;
         do {
-            if (iterations > rows.size()) {
-                throw new IllegalStateException("Too many iterations while merging " + rows.size() + " rows");
+            if (iterations > maxIterations) {
+                throw new IllegalStateException("Too many iterations while merging " + maxIterations + " rows");
             }
 
             changed = false;
-            for (int a = 0; a < current.size() && !changed; a++) {
-                var rowA = current.get(a);
-                for (int b = a + 1; b < current.size() && !changed; b++) {
-                    var rowB = current.get(b);
+            for (int a = 0; a < rows.size() && !changed; a++) {
+                var rowA = rows.get(a);
+                for (int b = a + 1; b < rows.size() && !changed; b++) {
+                    var rowB = rows.get(b);
                     int diffIndex = singleMergeableDiffIndex(rowA, rowB);
                     if (diffIndex >= 0) {
                         rowA.get(diffIndex).types().addAll(rowB.get(diffIndex).types());
-                        current.remove(b);
+                        rows.remove(b);
                         changed = true;
                     }
                 }
             }
             iterations++;
         } while (changed);
-        return new HashSet<>(current);
+        return new HashSet<>(rows);
     }
 
     /**
      * Returns the single index where the two rows differ and are mergeable, or -1.
-     * Two cells are "different" when their {@link ParamCell#equals} returns false.
+     * Two params are "different" when their {@link ParamCell#equals} returns false.
      * A difference is "mergeable" only when the appliesTo lists are equal (only the types differ).
      * Returns -1 if there are 0 differences, 2+ differences, or the single difference has mismatched appliesTo.
      */
@@ -153,6 +165,10 @@ public class DocsV3SupportSignaturesMerger {
         for (int j = 0; j < rowA.size(); j++) {
             if (rowA.get(j).equals(rowB.get(j)) == false) {
                 if (diffAt >= 0) {
+                    return -1;
+                }
+                // Empty cell == optional missing parameter. Can't be merged
+                if (rowA.get(j).types().isEmpty() || rowB.get(j).types().isEmpty()) {
                     return -1;
                 }
                 if (rowA.get(j).appliesTo().equals(rowB.get(j).appliesTo()) == false) {

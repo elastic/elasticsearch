@@ -4,6 +4,6 @@
 
 | base | number | result |
 | --- | --- | --- |
-|  | double, integer, unsigned_long | double |
+|  | double, integer, long, unsigned_long | double |
 | double, integer, long, unsigned_long | double, integer, long, unsigned_long | double |
 

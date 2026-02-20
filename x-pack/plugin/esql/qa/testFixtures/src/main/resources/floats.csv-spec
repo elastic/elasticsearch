@@ -339,6 +339,20 @@ a:double | asinh:double
 // end::asinh-result[]
 ;
 
+atanh
+required_capability: atanh_function
+// tag::atanh[]
+ROW a=0.5
+| EVAL atanh=ATANH(a)
+// end::atanh[]
+;
+
+// tag::atanh-result[]
+a:double | atanh:double
+     0.5 | 0.5493061443340548
+// end::atanh-result[]
+;
+
 sin
 // tag::sin[]
 ROW a=1.8

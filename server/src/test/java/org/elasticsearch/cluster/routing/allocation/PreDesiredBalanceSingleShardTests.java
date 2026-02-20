@@ -47,9 +47,9 @@ import static org.hamcrest.Matchers.lessThan;
 /**
  * THESE TESTS SHOULD NOT HAVE FURTHER DEVELOPMENT!
  *
- * Tests for balancing a single shard, using the {@link PreDesiredBalanceShardsAllocator}.
+ * Duplicates {@link BalancedSingleShardTests} testing using the {@link PreDesiredBalanceShardsAllocator}.
  */
-public class PreDesiredBalanceBalancingSingleShardTests extends ESAllocationTestCase {
+public class PreDesiredBalanceSingleShardTests extends ESAllocationTestCase {
 
     public void testRebalanceNonStartedShardNotAllowed() {
         PreDesiredBalanceShardsAllocator allocator = new PreDesiredBalanceShardsAllocator(

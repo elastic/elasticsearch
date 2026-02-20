@@ -39,8 +39,8 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * THESE TESTS SHOULD NOT HAVE FURTHER DEVELOPMENT!
  *
- * Tests for the {@link TransportClusterAllocationExplainAction} class using the {@link PreDesiredBalanceShardsAllocator}.
- * Parallels {@link ClusterAllocationExplainActionTests}, except contains only the tests that instantiate an allocator.
+ * Duplicates {@link ClusterAllocationExplainActionTests} testing using the {@link PreDesiredBalanceShardsAllocator}, except contains only
+ * the tests that instantiate an allocator.
  */
 public class PreDesiredBalanceClusterAllocationExplainActionTests extends ESTestCase {
 

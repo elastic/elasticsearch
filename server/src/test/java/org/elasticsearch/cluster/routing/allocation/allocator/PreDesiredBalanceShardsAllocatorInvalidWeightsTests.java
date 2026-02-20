@@ -43,7 +43,7 @@ import static org.mockito.Mockito.spy;
 /**
  * THESE TESTS SHOULD NOT HAVE FURTHER DEVELOPMENT!
  *
- * Parallels the {@link BalancedShardsAllocatorInvalidWeightsTests} tests except using the {@link PreDesiredBalanceShardsAllocator}.
+ * Duplicates the {@link BalancedShardsAllocatorInvalidWeightsTests} tests except using the {@link PreDesiredBalanceShardsAllocator}.
  */
 public class PreDesiredBalanceShardsAllocatorInvalidWeightsTests extends ESTestCase {
 

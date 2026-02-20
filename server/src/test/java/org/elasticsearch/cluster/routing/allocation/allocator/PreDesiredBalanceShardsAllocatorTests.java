@@ -106,7 +106,7 @@ import static org.hamcrest.Matchers.sameInstance;
 /**
  * THESE TESTS SHOULD NOT HAVE FURTHER DEVELOPMENT!
  *
- * Copies the testing in {@link BalancedShardsAllocatorTests}, using the {@link PreDesiredBalanceShardsAllocator}.
+ * Duplicates the testing in {@link BalancedShardsAllocatorTests}, using the {@link PreDesiredBalanceShardsAllocator}.
  */
 public class PreDesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 

@@ -377,7 +377,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             res.add(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING);
             res.add(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING);
             res.add(TransportStatelessPrimaryRelocationAction.SLOW_RELOCATION_THRESHOLD_SETTING);
-            res.add(SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
+            res.add(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT);
             res.add(StatelessSnapshotShardContextFactory.STATELESS_SNAPSHOT_ENABLED_SETTING);
             return Set.copyOf(res);
         }
@@ -1063,8 +1063,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         cacheService,
                         clusterService.getClusterSettings(),
                         mock(SearchCommitPrefetcher.PrefetchExecutor.class), // prefetch is disabled
-                        new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()),
-                        bccHeaderReadExecutor
+                        new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings())
                     );
                 }
             });

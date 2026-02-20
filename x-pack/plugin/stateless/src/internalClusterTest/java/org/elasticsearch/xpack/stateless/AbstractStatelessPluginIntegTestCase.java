@@ -104,6 +104,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessElectionStrategy;
@@ -115,7 +116,6 @@ import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
-import org.elasticsearch.xpack.stateless.engine.SearchEngine;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicator;
 import org.elasticsearch.xpack.stateless.engine.translog.TranslogReplicatorReader;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
@@ -434,7 +434,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             builder.put(ServerlessMultiProjectPlugin.MULTI_PROJECT_ENABLED.getKey(), true);
         }
         builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
-        builder.put(SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
+        builder.put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
         return builder;
     }
 

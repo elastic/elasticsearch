@@ -47,6 +47,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherDynamicSettings;
 import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
 import org.elasticsearch.xpack.stateless.cache.StatelessSharedBlobCacheService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
@@ -130,7 +131,7 @@ class StatelessIndexEventListener implements IndexEventListener {
         this.bccHeaderReadExecutor = bccHeaderReadExecutor;
         this.cacheService = cacheService;
         this.useInternalFilesReplicatedContentForSearchShards = clusterSettings.get(
-            SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+            SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
         );
     }
 

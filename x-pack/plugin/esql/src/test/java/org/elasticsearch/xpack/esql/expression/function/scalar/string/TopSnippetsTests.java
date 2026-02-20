@@ -17,17 +17,21 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -38,7 +42,12 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets.DEFAULT_NUM_SNIPPETS;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets.DEFAULT_WORD_SIZE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 
 public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
@@ -245,14 +254,9 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
         List<String> result = process(combinedText, query, 3, 50);
 
-        assertNotNull("Should return results for matching query", result);
-        assertFalse("Should have at least one result", result.isEmpty());
-
-        assertTrue(
-            "First snippet should be from the most relevant chunk (contains 'Elasticsearch' multiple times)",
-            result.get(0).toLowerCase(Locale.ROOT).contains("elasticsearch")
-                && (result.get(0).contains("powerful") || result.get(0).contains("supports") || result.get(0).contains("companies"))
-        );
+        assertThat(result, hasSize(2));
+        assertThat(result.get(0), containsString("Elasticsearch is a powerful search engine"));
+        assertThat(result.get(1), containsString("Elasticsearch is one option among several alternatives"));
     }
 
     private void verifySnippets(String query, Integer numSnippets, Integer numWords, int expectedNumChunksReturned) {
@@ -295,5 +299,4 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             }
         }
     }
-
 }

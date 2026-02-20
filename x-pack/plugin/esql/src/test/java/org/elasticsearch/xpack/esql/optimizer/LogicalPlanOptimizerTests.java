@@ -9963,4 +9963,24 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         // EsRelation[k8s][@timestamp{f}#424, client.ip{f}#428, cluster{f}#425, ..]
         as(eval3.child(), EsRelation.class);
     }
+
+    public void testTopSnippetsQueryMustBeFoldable() {
+        var e = expectThrows(
+            VerificationException.class,
+            () -> optimizedPlan("FROM test | EVAL x = TOP_SNIPPETS(first_name, last_name)")
+        );
+        assertThat(e.getMessage(), containsString("Query must be a valid string"));
+    }
+
+    public void testTopSnippetsQueryFoldableAfterOptimization() {
+        var plan = optimizedPlan("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
+        var failures = LogicalVerifier.INSTANCE.verify(plan, plan.output());
+        assertThat(failures.failures(), is(empty()));
+    }
+
+    public void testTopSnippetsQueryFoldableConcatConstants() {
+        var plan = optimizedPlan("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
+        var failures = LogicalVerifier.INSTANCE.verify(plan, plan.output());
+        assertThat(failures.failures(), is(empty()));
+    }
 }

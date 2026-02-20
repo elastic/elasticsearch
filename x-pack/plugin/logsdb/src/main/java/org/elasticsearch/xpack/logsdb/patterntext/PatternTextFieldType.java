@@ -156,7 +156,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
             var docValues = loadDocValues(context);
             return docId -> {
                 if (docValues != null && docValues.advanceExact(docId)) {
-                    return List.of(docValues.binaryValue());
+                    return List.of(docValues.binaryValue().utf8ToString());
                 }
                 return List.of();
             };

@@ -244,7 +244,7 @@ public class SearchContextStats implements SearchStats {
                         continue;
                     }
                     final MappedFieldType ctxFieldType = context.getFieldType(field.string());
-                    boolean ctxHasSkipper = ctxFieldType instanceof DateFieldType dft && dft.hasDocValuesSkipper();
+                    boolean ctxHasSkipper = ctxFieldType.indexType().hasDocValuesSkipper();
                     for (final LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
                         final Long minValue = ctxHasSkipper
                             ? docValuesSkipperMinValue(leafContext, field.string())
@@ -275,7 +275,7 @@ public class SearchContextStats implements SearchStats {
                         continue;
                     }
                     final MappedFieldType ctxFieldType = context.getFieldType(field.string());
-                    boolean ctxHasSkipper = ctxFieldType instanceof DateFieldType dft && dft.hasDocValuesSkipper();
+                    boolean ctxHasSkipper = ctxFieldType.indexType().hasDocValuesSkipper();
                     for (final LeafReaderContext leafContext : context.searcher().getLeafContexts()) {
                         final Long maxValue = ctxHasSkipper
                             ? docValuesSkipperMaxValue(leafContext, field.string())

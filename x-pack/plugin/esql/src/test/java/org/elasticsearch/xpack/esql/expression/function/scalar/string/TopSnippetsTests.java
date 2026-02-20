@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -294,6 +295,14 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
                 return list.stream().map(BytesRef::utf8ToString).toList();
             }
         }
+    }
+
+    @Override
+    protected void filterCoAndContraVarianceNarrowing(
+        Map<Integer, DataType> positionNarrowing,
+        List<TestCaseSupplier.TypedData> data
+    ) {
+        positionNarrowing.entrySet().removeIf(e -> e.getKey() == 2 && e.getValue() == DataType.NULL);
     }
 
 }

@@ -28,13 +28,13 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
     private final float deltaPercent = 0.1f;
     private final int dims;
-    private final int bits;
+    private final byte bits;
     private final VectorScorerOSQBenchmark.DirectoryType directoryType;
     private final VectorSimilarityFunction similarityFunction;
 
     public VectorScorerOSQBenchmarkTests(
         int dims,
-        int bits,
+        byte bits,
         VectorScorerOSQBenchmark.DirectoryType directoryType,
         VectorSimilarityFunction similarityFunction
     ) {
@@ -128,7 +128,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
             return () -> Arrays.stream(dims)
                 .map(Integer::parseInt)
-                .flatMap(d -> Arrays.stream(bits).map(Integer::parseInt).map(b -> List.<Object>of(d, b)))
+                .flatMap(d -> Arrays.stream(bits).map(Byte::parseByte).map(b -> List.<Object>of(d, b)))
                 .flatMap(params -> Arrays.stream(VectorScorerOSQBenchmark.DirectoryType.values()).map(dir -> appendToCopy(params, dir)))
                 .flatMap(params -> Arrays.stream(VectorSimilarityFunction.values()).map(f -> appendToCopy(params, f).toArray()))
                 .iterator();

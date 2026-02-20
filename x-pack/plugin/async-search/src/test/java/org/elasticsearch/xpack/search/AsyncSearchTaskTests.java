@@ -45,6 +45,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -149,11 +150,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             for (int i = 0; i < numShards; i++) {
                 shards.add(new SearchShard(null, new ShardId("0", "0", 1)));
             }
-            List<SearchShard> skippedShards = new ArrayList<>();
             int numSkippedShards = randomIntBetween(0, 10);
-            for (int i = 0; i < numSkippedShards; i++) {
-                skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
-            }
+            Map<String, Integer> skippedShards = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, numSkippedShards);
 
             int numThreads = randomIntBetween(1, 10);
             CountDownLatch latch = new CountDownLatch(numThreads);
@@ -196,7 +194,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         AtomicReference<AsyncSearchResponse> response = new AtomicReference<>();
         try (AsyncSearchTask task = createAsyncSearchTask()) {
             task.getSearchProgressActionListener()
-                .onListShards(Collections.emptyList(), Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
+                .onListShards(Collections.emptyList(), Collections.emptyMap(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             InternalAggregations aggs = InternalAggregations.from(
                 Collections.singletonList(
                     new StringTerms(
@@ -260,11 +258,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             for (int i = 0; i < numShards; i++) {
                 shards.add(new SearchShard(null, new ShardId("0", "0", 1)));
             }
-            List<SearchShard> skippedShards = new ArrayList<>();
             int numSkippedShards = randomIntBetween(0, 10);
-            for (int i = 0; i < numSkippedShards; i++) {
-                skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
-            }
+            Map<String, Integer> skippedShards = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, numSkippedShards);
             int totalShards = numShards + numSkippedShards;
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
@@ -309,11 +304,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             for (int i = 0; i < numShards; i++) {
                 shards.add(new SearchShard(null, new ShardId("0", "0", 1)));
             }
-            List<SearchShard> skippedShards = new ArrayList<>();
             int numSkippedShards = randomIntBetween(0, 10);
-            for (int i = 0; i < numSkippedShards; i++) {
-                skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
-            }
+            Map<String, Integer> skippedShards = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, numSkippedShards);
             int totalShards = numShards + numSkippedShards;
 
             // Ensure that given partial results from shard searches, the result we send to the listeners does not contain partial results
@@ -375,11 +367,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             for (int i = 0; i < numShards; i++) {
                 shards.add(new SearchShard(null, new ShardId("0", "0", 1)));
             }
-            List<SearchShard> skippedShards = new ArrayList<>();
             int numSkippedShards = randomIntBetween(0, 10);
-            for (int i = 0; i < numSkippedShards; i++) {
-                skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
-            }
+            Map<String, Integer> skippedShards = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, numSkippedShards);
             int totalShards = numShards + numSkippedShards;
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
@@ -424,11 +413,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             for (int i = 0; i < numShards; i++) {
                 shards.add(new SearchShard(null, new ShardId("0", "0", 1)));
             }
-            List<SearchShard> skippedShards = new ArrayList<>();
             int numSkippedShards = randomIntBetween(0, 10);
-            for (int i = 0; i < numSkippedShards; i++) {
-                skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
-            }
+            Map<String, Integer> skippedShards = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, numSkippedShards);
             int totalShards = numShards + numSkippedShards;
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
@@ -458,11 +444,8 @@ public class AsyncSearchTaskTests extends ESTestCase {
             for (int i = 0; i < numShards; i++) {
                 shards.add(new SearchShard(null, new ShardId("0", "0", 1)));
             }
-            List<SearchShard> skippedShards = new ArrayList<>();
             int numSkippedShards = randomIntBetween(0, 10);
-            for (int i = 0; i < numSkippedShards; i++) {
-                skippedShards.add(new SearchShard(null, new ShardId("0", "0", 1)));
-            }
+            Map<String, Integer> skippedShards = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, numSkippedShards);
             int totalShards = numShards + numSkippedShards;
             task.getSearchProgressActionListener()
                 .onListShards(shards, skippedShards, SearchResponse.Clusters.EMPTY, false, createTimeProvider());
@@ -493,7 +476,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
                 }
             }, TimeValue.timeValueMillis(500L), true);
             asyncSearchTask.getSearchProgressActionListener()
-                .onListShards(Collections.emptyList(), Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
+                .onListShards(Collections.emptyList(), Collections.emptyMap(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             assertTrue(latch.await(1000, TimeUnit.SECONDS));
         }
         assertThat(failure.get(), instanceOf(RuntimeException.class));
@@ -504,7 +487,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
         AtomicReference<Exception> failure;
         try (AsyncSearchTask asyncSearchTask = createAsyncSearchTask()) {
             asyncSearchTask.getSearchProgressActionListener()
-                .onListShards(Collections.emptyList(), Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
+                .onListShards(Collections.emptyList(), Collections.emptyMap(), SearchResponse.Clusters.EMPTY, false, createTimeProvider());
             CountDownLatch latch = new CountDownLatch(1);
             failure = new AtomicReference<>();
             // onListShards has already been executed, then addCompletionListener is executed immediately
@@ -536,10 +519,7 @@ public class AsyncSearchTaskTests extends ESTestCase {
             }
 
             int numSkippedShards = randomIntBetween(0, 10);
-            List<SearchShard> skippedShards = new ArrayList<>();
-            for (int i = 0; i < numSkippedShards; i++) {
-                skippedShards.add(new SearchShard(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, new ShardId("0", "0", 1)));
-            }
+            Map<String, Integer> skippedShards = Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, numSkippedShards);
 
             int totalShards = numShards + numSkippedShards;
             for (int i = 0; i < numShards; i++) {

@@ -100,14 +100,14 @@ class MutableSearchResponse extends AbstractRefCounted {
     /**
      * Updates the response with the number of total and skipped shards.
      *
-     * @param totalShards The number of shards that participate in the request.
+     * @param searchedShards The number of shards that were searched in the request.
      * @param skippedShards The number of shards skipped.
      * <p>
      * Shards in this context depend on the value of minimize round trips (MRT):
      * They are the shards being searched by this coordinator (local only for MRT=true, local + remote otherwise).
      */
-    synchronized void updateShardsAndClusters(int totalShards, int skippedShards, Clusters clusters) {
-        this.totalShards = totalShards;
+    synchronized void updateShardsAndClusters(int searchedShards, int skippedShards, Clusters clusters) {
+        this.totalShards = searchedShards + skippedShards;
         this.skippedShards = skippedShards;
         this.queryFailures = new AtomicArray<>(totalShards - skippedShards);
         this.clusters = clusters;

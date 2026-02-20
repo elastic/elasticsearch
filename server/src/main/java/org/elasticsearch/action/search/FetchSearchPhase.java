@@ -52,10 +52,10 @@ class FetchSearchPhase extends SearchPhase {
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
         super(NAME);
-        if (context.getNumShards() != resultConsumer.getNumShards()) {
+        if (context.results.getNumShards() != resultConsumer.getNumShards()) {
             throw new IllegalStateException(
                 "number of shards must match the length of the query results but doesn't:"
-                    + context.getNumShards()
+                    + context.results.getNumShards()
                     + "!="
                     + resultConsumer.getNumShards()
             );
@@ -95,10 +95,10 @@ class FetchSearchPhase extends SearchPhase {
         long phaseStartTimeInNanos = System.nanoTime();
         // depending on whether we executed the RankFeaturePhase we may or may not have the reduced query result computed already
         final var reducedQueryPhase = this.reducedQueryPhase == null ? resultConsumer.reduce() : this.reducedQueryPhase;
-        final int numShards = context.getNumShards();
+        final int numShards = context.results.getNumShards();
         // Usually when there is a single shard, we force the search type QUERY_THEN_FETCH. But when there's kNN, we might
         // still use DFS_QUERY_THEN_FETCH, which does not perform the "query and fetch" optimization during the query phase.
-        final boolean queryAndFetchOptimization = numShards == 1
+        final boolean queryAndFetchOptimization = context.getNumShards() == 1
             && context.getRequest().hasKnnSearch() == false
             && reducedQueryPhase.queryPhaseRankCoordinatorContext() == null
             && (context.getRequest().source() == null || context.getRequest().source().rankBuilder() == null);

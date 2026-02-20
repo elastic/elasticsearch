@@ -180,22 +180,13 @@ public class TransportGetCheckpointAction extends HandledTransportAction<Request
     ) {
         Map<String, Set<ShardId>> filteredNodesAndShards = new HashMap<>(nodesAndShards.size());
         // Create a deep copy of the given nodes and shards map.
-        for (Map.Entry<String, Set<ShardId>> nodeAndShardsEntry : nodesAndShards.entrySet()) {
-            String node = nodeAndShardsEntry.getKey();
-            Set<ShardId> shards = nodeAndShardsEntry.getValue();
-            filteredNodesAndShards.put(node, new HashSet<>(shards));
-        }
-        // Remove (node, shard) pairs for all the skipped shards.
+        // Filter (node, shard) pairs for all the skipped shards.
         for (SearchShardsGroup shardGroup : searchShardsResponse.getGroups()) {
-            if (shardGroup.skipped()) {
-                for (String allocatedNode : shardGroup.allocatedNodes()) {
-                    Set<ShardId> shards = filteredNodesAndShards.get(allocatedNode);
-                    if (shards != null) {
-                        shards.remove(shardGroup.shardId());
-                        if (shards.isEmpty()) {
-                            // Remove node if no shards were left.
-                            filteredNodesAndShards.remove(allocatedNode);
-                        }
+            for (String allocatedNode : shardGroup.allocatedNodes()) {
+                Set<ShardId> shards = nodesAndShards.get(allocatedNode);
+                if (shards != null) {
+                    if (shards.contains(shardGroup.shardId())) {
+                        filteredNodesAndShards.computeIfAbsent(allocatedNode, k -> new HashSet<>()).add(shardGroup.shardId());
                     }
                 }
             }

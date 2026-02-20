@@ -168,6 +168,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     delegate.onResponse(
                         new SearchShardsResponse(
                             toGroups(shardIts),
+                            0,
                             project.cluster().nodes().getAllNodes(),
                             aliasFilters,
                             searchShardsRequest.getResolvedIndexExpressions()
@@ -196,8 +197,9 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     )
                         .addListener(
                             delegate.map(
-                                its -> new SearchShardsResponse(
-                                    toGroups(its),
+                                canMatchResult -> new SearchShardsResponse(
+                                    toGroups(canMatchResult.iterators()),
+                                    canMatchResult.skippedByClusterAlias().values().stream().mapToInt(Integer::intValue).sum(),
                                     project.cluster().nodes().getAllNodes(),
                                     aliasFilters,
                                     searchShardsRequest.getResolvedIndexExpressions()

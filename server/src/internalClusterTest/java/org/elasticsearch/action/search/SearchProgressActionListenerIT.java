@@ -111,7 +111,7 @@ public class SearchProgressActionListenerIT extends ESSingleNodeTestCase {
             @Override
             public void onListShards(
                 List<SearchShard> searchShards,
-                List<SearchShard> skippedShards,
+                Map<String, Integer> skippedByClusterAlias,
                 SearchResponse.Clusters clusters,
                 boolean fetchPhase,
                 TransportSearchAction.SearchTimeProvider timeProvider

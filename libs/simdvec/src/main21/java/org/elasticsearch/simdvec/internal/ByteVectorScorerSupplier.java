@@ -68,7 +68,15 @@ public abstract sealed class ByteVectorScorerSupplier implements RandomVectorSco
                     var scoresMemorySegment = arena.allocate((long) numNodes * Float.BYTES, 32);
                     MemorySegment.copy(ordinals, 0, ordinalsMemorySegment, ValueLayout.JAVA_INT, 0, numNodes);
 
-                    float max = bulkScoreFromSegment(vectorsSeg, dims, vectorPitch, firstOrd, ordinalsMemorySegment, scoresMemorySegment, numNodes);
+                    float max = bulkScoreFromSegment(
+                        vectorsSeg,
+                        dims,
+                        vectorPitch,
+                        firstOrd,
+                        ordinalsMemorySegment,
+                        scoresMemorySegment,
+                        numNodes
+                    );
 
                     MemorySegment.copy(scoresMemorySegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, numNodes);
                     return max;

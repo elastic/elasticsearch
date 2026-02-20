@@ -184,10 +184,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         // Enable automatic slicing with an automatically chosen number of slices (like setting the slices URL parameter to "auto"):
         reindex.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
         ActionRequestValidationException e = reindex.validate();
-        assertEquals(
-            "Validation Failed: 1: reindex from remote sources doesn't support slices=auto;",
-            e.getMessage()
-        );
+        assertEquals("Validation Failed: 1: reindex from remote sources doesn't support slices=auto;", e.getMessage());
     }
 
     public void testReindexFromRemoteRejectsUsernameWithNoPassword() {

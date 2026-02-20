@@ -23,6 +23,7 @@ module org.elasticsearch.compute {
     requires hppc;
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.swisshash;
+    requires org.apache.arrow.memory.core;
 
     exports org.elasticsearch.compute;
     exports org.elasticsearch.compute.aggregation;

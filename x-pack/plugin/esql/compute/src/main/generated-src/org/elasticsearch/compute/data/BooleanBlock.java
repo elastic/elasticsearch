@@ -21,7 +21,6 @@ import java.io.IOException;
  * This class is generated. Edit {@code X-Block.java.st} instead.
  */
 public sealed interface BooleanBlock extends Block permits BooleanArrayBlock, BooleanVectorBlock, ConstantNullBlock, BooleanBigArrayBlock {
-
     /**
      * Retrieves the boolean value stored at the given value index.
      *

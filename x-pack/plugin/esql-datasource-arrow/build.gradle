@@ -1,0 +1,64 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+
+esplugin {
+  name = 'esql-datasource-arrow'
+  description = 'Arrow IPC format support for ESQL external data sources'
+  classname = 'org.elasticsearch.xpack.esql.datasource.arrow.ArrowDataSourcePlugin'
+  extendedPlugins = ['x-pack-esql']
+}
+
+base {
+  archivesName = 'esql-datasource-arrow'
+}
+
+dependencies {
+  // SPI interfaces from ESQL core
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+  compileOnly project(xpackModule('esql:compute'))
+
+  // Arrow-to-Block converter from the esql arrow subproject
+  compileOnly project(xpackModule('esql:arrow'))
+
+  // Arrow IPC format support
+  implementation('org.apache.arrow:arrow-vector:18.3.0')
+  implementation('org.apache.arrow:arrow-format:18.3.0')
+  implementation('org.apache.arrow:arrow-memory-core:18.3.0')
+  runtimeOnly('org.apache.arrow:arrow-memory-unsafe:18.3.0')
+
+  // Required at compile time for Jackson annotations used in Arrow pojo classes (Field, Schema, ArrowType)
+  compileOnly("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  compileOnly("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  // Required at compile time for checker-qual annotations used in Arrow memory classes
+  compileOnly('org.checkerframework:checker-qual:3.42.0')
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation('org.apache.arrow:arrow-memory-unsafe:18.3.0')
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /arrow-.*/, to: 'arrow'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1',
+  )
+  ignoreMissingClasses()
+}
+
+tasks.named("test").configure {
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}

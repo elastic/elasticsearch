@@ -20,7 +20,8 @@ import java.io.IOException;
  * Vector that stores long values.
  * This class is generated. Edit {@code X-Vector.java.st} instead.
  */
-public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector, ConstantNullVector {
+public sealed interface LongVector extends Vector permits ConstantLongVector, LongArrayVector, LongBigArrayVector, ConstantNullVector,
+    org.elasticsearch.compute.data.arrow.LongArrowBufVector {
 
     long getLong(int position);
 

@@ -31,12 +31,13 @@ public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector
     ConstantNullVector {
 $elseif(int)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, $Type$RangeVector,
-    ConstantNullVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
 $elseif(double)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
-    ConstantNullVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
 $else$
-public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, ConstantNullVector {
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, ConstantNullVector,
+    org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
 $endif$
 
 $if(BytesRef)$

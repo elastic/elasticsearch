@@ -53,8 +53,7 @@ setup:
   - match: { cancelled: true }
   - match: { status.canceled: "by user request" }
   - gte: { status.total: 0 }
-  # different from `GET _reindex`
-  - not_exists: response
+  - exists: error
 
   - do:
       reindex_get:

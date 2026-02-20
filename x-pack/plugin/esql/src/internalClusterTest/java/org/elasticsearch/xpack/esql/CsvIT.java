@@ -363,9 +363,7 @@ public class CsvIT extends ESTestCase {
 
     private static void loadEnrichPolicy(EnrichPolicyResolver.LookupRequest request) {
         for (var name : request.policyNames) {
-            enrich.maybeLoad(
-                CsvTestsDataLoader.ENRICH_POLICIES.stream().filter(p -> Objects.equals(p.policyName(), name)).findFirst().get()
-            );
+            enrich.maybeLoad(CsvTestsDataLoader.ENRICH_POLICIES.get(name));
         }
     }
 

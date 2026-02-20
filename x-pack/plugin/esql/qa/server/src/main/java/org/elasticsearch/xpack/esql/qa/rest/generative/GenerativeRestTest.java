@@ -27,6 +27,7 @@ import org.junit.Rule;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -181,7 +182,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     public void test() throws IOException {
         List<String> indices = availableIndices();
         List<LookupIdx> lookupIndices = lookupIndices();
-        List<CsvTestsDataLoader.EnrichConfig> policies = availableEnrichPolicies();
+        Collection<CsvTestsDataLoader.EnrichConfig> policies = ENRICH_POLICIES.values();
         CommandGenerator.QuerySchema mappingInfo = new CommandGenerator.QuerySchema(indices, lookupIndices, policies);
 
         for (int i = 0; i < ITERATIONS; i++) {
@@ -453,9 +454,5 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         );
         result.add(new LookupIdx("multi_column_joinable_lookup", multiColumnJoinableLookupKeys));
         return result;
-    }
-
-    List<CsvTestsDataLoader.EnrichConfig> availableEnrichPolicies() {
-        return ENRICH_POLICIES;
     }
 }

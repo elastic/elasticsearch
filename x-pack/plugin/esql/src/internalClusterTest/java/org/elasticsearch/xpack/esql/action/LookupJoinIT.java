@@ -191,12 +191,8 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
     private void ensureEnrichPolicies(List<String> policyNames) throws IOException {
         RestClient restClient = getRestClient();
 
-        // Build a map of policy name to EnrichConfig for quick lookup
-        Map<String, CsvTestsDataLoader.EnrichConfig> policyMap = CsvTestsDataLoader.ENRICH_POLICIES.stream()
-            .collect(Collectors.toMap(CsvTestsDataLoader.EnrichConfig::policyName, Function.identity()));
-
         for (String policyName : policyNames) {
-            CsvTestsDataLoader.EnrichConfig config = policyMap.get(policyName);
+            CsvTestsDataLoader.EnrichConfig config = CsvTestsDataLoader.ENRICH_POLICIES.get(policyName);
             if (config == null) {
                 throw new IllegalArgumentException("No definition found for enrich policy: " + policyName);
             }

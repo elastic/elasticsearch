@@ -572,7 +572,7 @@ public class CsvTests extends ESTestCase {
 
     private static EnrichResolution loadEnrichPolicies() {
         EnrichResolution enrichResolution = new EnrichResolution();
-        for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES) {
+        for (CsvTestsDataLoader.EnrichConfig policyConfig : CsvTestsDataLoader.ENRICH_POLICIES.values()) {
             EnrichPolicy policy = loadEnrichPolicyMapping(policyConfig);
             CsvTestsDataLoader.TestDataset sourceIndex = CSV_DATASET.get(policy.getIndices().get(0));
             // this could practically work, but it's wrong:

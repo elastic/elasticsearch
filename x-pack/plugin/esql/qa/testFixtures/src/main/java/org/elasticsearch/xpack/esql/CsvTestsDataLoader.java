@@ -209,7 +209,7 @@ public class CsvTestsDataLoader {
         new TestDataset("mmr_text_vector_keyword")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
-    public static final List<EnrichConfig> ENRICH_POLICIES = List.of(
+    public static final Map<String, EnrichConfig> ENRICH_POLICIES = Stream.of(
         new EnrichConfig("languages_policy", "enrich-policy-languages.json", "languages"),
         new EnrichConfig("clientip_policy", "enrich-policy-clientips.json", "clientips"),
         new EnrichConfig("client_cidr_policy", "enrich-policy-client_cidr.json", "client_cidr"),
@@ -221,7 +221,7 @@ public class CsvTestsDataLoader {
         new EnrichConfig("city_airports", "enrich-policy-city_airports.json", "airport_city_boundaries"),
         new EnrichConfig("city_locations", "enrich-policy-city_locations.json", "airport_city_boundaries"),
         new EnrichConfig("colors_policy", "enrich-policy-colors_cmyk.json", "colors_cmyk")
-    );
+    ).collect(toMap(EnrichConfig::policyName, Function.identity()));
 
     public static final Map<String, InferenceConfig> INFERENCE_CONFIGS = Stream.of(
         new InferenceConfig("test_sparse_inference", TaskType.SPARSE_EMBEDDING),
@@ -476,7 +476,7 @@ public class CsvTestsDataLoader {
 
     private static void loadEnrichPolicies(RestClient client) throws IOException {
         logger.info("Loading enrich policies");
-        for (var policy : ENRICH_POLICIES) {
+        for (var policy : ENRICH_POLICIES.values()) {
             loadEnrichPolicy(client, policy);
         }
     }
@@ -525,7 +525,7 @@ public class CsvTestsDataLoader {
 
     private static void deleteEnrichPolicies(RestClient client) throws IOException {
         logger.debug("Deleting enrich policies");
-        for (var policy : ENRICH_POLICIES) {
+        for (var policy : ENRICH_POLICIES.values()) {
             deleteEnrichPolicy(client, policy.policyName);
         }
     }

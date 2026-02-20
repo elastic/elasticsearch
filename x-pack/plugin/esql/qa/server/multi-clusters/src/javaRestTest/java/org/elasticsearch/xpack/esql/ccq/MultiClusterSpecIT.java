@@ -270,7 +270,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     public static final Set<String> LOOKUP_ENDPOINTS = LOOKUP_INDICES.stream().map(i -> "/" + i + "/_bulk").collect(toSet());
 
-    public static final Set<String> ENRICH_ENDPOINTS = ENRICH_POLICIES.stream().map(p -> "/" + p.index() + "/_bulk").collect(toSet());
+    public static final Set<String> ENRICH_ENDPOINTS = ENRICH_POLICIES.values().stream().map(p -> "/" + p.index() + "/_bulk").collect(toSet());
 
     /**
      * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk, _query,
@@ -355,7 +355,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         boolean onlyRemotes = canUseRemoteIndicesOnly() && randomBoolean();
         // Check if query contains enrich source indices - these are loaded into both clusters,
         // so we should use onlyRemotes=true to avoid duplicates
-        var enrichSourceIndices = ENRICH_POLICIES.stream().map(CsvTestsDataLoader.EnrichConfig::index).collect(toSet());
+        var enrichSourceIndices = ENRICH_POLICIES.values().stream().map(CsvTestsDataLoader.EnrichConfig::index).collect(toSet());
         if (onlyRemotes == false && EsqlTestUtils.queryContainsIndices(query, enrichSourceIndices)) {
             onlyRemotes = true;
         }

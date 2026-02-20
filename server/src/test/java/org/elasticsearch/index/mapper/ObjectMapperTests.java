@@ -603,31 +603,20 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlatten() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent").add(
-            new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", defaultIndexSettings()))
-        ).add(new KeywordFieldMapper.Builder("keyword1", defaultIndexSettings())).build(rootContext);
-        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
-        assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
-    }
-
-    public void testFlattenSubobjectsFalse() {
-        MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
         ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
             new ObjectMapper.Builder("child").add(new KeywordFieldMapper.Builder("keyword2", defaultIndexSettings()))
         ).add(new KeywordFieldMapper.Builder("keyword1", defaultIndexSettings())).build(rootContext);
-        List<String> fields = objectMapper.asFlattenedFieldMappers(rootContext).stream().map(FieldMapper::fullPath).toList();
+        List<String> fields = objectMapper.mappers.values().stream().map(Mapper::fullPath).toList();
         assertThat(fields, containsInAnyOrder("parent.keyword1", "parent.child.keyword2"));
     }
 
     public void testFlattenDynamicIncompatible() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent").add(new ObjectMapper.Builder("child").dynamic(Dynamic.FALSE))
-            .build(rootContext);
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> objectMapper.asFlattenedFieldMappers(rootContext)
+        ObjectMapper.Builder parentBuilder = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
+            new ObjectMapper.Builder("child").dynamic(Dynamic.FALSE)
         );
+
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
         assertEquals(
             "Object mapper [parent.child] was found in a context where subobjects is set to false. "
                 + "Auto-flattening [parent.child] failed because the value of [dynamic] (FALSE) is not compatible with "
@@ -638,30 +627,28 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     public void testFlattenEnabledFalse() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent").enabled(false).build(rootContext);
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> objectMapper.asFlattenedFieldMappers(rootContext)
+        ObjectMapper.Builder parentBuilder = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
+            new ObjectMapper.Builder("child").enabled(false)
         );
+
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
         assertEquals(
-            "Object mapper [parent] was found in a context where subobjects is set to false. "
-                + "Auto-flattening [parent] failed because the value of [enabled] is [false]",
+            "Object mapper [parent.child] was found in a context where subobjects is set to false. "
+                + "Auto-flattening [parent.child] failed because the value of [enabled] is [false]",
             exception.getMessage()
         );
     }
 
     public void testFlattenExplicitSubobjectsTrue() {
         MapperBuilderContext rootContext = MapperBuilderContext.root(false, false);
-        ObjectMapper objectMapper = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.ENABLED)).build(rootContext);
-
-        IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> objectMapper.asFlattenedFieldMappers(rootContext)
+        ObjectMapper.Builder parentBuilder = new ObjectMapper.Builder("parent", Explicit.of(ObjectMapper.Subobjects.DISABLED)).add(
+            new ObjectMapper.Builder("child", Explicit.of(ObjectMapper.Subobjects.ENABLED))
         );
+
+        MapperParsingException exception = expectThrows(MapperParsingException.class, () -> parentBuilder.build(rootContext));
         assertEquals(
-            "Object mapper [parent] was found in a context where subobjects is set to false. "
-                + "Auto-flattening [parent] failed because the value of [subobjects] is [true]",
+            "Object mapper [parent.child] was found in a context where subobjects is set to false. "
+                + "Auto-flattening [parent.child] failed because the value of [subobjects] is [true]",
             exception.getMessage()
         );
     }

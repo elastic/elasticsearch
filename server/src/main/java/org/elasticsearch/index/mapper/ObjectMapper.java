@@ -221,30 +221,15 @@ public class ObjectMapper extends Mapper {
         }
 
         protected final Map<String, Mapper> buildMappers(MapperBuilderContext mapperBuilderContext) {
-            // De-duplicate builders first, merging at builder level rather than mapper level.
-            // The same mappings or document may hold the same field twice, either because duplicated JSON keys are allowed or
-            // the same field is provided using the object notation as well as the dot notation at the same time.
-            // This can also happen due to multiple index templates being merged into a single mappings definition using
-            // XContentHelper#mergeDefaults, again in case some index templates contained mappings for the same field using a
-            // mix of object notation and dot notation.
-            MapperMergeContext dedupContext = MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE);
-            Map<String, Mapper.Builder> dedupedBuilders = new HashMap<>();
-            for (Mapper.Builder builder : mappersBuilders) {
-                Mapper.Builder existing = dedupedBuilders.get(builder.leafName());
-                if (existing != null) {
-                    builder = existing.mergeWith(builder, dedupContext);
-                }
-                dedupedBuilders.put(builder.leafName(), builder);
-            }
+            Map<String, Mapper.Builder> dedupedBuilders = flattenBuildersIfNeeded(
+                mappersBuilders,
+                mapperBuilderContext,
+                MapperMergeContext.from(mapperBuilderContext, Long.MAX_VALUE)
+            );
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : dedupedBuilders.values()) {
                 Mapper mapper = builder.build(mapperBuilderContext);
-                if (subobjects.value() == Subobjects.DISABLED && mapper instanceof ObjectMapper objectMapper) {
-                    // We're parsing a mapping that has set `subobjects: false` but has defined sub-objects
-                    objectMapper.asFlattenedFieldMappers(mapperBuilderContext).forEach(m -> mappers.put(m.leafName(), m));
-                } else {
-                    mappers.put(mapper.leafName(), mapper);
-                }
+                mappers.put(mapper.leafName(), mapper);
             }
             return mappers;
         }
@@ -379,13 +364,18 @@ public class ObjectMapper extends Mapper {
          * Flattens this ObjectMapper.Builder's children into the given map, renaming fields
          * with dotted paths reflecting the hierarchy. Works entirely at the builder level,
          * avoiding the need to build an intermediate ObjectMapper.
+         *
+         * @param parentContext the builder context of the parent object (used for full-path error messages)
+         * @param result       the map to collect flattened field builders into
+         * @param path         tracks the relative path for field renaming
          */
-        private void asFlattenedFieldBuilders(MapperBuilderContext context, Map<String, Mapper.Builder> result, ContentPath path) {
-            ensureBuilderFlattenable(context, path);
+        private void asFlattenedFieldBuilders(MapperBuilderContext parentContext, Map<String, Mapper.Builder> result, ContentPath path) {
+            String fullName = parentContext.buildFullName(path.pathAsText(leafName()));
+            ensureBuilderFlattenable(parentContext, fullName);
             path.add(leafName());
             for (Mapper.Builder childBuilder : mappersBuilders) {
                 if (childBuilder instanceof ObjectMapper.Builder objectMapperBuilder) {
-                    objectMapperBuilder.asFlattenedFieldBuilders(context, result, path);
+                    objectMapperBuilder.asFlattenedFieldBuilders(parentContext, result, path);
                 } else if (childBuilder instanceof FieldMapper.Builder fieldMapperBuilder) {
                     fieldMapperBuilder.setLeafName(path.pathAsText(fieldMapperBuilder.leafName()));
                     result.put(fieldMapperBuilder.leafName(), fieldMapperBuilder);
@@ -394,10 +384,10 @@ public class ObjectMapper extends Mapper {
             path.remove();
         }
 
-        private void ensureBuilderFlattenable(MapperBuilderContext context, ContentPath path) {
+        private void ensureBuilderFlattenable(MapperBuilderContext context, String fullName) {
             if (dynamic != null && context.getDynamic() != dynamic) {
                 throwAutoFlatteningException(
-                    path,
+                    fullName,
                     "the value of [dynamic] ("
                         + dynamic
                         + ") is not compatible with the value from its parent context ("
@@ -407,25 +397,25 @@ public class ObjectMapper extends Mapper {
             }
             if (sourceKeepMode.isPresent()) {
                 throwAutoFlatteningException(
-                    path,
+                    fullName,
                     "the value of [" + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM + "] is [ " + sourceKeepMode.get() + " ]"
                 );
             }
             if (enabled.value() == false) {
-                throwAutoFlatteningException(path, "the value of [enabled] is [false]");
+                throwAutoFlatteningException(fullName, "the value of [enabled] is [false]");
             }
             if (subobjects.explicit() && subobjects.value() == Subobjects.ENABLED) {
-                throwAutoFlatteningException(path, "the value of [subobjects] is [true]");
+                throwAutoFlatteningException(fullName, "the value of [subobjects] is [true]");
             }
         }
 
-        private void throwAutoFlatteningException(ContentPath path, String reason) {
+        private static void throwAutoFlatteningException(String fullName, String reason) {
             throw new MapperParsingException(
                 "Object mapper ["
-                    + path.pathAsText(leafName())
+                    + fullName
                     + "] was found in a context where subobjects is set to false. "
                     + "Auto-flattening ["
-                    + path.pathAsText(leafName())
+                    + fullName
                     + "] failed because "
                     + reason
             );
@@ -798,71 +788,6 @@ public class ObjectMapper extends Mapper {
      */
     protected void validateSubField(Mapper mapper, MappingLookup mappers) {
         mapper.validate(mappers);
-    }
-
-    /**
-     * Returns all FieldMappers this ObjectMapper or its children hold.
-     * The name of the FieldMappers will be updated to reflect the hierarchy.
-     *
-     * @throws IllegalArgumentException if the mapper cannot be flattened
-     */
-    List<FieldMapper> asFlattenedFieldMappers(MapperBuilderContext context) {
-        List<FieldMapper> flattenedMappers = new ArrayList<>();
-        ContentPath path = new ContentPath();
-        asFlattenedFieldMappers(context, flattenedMappers, path);
-        return flattenedMappers;
-    }
-
-    private void asFlattenedFieldMappers(MapperBuilderContext context, List<FieldMapper> flattenedMappers, ContentPath path) {
-        ensureFlattenable(context, path);
-        path.add(leafName());
-        for (Mapper mapper : mappers.values()) {
-            if (mapper instanceof FieldMapper fieldMapper) {
-                FieldMapper.Builder fieldBuilder = fieldMapper.getMergeBuilder();
-                fieldBuilder.setLeafName(path.pathAsText(mapper.leafName()));
-                flattenedMappers.add(fieldBuilder.build(context));
-            } else if (mapper instanceof ObjectMapper objectMapper) {
-                objectMapper.asFlattenedFieldMappers(context, flattenedMappers, path);
-            }
-        }
-        path.remove();
-    }
-
-    private void ensureFlattenable(MapperBuilderContext context, ContentPath path) {
-        if (dynamic != null && context.getDynamic() != dynamic) {
-            throwAutoFlatteningException(
-                path,
-                "the value of [dynamic] ("
-                    + dynamic
-                    + ") is not compatible with the value from its parent context ("
-                    + context.getDynamic()
-                    + ")"
-            );
-        }
-        if (sourceKeepMode.isPresent()) {
-            throwAutoFlatteningException(
-                path,
-                "the value of [" + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM + "] is [ " + sourceKeepMode.get() + " ]"
-            );
-        }
-        if (isEnabled() == false) {
-            throwAutoFlatteningException(path, "the value of [enabled] is [false]");
-        }
-        if (subobjects.explicit() && subobjects.value() == Subobjects.ENABLED) {
-            throwAutoFlatteningException(path, "the value of [subobjects] is [true]");
-        }
-    }
-
-    private void throwAutoFlatteningException(ContentPath path, String reason) {
-        throw new IllegalArgumentException(
-            "Object mapper ["
-                + path.pathAsText(leafName())
-                + "] was found in a context where subobjects is set to false. "
-                + "Auto-flattening ["
-                + path.pathAsText(leafName())
-                + "] failed because "
-                + reason
-        );
     }
 
     @Override

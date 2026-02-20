@@ -9,8 +9,7 @@ package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.compute.lucene.DataPartitioning;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -32,6 +31,7 @@ import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.test.ESTestCase;
@@ -80,16 +80,17 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
         );
         EsPhysicalOperationProviders provider = new EsPhysicalOperationProviders(
             FoldContext.small(),
-            List.of(new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)),
+            new IndexedByShardIdFromSingleton<>(
+                new EsPhysicalOperationProviders.DefaultShardContext(0, () -> {}, createMockContext(), AliasFilter.EMPTY)
+            ),
             null,
-            new PhysicalSettings(DataPartitioning.AUTO, ByteSizeValue.ofMb(1))
+            PlannerSettings.DEFAULTS
         );
         for (TestCase testCase : testCases) {
             EsQueryExec queryExec = new EsQueryExec(
                 Source.EMPTY,
                 "test",
                 IndexMode.STANDARD,
-                Map.of(),
                 List.of(),
                 null,
                 null,
@@ -145,7 +146,7 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY);
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.values()));
         return new SearchExecutionContext(
             0,
             0,
@@ -166,7 +167,9 @@ public class EsPhysicalOperationProvidersTests extends ESTestCase {
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

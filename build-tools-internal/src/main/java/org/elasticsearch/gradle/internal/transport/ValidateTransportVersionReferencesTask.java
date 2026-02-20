@@ -9,7 +9,7 @@
 
 package org.elasticsearch.gradle.internal.transport;
 
-import org.gradle.api.DefaultTask;
+import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTask;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.services.ServiceReference;
@@ -30,7 +30,7 @@ import java.nio.file.Path;
  * Validates that each transport version reference has a referable definition.
  */
 @CacheableTask
-public abstract class ValidateTransportVersionReferencesTask extends DefaultTask implements VerificationTask {
+public abstract class ValidateTransportVersionReferencesTask extends PrecommitTask implements VerificationTask {
 
     @ServiceReference("transportVersionResources")
     abstract Property<TransportVersionResourcesService> getTransportResources();
@@ -58,8 +58,8 @@ public abstract class ValidateTransportVersionReferencesTask extends DefaultTask
                         + tvReference.name()
                         + "\") was used at "
                         + tvReference.location()
-                        + ", but lacks a"
-                        + " transport version definition. This can be generated with the <TODO> task" // todo
+                        + ", but lacks a transport version definition. "
+                        + "If this is a new transport version, run './gradlew generateTransportVersion'."
                 );
             }
         }

@@ -1,0 +1,351 @@
+// tests for add operation
+
+addDenseVectors
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 + vector_field_2
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[1.1, 2.2, 3.3]
+[4.4, 5.5, 6.6]
+[9.9, 8.8, 7.7]
+[1.054, 2.032, 3.012]
+;
+
+addDenseVectorWithLiteral
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 + to_dense_vector([1.0, 2.0, 3.0])
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[2.0, 4.0, 6.0]
+[5.0, 7.0, 9.0]
+[10.0, 10.0, 10.0]
+[1.054, 2.032, 3.012]
+;
+
+addDenseVectorWithLiteralInverse
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = to_dense_vector([1.0, 2.0, 3.0]) + vector_field_1
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[2.0, 4.0, 6.0]
+[5.0, 7.0, 9.0]
+[10.0, 10.0, 10.0]
+[1.054, 2.032, 3.012]
+;
+
+addDenseVectorWithNull
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 + null
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+null
+null
+null
+null
+;
+
+addDenseVectorWithNullInverse
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = null + vector_field_1
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+null
+null
+null
+null
+;
+
+addDenseVectorsDimensionMismatch
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 + to_dense_vector([1.0, 2.0, 3.0, 4.0])
+| SORT id
+| KEEP result_vector;
+
+warningRegex:evaluation.*failed
+warningRegex:java.lang.IllegalArgumentException: dense_vector dimensions do not match
+result_vector:dense_vector
+null
+null
+null
+null
+;
+
+// tests for sub operation
+
+subDenseVectors
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 - vector_field_2
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[0.9, 1.8, 2.7]
+[3.6, 4.5, 5.4]
+[8.1, 7.2, 6.3]
+[-0.946, -1.968, -2.988]
+;
+
+subDenseVectorWithLiteral
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 - to_dense_vector([1.0, 2.0, 3.0])
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[0.0, 0.0, 0.0]
+[3.0, 3.0, 3.0]
+[8.0, 6.0, 4.0]
+[-0.946, -1.968, -2.988]
+;
+
+subDenseVectorWithLiteralInverse
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = to_dense_vector([1.0, 2.0, 3.0]) - vector_field_1
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[0.0, 0.0, 0.0]
+[-3.0, -3.0, -3.0]
+[-8.0, -6.0, -4.0]
+[0.946, 1.968, 2.988]
+;
+
+subDenseVectorWithNull
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 - null
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+null
+null
+null
+null
+;
+
+subDenseVectorWithNullInverse
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = null - vector_field_1
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+null
+null
+null
+null
+;
+
+subDenseVectorsDimensionMismatch
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 - to_dense_vector([1.0, 2.0, 3.0, 4.0])
+| SORT id
+| KEEP result_vector;
+
+warningRegex:evaluation.*failed
+warningRegex:java.lang.IllegalArgumentException: dense_vector dimensions do not match
+result_vector:dense_vector
+null
+null
+null
+null
+;
+
+// tests for mul operation
+
+mulDenseVectors
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 * vector_field_2
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[0.1, 0.4, 0.90000004]
+[1.6, 2.5, 3.6000001]
+[8.099999, 6.4, 4.9]
+[0.054, 0.064, 0.036]
+;
+
+mulDenseVectorWithLiteral
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 * to_dense_vector([1.0, 2.0, 3.0])
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[1.0, 4.0, 9.0]
+[4.0, 10.0, 18.0]
+[9.0, 16.0, 21.0]
+[0.054, 0.064, 0.036]
+;
+
+mulDenseVectorWithLiteralInverse
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = to_dense_vector([1.0, 2.0, 3.0]) * vector_field_1
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[1.0, 4.0, 9.0]
+[4.0, 10.0, 18.0]
+[9.0, 16.0, 21.0]
+[0.054, 0.064, 0.036]
+;
+
+mulDenseVectorWithNull
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 * null
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+null
+null
+null
+null
+;
+
+mulDenseVectorWithNullInverse
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = null * vector_field_1
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+null
+null
+null
+null
+;
+
+mulDenseVectorsDimensionMismatch
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 * to_dense_vector([1.0, 2.0, 3.0, 4.0])
+| SORT id
+| KEEP result_vector;
+
+warningRegex:evaluation.*failed
+warningRegex:java.lang.IllegalArgumentException: dense_vector dimensions do not match
+result_vector:dense_vector
+null
+null
+null
+null
+;
+
+// tests for div operation
+
+divDenseVectors
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 / vector_field_2
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[10.0, 10.0, 10.0]
+[10.0, 10.0, 10.0]
+[10.0, 10.0, 10.0]
+[0.054, 0.016, 0.004]
+;
+
+divDenseVectorWithLiteral
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 / to_dense_vector([1.0, 2.0, 3.0])
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[1.0, 1.0, 1.0]
+[4.0, 2.5, 2.0]
+[9.0, 4.0, 2.333333333]
+[0.054, 0.016, 0.004]
+;
+
+divDenseVectorWithLiteralInverse
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = to_dense_vector([1.0, 2.0, 3.0]) / vector_field_1
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+[1.0, 1.0, 1.0]
+[0.25, 0.4, 0.5]
+[0.11111111, 0.25, 0.42857143]
+[18.518518, 62.499996, 250.0]
+;
+
+divDenseVectorWithNull
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 / null
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+null
+null
+null
+null
+;
+
+divDenseVectorWithNullInverse
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = null / vector_field_1
+| SORT id
+| KEEP result_vector;
+
+result_vector:dense_vector
+null
+null
+null
+null
+;
+
+divDenseVectorsDimensionMismatch
+required_capability: dense_vector_arithmetic
+FROM dense_vector_arithmetic
+| eval result_vector = vector_field_1 / to_dense_vector([1.0, 2.0, 3.0, 4.0])
+| SORT id
+| KEEP result_vector;
+
+warningRegex:evaluation.*failed
+warningRegex:java.lang.IllegalArgumentException: dense_vector dimensions do not match
+result_vector:dense_vector
+null
+null
+null
+null
+;

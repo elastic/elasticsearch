@@ -207,9 +207,7 @@ public class RestThreadPoolAction extends AbstractCatAction {
                 Integer size = null;
 
                 if (poolInfo != null) {
-                    if (poolInfo.getQueueSize() != null) {
-                        maxQueueSize = poolInfo.getQueueSize().singles();
-                    }
+                    maxQueueSize = poolInfo.getQueueSize();
                     if (poolInfo.getKeepAlive() != null) {
                         keepAlive = poolInfo.getKeepAlive();
                     }

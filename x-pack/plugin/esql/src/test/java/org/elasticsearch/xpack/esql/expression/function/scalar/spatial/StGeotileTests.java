@@ -23,6 +23,8 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.MAX_ZOOM;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.hamcrest.Matchers.containsString;
 
@@ -39,11 +41,12 @@ public class StGeotileTests extends SpatialGridFunctionTestCase {
         return SpatialGridFunctionTestCase.licenseRequirement(fieldTypes);
     }
 
+    @SuppressWarnings("checkstyle:LineLength")
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        addTestCaseSuppliers(suppliers, new DataType[] { DataType.GEO_POINT }, StGeotileTests::valueOf, StGeotileTests::boundedValueOf);
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        addTestCaseSuppliers(suppliers, new DataType[] { GEO_POINT }, GEOTILE, StGeotileTests::valueOf, StGeotileTests::boundedValueOf);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     private static long valueOf(BytesRef wkb, int precision) {

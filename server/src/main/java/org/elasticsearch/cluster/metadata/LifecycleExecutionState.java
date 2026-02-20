@@ -11,7 +11,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.util.LenientBooleans;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,7 +41,8 @@ public record LifecycleExecutionState(
     String snapshotName,
     String shrinkIndexName,
     String snapshotIndexName,
-    String downsampleIndexName
+    String downsampleIndexName,
+    String forceMergeCloneIndexName
 ) {
 
     public static final String ILM_CUSTOM_METADATA_KEY = "ilm";
@@ -64,6 +66,7 @@ public record LifecycleExecutionState(
     private static final String SNAPSHOT_INDEX_NAME = "snapshot_index_name";
     private static final String SHRINK_INDEX_NAME = "shrink_index_name";
     private static final String DOWNSAMPLE_INDEX_NAME = "rollup_index_name";
+    private static final String FORCE_MERGE_CLONE_INDEX_NAME = "force_merge_clone_index_name";
 
     public static final LifecycleExecutionState EMPTY_STATE = LifecycleExecutionState.builder().build();
 
@@ -89,7 +92,8 @@ public record LifecycleExecutionState(
             .setShrinkIndexName(state.shrinkIndexName)
             .setSnapshotIndexName(state.snapshotIndexName)
             .setDownsampleIndexName(state.downsampleIndexName)
-            .setStepTime(state.stepTime);
+            .setStepTime(state.stepTime)
+            .setForceMergeCloneIndexName(state.forceMergeCloneIndexName);
     }
 
     public static LifecycleExecutionState fromCustomMetadata(Map<String, String> customData) {
@@ -202,14 +206,20 @@ public record LifecycleExecutionState(
         if (downsampleIndexName != null) {
             builder.setDownsampleIndexName(downsampleIndexName);
         }
+        String forceMergeCloneIndexName = customData.get(FORCE_MERGE_CLONE_INDEX_NAME);
+        if (forceMergeCloneIndexName != null) {
+            builder.setForceMergeCloneIndexName(forceMergeCloneIndexName);
+        }
         return builder.build();
     }
 
-    @SuppressForbidden(
-        reason = "TODO Deprecate any lenient usage of Boolean#parseBoolean https://github.com/elastic/elasticsearch/issues/128993"
-    )
     private static boolean parseIsAutoRetryableError(String isAutoRetryableError) {
-        return Boolean.parseBoolean(isAutoRetryableError);
+        return LenientBooleans.parseAndCheckForDeprecatedUsage(
+            isAutoRetryableError,
+            LenientBooleans.UsageCategory.INDEX_METADATA,
+            IS_AUTO_RETRYABLE_ERROR,
+            DeprecationCategory.PARSING
+        );
     }
 
     /**
@@ -274,18 +284,37 @@ public record LifecycleExecutionState(
         if (downsampleIndexName != null) {
             result.put(DOWNSAMPLE_INDEX_NAME, downsampleIndexName);
         }
+        if (forceMergeCloneIndexName != null) {
+            result.put(FORCE_MERGE_CLONE_INDEX_NAME, forceMergeCloneIndexName);
+        }
         return Collections.unmodifiableMap(result);
     }
 
-    public static String truncateWithExplanation(String input) {
-        if (input != null && input.length() > MAXIMUM_STEP_INFO_STRING_LENGTH) {
-            return Strings.cleanTruncate(input, MAXIMUM_STEP_INFO_STRING_LENGTH)
-                + "... ("
-                + (input.length() - MAXIMUM_STEP_INFO_STRING_LENGTH)
-                + " chars truncated)";
-        } else {
-            return input;
+    /**
+     * Truncates a potentially long JSON string to ensure it does not exceed {@link #MAXIMUM_STEP_INFO_STRING_LENGTH}. If truncation
+     * occurs, an explanation suffix is appended to the truncated string indicating <i>approximately</i> how many characters were removed.
+     * We return an approximation because we're valuing code simplicity over accuracy in this area.
+     *
+     * @param json the JSON string to potentially truncate
+     * @return the original JSON string if its length is within the limit, otherwise a truncated version with an explanation suffix - in
+     * correct JSON format
+     */
+    public static String potentiallyTruncateLongJsonWithExplanation(String json) {
+        if (json == null || json.length() <= MAXIMUM_STEP_INFO_STRING_LENGTH) {
+            return json;
         }
+        // we'll now do our best to truncate the JSON and have the result be valid JSON.
+        // a long input JSON should generally only be possible with an exception turned into JSON that's well-formatted.
+        // if we fail to produce valid JSON, we might return invalid JSON in REST API in niche cases, so this isn't catastrophic.
+        assert json.startsWith("{\"") && json.endsWith("\"}") : "expected more specific JSON format, might produce invalid JSON";
+        final int roughNumberOfCharsTruncated = json.length() - MAXIMUM_STEP_INFO_STRING_LENGTH;
+        final String truncationExplanation = "... (~" + roughNumberOfCharsTruncated + " chars truncated)\"}";
+        // To ensure that the resulting string is always <= the max, we also need to remove the length of our suffix.
+        // This means that the actual number of characters removed is `truncationExplanation.length()` more than we say it is.
+        final String truncated = Strings.cleanTruncate(json, MAXIMUM_STEP_INFO_STRING_LENGTH - truncationExplanation.length())
+            + truncationExplanation;
+        assert truncated.length() <= MAXIMUM_STEP_INFO_STRING_LENGTH : "truncation didn't work";
+        return truncated;
     }
 
     public static class Builder {
@@ -307,6 +336,7 @@ public record LifecycleExecutionState(
         private String shrinkIndexName;
         private String snapshotIndexName;
         private String downsampleIndexName;
+        private String forceMergeCloneIndexName;
 
         public Builder setPhase(String phase) {
             this.phase = phase;
@@ -329,7 +359,7 @@ public record LifecycleExecutionState(
         }
 
         public Builder setStepInfo(String stepInfo) {
-            this.stepInfo = truncateWithExplanation(stepInfo);
+            this.stepInfo = potentiallyTruncateLongJsonWithExplanation(stepInfo);
             return this;
         }
 
@@ -398,6 +428,11 @@ public record LifecycleExecutionState(
             return this;
         }
 
+        public Builder setForceMergeCloneIndexName(String forceMergeCloneIndexName) {
+            this.forceMergeCloneIndexName = forceMergeCloneIndexName;
+            return this;
+        }
+
         public LifecycleExecutionState build() {
             return new LifecycleExecutionState(
                 phase,
@@ -417,7 +452,8 @@ public record LifecycleExecutionState(
                 snapshotName,
                 shrinkIndexName,
                 snapshotIndexName,
-                downsampleIndexName
+                downsampleIndexName,
+                forceMergeCloneIndexName
             );
         }
     }

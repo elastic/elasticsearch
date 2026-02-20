@@ -4,8 +4,8 @@
 Calculates the cosine similarity between two dense_vectors.
 
 ```esql
- from colors
- | where color != "black"
- | eval similarity = v_cosine(rgb_vector, [0, 255, 255])
- | sort similarity desc, color asc
+from colors
+| where color != "black"
+| eval similarity = v_cosine(rgb_vector, [0, 255, 255])
+| sort similarity desc, color asc
 ```

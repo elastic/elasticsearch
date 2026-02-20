@@ -345,8 +345,7 @@ public class RealmsAuthenticatorTests extends AbstractAuthenticatorTests {
             SecurityMetricType.AUTHC_REALMS,
             Map.ofEntries(
                 Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_NAME, unsuccessfulRealm.name()),
-                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_TYPE, unsuccessfulRealm.type()),
-                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_AUTHC_FAILURE_REASON, "unsuccessful realms authentication")
+                Map.entry(RealmsAuthenticator.ATTRIBUTE_REALM_TYPE, unsuccessfulRealm.type())
             )
         );
 

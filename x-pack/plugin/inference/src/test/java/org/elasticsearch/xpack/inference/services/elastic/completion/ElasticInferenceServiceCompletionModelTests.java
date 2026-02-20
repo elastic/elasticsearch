@@ -7,13 +7,10 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
-import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.util.List;
 
@@ -22,15 +19,7 @@ import static org.hamcrest.Matchers.is;
 public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
 
     public void testOverridingModelId() {
-        var originalModel = new ElasticInferenceServiceCompletionModel(
-            "id",
-            TaskType.COMPLETION,
-            "elastic",
-            new ElasticInferenceServiceCompletionServiceSettings("model_id", new RateLimitSettings(100)),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
-            ElasticInferenceServiceComponents.of("url")
-        );
+        var originalModel = createModel("url", "model_id", TaskType.COMPLETION);
 
         var request = new UnifiedCompletionRequest(
             List.of(new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("message"), "user", null, null)),
@@ -47,5 +36,62 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
 
         assertThat(overriddenModel.getServiceSettings().modelId(), is("new_model_id"));
         assertThat(overriddenModel.getTaskType(), is(TaskType.COMPLETION));
+    }
+
+    public void testUriCreation() {
+        var model = createModel("http://eis-gateway.com", "my-model-id", TaskType.COMPLETION);
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/chat"));
+    }
+
+    public void testUriCreation_WithTrailingSlash() {
+        var model = createModel("http://eis-gateway.com/", "my-model-id", TaskType.COMPLETION);
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/chat"));
+    }
+
+    public void testGetServiceSettings() {
+        var modelId = "test-model";
+        var model = createModel("http://eis-gateway.com", modelId, TaskType.COMPLETION);
+
+        var serviceSettings = model.getServiceSettings();
+        assertThat(serviceSettings.modelId(), is(modelId));
+    }
+
+    public void testGetTaskType() {
+        var model = createModel("http://eis-gateway.com", "my-model-id", TaskType.COMPLETION);
+        assertThat(model.getTaskType(), is(TaskType.COMPLETION));
+    }
+
+    public void testGetInferenceEntityId() {
+        var inferenceEntityId = "test-id";
+        var model = new ElasticInferenceServiceCompletionModel(
+            inferenceEntityId,
+            TaskType.COMPLETION,
+            new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
+            ElasticInferenceServiceComponents.of("http://eis-gateway.com")
+        );
+
+        assertThat(model.getInferenceEntityId(), is(inferenceEntityId));
+    }
+
+    public void testModelWithOverriddenServiceSettings() {
+        var originalModel = createModel("http://eis-gateway.com", "original-model", TaskType.COMPLETION);
+        var newServiceSettings = new ElasticInferenceServiceCompletionServiceSettings("new-model");
+
+        var overriddenModel = new ElasticInferenceServiceCompletionModel(originalModel, newServiceSettings);
+
+        assertThat(overriddenModel.getServiceSettings().modelId(), is("new-model"));
+        assertThat(overriddenModel.getTaskType(), is(TaskType.COMPLETION));
+        assertThat(overriddenModel.uri().toString(), is(originalModel.uri().toString()));
+    }
+
+    public static ElasticInferenceServiceCompletionModel createModel(String url, String modelId, TaskType taskType) {
+        return new ElasticInferenceServiceCompletionModel(
+            "id",
+            taskType,
+            new ElasticInferenceServiceCompletionServiceSettings(modelId),
+            ElasticInferenceServiceComponents.of(url)
+        );
     }
 }

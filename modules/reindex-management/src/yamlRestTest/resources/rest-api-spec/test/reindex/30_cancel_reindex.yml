@@ -1,0 +1,123 @@
+setup:
+  - requires:
+      test_runner_features: capabilities
+      reason: Reindex cancel is added as part of reindex management feature
+      capabilities:
+        - method: POST
+          path: /_reindex/{task_id}/_cancel
+          capabilities: [ reindex_management_api ]
+
+  # ingest a few docs so throttled tasks run long enough to be able to cancel
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "source" } }'
+          - '{ "test_key": "v1" }'
+          - '{ "create": { "_index": "source" } }'
+          - '{ "test_key": "v2" }'
+          - '{ "create": { "_index": "source" } }'
+          - '{ "test_key": "v3" }'
+          - '{ "create": { "_index": "source" } }'
+          - '{ "test_key": "v4" }'
+          - '{ "create": { "_index": "source" } }'
+          - '{ "test_key": "v5" }'
+
+---
+"Cancel running reindex returns response and GET confirms completed":
+  - do:
+      reindex:
+        wait_for_completion: false
+        # should mean it takes it about 50 seconds to complete, so will be available for cancellation
+        requests_per_second: 0.1
+        slices: 1
+        body:
+          source:
+            index: source
+            size: 1
+          dest:
+            index: dest
+  - is_true: task
+  - set: { task: taskId }
+
+  - do:
+      reindex_cancel:
+        task_id: $taskId
+        human: true
+  - match: { completed: true }
+  - exists: id
+  - exists: start_time
+  - gte: { start_time_in_millis: 0 }
+  - exists: running_time
+  - gte: { running_time_in_nanos: 0 }
+  - match: { cancelled: true }
+  - match: { status.canceled: "by user request" }
+  - gte: { status.total: 0 }
+  # different from `GET _reindex`
+  - not_exists: response
+
+  - do:
+      reindex_get:
+        task_id: $taskId
+        wait_for_completion: false
+  - match: { completed: true }
+  - match: { id: $taskId }
+  # cancelled is not serialized to tasks index, so returns default boolean value (yes, confusing.)
+  - match: { cancelled: false }
+  - match: { status.canceled: "by user request" }
+
+
+---
+"Cancelling task on nonexisting node returns 404":
+  - do:
+      reindex_cancel:
+        task_id: node-missing:123
+      catch: missing
+  - is_true: error
+  - match: { error.type: resource_not_found_exception }
+  - match: { error.reason: 'reindex task [node-missing:123] either not found or completed' }
+
+  - do:
+      reindex_cancel:
+        task_id: node-missing:123
+        wait_for_completion: false
+      catch: missing
+  - is_true: error
+  - match: { error.type: resource_not_found_exception }
+  - match: { error.reason: 'reindex task [node-missing:123] either not found or completed' }
+
+---
+"Cancelling a delete_by_query task returns 404":
+  - do:
+      delete_by_query:
+        wait_for_completion: false
+        # should mean it takes it about 50 seconds to complete, so will be available for cancellation
+        requests_per_second: 0.1
+        slices: 1
+        index: source
+        body:
+          query:
+            match_all: { }
+  - is_true: task
+  - set: { task: deleteTaskId }
+
+  - do:
+      tasks.get:
+        task_id: $deleteTaskId
+        wait_for_completion: false
+  - match: { completed: false }
+  - match: { task.description: "delete-by-query [source]" }
+  - match: { task.cancellable: true }
+
+  - do:
+      reindex_cancel:
+        task_id: $deleteTaskId
+      catch: missing
+  - match: { error.type: resource_not_found_exception }
+  - match: { error.reason: '/^reindex\ task\ \[.*?]\ either\ not\ found\ or\ completed$/' }
+
+  # cleanup
+  - do:
+      tasks.cancel:
+        task_id: $deleteTaskId
+        wait_for_completion: true

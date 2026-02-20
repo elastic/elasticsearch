@@ -32,7 +32,6 @@ public class KqlParserBooleanQueryTests extends AbstractKqlParserTestCase {
             }
 
             String notQuery = wrapWithRandomWhitespaces("NOT ") + baseQuery;
-
             BoolQueryBuilder parsedQuery = asInstanceOf(BoolQueryBuilder.class, parseKqlQuery(notQuery));
             assertThat(parsedQuery.filter(), empty());
             assertThat(parsedQuery.should(), empty());

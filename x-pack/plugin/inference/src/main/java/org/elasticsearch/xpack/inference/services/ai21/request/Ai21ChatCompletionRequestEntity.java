@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.ai21.request;
 
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity;
-import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Ai21ChatCompletionRequestEntity is responsible for creating the request entity for Ai21 chat completion.
@@ -23,18 +22,18 @@ import java.util.Objects;
  */
 public class Ai21ChatCompletionRequestEntity implements ToXContentObject {
 
-    private final Ai21ChatCompletionModel model;
+    private final String modelId;
     private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
 
-    public Ai21ChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, Ai21ChatCompletionModel model) {
+    public Ai21ChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, @Nullable String modelId) {
         this.unifiedRequestEntity = new UnifiedChatCompletionRequestEntity(unifiedChatInput);
-        this.model = Objects.requireNonNull(model);
+        this.modelId = modelId;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(model.getServiceSettings().modelId(), params));
+        unifiedRequestEntity.toXContent(builder, UnifiedCompletionRequest.withMaxTokens(modelId, params));
         builder.endObject();
         return builder;
     }

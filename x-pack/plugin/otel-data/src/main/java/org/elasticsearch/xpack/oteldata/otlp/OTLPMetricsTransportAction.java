@@ -7,28 +7,34 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.action.ActionResponse;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsPartialSuccess;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceRequest;
+import io.opentelemetry.proto.collector.metrics.v1.ExportMetricsServiceResponse;
+
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xpack.oteldata.OTelPlugin;
+import org.elasticsearch.xpack.oteldata.otlp.datapoint.DataPointGroupingContext;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MappingHints;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.MetricDocumentBuilder;
+import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
+import java.util.Map;
 
 /**
  * Transport action for handling OpenTelemetry Protocol (OTLP) Metrics requests.
@@ -39,71 +45,76 @@ import java.io.IOException;
  *
  * @see <a href="https://opentelemetry.io/docs/specs/otlp">OTLP Specification</a>
  */
-public class OTLPMetricsTransportAction extends HandledTransportAction<
-    OTLPMetricsTransportAction.MetricsRequest,
-    OTLPMetricsTransportAction.MetricsResponse> {
+public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
 
     public static final String NAME = "indices:data/write/otlp/metrics";
-    public static final ActionType<MetricsResponse> TYPE = new ActionType<>(NAME);
+    public static final ActionType<OTLPActionResponse> TYPE = new ActionType<>(NAME);
 
-    private static final Logger logger = LogManager.getLogger(OTLPMetricsTransportAction.class);
-    private final Client client;
+    // visible for testing
+    volatile MappingHints defaultMappingHints;
 
     @Inject
     public OTLPMetricsTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ThreadPool threadPool,
-        Client client
+        Client client,
+        ClusterService clusterService
     ) {
-        super(NAME, transportService, actionFilters, MetricsRequest::new, threadPool.executor(ThreadPool.Names.WRITE));
-        this.client = client;
+        super(NAME, transportService, actionFilters, threadPool, client);
+        ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        defaultMappingHints = MappingHints.fromSettings(clusterSettings.get(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE));
+        clusterSettings.addSettingsUpdateConsumer(OTelPlugin.USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE, histogramFieldTypeSetting -> {
+            defaultMappingHints = MappingHints.fromSettings(histogramFieldTypeSetting);
+        });
     }
 
     @Override
-    protected void doExecute(Task task, MetricsRequest request, ActionListener<MetricsResponse> listener) {
-        listener.onResponse(new MetricsResponse(RestStatus.NOT_IMPLEMENTED, new BytesArray(new byte[0])));
+    protected ProcessingContext prepareBulkRequest(OTLPActionRequest request, BulkRequestBuilder bulkRequestBuilder) throws IOException {
+        BufferedByteStringAccessor byteStringAccessor = new BufferedByteStringAccessor();
+        DataPointGroupingContext context = new DataPointGroupingContext(byteStringAccessor);
+        var metricsServiceRequest = ExportMetricsServiceRequest.parseFrom(request.getRequest().streamInput());
+        context.groupDataPoints(metricsServiceRequest);
+        if (context.totalDataPoints() == 0) {
+            return context;
+        }
+        MetricDocumentBuilder metricDocumentBuilder = new MetricDocumentBuilder(byteStringAccessor, defaultMappingHints);
+        context.consume(dataPointGroup -> addIndexRequest(bulkRequestBuilder, metricDocumentBuilder, dataPointGroup));
+        return context;
     }
 
-    public static class MetricsRequest extends ActionRequest implements CompositeIndicesRequest {
-        private final BytesReference exportMetricsServiceRequest;
-
-        public MetricsRequest(StreamInput in) throws IOException {
-            super(in);
-            exportMetricsServiceRequest = in.readBytesReference();
-        }
-
-        public MetricsRequest(BytesReference exportMetricsServiceRequest) {
-            this.exportMetricsServiceRequest = exportMetricsServiceRequest;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
-        }
+    @Override
+    protected ExportMetricsServiceResponse responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
+        ExportMetricsPartialSuccess partialSuccess = ExportMetricsPartialSuccess.newBuilder()
+            .setRejectedDataPoints(rejectedDataPoints)
+            .setErrorMessage(message)
+            .build();
+        return ExportMetricsServiceResponse.newBuilder().setPartialSuccess(partialSuccess).build();
     }
 
-    public static class MetricsResponse extends ActionResponse {
-        private final BytesReference response;
-        private final RestStatus status;
-
-        public MetricsResponse(RestStatus status, BytesReference response) {
-            this.response = response;
-            this.status = status;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeBytesReference(response);
-            out.writeEnum(status);
-        }
-
-        public BytesReference getResponse() {
-            return response;
-        }
-
-        public RestStatus getStatus() {
-            return status;
+    private void addIndexRequest(
+        BulkRequestBuilder bulkRequestBuilder,
+        MetricDocumentBuilder metricDocumentBuilder,
+        DataPointGroupingContext.DataPointGroup dataPointGroup
+    ) throws IOException {
+        try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
+            var dynamicTemplates = Maps.<String, String>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
+            var dynamicTemplateParams = Maps.<String, Map<String, String>>newHashMapWithExpectedSize(dataPointGroup.dataPoints().size());
+            BytesRef tsid = metricDocumentBuilder.buildMetricDocument(
+                xContentBuilder,
+                dataPointGroup,
+                dynamicTemplates,
+                dynamicTemplateParams
+            );
+            bulkRequestBuilder.add(
+                new IndexRequest(dataPointGroup.targetIndex().index()).opType(DocWriteRequest.OpType.CREATE)
+                    .setRequireDataStream(true)
+                    .source(xContentBuilder)
+                    .tsid(tsid)
+                    .setIncludeSourceOnError(false)
+                    .setDynamicTemplates(dynamicTemplates)
+                    .setDynamicTemplateParams(dynamicTemplateParams)
+            );
         }
     }
 }

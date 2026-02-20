@@ -1,5 +1,0 @@
-pr: 132738
-summary: Fix `AsyncOperator` status values and add emitted rows
-area: ES|QL
-type: bug
-issues: []

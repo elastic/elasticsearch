@@ -9,19 +9,35 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryProfilerProvider {
     private final int kParam;
     private long vectorOpsCount;
+    private final boolean earlyTermination;
 
     public ESKnnFloatVectorQuery(String field, float[] target, int k, int numCands, Query filter, KnnSearchStrategy strategy) {
+        this(field, target, k, numCands, filter, strategy, false);
+    }
+
+    public ESKnnFloatVectorQuery(
+        String field,
+        float[] target,
+        int k,
+        int numCands,
+        Query filter,
+        KnnSearchStrategy strategy,
+        boolean earlyTermination
+    ) {
         super(field, target, numCands, filter, strategy);
         this.kParam = k;
+        this.earlyTermination = earlyTermination;
     }
 
     @Override
@@ -43,5 +59,11 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
 
     public KnnSearchStrategy getStrategy() {
         return searchStrategy;
+    }
+
+    @Override
+    protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
+        KnnCollectorManager knnCollectorManager = super.getKnnCollectorManager(k, searcher);
+        return earlyTermination ? PatienceCollectorManager.wrap(knnCollectorManager) : knnCollectorManager;
     }
 }

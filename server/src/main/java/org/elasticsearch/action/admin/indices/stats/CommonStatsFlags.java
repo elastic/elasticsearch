@@ -9,8 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -56,9 +54,6 @@ public final class CommonStatsFlags implements Writeable, Cloneable {
                 flags.add(flag);
             }
         }
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readStringArray();
-        }
         groups = in.readStringArray();
         fieldDataFields = in.readStringArray();
         completionDataFields = in.readStringArray();
@@ -73,10 +68,6 @@ public final class CommonStatsFlags implements Writeable, Cloneable {
             longFlags |= (1 << flag.getIndex());
         }
         out.writeLong(longFlags);
-
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeStringArrayNullable(Strings.EMPTY_ARRAY);
-        }
         out.writeStringArrayNullable(groups);
         out.writeStringArrayNullable(fieldDataFields);
         out.writeStringArrayNullable(completionDataFields);

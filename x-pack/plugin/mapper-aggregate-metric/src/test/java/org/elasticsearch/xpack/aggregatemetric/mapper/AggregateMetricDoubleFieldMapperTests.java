@@ -6,12 +6,23 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
+import org.apache.lucene.document.SortedNumericDocValuesField;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
@@ -20,12 +31,14 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Metric;
 import org.hamcrest.Matchers;
+import org.junit.Assert;
 import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
@@ -39,6 +52,7 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Names.IGNORE_MALFORMED;
 import static org.elasticsearch.xpack.aggregatemetric.mapper.AggregateMetricDoubleFieldMapper.Names.METRICS;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -57,7 +71,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
 
     @Override
     protected void minimalMapping(XContentBuilder b) throws IOException {
-        b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max", "value_count" }).field(DEFAULT_METRIC, "max");
+        b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max", "value_count" });
     }
 
     @Override
@@ -67,13 +81,11 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
         }));
 
         checker.registerConflictCheck(METRICS_FIELD, fieldMapping(this::minimalMapping), fieldMapping(b -> {
-            b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" }).field(DEFAULT_METRIC, "max");
+            b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max" });
         }));
 
         checker.registerConflictCheck(METRICS_FIELD, fieldMapping(this::minimalMapping), fieldMapping(b -> {
-            b.field("type", CONTENT_TYPE)
-                .field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" })
-                .field(DEFAULT_METRIC, "min");
+            b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "min", "max", "value_count", "sum" });
         }));
     }
 
@@ -97,6 +109,11 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
+    protected String[] getParseMaximalWarnings() {
+        return new String[] { "Parameter [default_metric] is deprecated and will be removed in a future version" };
+    }
+
     /**
      * Test parsing field mapping and adding simple field
      */
@@ -105,7 +122,12 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(
             source(b -> b.startObject("field").field("min", -10.1).field("max", 50.0).field("value_count", 14).endObject())
         );
-        assertEquals("DoubleField <field.min:-10.1>", doc.rootDoc().getField("field.min").toString());
+
+        IndexableField f = doc.rootDoc().getField("field.min");
+        assertThat(f, instanceOf(SortedNumericDocValuesField.class));
+        SortedNumericDocValuesField sdv = (SortedNumericDocValuesField) f;
+        assertEquals(NumericUtils.doubleToSortableLong(-10.1), sdv.numericValue());
+        assertThat(sdv.fieldType().docValuesSkipIndexType(), equalTo(DocValuesSkipIndexType.NONE));
 
         Mapper fieldMapper = mapper.mappers().getMapper("field");
         assertThat(fieldMapper, instanceOf(AggregateMetricDoubleFieldMapper.class));
@@ -272,10 +294,10 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
     private void randomMapping(XContentBuilder b, int randomNumber) throws IOException {
         b.field("type", CONTENT_TYPE);
         switch (randomNumber) {
-            case 0 -> b.field(METRICS_FIELD, new String[] { "min" }).field(DEFAULT_METRIC, "min");
-            case 1 -> b.field(METRICS_FIELD, new String[] { "max" }).field(DEFAULT_METRIC, "max");
-            case 2 -> b.field(METRICS_FIELD, new String[] { "value_count" }).field(DEFAULT_METRIC, "value_count");
-            case 3 -> b.field(METRICS_FIELD, new String[] { "sum" }).field(DEFAULT_METRIC, "sum");
+            case 0 -> b.field(METRICS_FIELD, new String[] { "min" });
+            case 1 -> b.field(METRICS_FIELD, new String[] { "max" });
+            case 2 -> b.field(METRICS_FIELD, new String[] { "value_count" });
+            case 3 -> b.field(METRICS_FIELD, new String[] { "sum" });
         }
     }
 
@@ -322,82 +344,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
                 b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "value_count", "sum" }).field(DEFAULT_METRIC, "sum")
             )
         );
-
-        Mapper fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(AggregateMetricDoubleFieldMapper.class));
-        assertEquals(Metric.sum, ((AggregateMetricDoubleFieldMapper) fieldMapper).defaultMetric());
-    }
-
-    /**
-     * Test the default_metric when not set explicitly. When only a single metric is contained, this is set as the default
-     */
-    public void testImplicitDefaultMetricSingleMetric() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "value_count" }))
-        );
-
-        Mapper fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(AggregateMetricDoubleFieldMapper.class));
-        assertEquals(Metric.value_count, ((AggregateMetricDoubleFieldMapper) fieldMapper).defaultMetric);
-    }
-
-    /**
-     * Test the default_metric when not set explicitly, by default we have set it to be the max.
-     */
-    public void testImplicitDefaultMetric() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
-        Mapper fieldMapper = mapper.mappers().getMapper("field");
-        assertThat(fieldMapper, instanceOf(AggregateMetricDoubleFieldMapper.class));
-        assertEquals(Metric.max, ((AggregateMetricDoubleFieldMapper) fieldMapper).defaultMetric);
-    }
-
-    /**
-     * Test the default_metric when not set explicitly. When more than one metrics are contained
-     * and max is not one of them, an exception should be thrown.
-     */
-    public void testMissingDefaultMetric() {
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(
-                fieldMapping(b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, new String[] { "value_count", "sum" }))
-            )
-        );
-        assertThat(e.getMessage(), containsString("Property [default_metric] is required for field [field]."));
-    }
-
-    /**
-     * Test setting an invalid value for the default_metric. An exception must be thrown
-     */
-    public void testInvalidDefaultMetric() {
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(
-                fieldMapping(
-                    b -> b.field("type", CONTENT_TYPE)
-                        .field(METRICS_FIELD, new String[] { "value_count", "sum" })
-                        .field(DEFAULT_METRIC, "invalid_metric")
-                )
-            )
-        );
-        assertThat(e.getMessage(), containsString("Metric [invalid_metric] is not supported."));
-    }
-
-    /**
-     * Test setting a value for the default_metric that is not contained in the "metrics" field.
-     * An exception must be thrown
-     */
-    public void testUndefinedDefaultMetric() {
-        Exception e = expectThrows(
-            MapperParsingException.class,
-            () -> createDocumentMapper(
-                fieldMapping(
-                    b -> b.field("type", CONTENT_TYPE)
-                        .field(METRICS_FIELD, new String[] { "value_count", "sum" })
-                        .field(DEFAULT_METRIC, "min")
-                )
-            )
-        );
-        assertThat(e.getMessage(), containsString("Default metric [min] is not defined in the metrics of field [field]."));
+        assertParseMaximalWarnings();
     }
 
     /**
@@ -410,7 +357,6 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
                     .startObject("subfield")
                     .field("type", CONTENT_TYPE)
                     .field(METRICS_FIELD, new String[] { "min", "max", "sum", "value_count" })
-                    .field(DEFAULT_METRIC, "max")
                     .endObject()
                     .endObject()
             )
@@ -439,9 +385,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
     public void testNoSubFieldsIterated() throws IOException {
         Metric[] values = Metric.values();
         List<Metric> subset = randomSubsetOf(randomIntBetween(1, values.length), values);
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, subset).field(DEFAULT_METRIC, subset.get(0)))
-        );
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", CONTENT_TYPE).field(METRICS_FIELD, subset)));
         Iterator<Mapper> iterator = mapper.mappers().getMapper("field").iterator();
         assertFalse(iterator.hasNext());
     }
@@ -461,8 +405,10 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
     protected void assertExistsQuery(MappedFieldType fieldType, Query query, LuceneDocument fields) {
         assertThat(query, Matchers.instanceOf(FieldExistsQuery.class));
         FieldExistsQuery fieldExistsQuery = (FieldExistsQuery) query;
-        String defaultMetric = ((AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType) fieldType).getDefaultMetric().name();
-        assertEquals("field." + defaultMetric, fieldExistsQuery.getField());
+        assertThat(
+            fieldExistsQuery.getField(),
+            anyOf(equalTo("field.min"), equalTo("field.max"), equalTo("field.sum"), equalTo("field.value_count"))
+        );
         assertNoFieldNamesField(fields);
     }
 
@@ -528,12 +474,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
 
     public void testArrayValueSyntheticSource() throws Exception {
         DocumentMapper mapper = createSytheticSourceMapperService(
-            fieldMapping(
-                b -> b.field("type", CONTENT_TYPE)
-                    .array("metrics", "min", "max")
-                    .field("default_metric", "min")
-                    .field("ignore_malformed", "true")
-            )
+            fieldMapping(b -> b.field("type", CONTENT_TYPE).array("metrics", "min", "max").field("ignore_malformed", "true"))
         ).documentMapper();
 
         var randomString = randomAlphaOfLength(10);
@@ -597,7 +538,7 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
 
         private void mapping(XContentBuilder b) throws IOException {
             String[] metrics = storedMetrics.stream().map(Metric::toString).toArray(String[]::new);
-            b.field("type", CONTENT_TYPE).array(METRICS_FIELD, metrics).field(DEFAULT_METRIC, metrics[0]);
+            b.field("type", CONTENT_TYPE).array(METRICS_FIELD, metrics);
             if (malformedExample) {
                 b.field(IGNORE_MALFORMED, true);
             }
@@ -618,4 +559,61 @@ public class AggregateMetricDoubleFieldMapperTests extends MapperTestCase {
     protected boolean supportsCopyTo() {
         return false;
     }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        Settings settings = Settings.builder().put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true).build();
+        return List.of(
+            new SortShortcutSupport(
+                IndexVersion.current(),
+                settings,
+                "field",
+                this::minimalMapping,
+                b -> {},
+                this::writeField,
+                Assert::assertNotNull
+            )
+        );
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;   // can't configure `index` so normal test doesn't work
+    }
+
+    public void testIndexTypes() throws Exception {
+        {
+            var indexSettings = getIndexSettingsBuilder().put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "dimension_field")
+                .build();
+            MapperService mapperService = createMapperService(indexSettings, fieldMapping(this::minimalMapping));
+            MappedFieldType ft = mapperService.fieldType("field");
+            assertIndexType(ft, IndexType.skippers());
+        }
+        {
+            var oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.AGG_METRIC_DOUBLE_REMOVE_POINTS);
+            MapperService mapperService = createMapperService(oldVersion, fieldMapping(this::minimalMapping));
+            MappedFieldType ft = mapperService.fieldType("field");
+            assertIndexType(ft, IndexType.points(true, true));
+        }
+        {
+            MapperService mapperService = createMapperService(
+                IndexVersions.AGG_METRIC_DOUBLE_REMOVE_POINTS,
+                fieldMapping(this::minimalMapping)
+            );
+            MappedFieldType ft = mapperService.fieldType("field");
+            assertIndexType(ft, IndexType.docValuesOnly());
+        }
+    }
+
+    private void assertIndexType(MappedFieldType ft, IndexType indexType) {
+        assertThat(ft, instanceOf(AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType.class));
+        AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType aft =
+            (AggregateMetricDoubleFieldMapper.AggregateMetricDoubleFieldType) ft;
+        assertThat(aft.indexType(), equalTo(indexType));
+        for (MappedFieldType subField : aft.getMetricFields().values()) {
+            assertThat(subField.indexType(), equalTo(indexType));
+        }
+    }
+
 }

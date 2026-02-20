@@ -11,7 +11,6 @@ package org.elasticsearch.threadpool;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -160,7 +159,7 @@ public final class FixedExecutorBuilder extends ExecutorBuilder<FixedExecutorBui
             size,
             size,
             null,
-            queueSize < 0 ? null : new SizeValue(queueSize)
+            queueSize < 0 ? null : (long) queueSize
         );
         return new ThreadPool.ExecutorHolder(executor, info);
     }

@@ -19,10 +19,10 @@
  */
 package org.elasticsearch.index.codec.postings;
 
+import org.apache.lucene.backward_codecs.lucene90.blocktree.FieldReader;
+import org.apache.lucene.backward_codecs.lucene90.blocktree.Stats;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.CompetitiveImpactAccumulator;
-import org.apache.lucene.codecs.lucene90.blocktree.FieldReader;
-import org.apache.lucene.codecs.lucene90.blocktree.Stats;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.DirectoryReader;

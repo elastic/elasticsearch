@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack: ga
+  serverless: ga
 navigation_title: "Math functions"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html#esql-math-functions
@@ -18,13 +21,22 @@ mapped_pages:
 :::{include} ../_snippets/functions/layout/acos.md
 :::
 
+:::{include} ../_snippets/functions/layout/acosh.md
+:::
+
 :::{include} ../_snippets/functions/layout/asin.md
+:::
+
+:::{include} ../_snippets/functions/layout/asinh.md
 :::
 
 :::{include} ../_snippets/functions/layout/atan.md
 :::
 
 :::{include} ../_snippets/functions/layout/atan2.md
+:::
+
+:::{include} ../_snippets/functions/layout/atanh.md
 :::
 
 :::{include} ../_snippets/functions/layout/cbrt.md

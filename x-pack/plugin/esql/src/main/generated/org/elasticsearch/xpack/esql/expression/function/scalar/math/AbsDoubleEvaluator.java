@@ -61,18 +61,19 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   public DoubleBlock eval(int positionCount, DoubleBlock fieldValBlock) {
     try(DoubleBlock.Builder result = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldValBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldValBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldValBlock.getValueCount(p) != 1) {
-          if (fieldValBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        result.appendDouble(Abs.process(fieldValBlock.getDouble(fieldValBlock.getFirstValueIndex(p))));
+        double fieldVal = fieldValBlock.getDouble(fieldValBlock.getFirstValueIndex(p));
+        result.appendDouble(Abs.process(fieldVal));
       }
       return result.build();
     }
@@ -81,7 +82,8 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
   public DoubleVector eval(int positionCount, DoubleVector fieldValVector) {
     try(DoubleVector.FixedBuilder result = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendDouble(p, Abs.process(fieldValVector.getDouble(p)));
+        double fieldVal = fieldValVector.getDouble(p);
+        result.appendDouble(p, Abs.process(fieldVal));
       }
       return result.build();
     }
@@ -99,12 +101,7 @@ public final class AbsDoubleEvaluator implements EvalOperator.ExpressionEvaluato
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }

@@ -1474,6 +1474,11 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, Long.toString(defaultValue), s -> parseLong(s, minValue, key, isFiltered), properties);
     }
 
+    public static Setting<Long> longSetting(String key, Function<Settings, String> defaultValueFn, long minValue, Property... properties) {
+        boolean isFiltered = isFiltered(properties);
+        return new Setting<>(key, defaultValueFn, s -> parseLong(s, minValue, key, isFiltered), properties);
+    }
+
     public static Setting<Instant> dateSetting(String key, Instant defaultValue, Validator<Instant> validator, Property... properties) {
         final String defaultString = defaultValue.toString();
         return new Setting<>(
@@ -1821,11 +1826,19 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<List<String>> stringListSetting(String key, List<String> defValue, Property... properties) {
-        return new ListSetting<>(key, null, s -> defValue, s -> parseableStringToList(s, Function.identity()), v -> {}, properties) {
+        return stringListSettingWithDefaultProvider(key, s -> defValue, properties);
+    }
+
+    public static Setting<List<String>> stringListSettingWithDefaultProvider(
+        String key,
+        Function<Settings, List<String>> defValueProvider,
+        Property... properties
+    ) {
+        return new ListSetting<>(key, null, defValueProvider, s -> parseableStringToList(s, Function.identity()), v -> {}, properties) {
             @Override
             public List<String> get(Settings settings) {
                 checkDeprecation(settings);
-                return settings.getAsList(getKey(), defValue);
+                return settings.getAsList(getKey(), defValueProvider.apply(settings));
             }
         };
     }
@@ -1850,6 +1863,15 @@ public class Setting<T> implements ToXContentObject {
         final Property... properties
     ) {
         return listSetting(key, null, singleValueParser, s -> defaultStringValue, properties);
+    }
+
+    public static <T> Setting<List<T>> listSetting(
+        final String key,
+        final Function<Settings, List<String>> defaultStringValueProvider,
+        final Function<String, T> singleValueParser,
+        final Property... properties
+    ) {
+        return listSetting(key, null, singleValueParser, defaultStringValueProvider, properties);
     }
 
     public static <T> Setting<List<T>> listSetting(
@@ -1981,7 +2003,7 @@ public class Setting<T> implements ToXContentObject {
             if (exists(source) == false) {
                 List<String> asList = defaultSettings.getAsList(getKey(), null);
                 if (asList == null) {
-                    builder.putList(getKey(), defaultStringValue.apply(defaultSettings));
+                    builder.putList(getKey(), defaultStringValue.apply(source));
                 } else {
                     builder.putList(getKey(), asList);
                 }

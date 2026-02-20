@@ -291,7 +291,7 @@ public class SearchApplicationIndexService {
     }
 
     private void updateSearchApplication(SearchApplication app, boolean create, ActionListener<DocWriteResponse> listener) {
-        try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(0, bigArrays.withCircuitBreaking())) {
+        try (ReleasableBytesStreamOutput buffer = new ReleasableBytesStreamOutput(bigArrays.withCircuitBreaking())) {
             try (XContentBuilder source = XContentFactory.jsonBuilder(buffer)) {
                 source.startObject()
                     .field(SearchApplication.NAME_FIELD.getPreferredName(), app.name())
@@ -476,7 +476,7 @@ public class SearchApplicationIndexService {
 
     static SearchApplication parseSearchApplicationBinaryWithVersion(StreamInput in, String[] indices) throws IOException {
         TransportVersion version = TransportVersion.readVersion(in);
-        assert version.onOrBefore(TransportVersion.current()) : version + " >= " + TransportVersion.current();
+        assert TransportVersion.current().supports(version) : version + " >= " + TransportVersion.current();
         in.setTransportVersion(version);
         return new SearchApplication(in, indices);
     }

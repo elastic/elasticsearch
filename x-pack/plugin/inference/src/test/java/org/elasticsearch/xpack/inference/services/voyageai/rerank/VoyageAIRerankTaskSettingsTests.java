@@ -22,9 +22,9 @@ import static org.hamcrest.Matchers.containsString;
 public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTestCase<VoyageAIRerankTaskSettings> {
 
     public static VoyageAIRerankTaskSettings createRandom() {
-        var returnDocuments = randomBoolean() ? randomBoolean() : null;
+        var returnDocuments = randomOptionalBoolean();
         var topNDocsOnly = randomBoolean() ? randomIntBetween(1, 10) : null;
-        var truncation = randomBoolean() ? randomBoolean() : null;
+        var truncation = randomOptionalBoolean();
 
         return new VoyageAIRerankTaskSettings(topNDocsOnly, returnDocuments, truncation);
     }
@@ -139,7 +139,17 @@ public class VoyageAIRerankTaskSettingsTests extends AbstractWireSerializingTest
 
     @Override
     protected VoyageAIRerankTaskSettings mutateInstance(VoyageAIRerankTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, VoyageAIRerankTaskSettingsTests::createRandom);
+        var topKDocumentsOnly = instance.getTopKDocumentsOnly();
+        var doReturnDocuments = instance.getReturnDocuments();
+        var truncation = instance.getTruncation();
+        switch (randomInt(2)) {
+            case 0 -> topKDocumentsOnly = randomValueOtherThan(topKDocumentsOnly, () -> randomFrom(randomIntBetween(1, 10), null));
+            case 1 -> doReturnDocuments = doReturnDocuments == null ? randomBoolean() : doReturnDocuments == false;
+            case 2 -> truncation = truncation == null ? randomBoolean() : truncation == false;
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new VoyageAIRerankTaskSettings(topKDocumentsOnly, doReturnDocuments, truncation);
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {

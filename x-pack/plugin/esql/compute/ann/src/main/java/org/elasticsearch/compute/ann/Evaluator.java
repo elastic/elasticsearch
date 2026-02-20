@@ -42,4 +42,11 @@ public @interface Evaluator {
      * into a warning and turn into a null value.
      */
     Class<? extends Exception>[] warnExceptions() default {};
+
+    /**
+     * Automatically evaluate each position to null if it is null on all the
+     * blocks. Setting this to {@code false} requires block parameters, like
+     * {@code static boolean process(@Position int position, LongBlock field1, LongBlock field2)}
+     */
+    boolean allNullsIsNull() default true;
 }

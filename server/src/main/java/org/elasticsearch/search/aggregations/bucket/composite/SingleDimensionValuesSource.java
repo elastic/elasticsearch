@@ -144,7 +144,7 @@ abstract class SingleDimensionValuesSource<T extends Comparable<T>> implements R
      * Returns true if a {@link SortedDocsProducer} should be used to optimize the execution.
      */
     protected boolean checkIfSortedDocsIsApplicable(IndexReader reader, MappedFieldType fieldType) {
-        if (fieldType == null || (missingBucket && afterValue == null) || fieldType.isIndexed() == false ||
+        if (fieldType == null || (missingBucket && afterValue == null) || fieldType.indexType().supportsSortShortcuts() == false ||
         // inverse of the natural order
             reverseMul == -1) {
             return false;

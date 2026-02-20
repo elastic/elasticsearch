@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.bucket.sampler;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -141,7 +140,7 @@ public class SamplerAggregationBuilder extends AbstractAggregationBuilder<Sample
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     @Override

@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.index;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.common.Strings;
@@ -41,30 +40,14 @@ public class IndexResponse extends DocWriteResponse {
 
     public IndexResponse(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
-        } else {
-            executedPipelines = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            failureStoreStatus = IndexDocFailureStoreStatus.read(in);
-        } else {
-            failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
-        }
+        executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
+        failureStoreStatus = IndexDocFailureStoreStatus.read(in);
     }
 
     public IndexResponse(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
-        } else {
-            executedPipelines = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            failureStoreStatus = IndexDocFailureStoreStatus.read(in);
-        } else {
-            failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
-        }
+        executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
+        failureStoreStatus = IndexDocFailureStoreStatus.read(in);
     }
 
     public IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean created) {
@@ -123,23 +106,15 @@ public class IndexResponse extends DocWriteResponse {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            failureStoreStatus.writeTo(out);
-        }
+        out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
+        failureStoreStatus.writeTo(out);
     }
 
     @Override
     public void writeThin(StreamOutput out) throws IOException {
         super.writeThin(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            failureStoreStatus.writeTo(out);
-        }
+        out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
+        failureStoreStatus.writeTo(out);
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {

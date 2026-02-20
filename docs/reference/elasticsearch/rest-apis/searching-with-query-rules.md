@@ -82,6 +82,13 @@ The following command will create a query ruleset called `my-ruleset` with two q
 * The first rule will generate a [Pinned Query](/reference/query-languages/query-dsl/query-dsl-pinned-query.md) pinning the [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md)s `id1` and `id2` when the `query_string` metadata value is a fuzzy match to either `puggles` or `pugs` *and* the user’s location is in the US.
 * The second rule will generate a query that excludes the [`_id`](/reference/elasticsearch/mapping-reference/mapping-id-field.md) `id3` specifically from the `my-index-000001` index and `id4` from the `my-index-000002` index when the `query_string` metadata value contains `beagles`.
 
+<!--
+```console
+PUT /my-index-000001
+```
+% TESTSETUP
+-->
+
 ```console
 PUT /_query_rules/my-ruleset
 {
@@ -147,6 +154,7 @@ There is a limit of 100 rules per ruleset. This can be increased up to 1000 usin
   "result": "created"
 }
 ```
+% TEST[continued]
 
 You can use the [Get query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-get-ruleset) call to retrieve the ruleset you just created, the [List query rulesets](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-list-rulesets) call to retrieve a summary of all query rulesets, and the [Delete query ruleset](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-query-rules-delete-ruleset) call to delete a query ruleset.
 
@@ -184,6 +192,7 @@ GET /my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 This rule query will match against `rule1` in the defined query ruleset, and will convert the organic query into a pinned query with `id1` and `id2` pinned as the top hits. Any other matches from the organic query will be returned below the pinned results.
 
@@ -235,6 +244,7 @@ GET my-index-000001/_search
   }
 }
 ```
+% TEST[continued]
 
 This will apply pinned and excluded query rules on top of the content that was reranked by RRF.
 

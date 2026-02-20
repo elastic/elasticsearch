@@ -2,13 +2,16 @@
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/rest-apis.html
   - https://www.elastic.co/guide/en/serverless/current/elasticsearch-differences.html
+applies_to:
+  stack: ga
+  serverless: ga
 ---
 
 # REST APIs
 
 Elasticsearch exposes REST APIs that are used by the UI components and can be called directly to configure and access Elasticsearch features.
 
-For API reference information, go to [Elasticsearch API](https://www.elastic.co/docs/api/doc/elasticsearch) and [Elasticsearch Serverless API](https://www.elastic.co/docs/api/doc/elasticsearch-serverless).
+For API reference information, go to [{{es}} API]({{es-apis}}) and [{{es-serverless}} API]({{es-serverless-apis}}).
 
 This section includes:
 
@@ -18,17 +21,6 @@ This section includes:
 - [Examples](/reference/elasticsearch/rest-apis/api-examples.md)
 
 ## API endpoints
-
-### [Autoscaling](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-autoscaling)
-
-The autoscaling APIs enable you to create and manage autoscaling policies and retrieve information about autoscaling capacity. Autoscaling adjusts resources based on demand. A deployment can use autoscaling to scale resources as needed, ensuring sufficient capacity to meet workload requirements.
-
-| API | Description |
-| --- | ----------- |
-| [Get Autoscaling Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-get-autoscaling-policy) | Retrieves a specific autoscaling policy. |
-| [Create or update an autoscaling policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-put-autoscaling-policy) | Creates or updates an autoscaling policy. |
-| [Delete Autoscaling Policy](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-delete-autoscaling-policy) | Deletes an existing autoscaling policy. |
-| [Get Autoscaling Capacity](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-get-autoscaling-capacity) | Estimates autoscaling capacity for current cluster state. |
 
 ### [Behavioral analytics](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-analytics)
 
@@ -96,6 +88,8 @@ The cluster APIs enable you to retrieve information about your infrastructure on
 | [Get cluster remote info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-remote-info) | Returns information about configured remote clusters for cross-cluster search and replication. |
 | [Update cluster voting config exclusions](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-post-voting-config-exclusions) | Update the cluster voting config exclusions by node IDs or node names. |
 | [Delete voting config exclusions](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-delete-voting-config-exclusions) | Clears voting configuration exclusions, allowing previously excluded nodes to participate in master elections. |
+| [Exclude nodes from voting](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-post-voting-config-exclusions) | Excludes nodes from voting in master elections. |
+| [Clear voting config exclusions](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-delete-voting-config-exclusions) | Clears voting config exclusions. |
 
 ### [Cluster - Health](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-health_report)
 
@@ -307,7 +301,7 @@ The index lifecycle management APIs enable you to set up policies to automatical
 
 ### [Inference](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-inference)
 
-The inference APIs enable you to create inference endpoints and integrate with machine learning models of different services - such as Amazon Bedrock, Anthropic, Azure AI Studio, Cohere, Google AI, Mistral, OpenAI, or HuggingFace.
+The inference APIs enable you to create inference endpoints and integrate with machine learning models of different services - such as Amazon Bedrock, Anthropic, Azure AI Studio, Cohere, Google AI, Groq, Mistral, OpenAI, or HuggingFace.
 
 | API | Description |
 | --- | ----------- |
@@ -380,7 +374,7 @@ The machine learning APIs enable you to retrieve information related to the {{st
 
 ### [Machine learning anomaly detection](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-ml-anomaly)
 
-The machine learning anomaly detection APIs enbale you to perform anomaly detection activities.
+The machine learning anomaly detection APIs enable you to perform anomaly detection activities.
 
 
 | API | Description |
@@ -398,8 +392,8 @@ The machine learning anomaly detection APIs enbale you to perform anomaly detect
 | [Create a calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-calendar) | Create a calendar. |
 | [Delete a calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-calendar) | Delete a calendar. |
 | [Delete events from a calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-calendar) | Delete events from a calendar. |
-| [Add anomaly detection job to calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-calendar-job) | Add an anomoly detection job to a calendar. |
-| [Delete anomaly detection jobs from calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-calendar-job) | Deletes anomoly detection jobs from a calendar. |
+| [Add anomaly detection job to calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-calendar-job) | Add an anomaly detection job to a calendar. |
+| [Delete anomaly detection jobs from calendar](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-calendar-job) | Deletes anomaly detection jobs from a calendar. |
 | [Get datafeeds configuration info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-get-datafeeds) | Get configuration information for a datafeed. |
 | [Create datafeed](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-put-datafeed) | Creates a datafeed. |
 | [Delete a datafeed](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-ml-delete-datafeed) | Deletes a datafeed. |
@@ -412,7 +406,7 @@ The machine learning anomaly detection APIs enbale you to perform anomaly detect
 
 ### [Machine learning data frame analytics](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-ml-data-frame)
 
-The machine learning data frame analytics APIs enbale you to perform data frame analytics activities.
+The machine learning data frame analytics APIs enable you to perform data frame analytics activities.
 
 | API | Description |
 | --- | ----------- |
@@ -446,15 +440,6 @@ The migration APIs power {{kib}}'s Upgrade Assistant feature.
 | [Get Feature Upgrade Status](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-migration-get-feature-upgrade-status) | Checks upgrade status of system features. |
 | [Post Feature Upgrade](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-migration-post-feature-upgrade) | Upgrades internal system features after a version upgrade. |
 
-### [Node lifecycle](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-shutdown)
-
-The node lifecycle APIs enable you to prepare nodes for temporary or permanent shutdown, monitor the shutdown status, and enable a previously shut-down node to resume normal operations.
-
-| API | Description |
-| --- | ----------- |
-| [Exclude nodes from voting](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-post-voting-config-exclusions) | Excludes nodes from voting in master elections. |
-| [Clear voting config exclusions](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-delete-voting-config-exclusions) | Clears voting config exclusions. |
-
 ### [Query rules](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-query_rules)
 
 Query rules enable you to configure per-query rules that are applied at query time to queries that match the specific rule. Query rules are organized into rulesets, collections of query rules that are matched against incoming queries. Query rules are applied using the rule query. If a query matches one or more rules in the ruleset, the query is re-written to apply the rules before searching. This allows pinning documents for only queries that match a specific term.
@@ -467,7 +452,7 @@ Query rules enable you to configure per-query rules that are applied at query ti
 
 ### [Rollup](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-rollup)
 
-The rollup APIs enable you to create, manage, and retrieve infromation about rollup jobs.
+The rollup APIs enable you to create, manage, and retrieve information about rollup jobs.
 
 | API | Description |
 | --- | ----------- |
@@ -489,7 +474,7 @@ Use the script support APIs to get a list of supported script contexts and langu
 | [Add or update stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-put-script) | Adds or updates a stored script. |
 | [Get stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get-script) | Retrieves a stored script. |
 | [Delete stored script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-delete-script) | Deletes a stored script. |
-| [Execute Painless script]https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-scripts-painless-execute) | Executes a script using the Painless language. |
+| [Execute Painless script](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-scripts-painless-execute) | Executes a script using the Painless language. |
 | [Get script contexts](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get-script-context) | Returns available script execution contexts. |
 | [Get script languages](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get-script-languages) | Returns available scripting languages. |
 
@@ -510,7 +495,7 @@ The search APIs enable you to search and aggregate data stored in {{es}} indices
 
 ### [Search application](https://www.elastic.co/docs/api/doc/elasticsearch/v9/group/endpoint-search_application)
 
-The search applcation APIs enable you to manage tasks and resources related to Search Applications.
+The search application APIs enable you to manage tasks and resources related to Search Applications.
 
 | API | Description |
 | --- | ----------- |

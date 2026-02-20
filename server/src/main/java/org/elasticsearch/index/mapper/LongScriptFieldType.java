@@ -83,7 +83,8 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
             searchLookup -> scriptFactory.newFactory(name, script.getParams(), searchLookup, onScriptError),
             script,
             scriptFactory.isResultDeterministic(),
-            meta
+            meta,
+            scriptFactory.isParsedFromSource()
         );
     }
 
@@ -108,7 +109,22 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
 
     @Override
     public BlockLoader blockLoader(BlockLoaderContext blContext) {
-        return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()));
+        var fallbackSyntheticSourceBlockLoader = numericFallbackSyntheticSourceBlockLoader(
+            blContext,
+            NumberType.LONG,
+            BlockLoader.BlockFactory::longs,
+            (values, blockBuilder) -> {
+                var builder = (BlockLoader.LongBuilder) blockBuilder;
+                for (var value : values) {
+                    builder.appendLong(value.longValue());
+                }
+            }
+        );
+        if (fallbackSyntheticSourceBlockLoader != null) {
+            return fallbackSyntheticSourceBlockLoader;
+        } else {
+            return new LongScriptBlockDocValuesReader.LongScriptBlockLoader(leafFactory(blContext.lookup()));
+        }
     }
 
     @Override
@@ -154,7 +170,7 @@ public final class LongScriptFieldType extends AbstractScriptFieldType<LongField
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         if (values.isEmpty()) {
-            return Queries.newMatchAllQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
         Set<Long> terms = Sets.newHashSetWithExpectedSize(values.size());
         for (Object value : values) {

@@ -21,9 +21,10 @@ public class RuntimeJava {
     private final boolean explicitlySet;
     private final String preReleaseType;
     private final Provider<String> vendorDetails;
+    private final Integer buildNumber;
 
     RuntimeJava(Provider<File> javahome, Provider<JavaVersion> javaVersion, Provider<String> vendorDetails, boolean explicitlySet) {
-        this(javahome, javaVersion, vendorDetails, explicitlySet, null);
+        this(javahome, javaVersion, vendorDetails, explicitlySet, null, null);
     }
 
     RuntimeJava(
@@ -31,13 +32,15 @@ public class RuntimeJava {
         Provider<JavaVersion> javaVersion,
         Provider<String> vendorDetails,
         boolean explicitlySet,
-        String preReleaseType
+        String preReleaseType,
+        Integer buildNumber
     ) {
         this.javahome = javahome;
         this.javaVersion = javaVersion;
         this.vendorDetails = vendorDetails;
         this.explicitlySet = explicitlySet;
         this.preReleaseType = preReleaseType;
+        this.buildNumber = buildNumber;
     }
 
     public Provider<File> getJavahome() {
@@ -62,5 +65,9 @@ public class RuntimeJava {
 
     public String getPreReleaseType() {
         return preReleaseType;
+    }
+
+    public Integer getBuildNumber() {
+        return buildNumber;
     }
 }

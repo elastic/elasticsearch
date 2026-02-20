@@ -51,14 +51,14 @@ public class QueryToFilterAdapter {
         // Wrapping with a ConstantScoreQuery enables a few more rewrite
         // rules as of Lucene 9.2
         query = searcher.rewrite(new ConstantScoreQuery(query));
-        if (query instanceof ConstantScoreQuery) {
+        if (query instanceof ConstantScoreQuery csq) {
             /*
              * Unwrap constant score because it gets in the way of us
              * understanding what the queries are trying to do and we
              * don't use the score at all anyway. Effectively we always
              * run in constant score mode.
              */
-            query = ((ConstantScoreQuery) query).getQuery();
+            query = csq.getQuery();
         }
         return new QueryToFilterAdapter(searcher, key, query);
     }
@@ -132,13 +132,12 @@ public class QueryToFilterAdapter {
         extraQuery = searcher().rewrite(new ConstantScoreQuery(extraQuery));
         Query unwrappedExtraQuery = unwrap(extraQuery);
         Query unwrappedQuery = unwrap(query);
-        if (unwrappedQuery instanceof PointRangeQuery && unwrappedExtraQuery instanceof PointRangeQuery) {
-            Query merged = MergedPointRangeQuery.merge((PointRangeQuery) unwrappedQuery, (PointRangeQuery) unwrappedExtraQuery);
-            if (merged != null) {
-                // Should we rewrap here?
-                return new QueryToFilterAdapter(searcher(), key(), merged);
-            }
+
+        Query merged = maybeMergeRangeQueries(unwrappedQuery, unwrappedExtraQuery);
+        if (merged != null) {
+            return new QueryToFilterAdapter(searcher(), key(), merged);
         }
+
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         builder.add(query, BooleanClause.Occur.FILTER);
         builder.add(extraQuery, BooleanClause.Occur.FILTER);
@@ -155,21 +154,28 @@ public class QueryToFilterAdapter {
         };
     }
 
+    private static Query maybeMergeRangeQueries(Query query, Query extraQuery) {
+        if (query instanceof PointRangeQuery q1 && extraQuery instanceof PointRangeQuery q2) {
+            return MergedPointRangeQuery.merge(q1, q2);
+        }
+        return null;
+    }
+
     private static Query unwrap(Query query) {
         while (true) {
-            if (query instanceof ConstantScoreQuery) {
-                query = ((ConstantScoreQuery) query).getQuery();
-                continue;
+            switch (query) {
+                case ConstantScoreQuery csq:
+                    query = csq.getQuery();
+                    continue;
+                case IndexSortSortedNumericDocValuesRangeQuery isq:
+                    query = isq.getFallbackQuery();
+                    continue;
+                case IndexOrDocValuesQuery idq:
+                    query = idq.getIndexQuery();
+                    continue;
+                default:
+                    return query;
             }
-            if (query instanceof IndexSortSortedNumericDocValuesRangeQuery) {
-                query = ((IndexSortSortedNumericDocValuesRangeQuery) query).getFallbackQuery();
-                continue;
-            }
-            if (query instanceof IndexOrDocValuesQuery) {
-                query = ((IndexOrDocValuesQuery) query).getIndexQuery();
-                continue;
-            }
-            return query;
         }
     }
 

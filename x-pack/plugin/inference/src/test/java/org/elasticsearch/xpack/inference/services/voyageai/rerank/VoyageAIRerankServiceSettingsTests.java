@@ -64,7 +64,8 @@ public class VoyageAIRerankServiceSettingsTests extends AbstractBWCWireSerializa
 
     @Override
     protected VoyageAIRerankServiceSettings mutateInstance(VoyageAIRerankServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, VoyageAIRerankServiceSettingsTests::createRandom);
+        var commonSettings = randomValueOtherThan(instance.getCommonSettings(), VoyageAIServiceSettingsTests::createRandom);
+        return new VoyageAIRerankServiceSettings(commonSettings);
     }
 
     @Override

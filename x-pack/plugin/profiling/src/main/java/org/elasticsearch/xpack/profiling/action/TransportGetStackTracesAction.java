@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -65,6 +66,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.random.RandomGenerator;
 
@@ -854,17 +856,18 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
     /**
      * Collects stack trace details which are retrieved concurrently and sends a response only when all details are known.
      */
-    private static class DetailsHandler {
+    static class DetailsHandler {
         private static final String[] PATH_FILE_NAME = new String[] { "Executable", "file", "name" };
         private final GetStackTracesResponseBuilder builder;
         private final ActionListener<GetStackTracesResponse> submitListener;
         private final Map<String, String> executables;
         private final Map<String, StackFrame> stackFrames;
-        private final AtomicInteger expectedSlices;
+        private final AtomicReference<Exception> failure = new AtomicReference<>();
+        private final CountDown countDown;
         private final AtomicInteger totalInlineFrames = new AtomicInteger();
         private final StopWatch watch = new StopWatch("retrieveStackTraceDetails");
 
-        private DetailsHandler(
+        DetailsHandler(
             GetStackTracesResponseBuilder builder,
             ActionListener<GetStackTracesResponse> submitListener,
             int executableCount,
@@ -878,16 +881,14 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             this.stackFrames = new ConcurrentHashMap<>(stackFrameCount);
             // for deciding when we're finished it is irrelevant where a slice originated, so we can
             // simplify state handling by treating them equally.
-            this.expectedSlices = new AtomicInteger(expectedExecutableSlices + expectedStackFrameSlices);
+            this.countDown = new CountDown(expectedExecutableSlices + expectedStackFrameSlices);
         }
 
-        public void onStackFramesResponse(MultiGetResponse multiGetItemResponses) {
+        void onStackFramesResponse(MultiGetResponse multiGetItemResponses) {
             for (MultiGetItemResponse frame : multiGetItemResponses) {
                 if (frame.isFailed()) {
-                    submitListener.onFailure(frame.getFailure().getFailure());
-                    return;
-                }
-                if (frame.getResponse().isExists()) {
+                    recordFailure(frame.getFailure().getFailure());
+                } else if (frame.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (stackFrames.containsKey(frame.getId()) == false) {
                         StackFrame stackFrame = StackFrame.fromSource(frame.getResponse().getSource());
@@ -904,13 +905,11 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             mayFinish();
         }
 
-        public void onExecutableDetailsResponse(MultiGetResponse multiGetItemResponses) {
+        void onExecutableDetailsResponse(MultiGetResponse multiGetItemResponses) {
             for (MultiGetItemResponse executable : multiGetItemResponses) {
                 if (executable.isFailed()) {
-                    submitListener.onFailure(executable.getFailure().getFailure());
-                    return;
-                }
-                if (executable.getResponse().isExists()) {
+                    recordFailure(executable.getFailure().getFailure());
+                } else if (executable.getResponse().isExists()) {
                     // Duplicates are expected as we query multiple indices - do a quick pre-check before we deserialize a response
                     if (executables.containsKey(executable.getId()) == false) {
                         Map<String, Object> source = executable.getResponse().getSource();
@@ -934,14 +933,29 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             mayFinish();
         }
 
-        public void mayFinish() {
-            if (expectedSlices.decrementAndGet() == 0) {
-                builder.setExecutables(executables);
-                builder.setStackFrames(stackFrames);
-                builder.addTotalFrames(totalInlineFrames.get());
-                log.debug("retrieveStackTraceDetails found [{}] stack frames, [{}] executables.", stackFrames.size(), executables.size());
-                log.debug(watch::report);
-                submitListener.onResponse(builder.build());
+        private void recordFailure(Exception e) {
+            final var firstException = failure.compareAndExchange(null, e);
+            if (firstException != null && firstException != e) {
+                firstException.addSuppressed(e);
+            }
+        }
+
+        private void mayFinish() {
+            if (countDown.countDown()) {
+                if (failure.get() != null) {
+                    submitListener.onFailure(failure.get());
+                } else {
+                    builder.setExecutables(executables);
+                    builder.setStackFrames(stackFrames);
+                    builder.addTotalFrames(totalInlineFrames.get());
+                    log.debug(
+                        "retrieveStackTraceDetails found [{}] stack frames, [{}] executables.",
+                        stackFrames.size(),
+                        executables.size()
+                    );
+                    log.debug(watch::report);
+                    submitListener.onResponse(builder.build());
+                }
             }
         }
     }

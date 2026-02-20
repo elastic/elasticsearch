@@ -10,31 +10,30 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.core.CheckedSupplier;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.SourceLoader;
 
 import java.io.IOException;
+import java.util.function.Supplier;
 
-public class SyntheticVectorsPatchFieldLoader implements SourceLoader.SyntheticVectorsLoader {
-    private final SourceLoader.SyntheticFieldLoader syntheticLoader;
-    private final CheckedSupplier<Object, IOException> copyObject;
+public class SyntheticVectorsPatchFieldLoader<T extends SourceLoader.SyntheticFieldLoader> implements SourceLoader.SyntheticVectorsLoader {
+    private final Supplier<T> syntheticLoaderSupplier;
+    private final CheckedFunction<T, Object, IOException> copyObject;
 
-    public SyntheticVectorsPatchFieldLoader(
-        SourceLoader.SyntheticFieldLoader syntheticLoader,
-        CheckedSupplier<Object, IOException> copyObject
-    ) {
-        this.syntheticLoader = syntheticLoader;
+    public SyntheticVectorsPatchFieldLoader(Supplier<T> syntheticLoaderSupplier, CheckedFunction<T, Object, IOException> copyObject) {
+        this.syntheticLoaderSupplier = syntheticLoaderSupplier;
         this.copyObject = copyObject;
     }
 
     public SourceLoader.SyntheticVectorsLoader.Leaf leaf(LeafReaderContext context) throws IOException {
+        var syntheticLoader = syntheticLoaderSupplier.get();
         var dvLoader = syntheticLoader.docValuesLoader(context.reader(), null);
         return (doc, acc) -> {
             if (dvLoader == null) {
                 return;
             }
             if (dvLoader.advanceToDoc(doc) && syntheticLoader.hasValue()) {
-                acc.add(new SourceLoader.LeafSyntheticVectorPath(syntheticLoader.fieldName(), copyObject.get()));
+                acc.add(new SourceLoader.LeafSyntheticVectorPath(syntheticLoader.fieldName(), copyObject.apply(syntheticLoader)));
             }
         };
     }

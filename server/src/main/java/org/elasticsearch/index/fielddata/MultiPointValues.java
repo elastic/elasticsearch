@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 
@@ -19,12 +18,12 @@ import java.io.IOException;
  */
 public abstract class MultiPointValues<T extends SpatialPoint> {
 
-    protected final SortedNumericDocValues numericValues;
+    protected final SortedNumericLongValues numericValues;
 
     /**
      * Creates a new {@link MultiPointValues} instance
      */
-    protected MultiPointValues(SortedNumericDocValues numericValues) {
+    protected MultiPointValues(SortedNumericLongValues numericValues) {
         this.numericValues = numericValues;
     }
 

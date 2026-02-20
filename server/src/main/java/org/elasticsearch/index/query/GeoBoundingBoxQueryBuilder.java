@@ -13,7 +13,6 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoBoundingBox;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
@@ -78,9 +78,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         super(in);
         fieldName = in.readString();
         geoBoundingBox = new GeoBoundingBox(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readVInt(); // ignore value
-        }
         validationMethod = GeoValidationMethod.readFromStream(in);
         ignoreUnmapped = in.readBoolean();
     }
@@ -89,9 +86,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         geoBoundingBox.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeVInt(0);
-        }
         validationMethod.writeTo(out);
         out.writeBoolean(ignoreUnmapped);
     }
@@ -244,7 +238,7 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "failed to find geo field [" + fieldName + "]");
             }
@@ -382,6 +376,6 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

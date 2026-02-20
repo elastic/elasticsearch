@@ -72,4 +72,5 @@ Which produces the following result:
   ]
 }
 ```
+% TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_version":"-3","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
 

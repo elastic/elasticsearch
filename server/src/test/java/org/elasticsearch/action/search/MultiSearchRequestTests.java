@@ -41,6 +41,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.search.RandomSearchRequestGenerator.randomSearchRequest;
@@ -98,7 +99,13 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException ex = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, true, new UsageService().getSearchUsageHolder(), nf -> false)
+            () -> RestMultiSearchAction.parseRequest(
+                restRequest,
+                true,
+                new UsageService().getSearchUsageHolder(),
+                nf -> false,
+                Optional.empty()
+            )
         );
         assertEquals("key [unknown_key] is not supported in the metadata section", ex.getMessage());
     }
@@ -116,7 +123,8 @@ public class MultiSearchRequestTests extends ESTestCase {
             restRequest,
             true,
             new UsageService().getSearchUsageHolder(),
-            nf -> false
+            nf -> false,
+            Optional.empty()
         );
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
@@ -139,7 +147,8 @@ public class MultiSearchRequestTests extends ESTestCase {
             restRequest,
             true,
             new UsageService().getSearchUsageHolder(),
-            nf -> false
+            nf -> false,
+            Optional.empty()
         );
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).indices()[0], equalTo("test"));
@@ -249,7 +258,13 @@ public class MultiSearchRequestTests extends ESTestCase {
         ).build();
         IllegalArgumentException expectThrows = expectThrows(
             IllegalArgumentException.class,
-            () -> RestMultiSearchAction.parseRequest(restRequest, true, new UsageService().getSearchUsageHolder(), nf -> false)
+            () -> RestMultiSearchAction.parseRequest(
+                restRequest,
+                true,
+                new UsageService().getSearchUsageHolder(),
+                nf -> false,
+                Optional.empty()
+            )
         );
         assertEquals("The msearch request must be terminated by a newline [\n]", expectThrows.getMessage());
 
@@ -262,7 +277,8 @@ public class MultiSearchRequestTests extends ESTestCase {
             restRequestWithNewLine,
             true,
             new UsageService().getSearchUsageHolder(),
-            nf -> false
+            nf -> false,
+            Optional.empty()
         );
         assertEquals(3, msearchRequest.requests().size());
     }
@@ -283,7 +299,7 @@ public class MultiSearchRequestTests extends ESTestCase {
                 new SearchSourceBuilder().parseXContent(parser, false, new UsageService().getSearchUsageHolder(), nf -> false)
             );
             request.add(searchRequest);
-        });
+        }, Optional.empty());
         return request;
     }
 
@@ -340,7 +356,9 @@ public class MultiSearchRequestTests extends ESTestCase {
                 null,
                 null,
                 null,
-                true
+                true,
+                Optional.empty(),
+                null
             );
             assertEquals(originalRequest, parsedRequest);
         }
@@ -528,11 +546,12 @@ public class MultiSearchRequestTests extends ESTestCase {
                 """);
             fail("should have caught second line; extra closing brackets");
         } catch (XContentParseException e) {
+            // Jackson 2.21.0 changed the error message format
             assertThat(
                 e.getMessage(),
                 containsString(
-                    "Unexpected close marker '}': expected ']' (for root starting at "
-                        + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\""
+                    "Unexpected close marker '}': no open Object to close\n"
+                        + " at [Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\""
                 )
             );
         }

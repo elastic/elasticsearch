@@ -107,7 +107,7 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
 
     @Override
     protected boolean strategyMustBeRebuilt(LinkedProjectConfig config) {
-        assert config instanceof ProxyLinkedProjectConfig : "expected config to be of type " + ProxyConnectionStrategy.class;
+        assert config instanceof ProxyLinkedProjectConfig : "expected config to be of type " + ProxyLinkedProjectConfig.class;
         final var proxyConfig = (ProxyLinkedProjectConfig) config;
         return proxyConfig.maxNumConnections() != maxNumConnections
             || configuredAddress.equals(proxyConfig.proxyAddress()) == false
@@ -163,7 +163,6 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
                     exceptions.put(new Tuple<>(e.getClass(), e.getMessage()), e);
                     if (countDown.countDown()) {
                         if (attemptNumber >= MAX_CONNECT_ATTEMPTS_PER_RUN && connectionManager.size() == 0) {
-                            logger.warn(() -> "failed to open any proxy connections to cluster [" + clusterAlias + "]", e);
                             if (exceptions.values().stream().allMatch(RemoteConnectionStrategy::isRetryableException)) {
                                 finished.onFailure(getNoSeedNodeLeftException(exceptions.values()));
                             } else {
@@ -219,9 +218,14 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
     }
 
     private NoSeedNodeLeftException getNoSeedNodeLeftException(Collection<Exception> suppressedExceptions) {
-        final var e = new NoSeedNodeLeftException(
-            "Unable to open any proxy connections to cluster [" + clusterAlias + "] at address [" + address.get() + "]"
+        final var msg = Strings.format(
+            "Unable to open any proxy connections to cluster [%s] at address [%s], configuredAddress=[%s], configuredServerName=[%s]",
+            clusterAlias,
+            address.get(),
+            configuredAddress,
+            configuredServerName
         );
+        final var e = new NoSeedNodeLeftException(msg);
         suppressedExceptions.forEach(e::addSuppressed);
         return e;
     }
@@ -297,6 +301,22 @@ public class ProxyConnectionStrategy extends RemoteConnectionStrategy {
         @Override
         public int hashCode() {
             return Objects.hash(address, serverName, maxSocketConnections, numSocketsConnected);
+        }
+
+        @Override
+        public String toString() {
+            return "ProxyModeInfo{"
+                + "address='"
+                + address
+                + '\''
+                + ", serverName='"
+                + serverName
+                + '\''
+                + ", maxSocketConnections="
+                + maxSocketConnections
+                + ", numSocketsConnected="
+                + numSocketsConnected
+                + '}';
         }
     }
 }

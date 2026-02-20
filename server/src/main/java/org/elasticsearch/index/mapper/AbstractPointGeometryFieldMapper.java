@@ -148,14 +148,13 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
     public abstract static class AbstractPointFieldType<T extends SpatialPoint> extends AbstractGeometryFieldType<T> {
         protected AbstractPointFieldType(
             String name,
-            boolean indexed,
+            IndexType indexType,
             boolean stored,
-            boolean hasDocValues,
             Parser<T> geometryParser,
             T nullValue,
             Map<String, String> meta
         ) {
-            super(name, indexed, stored, hasDocValues, geometryParser, nullValue, meta);
+            super(name, indexType, stored, geometryParser, nullValue, meta);
         }
 
         @Override

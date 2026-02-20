@@ -9,9 +9,9 @@
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -23,7 +23,7 @@ public class IntegerDocValuesField extends AbstractScriptFieldFactory<Integer>
         DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<Long> {
 
-    protected final SortedNumericDocValues input;
+    protected final SortedNumericLongValues input;
     protected final String name;
 
     protected int[] values = new int[0];
@@ -31,7 +31,7 @@ public class IntegerDocValuesField extends AbstractScriptFieldFactory<Integer>
 
     private ScriptDocValues.Longs longs = null;
 
-    public IntegerDocValuesField(SortedNumericDocValues input, String name) {
+    public IntegerDocValuesField(SortedNumericLongValues input, String name) {
         this.input = input;
         this.name = name;
     }

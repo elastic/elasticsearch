@@ -76,7 +76,8 @@ public class GoogleVertexAiSecretSettingsTests extends AbstractBWCWireSerializat
 
     @Override
     protected GoogleVertexAiSecretSettings mutateInstance(GoogleVertexAiSecretSettings instance) throws IOException {
-        return randomValueOtherThan(instance, GoogleVertexAiSecretSettingsTests::createRandom);
+        SecureString serviceAccountJson = randomValueOtherThan(instance.serviceAccountJson(), () -> randomSecureStringOfLength(30));
+        return new GoogleVertexAiSecretSettings(serviceAccountJson);
     }
 
     @Override

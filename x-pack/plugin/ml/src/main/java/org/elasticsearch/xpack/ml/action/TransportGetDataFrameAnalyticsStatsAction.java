@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.ml.dataframe.stats.StatsHolder;
 import org.elasticsearch.xpack.ml.utils.persistence.MlParserUtils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
@@ -278,7 +279,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
                             () -> format(
                                 "[%s] Item failure encountered during multi search for request [indices=%s, source=%s]: %s",
                                 config.getId(),
-                                itemRequest.indices(),
+                                Arrays.toString(itemRequest.indices()),
                                 itemRequest.source(),
                                 itemResponse.getFailureMessage()
                             ),

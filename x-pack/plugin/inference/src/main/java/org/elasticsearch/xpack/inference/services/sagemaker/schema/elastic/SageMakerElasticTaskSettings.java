@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.sagemaker.schema.elastic;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -26,6 +25,7 @@ import java.util.Map;
  */
 record SageMakerElasticTaskSettings(@Nullable Map<String, Object> passthroughSettings) implements SageMakerStoredTaskSchema {
     static final String NAME = "sagemaker_elastic_task_settings";
+    private static final TransportVersion ML_INFERENCE_SAGEMAKER_ELASTIC = TransportVersion.fromName("ml_inference_sagemaker_elastic");
 
     static SageMakerElasticTaskSettings empty() {
         return new SageMakerElasticTaskSettings(Map.of());
@@ -63,13 +63,12 @@ record SageMakerElasticTaskSettings(@Nullable Map<String, Object> passthroughSet
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.ML_INFERENCE_SAGEMAKER_ELASTIC;
+        return ML_INFERENCE_SAGEMAKER_ELASTIC;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.ML_INFERENCE_SAGEMAKER_ELASTIC)
-            || version.isPatchFrom(TransportVersions.ML_INFERENCE_SAGEMAKER_ELASTIC_8_19);
+        return version.supports(ML_INFERENCE_SAGEMAKER_ELASTIC);
     }
 
     @Override

@@ -50,6 +50,7 @@ import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -76,7 +77,8 @@ public class TransportService extends AbstractLifecycleComponent
     implements
         ReportingService<TransportInfo>,
         TransportMessageListener,
-        TransportConnectionListener {
+        TransportConnectionListener,
+        RemoteTransportClient {
 
     private static final Logger logger = LogManager.getLogger(TransportService.class);
 
@@ -96,7 +98,7 @@ public class TransportService extends AbstractLifecycleComponent
      * Undocumented on purpose, may be removed at any time. Only use this if instructed to do so, can have other unintended consequences
      * including deadlocks.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public static final Setting<Boolean> ENABLE_STACK_OVERFLOW_AVOIDANCE = Setting.boolSetting(
         "transport.enable_stack_protection",
         false,
@@ -129,8 +131,7 @@ public class TransportService extends AbstractLifecycleComponent
         }
     });
 
-    public static final TransportInterceptor NOOP_TRANSPORT_INTERCEPTOR = new TransportInterceptor() {
-    };
+    public static final TransportInterceptor NOOP_TRANSPORT_INTERCEPTOR = new TransportInterceptor() {};
 
     // tracer log
 
@@ -139,6 +140,8 @@ public class TransportService extends AbstractLifecycleComponent
     volatile String[] tracerLogInclude;
     volatile String[] tracerLogExclude;
 
+    private final LinkedProjectConfigService linkedProjectConfigService;
+    private final TelemetryProvider telemetryProvider;
     private final RemoteClusterService remoteClusterService;
 
     /**
@@ -275,6 +278,8 @@ public class TransportService extends AbstractLifecycleComponent
             clusterSettings,
             connectionManager,
             taskManger,
+            new ClusterSettingsLinkedProjectConfigService(settings, clusterSettings, DefaultProjectResolver.INSTANCE),
+            TelemetryProvider.NOOP,
             DefaultProjectResolver.INSTANCE
         );
     }
@@ -289,6 +294,8 @@ public class TransportService extends AbstractLifecycleComponent
         @Nullable ClusterSettings clusterSettings,
         ConnectionManager connectionManager,
         TaskManager taskManger,
+        LinkedProjectConfigService linkedProjectConfigService,
+        TelemetryProvider telemetryProvider,
         ProjectResolver projectResolver
     ) {
         this.transport = transport;
@@ -304,15 +311,17 @@ public class TransportService extends AbstractLifecycleComponent
         this.asyncSender = interceptor.interceptSender(this::sendRequestInternal);
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
         this.enableStackOverflowAvoidance = ENABLE_STACK_OVERFLOW_AVOIDANCE.get(settings);
+        this.linkedProjectConfigService = linkedProjectConfigService;
+        this.telemetryProvider = telemetryProvider;
         remoteClusterService = new RemoteClusterService(settings, this, projectResolver);
         responseHandlers = transport.getResponseHandlers();
         if (clusterSettings != null) {
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.TRACE_LOG_EXCLUDE_SETTING, this::setTracerLogExclude);
-            if (remoteClusterClient) {
-                remoteClusterService.listenForUpdates(clusterSettings);
-            }
             clusterSettings.addSettingsUpdateConsumer(TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING, transport::setSlowLogThreshold);
+        }
+        if (remoteClusterClient) {
+            linkedProjectConfigService.register(remoteClusterService);
         }
         registerRequestHandler(
             HANDSHAKE_ACTION_NAME,
@@ -350,6 +359,10 @@ public class TransportService extends AbstractLifecycleComponent
         this.tracerLogExclude = tracerLogExclude.toArray(Strings.EMPTY_ARRAY);
     }
 
+    public TelemetryProvider getTelemetryProvider() {
+        return telemetryProvider;
+    }
+
     @Override
     protected void doStart() {
         transport.setMessageListener(this);
@@ -365,7 +378,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         if (remoteClusterClient) {
             // here we start to connect to the remote clusters
-            remoteClusterService.initializeRemoteClusters();
+            remoteClusterService.initializeRemoteClusters(linkedProjectConfigService.getInitialLinkedProjectConfigs());
         }
     }
 
@@ -765,6 +778,7 @@ public class TransportService extends AbstractLifecycleComponent
         connectionManager.removeListener(listener);
     }
 
+    @Override
     public <T extends TransportResponse> void sendRequest(
         final DiscoveryNode node,
         final String action,

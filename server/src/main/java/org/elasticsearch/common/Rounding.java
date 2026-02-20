@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.common.time.LocalDateTimeUtils;
 import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
@@ -29,7 +30,6 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoField;
-import java.time.temporal.ChronoUnit;
 import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalField;
 import java.time.temporal.TemporalQueries;
@@ -308,6 +308,11 @@ public abstract class Rounding implements Writeable {
          * is {@code null}.
          */
         long[] fixedRoundingPoints();
+
+        /**
+         * @return the original {@link Rounding} that created this instance.
+         */
+        Rounding getUnprepared();
     }
 
     /**
@@ -546,16 +551,16 @@ public abstract class Rounding implements Writeable {
                     return LocalDateTime.of(localDateTime.getYear(), localDateTime.getMonthValue(), 1, 0, 0);
 
                 case QUARTER_OF_YEAR:
-                    return LocalDateTime.of(localDateTime.getYear(), localDateTime.getMonth().firstMonthOfQuarter(), 1, 0, 0);
+                    return LocalDateTime.of(localDateTime.getYear(), (((localDateTime.getMonthValue() - 1) / 3) * 3) + 1, 1, 0, 0);
 
                 case YEAR_OF_CENTURY:
                     return LocalDateTime.of(LocalDate.of(localDateTime.getYear(), 1, 1), LocalTime.MIDNIGHT);
 
                 case YEARS_OF_CENTURY:
-                    return LocalDateTime.of(LocalDate.of(localDateTime.getYear(), 1, 1), LocalTime.MIDNIGHT);
+                    return LocalDateTimeUtils.truncateToYears(localDateTime, multiplier);
 
                 case MONTHS_OF_YEAR:
-                    return LocalDateTime.of(localDateTime.getYear(), localDateTime.getMonthValue(), 1, 0, 0);
+                    return LocalDateTimeUtils.truncateToMonths(localDateTime, multiplier);
 
                 default:
                     throw new IllegalArgumentException("NOT YET IMPLEMENTED for unit " + unit);
@@ -716,6 +721,11 @@ public abstract class Rounding implements Writeable {
                         return (double) unit.ratio / timeUnit.ratio;
                     }
                 }
+            }
+
+            @Override
+            public Rounding getUnprepared() {
+                return TimeUnitRounding.this;
             }
 
             @Override
@@ -914,13 +924,11 @@ public abstract class Rounding implements Writeable {
                 assert localMidnight.toLocalTime().equals(LocalTime.MIDNIGHT) : "nextRelevantMidnight should only be called at midnight";
 
                 return switch (unit) {
-                    case DAY_OF_MONTH -> localMidnight.plus(1, ChronoUnit.DAYS);
-                    case WEEK_OF_WEEKYEAR -> localMidnight.plus(7, ChronoUnit.DAYS);
-                    case MONTH_OF_YEAR -> localMidnight.plus(1, ChronoUnit.MONTHS);
-                    case QUARTER_OF_YEAR -> localMidnight.plus(3, ChronoUnit.MONTHS);
-                    case YEAR_OF_CENTURY -> localMidnight.plus(1, ChronoUnit.YEARS);
-                    case YEARS_OF_CENTURY -> localMidnight.plus(1, ChronoUnit.YEARS);
-                    case MONTHS_OF_YEAR -> localMidnight.plus(1, ChronoUnit.MONTHS);
+                    case DAY_OF_MONTH -> localMidnight.plusDays(multiplier);
+                    case WEEK_OF_WEEKYEAR -> localMidnight.plusDays(7L * multiplier);
+                    case MONTH_OF_YEAR, MONTHS_OF_YEAR -> localMidnight.plusMonths(multiplier);
+                    case QUARTER_OF_YEAR -> localMidnight.plusMonths(3L * multiplier);
+                    case YEAR_OF_CENTURY, YEARS_OF_CENTURY -> localMidnight.plusYears(multiplier);
                     default -> throw new IllegalArgumentException("Unknown round-to-midnight unit: " + unit);
                 };
             }
@@ -1049,7 +1057,7 @@ public abstract class Rounding implements Writeable {
 
         private TimeIntervalPreparedRounding prepareOffsetOrJavaTimeRounding(long minUtcMillis, long maxUtcMillis) {
             long minLookup = minUtcMillis - interval;
-            long maxLookup = maxUtcMillis;
+            long maxLookup = maxUtcMillis + interval;
 
             LocalTimeOffset.Lookup lookup = LocalTimeOffset.lookup(timeZone, minLookup, maxLookup);
             if (lookup == null) {
@@ -1137,6 +1145,11 @@ public abstract class Rounding implements Writeable {
             }
 
             @Override
+            public Rounding getUnprepared() {
+                return TimeIntervalRounding.this;
+            }
+
+            @Override
             public abstract String toString();
         }
 
@@ -1163,8 +1176,7 @@ public abstract class Rounding implements Writeable {
 
             @Override
             public long nextRoundingValue(long utcMillis) {
-                // TODO this is used in date range's collect so we should optimize it too
-                return new JavaTimeRounding().nextRoundingValue(utcMillis);
+                return offset.localToUtcInThisOffset((roundKey(offset.utcToLocalTime(utcMillis), interval) + 1) * interval);
             }
 
             @Override
@@ -1448,6 +1460,11 @@ public abstract class Rounding implements Writeable {
                     // TODO we can likely translate here
                     return null;
                 }
+
+                @Override
+                public Rounding getUnprepared() {
+                    return delegatePrepared.getUnprepared();
+                }
             };
         }
 
@@ -1535,6 +1552,11 @@ public abstract class Rounding implements Writeable {
         @Override
         public long[] fixedRoundingPoints() {
             return Arrays.copyOf(values, max);
+        }
+
+        @Override
+        public Rounding getUnprepared() {
+            return delegate.getUnprepared();
         }
     }
 }

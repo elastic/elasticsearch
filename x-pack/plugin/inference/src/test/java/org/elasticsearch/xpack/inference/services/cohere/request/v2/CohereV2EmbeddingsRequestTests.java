@@ -16,7 +16,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.InputTypeTests;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModelTests;
@@ -42,7 +42,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             CohereEmbeddingsModelTests.createModel(
                 null,
                 "secret",
-                new CohereEmbeddingsTaskSettings(inputType, CohereTruncation.START),
+                new CohereEmbeddingsTaskSettings(inputType, Truncation.START),
                 null,
                 null,
                 "model id",
@@ -79,7 +79,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             CohereEmbeddingsModelTests.createModel(
                 "url",
                 "secret",
-                new CohereEmbeddingsTaskSettings(inputType, CohereTruncation.END),
+                new CohereEmbeddingsTaskSettings(inputType, Truncation.END),
                 null,
                 null,
                 "cohere model",
@@ -104,7 +104,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             CohereEmbeddingsModelTests.createModel(
                 "http://localhost",
                 "secret",
-                new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.END),
+                new CohereEmbeddingsTaskSettings(InputType.SEARCH, Truncation.END),
                 null,
                 null,
                 "model",
@@ -141,7 +141,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             CohereEmbeddingsModelTests.createModel(
                 null,
                 "secret",
-                new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.END),
+                new CohereEmbeddingsTaskSettings(InputType.SEARCH, Truncation.END),
                 null,
                 null,
                 "model",
@@ -177,7 +177,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             CohereEmbeddingsModelTests.createModel(
                 null,
                 "secret",
-                new CohereEmbeddingsTaskSettings(null, CohereTruncation.NONE),
+                new CohereEmbeddingsTaskSettings(null, Truncation.NONE),
                 null,
                 null,
                 "cohere model",
@@ -210,7 +210,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             "cohere model",
             List.of("abc"),
             InputType.INTERNAL_INGEST,
-            new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.START),
+            new CohereEmbeddingsTaskSettings(InputType.SEARCH, Truncation.START),
             CohereEmbeddingType.FLOAT
         );
 
@@ -227,7 +227,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             "cohere model",
             List.of("abc"),
             InputType.INGEST,
-            new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
+            new CohereEmbeddingsTaskSettings(InputType.SEARCH, Truncation.NONE),
             CohereEmbeddingType.INT8
         );
 
@@ -244,7 +244,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             "cohere model",
             List.of("abc"),
             InputType.INTERNAL_SEARCH,
-            new CohereEmbeddingsTaskSettings(null, CohereTruncation.NONE),
+            new CohereEmbeddingsTaskSettings(null, Truncation.NONE),
             CohereEmbeddingType.BYTE
         );
 
@@ -261,7 +261,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             "cohere model",
             List.of("abc"),
             InputType.SEARCH,
-            new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
+            new CohereEmbeddingsTaskSettings(InputType.SEARCH, Truncation.NONE),
             CohereEmbeddingType.BINARY
         );
 
@@ -278,7 +278,7 @@ public class CohereV2EmbeddingsRequestTests extends ESTestCase {
             "cohere model",
             List.of("abc"),
             InputType.SEARCH,
-            new CohereEmbeddingsTaskSettings(InputType.SEARCH, CohereTruncation.NONE),
+            new CohereEmbeddingsTaskSettings(InputType.SEARCH, Truncation.NONE),
             CohereEmbeddingType.BIT
         );
 

@@ -55,18 +55,15 @@ public class SimulateIngestServiceTests extends ESTestCase {
         Map<String, Processor.Factory> processors = new HashMap<>();
         processors.put(
             "processor1",
-            (factories, tag, description, config, projectId) -> new FakeProcessor("processor1", tag, description, ingestDocument -> {}) {
-            }
+            (factories, tag, description, config, projectId) -> new FakeProcessor("processor1", tag, description, ingestDocument -> {}) {}
         );
         processors.put(
             "processor2",
-            (factories, tag, description, config, projectId) -> new FakeProcessor("processor2", tag, description, ingestDocument -> {}) {
-            }
+            (factories, tag, description, config, projectId) -> new FakeProcessor("processor2", tag, description, ingestDocument -> {}) {}
         );
         processors.put(
             "processor3",
-            (factories, tag, description, config, projectId) -> new FakeProcessor("processor3", tag, description, ingestDocument -> {}) {
-            }
+            (factories, tag, description, config, projectId) -> new FakeProcessor("processor3", tag, description, ingestDocument -> {}) {}
         );
         final var projectId = randomProjectIdOrDefault();
         IngestService ingestService = createWithProcessors(projectId, processors);
@@ -173,7 +170,8 @@ public class SimulateIngestServiceTests extends ESTestCase {
                 public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
                     return DataStream.DATA_STREAM_FAILURE_STORE_FEATURE.equals(feature);
                 }
-            }
+            },
+            mock(SamplingService.class)
         );
     }
 }

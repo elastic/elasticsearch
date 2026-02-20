@@ -18,7 +18,7 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
-import org.elasticsearch.compute.lucene.ShardRefCounted;
+import org.elasticsearch.compute.lucene.AlwaysReferencedIndexedByShardId;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.core.RefCounted;
@@ -51,6 +51,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
@@ -784,27 +785,34 @@ public class BasicBlockTests extends ESTestCase {
         for (int i = 0; i < 1000; i++) {
             int positionCount = randomIntBetween(1, 16 * 1024);
             BytesRef value = new BytesRef(randomByteArrayOfLength(between(1, 20)));
+            BytesRef originalValue = BytesRef.deepCopyOf(value);
             BytesRefBlock block = blockFactory.newConstantBytesRefBlockWith(value, positionCount);
+            // modify the value after creating the constant block
+            for (int b = 0; b < value.length; b++) {
+                if (randomBoolean()) {
+                    value.bytes[b] = randomByte();
+                }
+            }
             assertThat(block.getPositionCount(), is(positionCount));
 
             BytesRef bytes = new BytesRef();
             bytes = block.getBytesRef(0, bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             bytes = block.getBytesRef(positionCount - 1, bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             bytes = block.getBytesRef(randomPosition(positionCount), bytes);
-            assertThat(bytes, is(value));
+            assertThat(bytes, is(originalValue));
             assertSingleValueDenseBlock(block);
             if (positionCount > 2) {
                 assertLookup(
                     block,
                     positions(blockFactory, 1, 2, new int[] { 1, 2 }),
-                    List.of(List.of(value), List.of(value), List.of(value, value))
+                    List.of(List.of(originalValue), List.of(originalValue), List.of(originalValue, originalValue))
                 );
                 assertLookup(
                     block,
                     positions(blockFactory, 1, 2),
-                    List.of(List.of(value), List.of(value)),
+                    List.of(List.of(originalValue), List.of(originalValue)),
                     b -> assertThat(b.asVector(), instanceOf(ConstantBytesRefVector.class))
                 );
             }
@@ -818,6 +826,12 @@ public class BasicBlockTests extends ESTestCase {
             assertInsertNulls(block);
             assertDeepCopy(block);
             releaseAndAssertBreaker(block);
+            // modify the offset
+            var v0 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            var v1 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            v1.length = 0;
+            var v2 = block.getBytesRef(randomInt(positionCount), new BytesRef());
+            assertThat(v2, equalTo(v0));
         }
     }
 
@@ -1156,30 +1170,30 @@ public class BasicBlockTests extends ESTestCase {
                 assertThat(s, containsString("positions=2"));
             }
             for (IntBlock block : List.of(intBlock, intVector.asBlock())) {
-                try (var filter = block.filter(0)) {
+                try (var filter = block.filter(false, 0)) {
                     assertThat(filter.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=1]]"));
                 }
-                try (var filter = block.filter(1)) {
+                try (var filter = block.filter(false, 1)) {
                     assertThat(filter.toString(), containsString("IntVectorBlock[vector=ConstantIntVector[positions=1, value=2]]"));
                 }
-                try (var filter = block.filter(0, 1)) {
+                try (var filter = block.filter(false, 0, 1)) {
                     assertThat(filter.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=2, values=[1, 2]]]"));
                 }
-                try (var filter = block.filter()) {
+                try (var filter = block.filter(false)) {
                     assertThat(filter.toString(), containsString("IntVectorBlock[vector=IntArrayVector[positions=0, values=[]]]"));
                 }
             }
             for (IntVector vector : List.of(intVector, intBlock.asVector())) {
-                try (var filter = vector.filter(0)) {
+                try (var filter = vector.filter(false, 0)) {
                     assertThat(filter.toString(), containsString("ConstantIntVector[positions=1, value=1]"));
                 }
-                try (IntVector filter = vector.filter(1)) {
+                try (IntVector filter = vector.filter(false, 1)) {
                     assertThat(filter.toString(), containsString("ConstantIntVector[positions=1, value=2]"));
                 }
-                try (IntVector filter = vector.filter(0, 1)) {
+                try (IntVector filter = vector.filter(false, 0, 1)) {
                     assertThat(filter.toString(), containsString("IntArrayVector[positions=2, values=[1, 2]]"));
                 }
-                try (IntVector filter = vector.filter()) {
+                try (IntVector filter = vector.filter(false)) {
                     assertThat(filter.toString(), containsString("IntArrayVector[positions=0, values=[]]"));
                 }
             }
@@ -1459,11 +1473,11 @@ public class BasicBlockTests extends ESTestCase {
     public void testRefCountingDocBlock() {
         int positionCount = randomIntBetween(0, 100);
         DocBlock block = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intVector(positionCount),
             intVector(positionCount),
             intVector(positionCount),
-            true
+            DocVector.config().singleSegmentNonDecreasing(true)
         ).asBlock();
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(block);
@@ -1501,15 +1515,76 @@ public class BasicBlockTests extends ESTestCase {
     public void testRefCountingDocVector() {
         int positionCount = randomIntBetween(0, 100);
         DocVector vector = new DocVector(
-            ShardRefCounted.ALWAYS_REFERENCED,
+            AlwaysReferencedIndexedByShardId.INSTANCE,
             intVector(positionCount),
             intVector(positionCount),
             intVector(positionCount),
-            true
+            DocVector.config().singleSegmentNonDecreasing(true)
         );
         assertThat(breaker.getUsed(), greaterThan(0L));
         assertRefCountingBehavior(vector);
         assertThat(breaker.getUsed(), is(0L));
+    }
+
+    public void testFilterOrdinalBytesRefBlock() {
+        int dictSize = between(1, 10);
+        int positionCount = between(1, 100);
+        try (
+            var dictBuilder = blockFactory.newBytesRefVectorBuilder(dictSize);
+            var ordinalBuilder = blockFactory.newIntBlockBuilder(positionCount)
+        ) {
+            for (int i = 0; i < dictSize; i++) {
+                dictBuilder.appendBytesRef(new BytesRef("value" + i));
+            }
+            for (int i = 0; i < positionCount; i++) {
+                int valueCount = randomIntBetween(0, 2);
+                switch (valueCount) {
+                    case 0 -> ordinalBuilder.appendNull();
+                    case 1 -> ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
+                    default -> {
+                        ordinalBuilder.beginPositionEntry();
+                        for (int v = 0; v < valueCount; v++) {
+                            ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
+                        }
+                        ordinalBuilder.endPositionEntry();
+                    }
+                }
+            }
+            try (var block = new OrdinalBytesRefBlock(ordinalBuilder.build(), dictBuilder.build())) {
+                int[] masks = new int[between(1, 100)];
+                for (int i = 0; i < masks.length; i++) {
+                    masks[i] = randomIntBetween(0, positionCount - 1);
+                }
+                try (var filtered = block.filter(true, masks)) {
+                    assertThat(filtered, not(instanceOf(OrdinalBytesRefBlock.class)));
+                }
+            }
+        }
+    }
+
+    public void testFilterOrdinalBytesRefVector() {
+        int dictSize = between(1, 10);
+        int positionCount = between(1, 100);
+        try (
+            var dictBuilder = blockFactory.newBytesRefVectorBuilder(dictSize);
+            var ordinalBuilder = blockFactory.newIntVectorBuilder(positionCount)
+        ) {
+            for (int i = 0; i < dictSize; i++) {
+                dictBuilder.appendBytesRef(new BytesRef("value" + i));
+            }
+            for (int i = 0; i < positionCount; i++) {
+                ordinalBuilder.appendInt(randomIntBetween(0, dictSize - 1));
+            }
+            try (var vector = new OrdinalBytesRefVector(ordinalBuilder.build(), dictBuilder.build())) {
+                int[] masks = new int[between(1, 100)];
+                for (int i = 0; i < masks.length; i++) {
+                    masks[i] = randomIntBetween(0, positionCount - 1);
+                }
+                try (var filtered = vector.filter(true, masks)) {
+                    assertThat(filtered, not(instanceOf(OrdinalBytesRefVector.class)));
+                }
+            }
+        }
     }
 
     /**
@@ -1784,10 +1859,13 @@ public class BasicBlockTests extends ESTestCase {
         try (Block deepCopy = block.deepCopy(into)) {
             assertThat(deepCopy, equalTo(block));
 
-            assertThat(
-                deepCopy.asVector() != null && deepCopy.asVector().isConstant(),
-                equalTo(block.asVector() != null && block.asVector().isConstant())
-            );
+            if (block.asVector() != null && block.asVector().isConstant()) {
+                /*
+                 * If we were a constant, we will still be one. If we were not a constant,
+                 * deepCopy might make a constant in the rare case that we have a single element array.
+                 */
+                assertThat(deepCopy.asVector() != null && deepCopy.asVector().isConstant(), equalTo(true));
+            }
         }
         Block untracked = block.deepCopy(TestBlockFactory.getNonBreakingInstance());
         assertThat(untracked, equalTo(block));

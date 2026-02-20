@@ -2,7 +2,8 @@
 
 ## `FIRST` [esql-first]
 ```{applies_to}
-stack: unavailable
+stack: preview
+serverless: preview
 ```
 
 **Syntax**
@@ -23,4 +24,7 @@ stack: unavailable
 :::
 
 :::{include} ../examples/first.md
+:::
+
+:::{include} ../appendix/first.md
 :::

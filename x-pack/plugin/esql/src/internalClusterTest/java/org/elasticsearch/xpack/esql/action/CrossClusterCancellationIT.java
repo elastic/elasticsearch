@@ -19,6 +19,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.TransportService;
@@ -33,6 +35,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomPragmas;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -41,6 +44,8 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
     private static final String REMOTE_CLUSTER = "cluster-a";
+
+    private static final Logger LOGGER = LogManager.getLogger(CrossClusterCancellationIT.class);
 
     @Override
     protected List<String> remoteClusterAlias() {
@@ -83,21 +88,25 @@ public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
 
     public void testCancel() throws Exception {
         createRemoteIndex(between(10, 100));
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
-        request.pragmas(randomPragmas());
+        String stats = randomStats();
+        EsqlQueryRequest request = syncEsqlQueryRequest("FROM *:test | " + stats + " total=sum(const) | LIMIT 1").pragmas(randomPragmas());
         PlainActionFuture<EsqlQueryResponse> requestFuture = new PlainActionFuture<>();
+        LOGGER.info("Executing query {}", request);
         client().execute(EsqlQueryAction.INSTANCE, request, requestFuture);
+        LOGGER.info("Waiting for query to start");
         assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
+        LOGGER.info("Query started, checking tasks");
         List<TaskInfo> rootTasks = new ArrayList<>();
         assertBusy(() -> {
             List<TaskInfo> tasks = client().admin().cluster().prepareListTasks().setActions(EsqlQueryAction.NAME).get().getTasks();
             assertThat(tasks, hasSize(1));
             rootTasks.addAll(tasks);
         });
+        LOGGER.info("Query started, now cancelling root task");
         var cancelRequest = new CancelTasksRequest().setTargetTaskId(rootTasks.get(0).taskId()).setReason("proxy timeout");
         client().execute(TransportCancelTasksAction.TYPE, cancelRequest);
         try {
+            LOGGER.info("Waiting for drivers to be cancelled");
             assertBusy(() -> {
                 List<TaskInfo> drivers = client(REMOTE_CLUSTER).admin()
                     .cluster()
@@ -127,9 +136,7 @@ public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
         }
         int numDocs = between(10, 100);
         createRemoteIndex(numDocs);
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
-        request.pragmas(randomPragmas());
+        EsqlQueryRequest request = syncEsqlQueryRequest("FROM *:test | STATS total=sum(const) | LIMIT 1").pragmas(randomPragmas());
         ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
         try {
             try {
@@ -160,9 +167,8 @@ public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
 
     public void testTasks() throws Exception {
         createRemoteIndex(between(10, 100));
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
-        request.pragmas(randomPragmas());
+        String stats = randomStats();
+        EsqlQueryRequest request = syncEsqlQueryRequest("FROM *:test | " + stats + " total=sum(const) | LIMIT 1").pragmas(randomPragmas());
         ActionFuture<EsqlQueryResponse> requestFuture = client().execute(EsqlQueryAction.INSTANCE, request);
         assertTrue(SimplePauseFieldPlugin.startEmitting.await(30, TimeUnit.SECONDS));
         try {
@@ -198,9 +204,8 @@ public class CrossClusterCancellationIT extends AbstractCrossClusterTestCase {
     // Check that cancelling remote task with skip_unavailable=true produces failure
     public void testCancelSkipUnavailable() throws Exception {
         createRemoteIndex(between(10, 100));
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
-        request.pragmas(randomPragmas());
+        String stats = randomStats();
+        EsqlQueryRequest request = syncEsqlQueryRequest("FROM *:test | " + stats + " total=sum(const) | LIMIT 1").pragmas(randomPragmas());
         request.includeCCSMetadata(true);
         PlainActionFuture<EsqlQueryResponse> requestFuture = new PlainActionFuture<>();
         client().execute(EsqlQueryAction.INSTANCE, request, requestFuture);

@@ -23,7 +23,7 @@ package org.elasticsearch.tdigest;
 
 public class BigCountTestsTreeDigestTests extends BigCountTests {
     @Override
-    public TDigest createDigest() {
-        return TDigest.createAvlTreeDigest(arrays(), 100);
+    public TDigest createDigest(int compression) {
+        return TDigest.createAvlTreeDigest(arrays(), compression);
     }
 }

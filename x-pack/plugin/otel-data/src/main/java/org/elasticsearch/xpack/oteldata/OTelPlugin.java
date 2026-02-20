@@ -19,7 +19,6 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -46,9 +45,21 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         Setting.Property.Dynamic
     );
 
+    public enum HistogramMappingSettingValues {
+        HISTOGRAM,
+        EXPONENTIAL_HISTOGRAM
+    };
+
+    public static final Setting<HistogramMappingSettingValues> USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE = Setting.enumSetting(
+        HistogramMappingSettingValues.class,
+        "xpack.otel_data.histogram_field_type",
+        HistogramMappingSettingValues.HISTOGRAM,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private static final Logger logger = LogManager.getLogger(OTelPlugin.class);
 
-    private static final boolean OTLP_METRICS_ENABLED = new FeatureFlag("otlp_metrics").isEnabled();
     private final SetOnce<OTelIndexTemplateRegistry> registry = new SetOnce<>();
     private final boolean enabled;
 
@@ -68,11 +79,7 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        if (OTLP_METRICS_ENABLED) {
-            return List.of(new OTLPMetricsRestAction());
-        } else {
-            return List.of();
-        }
+        return List.of(new OTLPMetricsRestAction());
     }
 
     @Override
@@ -98,15 +105,11 @@ public class OTelPlugin extends Plugin implements ActionPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(OTEL_DATA_REGISTRY_ENABLED);
+        return List.of(OTEL_DATA_REGISTRY_ENABLED, USE_EXPONENTIAL_HISTOGRAM_FIELD_TYPE);
     }
 
     @Override
     public Collection<ActionHandler> getActions() {
-        if (OTLP_METRICS_ENABLED) {
-            return List.of(new ActionHandler(OTLPMetricsTransportAction.TYPE, OTLPMetricsTransportAction.class));
-        } else {
-            return List.of();
-        }
+        return List.of(new ActionHandler(OTLPMetricsTransportAction.TYPE, OTLPMetricsTransportAction.class));
     }
 }

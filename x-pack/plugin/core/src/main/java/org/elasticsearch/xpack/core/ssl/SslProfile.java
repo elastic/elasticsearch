@@ -7,9 +7,12 @@
 
 package org.elasticsearch.xpack.core.ssl;
 
+import org.apache.hc.core5.http.nio.ssl.TlsStrategy;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.common.ssl.SslConfiguration;
+
+import java.util.function.Consumer;
 
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLContext;
@@ -40,7 +43,18 @@ public interface SslProfile {
     /**
      * @return An object that is useful for configuring Apache Http Client v4.x
      */
-    SSLIOSessionStrategy ioSessionStrategy4();
+    SSLIOSessionStrategy ioSessionStrategy();
+
+    /**
+     * @return An object that is useful for configuring Apache Http Client v5.x
+     */
+    TlsStrategy clientTlsStrategy();
 
     SSLEngine engine(String host, int port);
+
+    /**
+     * Add a listener that is called when this profile is reloaded (for example, because one of the {@link #configuration() configuration's}
+     * {@link SslConfiguration#getDependentFiles() dependent files} is modified.
+     */
+    void addReloadListener(Consumer<SslProfile> listener);
 }

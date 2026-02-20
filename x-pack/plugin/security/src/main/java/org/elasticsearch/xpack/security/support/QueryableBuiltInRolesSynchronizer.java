@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
-import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -309,8 +308,7 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             || cause instanceof ResourceAlreadyExistsException
             || cause instanceof VersionConflictEngineException
             || cause instanceof DocumentMissingException
-            || cause instanceof FailedToMarkBuiltInRolesAsSyncedException
-            || (e instanceof FailedToCommitClusterStateException && "node closed".equals(cause.getMessage()));
+            || cause instanceof FailedToMarkBuiltInRolesAsSyncedException;
     }
 
     private boolean shouldSyncBuiltInRoles(final ClusterState state) {

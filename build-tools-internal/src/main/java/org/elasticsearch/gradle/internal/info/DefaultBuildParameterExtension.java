@@ -27,6 +27,7 @@ import java.util.function.Supplier;
 
 public abstract class DefaultBuildParameterExtension implements BuildParameterExtension {
     private final Provider<Boolean> inFipsJvm;
+    private final Provider<String> fipsMode;
     private final Provider<File> runtimeJavaHome;
     private final RuntimeJava runtimeJava;
     private final List<JavaHome> javaVersions;
@@ -39,7 +40,7 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     private final Provider<String> gitRevision;
 
     private transient AtomicReference<ZonedDateTime> buildDate = new AtomicReference<>();
-    private final String testSeed;
+    private final Provider<String> testSeed;
     private final Boolean isCi;
     private final Integer defaultParallel;
     private final Boolean snapshotBuild;
@@ -58,13 +59,14 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
         JavaVersion gradleJavaVersion,
         Provider<String> gitRevision,
         Provider<String> gitOrigin,
-        String testSeed,
+        Provider<String> testSeed,
         boolean isCi,
         int defaultParallel,
         final boolean isSnapshotBuild,
         Provider<BwcVersions> bwcVersions
     ) {
         this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(DefaultBuildParameterExtension::parseBoolean);
+        this.fipsMode = providers.systemProperty("tests.fips.mode");
         this.runtimeJava = runtimeJava;
         this.runtimeJavaHome = cache(providers, runtimeJava.getJavahome());
         this.javaToolChainSpec = cache(providers, javaToolChainSpec);
@@ -99,6 +101,11 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     @Override
     public boolean getInFipsJvm() {
         return inFipsJvm.getOrElse(false);
+    }
+
+    @Override
+    public String getFipsMode() {
+        return fipsMode.getOrNull();
     }
 
     @Override
@@ -181,6 +188,11 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
 
     @Override
     public String getTestSeed() {
+        return testSeed.get();
+    }
+
+    @Override
+    public Provider<String> getTestSeedProvider() {
         return testSeed;
     }
 
@@ -205,8 +217,8 @@ public abstract class DefaultBuildParameterExtension implements BuildParameterEx
     }
 
     @Override
-    public Random getRandom() {
-        return new Random(Long.parseUnsignedLong(testSeed.split(":")[0], 16));
+    public Provider<Random> getRandom() {
+        return getTestSeedProvider().map(seed -> new Random(Long.parseUnsignedLong(seed.split(":")[0], 16)));
     }
 
     @Override

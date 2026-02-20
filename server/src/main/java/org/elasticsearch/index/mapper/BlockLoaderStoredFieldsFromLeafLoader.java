@@ -69,4 +69,9 @@ public class BlockLoaderStoredFieldsFromLeafLoader implements BlockLoader.Stored
         advanceIfNeeded();
         return loader.storedFields();
     }
+
+    @Override
+    public boolean loaded() {
+        return loaderDocId == docId;
+    }
 }

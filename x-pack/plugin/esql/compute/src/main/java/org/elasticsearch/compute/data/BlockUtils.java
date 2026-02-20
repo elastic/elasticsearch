@@ -9,9 +9,12 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder.AggregateMetricDoubleLiteral;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -35,19 +38,24 @@ public final class BlockUtils {
         public BuilderWrapper(Block.Builder builder, Consumer<Object> append) {
             this.builder = builder;
             this.append = o -> {
-                if (o == null) {
-                    builder.appendNull();
-                    return;
-                }
-                if (o instanceof List<?> l) {
-                    builder.beginPositionEntry();
-                    for (Object v : l) {
-                        append.accept(v);
+                try {
+                    if (o == null) {
+                        builder.appendNull();
+                        return;
                     }
-                    builder.endPositionEntry();
-                    return;
+                    if (o instanceof List<?> l) {
+                        builder.beginPositionEntry();
+                        for (Object v : l) {
+                            append.accept(v);
+                        }
+                        builder.endPositionEntry();
+                        return;
+                    }
+                    append.accept(o);
+                } catch (CircuitBreakingException e) {
+                    close();
+                    throw e;
                 }
-                append.accept(o);
             };
         }
 
@@ -217,22 +225,32 @@ public final class BlockUtils {
             case FLOAT -> ((FloatBlock.Builder) builder).appendFloat((Float) val);
             case DOUBLE -> ((DoubleBlock.Builder) builder).appendDouble((Double) val);
             case BOOLEAN -> ((BooleanBlock.Builder) builder).appendBoolean((Boolean) val);
-            default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
+            case AGGREGATE_METRIC_DOUBLE -> ((AggregateMetricDoubleBlockBuilder) builder).appendLiteral((AggregateMetricDoubleLiteral) val);
+            case EXPONENTIAL_HISTOGRAM -> ((ExponentialHistogramBlockBuilder) builder).append((ExponentialHistogram) val);
+            case TDIGEST -> ((TDigestBlockBuilder) builder).appendTDigest((TDigestHolder) val);
+            case LONG_RANGE -> ((LongRangeBlockBuilder) builder).appendLongRange((LongRangeBlockBuilder.LongRange) val);
+            case DOC, COMPOSITE, NULL, UNKNOWN -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         }
     }
 
-    public static Block constantBlock(BlockFactory blockFactory, Object val, int size) {
-        if (val == null) {
-            return blockFactory.newConstantNullBlock(size);
+    public static Block constantBlock(BlockFactory blockFactory, Object value, int positions) {
+        if (value == null) {
+            return blockFactory.newConstantNullBlock(positions);
         }
-        if (val instanceof Collection<?> collection) {
-            if (collection.isEmpty()) {
-                return constantBlock(blockFactory, NULL, val, size);
+        if (value instanceof Collection<?> multiValue) {
+            if (multiValue.isEmpty()) {
+                return constantBlock(blockFactory, NULL, value, positions);
             }
-            Object colVal = collection.iterator().next();
-            return constantBlock(blockFactory, fromJava(colVal.getClass()), colVal, size);
+            try (
+                var wrapper = BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(multiValue.iterator().next().getClass()), positions)
+            ) {
+                for (int i = 0; i < positions; i++) {
+                    wrapper.accept(multiValue);
+                }
+                return wrapper.builder().build();
+            }
         }
-        return constantBlock(blockFactory, fromJava(val.getClass()), val, size);
+        return constantBlock(blockFactory, fromJava(value.getClass()), value, positions);
     }
 
     // TODO: allow null values
@@ -246,6 +264,9 @@ public final class BlockUtils {
             case BOOLEAN -> blockFactory.newConstantBooleanBlockWith((boolean) val, size);
             case AGGREGATE_METRIC_DOUBLE -> blockFactory.newConstantAggregateMetricDoubleBlock((AggregateMetricDoubleLiteral) val, size);
             case FLOAT -> blockFactory.newConstantFloatBlockWith((float) val, size);
+            case EXPONENTIAL_HISTOGRAM -> blockFactory.newConstantExponentialHistogramBlock((ExponentialHistogram) val, size);
+            case TDIGEST -> blockFactory.newConstantTDigestBlock((TDigestHolder) val, size);
+            case LONG_RANGE -> blockFactory.newConstantLongRangeBlock((LongRangeBlockBuilder.LongRange) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }
@@ -298,6 +319,30 @@ public final class BlockUtils {
                     aggBlock.sumBlock().getDouble(offset),
                     aggBlock.countBlock().getInt(offset)
                 );
+            }
+            case EXPONENTIAL_HISTOGRAM -> {
+                ExponentialHistogramBlock histoBlock = (ExponentialHistogramBlock) block;
+                ExponentialHistogram histogram = histoBlock.getExponentialHistogram(offset, new ExponentialHistogramScratch());
+                // return a copy so that the returned value is not bound to the lifetime of the block
+                yield ExponentialHistogram.builder(histogram, ExponentialHistogramCircuitBreaker.noop()).build();
+            }
+            case TDIGEST -> {
+                TDigestBlock tDigestBlock = (TDigestBlock) block;
+                // return a copy so that the returned value is not bound to the lifetime of the block
+                TDigestHolder blockBacked = tDigestBlock.getTDigestHolder(offset);
+                yield new TDigestHolder(
+                    BytesRef.deepCopyOf(blockBacked.getEncodedDigest()),
+                    blockBacked.getMin(),
+                    blockBacked.getMax(),
+                    blockBacked.getSum(),
+                    blockBacked.getValueCount()
+                );
+            }
+            case LONG_RANGE -> {
+                LongRangeBlock b = (LongRangeBlock) block;
+                LongBlock fromBlock = b.getFromBlock();
+                LongBlock toBlock = b.getToBlock();
+                yield new LongRangeBlockBuilder.LongRange(fromBlock.getLong(offset), toBlock.getLong(offset));
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");
         };

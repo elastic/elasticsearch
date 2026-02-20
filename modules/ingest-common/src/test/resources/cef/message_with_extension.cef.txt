@@ -1,0 +1,1 @@
+CEF:1|vendor|product|version|class|name|severity|someExtension=someValue

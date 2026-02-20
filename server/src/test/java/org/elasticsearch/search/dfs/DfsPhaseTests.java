@@ -28,6 +28,7 @@ import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.SearchOperationListener;
@@ -143,7 +144,8 @@ public class DfsPhaseTests extends IndexShardTestCase {
                 null,
                 Collections.emptyMap(),
                 null,
-                MapperMetrics.NOOP
+                MapperMetrics.NOOP,
+                SearchExecutionContextHelper.SHARD_SEARCH_STATS
             );
 
             Query query = new KnnFloatVectorQuery("float_vector", new float[] { 0, 0, 0 }, numDocs, null);
@@ -156,7 +158,7 @@ public class DfsPhaseTests extends IndexShardTestCase {
                 context.request()
                     .source(
                         new SearchSourceBuilder().knnSearch(
-                            List.of(new KnnSearchBuilder("float_vector", new float[] { 0, 0, 0 }, numDocs, numDocs, null, null))
+                            List.of(new KnnSearchBuilder("float_vector", new float[] { 0, 0, 0 }, numDocs, numDocs, 100f, null, null))
                         )
                     );
                 context.setTask(new SearchShardTask(123L, "", "", "", null, Collections.emptyMap()));

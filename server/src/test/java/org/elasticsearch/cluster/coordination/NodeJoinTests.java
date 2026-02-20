@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTests;
@@ -38,6 +39,7 @@ import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -150,7 +152,8 @@ public class NodeJoinTests extends ESTestCase {
             settings,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
             threadPool,
-            new TaskManager(settings, threadPool, Set.of())
+            new TaskManager(settings, threadPool, Set.of()),
+            MeterRegistry.NOOP
         );
         AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(initialState);
         masterService.setClusterStatePublisher((clusterStatePublicationEvent, publishListener, ackListener) -> {
@@ -212,8 +215,16 @@ public class NodeJoinTests extends ESTestCase {
             clusterSettings,
             Collections.emptySet()
         );
+        String nodeName = "test_node";
+        Settings settings = Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build();
+        ClusterService clusterService = new ClusterService(
+            settings,
+            clusterSettings,
+            threadPool,
+            new TaskManager(settings, threadPool, Set.of())
+        );
         coordinator = new Coordinator(
-            "test_node",
+            nodeName,
             Settings.EMPTY,
             clusterSettings,
             transportService,
@@ -234,7 +245,8 @@ public class NodeJoinTests extends ESTestCase {
             LeaderHeartbeatService.NO_OP,
             StatefulPreVoteCollector::new,
             CompatibilityVersionsUtils.staticCurrent(),
-            new FeatureService(List.of())
+            new FeatureService(List.of()),
+            clusterService
         );
         transportService.start();
         transportService.acceptIncomingRequests();

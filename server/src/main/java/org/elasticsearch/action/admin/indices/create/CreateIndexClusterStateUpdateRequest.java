@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -51,6 +52,8 @@ public class CreateIndexClusterStateUpdateRequest {
     private boolean performReroute = true;
 
     private ComposableIndexTemplate matchingTemplate;
+
+    private boolean settingsSystemProvided = false;
 
     /**
      * @deprecated project id ought always be specified
@@ -221,6 +224,20 @@ public class CreateIndexClusterStateUpdateRequest {
     public CreateIndexClusterStateUpdateRequest setMatchingTemplate(ComposableIndexTemplate matchingTemplate) {
         this.matchingTemplate = matchingTemplate;
         return this;
+    }
+
+    /**
+     * Indicates whether the {@link #settings} of this request are system provided.
+     * System-provided settings are allowed to configure {@linkplain Setting.Property#PrivateIndex private} settings.
+     * These are typically coming from an {@link org.elasticsearch.index.IndexSettingProvider}.
+     */
+    public CreateIndexClusterStateUpdateRequest settingsSystemProvided(boolean settingsSystemProvided) {
+        this.settingsSystemProvided = settingsSystemProvided;
+        return this;
+    }
+
+    public boolean settingsSystemProvided() {
+        return settingsSystemProvided;
     }
 
     @Override

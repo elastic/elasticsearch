@@ -68,6 +68,10 @@ public abstract class IngestPipelineConfig {
         return dependencies;
     }
 
+    public String getFileName() {
+        return resource;
+    }
+
     public abstract XContentType getXContentType();
 
     public abstract BytesReference loadConfig();

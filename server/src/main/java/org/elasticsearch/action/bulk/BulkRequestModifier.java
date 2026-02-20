@@ -296,7 +296,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
                     () -> "Encountered exception while attempting to redirect a failed ingest operation: index ["
                         + targetIndexName
                         + "], source: ["
-                        + indexRequest.source().utf8ToString()
+                        + indexRequest.indexSource().bytes().utf8ToString()
                         + "]",
                     ioException
                 );

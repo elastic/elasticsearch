@@ -130,7 +130,13 @@ public interface IndexAbstraction {
          * A data stream typically has multiple backing indices, the latest of which
          * is the target for index requests.
          */
-        DATA_STREAM("data_stream");
+        DATA_STREAM("data_stream"),
+
+        /**
+         * An index abstraction that refers to an ESQL query.
+         * The ESQL query can target multiple indices, aliases, or data streams.
+         */
+        VIEW("view");
 
         private final String displayName;
 

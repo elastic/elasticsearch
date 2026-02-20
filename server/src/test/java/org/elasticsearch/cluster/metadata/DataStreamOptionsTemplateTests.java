@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,6 +21,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingTestCase<DataStreamOptions.Template> {
 
     public static final DataStreamOptions.Template RESET = new DataStreamOptions.Template(ResettableValue.reset());
+    private static final TransportVersion SETTINGS_IN_DATA_STREAMS = TransportVersion.fromName("settings_in_data_streams");
 
     @Override
     protected Writeable.Reader<DataStreamOptions.Template> instanceReader() {
@@ -77,7 +78,7 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
         DataStreamOptions.Template fullyConfigured = new DataStreamOptions.Template(
             new DataStreamFailureStore.Template(
                 randomBoolean(),
-                DataStreamLifecycle.createFailuresLifecycleTemplate(randomBoolean(), randomTimeValue())
+                DataStreamLifecycle.failuresLifecycleBuilder().enabled(randomBoolean()).dataRetention(randomTimeValue()).buildTemplate()
             )
         );
 
@@ -112,7 +113,10 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
             new DataStreamFailureStore.Template(true, null)
         );
         DataStreamOptions.Template dataStreamOptionsWithLifecycle = new DataStreamOptions.Template(
-            new DataStreamFailureStore.Template(null, DataStreamLifecycle.createFailuresLifecycleTemplate(true, randomPositiveTimeValue()))
+            new DataStreamFailureStore.Template(
+                null,
+                DataStreamLifecycle.failuresLifecycleBuilder().enabled(true).dataRetention(randomPositiveTimeValue()).buildTemplate()
+            )
         );
         result = DataStreamOptions.builder(dataStreamOptionsWithLifecycle)
             .composeTemplate(dataStreamOptionsWithoutLifecycle)
@@ -126,13 +130,13 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
     }
 
     public void testBackwardCompatibility() throws IOException {
-        DataStreamOptions.Template result = copyInstance(DataStreamOptions.Template.EMPTY, TransportVersions.SETTINGS_IN_DATA_STREAMS);
+        DataStreamOptions.Template result = copyInstance(DataStreamOptions.Template.EMPTY, SETTINGS_IN_DATA_STREAMS);
         assertThat(result, equalTo(DataStreamOptions.Template.EMPTY));
 
         DataStreamOptions.Template withEnabled = new DataStreamOptions.Template(
             new DataStreamFailureStore.Template(randomBoolean(), DataStreamLifecycleTemplateTests.randomFailuresLifecycleTemplate())
         );
-        result = copyInstance(withEnabled, TransportVersions.SETTINGS_IN_DATA_STREAMS);
+        result = copyInstance(withEnabled, SETTINGS_IN_DATA_STREAMS);
         assertThat(result.failureStore().get().enabled(), equalTo(withEnabled.failureStore().get().enabled()));
         assertThat(result.failureStore().get().lifecycle(), equalTo(ResettableValue.undefined()));
 
@@ -144,13 +148,13 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
                     : ResettableValue.create(DataStreamLifecycleTemplateTests.randomFailuresLifecycleTemplate())
             )
         );
-        result = copyInstance(withoutEnabled, TransportVersions.SETTINGS_IN_DATA_STREAMS);
+        result = copyInstance(withoutEnabled, SETTINGS_IN_DATA_STREAMS);
         assertThat(result, equalTo(DataStreamOptions.Template.EMPTY));
 
         DataStreamOptions.Template withEnabledReset = new DataStreamOptions.Template(
             new DataStreamFailureStore.Template(ResettableValue.reset(), ResettableValue.undefined())
         );
-        result = copyInstance(withEnabledReset, TransportVersions.SETTINGS_IN_DATA_STREAMS);
+        result = copyInstance(withEnabledReset, SETTINGS_IN_DATA_STREAMS);
         assertThat(result, equalTo(new DataStreamOptions.Template(ResettableValue.reset())));
     }
 }

@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -25,13 +24,13 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -41,15 +40,18 @@ import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxChatCompletionRequest;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
 
 import java.util.EnumSet;
@@ -60,30 +62,47 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
-import static org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings.URL;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.API_VERSION;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.EMBEDDING_MAX_BATCH_SIZE;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.PROJECT_ID;
 
-public class IbmWatsonxService extends SenderService {
-
-    public static final String NAME = "watsonxai";
+public class IbmWatsonxService extends SenderService implements RerankingInferenceService {
 
     private static final String SERVICE_NAME = "IBM watsonx";
-    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
         TaskType.TEXT_EMBEDDING,
         TaskType.COMPLETION,
-        TaskType.CHAT_COMPLETION
+        TaskType.CHAT_COMPLETION,
+        TaskType.RERANK
     );
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new IbmWatsonUnifiedChatCompletionResponseHandler(
         "IBM watsonx chat completions",
         OpenAiChatCompletionResponseEntity::fromResponse
     );
+    private static final IbmWatsonxChatCompletionModelCreator CHAT_COMPLETION_MODEL_CREATOR = new IbmWatsonxChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends IbmWatsonxModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new IbmWatsonxEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
+        TaskType.RERANK,
+        new IbmWatsonxRerankModelCreator()
+    );
+
+    public static final String NAME = "watsonxai";
+
+    // IBM watsonx has a single rerank model with a token limit of 512
+    // (see https://dataplatform.cloud.ibm.com/docs/content/wsj/analyze-data/fm-models-embed.html?context=wx#reranker-overview)
+    // Using 1 token = 0.75 words as a rough estimate, we get 384 words
+    // allowing for some headroom, we set the window size below 384 words
+    public static final int RERANK_WINDOW_SIZE = 350;
 
     public IbmWatsonxService(
         HttpRequestSender.Factory factory,
@@ -127,7 +146,6 @@ public class IbmWatsonxService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
                 ConfigurationParseContext.REQUEST
             );
 
@@ -149,39 +167,18 @@ public class IbmWatsonxService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
         ConfigurationParseContext context
     ) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> new IbmWatsonxEmbeddingsModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
-            case RERANK -> new IbmWatsonxRerankModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                secretSettings,
-                context
-            );
-            case CHAT_COMPLETION, COMPLETION -> new IbmWatsonxChatCompletionModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                secretSettings,
-                context
-            );
-            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
-        };
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            context
+        );
     }
 
     @Override
@@ -206,9 +203,19 @@ public class IbmWatsonxService extends SenderService {
             serviceSettingsMap,
             taskSettingsMap,
             chunkingSettings,
-            secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            secretSettingsMap
         );
+    }
+
+    @Override
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -218,7 +225,7 @@ public class IbmWatsonxService extends SenderService {
 
     @Override
     public EnumSet<TaskType> supportedTaskTypes() {
-        return supportedTaskTypes;
+        return SUPPORTED_TASK_TYPES;
     }
 
     private static IbmWatsonxModel createModelFromPersistent(
@@ -227,8 +234,7 @@ public class IbmWatsonxService extends SenderService {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
-        Map<String, Object> secretSettings,
-        String failureMessage
+        Map<String, Object> secretSettings
     ) {
         return createModel(
             inferenceEntityId,
@@ -237,7 +243,6 @@ public class IbmWatsonxService extends SenderService {
             taskSettings,
             chunkingSettings,
             secretSettings,
-            failureMessage,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -252,20 +257,12 @@ public class IbmWatsonxService extends SenderService {
             chunkingSettings = ChunkingSettingsBuilder.fromMap(removeFromMapOrDefaultEmpty(config, ModelConfigurations.CHUNKING_SETTINGS));
         }
 
-        return createModelFromPersistent(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
-        );
+        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, null);
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -351,7 +348,7 @@ public class IbmWatsonxService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        EmbeddingsInput input,
+        List<ChunkInferenceInput> input,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -360,13 +357,16 @@ public class IbmWatsonxService extends SenderService {
         IbmWatsonxModel ibmWatsonxModel = (IbmWatsonxModel) model;
 
         var batchedRequests = new EmbeddingRequestChunker<>(
-            input.getInputs(),
+            input,
             EMBEDDING_MAX_BATCH_SIZE,
             ibmWatsonxModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
+
+        var actionCreator = getActionCreator(getSender(), getServiceComponents());
+
         for (var request : batchedRequests) {
-            var action = ibmWatsonxModel.accept(getActionCreator(getSender(), getServiceComponents()), taskSettings);
-            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+            var action = ibmWatsonxModel.accept(actionCreator, taskSettings);
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 
@@ -374,18 +374,23 @@ public class IbmWatsonxService extends SenderService {
         return new IbmWatsonxActionCreator(getSender(), getServiceComponents());
     }
 
+    @Override
+    public int rerankerWindowSize(String modelId) {
+        return RERANK_WINDOW_SIZE;
+    }
+
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
                 configurationMap.put(
                     API_VERSION,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("The IBM watsonx API version ID to use.")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("The IBM watsonx API version ID to use.")
                         .setLabel("API Version")
                         .setRequired(true)
                         .setSensitive(false)
@@ -396,7 +401,7 @@ public class IbmWatsonxService extends SenderService {
 
                 configurationMap.put(
                     PROJECT_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("")
                         .setLabel("Project ID")
                         .setRequired(true)
                         .setSensitive(false)
@@ -407,7 +412,7 @@ public class IbmWatsonxService extends SenderService {
 
                 configurationMap.put(
                     MODEL_ID,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
                         "The name of the model to use for the inference task."
                     )
                         .setLabel("Model ID")
@@ -420,7 +425,7 @@ public class IbmWatsonxService extends SenderService {
 
                 configurationMap.put(
                     URL,
-                    new SettingsConfiguration.Builder(supportedTaskTypes).setDescription("")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("")
                         .setLabel("URL")
                         .setRequired(true)
                         .setSensitive(false)
@@ -444,7 +449,7 @@ public class IbmWatsonxService extends SenderService {
 
                 return new InferenceServiceConfiguration.Builder().setService(NAME)
                     .setName(SERVICE_NAME)
-                    .setTaskTypes(supportedTaskTypes)
+                    .setTaskTypes(SUPPORTED_TASK_TYPES)
                     .setConfigurations(configurationMap)
                     .build();
             }

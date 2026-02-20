@@ -28,7 +28,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,7 +62,7 @@ public record SemanticTextField(
 
     static final String TEXT_FIELD = "text";
     static final String INFERENCE_FIELD = "inference";
-    static final String INFERENCE_ID_FIELD = "inference_id";
+    public static final String INFERENCE_ID_FIELD = "inference_id";
     static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     static final String CHUNKS_FIELD = "chunks";
     static final String CHUNKED_EMBEDDINGS_FIELD = "embeddings";
@@ -70,7 +70,7 @@ public record SemanticTextField(
     static final String CHUNKED_OFFSET_FIELD = "offset";
     static final String CHUNKED_START_OFFSET_FIELD = "start_offset";
     static final String CHUNKED_END_OFFSET_FIELD = "end_offset";
-    static final String MODEL_SETTINGS_FIELD = "model_settings";
+    public static final String MODEL_SETTINGS_FIELD = "model_settings";
     static final String CHUNKING_SETTINGS_FIELD = "chunking_settings";
 
     public record InferenceResult(
@@ -81,8 +81,6 @@ public record SemanticTextField(
     ) {}
 
     public record Chunk(@Nullable String text, int startOffset, int endOffset, BytesReference rawEmbeddings) {}
-
-    public record Offset(String sourceFieldName, int startOffset, int endOffset) {}
 
     public static String getOriginalTextFieldName(String fieldName) {
         return fieldName + "." + TEXT_FIELD;
@@ -110,7 +108,7 @@ public record SemanticTextField(
         return SEMANTIC_TEXT_FIELD_PARSER.parse(parser, context);
     }
 
-    static MinimalServiceSettings parseModelSettingsFromMap(Object node) {
+    public static MinimalServiceSettings parseModelSettingsFromMap(Object node) {
         if (node == null) {
             return null;
         }

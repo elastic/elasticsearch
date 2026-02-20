@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.mistral.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -34,6 +33,9 @@ import static org.elasticsearch.xpack.inference.services.mistral.MistralConstant
  */
 public class MistralChatCompletionServiceSettings extends FilteredXContentObject implements ServiceSettings {
     public static final String NAME = "mistral_completions_service_settings";
+    private static final TransportVersion ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED = TransportVersion.fromName(
+        "ml_inference_mistral_chat_completion_added"
+    );
 
     private final String modelId;
     private final RateLimitSettings rateLimitSettings;
@@ -79,13 +81,12 @@ public class MistralChatCompletionServiceSettings extends FilteredXContentObject
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED;
+        return ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED)
-            || version.isPatchFrom(TransportVersions.ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED_8_19);
+        return version.supports(ML_INFERENCE_MISTRAL_CHAT_COMPLETION_ADDED);
     }
 
     @Override

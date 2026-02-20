@@ -7,7 +7,7 @@ mapped_pages:
 # Redis connector reference [es-connectors-redis]
 
 
-The Redis connector is built with the Elastic connectors Python framework and is available as a self-managed [self-managed connector](/reference/search-connectors/self-managed-connectors.md). View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/redis.py) (branch *main*, compatible with Elastic *9.0*).
+The Redis connector is built with the Elastic connectors Python framework and is available as a self-managed [self-managed connector](/reference/search-connectors/self-managed-connectors.md). View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/redis) (branch *main*, compatible with Elastic *9.0*).
 
 
 ## Availability and prerequisites [es-connectors-redis-connector-availability-and-prerequisites]
@@ -41,8 +41,9 @@ You can deploy the Redis connector as a self-managed connector using Docker. Fol
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -219,6 +220,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
   }
 ]
 ```
+% NOTCONSOLE
 
 
 #### Example 2 [es-connectors-redis-connector-advanced-sync-rules-example-2]
@@ -233,6 +235,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
   }
 ]
 ```
+% NOTCONSOLE
 
 
 #### Example 3 [es-connectors-redis-connector-advanced-sync-rules-example-3]
@@ -246,6 +249,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
     "key_pattern": "test[123]"
   }
 ```
+% NOTCONSOLE
 
 
 #### Example 4 [es-connectors-redis-connector-advanced-sync-rules-example-4]
@@ -260,6 +264,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
   }
 ]
 ```
+% NOTCONSOLE
 
 
 #### Example 5 [es-connectors-redis-connector-advanced-sync-rules-example-5]
@@ -274,6 +279,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
   }
 ]
 ```
+% NOTCONSOLE
 
 
 #### Example 6 [es-connectors-redis-connector-advanced-sync-rules-example-6]
@@ -289,6 +295,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
   }
 ]
 ```
+% NOTCONSOLE
 
 
 #### Example 7 [es-connectors-redis-connector-advanced-sync-rules-example-7]
@@ -303,6 +310,7 @@ Provide at least one of the following: `key_pattern` or `type`, or both.
   }
 ]
 ```
+% NOTCONSOLE
 
 
 ## Connector Client operations [es-connectors-redis-connector-connector-client-operations]

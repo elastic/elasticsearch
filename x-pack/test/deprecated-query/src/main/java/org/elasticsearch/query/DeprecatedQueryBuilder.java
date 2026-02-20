@@ -7,15 +7,14 @@
 
 package org.elasticsearch.query;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -58,7 +57,7 @@ public class DeprecatedQueryBuilder extends AbstractQueryBuilder<DeprecatedQuery
     @Override
     protected Query doToQuery(SearchExecutionContext context) {
         deprecationLogger.warn(DeprecationCategory.QUERIES, "to_query", "[deprecated] query");
-        return new MatchAllDocsQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     @Override
@@ -78,6 +77,6 @@ public class DeprecatedQueryBuilder extends AbstractQueryBuilder<DeprecatedQuery
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

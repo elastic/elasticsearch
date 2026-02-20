@@ -183,6 +183,7 @@ PUT /pattern_example
   }
 }
 ```
+% TEST[s/\n$/\nstartyaml\n  - compare_analyzers: {index: pattern_example, first: pattern, second: rebuilt_pattern}\nendyaml\n/]
 
 1. The default pattern is `\W+` which splits on non-word characters and this is where you’d change it.
 2. You’d add other token filters after `lowercase`.

@@ -74,6 +74,7 @@ public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-azure")
         .module("snapshot-repo-test-kit")
+        .setting("thread_pool.snapshot.max", "10")
         .keystore("azure.client.repository_test_kit.account", AZURE_TEST_ACCOUNT)
         .keystore("azure.client.repository_test_kit.key", () -> AZURE_TEST_KEY, s -> Strings.hasText(AZURE_TEST_KEY))
         .keystore("azure.client.repository_test_kit.sas_token", () -> AZURE_TEST_SASTOKEN, s -> Strings.hasText(AZURE_TEST_SASTOKEN))

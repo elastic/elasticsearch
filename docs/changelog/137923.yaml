@@ -1,0 +1,5 @@
+pr: 137923
+summary: Propagate converted fields through projections
+area: ES|QL
+type: bug
+issues: []

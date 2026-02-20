@@ -466,9 +466,7 @@ public interface SourceLoader {
      * @return a new {@link Source} with the patches applied
      */
     static Source applySyntheticVectors(Source originalSource, List<SyntheticVectorPatch> patches) {
-        Map<String, Object> newMap = originalSource.source();
-        applyPatches("", newMap, patches);
-        return Source.fromMap(newMap, originalSource.sourceContentType());
+        return originalSource.withMutations(map -> applyPatches("", map, patches));
     }
 
     /**

@@ -385,7 +385,8 @@ public class EnableAllocationTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             createShardsAllocator(settings),
             EmptyClusterInfoService.INSTANCE,
-            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES
+            SNAPSHOT_INFO_SERVICE_WITH_NO_SHARD_SIZES,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
     }
 }

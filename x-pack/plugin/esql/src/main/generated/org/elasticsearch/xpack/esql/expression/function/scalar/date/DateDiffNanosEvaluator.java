@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.date;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.time.ZoneId;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
@@ -38,17 +39,20 @@ public final class DateDiffNanosEvaluator implements EvalOperator.ExpressionEval
 
   private final EvalOperator.ExpressionEvaluator endTimestamp;
 
+  private final ZoneId zoneId;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public DateDiffNanosEvaluator(Source source, EvalOperator.ExpressionEvaluator unit,
       EvalOperator.ExpressionEvaluator startTimestamp,
-      EvalOperator.ExpressionEvaluator endTimestamp, DriverContext driverContext) {
+      EvalOperator.ExpressionEvaluator endTimestamp, ZoneId zoneId, DriverContext driverContext) {
     this.source = source;
     this.unit = unit;
     this.startTimestamp = startTimestamp;
     this.endTimestamp = endTimestamp;
+    this.zoneId = zoneId;
     this.driverContext = driverContext;
   }
 
@@ -89,41 +93,44 @@ public final class DateDiffNanosEvaluator implements EvalOperator.ExpressionEval
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        if (unitBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (unitBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (unitBlock.getValueCount(p) != 1) {
-          if (unitBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
+        switch (startTimestampBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (startTimestampBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (endTimestampBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (startTimestampBlock.getValueCount(p) != 1) {
-          if (startTimestampBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
-        if (endTimestampBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
-        }
-        if (endTimestampBlock.getValueCount(p) != 1) {
-          if (endTimestampBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
-          result.appendNull();
-          continue position;
-        }
+        BytesRef unit = unitBlock.getBytesRef(unitBlock.getFirstValueIndex(p), unitScratch);
+        long startTimestamp = startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p));
+        long endTimestamp = endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p));
         try {
-          result.appendInt(DateDiff.processNanos(unitBlock.getBytesRef(unitBlock.getFirstValueIndex(p), unitScratch), startTimestampBlock.getLong(startTimestampBlock.getFirstValueIndex(p)), endTimestampBlock.getLong(endTimestampBlock.getFirstValueIndex(p))));
+          result.appendInt(DateDiff.processNanos(unit, startTimestamp, endTimestamp, this.zoneId));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -138,8 +145,11 @@ public final class DateDiffNanosEvaluator implements EvalOperator.ExpressionEval
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       BytesRef unitScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
+        BytesRef unit = unitVector.getBytesRef(p, unitScratch);
+        long startTimestamp = startTimestampVector.getLong(p);
+        long endTimestamp = endTimestampVector.getLong(p);
         try {
-          result.appendInt(DateDiff.processNanos(unitVector.getBytesRef(p, unitScratch), startTimestampVector.getLong(p), endTimestampVector.getLong(p)));
+          result.appendInt(DateDiff.processNanos(unit, startTimestamp, endTimestamp, this.zoneId));
         } catch (IllegalArgumentException | InvalidArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -151,7 +161,7 @@ public final class DateDiffNanosEvaluator implements EvalOperator.ExpressionEval
 
   @Override
   public String toString() {
-    return "DateDiffNanosEvaluator[" + "unit=" + unit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
+    return "DateDiffNanosEvaluator[" + "unit=" + unit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + ", zoneId=" + zoneId + "]";
   }
 
   @Override
@@ -161,12 +171,7 @@ public final class DateDiffNanosEvaluator implements EvalOperator.ExpressionEval
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
@@ -180,23 +185,26 @@ public final class DateDiffNanosEvaluator implements EvalOperator.ExpressionEval
 
     private final EvalOperator.ExpressionEvaluator.Factory endTimestamp;
 
+    private final ZoneId zoneId;
+
     public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory unit,
         EvalOperator.ExpressionEvaluator.Factory startTimestamp,
-        EvalOperator.ExpressionEvaluator.Factory endTimestamp) {
+        EvalOperator.ExpressionEvaluator.Factory endTimestamp, ZoneId zoneId) {
       this.source = source;
       this.unit = unit;
       this.startTimestamp = startTimestamp;
       this.endTimestamp = endTimestamp;
+      this.zoneId = zoneId;
     }
 
     @Override
     public DateDiffNanosEvaluator get(DriverContext context) {
-      return new DateDiffNanosEvaluator(source, unit.get(context), startTimestamp.get(context), endTimestamp.get(context), context);
+      return new DateDiffNanosEvaluator(source, unit.get(context), startTimestamp.get(context), endTimestamp.get(context), zoneId, context);
     }
 
     @Override
     public String toString() {
-      return "DateDiffNanosEvaluator[" + "unit=" + unit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + "]";
+      return "DateDiffNanosEvaluator[" + "unit=" + unit + ", startTimestamp=" + startTimestamp + ", endTimestamp=" + endTimestamp + ", zoneId=" + zoneId + "]";
     }
   }
 }

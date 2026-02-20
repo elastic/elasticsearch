@@ -16,12 +16,7 @@
           "type": "keyword"
         },
         "content": {
-          "type": "semantic_text",
-          "inference_id": ".elser-2-elasticsearch",
-          "model_settings": {
-            "service": "elasticsearch",
-            "task_type": "sparse_embedding"
-          }
+          "type": "semantic_text"
         },
         "version": {
           "type": "version"

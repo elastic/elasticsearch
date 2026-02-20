@@ -8,7 +8,7 @@ navigation_title: Vector tile search API
 
 # Vector tile search API examples
 
-This page shows how to create an index with geospatial data and retrieve vector tile results using the [vector tile search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-mvt-1). 
+The [vector tile search API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-mvt-1) searches for geospatial data within a specific tile coordinate (zoom/x/y) and returns the results as a binary Mapbox Vector Tile (MVT) containing hits, aggregations, and metadata. This page shows how to create an index with geospatial data and retrieve vector tile results using the API.
 
 
 You can learn how to:
@@ -273,6 +273,26 @@ tile contains the following data:
 {{es}} may translate a vector tile search API request with a
 `grid_agg` argument of `geotile` and an `exact_bounds` argument of `true`
 into the following search:
+
+<!--
+```console
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "my-geo-field": {
+        "type": "geo_point"
+      }
+    }
+  }
+}
+
+PUT my-index/_doc/0?refresh
+{
+  "my-geo-field": "POINT (-122.0863176 37.3864953)"
+}
+```
+-->
 
 ```console
 GET my-index/_search

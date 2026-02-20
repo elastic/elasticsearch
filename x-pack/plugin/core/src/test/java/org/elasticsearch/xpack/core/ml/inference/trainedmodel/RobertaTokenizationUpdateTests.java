@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
@@ -68,9 +67,6 @@ public class RobertaTokenizationUpdateTests extends AbstractBWCWireSerialization
 
     @Override
     protected RobertaTokenizationUpdate mutateInstanceForVersion(RobertaTokenizationUpdate instance, TransportVersion version) {
-        if (version.before(TransportVersions.V_8_2_0)) {
-            return new RobertaTokenizationUpdate(instance.getTruncate(), null);
-        }
 
         return instance;
     }

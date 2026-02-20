@@ -197,6 +197,14 @@ public class FunctionScoreQuery extends Query {
         return combineFunction;
     }
 
+    public ScoreMode getScoreMode() {
+        return scoreMode;
+    }
+
+    public Float getMaxBoost() {
+        return maxBoost;
+    }
+
     @Override
     public void visit(QueryVisitor visitor) {
         // Highlighters must visit the child query to extract terms
@@ -250,7 +258,6 @@ public class FunctionScoreQuery extends Query {
                 final Set<Term> terms = new HashSet<>();
                 this.visit(QueryVisitor.termCollector(terms));
                 scriptScoreFunction.setTermStatsFactory((ctx, docIdSupplier) -> new ScriptTermStats(searcher, ctx, docIdSupplier, terms));
-
             }
         }
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, boost);

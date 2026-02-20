@@ -1,5 +1,0 @@
-pr: 130382
-summary: Remove vectors from `_source` transparently
-area: "Vector Search"
-type: enhancement
-issues: []

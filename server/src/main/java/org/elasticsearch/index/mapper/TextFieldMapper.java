@@ -21,7 +21,11 @@ import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
+import org.apache.lucene.document.SortedSetDocValuesField;
+import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
@@ -56,6 +60,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.AnalyzerScope;
@@ -67,9 +72,17 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SourceValueFetcherSortedBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.StoredFieldSortedBinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.BytesBinaryIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.DelegatingBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -80,11 +93,13 @@ import org.elasticsearch.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.IntPredicate;
 
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
@@ -95,6 +110,11 @@ public final class TextFieldMapper extends FieldMapper {
     public static final String CONTENT_TYPE = "text";
     private static final String FAST_PHRASE_SUFFIX = "._index_phrase";
     private static final String FAST_PREFIX_SUFFIX = "._index_prefix";
+
+    public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
+        false,
+        DocValuesParameter.Values.Cardinality.HIGH
+    );
 
     public static class Defaults {
         public static final double FIELDDATA_MIN_FREQUENCY = 0;
@@ -236,17 +256,19 @@ public final class TextFieldMapper extends FieldMapper {
         return new FielddataFrequencyFilter(minFrequency, maxFrequency, minSegmentSize);
     }
 
-    public static class Builder extends FieldMapper.Builder {
+    public static class Builder extends TextFamilyBuilder {
 
-        private final IndexVersion indexCreatedVersion;
         private final Parameter<Boolean> store;
         private final Parameter<Boolean> norms;
-
-        private final boolean isSyntheticSourceEnabled;
 
         private final IndexMode indexMode;
 
         private final Parameter<Boolean> index = Parameter.indexParam(m -> ((TextFieldMapper) m).index, true);
+
+        final DocValuesParameter docValuesParameters = new DocValuesParameter(
+            DEFAULT_DOC_VALUES_PARAMS,
+            m -> ((TextFieldMapper) m).docValuesParameters
+        );
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
@@ -289,11 +311,10 @@ public final class TextFieldMapper extends FieldMapper {
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         final TextParams.Analyzers analyzers;
+        private final boolean usesBinaryDocValuesForFallbackFields;
 
-        private final boolean withinMultiField;
-
-        public Builder(String name, IndexAnalyzers indexAnalyzers, boolean isSyntheticSourceEnabled) {
-            this(name, IndexVersion.current(), null, indexAnalyzers, isSyntheticSourceEnabled, false);
+        public Builder(String name, IndexAnalyzers indexAnalyzers) {
+            this(name, IndexVersion.current(), null, indexAnalyzers, false, false, false);
         }
 
         public Builder(
@@ -302,56 +323,70 @@ public final class TextFieldMapper extends FieldMapper {
             IndexMode indexMode,
             IndexAnalyzers indexAnalyzers,
             boolean isSyntheticSourceEnabled,
-            boolean withinMultiField
+            boolean isWithinMultiField,
+            boolean usesBinaryDocValuesForFallbackFields
         ) {
-            super(name);
+            super(name, indexCreatedVersion, isWithinMultiField);
 
-            this.indexCreatedVersion = indexCreatedVersion;
             this.indexMode = indexMode;
-            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
-            this.withinMultiField = withinMultiField;
-
-            this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, this::normsDefault);
-
-            // If synthetic source is used we need to either store this field
-            // to recreate the source or use keyword multi-fields for that.
-            // So if there are no suitable multi-fields we will default to
-            // storing the field without requiring users to explicitly set 'store'.
-            //
-            // If 'store' parameter was explicitly provided we'll reject the request.
-            // Note that if current builder is a multi field, then we don't need to store, given that responsibility lies with parent field
-            this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
-                if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
-                    return isSyntheticSourceEnabled
-                        && this.withinMultiField == false
-                        && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                } else {
-                    return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
-                }
-            });
+            this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,
                 m -> (((TextFieldMapper) m).positionIncrementGap),
                 indexCreatedVersion
             );
+
+            this.norms = Parameter.normsParam(m -> ((TextFieldMapper) m).norms, () -> {
+                if (indexCreatedVersion.onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
+                    // don't enable norms by default if the index is LOGSDB or TSDB based
+                    return indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES;
+                }
+                // bwc - historically, norms were enabled by default on text fields regardless of which index mode was used
+                return true;
+            });
+
+            this.store = Parameter.storeParam(m -> ((TextFieldMapper) m).store, () -> {
+                // ideally and for simplicity, store should be set to false by default
+                if (keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(indexCreatedVersion)) {
+                    return false;
+                }
+
+                // however, because historically we set store to true to support synthetic source, we must also keep that logic:
+                if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
+                    return isSyntheticSourceEnabled
+                        && isWithinMultiField == false
+                        && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+                } else {
+                    return isSyntheticSourceEnabled && multiFieldsBuilder.hasSyntheticSourceCompatibleKeywordField() == false;
+                }
+            });
         }
 
-        private boolean normsDefault() {
-            if (indexCreatedVersion.onOrAfter(IndexVersions.DISABLE_NORMS_BY_DEFAULT_FOR_LOGSDB_AND_TSDB)) {
-                // don't enable norms by default if the index is LOGSDB or TSDB based
-                return indexMode != IndexMode.LOGSDB && indexMode != IndexMode.TIME_SERIES;
+        public Builder(String name, IndexSettings indexSettings, IndexAnalyzers indexAnalyzers, boolean isWithinMultiField) {
+            this(
+                name,
+                indexSettings.getIndexVersionCreated(),
+                indexSettings.getMode(),
+                indexAnalyzers,
+                SourceFieldMapper.isSynthetic(indexSettings),
+                isWithinMultiField,
+                useBinaryDocValuesForFallbackFields(indexSettings)
+            );
+        }
+
+        private Builder(String name, MappingParserContext context) {
+            this(name, context.getIndexSettings(), context.getIndexAnalyzers(), context.isWithinMultiField());
+        }
+
+        private static boolean useBinaryDocValuesForFallbackFields(final IndexSettings indexSettings) {
+            IndexVersion indexVersion = indexSettings.getIndexVersionCreated();
+            if (indexVersion.onOrAfter(IndexVersions.FALLBACK_TEXT_FIELDS_BINARY_DOC_VALUES_FORMAT_CHECK)) {
+                return indexSettings.useTimeSeriesDocValuesFormat();
             }
-            // bwc - historically, norms were enabled by default on text fields regardless of which index mode was used
-            return true;
-        }
-
-        public static boolean multiFieldsNotStoredByDefaultIndexVersionCheck(IndexVersion indexCreatedVersion) {
-            return indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED)
-                || indexCreatedVersion.between(
-                    IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19,
-                    IndexVersions.UPGRADE_TO_LUCENE_10_0_0
-                );
+            // for BWC - indices created before TEXT_FIELDS_BINARY_DOC_VALUES_TSDB_DOC_VALUES_FORMAT_CHECK, stored fallback fields only in
+            // binary doc values
+            return indexVersion.onOrAfter(IndexVersions.STORE_FALLBACK_TEXT_FIELDS_IN_BINARY_DOC_VALUES);
         }
 
         public Builder index(boolean index) {
@@ -379,25 +414,53 @@ public final class TextFieldMapper extends FieldMapper {
             return this;
         }
 
+        boolean usesBinaryDocValues() {
+            return docValuesParameters.getValue().enabled()
+                && docValuesParameters.getValue().cardinality() == DocValuesParameter.Values.Cardinality.HIGH;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
-            return new Parameter<?>[] {
-                index,
-                store,
-                indexOptions,
-                norms,
-                termVectors,
-                analyzers.indexAnalyzer,
-                analyzers.searchAnalyzer,
-                analyzers.searchQuoteAnalyzer,
-                similarity,
-                analyzers.positionIncrementGap,
-                fieldData,
-                freqFilter,
-                eagerGlobalOrdinals,
-                indexPhrases,
-                indexPrefixes,
-                meta };
+            // when EXTENDED_DOC_VALUES_PARAMS_FF is disabled, exclude docValuesParameters from parsing
+            // so doc_values configuration in the mapping is ignored and the default (disabled) is used
+            if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+                return new Parameter<?>[] {
+                    index,
+                    store,
+                    docValuesParameters,
+                    indexOptions,
+                    norms,
+                    termVectors,
+                    analyzers.indexAnalyzer,
+                    analyzers.searchAnalyzer,
+                    analyzers.searchQuoteAnalyzer,
+                    similarity,
+                    analyzers.positionIncrementGap,
+                    fieldData,
+                    freqFilter,
+                    eagerGlobalOrdinals,
+                    indexPhrases,
+                    indexPrefixes,
+                    meta };
+            } else {
+                return new Parameter<?>[] {
+                    index,
+                    store,
+                    indexOptions,
+                    norms,
+                    termVectors,
+                    analyzers.indexAnalyzer,
+                    analyzers.searchAnalyzer,
+                    analyzers.searchQuoteAnalyzer,
+                    similarity,
+                    analyzers.positionIncrementGap,
+                    fieldData,
+                    freqFilter,
+                    eagerGlobalOrdinals,
+                    indexPhrases,
+                    indexPrefixes,
+                    meta };
+            }
         }
 
         private TextFieldType buildFieldType(
@@ -425,12 +488,17 @@ public final class TextFieldMapper extends FieldMapper {
                     context.buildFullName(leafName()),
                     index.getValue(),
                     store.getValue(),
+                    docValuesParameters.getValue().enabled(),
                     tsi,
                     context.isSourceSynthetic(),
-                    SyntheticSourceHelper.syntheticSourceDelegate(fieldType, multiFields),
+                    isWithinMultiField(),
+                    SyntheticSourceHelper.syntheticSourceDelegate(fieldType.stored(), multiFields),
                     meta.getValue(),
                     eagerGlobalOrdinals.getValue(),
-                    indexPhrases.getValue()
+                    indexPhrases.getValue(),
+                    indexCreatedVersion,
+                    usesBinaryDocValuesForFallbackFields,
+                    usesBinaryDocValues()
                 );
                 if (fieldData.getValue()) {
                     ft.setFielddata(true, freqFilter.getValue());
@@ -453,7 +521,7 @@ public final class TextFieldMapper extends FieldMapper {
              * or a multi-field). This way search will continue to work on old indices and new indices
              * will use the expected full name.
              */
-            String fullName = indexCreatedVersion.before(IndexVersions.V_7_2_1) ? leafName() : context.buildFullName(leafName());
+            String fullName = indexCreatedVersion().before(IndexVersions.V_7_2_1) ? leafName() : context.buildFullName(leafName());
             // Copy the index options of the main field to allow phrase queries on
             // the prefix field.
             FieldType pft = new FieldType(fieldType);
@@ -503,13 +571,19 @@ public final class TextFieldMapper extends FieldMapper {
             FieldType fieldType = TextParams.buildFieldType(
                 index,
                 store,
+                () -> docValuesParameters.getValue().enabled(),
                 indexOptions,
                 // legacy indices do not have access to norms
-                indexCreatedVersion.isLegacyIndexVersion() ? () -> false : norms,
+                indexCreatedVersion().isLegacyIndexVersion() ? () -> false : norms,
                 termVectors
             );
+
+            // Note, we don't set docValuesType on the FieldType here. This is because text fields are tokenized, and setting docValuesType
+            // would cause Lucene to store doc_values for each token. Instead, we manually create a SortedSetDocValuesField in
+            // parseCreateField()
+
             BuilderParams builderParams = builderParams(this, context);
-            TextFieldType tft = buildFieldType(fieldType, builderParams.multiFields(), context, indexCreatedVersion);
+            TextFieldType tft = buildFieldType(fieldType, builderParams.multiFields(), context, indexCreatedVersion());
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
             SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft);
             for (Mapper mapper : builderParams.multiFields()) {
@@ -521,16 +595,7 @@ public final class TextFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = createTypeParserWithLegacySupport(
-        (n, c) -> new Builder(
-            n,
-            c.indexVersionCreated(),
-            c.getIndexSettings().getMode(),
-            c.getIndexAnalyzers(),
-            SourceFieldMapper.isSynthetic(c.getIndexSettings()),
-            c.isWithinMultiField()
-        )
-    );
+    public static final TypeParser PARSER = createTypeParserWithLegacySupport(Builder::new);
 
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
 
@@ -598,7 +663,13 @@ public final class TextFieldMapper extends FieldMapper {
         final TextFieldType parentField;
 
         PrefixFieldType(TextFieldType parentField, int minChars, int maxChars) {
-            super(parentField.name() + FAST_PREFIX_SUFFIX, true, false, false, parentField.getTextSearchInfo(), Collections.emptyMap());
+            super(
+                parentField.name() + FAST_PREFIX_SUFFIX,
+                IndexType.terms(true, false),
+                false,
+                parentField.getTextSearchInfo(),
+                Collections.emptyMap()
+            );
             this.minChars = minChars;
             this.maxChars = maxChars;
             this.parentField = parentField;
@@ -697,20 +768,50 @@ public final class TextFieldMapper extends FieldMapper {
 
     }
 
-    public static class TextFieldType extends StringFieldType {
+    public static class TextFieldType extends TextFamilyFieldType {
 
         private boolean fielddata;
         private FielddataFrequencyFilter filter;
         private PrefixFieldType prefixFieldType;
         private final boolean indexPhrases;
         private final boolean eagerGlobalOrdinals;
-        private final boolean isSyntheticSource;
+        private final IndexVersion indexCreatedVersion;
+        private final boolean usesBinaryDocValuesForFallbackFields;
+        private final boolean usesBinaryDocValues;
+
         /**
          * In some configurations text fields use a sub-keyword field to provide
-         * their values for synthetic source. This is that field. Or null if we're
+         * their values for synthetic source. This is that field. Or empty if we're
          * not running in synthetic _source or synthetic source doesn't need it.
          */
-        private final KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate;
+        private final Optional<KeywordFieldMapper.KeywordFieldType> syntheticSourceDelegate;
+
+        public TextFieldType(
+            String name,
+            boolean indexed,
+            boolean stored,
+            boolean hasDocValues,
+            TextSearchInfo tsi,
+            boolean isSyntheticSource,
+            boolean isWithinMultiField,
+            KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
+            Map<String, String> meta,
+            boolean eagerGlobalOrdinals,
+            boolean indexPhrases,
+            IndexVersion indexCreatedVersion,
+            boolean usesBinaryDocValuesForFallbackFields,
+            boolean usesBinaryDocValues
+        ) {
+            super(name, IndexType.terms(indexed, hasDocValues), stored, tsi, meta, isSyntheticSource, isWithinMultiField);
+            this.fielddata = false;
+            // TODO block loader could use a "fast loading" delegate which isn't always the same - but frequently is.
+            this.syntheticSourceDelegate = Optional.ofNullable(syntheticSourceDelegate);
+            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
+            this.indexPhrases = indexPhrases;
+            this.indexCreatedVersion = indexCreatedVersion;
+            this.usesBinaryDocValuesForFallbackFields = usesBinaryDocValuesForFallbackFields;
+            this.usesBinaryDocValues = usesBinaryDocValues;
+        }
 
         public TextFieldType(
             String name,
@@ -718,44 +819,78 @@ public final class TextFieldMapper extends FieldMapper {
             boolean stored,
             TextSearchInfo tsi,
             boolean isSyntheticSource,
+            boolean isWithinMultiField,
             KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate,
             Map<String, String> meta,
             boolean eagerGlobalOrdinals,
             boolean indexPhrases
         ) {
-            super(name, indexed, stored, false, tsi, meta);
-            fielddata = false;
-            this.isSyntheticSource = isSyntheticSource;
-            // TODO block loader could use a "fast loading" delegate which isn't always the same - but frequently is.
-            this.syntheticSourceDelegate = syntheticSourceDelegate;
-            this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-            this.indexPhrases = indexPhrases;
+            this(
+                name,
+                indexed,
+                stored,
+                false,
+                tsi,
+                isSyntheticSource,
+                isWithinMultiField,
+                syntheticSourceDelegate,
+                meta,
+                eagerGlobalOrdinals,
+                indexPhrases,
+                IndexVersion.current(),
+                false,
+                false
+            );
         }
 
         public TextFieldType(String name, boolean indexed, boolean stored, Map<String, String> meta) {
             super(
                 name,
-                indexed,
+                IndexType.terms(indexed, false),
                 stored,
-                false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
-                meta
+                meta,
+                false,
+                false
             );
-            fielddata = false;
-            isSyntheticSource = false;
-            syntheticSourceDelegate = null;
-            eagerGlobalOrdinals = false;
-            indexPhrases = false;
+            this.fielddata = false;
+            this.syntheticSourceDelegate = null;
+            this.eagerGlobalOrdinals = false;
+            this.indexPhrases = false;
+            this.indexCreatedVersion = IndexVersion.current();
+            this.usesBinaryDocValuesForFallbackFields = false;
+            this.usesBinaryDocValues = false;
         }
 
-        public TextFieldType(String name, boolean isSyntheticSource) {
+        public TextFieldType(String name, boolean isSyntheticSource, boolean isWithinMultiField) {
             this(
                 name,
                 true,
                 false,
                 new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
                 isSyntheticSource,
+                isWithinMultiField,
                 null,
+                Collections.emptyMap(),
+                false,
+                false
+            );
+        }
+
+        public TextFieldType(
+            String name,
+            boolean isSyntheticSource,
+            boolean isWithinMultiField,
+            KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate
+        ) {
+            this(
+                name,
+                true,
+                false,
+                new TextSearchInfo(Defaults.FIELD_TYPE, null, Lucene.STANDARD_ANALYZER, Lucene.STANDARD_ANALYZER),
+                isSyntheticSource,
+                isWithinMultiField,
+                syntheticSourceDelegate,
                 Collections.emptyMap(),
                 false,
                 false
@@ -764,6 +899,10 @@ public final class TextFieldMapper extends FieldMapper {
 
         public boolean fielddata() {
             return fielddata;
+        }
+
+        public boolean usesBinaryDocValues() {
+            return usesBinaryDocValues;
         }
 
         @Override
@@ -808,6 +947,42 @@ public final class TextFieldMapper extends FieldMapper {
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             return SourceValueFetcher.toString(name(), context, format);
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return indexType().hasTerms() || hasDocValues();
+        }
+
+        @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            if (indexType().hasTerms()) {
+                return super.termQuery(value, context);
+            }
+
+            failIfNotIndexedNorDocValuesFallback(context);
+
+            if (usesBinaryDocValues) {
+                return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
+            } else {
+                return SortedSetDocValuesField.newSlowExactQuery(name(), indexedValueForSearch(value));
+            }
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            if (indexType().hasTerms()) {
+                return super.termsQuery(values, context);
+            }
+
+            failIfNotIndexedNorDocValuesFallback(context);
+
+            List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
+            if (usesBinaryDocValues) {
+                return new SlowCustomBinaryDocValuesTermInSetQuery(name(), bytesRefs);
+            } else {
+                return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
+            }
         }
 
         @Override
@@ -1013,7 +1188,7 @@ public final class TextFieldMapper extends FieldMapper {
 
         @Override
         public boolean isAggregatable() {
-            return fielddata;
+            return fielddata || hasDocValues();
         }
 
         /**
@@ -1021,44 +1196,93 @@ public final class TextFieldMapper extends FieldMapper {
          * A delegate by definition must have doc_values or be stored so most of the time it can be used for loading.
          */
         public boolean canUseSyntheticSourceDelegateForLoading() {
-            return syntheticSourceDelegate != null && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE;
+            return syntheticSourceDelegate.isPresent() && syntheticSourceDelegate.get().ignoreAbove().valuesPotentiallyIgnored() == false;
         }
 
         /**
-         * Returns true if the delegate sub-field can be used for querying only (ie. isIndexed must be true)
+         * Returns true if the delegate sub-field can be used for querying only (ie. isSearchable must be true)
          */
         public boolean canUseSyntheticSourceDelegateForQuerying() {
-            return syntheticSourceDelegate != null
-                && syntheticSourceDelegate.ignoreAbove() == Integer.MAX_VALUE
-                && syntheticSourceDelegate.isIndexed();
+            return syntheticSourceDelegate.isPresent()
+                && syntheticSourceDelegate.get().ignoreAbove().valuesPotentiallyIgnored() == false
+                && syntheticSourceDelegate.get().isSearchable();
         }
 
         /**
-         * Returns true if the delegate sub-field can be used for querying only (ie. isIndexed must be true)
+         * Returns whether this field can use its delegate keyword field for synthetic source.
+         */
+        public boolean canUseSyntheticSourceDelegateForSyntheticSource(final String value) {
+            if (syntheticSourceDelegate.isPresent()) {
+                // if the keyword field is going to be ignored, then we can't rely on it for synthetic source
+                return syntheticSourceDelegate.get().ignoreAbove().isIgnored(value) == false;
+            }
+            return false;
+        }
+
+        /**
+         * Returns true if the delegate sub-field can be used for querying only (ie. isSearchable must be true)
          */
         public boolean canUseSyntheticSourceDelegateForQueryingEquality(String str) {
-            if (syntheticSourceDelegate == null
+            if (syntheticSourceDelegate.isEmpty()
                 // Can't push equality to an index if there isn't an index
-                || syntheticSourceDelegate.isIndexed() == false
+                || syntheticSourceDelegate.get().isSearchable() == false
                 // ESQL needs docs values to push equality
-                || syntheticSourceDelegate.hasDocValues() == false) {
+                || syntheticSourceDelegate.get().hasDocValues() == false) {
                 return false;
             }
             // Can't push equality if the field we're checking for is so big we'd ignore it.
-            return str.length() <= syntheticSourceDelegate.ignoreAbove();
+            return syntheticSourceDelegate.get().ignoreAbove().isIgnored(str) == false;
+        }
+
+        public boolean needsFallbackStorageForSyntheticSource(final IndexVersion indexCreatedVersion) {
+            // If the field is already stored (via stored field or doc_values), no fallback storage is needed
+            if (isStored() || hasDocValues()) {
+                return false;
+            }
+            if (multiFieldsNotStoredByDefaultIndexVersionCheck(indexCreatedVersion)) {
+                // if we're within a multi field, then supporting synthetic source isn't necessary as that's the responsibility of the
+                // parent
+                return isSyntheticSourceEnabled() && isWithinMultiField() == false;
+            }
+            return isSyntheticSourceEnabled();
         }
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            // Check if we can load from a synthetic source delegate
             if (canUseSyntheticSourceDelegateForLoading()) {
-                return new BlockLoader.Delegating(syntheticSourceDelegate.blockLoader(blContext)) {
+                return new DelegatingBlockLoader(syntheticSourceDelegate.get().blockLoader(blContext)) {
                     @Override
-                    protected String delegatingTo() {
-                        return syntheticSourceDelegate.name();
+                    public String delegatingTo() {
+                        return syntheticSourceDelegate.get().name();
                     }
                 };
             }
+            BlockLoader fallbackLoader = nonDelegateBlockLoader(blContext);
+            if (syntheticSourceDelegate.isPresent() && syntheticSourceDelegate.get().ignoreAbove().valuesPotentiallyIgnored()) {
+                DelegatingBlockLoader preferLoader = new DelegatingBlockLoader(syntheticSourceDelegate.get().blockLoader(blContext)) {
+                    @Override
+                    public String delegatingTo() {
+                        return syntheticSourceDelegate.get().name();
+                    }
+                };
+                return new ConditionalBlockLoaderWithIgnoreField(syntheticSourceDelegate.get().name(), preferLoader, fallbackLoader);
+            }
+            return fallbackLoader;
+        }
+
+        private BlockLoader nonDelegateBlockLoader(BlockLoaderContext blContext) {
+            // Check if we can load from doc values
+            if (hasDocValues()) {
+                if (usesBinaryDocValues()) {
+                    return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
+                } else {
+                    return new BytesRefsFromOrdsBlockLoader(name());
+                }
+            }
+
             /*
+             * Check if we can load from a parent field
              * If this is a sub-text field try and return the parent's loader. Text
              * fields will always be slow to load and if the parent is exact then we
              * should use that instead.
@@ -1069,31 +1293,49 @@ public final class TextFieldMapper extends FieldMapper {
                 if (parent.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                     KeywordFieldMapper.KeywordFieldType kwd = (KeywordFieldMapper.KeywordFieldType) parent;
                     if (kwd.hasNormalizer() == false && (kwd.hasDocValues() || kwd.isStored())) {
-                        return new BlockLoader.Delegating(kwd.blockLoader(blContext)) {
+                        return new DelegatingBlockLoader(kwd.blockLoader(blContext)) {
                             @Override
-                            protected String delegatingTo() {
+                            public String delegatingTo() {
                                 return kwd.name();
                             }
                         };
                     }
                 }
             }
+
+            // Bwc - check if we need to load from ignored source (aka fallback synthetic source)
+            if (wasIndexCreatedWhenTextFieldsWereStoredInIgnoredSource()) {
+                if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null && isStored() == false) {
+                    return fallbackSyntheticSourceBlockLoader(blContext);
+                }
+            }
+
+            // Check if we can load from a stored field
             if (isStored()) {
                 return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(name());
             }
 
-            // _ignored_source field will contain entries for this field if it is not stored
-            // and there is no syntheticSourceDelegate.
-            // See #syntheticSourceSupport().
-            // But if a text field is a multi field it won't have an entry in _ignored_source.
-            // The parent might, but we don't have enough context here to figure this out.
-            // So we bail.
-            if (isSyntheticSource && syntheticSourceDelegate == null && parentField == null) {
-                return fallbackSyntheticSourceBlockLoader(blContext);
+            // Check if we can load from a fallback field
+            if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isEmpty() && parentField == null) {
+                if (usesBinaryDocValuesForFallbackFields) {
+                    return new BytesRefsFromCustomBinaryBlockLoader(syntheticSourceFallbackFieldName());
+                }
+                return new BlockStoredFieldsReader.BytesFromStringsBlockLoader(syntheticSourceFallbackFieldName());
             }
 
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()));
+            // Load directly from _source (synthetic or not)
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, blockReaderDisiLookup(blContext));
+        }
+
+        /**
+         * There was an unintended change that resulted in some text fields being stored in ignored source.
+         */
+        private boolean wasIndexCreatedWhenTextFieldsWereStoredInIgnoredSource() {
+            return indexCreatedVersion.between(
+                IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED,
+                IndexVersions.TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX
+            );
         }
 
         FallbackSyntheticSourceBlockLoader fallbackSyntheticSourceBlockLoader(BlockLoaderContext blContext) {
@@ -1141,17 +1383,15 @@ public final class TextFieldMapper extends FieldMapper {
          * using whatever
          */
         private BlockSourceReader.LeafIteratorLookup blockReaderDisiLookup(BlockLoaderContext blContext) {
-            if (isSyntheticSource && syntheticSourceDelegate != null) {
+            if (isSyntheticSourceEnabled() && syntheticSourceDelegate.isPresent()) {
                 // Since we are using synthetic source and a delegate, we can't use this field
                 // to determine if the delegate has values in the document (f.e. handling of `null` is different
                 // between text and keyword).
                 return BlockSourceReader.lookupMatchingAll();
             }
 
-            if (isIndexed()) {
-                if (getTextSearchInfo().hasNorms()) {
-                    return BlockSourceReader.lookupFromNorms(name());
-                }
+            if (indexType.hasTerms() && getTextSearchInfo().hasNorms()) {
+                return BlockSourceReader.lookupFromNorms(name());
             } else if (isStored() == false) {
                 return BlockSourceReader.lookupMatchingAll();
             }
@@ -1161,6 +1401,11 @@ public final class TextFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             FielddataOperation operation = fieldDataContext.fielddataOperation();
+
+            if (hasDocValues()) {
+                return fieldDataFromDocValues();
+            }
+
             if (operation == FielddataOperation.SEARCH) {
                 if (fielddata == false) {
                     throw new IllegalArgumentException(
@@ -1192,7 +1437,7 @@ public final class TextFieldMapper extends FieldMapper {
             if (operation != FielddataOperation.SCRIPT) {
                 throw new IllegalStateException("unknown field data operation [" + operation.name() + "]");
             }
-            if (isSyntheticSource) {
+            if (isSyntheticSourceEnabled()) {
                 if (isStored()) {
                     return (cache, breaker) -> new StoredFieldSortedBinaryIndexFieldData(
                         name(),
@@ -1205,8 +1450,8 @@ public final class TextFieldMapper extends FieldMapper {
                         }
                     };
                 }
-                if (syntheticSourceDelegate != null) {
-                    return syntheticSourceDelegate.fielddataBuilder(fieldDataContext);
+                if (syntheticSourceDelegate.isPresent()) {
+                    return syntheticSourceDelegate.get().fielddataBuilder(fieldDataContext);
                 }
                 /*
                  * We *shouldn't fall to this exception. The mapping should be
@@ -1223,17 +1468,25 @@ public final class TextFieldMapper extends FieldMapper {
             return new SourceValueFetcherSortedBinaryIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name())),
+                SourceValueFetcher.toString(fieldDataContext.sourcePathsLookup().apply(name()), fieldDataContext.indexSettings()),
                 fieldDataContext.lookupSupplier().get(),
                 TextDocValuesField::new
             );
         }
 
-        public boolean isSyntheticSource() {
-            return isSyntheticSource;
+        private IndexFieldData.Builder fieldDataFromDocValues() {
+            if (usesBinaryDocValues()) {
+                return new BytesBinaryIndexFieldData.Builder(name(), CoreValuesSourceType.KEYWORD, TextDocValuesField::new);
+            } else {
+                return new SortedSetOrdinalsIndexFieldData.Builder(
+                    name(),
+                    CoreValuesSourceType.KEYWORD,
+                    (dv, n) -> new TextDocValuesField(FieldData.toString(dv), n)
+                );
+            }
         }
 
-        public KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate() {
+        public Optional<KeywordFieldMapper.KeywordFieldType> syntheticSourceDelegate() {
             return syntheticSourceDelegate;
         }
     }
@@ -1241,7 +1494,7 @@ public final class TextFieldMapper extends FieldMapper {
     public static class ConstantScoreTextFieldType extends TextFieldType {
 
         public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, false, null, meta, false, false);
+            super(name, indexed, stored, false, tsi, false, false, null, meta, false, false, IndexVersion.current(), false, false);
         }
 
         public ConstantScoreTextFieldType(String name) {
@@ -1344,6 +1597,7 @@ public final class TextFieldMapper extends FieldMapper {
     private final IndexMode indexMode;
     private final boolean index;
     private final boolean store;
+    private final DocValuesParameter.Values docValuesParameters;
     private final String indexOptions;
     private final boolean norms;
     private final String termVectors;
@@ -1357,9 +1611,7 @@ public final class TextFieldMapper extends FieldMapper {
     private final FieldType fieldType;
     private final SubFieldInfo prefixFieldInfo;
     private final SubFieldInfo phraseFieldInfo;
-
-    private final boolean isSyntheticSourceEnabled;
-    private final boolean isWithinMultiField;
+    private final boolean usesBinaryDocValuesForFallbackFields;
 
     private TextFieldMapper(
         String simpleName,
@@ -1371,21 +1623,25 @@ public final class TextFieldMapper extends FieldMapper {
         Builder builder
     ) {
         super(simpleName, mappedFieldType, builderParams);
+
         assert mappedFieldType.getTextSearchInfo().isTokenized();
-        assert mappedFieldType.hasDocValues() == false;
-        if (fieldType.indexOptions() == IndexOptions.NONE && fieldType().fielddata()) {
+
+        final boolean isIndexed = fieldType.indexOptions() != IndexOptions.NONE;
+        if (isIndexed == false && fieldType().fielddata()) {
             throw new IllegalArgumentException("Cannot enable fielddata on a [text] field that is not indexed: [" + fullPath() + "]");
         }
+
+        this.indexCreatedVersion = builder.indexCreatedVersion();
         this.fieldType = freezeAndDeduplicateFieldType(fieldType);
         this.prefixFieldInfo = prefixFieldInfo;
         this.phraseFieldInfo = phraseFieldInfo;
-        this.indexCreatedVersion = builder.indexCreatedVersion;
         this.indexMode = builder.indexMode;
         this.indexAnalyzer = builder.analyzers.getIndexAnalyzer();
         this.indexAnalyzers = builder.analyzers.indexAnalyzers;
         this.positionIncrementGap = builder.analyzers.positionIncrementGap.getValue();
         this.index = builder.index.getValue();
         this.store = builder.store.getValue();
+        this.docValuesParameters = builder.docValuesParameters.getValue();
         this.similarity = builder.similarity.getValue();
         this.indexOptions = builder.indexOptions.getValue();
         this.norms = builder.norms.getValue();
@@ -1393,8 +1649,7 @@ public final class TextFieldMapper extends FieldMapper {
         this.indexPrefixes = builder.indexPrefixes.getValue();
         this.freqFilter = builder.freqFilter.getValue();
         this.fieldData = builder.fieldData.get();
-        this.isSyntheticSourceEnabled = builder.isSyntheticSourceEnabled;
-        this.isWithinMultiField = builder.withinMultiField;
+        this.usesBinaryDocValuesForFallbackFields = builder.usesBinaryDocValuesForFallbackFields;
     }
 
     @Override
@@ -1418,9 +1673,15 @@ public final class TextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(leafName(), indexCreatedVersion, indexMode, indexAnalyzers, isSyntheticSourceEnabled, isWithinMultiField).init(
-            this
-        );
+        return new Builder(
+            leafName(),
+            indexCreatedVersion,
+            indexMode,
+            indexAnalyzers,
+            fieldType().isSyntheticSourceEnabled(),
+            fieldType().isWithinMultiField(),
+            usesBinaryDocValuesForFallbackFields
+        ).init(this);
     }
 
     @Override
@@ -1431,7 +1692,24 @@ public final class TextFieldMapper extends FieldMapper {
             return;
         }
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
+        if (docValuesParameters.enabled()) {
+            BytesRef binaryValue = new BytesRef(value);
+            if (fieldType().usesBinaryDocValues()) {
+                MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(
+                    context.doc(),
+                    fieldType().name(),
+                    binaryValue
+                );
+            } else if (binaryValue.length > IndexWriter.MAX_TERM_LENGTH) {
+                // if the binary value's length exceeds Lucene's max term length, then we cannot store it in SortedSetDocValuesField
+                // in such cases, store the value in binary doc values instead, which don't have these length limitations
+                storeValueInFallbackField(fieldType().syntheticSourceFallbackFieldName(), binaryValue, context);
+            } else {
+                context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+            }
+        }
+
+        if (isIndexed() || fieldType.stored()) {
             Field field = new Field(fieldType().name(), value, fieldType);
             context.doc().add(field);
             if (fieldType.omitNorms()) {
@@ -1444,6 +1722,53 @@ public final class TextFieldMapper extends FieldMapper {
                 context.doc().add(new Field(phraseFieldInfo.field, value, phraseFieldInfo.fieldType));
             }
         }
+
+        if (fieldType().needsFallbackStorageForSyntheticSource(indexCreatedVersion)) {
+            // rely on the delegate field if we can
+            if (fieldType().canUseSyntheticSourceDelegateForSyntheticSource(value)) {
+                return;
+            }
+
+            // otherwise, just store the field ourselves
+            String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
+
+            if (usesBinaryDocValuesForFallbackFields) {
+                // store the value in a binary doc values field, create one if it doesn't exist
+                storeValueInFallbackField(fallbackFieldName, new BytesRef(value), context);
+            } else {
+                // otherwise for bwc, store the value in a stored fields like we used to
+                context.doc().add(new StoredField(fallbackFieldName, value));
+            }
+        }
+    }
+
+    private void storeValueInFallbackField(String fallbackFieldName, BytesRef bytesRef, DocumentParserContext context) {
+        // store the value in a binary doc values field, create one if it doesn't exist
+        MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fallbackFieldName);
+        if (field == null) {
+            field = new MultiValuedBinaryDocValuesField.IntegratedCount(fallbackFieldName, true);
+            context.doc().addWithKey(fallbackFieldName, field);
+        }
+        field.add(bytesRef);
+    }
+
+    /**
+     * Returns whether the current index version supports not storing keyword multi fields when they trip ignore_above. The consequence
+     * of this check is that the store parameter will be simplified and defaulted to false.
+     */
+    public static boolean keywordMultiFieldsNotStoredWhenIgnoredIndexVersionCheck(final IndexVersion indexCreatedVersion) {
+        return indexCreatedVersion.onOrAfter(IndexVersions.KEYWORD_MULTI_FIELDS_NOT_STORED_WHEN_IGNORED);
+    }
+
+    /**
+     * Returns whether the current index version supports not storing fields by default when they're multi fields.
+     */
+    public static boolean multiFieldsNotStoredByDefaultIndexVersionCheck(final IndexVersion indexCreatedVersion) {
+        return indexCreatedVersion.onOrAfter(IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED)
+            || indexCreatedVersion.between(
+                IndexVersions.MAPPER_TEXT_MATCH_ONLY_MULTI_FIELDS_DEFAULT_NOT_STORED_8_19,
+                IndexVersions.UPGRADE_TO_LUCENE_10_0_0
+            );
     }
 
     @Override
@@ -1583,6 +1908,9 @@ public final class TextFieldMapper extends FieldMapper {
         final Builder b = (Builder) getMergeBuilder();
         b.index.toXContent(builder, includeDefaults);
         b.store.toXContent(builder, includeDefaults);
+        if (DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
+            b.docValuesParameters.toXContent(builder, includeDefaults);
+        }
         multiFields().toXContent(builder, params);
         copyTo().toXContent(builder);
         if (sourceKeepMode().isPresent()) {
@@ -1604,8 +1932,13 @@ public final class TextFieldMapper extends FieldMapper {
         b.indexPhrases.toXContent(builder, includeDefaults);
     }
 
+    private boolean isIndexed() {
+        return fieldType.indexOptions() != IndexOptions.NONE;
+    }
+
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
+        // if we stored this field in Lucene, then use that for synthetic source
         if (store) {
             return new SyntheticSourceSupport.Native(() -> new StringStoredFieldFieldLoader(fullPath(), leafName()) {
                 @Override
@@ -1615,23 +1948,94 @@ public final class TextFieldMapper extends FieldMapper {
             });
         }
 
-        var kwd = SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
-        if (kwd != null) {
-            return new SyntheticSourceSupport.Native(() -> kwd.syntheticFieldLoader(fullPath(), leafName()));
+        if (docValuesParameters.enabled()) {
+            return new SyntheticSourceSupport.Native(this::syntheticFieldLoaderFromDocValues);
         }
 
-        return super.syntheticSourceSupport();
+        // this check exists for BWC purposes - there was a bug that resulted in some text fields being stored in ignored source
+        if (fieldType().syntheticSourceDelegate.isEmpty()
+            && indexCreatedVersion.before(IndexVersions.TEXT_FIELDS_STORED_IN_IGNORED_SOURCE_FIX)) {
+            return super.syntheticSourceSupport();
+        }
+
+        // otherwise, we can use a stored field that was either created by this mapper or the delegate mapper
+        return new SyntheticSourceSupport.Native(() -> syntheticFieldLoader(fullPath(), leafName()));
+    }
+
+    private SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String fullFieldName, String leafFieldName) {
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+
+        // layer for loading from a fallback field created during indexing by this text field mapper
+        final String fallbackFieldName = fieldType().syntheticSourceFallbackFieldName();
+        if (usesBinaryDocValuesForFallbackFields) {
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fallbackFieldName));
+        } else {
+            // for bwc - fallback fields were originally stored in StoredFields
+            layers.add(new CompositeSyntheticFieldLoader.StoredFieldLayer(fallbackFieldName) {
+                @Override
+                protected void writeValue(Object value, XContentBuilder b) throws IOException {
+                    b.value(value.toString());
+                }
+            });
+        }
+
+        // because we don't know whether the delegate can be used for loading fields (ex. the delegate ignored some values or the delegate
+        // doesn't even exist in the first place), we must check both the current field, as well as the delegate
+        var kwd = TextFieldMapper.SyntheticSourceHelper.getKeywordFieldMapperForSyntheticSource(this);
+        if (kwd != null) {
+            layers.addAll(kwd.syntheticFieldLoaderLayers());
+        }
+
+        return new CompositeSyntheticFieldLoader(leafFieldName, fullFieldName, layers);
+    }
+
+    private CompositeSyntheticFieldLoader syntheticFieldLoaderFromDocValues() {
+        var layers = new ArrayList<CompositeSyntheticFieldLoader.Layer>();
+        if (fieldType().usesBinaryDocValues()) {
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fullPath()));
+        } else {
+            layers.add(new SortedSetDocValuesSyntheticFieldLoaderLayer(fullPath()) {
+                @Override
+                public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) throws IOException {
+                    // text fields with doc_values may have all values stored in fallback fields; if every value exceeds MAX_TERM_LENGTH.
+                    // In that case, there will be no SortedSetDocValues, but the "main" field is still going to be indexed. As a result, we
+                    // can't use SortedSetDocValuesSyntheticFieldLoaderLayer since it uses DocValues.getSortedSet(), which will throw
+                    if (reader.getSortedSetDocValues(fieldName()) == null) {
+                        return null;
+                    }
+                    return super.docValuesLoader(reader, docIdsInLeaf);
+                }
+
+                @Override
+                protected BytesRef convert(BytesRef value) {
+                    return value;
+                }
+
+                @Override
+                protected BytesRef preserve(BytesRef value) {
+                    return BytesRef.deepCopyOf(value);
+                }
+            });
+
+            // also load from fallback field for values that exceeded MAX_TERM_LENGTH
+            layers.add(new BinaryDocValuesSyntheticFieldLoaderLayer(fieldType().syntheticSourceFallbackFieldName()));
+        }
+        return new CompositeSyntheticFieldLoader(leafName(), fullPath(), layers);
     }
 
     public static class SyntheticSourceHelper {
-        public static KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(FieldType fieldType, MultiFields multiFields) {
-            if (fieldType.stored()) {
+        public static KeywordFieldMapper.KeywordFieldType syntheticSourceDelegate(boolean isParentFieldStored, MultiFields multiFields) {
+            // if the parent field is stored, there is no need to delegate anything as we can get source directly from the stored field
+            if (isParentFieldStored) {
                 return null;
             }
+
+            // otherwise, attempt to retrieve a keyword delegate to rely on for synthetic source
             var kwd = getKeywordFieldMapperForSyntheticSource(multiFields);
             if (kwd != null) {
                 return kwd.fieldType();
             }
+
             return null;
         }
 
@@ -1639,13 +2043,22 @@ public final class TextFieldMapper extends FieldMapper {
             for (Mapper sub : multiFields) {
                 if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                     KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
-                    if (kwd.hasNormalizer() == false && (kwd.fieldType().hasDocValues() || kwd.fieldType().isStored())) {
+                    if (keywordFieldSupportsSyntheticSource(kwd)) {
                         return kwd;
                     }
                 }
             }
 
             return null;
+        }
+
+        /**
+         * Returns whether the given keyword field supports synthetic source.
+         */
+        private static boolean keywordFieldSupportsSyntheticSource(final KeywordFieldMapper keyword) {
+            // the field must be stored in some way, whether that be via store or doc values
+            return (keyword.hasNormalizer() == false || keyword.isNormalizerSkipStoreOriginalValue())
+                && (keyword.fieldType().hasDocValues() || keyword.fieldType().isStored());
         }
     }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -66,10 +65,8 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
             if (in.readBoolean()) {
                 this.config = new TransformConfig(in);
             }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                if (in.readBoolean()) {
-                    this.authState = new AuthorizationState(in);
-                }
+            if (in.readBoolean()) {
+                this.authState = new AuthorizationState(in);
             }
         }
 
@@ -153,13 +150,11 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
                 out.writeBoolean(true);
                 config.writeTo(out);
             }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                if (authState == null) {
-                    out.writeBoolean(false);
-                } else {
-                    out.writeBoolean(true);
-                    authState.writeTo(out);
-                }
+            if (authState == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                authState.writeTo(out);
             }
         }
 
@@ -190,11 +185,7 @@ public class UpdateTransformAction extends ActionType<UpdateTransformAction.Resp
 
         @Override
         public boolean match(Task task) {
-            if (task.getDescription().startsWith(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX)) {
-                String taskId = task.getDescription().substring(TransformField.PERSISTENT_TASK_DESCRIPTION_PREFIX.length());
-                return taskId.equals(this.id);
-            }
-            return false;
+            return task instanceof TransformTaskMatcher matcher && matcher.match(id);
         }
     }
 

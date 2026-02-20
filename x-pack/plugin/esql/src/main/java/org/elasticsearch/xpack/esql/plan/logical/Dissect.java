@@ -26,7 +26,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class Dissect extends RegexExtract implements TelemetryAware {
+public class Dissect extends RegexExtract implements TelemetryAware, SortPreserving {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(LogicalPlan.class, "Dissect", Dissect::new);
 
     private final Parser parser;

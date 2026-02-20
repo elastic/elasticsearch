@@ -11,12 +11,12 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.DoubleValues;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -26,13 +26,11 @@ import org.elasticsearch.index.fielddata.AbstractBinaryDocValues;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
-import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -112,13 +110,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         type = ScriptSortType.readFromStream(in);
         order = SortOrder.readFromStream(in);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
-                throw new IOException(
-                    "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " + "please use [nested] instead"
-                );
-            }
-        }
         nestedSort = in.readOptionalWriteable(NestedSortBuilder::new);
     }
 
@@ -128,10 +119,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         type.writeTo(out);
         order.writeTo(out);
         out.writeOptionalWriteable(sortMode);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalString(null);
-            out.writeOptionalNamedWriteable(null);
-        }
         out.writeOptionalWriteable(nestedSort);
     }
 
@@ -254,6 +241,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     }
 
     @Override
+    public String name() {
+        return NAME;
+    }
+
+    @Override
     public BucketedSort buildBucketedSort(SearchExecutionContext context, BigArrays bigArrays, int bucketSize, BucketedSort.ExtraData extra)
         throws IOException {
         return fieldComparatorSource(context).newBucketedSort(bigArrays, order, DocValueFormat.RAW, bucketSize, extra);
@@ -280,13 +272,17 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 final StringSortScript.Factory factory = context.compile(script, StringSortScript.CONTEXT);
                 final StringSortScript.LeafFactory searchScript = factory.newFactory(script.getParams());
                 return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
-                    final Map<Object, StringSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
+                    final Map<Object, StringSortScript> leafScripts = searchScript.needs_score()
+                        ? ConcurrentCollections.newConcurrentMap()
+                        : null;
 
                     @Override
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
                         // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
                         StringSortScript leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
-                        leafScripts.put(context.id(), leafScript);
+                        if (searchScript.needs_score()) {
+                            leafScripts.put(context.id(), leafScript);
+                        }
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
                             final BytesRefBuilder spare = new BytesRefBuilder();
 
@@ -307,7 +303,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected void setScorer(LeafReaderContext context, Scorable scorer) {
-                        leafScripts.get(context.id()).setScorer(scorer);
+                        if (searchScript.needs_score()) {
+                            leafScripts.get(context.id()).setScorer(scorer);
+                        }
                     }
 
                     @Override
@@ -332,14 +330,18 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                 // searchLookup is unnecessary here, as it's just used for expressions
                 final NumberSortScript.LeafFactory numberSortScriptFactory = numberSortFactory.newFactory(script.getParams(), searchLookup);
                 return new DoubleValuesComparatorSource(null, Double.MAX_VALUE, valueMode, nested) {
-                    final Map<Object, NumberSortScript> leafScripts = ConcurrentCollections.newConcurrentMap();
+                    final Map<Object, NumberSortScript> leafScripts = numberSortScriptFactory.needs_score()
+                        ? ConcurrentCollections.newConcurrentMap()
+                        : null;
 
                     @Override
                     protected SortedNumericDoubleValues getValues(LeafReaderContext context) throws IOException {
                         // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
                         NumberSortScript leafScript = numberSortScriptFactory.newInstance(new DocValuesDocReader(searchLookup, context));
-                        leafScripts.put(context.id(), leafScript);
-                        final NumericDoubleValues values = new NumericDoubleValues() {
+                        if (numberSortScriptFactory.needs_score()) {
+                            leafScripts.put(context.id(), leafScript);
+                        }
+                        final DoubleValues values = new DoubleValues() {
                             @Override
                             public boolean advanceExact(int doc) {
                                 leafScript.setDocument(doc);
@@ -356,7 +358,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected void setScorer(LeafReaderContext context, Scorable scorer) {
-                        leafScripts.get(context.id()).setScorer(scorer);
+                        if (numberSortScriptFactory.needs_score()) {
+                            leafScripts.get(context.id()).setScorer(scorer);
+                        }
                     }
                 };
             }
@@ -370,7 +374,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
                         // we may see the same leaf context multiple times, and each time we need to refresh the doc values doc reader
                         BytesRefSortScript leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
-                        leafScripts.put(context.id(), leafScript);
+                        if (searchScript.needs_score()) {
+                            leafScripts.put(context.id(), leafScript);
+                        }
                         final BinaryDocValues values = new AbstractBinaryDocValues() {
 
                             @Override
@@ -400,7 +406,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                     @Override
                     protected void setScorer(LeafReaderContext context, Scorable scorer) {
-                        leafScripts.get(context.id()).setScorer(scorer);
+                        if (searchScript.needs_score()) {
+                            leafScripts.get(context.id()).setScorer(scorer);
+                        }
                     }
 
                     @Override
@@ -452,7 +460,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     public enum ScriptSortType implements Writeable {

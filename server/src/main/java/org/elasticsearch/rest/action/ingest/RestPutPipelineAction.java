@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineTransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -79,10 +78,6 @@ public class RestPutPipelineAction extends BaseRestHandler {
     @Override
     public Set<String> supportedCapabilities() {
         // pipeline_tracking info: `{created,modified}_date` system properties defined within pipeline definition.
-        if (DataStream.LOGS_STREAM_FEATURE_FLAG) {
-            return Set.of("pipeline_tracking_info", "field_access_pattern.flexible");
-        } else {
-            return Set.of("pipeline_tracking_info");
-        }
+        return Set.of("pipeline_tracking_info", "field_access_pattern.flexible");
     }
 }

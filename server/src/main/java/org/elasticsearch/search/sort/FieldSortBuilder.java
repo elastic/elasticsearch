@@ -10,14 +10,16 @@
 package org.elasticsearch.search.sort;
 
 import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.MultiTerms;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateMathParser;
@@ -34,7 +36,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -53,7 +54,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.function.Function;
+import java.util.function.LongUnaryOperator;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.MILLISECONDS;
 import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.NANOSECONDS;
@@ -134,13 +135,6 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
      */
     public FieldSortBuilder(StreamInput in) throws IOException {
         fieldName = in.readString();
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            if (in.readOptionalNamedWriteable(QueryBuilder.class) != null || in.readOptionalString() != null) {
-                throw new IOException(
-                    "the [sort] options [nested_path] and [nested_filter] are removed in 8.x, " + "please use [nested] instead"
-                );
-            }
-        }
         missing = in.readGenericValue();
         order = in.readOptionalWriteable(SortOrder::readFromStream);
         sortMode = in.readOptionalWriteable(SortMode::readFromStream);
@@ -153,10 +147,6 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeOptionalNamedWriteable(null);
-            out.writeOptionalString(null);
-        }
         out.writeGenericValue(missing);
         out.writeOptionalWriteable(order);
         out.writeOptionalWriteable(sortMode);
@@ -368,10 +358,10 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             }
             IndexNumericFieldData numericFieldData = (IndexNumericFieldData) fieldData;
             NumericType resolvedType = resolveNumericType(numericType);
-            field = numericFieldData.sortField(resolvedType, missing, localSortMode(), nested, reverse);
+            field = numericFieldData.sortField(false, resolvedType, missing, localSortMode(), nested, reverse);
             isNanosecond = resolvedType == NumericType.DATE_NANOSECONDS;
         } else {
-            field = fieldData.sortField(context.indexVersionCreated(), missing, localSortMode(), nested, reverse);
+            field = fieldData.sortField(false, context.indexVersionCreated(), missing, localSortMode(), nested, reverse);
             if (fieldData instanceof IndexNumericFieldData) {
                 isNanosecond = ((IndexNumericFieldData) fieldData).getNumericType() == NumericType.DATE_NANOSECONDS;
             }
@@ -384,6 +374,11 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             formatter = DocValueFormat.withNanosecondResolution(formatter);
         }
         return new SortFieldAndFormat(field, formatter);
+    }
+
+    @Override
+    public String name() {
+        return NAME;
     }
 
     public boolean canRewriteToMatchNone() {
@@ -408,7 +403,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             // unmapped
             return false;
         }
-        if (fieldType.isIndexed() == false) {
+        if (fieldType.indexType().supportsSortShortcuts() == false) {
             return false;
         }
         DocValueFormat docValueFormat = bottomSortValues.getSortValueFormats()[0];
@@ -564,7 +559,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         IndexReader reader = context.getIndexReader();
         MappedFieldType fieldType = context.getFieldType(sortField.getField());
-        if (reader == null || (fieldType == null || fieldType.isIndexed() == false)) {
+        if (reader == null || (fieldType == null || fieldType.indexType().supportsSortShortcuts() == false)) {
             return null;
         }
         switch (IndexSortConfig.getSortFieldType(sortField)) {
@@ -596,7 +591,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         String fieldName = fieldType.name();
         byte[] minPackedValue = PointValues.getMinPackedValue(reader, fieldName);
         if (minPackedValue == null) {
-            return null;
+            return extractNumericMinAndMaxFromSkipper(reader, sortField, fieldType, sortBuilder, fieldName);
         }
         if (fieldType instanceof NumberFieldType numberFieldType) {
             Number minPoint = numberFieldType.parsePoint(minPackedValue);
@@ -609,25 +604,52 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
                 default -> null;
             };
         } else if (fieldType instanceof DateFieldType dateFieldType) {
-            Function<byte[], Long> dateConverter = createDateConverter(sortBuilder, dateFieldType);
-            Long min = dateConverter.apply(minPackedValue);
-            Long max = dateConverter.apply(PointValues.getMaxPackedValue(reader, fieldName));
+            LongUnaryOperator converter = dateResolutionConverter(sortBuilder, dateFieldType);
+            Long min = converter.applyAsLong(LongPoint.decodeDimension(minPackedValue, 0));
+            Long max = converter.applyAsLong(LongPoint.decodeDimension(PointValues.getMaxPackedValue(reader, fieldName), 0));
             return new MinAndMax<>(min, max);
         }
         return null;
     }
 
-    private static Function<byte[], Long> createDateConverter(FieldSortBuilder sortBuilder, DateFieldType dateFieldType) {
+    private static MinAndMax<?> extractNumericMinAndMaxFromSkipper(
+        IndexReader reader,
+        SortField sortField,
+        MappedFieldType fieldType,
+        FieldSortBuilder sortBuilder,
+        String fieldName
+    ) throws IOException {
+        IndexSearcher searcher = new IndexSearcher(reader);
+        long min = DocValuesSkipper.globalMinValue(searcher, fieldName);
+        long max = DocValuesSkipper.globalMaxValue(searcher, fieldName);
+        if (min == Long.MIN_VALUE || max == Long.MAX_VALUE || min > max) {
+            // Skipper not available for some segments, or no data
+            return null;
+        }
+        if (fieldType instanceof DateFieldType dateFieldType) {
+            LongUnaryOperator dateConverter = dateResolutionConverter(sortBuilder, dateFieldType);
+            return new MinAndMax<>(dateConverter.applyAsLong(min), dateConverter.applyAsLong(max));
+        }
+        return switch (IndexSortConfig.getSortFieldType(sortField)) {
+            case LONG -> new MinAndMax<>(min, max);
+            case INT -> new MinAndMax<>((int) min, (int) max);
+            case DOUBLE -> new MinAndMax<>(NumericUtils.sortableLongToDouble(min), NumericUtils.sortableLongToDouble(max));
+            case FLOAT -> new MinAndMax<>(NumericUtils.sortableIntToFloat((int) min), NumericUtils.sortableIntToFloat((int) max));
+            default -> null;
+        };
+    }
+
+    private static LongUnaryOperator dateResolutionConverter(FieldSortBuilder sortBuilder, DateFieldType dateFieldType) {
         String numericTypeStr = sortBuilder.getNumericType();
         if (numericTypeStr != null) {
             NumericType numericType = resolveNumericType(numericTypeStr);
             if (dateFieldType.resolution() == MILLISECONDS && numericType == NumericType.DATE_NANOSECONDS) {
-                return v -> DateUtils.toNanoSeconds(LongPoint.decodeDimension(v, 0));
+                return DateUtils::toNanoSeconds;
             } else if (dateFieldType.resolution() == NANOSECONDS && numericType == NumericType.DATE) {
-                return v -> DateUtils.toMilliSeconds(LongPoint.decodeDimension(v, 0));
+                return DateUtils::toMilliSeconds;
             }
         }
-        return v -> LongPoint.decodeDimension(v, 0);
+        return LongUnaryOperator.identity();
     }
 
     /**
@@ -702,7 +724,7 @@ public final class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     /**

@@ -153,10 +153,9 @@ final class FieldTypeLookup {
 
     public static int dotCount(String path) {
         int dotCount = 0;
-        for (int i = 0; i < path.length(); i++) {
-            if (path.charAt(i) == '.') {
-                dotCount++;
-            }
+        int index = -1;
+        while ((index = path.indexOf('.', index + 1)) != -1) {
+            dotCount++;
         }
         return dotCount;
     }
@@ -219,6 +218,20 @@ final class FieldTypeLookup {
         if (Regex.isSimpleMatchPattern(pattern) == false) {
             // no wildcards
             return get(pattern) == null ? Collections.emptySet() : Collections.singleton(pattern);
+        }
+        // If the pattern is field.*, try dynamic fields first
+        if (dynamicFieldTypes.isEmpty() == false) {
+            // check if any dynamic field roots match the pattern
+            String[] subparts = pattern.split("\\.", 2);
+            if (subparts.length > 1) {
+                DynamicFieldType dft = dynamicFieldTypes.get(subparts[0]);
+                if (dft != null) {
+                    Set<String> childNames = dft.getChildFieldNames(subparts[1]);
+                    if (childNames != null) {
+                        return childNames.stream().map(childName -> subparts[0] + "." + childName).collect(Collectors.toUnmodifiableSet());
+                    }
+                }
+            }
         }
         return fullNameToFieldType.keySet()
             .stream()

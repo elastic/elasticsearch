@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHealthIndicatorService;
+import org.elasticsearch.cluster.routing.allocation.shards.StatefulShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
@@ -79,7 +80,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
             indicatorResult.diagnosisList(),
             hasItem(
                 new Diagnosis(
-                    ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(DataTier.DATA_HOT),
+                    StatefulShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(DataTier.DATA_HOT),
                     List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("test")))
                 )
             )
@@ -118,7 +119,7 @@ public class DataTierShardAvailabilityHealthIndicatorIT extends ESIntegTestCase 
             indicatorResult.diagnosisList(),
             hasItem(
                 new Diagnosis(
-                    ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(DataTier.DATA_HOT),
+                    StatefulShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(DataTier.DATA_HOT),
                     List.of(new Diagnosis.Resource(Diagnosis.Resource.Type.INDEX, List.of("test")))
                 )
             )

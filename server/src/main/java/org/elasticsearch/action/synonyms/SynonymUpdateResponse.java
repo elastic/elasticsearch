@@ -9,7 +9,7 @@
 
 package org.elasticsearch.action.synonyms;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,12 +32,14 @@ public class SynonymUpdateResponse extends ActionResponse implements ToXContentO
     public static final String RELOAD_ANALYZERS_DETAILS_FIELD = "reload_analyzers_details";
     static final ReloadAnalyzersResponse EMPTY_RELOAD_ANALYZER_RESPONSE = new ReloadAnalyzersResponse(0, 0, 0, List.of(), Map.of());
 
+    private static final TransportVersion SYNONYMS_REFRESH_PARAM = TransportVersion.fromName("synonyms_refresh_param");
+
     private final UpdateSynonymsResultStatus updateStatus;
     private final ReloadAnalyzersResponse reloadAnalyzersResponse;
 
     public SynonymUpdateResponse(StreamInput in) throws IOException {
         this.updateStatus = in.readEnum(UpdateSynonymsResultStatus.class);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+        if (in.getTransportVersion().supports(SYNONYMS_REFRESH_PARAM)) {
             this.reloadAnalyzersResponse = in.readOptionalWriteable(ReloadAnalyzersResponse::new);
         } else {
             this.reloadAnalyzersResponse = new ReloadAnalyzersResponse(in);
@@ -72,7 +74,7 @@ public class SynonymUpdateResponse extends ActionResponse implements ToXContentO
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(updateStatus);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SYNONYMS_REFRESH_PARAM)) {
+        if (out.getTransportVersion().supports(SYNONYMS_REFRESH_PARAM)) {
             out.writeOptionalWriteable(reloadAnalyzersResponse);
         } else {
             if (reloadAnalyzersResponse == null) {

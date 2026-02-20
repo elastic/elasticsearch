@@ -19,8 +19,10 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.logging.LogManager;
@@ -372,33 +374,34 @@ public final class RepositoryData {
     }
 
     /**
-     * Returns a map of {@link IndexId} to a collection of {@link String} containing all the {@link IndexId} and the
-     * {@link IndexMetadata} blob name in it that can be removed after removing the given snapshot from the repository.
-     * NOTE: Does not return a mapping for {@link IndexId} values that will be removed completely from the repository.
+     * Enumerates per-index collections of all the {@link IndexMetadata} blob names that can be removed after removing the given
+     * snapshots from the repository.
+     * NOTE: Does not return items for {@link IndexId} values that will be removed completely from the repository.
      *
      * @param snapshotIds SnapshotIds to remove
-     * @return map of index to index metadata blob id to delete
      */
-    public Map<IndexId, Collection<String>> indexMetaDataToRemoveAfterRemovingSnapshots(Collection<SnapshotId> snapshotIds) {
+    public Iterator<Tuple<IndexId, Collection<String>>> indexMetaDataToRemoveAfterRemovingSnapshots(Collection<SnapshotId> snapshotIds) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SNAPSHOT);
-        Iterator<IndexId> indicesForSnapshot = indicesToUpdateAfterRemovingSnapshot(snapshotIds);
         final Set<String> allRemainingIdentifiers = indexMetaDataGenerations.lookup.entrySet()
             .stream()
             .filter(e -> snapshotIds.contains(e.getKey()) == false)
             .flatMap(e -> e.getValue().values().stream())
             .map(indexMetaDataGenerations::getIndexMetaBlobId)
             .collect(Collectors.toSet());
-        final Map<IndexId, Collection<String>> toRemove = new HashMap<>();
-        while (indicesForSnapshot.hasNext()) {
-            final var indexId = indicesForSnapshot.next();
+        return Iterators.flatMap(indicesToUpdateAfterRemovingSnapshot(snapshotIds), indexId -> {
+            final var toRemove = Sets.<String>newHashSetWithExpectedSize(snapshotIds.size());
             for (SnapshotId snapshotId : snapshotIds) {
                 final String identifier = indexMetaDataGenerations.indexMetaBlobId(snapshotId, indexId);
                 if (allRemainingIdentifiers.contains(identifier) == false) {
-                    toRemove.computeIfAbsent(indexId, k -> new HashSet<>()).add(identifier);
+                    toRemove.add(identifier);
                 }
             }
-        }
-        return toRemove;
+            if (toRemove.isEmpty()) {
+                return Collections.emptyIterator();
+            } else {
+                return Iterators.single(Tuple.tuple(indexId, toRemove));
+            }
+        });
     }
 
     /**

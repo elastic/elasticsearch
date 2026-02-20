@@ -1,6 +1,6 @@
 steps:
-  - label: $FWC_VERSION / fwc
-    command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$FWC_VERSION#fwcTest -Dtests.bwc.snapshot=false
+  - label: "{{matrix.FWC_VERSION}} / fwc"
+    command: .ci/scripts/run-gradle.sh --continue -Dbwc.checkout.align=true v$$FWC_VERSION#fwcTest -Dtests.bwc.snapshot=false
     timeout_in_minutes: 300
     agents:
       provider: gcp
@@ -11,4 +11,4 @@ steps:
       setup:
         FWC_VERSION: $FWC_LIST
     env:
-      FWC_VERSION: $FWC_VERSION
+      FWC_VERSION: "{{matrix.FWC_VERSION}}"

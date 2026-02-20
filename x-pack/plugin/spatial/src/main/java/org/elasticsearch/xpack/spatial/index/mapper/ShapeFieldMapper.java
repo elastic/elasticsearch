@@ -25,6 +25,7 @@ import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -154,7 +155,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
             boolean isSyntheticSource,
             Map<String, String> meta
         ) {
-            super(name, indexed, false, hasDocValues, parser, orientation, meta);
+            super(name, IndexType.points(indexed, hasDocValues), false, parser, orientation, meta);
             this.isSyntheticSource = isSyntheticSource;
         }
 
@@ -179,7 +180,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 );
             }
             try {
-                return XYQueriesUtils.toXYShapeQuery(shape, fieldName, relation, isIndexed(), hasDocValues());
+                return XYQueriesUtils.toXYShapeQuery(shape, fieldName, relation, indexType());
             } catch (IllegalArgumentException e) {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }
@@ -256,8 +257,9 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         if (geometry == null) {
             return;
         }
+        boolean indexed = fieldType().indexType().hasPoints();
         List<IndexableField> fields = indexer.indexShape(geometry);
-        if (fieldType().isIndexed()) {
+        if (indexed) {
             context.doc().addAll(fields);
         }
         if (fieldType().hasDocValues()) {
@@ -268,7 +270,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 context.doc().addWithKey(name, docValuesField);
             }
             docValuesField.add(fields, geometry);
-        } else if (fieldType().isIndexed()) {
+        } else if (indexed) {
             context.addToFieldNames(fieldType().name());
         }
     }

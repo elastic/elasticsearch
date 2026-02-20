@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stack;
 
+import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -51,17 +52,21 @@ import org.elasticsearch.xpack.core.ilm.LifecyclePolicyMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.ilm.action.ILMActions;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleRequest;
+import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IngestPipelineConfig;
+import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.zip.CRC32;
 
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
@@ -531,6 +536,43 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .map(ipc -> new PipelineConfiguration(ipc.getId(), ipc.loadConfig(), XContentType.JSON))
             .map(PipelineConfiguration::getConfig)
             .forEach(p -> assertFalse((Boolean) p.get("deprecated")));
+    }
+
+    public void testRegistryIsUpToDate() throws Exception {
+        assumeFalse("This test relies on text files checksum, which is inconsistent between Windows and Linux", Constants.WINDOWS);
+        CRC32 crc32 = new CRC32();
+        for (IndexTemplateConfig config : StackTemplateRegistry.getComponentTemplateConfigsAsConfigs()) {
+            crc32.update(loadTemplate(config.getFileName()));
+        }
+        for (LifecyclePolicyConfig config : StackTemplateRegistry.LIFECYCLE_POLICY_CONFIGS) {
+            crc32.update(loadTemplate(config.getFileName()));
+        }
+        for (IndexTemplateConfig config : StackTemplateRegistry.getComposableTemplateConfigsAsConfigs()) {
+            crc32.update(loadTemplate(config.getFileName()));
+        }
+        for (IngestPipelineConfig config : StackTemplateRegistry.INGEST_PIPELINE_CONFIGS) {
+            crc32.update(loadTemplate(config.getFileName()));
+        }
+        String computedChecksum = Long.toHexString(crc32.getValue());
+        assertEquals(
+            "The StackTemplateRegistry.REGISTRY_VERSION must be incremented when templates are changed. "
+                + "Please update REGISTRY_VERSION to "
+                + (StackTemplateRegistry.REGISTRY_VERSION + 1)
+                + " and update COMPUTED_CHECKSUM to \""
+                + computedChecksum
+                + "\"",
+            StackTemplateRegistry.COMPUTED_CHECKSUM,
+            computedChecksum
+        );
+    }
+
+    private byte[] loadTemplate(String name) throws IOException {
+        try (InputStream is = StackTemplateRegistry.class.getResourceAsStream(name)) {
+            if (is == null) {
+                throw new IOException("Template [" + name + "] not found");
+            }
+            return is.readAllBytes();
+        }
     }
 
     // -------------

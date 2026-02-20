@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeUsageStatsForThreadPoolsCollector;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.NetworkModule;
@@ -40,14 +41,17 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ClusterConnectionManager;
+import org.elasticsearch.transport.LinkedProjectConfigService;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
 
@@ -59,6 +63,17 @@ class NodeServiceProvider {
     PluginsService newPluginService(Environment initialEnvironment, PluginsLoader pluginsLoader) {
         // this creates a PluginsService with an empty list of classpath plugins
         return new PluginsService(initialEnvironment.settings(), initialEnvironment.configDir(), pluginsLoader);
+    }
+
+    TaskManager newTaskManager(
+        PluginsService pluginsService,
+        Settings settings,
+        ThreadPool threadPool,
+        Set<String> taskHeaders,
+        Tracer tracer,
+        String nodeId
+    ) {
+        return new TaskManager(settings, threadPool, taskHeaders, tracer, nodeId);
     }
 
     ScriptService newScriptService(
@@ -75,6 +90,7 @@ class NodeServiceProvider {
     ClusterInfoService newClusterInfoService(
         PluginsService pluginsService,
         Settings settings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
         ClusterService clusterService,
         ThreadPool threadPool,
         NodeClient client
@@ -85,6 +101,7 @@ class NodeServiceProvider {
         );
         final InternalClusterInfoService service = new InternalClusterInfoService(
             settings,
+            writeLoadConstraintSettings,
             clusterService,
             threadPool,
             client,
@@ -119,8 +136,9 @@ class NodeServiceProvider {
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         ClusterSettings clusterSettings,
         TaskManager taskManager,
-        Tracer tracer,
+        TelemetryProvider telemetryProvider,
         String nodeId,
+        LinkedProjectConfigService linkedProjectConfigService,
         ProjectResolver projectResolver
     ) {
         return new TransportService(
@@ -132,6 +150,8 @@ class NodeServiceProvider {
             clusterSettings,
             new ClusterConnectionManager(settings, transport, threadPool.getThreadContext()),
             taskManager,
+            linkedProjectConfigService,
+            telemetryProvider,
             projectResolver
         );
     }

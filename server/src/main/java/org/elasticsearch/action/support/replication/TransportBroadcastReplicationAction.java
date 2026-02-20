@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -61,6 +62,8 @@ public abstract class TransportBroadcastReplicationAction<
     private final NodeClient client;
     private final Executor executor;
     private final ProjectResolver projectResolver;
+
+    protected record ShardRecord(ShardId shardId, SplitShardCountSummary splitSummary) {}
 
     public TransportBroadcastReplicationAction(
         String name,
@@ -102,19 +105,22 @@ public abstract class TransportBroadcastReplicationAction<
                 final ClusterState clusterState = clusterService.state();
                 final ProjectState projectState = projectResolver.getProjectState(clusterState);
                 final ProjectMetadata project = projectState.metadata();
-                final List<ShardId> shards = shards(request, projectState);
+                final List<ShardRecord> shards = shards(request, projectState);
                 final Map<String, IndexMetadata> indexMetadataByName = project.indices();
 
                 try (var refs = new RefCountingRunnable(() -> finish(listener))) {
-                    for (final ShardId shardId : shards) {
+                    shards.forEach(shardRecord -> {
+                        ShardId shardId = shardRecord.shardId();
+                        SplitShardCountSummary shardCountSummary = shardRecord.splitSummary();
                         // NB This sends O(#shards) requests in a tight loop; TODO add some throttling here?
                         shardExecute(
                             task,
                             request,
                             shardId,
+                            shardCountSummary,
                             ActionListener.releaseAfter(new ReplicationResponseActionListener(shardId, indexMetadataByName), refs.acquire())
                         );
-                    }
+                    });
                 }
             }
 
@@ -178,9 +184,15 @@ public abstract class TransportBroadcastReplicationAction<
         };
     }
 
-    protected void shardExecute(Task task, Request request, ShardId shardId, ActionListener<ShardResponse> shardActionListener) {
+    protected void shardExecute(
+        Task task,
+        Request request,
+        ShardId shardId,
+        SplitShardCountSummary shardCountSummary,
+        ActionListener<ShardResponse> shardActionListener
+    ) {
         assert Transports.assertNotTransportThread("may hit all the shards");
-        ShardRequest shardRequest = newShardRequest(request, shardId);
+        ShardRequest shardRequest = newShardRequest(request, shardId, shardCountSummary);
         shardRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.executeLocally(replicatedBroadcastShardAction, shardRequest, shardActionListener);
     }
@@ -188,23 +200,29 @@ public abstract class TransportBroadcastReplicationAction<
     /**
      * @return all shard ids the request should run on
      */
-    protected List<ShardId> shards(Request request, ProjectState projectState) {
+    protected List<ShardRecord> shards(Request request, ProjectState projectState) {
         assert Transports.assertNotTransportThread("may hit all the shards");
-        List<ShardId> shardIds = new ArrayList<>();
+
+        List<ShardRecord> shards = new ArrayList<>();
 
         OperationRouting operationRouting = clusterService.operationRouting();
+        ProjectMetadata project = projectState.metadata();
 
-        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(projectState.metadata(), request);
+        String[] concreteIndices = indexNameExpressionResolver.concreteIndexNames(project, request);
         for (String index : concreteIndices) {
             Iterator<IndexShardRoutingTable> iterator = operationRouting.allWritableShards(projectState, index);
+            IndexMetadata indexMetadata = project.index(index);
+
             while (iterator.hasNext()) {
-                shardIds.add(iterator.next().shardId());
+                ShardId shardId = iterator.next().shardId();
+                SplitShardCountSummary splitSummary = SplitShardCountSummary.forIndexing(indexMetadata, shardId.getId());
+                shards.add(new ShardRecord(shardId, splitSummary));
             }
         }
-        return shardIds;
+        return shards;
     }
 
-    protected abstract ShardRequest newShardRequest(Request request, ShardId shardId);
+    protected abstract ShardRequest newShardRequest(Request request, ShardId shardId, SplitShardCountSummary shardCountSummary);
 
     protected abstract Response newResponse(
         int successfulShards,

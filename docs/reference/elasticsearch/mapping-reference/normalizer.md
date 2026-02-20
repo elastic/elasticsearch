@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/normalizer.html
 ---
@@ -110,6 +113,7 @@ The above queries match documents 1 and 2 since `BÀR` is converted to `bar` at 
   }
 }
 ```
+% TESTRESPONSE[s/"took".*/"took": "$body.took",/]
 
 Also, the fact that keywords are converted prior to indexing also means that aggregations return normalized values:
 
@@ -126,6 +130,7 @@ GET index/_search
   }
 }
 ```
+% TEST[continued]
 
 returns
 
@@ -165,4 +170,16 @@ returns
   }
 }
 ```
+% TESTRESPONSE[s/"took".*/"took": "$body.took",/]
 
+## Synthetic source [normalizer-synthetic-source]
+```{applies_to}
+serverless: ga
+stack: ga 9.3.0
+```
+
+When [synthetic source](/reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source) is enabled on an index, keyword fields with a normalizer store the original pre-normalized value separately so that it can be included in the synthetic source. This can cause elevated disk usage since values are stored twice: once pre-normalized, and once normalized.
+
+To reduce disk usage, the `normalizer_skip_store_original_value` mapping parameter can be set to `true`. When enabled, the original value is not stored, and the normalized value is used in the reconstructed source instead.
+
+For custom normalizers, this parameter defaults to `false`. However, for the built-in `lowercase` normalizer, it defaults to `true`.

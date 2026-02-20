@@ -8,6 +8,7 @@
  */
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+import org.elasticsearch.gradle.internal.AbstractDependenciesTask
 
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -45,6 +46,7 @@ dependencies {
   runtimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   runtimeOnly "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
   runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
   runtimeOnly "software.amazon.awssdk:arns:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:aws-query-protocol:${versions.awsv2sdk}"
   runtimeOnly "software.amazon.awssdk:checksums-spi:${versions.awsv2sdk}"
@@ -89,7 +91,7 @@ restResources {
   }
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(AbstractDependenciesTask).configureEach {
   mapping from: 'annotations',              to: 'aws-sdk-2'
   mapping from: 'apache-client',            to: 'aws-sdk-2'
   mapping from: 'arns',                     to: 'aws-sdk-2'
@@ -118,6 +120,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: 'sts',                      to: 'aws-sdk-2'
   mapping from: 'third-party-jackson-core', to: 'aws-sdk-2'
   mapping from: 'utils',                    to: 'aws-sdk-2'
+  mapping from: /log4j.*/,                  to: 'log4j'
 }
 
 esplugin.bundleSpec.from('config/repository-s3') {

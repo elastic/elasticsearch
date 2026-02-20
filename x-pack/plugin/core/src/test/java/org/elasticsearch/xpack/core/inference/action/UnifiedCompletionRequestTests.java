@@ -286,7 +286,26 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
 
     @Override
     protected UnifiedCompletionRequest mutateInstance(UnifiedCompletionRequest instance) throws IOException {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        List<UnifiedCompletionRequest.Message> messages = instance.messages();
+        String model = instance.model();
+        Long maxCompletionTokens = instance.maxCompletionTokens();
+        List<String> stop = instance.stop();
+        Float temperature = instance.temperature();
+        UnifiedCompletionRequest.ToolChoice toolChoice = instance.toolChoice();
+        List<UnifiedCompletionRequest.Tool> tools = instance.tools();
+        Float topP = instance.topP();
+        switch (between(0, 7)) {
+            case 0 -> messages = randomValueOtherThan(messages, () -> randomList(5, UnifiedCompletionRequestTests::randomMessage));
+            case 1 -> model = randomValueOtherThan(model, () -> randomAlphaOfLength(10));
+            case 2 -> maxCompletionTokens = randomValueOtherThan(maxCompletionTokens, () -> randomNonNegativeLongOrNull());
+            case 3 -> stop = randomValueOtherThan(stop, () -> randomStopOrNull());
+            case 4 -> temperature = randomValueOtherThan(temperature, () -> randomFloatOrNull());
+            case 5 -> toolChoice = randomValueOtherThan(toolChoice, () -> randomToolChoiceOrNull());
+            case 6 -> tools = randomValueOtherThan(tools, () -> randomToolListOrNull());
+            case 7 -> topP = randomValueOtherThan(topP, () -> randomFloatOrNull());
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+        return new UnifiedCompletionRequest(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, topP);
     }
 
     @Override

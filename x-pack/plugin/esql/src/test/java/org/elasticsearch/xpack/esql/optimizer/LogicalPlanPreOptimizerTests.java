@@ -25,11 +25,14 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.fieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.of;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomMinimumVersion;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.mockito.Mockito.mock;
 
 public class LogicalPlanPreOptimizerTests extends ESTestCase {
 
@@ -72,7 +75,12 @@ public class LogicalPlanPreOptimizerTests extends ESTestCase {
     }
 
     private LogicalPlanPreOptimizer preOptimizer() {
-        LogicalPreOptimizerContext preOptimizerContext = new LogicalPreOptimizerContext(FoldContext.small());
+        var inferenceService = mock(org.elasticsearch.xpack.esql.inference.InferenceService.class);
+        LogicalPreOptimizerContext preOptimizerContext = new LogicalPreOptimizerContext(
+            FoldContext.small(),
+            inferenceService,
+            randomMinimumVersion()
+        );
         return new LogicalPlanPreOptimizer(preOptimizerContext);
     }
 
@@ -95,7 +103,7 @@ public class LogicalPlanPreOptimizerTests extends ESTestCase {
         return switch (randomInt(3)) {
             case 0 -> of(randomInt());
             case 1 -> of(randomIdentifier());
-            case 2 -> new Add(Source.EMPTY, of(randomInt()), of(randomDouble()));
+            case 2 -> new Add(Source.EMPTY, of(randomInt()), of(randomDouble()), TEST_CFG);
             default -> new Concat(Source.EMPTY, of(randomIdentifier()), randomList(1, 10, () -> of(randomIdentifier())));
         };
     }

@@ -16,7 +16,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
-import org.elasticsearch.xpack.esql.planner.PhysicalSettings;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.Before;
@@ -27,17 +27,18 @@ import java.io.IOException;
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class EsqlSpecIT extends EsqlSpecTestCase {
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(
-        spec -> spec.plugin("inference-service-test").setting("logger." + ComputeService.class.getName(), "DEBUG") // So we log a profile
-    );
+    public static ElasticsearchCluster cluster = Clusters.testCluster(spec -> {
+        spec.plugin("inference-service-test").setting("logger." + ComputeService.class.getName(), "DEBUG"); // So we log a profile
+        Clusters.addAdditionalLoggingSettings(spec);
+    });
+
+    public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, String instructions) {
+        super(fileName, groupName, testName, lineNumber, testCase, instructions);
+    }
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
-    }
-
-    public EsqlSpecIT(String fileName, String groupName, String testName, Integer lineNumber, CsvTestCase testCase, String instructions) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions);
     }
 
     @Override
@@ -53,10 +54,11 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
 
     @Before
     public void configureChunks() throws IOException {
+        assumeTrue("test clusters were broken", testClustersOk);
         boolean smallChunks = randomBoolean();
         Request request = new Request("PUT", "/_cluster/settings");
         XContentBuilder builder = JsonXContent.contentBuilder().startObject().startObject("persistent");
-        builder.field(PhysicalSettings.VALUES_LOADING_JUMBO_SIZE.getKey(), smallChunks ? "1kb" : null);
+        builder.field(PlannerSettings.VALUES_LOADING_JUMBO_SIZE.getKey(), smallChunks ? "1kb" : null);
         request.setJsonEntity(Strings.toString(builder.endObject().endObject()));
         assertOK(client().performRequest(request));
     }

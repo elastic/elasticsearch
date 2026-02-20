@@ -9,14 +9,15 @@
 
 package org.elasticsearch.gradle
 
-import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
-import org.gradle.testkit.runner.GradleRunner
 import spock.lang.IgnoreIf
 import spock.lang.Unroll
+import spock.util.environment.RestoreSystemProperties
 
-import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withChangedClasspathMockedDistributionDownload
-import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withChangedConfigMockedDistributionDownload
-import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.withMockedDistributionDownload
+import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
+import org.gradle.testkit.runner.GradleRunner
+
+import static org.elasticsearch.gradle.fixtures.DistributionDownloadFixture.*
+import static org.elasticsearch.gradle.fixtures.JdkToolchainTestFixture.withMockedJdkDownload
 
 /**
  * We do not have coverage for the test cluster startup on windows yet.
@@ -108,8 +109,8 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         def runningClosure = { GradleRunner r -> r.build() }
         withMockedDistributionDownload(runner, runningClosure)
         def result = inputProperty == "distributionClasspath" ?
-                withChangedClasspathMockedDistributionDownload(runner, runningClosure) :
-                withChangedConfigMockedDistributionDownload(runner, runningClosure)
+            withChangedClasspathMockedDistributionDownload(runner, runningClosure) :
+            withChangedConfigMockedDistributionDownload(runner, runningClosure)
 
         then:
         result.output.contains("Task ':myTask' is not up-to-date because:\n  Input property 'clusters.myCluster\$0.nodes.\$0.$inputProperty'")
@@ -166,18 +167,24 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         }
 
         then:
-        result.output.contains("Task ':myTask' is not up-to-date because:\n" +
-                "  Input property 'clusters.myCluster\$0.$propertyName'")
+        result.output.contains(
+            "Task ':myTask' is not up-to-date because:\n" +
+                "  Input property 'clusters.myCluster\$0.$propertyName'"
+        )
         result.output.contains("elasticsearch-keystore script executed!")
         assertEsOutputContains("myCluster", "Starting Elasticsearch process")
         assertEsOutputContains("myCluster", "Stopping node")
 
         where:
         pluginType | propertyName         | fileChange
-        'module'   | "installedFiles"     | { def testClazz -> testClazz.file("test-module/src/main/plugin-metadata/someAddedConfig.txt") << "new resource file" }
-        'plugin'   | "installedFiles"     | { def testClazz -> testClazz.file("test-plugin/src/main/plugin-metadata/someAddedConfig.txt") << "new resource file" }
-        'module'   | "installedClasspath" | { def testClazz -> testClazz.file("test-module/src/main/java/SomeClass.java") << "class SomeClass {}" }
-        'plugin'   | "installedClasspath" | { def testClazz -> testClazz.file("test-plugin/src/main/java/SomeClass.java") << "class SomeClass {}" }
+        'module'   | "installedFiles"     |
+            { def testClazz -> testClazz.file("test-module/src/main/plugin-metadata/someAddedConfig.txt") << "new resource file" }
+        'plugin'   | "installedFiles"     |
+            { def testClazz -> testClazz.file("test-plugin/src/main/plugin-metadata/someAddedConfig.txt") << "new resource file" }
+        'module'   | "installedClasspath" |
+            { def testClazz -> testClazz.file("test-module/src/main/java/SomeClass.java") << "class SomeClass {}" }
+        'plugin'   | "installedClasspath" |
+            { def testClazz -> testClazz.file("test-plugin/src/main/java/SomeClass.java") << "class SomeClass {}" }
     }
 
     def "can declare test cluster in lazy evaluated task configuration block"() {
@@ -232,9 +239,57 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         assertCustomDistro('myCluster')
     }
 
+    @RestoreSystemProperties
+    def "override jdk usage via ES_JAVA_HOME for known jdk os incompatibilities"() {
+        given:
+        buildFile << """
+            testClusters {
+              myCluster {
+                testDistribution = 'default'
+                version = '8.10.4'
+              }
+            }
+
+            // Force linux platform to trigger jdk override
+            elasticsearch_distributions.forEach { d ->
+                d.platform = org.elasticsearch.gradle.ElasticsearchDistribution.Platform.LINUX
+            }
+
+            tasks.register('myTask', SomeClusterAwareTask) {
+                useCluster testClusters.myCluster
+            }
+        """
+        when:
+        def runner = gradleRunner(
+            "myTask",
+            '-Dos.name=Linux',
+            '-Dos.version=6.14.0-1015-gcp',
+            '-i',
+            '-Dorg.gradle.java.installations.auto-detect=false'
+        )
+
+        def result = withMockedJdkDownload(runner, { GradleRunner r ->
+            withMockedDistributionDownload(
+                "8.10.4",
+                ElasticsearchDistribution.Platform.LINUX,
+                r,
+                { it.build() }
+            )
+        }, 17, "eclipse_adoptium")
+
+        then:
+        def output = result.output
+        assert output.contains("Running")
+        assert output.lines().anyMatch { line ->
+            line.contains("ES_JAVA_HOME=") && line.contains("eclipse_adoptium-17")
+        }
+    }
+
     boolean assertEsOutputContains(String testCluster, String expectedOutput) {
-        assert new File(testProjectDir.root,
-                "build/testclusters/${testCluster}-0/logs/es.out").text.contains(expectedOutput)
+        assert new File(
+            testProjectDir.root,
+            "build/testclusters/${testCluster}-0/logs/es.out"
+        ).text.contains(expectedOutput)
         true
     }
 

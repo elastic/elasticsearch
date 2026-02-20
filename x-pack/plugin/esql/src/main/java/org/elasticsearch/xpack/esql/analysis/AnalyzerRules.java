@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -56,19 +57,6 @@ public final class AnalyzerRules {
         }
     }
 
-    public abstract static class BaseAnalyzerRule extends AnalyzerRule<LogicalPlan> {
-
-        @Override
-        protected LogicalPlan rule(LogicalPlan plan) {
-            if (plan.childrenResolved() == false) {
-                return plan;
-            }
-            return doRule(plan);
-        }
-
-        protected abstract LogicalPlan doRule(LogicalPlan plan);
-    }
-
     public static List<Attribute> maybeResolveAgainstList(
         UnresolvedAttribute u,
         Collection<Attribute> attrList,
@@ -116,7 +104,6 @@ public final class AnalyzerRules {
             int colDiff = a.sourceLocation().getColumnNumber() - b.sourceLocation().getColumnNumber();
             return lineDiff != 0 ? lineDiff : (colDiff != 0 ? colDiff : a.name().compareTo(b.name()));
         }).map(a -> "line " + a.sourceLocation().toString().substring(1) + " [" + a.name() + "]").toList();
-
-        throw new IllegalStateException("Reference [" + ua.name() + "] is ambiguous; " + "matches any of " + refs);
+        throw new VerificationException("Found ambiguous reference to [" + ua.name() + "]; " + "matches any of " + refs);
     }
 }

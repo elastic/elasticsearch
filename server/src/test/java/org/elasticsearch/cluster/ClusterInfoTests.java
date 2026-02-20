@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -16,7 +17,9 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInfo> {
 
@@ -45,7 +48,9 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             randomReservedSpace(),
             randomNodeHeapUsage(),
             randomNodeUsageStatsForThreadPools(),
-            randomShardWriteLoad()
+            randomShardWriteLoad(),
+            randomMaxHeapSizes(),
+            randomNodeIdsWriteLoadHotspottingSet()
         );
     }
 
@@ -56,6 +61,15 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             builder.put(randomShardId(), randomDouble());
         }
         return builder;
+    }
+
+    private static Map<String, ByteSizeValue> randomMaxHeapSizes() {
+        int numEntries = randomIntBetween(0, 128);
+        Map<String, ByteSizeValue> nodeMaxHeapSizes = new HashMap<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            nodeMaxHeapSizes.put(randomAlphaOfLength(32), randomByteSizeValue());
+        }
+        return nodeMaxHeapSizes;
     }
 
     private static Map<String, EstimatedHeapUsage> randomNodeHeapUsage() {
@@ -89,6 +103,16 @@ public class ClusterInfoTests extends AbstractWireSerializingTestCase<ClusterInf
             nodeUsageStatsForThreadPools.put(ThreadPool.Names.WRITE, new NodeUsageStatsForThreadPools(nodeIdKey, usageStatsForThreadPools));
         }
         return nodeUsageStatsForThreadPools;
+    }
+
+    private static Set<String> randomNodeIdsWriteLoadHotspottingSet() {
+        int numEntries = randomIntBetween(0, 128);
+        Set<String> nodeIdsWriteLoadHotspotting = new HashSet<>(numEntries);
+        for (int i = 0; i < numEntries; i++) {
+            String nodeId = randomAlphaOfLength(32);
+            nodeIdsWriteLoadHotspotting.add(nodeId);
+        }
+        return nodeIdsWriteLoadHotspotting;
     }
 
     private static Map<String, DiskUsage> randomDiskUsage() {

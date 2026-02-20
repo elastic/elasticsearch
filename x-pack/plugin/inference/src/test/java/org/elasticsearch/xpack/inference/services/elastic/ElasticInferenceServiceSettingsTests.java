@@ -37,6 +37,7 @@ public class ElasticInferenceServiceSettingsTests extends ESTestCase {
             .put(ElasticInferenceServiceSettings.AUTHORIZATION_REQUEST_INTERVAL.getKey(), authorizationRequestInterval)
             .put(ElasticInferenceServiceSettings.MAX_AUTHORIZATION_REQUEST_JITTER.getKey(), maxJitter)
             .put(ElasticInferenceServiceSettings.PERIODIC_AUTHORIZATION_ENABLED.getKey(), periodicAuthorizationEnabled)
+            .put(ElasticInferenceServiceSettings.AUTHORIZATION_ENABLED.getKey(), true)
             .build();
 
         return new ElasticInferenceServiceSettings(settings);

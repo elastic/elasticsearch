@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -105,7 +106,7 @@ public class RefCountingRunnableTests extends ESTestCase {
             10,
             TimeUnit.SECONDS,
             true,
-            EsExecutors.daemonThreadFactory("test"),
+            TestEsExecutors.testOnlyDaemonThreadFactory("test"),
             new ThreadContext(Settings.EMPTY)
         );
         final var asyncPermits = new Semaphore(between(0, 1000));
@@ -205,7 +206,7 @@ public class RefCountingRunnableTests extends ESTestCase {
             for (var item : otherCollection) {
                 var itemRef = refs.acquire(); // delays completion while the background action is pending
                 executorService.execute(() -> {
-                    try (var ignored = itemRef) {
+                    try (itemRef) {
                         if (condition(item)) {
                             runOtherAsyncAction(item, refs.acquire());
                         }

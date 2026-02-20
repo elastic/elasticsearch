@@ -335,20 +335,6 @@ date_string:keyword | date:date
 // end::dateParse-result[]
 ;
 
-docsReplace
-//tag::replaceString[]
-ROW str = "Hello World"
-| EVAL str = REPLACE(str, "World", "Universe")
-| KEEP str
-// end::replaceString[]
-;
-
-//tag::replaceString-result[]
-str:keyword
-Hello Universe
-// end::replaceString-result[]
-;
-
 docsCase
 // tag::case[]
 FROM employees

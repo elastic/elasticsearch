@@ -18,6 +18,7 @@ import org.junit.Before;
 
 import java.util.List;
 
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.executeResize;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_ROUTING_SHARDS_SETTING;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
@@ -55,13 +56,14 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
         super.tearDown();
     }
 
+    private static void runResizeAction(String targetIndexName, ResizeType resizeType, Settings.Builder settings) {
+        assertAcked(executeResize(resizeType, "mounted-index", targetIndexName, settings));
+    }
+
     public void testShrinkSearchableSnapshotIndex() {
         final IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareResizeIndex("mounted-index", "shrunk-index")
-                .setResizeType(ResizeType.SHRINK)
-                .setSettings(indexSettingsNoReplicas(1).build())
-                .get()
+            () -> runResizeAction("shrunk-index", ResizeType.SHRINK, indexSettingsNoReplicas(1))
         );
         assertThat(exception.getMessage(), equalTo("can't shrink searchable snapshot index [mounted-index]"));
     }
@@ -69,10 +71,7 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
     public void testSplitSearchableSnapshotIndex() {
         final IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareResizeIndex("mounted-index", "split-index")
-                .setResizeType(ResizeType.SPLIT)
-                .setSettings(indexSettingsNoReplicas(4).build())
-                .get()
+            () -> runResizeAction("split-index", ResizeType.SPLIT, indexSettingsNoReplicas(4))
         );
         assertThat(exception.getMessage(), equalTo("can't split searchable snapshot index [mounted-index]"));
     }
@@ -80,7 +79,7 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
     public void testCloneSearchableSnapshotIndex() {
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareResizeIndex("mounted-index", "cloned-index").setResizeType(ResizeType.CLONE).get()
+            () -> runResizeAction("cloned-index", ResizeType.CLONE, Settings.builder())
         );
         assertThat(
             exception.getMessage(),
@@ -89,27 +88,25 @@ public class SearchableSnapshotsResizeIntegTests extends BaseFrozenSearchableSna
 
         exception = expectThrows(
             IllegalArgumentException.class,
-            () -> indicesAdmin().prepareResizeIndex("mounted-index", "cloned-index")
-                .setResizeType(ResizeType.CLONE)
-                .setSettings(Settings.builder().putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey()).build())
-                .get()
+            () -> runResizeAction(
+                "cloned-index",
+                ResizeType.CLONE,
+                Settings.builder().putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+            )
         );
         assertThat(
             exception.getMessage(),
             equalTo("can't clone searchable snapshot index [mounted-index]; setting [index.recovery.type] should be overridden")
         );
 
-        assertAcked(
-            indicesAdmin().prepareResizeIndex("mounted-index", "cloned-index")
-                .setResizeType(ResizeType.CLONE)
-                .setSettings(
-                    Settings.builder()
-                        .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
-                        .putNull(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey())
-                        .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
-                        .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                        .build()
-                )
+        runResizeAction(
+            "cloned-index",
+            ResizeType.CLONE,
+            Settings.builder()
+                .putNull(IndexModule.INDEX_STORE_TYPE_SETTING.getKey())
+                .putNull(IndexModule.INDEX_RECOVERY_TYPE_SETTING.getKey())
+                .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+                .put(INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
         );
         ensureGreen("cloned-index");
         assertAcked(indicesAdmin().prepareDelete("cloned-index"));

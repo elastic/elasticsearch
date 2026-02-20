@@ -115,7 +115,7 @@ public class CommandLicenseTests extends ESTestCase {
         Map<String, String> commandClassNameMapper = Map.of(
             "Where",
             "Filter",
-            "Inlinestats",
+            "Inline",
             "InlineStats",
             "Rrf",
             "RrfScoreEval",
@@ -124,9 +124,20 @@ public class CommandLicenseTests extends ESTestCase {
             "Stats",
             "Aggregate",
             "Join",
-            "LookupJoin"
+            "LookupJoin",
+            "Mmr",
+            "MMR"
         );
-        Map<String, String> commandNameMapper = Map.of("ChangePoint", "CHANGE_POINT", "LookupJoin", "LOOKUP_JOIN", "MvExpand", "MV_EXPAND");
+        Map<String, String> commandNameMapper = Map.of(
+            "ChangePoint",
+            "CHANGE_POINT",
+            "LookupJoin",
+            "LOOKUP_JOIN",
+            "MvExpand",
+            "MV_EXPAND",
+            "InlineStats",
+            "INLINE_STATS"
+        );
         Map<String, String> commandPackageMapper = Map.of("Rerank", planPackage + ".inference", "LookupJoin", planPackage + ".join");
         Set<String> ignoredClasses = Set.of("Processing", "TimeSeries", "Completion", "Source", "From", "Row");
 
@@ -178,7 +189,7 @@ public class CommandLicenseTests extends ESTestCase {
                 return new Sample(source, null, child);
             }
             case "LookupJoin" -> {
-                return new LookupJoin(source, child, child, List.of());
+                return new LookupJoin(source, child, child, List.of(), null);
             }
             case "Limit" -> {
                 return new Limit(source, null, child);

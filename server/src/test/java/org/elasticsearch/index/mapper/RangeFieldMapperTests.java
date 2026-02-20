@@ -50,6 +50,11 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         return false;
     }
 
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
+    }
+
     public void testExistsQueryDocValuesDisabled() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> {
             minimalMapping(b);
@@ -425,5 +430,10 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         // TODO when we fix doc values fetcher we should add tests for date and ip ranges.
         assumeFalse("DocValuesFetcher doesn't work", true);
         return null;
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
     }
 }

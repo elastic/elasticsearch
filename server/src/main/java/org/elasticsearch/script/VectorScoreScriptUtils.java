@@ -11,6 +11,7 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.Element;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.script.field.vectors.DenseVector;
 import org.elasticsearch.script.field.vectors.DenseVectorDocValuesField;
@@ -66,7 +67,7 @@ public class VectorScoreScriptUtils {
             ElementType... allowedTypes
         ) {
             super(scoreScript, field);
-            field.getElementType().checkDimensions(field.get().getDims(), queryVector.size());
+            field.getElement().checkDimensions(field.get().getDims(), queryVector.size());
             float[] floatValues = new float[queryVector.size()];
             double queryMagnitude = 0;
             for (int i = 0; i < queryVector.size(); i++) {
@@ -76,7 +77,7 @@ public class VectorScoreScriptUtils {
             }
             queryMagnitude = Math.sqrt(queryMagnitude);
 
-            switch (ElementType.checkValidVector(floatValues, allowedTypes)) {
+            switch (Element.checkValidVector(floatValues, allowedTypes)) {
                 case FLOAT:
                     byteQueryVector = null;
                     floatQueryVector = floatValues;
@@ -149,7 +150,7 @@ public class VectorScoreScriptUtils {
                 queryMagnitude += value * value;
             }
             queryMagnitude = Math.sqrt(queryMagnitude);
-            field.getElementType().checkVectorBounds(this.queryVector);
+            field.getElement().checkVectorBounds(this.queryVector);
 
             if (normalizeQuery) {
                 for (int dim = 0; dim < this.queryVector.length; dim++) {
@@ -209,7 +210,7 @@ public class VectorScoreScriptUtils {
                     }
                     throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
                 }
-                case FLOAT -> {
+                case FLOAT, BFLOAT16 -> {
                     if (queryVector instanceof List) {
                         yield new FloatL1Norm(scoreScript, field, (List<Number>) queryVector);
                     }
@@ -251,7 +252,7 @@ public class VectorScoreScriptUtils {
         @SuppressWarnings("unchecked")
         public Hamming(ScoreScript scoreScript, Object queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
-            if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT) {
+            if (field.getElementType() == DenseVectorFieldMapper.ElementType.FLOAT || field.getElementType() == ElementType.BFLOAT16) {
                 throw new IllegalArgumentException("hamming distance is only supported for byte or bit vectors");
             }
             if (queryVector instanceof List) {
@@ -319,7 +320,7 @@ public class VectorScoreScriptUtils {
                     }
                     throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
                 }
-                case FLOAT -> {
+                case FLOAT, BFLOAT16 -> {
                     if (queryVector instanceof List) {
                         yield new FloatL2Norm(scoreScript, field, (List<Number>) queryVector);
                     }
@@ -477,7 +478,7 @@ public class VectorScoreScriptUtils {
                     }
                     throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
                 }
-                case FLOAT -> {
+                case FLOAT, BFLOAT16 -> {
                     if (queryVector instanceof List) {
                         yield new FloatDotProduct(scoreScript, field, (List<Number>) queryVector);
                     }
@@ -546,7 +547,7 @@ public class VectorScoreScriptUtils {
                     }
                     throw new IllegalArgumentException("Unsupported input object for byte vectors: " + queryVector.getClass().getName());
                 }
-                case FLOAT -> {
+                case FLOAT, BFLOAT16 -> {
                     if (queryVector instanceof List) {
                         yield new FloatCosineSimilarity(scoreScript, field, (List<Number>) queryVector);
                     }

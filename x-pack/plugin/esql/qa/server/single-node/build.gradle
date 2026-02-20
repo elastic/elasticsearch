@@ -1,3 +1,4 @@
+apply plugin: 'java'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 // Necessary to use tests in Serverless
@@ -31,11 +32,13 @@ dependencies {
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
   clusterPlugins project(':x-pack:plugin:inference:qa:test-service-plugin')
+  clusterPlugins project(xpackModule('esql-datasource-csv'))
+  clusterPlugins project(xpackModule('esql-datasource-http'))
 }
 
 restResources {
   restApi {
-    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities', 'index'
+    include '_common', 'bulk', 'get', 'indices', 'esql', 'xpack', 'enrich', 'cluster', 'capabilities', 'index', 'search'
   }
   restTests {
     includeXpack 'esql'

@@ -16,6 +16,9 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -52,12 +55,16 @@ public class MultiClustersIT extends ESRestTestCase {
     static List<Document> localStandardDocs = null;
     static List<Document> remoteStandardDocs = null;
 
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
+
     public static ElasticsearchCluster remoteCluster = ElasticsearchCluster.local()
         .name("remote_cluster")
         .distribution(DistributionType.DEFAULT)
         .module("data-streams")
         .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .user(USER, PASS)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.logsdb.enabled", "true")
         .build();
@@ -67,7 +74,8 @@ public class MultiClustersIT extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .module("data-streams")
         .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
+        .setting("xpack.security.autoconfiguration.enabled", "false")
+        .user(USER, PASS)
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.logsdb.enabled", "true")
         .setting("node.roles", "[data,ingest,master,remote_cluster_client]")
@@ -87,6 +95,11 @@ public class MultiClustersIT extends ESRestTestCase {
     private RestClient remoteClusterClient() throws IOException {
         var clusterHosts = parseClusterHosts(remoteCluster.getHttpAddresses());
         return buildClient(restClientSettings(), clusterHosts.toArray(new HttpHost[0]));
+    }
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     private record Document(long timestamp, String cluster, String hostName, long pid, String method, long messageId, String message) {

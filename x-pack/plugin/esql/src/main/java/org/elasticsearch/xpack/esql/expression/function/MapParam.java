@@ -22,7 +22,7 @@ import java.lang.annotation.Target;
  * options are be grouped together and provided to the {@code Match} function as an optional argument in a map format.
  */
 @Retention(RetentionPolicy.RUNTIME)
-@Target(ElementType.PARAMETER)
+@Target({ ElementType.PARAMETER, ElementType.FIELD })
 public @interface MapParam {
     String name();
 
@@ -31,6 +31,9 @@ public @interface MapParam {
     String description() default "";
 
     boolean optional() default false;
+
+    // version since which the parameter is available
+    String since() default "";
 
     @Retention(RetentionPolicy.RUNTIME)
     @Target(ElementType.PARAMETER)

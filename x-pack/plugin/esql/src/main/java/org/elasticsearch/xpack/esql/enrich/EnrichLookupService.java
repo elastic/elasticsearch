@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.enrich;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -20,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
@@ -115,15 +113,15 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         TransportRequest request,
         SearchExecutionContext context,
         AliasFilter aliasFilter,
-        Block inputBlock,
         Warnings warnings
     ) {
         DataType inputDataType = request.inputDataType;
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         validateTypes(inputDataType, fieldType);
+        int channelOffset = 0;
         return switch (request.matchType) {
-            case "match", "range" -> termQueryList(fieldType, context, aliasFilter, inputBlock, inputDataType);
-            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, aliasFilter, inputBlock);
+            case "match", "range" -> termQueryList(fieldType, aliasFilter, channelOffset, inputDataType);
+            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, aliasFilter, channelOffset);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
         };
     }
@@ -218,9 +216,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             TaskId parentTaskId = TaskId.readFromStream(in);
             String sessionId = in.readString();
             ShardId shardId = new ShardId(in);
-            DataType inputDataType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0))
-                ? DataType.fromTypeName(in.readString())
-                : null;
+            DataType inputDataType = DataType.fromTypeName(in.readString());
             String matchType = in.readString();
             String matchField = in.readString();
             Page inputPage;
@@ -229,10 +225,7 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             }
             PlanStreamInput planIn = new PlanStreamInput(in, in.namedWriteableRegistry(), null);
             List<NamedExpression> extractFields = planIn.readNamedWriteableCollectionAsList(NamedExpression.class);
-            var source = Source.EMPTY;
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                source = Source.readFrom(planIn);
-            }
+            var source = Source.readFrom(planIn);
             TransportRequest result = new TransportRequest(
                 sessionId,
                 shardId,
@@ -253,17 +246,13 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             super.writeTo(out);
             out.writeString(sessionId);
             out.writeWriteable(shardId);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-                out.writeString(inputDataType.typeName());
-            }
+            out.writeString(inputDataType.typeName());
             out.writeString(matchType);
             out.writeString(matchField);
             out.writeWriteable(inputPage);
             PlanStreamOutput planOut = new PlanStreamOutput(out, null);
             planOut.writeNamedWriteableCollection(extractFields);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_17_0)) {
-                source.writeTo(planOut);
-            }
+            source.writeTo(planOut);
         }
 
         @Override

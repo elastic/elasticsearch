@@ -21,7 +21,11 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.parser.ParserUtils;
+import org.elasticsearch.xpack.esql.parser.QueryParam;
+import org.elasticsearch.xpack.esql.parser.QueryParams;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -53,9 +57,11 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         List<Object[]> params = new ArrayList<>();
         for (String indexType : ALL_DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] { DenseVectorFieldMapper.ElementType.FLOAT, indexType });
+            params.add(new Object[] { DenseVectorFieldMapper.ElementType.BFLOAT16, indexType });
         }
         for (String indexType : NON_QUANTIZED_DENSE_VECTOR_INDEX_TYPES) {
             params.add(new Object[] { DenseVectorFieldMapper.ElementType.BYTE, indexType });
+            params.add(new Object[] { DenseVectorFieldMapper.ElementType.BIT, indexType });
         }
 
         // Remove flat index types, as knn does not do a top k for flat
@@ -74,9 +80,10 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s, 10)
+            | WHERE knn(vector, %s)
             | KEEP id, _score, vector
             | SORT _score DESC
+            | LIMIT 10
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
@@ -107,15 +114,43 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testKnnOptions() {
+    public void testKnnKOverridesLimit() {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 0.0f);
 
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s, 5)
+            | WHERE knn(vector, %s, {"k": 5, "min_candidates": 20})
             | KEEP id, _score, vector
             | SORT _score DESC
+            | LIMIT 10
+            """, Arrays.toString(queryVector));
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score", "vector"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double", "dense_vector"));
+
+            List<List<Object>> valuesList = EsqlTestUtils.getValuesList(resp);
+            assertEquals(5, valuesList.size());
+        }
+    }
+
+    public void testDenseVectorQueryParams() {
+        float[] queryVector = new float[numDims];
+        Arrays.fill(queryVector, 0);
+        EsqlQueryRequest queryRequest = new EsqlQueryRequest();
+        QueryParams queryParams = new QueryParams(
+            List.of(new QueryParam("queryVector", Arrays.asList(queryVector), DataType.INTEGER, ParserUtils.ParamClassification.VALUE))
+        );
+
+        queryRequest.params(queryParams);
+
+        var query = String.format(Locale.ROOT, """
+            FROM test METADATA _score
+            | WHERE knn(vector, %s) OR id > 100
+            | KEEP id, _score, vector
+            | SORT _score DESC
+            | LIMIT 5
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
@@ -131,12 +166,12 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         float[] queryVector = new float[numDims];
         Arrays.fill(queryVector, 0.0f);
 
-        // TODO we need to decide what to do when / if user uses k for limit, as no more than k results will be returned from knn query
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s, 5) OR id > 100
+            | WHERE knn(vector, %s) OR id > 100
             | KEEP id, _score, vector
             | SORT _score DESC
+            | LIMIT 5
             """, Arrays.toString(queryVector));
 
         try (var resp = run(query)) {
@@ -155,7 +190,7 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         // We retrieve 5 from knn, but must be prefiltered with id > 5 or no result will be returned as it would be post-filtered
         var query = String.format(Locale.ROOT, """
             FROM test METADATA _score
-            | WHERE knn(vector, %s, 5) AND id > 5 AND id <= 10
+            | WHERE knn(vector, %s) AND id > 5 AND id <= 10
             | KEEP id, _score, vector
             | SORT _score DESC
             | LIMIT 5
@@ -178,7 +213,8 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
         var query = String.format(Locale.ROOT, """
             FROM test
             | LOOKUP JOIN test_lookup ON id
-            | WHERE KNN(lookup_vector, %s, 5) OR id > 100
+            | WHERE KNN(lookup_vector, %s) OR id > 100
+            | LIMIT 5
             """, Arrays.toString(queryVector));
 
         var error = expectThrows(VerificationException.class, () -> run(query));
@@ -193,8 +229,6 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void setup() throws IOException {
-        assumeTrue("Needs KNN support", EsqlCapabilities.Cap.KNN_FUNCTION_V3.isEnabled());
-
         var indexName = "test";
         var client = client().admin().indices();
         XContentBuilder mapping = XContentFactory.jsonBuilder()
@@ -231,14 +265,9 @@ public class KnnFunctionIT extends AbstractEsqlIntegTestCase {
             List<Number> vector = new ArrayList<>(numDims);
             for (int j = 0; j < numDims; j++) {
                 switch (elementType) {
-                    case FLOAT:
-                        vector.add(randomFloatBetween(0F, 1F, true));
-                        break;
-                    case BYTE:
-                        vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127));
-                        break;
-                    default:
-                        throw new IllegalArgumentException("Unexpected element type: " + elementType);
+                    case FLOAT, BFLOAT16 -> vector.add(randomFloatBetween(0F, 1F, true));
+                    case BYTE, BIT -> vector.add((byte) (randomFloatBetween(0F, 1F, true) * 127.0f));
+                    default -> throw new IllegalArgumentException("Unexpected element type: " + elementType);
                 }
             }
             docs[i] = prepareIndex("test").setId(String.valueOf(i)).setSource("id", String.valueOf(i), "vector", vector);

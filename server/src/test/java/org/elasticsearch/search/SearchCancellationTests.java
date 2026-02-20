@@ -21,14 +21,15 @@ import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
+import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TotalHitCountCollectorManager;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -106,17 +107,17 @@ public class SearchCancellationTests extends ESTestCase {
             true
         );
 
-        Integer totalHits = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
+        Integer totalHits = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
         assertThat(totalHits, equalTo(reader.numDocs()));
 
         searcher.addQueryCancellation(cancellation);
         expectThrows(
             TaskCancelledException.class,
-            () -> searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()))
+            () -> searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()))
         );
 
         searcher.removeQueryCancellation(cancellation);
-        Integer totalHits2 = searcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(searcher.getSlices()));
+        Integer totalHits2 = searcher.search(Queries.ALL_DOCS_INSTANCE, new TotalHitCountCollectorManager(searcher.getSlices()));
         assertThat(totalHits2, equalTo(reader.numDocs()));
     }
 
@@ -201,7 +202,13 @@ public class SearchCancellationTests extends ESTestCase {
         expectThrows(TaskCancelledException.class, () -> leaf.getFloatVectorValues(KNN_FIELD_NAME));
         expectThrows(
             TaskCancelledException.class,
-            () -> leaf.searchNearestVectors(KNN_FIELD_NAME, new float[] { 1f, 1f, 1f }, 2, leaf.getLiveDocs(), Integer.MAX_VALUE)
+            () -> leaf.searchNearestVectors(
+                KNN_FIELD_NAME,
+                new float[] { 1f, 1f, 1f },
+                2,
+                AcceptDocs.fromLiveDocs(leaf.getLiveDocs(), leaf.maxDoc()),
+                Integer.MAX_VALUE
+            )
         );
 
         cancelled.set(false); // Avoid exception during construction of the wrapper objects

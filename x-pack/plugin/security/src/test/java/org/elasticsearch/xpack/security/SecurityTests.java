@@ -32,22 +32,26 @@ import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.ClusterStateLicenseService;
 import org.elasticsearch.license.License;
@@ -63,6 +67,7 @@ import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
@@ -71,6 +76,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.test.transport.StubLinkedProjectConfigService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -119,6 +125,7 @@ import org.elasticsearch.xpack.security.operator.OperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.operator.OperatorPrivilegesViolation;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
+import org.elasticsearch.xpack.security.transport.CrossClusterAccessSecurityExtension;
 import org.hamcrest.Matchers;
 import org.junit.After;
 
@@ -239,7 +246,7 @@ public class SecurityTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         ClusterService clusterService = mock(ClusterService.class);
         settings = Security.additionalSettings(settings, true);
-        Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(null));
+        Set<Setting<?>> allowedSettings = new HashSet<>(Security.getSettings(null, new CrossClusterAccessSecurityExtension.Provider()));
         allowedSettings.addAll(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         ClusterSettings clusterSettings = new ClusterSettings(settings, allowedSettings);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
@@ -253,6 +260,7 @@ public class SecurityTests extends ESTestCase {
         return security.createComponents(
             client,
             threadPool,
+            new MockBigArrays(new MockPageCacheRecycler(settings), ByteSizeValue.ofBytes(Long.MAX_VALUE)),
             clusterService,
             new FeatureService(List.of(new SecurityFeatures())),
             mock(ResourceWatcherService.class),
@@ -262,7 +270,9 @@ public class SecurityTests extends ESTestCase {
             TestIndexNameExpressionResolver.newInstance(threadContext),
             TelemetryProvider.NOOP,
             mock(PersistentTasksService.class),
-            TestProjectResolvers.alwaysThrow()
+            StubLinkedProjectConfigService.INSTANCE,
+            TestProjectResolvers.alwaysThrow(),
+            ProjectRoutingResolver.NOOP
         );
     }
 
@@ -276,6 +286,12 @@ public class SecurityTests extends ESTestCase {
             .put("path.home", createTempDir())
             .build();
         constructNewSecurityObject(settings, extensions);
+        security.loadExtensions(new ExtensiblePlugin.ExtensionLoader() {
+            @Override
+            public <T> List<T> loadExtensions(Class<T> extensionPointType) {
+                return List.of();
+            }
+        });
         return createComponentsUtil(settings);
     }
 
@@ -466,12 +482,13 @@ public class SecurityTests extends ESTestCase {
             () -> true,
             TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
             Collections.emptyMap(),
-            mock(SlowLogFieldProvider.class),
+            mock(ActionLoggingFieldsProvider.class),
             MapperMetrics.NOOP,
             List.of(),
             new IndexingStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
             new SearchStatsSettings(ClusterSettings.createBuiltInClusterSettings()),
-            MergeMetrics.NOOP
+            MergeMetrics.NOOP,
+            StoreMetrics.NOOP_HOLDER
         );
         security.onIndexModule(indexModule);
         // indexReaderWrapper is a SetOnce so if Security#onIndexModule had already set an ReaderWrapper we would get an exception here
@@ -516,7 +533,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testJoinValidatorForFIPSOnAllowedLicense() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
-            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Metadata.Builder builder = Metadata.builder();
         License license = TestUtils.generateSignedLicense(
@@ -541,7 +558,7 @@ public class SecurityTests extends ESTestCase {
 
     public void testJoinValidatorForFIPSOnForbiddenLicense() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.builder("foo")
-            .version(VersionUtils.randomVersion(random()), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
+            .version(VersionUtils.randomVersion(), IndexVersions.ZERO, IndexVersionUtils.randomVersion())
             .build();
         Metadata.Builder builder = Metadata.builder();
         final String forbiddenLicenseType = randomFrom(
@@ -857,6 +874,17 @@ public class SecurityTests extends ESTestCase {
         assertThatLogger(() -> Security.validateForFips(settings), Security.class);
     }
 
+    public void testSecurityProvider() {
+        assertTrue(new Security.SecurityProvider("bcfips", "2.0").test("bcfips"));
+        assertTrue(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:2.0"));
+        assertTrue(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:2*"));
+        assertTrue(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:*"));
+        assertFalse(new Security.SecurityProvider("bcfips", "2.0").test("sun"));
+        assertFalse(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:"));
+        assertFalse(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:1.0"));
+        assertFalse(new Security.SecurityProvider("bcfips", "2.0").test("bcfips:1*"));
+    }
+
     public void testLicenseUpdateFailureHandlerUpdate() throws Exception {
         final Path kerbKeyTab = createTempFile("es", "keytab");
         Files.write(kerbKeyTab, new byte[0]);
@@ -917,8 +945,10 @@ public class SecurityTests extends ESTestCase {
         final Logger amLogger = LogManager.getLogger(ActionModule.class);
         Loggers.setLevel(amLogger, Level.DEBUG);
 
-        Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
-        SettingsModule settingsModule = new SettingsModule(Settings.EMPTY);
+        Path homeDir = createTempDir();
+        Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", homeDir).build();
+        // these settings cannot have xpack.security.enabled since we haven't loaded plugins, so that setting is unknown
+        SettingsModule settingsModule = new SettingsModule(Settings.builder().put("path.home", homeDir).build());
         ThreadPool threadPool = new TestThreadPool(getTestName());
 
         try (var mockLog = MockLog.capture(ActionModule.class)) {
@@ -937,7 +967,7 @@ public class SecurityTests extends ESTestCase {
             );
 
             ActionModule actionModule = new ActionModule(
-                settingsModule.getSettings(),
+                TestEnvironment.newEnvironment(settingsModule.getSettings()),
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null,
                 settingsModule.getIndexScopedSettings(),
@@ -1246,7 +1276,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(realmAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
 
@@ -1277,7 +1307,7 @@ public class SecurityTests extends ESTestCase {
         assertFalse(apiKeyAuth.isRunAs());
 
         serializer.writeToContext(apiKeyAuth, threadContext);
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
         assertNotNull(authContext);
 
         assertThat(authContext.get("user.name"), equalTo(apiKeyAuth.getAuthenticatingSubject().getUser().principal()));
@@ -1344,7 +1374,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(runAsAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
 
@@ -1396,7 +1426,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(outerCrossClusterAccessAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
 
@@ -1441,7 +1471,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(outerCrossClusterAccessAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
 
@@ -1500,7 +1530,7 @@ public class SecurityTests extends ESTestCase {
 
         serializer.writeToContext(outerCrossClusterAccessAuth, threadContext);
 
-        Map<String, String> authContext = security.getAuthContextForSlowLog();
+        Map<String, String> authContext = security.getAuthContextForLogging();
 
         assertNotNull(authContext);
         // Assertions for the fields derived from the inner Run-as user

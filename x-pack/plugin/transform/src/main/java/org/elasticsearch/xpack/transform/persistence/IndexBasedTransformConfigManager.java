@@ -52,7 +52,7 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -295,15 +295,18 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
         // use the transform context as we access system indexes
         try (ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashWithOrigin(TRANSFORM_ORIGIN)) {
-            indicesToDelete.addAll(
-                Arrays.asList(
-                    indexNameExpressionResolver.concreteIndexNames(
-                        state,
-                        IndicesOptions.lenientExpandHidden(),
-                        TransformInternalIndexConstants.INDEX_NAME_PATTERN
-                    )
-                )
+            var matchingIndexes = indexNameExpressionResolver.concreteIndices(
+                state,
+                IndicesOptions.lenientExpandHidden(),
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN
             );
+
+            for (var index : matchingIndexes) {
+                var meta = state.getMetadata().indexMetadata(index);
+                if (meta.isSystem() == false) { // ignore system indices as these are automatically managed
+                    indicesToDelete.add(meta.getIndex().getName());
+                }
+            }
 
             indicesToDelete.addAll(
                 Arrays.asList(
@@ -1016,7 +1019,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             }
         }
 
-        for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
+        for (PaginatedHitSource.SearchFailure failure : response.getSearchFailures()) {
             RestStatus failureStatus = org.elasticsearch.ExceptionsHelper.status(failure.getReason());
             if (failureStatus.getStatus() > status.getStatus()) {
                 status = failureStatus;

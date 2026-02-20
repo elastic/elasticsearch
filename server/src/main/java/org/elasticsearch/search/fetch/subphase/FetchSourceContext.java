@@ -10,7 +10,6 @@
 package org.elasticsearch.search.fetch.subphase;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,6 +32,12 @@ import java.util.Objects;
 
 /**
  * Context used to fetch the {@code _source}.
+ *
+ * The {@code exclude_vectors} and {@code exclude_inference_fields} flags control whether vectors and inference fields metadata
+ * are rehydrated into the _source. By default, these are not included in the _source.
+ *
+ * The {@code exclude_inference_fields} flag defaults to the value of exclude_vectors at the REST layer, but it is exposed
+ * at the transport layer to allow internal APIs (such as reindex) to make more granular decisions.
  */
 public class FetchSourceContext implements Writeable, ToXContentObject {
 
@@ -40,11 +45,38 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
 
-    public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(true, null, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
-    public static final FetchSourceContext FETCH_ALL_SOURCE = new FetchSourceContext(true, false, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
+    private static final TransportVersion SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM = TransportVersion.fromName(
+        "search_source_exclude_vectors_param"
+    );
+    private static final TransportVersion SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM = TransportVersion.fromName(
+        "search_source_exclude_inference_fields_param"
+    );
+
+    public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(
+        true,
+        null,
+        null,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY
+    );
+    public static final FetchSourceContext FETCH_ALL_SOURCE = new FetchSourceContext(
+        true,
+        false,
+        false,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY
+    );
+    public static final FetchSourceContext FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS = new FetchSourceContext(
+        true,
+        false,
+        true,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY
+    );
 
     public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(
         false,
+        null,
         null,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY
@@ -53,6 +85,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     private final String[] includes;
     private final String[] excludes;
     private final Boolean excludeVectors;
+    private final Boolean excludeInferenceFields;
 
     public static FetchSourceContext of(boolean fetchSource) {
         return fetchSource ? FETCH_SOURCE : DO_NOT_FETCH_SOURCE;
@@ -68,15 +101,35 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         @Nullable String[] includes,
         @Nullable String[] excludes
     ) {
-        if (excludeVectors == null && (includes == null || includes.length == 0) && (excludes == null || excludes.length == 0)) {
-            return of(fetchSource);
-        }
-        return new FetchSourceContext(fetchSource, excludeVectors, includes, excludes);
+        return of(fetchSource, excludeVectors, null, includes, excludes);
     }
 
-    private FetchSourceContext(boolean fetchSource, Boolean excludeVectors, @Nullable String[] includes, @Nullable String[] excludes) {
+    public static FetchSourceContext of(
+        boolean fetchSource,
+        Boolean excludeVectors,
+        Boolean excludeInferenceFields,
+        @Nullable String[] includes,
+        @Nullable String[] excludes
+    ) {
+        if (excludeVectors == null
+            && excludeInferenceFields == null
+            && (includes == null || includes.length == 0)
+            && (excludes == null || excludes.length == 0)) {
+            return of(fetchSource);
+        }
+        return new FetchSourceContext(fetchSource, excludeVectors, excludeInferenceFields, includes, excludes);
+    }
+
+    private FetchSourceContext(
+        boolean fetchSource,
+        @Nullable Boolean excludeVectors,
+        @Nullable Boolean excludeInferenceFields,
+        @Nullable String[] includes,
+        @Nullable String[] excludes
+    ) {
         this.fetchSource = fetchSource;
         this.excludeVectors = excludeVectors;
+        this.excludeInferenceFields = excludeInferenceFields;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
     }
@@ -84,9 +137,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     public static FetchSourceContext readFrom(StreamInput in) throws IOException {
         final boolean fetchSource = in.readBoolean();
         final Boolean excludeVectors = isVersionCompatibleWithExcludeVectors(in.getTransportVersion()) ? in.readOptionalBoolean() : null;
+        final Boolean excludeInferenceFields = in.getTransportVersion().supports(SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM)
+            ? in.readOptionalBoolean()
+            : null;
         final String[] includes = in.readStringArray();
         final String[] excludes = in.readStringArray();
-        return of(fetchSource, excludeVectors, includes, excludes);
+        return of(fetchSource, excludeVectors, excludeInferenceFields, includes, excludes);
     }
 
     @Override
@@ -95,13 +151,15 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         if (isVersionCompatibleWithExcludeVectors(out.getTransportVersion())) {
             out.writeOptionalBoolean(excludeVectors);
         }
+        if (out.getTransportVersion().supports(SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM)) {
+            out.writeOptionalBoolean(excludeInferenceFields);
+        }
         out.writeStringArray(includes);
         out.writeStringArray(excludes);
     }
 
     private static boolean isVersionCompatibleWithExcludeVectors(TransportVersion version) {
-        return version.isPatchFrom(TransportVersions.SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM_8_19)
-            || version.onOrAfter(TransportVersions.SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM);
+        return version.supports(SEARCH_SOURCE_EXCLUDE_VECTORS_PARAM);
     }
 
     public boolean fetchSource() {
@@ -110,6 +168,10 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public Boolean excludeVectors() {
         return this.excludeVectors;
+    }
+
+    public Boolean excludeInferenceFields() {
+        return this.excludeInferenceFields;
     }
 
     public String[] includes() {
@@ -251,7 +313,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 parser.getTokenLocation()
             );
         }
-        return FetchSourceContext.of(fetchSource, excludeVectors, includes, excludes);
+        // The exclude_inference_fields option is not exposed at the REST layer and defaults to the exclude_vectors value.
+        return FetchSourceContext.of(fetchSource, excludeVectors, excludeVectors, includes, excludes);
     }
 
     private static String[] parseStringArray(XContentParser parser, String currentFieldName) throws IOException {
@@ -298,6 +361,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
         if (fetchSource != that.fetchSource) return false;
         if (excludeVectors != that.excludeVectors) return false;
+        if (excludeInferenceFields != that.excludeInferenceFields) return false;
         if (Arrays.equals(excludes, that.excludes) == false) return false;
         if (Arrays.equals(includes, that.includes) == false) return false;
 
@@ -306,7 +370,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(fetchSource, excludeVectors);
+        int result = Objects.hash(fetchSource, excludeVectors, excludeInferenceFields);
         result = 31 * result + Arrays.hashCode(includes);
         result = 31 * result + Arrays.hashCode(excludes);
         return result;

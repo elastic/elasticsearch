@@ -38,7 +38,9 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProviders;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -212,6 +214,16 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         }
     }
 
+    private static final IndexSettings DEFAULT_INDEX_SETTINGS = new IndexSettings(
+        IndexMetadata.builder("_na_")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .creationDate(System.currentTimeMillis())
+            .build(),
+        Settings.EMPTY
+    );
+
     @Before
     public void setup() throws Exception {
         testThreadPool = new TestThreadPool(getTestName());
@@ -224,8 +236,7 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 DateFieldMapper.Resolution.MILLISECONDS,
                 null,
                 ScriptCompiler.NONE,
-                false,
-                IndexVersion.current()
+                DEFAULT_INDEX_SETTINGS
             ).build(MapperBuilderContext.root(false, false));
             RootObjectMapper.Builder root = new RootObjectMapper.Builder("_doc", ObjectMapper.Defaults.SUBOBJECTS);
             root.add(
@@ -234,9 +245,8 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                     DateFieldMapper.Resolution.MILLISECONDS,
                     DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
                     ScriptCompiler.NONE,
-                    true,
-                    IndexVersion.current()
-                )
+                    DEFAULT_INDEX_SETTINGS
+                ).ignoreMalformed(true)
             );
             MetadataFieldMapper dtfm = DataStreamTestHelper.getDataStreamTimestampFieldMapper();
             Mapping mapping = new Mapping(
@@ -244,7 +254,12 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
-            MappingLookup mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of());
+            MappingLookup mappingLookup = MappingLookup.fromMappers(
+                mapping,
+                List.of(dtfm, dateFieldMapper),
+                List.of(),
+                randomFrom(IndexMode.values())
+            );
             indicesService = DataStreamTestHelper.mockIndicesServices(mappingLookup);
         }
 

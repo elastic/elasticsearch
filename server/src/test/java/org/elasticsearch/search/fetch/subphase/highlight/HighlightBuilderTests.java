@@ -27,13 +27,13 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.Rewriteable;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
@@ -320,15 +320,13 @@ public class HighlightBuilderTests extends ESTestCase {
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {
-                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
-                    name,
-                    createDefaultIndexAnalyzers(),
-                    SourceFieldMapper.isSynthetic(idxSettings)
-                );
+                TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, createDefaultIndexAnalyzers());
                 return builder.build(MapperBuilderContext.root(false, false)).fieldType();
             }
         };

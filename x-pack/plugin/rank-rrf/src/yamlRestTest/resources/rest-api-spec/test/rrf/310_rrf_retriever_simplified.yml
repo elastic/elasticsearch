@@ -35,6 +35,36 @@ setup:
             "task_settings": {
             }
           }
+  - do:
+      inference.put:
+        task_type: sparse_embedding
+        inference_id: sparse-inference-another-id
+        body: >
+          {
+            "service": "test_service",
+            "service_settings": {
+              "model": "my_model",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-inference-another-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 128,
+              "similarity": "cosine",
+              "api_key": "xyz"
+            },
+            "task_settings": {
+            }
+          }
 
   - do:
       indices.create:
@@ -110,6 +140,66 @@ setup:
               "baz": 1.0
             }
           }
+  - do:
+      indices.create:
+        index: test-another-index
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              dense_inference:
+                type: semantic_text
+                inference_id: dense-inference-id
+              sparse_inference:
+                type: semantic_text
+                inference_id: sparse-inference-another-id
+              text_1:
+                type: semantic_text
+                inference_id: dense-inference-another-id
+              text_2:
+                type: text
+              sparse_vector:
+                type: sparse_vector
+
+  - do:
+      bulk:
+        index: test-another-index
+        refresh: true
+        body: |
+          {"index": {"_id": "4"}}
+          {
+            "keyword": "keyword match 1",
+            "dense_inference": "You know",
+            "sparse_inference": "For Search",
+            "text_1": "Be excellent to each other",
+            "text_2": "xyz match match 2",
+            "sparse_vector": {
+              "foo": 1.0
+            }
+          }
+          {"index": {"_id": "5"}}
+          {
+            "keyword": "keyword match 2",
+            "dense_inference": "Elasticsearch is simply the best",
+            "sparse_inference": "Better than all the rest",
+            "text_1": "Better than another vector database",
+            "text_2": "yy match match 4",
+            "sparse_vector": {
+              "bar": 1.0
+            }
+          }
+          {"index": {"_id": "6"}}
+          {
+            "keyword": "keyword match 3",
+            "dense_inference": "Elasticsearch is the best vector database",
+            "sparse_inference": "Live long and prosper",
+            "text_1": "Most excellent",
+            "text_2": "z match match 6",
+            "sparse_vector": {
+              "baz": 1.0
+            }
+          }
 
 ---
 "Query all fields using the simplified format":
@@ -128,7 +218,87 @@ setup:
   - match: { hits.hits.2._id: "3" }
 
 ---
-"Per-field boosting is not supported":
+"Lexical match per-field boosting using the simplified format":
+  - requires:
+      cluster_features: ["rrf_retriever.simplified_weighted_support"]
+      reason: "Simplified weighted fields syntax support"
+
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "text_1", "text_2" ]
+              query: "foo 1 z"
+
+  # Lexical-only match without weights
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "3" }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: ["text_1", "text_2^3"]
+              query: "foo 1 z"
+
+  # Lexical-only match with text_2^3 weighting - doc "3" should rank higher due to text_2 boost
+  - match: { hits.total.value: 2 }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "1" }
+
+---
+"Semantic match per-field boosting using the simplified format":
+  - requires:
+      cluster_features: ["rrf_retriever.simplified_weighted_support"]
+      reason: "Simplified weighted fields syntax support"
+
+  # The mock inference services generate synthetic vectors that don't accurately represent similarity to non-identical
+  # input, so it's hard to create a test that produces intuitive results. Instead, we rely on the fact that the inference
+  # services generate consistent vectors (i.e. same input -> same output) to demonstrate that per-field boosting on
+  # a semantic_text field can change the result order.
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "dense_inference", "sparse_inference" ]
+              query: "distributed, RESTful, search engine"
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.2._id: "1" }
+
+  - do:
+      search:
+        index: test-index
+        body:
+          retriever:
+            rrf:
+              fields: [ "dense_inference^3", "sparse_inference" ]
+              query: "distributed, RESTful, search engine"
+
+  - match: { hits.total.value: 3 }
+  - length: { hits.hits: 3 }
+  - match: { hits.hits.0._id: "3" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "1" }
+
+---
+"Negative weight validation":
+  - requires:
+      cluster_features: ["rrf_retriever.simplified_weighted_support"]
+      reason: "Simplified weighted fields syntax support"
+
   - do:
       catch: bad_request
       search:
@@ -136,10 +306,10 @@ setup:
         body:
           retriever:
             rrf:
-              fields: [ "text_1", "text_2^3" ]
+              fields: ["text_1^-1"]
               query: "foo"
 
-  - match: { error.root_cause.0.reason: "[rrf] does not support per-field weights in [fields]" }
+  - match: { error.root_cause.0.reason: "[rrf] per-field weights must be non-negative" }
 
 ---
 "Can query text fields":
@@ -264,43 +434,6 @@ setup:
 
   - match: { hits.total.value: 0 }
   - length: { hits.hits: 0 }
-
----
-"Multi-index searches are not allowed":
-  - do:
-      indices.create:
-        index: test-index-2
-
-  - do:
-      catch: bad_request
-      search:
-        index: [ test-index, test-index-2 ]
-        body:
-          retriever:
-            rrf:
-              query: "match"
-
-  - match: { error.root_cause.0.reason: "[rrf] cannot specify [query] when querying multiple indices" }
-
-  - do:
-      indices.put_alias:
-        index: test-index
-        name: test-alias
-  - do:
-      indices.put_alias:
-        index: test-index-2
-        name: test-alias
-
-  - do:
-      catch: bad_request
-      search:
-        index: test-alias
-        body:
-          retriever:
-            rrf:
-              query: "match"
-
-  - match: { error.root_cause.0.reason: "[rrf] cannot specify [query] when querying multiple indices" }
 
 ---
 "Wildcard field patterns that do not resolve to any field are handled gracefully":
@@ -429,3 +562,48 @@ setup:
   - match: { hits.hits.0._id: "2" }
   - match: { hits.hits.1._id: "1" }
   - match: { hits.hits.2._id: "3" }
+
+---
+"Queries multiple indices using default_field":
+  - requires:
+      cluster_features: [ "rrf_retriever.multi_index_simplified_format_support" ]
+      reason: "Support for querying multiple indices in simplified RRF retriever"
+  - do:
+      search:
+        index: test-index,test-another-index
+        body:
+          retriever:
+            rrf:
+              query: "match"
+
+  - match: { hits.total.value: 6 }
+  - length: { hits.hits: 6 }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.1._id: "6" }
+  - match: { hits.hits.2._id: "1" }
+  - match: { hits.hits.3._id: "2" }
+  - match: { hits.hits.4._id: "3" }
+  - match: { hits.hits.5._id: "5" }
+
+---
+"Queries multiple indices with a list of fields":
+  - requires:
+      cluster_features: [ "rrf_retriever.multi_index_simplified_format_support" ]
+      reason: "Support for querying multiple indices in simplified RRF retriever"
+  - do:
+      search:
+        index: test-index,test-another-index
+        body:
+          retriever:
+            rrf:
+              fields: ["dense_inference", "text_1", "sparse_vector"]
+              query: "match"
+
+  - match: { hits.total.value: 6 }
+  - length: { hits.hits: 6 }
+  - match: { hits.hits.0._id: "1" }
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.2._id: "3" }
+  - match: { hits.hits.3._id: "6" }
+  - match: { hits.hits.4._id: "4" }
+  - match: { hits.hits.5._id: "5" }

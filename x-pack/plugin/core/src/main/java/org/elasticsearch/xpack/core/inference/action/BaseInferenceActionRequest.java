@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,7 +23,10 @@ import java.util.Objects;
  */
 public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
-    private boolean hasBeenRerouted;
+    private static final TransportVersion INFERENCE_CONTEXT = TransportVersion.fromName("inference_context");
+    static final TransportVersion INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED = TransportVersion.fromName(
+        "inference_request_adaptive_rate_limiting_removed"
+    );
 
     private final InferenceContext context;
 
@@ -34,16 +37,11 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
     public BaseInferenceActionRequest(StreamInput in) throws IOException {
         super(in);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {
-            this.hasBeenRerouted = in.readBoolean();
-        } else {
-            // For backwards compatibility, we treat all inference requests coming from ES nodes having
-            // a version pre-node-local-rate-limiting as already rerouted to maintain pre-node-local-rate-limiting behavior.
-            this.hasBeenRerouted = true;
+        if (in.getTransportVersion().supports(INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED) == false) {
+            in.readBoolean();
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+        if (in.getTransportVersion().supports(INFERENCE_CONTEXT)) {
             this.context = new InferenceContext(in);
         } else {
             this.context = InferenceContext.EMPTY_INSTANCE;
@@ -56,14 +54,6 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
 
     public abstract String getInferenceEntityId();
 
-    public void setHasBeenRerouted(boolean hasBeenRerouted) {
-        this.hasBeenRerouted = hasBeenRerouted;
-    }
-
-    public boolean hasBeenRerouted() {
-        return hasBeenRerouted;
-    }
-
     public InferenceContext getContext() {
         return context;
     }
@@ -71,12 +61,11 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING)) {
-            out.writeBoolean(hasBeenRerouted);
+        if (out.getTransportVersion().supports(INFERENCE_REQUEST_ADAPTIVE_RATE_LIMITING_REMOVED) == false) {
+            out.writeBoolean(true);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_CONTEXT)
-            || out.getTransportVersion().isPatchFrom(TransportVersions.INFERENCE_CONTEXT_8_X)) {
+        if (out.getTransportVersion().supports(INFERENCE_CONTEXT)) {
             context.writeTo(out);
         }
     }
@@ -86,11 +75,11 @@ public abstract class BaseInferenceActionRequest extends LegacyActionRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         BaseInferenceActionRequest that = (BaseInferenceActionRequest) o;
-        return hasBeenRerouted == that.hasBeenRerouted && Objects.equals(context, that.context);
+        return Objects.equals(context, that.context);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hasBeenRerouted, context);
+        return Objects.hash(context);
     }
 }

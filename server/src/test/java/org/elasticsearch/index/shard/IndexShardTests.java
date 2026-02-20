@@ -27,7 +27,6 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.FixedBitSet;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -51,6 +50,7 @@ import org.elasticsearch.cluster.routing.ShardRoutingHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -78,7 +78,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -132,7 +131,6 @@ import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryFactory;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -211,6 +209,8 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.spy;
 
 /**
  * Simple unit-test IndexShard related operations.
@@ -1307,7 +1307,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final long globalCheckpoint = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
         final long maxSeqNoOfUpdatesOrDeletes = randomLongBetween(SequenceNumbers.NO_OPS_PERFORMED, maxSeqNo);
         final long maxSeqNoOfUpdatesOrDeletesBeforeRollback = indexShard.getMaxSeqNoOfUpdatesOrDeletes();
-        final Set<String> docsBeforeRollback = getShardDocUIDs(indexShard);
+        final Set<String> docsBeforeRollback = getShardDocIDs(indexShard);
         final CountDownLatch latch = new CountDownLatch(1);
         randomReplicaOperationPermitAcquisition(
             indexShard,
@@ -1347,7 +1347,7 @@ public class IndexShardTests extends IndexShardTestCase {
         resyncLatch.await();
         assertThat(indexShard.getLocalCheckpoint(), equalTo(maxSeqNo));
         assertThat(indexShard.seqNoStats().getMaxSeqNo(), equalTo(maxSeqNo));
-        assertThat(getShardDocUIDs(indexShard), equalTo(docsBeforeRollback));
+        assertThat(getShardDocIDs(indexShard), equalTo(docsBeforeRollback));
         assertThat(indexShard.getMaxSeqNoOfUpdatesOrDeletes(), equalTo(expectedMaxSeqNoOfUpdatesOrDeletes));
         closeShard(indexShard, false);
     }
@@ -1362,7 +1362,7 @@ public class IndexShardTests extends IndexShardTestCase {
         final long globalCheckpointOnReplica = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
         indexShard.updateGlobalCheckpointOnReplica(globalCheckpointOnReplica, "test");
         final long globalCheckpoint = randomLongBetween(UNASSIGNED_SEQ_NO, indexShard.getLocalCheckpoint());
-        Set<String> docsBelowGlobalCheckpoint = getShardDocUIDs(indexShard).stream()
+        Set<String> docsBelowGlobalCheckpoint = getShardDocIDs(indexShard).stream()
             .filter(id -> Long.parseLong(id) <= Math.max(globalCheckpointOnReplica, globalCheckpoint))
             .collect(Collectors.toSet());
         final CountDownLatch latch = new CountDownLatch(1);
@@ -1395,7 +1395,7 @@ public class IndexShardTests extends IndexShardTestCase {
         } else {
             assertThat(indexShard.getLocalCheckpoint(), equalTo(Math.max(globalCheckpoint, globalCheckpointOnReplica)));
         }
-        assertThat(getShardDocUIDs(indexShard), equalTo(docsBelowGlobalCheckpoint));
+        assertThat(getShardDocIDs(indexShard), equalTo(docsBelowGlobalCheckpoint));
         if (shouldRollback) {
             assertThat(indexShard.getEngine(), not(sameInstance(beforeRollbackEngine)));
         } else {
@@ -1626,7 +1626,7 @@ public class IndexShardTests extends IndexShardTestCase {
         ShardStats stats = new ShardStats(
             shard.routingEntry(),
             shard.shardPath(),
-            CommonStats.getShardLevelStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags()),
+            CommonStats.getShardLevelStats(new IndicesQueryCache(Settings.EMPTY), shard, new CommonStatsFlags(), () -> 0L),
             shard.commitStats(),
             shard.seqNoStats(),
             shard.getRetentionLeaseStats(),
@@ -1978,71 +1978,6 @@ public class IndexShardTests extends IndexShardTestCase {
         assertThat(stats.fieldUsages(), equalTo(18L));
         // _id: (5,8), f1: (3,5), f1.keyword: (3,5), f2: (3,5), f2.keyword: (3,5), f3: (4,3), f3.keyword: (6,8)
         assertThat(stats.postingsInMemoryBytes(), equalTo(postingsBytesTrackingEnabled ? 66L : 0L));
-        closeShards(shard);
-    }
-
-    public void testShardFieldStatsWithDeletes() throws IOException {
-        Settings settings = Settings.builder()
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE)
-            .build();
-        IndexShard shard = newShard(true, settings);
-        assertNull(shard.getShardFieldStats());
-        recoverShardFromStore(shard);
-        boolean liveDocsTrackingEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
-
-        // index some documents
-        int numDocs = 10;
-        for (int i = 0; i < numDocs; i++) {
-            indexDoc(shard, "_doc", "first_" + i, """
-                {
-                    "f1": "foo",
-                    "f2": "bar"
-                }
-                """);
-        }
-        shard.refresh("test");
-        var stats = shard.getShardFieldStats();
-        assertThat(stats.numSegments(), equalTo(1));
-        assertThat(stats.liveDocsBytes(), equalTo(0L));
-
-        // delete a doc
-        deleteDoc(shard, "first_0");
-
-        // Refresh and fetch new stats:
-        shard.refresh("test");
-        stats = shard.getShardFieldStats();
-        // More segments because delete operation is stored in the new segment for replication purposes.
-        assertThat(stats.numSegments(), equalTo(2));
-        long expectedLiveDocsSize = 0;
-        if (liveDocsTrackingEnabled) {
-            // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
-            expectedLiveDocsSize += new FixedBitSet(numDocs).ramBytesUsed();
-            // Second segment the delete operation that is marked as deleted:
-            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
-        }
-        assertThat(stats.liveDocsBytes(), equalTo(expectedLiveDocsSize));
-
-        // delete another doc:
-        deleteDoc(shard, "first_1");
-        shard.getMinRetainedSeqNo();
-
-        // Refresh and fetch new stats:
-        shard.refresh("test");
-        stats = shard.getShardFieldStats();
-        // More segments because delete operation is stored in the new segment for replication purposes.
-        assertThat(stats.numSegments(), equalTo(3));
-        expectedLiveDocsSize = 0;
-        if (liveDocsTrackingEnabled) {
-            // Delete op is stored in new segment, but marked as deleted. All segements have live docs:
-            // First segment with deletes
-            expectedLiveDocsSize += new FixedBitSet(numDocs).ramBytesUsed();
-            // Second and third segments the delete operation that is marked as deleted:
-            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
-            expectedLiveDocsSize += new FixedBitSet(1).ramBytesUsed();
-        }
-        assertThat(stats.liveDocsBytes(), equalTo(expectedLiveDocsSize));
-
         closeShards(shard);
     }
 
@@ -2839,7 +2774,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new SourceToParse("doc-1", new BytesArray("{}"), XContentType.JSON)
         );
         flushShard(shard);
-        assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
+        assertThat(getShardDocIDs(shard), containsInAnyOrder("doc-0", "doc-1"));
         shard.getEngine().rollTranslogGeneration();
         shard.markSeqNoAsNoop(1, primaryTerm, "test");
         shard.applyIndexOperationOnReplica(
@@ -2851,7 +2786,7 @@ public class IndexShardTests extends IndexShardTestCase {
             new SourceToParse("doc-2", new BytesArray("{}"), XContentType.JSON)
         );
         flushShard(shard);
-        assertThat(getShardDocUIDs(shard), containsInAnyOrder("doc-0", "doc-1", "doc-2"));
+        assertThat(getShardDocIDs(shard), containsInAnyOrder("doc-0", "doc-1", "doc-2"));
         closeShard(shard, false);
         // Recovering from store should discard doc #1
         final ShardRouting replicaRouting = shard.routingEntry();
@@ -2875,7 +2810,7 @@ public class IndexShardTests extends IndexShardTestCase {
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
         assertTrue(recoverFromStore(newShard));
-        assertThat(getShardDocUIDs(newShard), containsInAnyOrder("doc-0", "doc-2"));
+        assertThat(getShardDocIDs(newShard), containsInAnyOrder("doc-0", "doc-2"));
         closeShards(newShard);
     }
 
@@ -3036,15 +2971,14 @@ public class IndexShardTests extends IndexShardTestCase {
         MappedFieldType foo = shard.mapperService().fieldType("foo");
         IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(
             shard.indexSettings.getNodeSettings(),
-            new IndexFieldDataCache.Listener() {
-            }
+            new IndexFieldDataCache.Listener() {}
         );
         IndexFieldDataService indexFieldDataService = new IndexFieldDataService(
             shard.indexSettings,
             indicesFieldDataCache,
             new NoneCircuitBreakerService()
         );
-        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(foo, FieldDataContext.noRuntimeFields("test"));
+        IndexFieldData.Global<?> ifd = indexFieldDataService.getForField(foo, FieldDataContext.noRuntimeFields("test", "test"));
         FieldDataStats before = shard.fieldData().stats("foo");
         assertThat(before.getMemorySizeInBytes(), equalTo(0L));
         FieldDataStats after = null;
@@ -3482,6 +3416,14 @@ public class IndexShardTests extends IndexShardTestCase {
                 future.actionGet();
             });
             closeShards(differentIndex);
+
+            // check that an error from the mapper service is handled correctly
+            final PlainActionFuture<Boolean> badMapperFuture = new PlainActionFuture<>();
+            final IndexShard badMapper = spy(targetShard);
+            doThrow(IllegalArgumentException.class).when(badMapper).mapperService();
+            final BiConsumer<MappingMetadata, ActionListener<Void>> noopConsumer = (mapping, listener) -> listener.onResponse(null);
+            badMapper.recoverFromLocalShards(noopConsumer, List.of(sourceShard), badMapperFuture);
+            assertThrows(IndexShardRecoveryException.class, badMapperFuture::actionGet);
 
             final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
             targetShard.recoverFromLocalShards(mappingConsumer, Arrays.asList(sourceShard), future);
@@ -4151,10 +4093,6 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(primary);
     }
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/101008",
-        value = "org.elasticsearch.index.shard.IndexShard:TRACE"
-    )
     public void testScheduledRefresh() throws Exception {
         // Setup and make shard search idle:
         Settings settings = indexSettings(IndexVersion.current(), 1, 1).build();
@@ -4497,6 +4435,68 @@ public class IndexShardTests extends IndexShardTestCase {
         closeShards(shard);
     }
 
+    @TestLogging(reason = "testing traces of concurrent flush and engine reset", value = "org.elasticsearch.index.shard.IndexShard:TRACE")
+    public void testFlushOnIdleDoesNotWaitWhileEngineIsReset() throws Exception {
+        final var preparedForReset = new AtomicBoolean();
+        final var shard = newStartedShard(true, Settings.EMPTY, config -> {
+            if (preparedForReset.get()) {
+                return new ReadOnlyEngine(config, null, new TranslogStats(), false, Function.identity(), true, true);
+            } else {
+                return new InternalEngine(config) {
+                    @Override
+                    public void prepareForEngineReset() throws IOException {
+                        assertTrue(preparedForReset.compareAndSet(false, true));
+                    }
+                };
+            }
+        });
+        final var engineResetLock = shard.getEngine().getEngineConfig().getEngineResetLock();
+
+        final var release = new CountDownLatch(1);
+        final var reset = new PlainActionFuture<Void>();
+        final var resetEngineThread = new Thread(() -> {
+            try {
+                shard.acquirePrimaryOperationPermit(reset.delegateFailure((l, permit) -> {
+                    try (permit) {
+                        shard.resetEngine(newEngine -> {
+                            assertThat(engineResetLock.isWriteLockedByCurrentThread(), equalTo(true));
+                            assertThat(newEngine, instanceOf(ReadOnlyEngine.class));
+                            safeAwait(release);
+                        });
+                        assertThat(preparedForReset.get(), equalTo(true));
+                        l.onResponse(null);
+                    } catch (Exception e) {
+                        l.onFailure(e);
+                    }
+                }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
+            } catch (Exception e) {
+                reset.onFailure(e);
+            }
+        });
+        resetEngineThread.start();
+
+        assertBusy(() -> assertThat(engineResetLock.isWriteLocked(), equalTo(true)));
+
+        try (var mockLog = MockLog.capture(IndexShard.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "should see flush on idle returning since it will not wait for the engine reset",
+                    IndexShard.class.getCanonicalName(),
+                    Level.TRACE,
+                    "flush on idle skipped"
+                )
+            );
+            shard.flushOnIdle(0);
+            mockLog.awaitAllExpectationsMatched();
+        }
+
+        release.countDown();
+        safeGet(reset);
+        assertThat(engineResetLock.isWriteLocked(), equalTo(false));
+        resetEngineThread.join();
+        closeShards(shard);
+    }
+
     public void testMultiplePeriodicFlushesCanBeTriggeredBeforeTheyAreDurable() throws Exception {
         List<ActionListener<Engine.FlushResult>> pendingListeners = Collections.synchronizedList(new ArrayList<>());
         // Ensure that a single document forces a flush after each write
@@ -4612,7 +4612,7 @@ public class IndexShardTests extends IndexShardTestCase {
         long maxSeqNoBeforeRollback = shard.seqNoStats().getMaxSeqNo();
         final long globalCheckpoint = randomLongBetween(shard.getLastKnownGlobalCheckpoint(), shard.getLocalCheckpoint());
         shard.updateGlobalCheckpointOnReplica(globalCheckpoint, "test");
-        Set<String> docBelowGlobalCheckpoint = getShardDocUIDs(shard).stream()
+        Set<String> docBelowGlobalCheckpoint = getShardDocIDs(shard).stream()
             .filter(id -> Long.parseLong(id) <= globalCheckpoint)
             .collect(Collectors.toSet());
         TranslogStats translogStats = shard.translogStats();
@@ -4623,10 +4623,7 @@ public class IndexShardTests extends IndexShardTestCase {
             int hitClosedExceptions = 0;
             while (done.get() == false) {
                 try {
-                    List<String> exposedDocIds = EngineTestCase.getDocIds(getEngine(shard), rarely())
-                        .stream()
-                        .map(DocIdSeqNoAndSource::id)
-                        .toList();
+                    List<String> exposedDocIds = getDocIdAndSeqNos(shard, rarely()).stream().map(DocIdSeqNoAndSource::id).toList();
                     assertThat(
                         "every operations before the global checkpoint must be reserved",
                         docBelowGlobalCheckpoint,
@@ -4654,7 +4651,7 @@ public class IndexShardTests extends IndexShardTestCase {
             }
         }, Assert::assertNotNull), TimeValue.timeValueMinutes(1L));
         engineResetLatch.await();
-        assertThat(getShardDocUIDs(shard), equalTo(docBelowGlobalCheckpoint));
+        assertThat(getShardDocIDs(shard), equalTo(docBelowGlobalCheckpoint));
         assertThat(shard.seqNoStats().getMaxSeqNo(), equalTo(globalCheckpoint));
         if (shard.indexSettings.isSoftDeleteEnabled()) {
             // we might have trimmed some operations if the translog retention policy is ignored (when soft-deletes enabled).
@@ -5133,7 +5130,7 @@ public class IndexShardTests extends IndexShardTestCase {
                 config.getMergePolicy(),
                 config.getAnalyzer(),
                 config.getSimilarity(),
-                new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
+                new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null),
                 config.getEventListener(),
                 config.getQueryCache(),
                 config.getQueryCachingPolicy(),
@@ -5310,6 +5307,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         });
                         assertThat(preparedForReset.get(), equalTo(true));
                         l.onResponse(null);
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     }
                 }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             } catch (Exception e) {
@@ -5361,6 +5360,8 @@ public class IndexShardTests extends IndexShardTestCase {
                         });
                         assertThat(preparedForReset.get(), equalTo(true));
                         l.onResponse(null);
+                    } catch (Exception e) {
+                        l.onFailure(e);
                     }
                 }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
             } catch (Exception e) {
@@ -5478,7 +5479,7 @@ public class IndexShardTests extends IndexShardTestCase {
                     config.getMergePolicy(),
                     config.getAnalyzer(),
                     config.getSimilarity(),
-                    new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE),
+                    new CodecService(null, BigArrays.NON_RECYCLING_INSTANCE, null),
                     config.getEventListener(),
                     config.getQueryCache(),
                     config.getQueryCachingPolicy(),
@@ -5566,6 +5567,8 @@ public class IndexShardTests extends IndexShardTestCase {
                             });
                             assertThat(preparedForReset.get(), equalTo(true));
                             l.onResponse(null);
+                        } catch (Exception e) {
+                            l.onFailure(e);
                         }
                     }), EsExecutors.DIRECT_EXECUTOR_SERVICE);
                 } catch (Exception e) {
@@ -5854,7 +5857,7 @@ public class IndexShardTests extends IndexShardTestCase {
     private static void blockingCallRelocated(
         IndexShard indexShard,
         ShardRouting routing,
-        BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer
+        CheckedBiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>, Exception> consumer
     ) {
         safeAwait(
             (ActionListener<Void> listener) -> indexShard.relocated(

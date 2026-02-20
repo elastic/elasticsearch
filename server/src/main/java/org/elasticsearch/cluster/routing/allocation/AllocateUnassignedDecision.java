@@ -187,7 +187,10 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
         @Nullable List<NodeAllocationResult> nodeDecisions
     ) {
         final Type decisionType = decision.type();
-        AllocationStatus allocationStatus = decisionType != Type.YES ? AllocationStatus.fromDecision(decisionType) : null;
+        AllocationStatus allocationStatus = switch (decisionType) {
+            case YES, NOT_PREFERRED -> null;
+            default -> AllocationStatus.fromDecision(decisionType);
+        };
         return new AllocateUnassignedDecision(assignedNode, nodeDecisions, allocationStatus, null, false, 0L, 0L);
     }
 
@@ -277,7 +280,7 @@ public class AllocateUnassignedDecision extends AbstractAllocationDecision {
                 TimeValue.timeValueMillis(remainingDelayInMillis)
             );
             case NO -> reuseStore ? Explanations.Allocation.EXISTING_STORES_FORBIDDEN : Explanations.Allocation.ALL_NODES_FORBIDDEN;
-            case WORSE_BALANCE, NO_ATTEMPT -> {
+            case WORSE_BALANCE, NO_ATTEMPT, NOT_PREFERRED -> {
                 assert false : getAllocationDecision();
                 yield getAllocationDecision().toString();
             }

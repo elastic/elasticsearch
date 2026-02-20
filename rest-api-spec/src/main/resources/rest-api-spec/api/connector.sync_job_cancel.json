@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-sync-job-cancel",
       "description": "Cancel a connector sync job"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

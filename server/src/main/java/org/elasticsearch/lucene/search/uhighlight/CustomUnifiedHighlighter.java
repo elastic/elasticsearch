@@ -35,7 +35,13 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.search.ESToParentBlockJoinQuery;
 import org.elasticsearch.search.retriever.rankdoc.RankDocsQuery;
 import org.elasticsearch.search.runtime.AbstractScriptFieldQuery;
+import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery;
+import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
+import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
+import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.KnnScoreDocQuery;
+import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
+import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 
 import java.io.IOException;
 import java.text.BreakIterator;
@@ -56,6 +62,20 @@ import static org.elasticsearch.search.fetch.subphase.highlight.AbstractHighligh
  * Supports both returning empty snippets and non highlighted snippets when no highlighting can be performed.
  */
 public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
+    private static boolean isKnnQuery(Query q) {
+        // TODO: bug https://github.com/elastic/elasticsearch/issues/136427
+        // AbstractKnnVectorQuery is not public, so we need to list concrete classes
+        // currently there is a bug in Lucene that causes things that use
+        // AbstractKnnVectorQuery to throw NPEs in weight matches highlighting
+        return q instanceof KnnScoreDocQuery
+            || q instanceof RescoreKnnVectorQuery
+            || q instanceof VectorSimilarityQuery
+            || q instanceof ESKnnFloatVectorQuery
+            || q instanceof ESKnnByteVectorQuery
+            || q instanceof ESDiversifyingChildrenByteKnnVectorQuery
+            || q instanceof ESDiversifyingChildrenFloatKnnVectorQuery;
+    }
+
     public static final char MULTIVAL_SEP_CHAR = (char) 0;
     private static final Snippet[] EMPTY_SNIPPET = new Snippet[0];
 
@@ -259,8 +279,9 @@ public final class CustomUnifiedHighlighter extends UnifiedHighlighter {
                 /**
                  * KnnScoreDocQuery and RankDocsQuery requires the same reader that built the docs
                  * When using {@link HighlightFlag#WEIGHT_MATCHES} different readers are used and isn't supported by this query
+                 * Additionally, kNN queries don't really work against MemoryIndex which is used in the matches API
                  */
-                if (leafQuery instanceof KnnScoreDocQuery || leafQuery instanceof RankDocsQuery.TopQuery) {
+                if (leafQuery instanceof RankDocsQuery.TopQuery || isKnnQuery(leafQuery)) {
                     hasUnknownLeaf[0] = true;
                 }
                 super.visitLeaf(query);

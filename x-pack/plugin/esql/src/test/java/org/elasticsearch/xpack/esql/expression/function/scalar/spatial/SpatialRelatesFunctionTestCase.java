@@ -15,11 +15,15 @@ import java.util.Set;
 
 public abstract class SpatialRelatesFunctionTestCase extends BinarySpatialFunctionTestCase {
 
-    protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers, DataType[] dataTypes) {
+    protected static void addSpatialCombinations(List<TestCaseSupplier> suppliers, DataType... dataTypes) {
         addSpatialCombinations(suppliers, dataTypes, DataType.BOOLEAN, false);
     }
 
+    protected static void addSpatialGridCombinations(List<TestCaseSupplier> suppliers, DataType... dataTypes) {
+        addSpatialGridCombinations(suppliers, dataTypes, DataType.BOOLEAN);
+    }
+
     protected static String typeErrorMessage(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
-        return typeErrorMessage(includeOrdinal, validPerPosition, types, false);
+        return typeErrorMessage(includeOrdinal, validPerPosition, types, false, false);
     }
 }

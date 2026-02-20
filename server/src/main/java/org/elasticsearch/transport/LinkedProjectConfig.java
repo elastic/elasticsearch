@@ -11,10 +11,10 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.Predicate;
@@ -27,8 +27,7 @@ import static org.elasticsearch.transport.RemoteConnectionStrategy.ConnectionStr
  * <p>The {@link ProxyLinkedProjectConfigBuilder} and {@link SniffLinkedProjectConfigBuilder} classes can be used to build concrete
  * implementations of {@link LinkedProjectConfig}.</p>
  *
- * <p>The {@link RemoteClusterSettings#toConfig(String, Settings)} and
- * {@link RemoteClusterSettings#toConfig(ProjectId, ProjectId, String, Settings)} methods
+ * <p>The {@link RemoteClusterSettings#toConfig(ProjectId, ProjectId, String, Settings)} method
  * can be used to read {@link RemoteClusterSettings} to build a concrete {@link LinkedProjectConfig} from {@link Settings}.</p>
  */
 public sealed interface LinkedProjectConfig {
@@ -58,8 +57,6 @@ public sealed interface LinkedProjectConfig {
 
     String proxyAddress();
 
-    boolean isConnectionEnabled();
-
     RemoteConnectionStrategy buildRemoteConnectionStrategy(TransportService transportService, RemoteConnectionManager connectionManager);
 
     /**
@@ -84,11 +81,6 @@ public sealed interface LinkedProjectConfig {
         @Override
         public ConnectionStrategy connectionStrategy() {
             return ConnectionStrategy.PROXY;
-        }
-
-        @Override
-        public boolean isConnectionEnabled() {
-            return Strings.isEmpty(proxyAddress) == false;
         }
 
         @Override
@@ -123,11 +115,6 @@ public sealed interface LinkedProjectConfig {
         @Override
         public ConnectionStrategy connectionStrategy() {
             return ConnectionStrategy.SNIFF;
-        }
-
-        @Override
-        public boolean isConnectionEnabled() {
-            return seedNodes.isEmpty() == false;
         }
 
         @Override
@@ -203,11 +190,8 @@ public sealed interface LinkedProjectConfig {
         }
 
         public B proxyAddress(String proxyAddress) {
-            // TODO: Eliminate leniency here allowing an empty proxy address, ES-12737.
-            if (Strings.hasLength(proxyAddress)) {
-                RemoteConnectionStrategy.parsePort(proxyAddress);
-            }
-            this.proxyAddress = proxyAddress;
+            this.proxyAddress = requireNonEmpty(proxyAddress, "proxyAddress");
+            RemoteConnectionStrategy.parsePort(proxyAddress);
             return concreteBuilder;
         }
 
@@ -238,6 +222,13 @@ public sealed interface LinkedProjectConfig {
             }
             return value;
         }
+
+        protected static <T> Collection<T> requireNonEmpty(Collection<T> value, String name) {
+            if (Objects.requireNonNull(value).isEmpty()) {
+                throw new IllegalArgumentException("[" + name + "] cannot be empty");
+            }
+            return value;
+        }
     }
 
     class ProxyLinkedProjectConfigBuilder extends Builder<ProxyLinkedProjectConfigBuilder> {
@@ -252,12 +243,15 @@ public sealed interface LinkedProjectConfig {
         }
 
         public ProxyLinkedProjectConfigBuilder serverName(String serverName) {
-            this.serverName = serverName;
+            this.serverName = requireNonEmpty(serverName, "serverName");
             return this;
         }
 
         @Override
         public ProxyLinkedProjectConfig build() {
+            if (proxyAddress.isEmpty()) {
+                throw new IllegalStateException("proxyAddress wasn't configured");
+            }
             return new ProxyLinkedProjectConfig(
                 originProjectId,
                 linkedProjectId,
@@ -299,14 +293,16 @@ public sealed interface LinkedProjectConfig {
         }
 
         public SniffLinkedProjectConfigBuilder seedNodes(List<String> seedNodes) {
-            // TODO: Eliminate leniency here allowing an empty set of seed nodes, ES-12737.
-            Objects.requireNonNull(seedNodes).forEach(RemoteConnectionStrategy::parsePort);
+            requireNonEmpty(seedNodes, "seedNodes").forEach(RemoteConnectionStrategy::parsePort);
             this.seedNodes = seedNodes;
             return this;
         }
 
         @Override
         public SniffLinkedProjectConfig build() {
+            if (seedNodes.isEmpty()) {
+                throw new IllegalStateException("seedNodes wasn't configured");
+            }
             return new SniffLinkedProjectConfig(
                 originProjectId,
                 linkedProjectId,

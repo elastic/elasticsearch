@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -24,15 +23,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
-import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * Unsupported attribute that has been found yet cannot be used except in special conditions (currently only in projections to allow it to
@@ -91,10 +87,8 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     private static UnsupportedAttribute innerReadFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         String qualifier = readQualifier((PlanStreamInput) in, in.getTransportVersion());
-        String name = readCachedStringWithVersionCheck(in);
-        UnsupportedEsField field = in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)
-            ? EsField.readFrom(in)
-            : new UnsupportedEsField(in);
+        String name = ((PlanStreamInput) in).readCachedString();
+        UnsupportedEsField field = EsField.readFrom(in);
         String message = in.readOptionalString();
         NameId id = NameId.readFrom((PlanStreamInput) in);
 
@@ -106,12 +100,8 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
         if (((PlanStreamOutput) out).writeAttributeCacheHeader(this)) {
             Source.EMPTY.writeTo(out);
             checkAndSerializeQualifier((PlanStreamOutput) out, out.getTransportVersion());
-            writeCachedStringWithVersionCheck(out, name());
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_2)) {
-                field().writeTo(out);
-            } else {
-                field().writeContent(out);
-            }
+            ((PlanStreamOutput) out).writeCachedString(name());
+            field().writeTo(out);
             out.writeOptionalString(hasCustomMessage ? message : null);
             id().writeTo(out);
         }
@@ -174,7 +164,7 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return toString();
     }
 
@@ -188,15 +178,14 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), hasCustomMessage, message);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(ignoreIds), hasCustomMessage, message);
     }
 
     @Override
-    protected boolean innerEquals(Object o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (UnsupportedAttribute) o;
-        return super.innerEquals(other) && hasCustomMessage == other.hasCustomMessage && Objects.equals(message, other.message);
+        return super.innerEquals(other, ignoreIds) && hasCustomMessage == other.hasCustomMessage && Objects.equals(message, other.message);
     }
 
     /**

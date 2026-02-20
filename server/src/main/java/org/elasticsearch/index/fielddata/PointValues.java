@@ -9,7 +9,7 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.NumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.elasticsearch.common.geo.SpatialPoint;
 
 import java.io.IOException;
@@ -19,9 +19,9 @@ import java.io.IOException;
  */
 public abstract class PointValues<T extends SpatialPoint> {
 
-    protected final NumericDocValues values;
+    protected final LongValues values;
 
-    protected PointValues(NumericDocValues values) {
+    protected PointValues(LongValues values) {
         this.values = values;
     }
 

@@ -9,9 +9,9 @@
 
 package org.elasticsearch.script.field;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -26,7 +26,7 @@ public class DateMillisDocValuesField extends AbstractScriptFieldFactory<ZonedDa
         DocValuesScriptFieldFactory,
         ScriptDocValues.Supplier<ZonedDateTime> {
 
-    protected final SortedNumericDocValues input;
+    protected final SortedNumericLongValues input;
     protected final String name;
 
     protected ZonedDateTime[] values = new ZonedDateTime[0];
@@ -34,7 +34,7 @@ public class DateMillisDocValuesField extends AbstractScriptFieldFactory<ZonedDa
 
     private ScriptDocValues.Dates dates = null;
 
-    public DateMillisDocValuesField(SortedNumericDocValues input, String name) {
+    public DateMillisDocValuesField(SortedNumericLongValues input, String name) {
         this.input = input;
         this.name = name;
     }

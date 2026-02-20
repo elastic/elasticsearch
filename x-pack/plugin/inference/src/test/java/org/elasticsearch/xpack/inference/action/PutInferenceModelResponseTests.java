@@ -9,10 +9,15 @@ package org.elasticsearch.xpack.inference.action;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class PutInferenceModelResponseTests extends AbstractWireSerializingTestCase<PutInferenceModelAction.Response> {
 
@@ -23,10 +28,8 @@ public class PutInferenceModelResponseTests extends AbstractWireSerializingTestC
 
     @Override
     protected PutInferenceModelAction.Response mutateInstance(PutInferenceModelAction.Response instance) {
-        return randomValueOtherThan(instance, () -> {
-            var mutatedModel = ModelConfigurationsTests.mutateTestInstance(instance.getModel());
-            return new PutInferenceModelAction.Response(mutatedModel);
-        });
+        ModelConfigurations newModel = randomValueOtherThan(instance.getModel(), ModelConfigurationsTests::createRandomInstance);
+        return new PutInferenceModelAction.Response(newModel);
     }
 
     @Override
@@ -36,6 +39,9 @@ public class PutInferenceModelResponseTests extends AbstractWireSerializingTestC
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
-        return new NamedWriteableRegistry(InferenceNamedWriteablesProvider.getNamedWriteables());
+        List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(InferenceNamedWriteablesProvider.getNamedWriteables());
+        namedWriteables.addAll(XPackClientPlugin.getChunkingSettingsNamedWriteables());
+
+        return new NamedWriteableRegistry(namedWriteables);
     }
 }

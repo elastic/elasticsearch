@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -37,6 +38,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
+import static org.elasticsearch.action.admin.indices.ResizeIndexTestUtils.resizeRequest;
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -233,12 +235,9 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
         client().bulk(bulkRequest).actionGet();
         client().admin().indices().prepareFlush("my-logs").get();
         client().admin().indices().prepareUpdateSettings("my-logs").setSettings(Settings.builder().put("index.blocks.write", true)).get();
-        client().admin()
-            .indices()
-            .prepareResizeIndex("my-logs", "shrink-my-logs")
-            .setResizeType(ResizeType.SHRINK)
-            .setSettings(indexSettings(1, 0).build())
-            .get();
+
+        client().execute(TransportResizeAction.TYPE, resizeRequest(ResizeType.SHRINK, "my-logs", "shrink-my-logs", indexSettings(1, 0)))
+            .actionGet();
         assertNoFailures(client().admin().indices().prepareForceMerge("shrink-my-logs").setMaxNumSegments(1).setFlush(true).get());
     }
 

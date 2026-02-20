@@ -141,3 +141,22 @@ bad path:
                 total_users:
                   cumulative_cardinality:
                     buckets_path: missing
+
+---
+invalid parent aggregation:
+  - do:
+      catch: /cumulative_cardinality aggregation \[d\] must have a histogram, date_histogram or auto_date_histogram as parent/
+      search:
+        body:
+          aggs:
+            a:
+              filter:
+                term:
+                  a: 1
+              aggs:
+                b:
+                  sum:
+                    field: b
+                d:
+                  cumulative_cardinality:
+                    buckets_path: b

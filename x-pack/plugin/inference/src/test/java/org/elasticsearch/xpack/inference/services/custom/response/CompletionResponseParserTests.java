@@ -304,6 +304,7 @@ public class CompletionResponseParserTests extends AbstractBWCWireSerializationT
 
     @Override
     protected CompletionResponseParser mutateInstance(CompletionResponseParser instance) throws IOException {
-        return randomValueOtherThan(instance, CompletionResponseParserTests::createRandom);
+        String completionResultPath = randomValueOtherThan(instance.getCompletionResultPath(), () -> "$." + randomAlphaOfLength(5));
+        return new CompletionResponseParser(completionResultPath);
     }
 }

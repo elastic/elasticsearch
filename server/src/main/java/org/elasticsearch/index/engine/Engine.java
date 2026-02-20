@@ -45,6 +45,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
@@ -68,7 +69,6 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.codec.FieldInfosWithUsages;
 import org.elasticsearch.index.codec.TrackingPostingsInMemoryBytesCodec;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 import org.elasticsearch.index.mapper.DocumentParser;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.Mapper;
@@ -301,26 +301,20 @@ public abstract class Engine implements Closeable {
             } else {
                 usages = -1;
             }
-            boolean trackPostingsMemoryEnabled = isStateless;
-            boolean trackLiveDocsMemoryEnabled = ShardFieldStats.TRACK_LIVE_DOCS_IN_MEMORY_BYTES.isEnabled();
-            if (trackLiveDocsMemoryEnabled || trackPostingsMemoryEnabled) {
+            if (isStateless) {
                 SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leaf.reader());
                 if (segmentReader != null) {
-                    if (trackPostingsMemoryEnabled) {
-                        String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
-                            TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
-                        );
-                        if (postingBytes != null) {
-                            totalPostingBytes += Long.parseLong(postingBytes);
-                        }
+                    String postingBytes = segmentReader.getSegmentInfo().info.getAttribute(
+                        TrackingPostingsInMemoryBytesCodec.IN_MEMORY_POSTINGS_BYTES_KEY
+                    );
+                    if (postingBytes != null) {
+                        totalPostingBytes += Long.parseLong(postingBytes);
                     }
-                    if (trackLiveDocsMemoryEnabled) {
-                        var liveDocs = segmentReader.getLiveDocs();
-                        if (liveDocs != null) {
-                            assert validateLiveDocsClass(liveDocs);
-                            long liveDocsBytes = getLiveDocsBytes(liveDocs);
-                            totalLiveDocsBytes += liveDocsBytes;
-                        }
+                    var liveDocs = segmentReader.getLiveDocs();
+                    if (liveDocs != null) {
+                        assert validateLiveDocsClass(liveDocs);
+                        long liveDocsBytes = getLiveDocsBytes(liveDocs);
+                        totalLiveDocsBytes += liveDocsBytes;
                     }
                 }
             }
@@ -333,7 +327,7 @@ public abstract class Engine implements Closeable {
     private static long getLiveDocsBytes(Bits liveDocs) {
         int words = FixedBitSet.bits2words(liveDocs.length());
         return ShardFieldStats.FIXED_BITSET_BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(
-            RamUsageEstimator.sizeOf(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * words)
+            RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + (long) Long.BYTES * words
         );
     }
 
@@ -404,7 +398,7 @@ public abstract class Engine implements Closeable {
                 if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader fieldsReader) {
                     vectorsReader = fieldsReader.getFieldReader(info.name);
                 }
-                Map<String, Long> offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(vectorsReader, info);
+                Map<String, Long> offHeap = vectorsReader.getOffHeapByteSize(info);
                 offHeapStats.put(info.name, offHeap);
             }
         }
@@ -1005,10 +999,32 @@ public abstract class Engine implements Closeable {
     // Called before a {@link Searcher} is created, to allow subclasses to perform any stats or logging operations.
     protected void onSearcherCreation(String source, SearcherScope scope) {}
 
+    // Allows subclasses to wrap the DirectoryReader before it is used to create external Searchers
+    protected DirectoryReader wrapExternalDirectoryReader(DirectoryReader reader, SplitShardCountSummary ignored) throws IOException {
+        return reader;
+    }
+
     /**
      * Acquires a point-in-time reader that can be used to create {@link Engine.Searcher}s on demand.
      */
     public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
+        return acquireSearcherSupplier(wrapper, scope, SplitShardCountSummary.UNSET);
+    }
+
+    public SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws EngineException {
+        return acquireSearcherSupplier(wrapper, scope, splitShardCountSummary, getReferenceManager(scope));
+    }
+
+    protected SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary,
+        ReferenceManager<ElasticsearchDirectoryReader> referenceManager
+    ) throws EngineException {
         /* Acquire order here is store -> manager since we need
          * to make sure that the store is not closed before
          * the searcher is acquired. */
@@ -1017,8 +1033,13 @@ public abstract class Engine implements Closeable {
         }
         Releasable releasable = store::decRef;
         try {
-            ReferenceManager<ElasticsearchDirectoryReader> referenceManager = getReferenceManager(scope);
             ElasticsearchDirectoryReader acquire = referenceManager.acquire();
+            final DirectoryReader maybeWrappedDirectoryReader;
+            if (scope == SearcherScope.EXTERNAL) {
+                maybeWrappedDirectoryReader = wrapExternalDirectoryReader(acquire, splitShardCountSummary);
+            } else {
+                maybeWrappedDirectoryReader = acquire;
+            }
             SearcherSupplier reader = new SearcherSupplier(wrapper) {
                 @Override
                 public Searcher acquireSearcherInternal(String source) {
@@ -1026,7 +1047,7 @@ public abstract class Engine implements Closeable {
                     onSearcherCreation(source, scope);
                     return new Searcher(
                         source,
-                        acquire,
+                        maybeWrappedDirectoryReader,
                         engineConfig.getSimilarity(),
                         engineConfig.getQueryCache(),
                         engineConfig.getQueryCachingPolicy(),
@@ -1055,7 +1076,7 @@ public abstract class Engine implements Closeable {
         } catch (Exception ex) {
             maybeFailEngine("acquire_reader", ex);
             ensureOpen(ex); // throw EngineCloseException here if we are already closed
-            logger.error("failed to acquire reader", ex);
+            logger.warn("failed to acquire reader", ex);
             throw new EngineException(shardId, "failed to acquire reader", ex);
         } finally {
             Releasables.close(releasable);
@@ -1071,9 +1092,18 @@ public abstract class Engine implements Closeable {
     }
 
     public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
+        return acquireSearcher(source, scope, SplitShardCountSummary.UNSET, wrapper);
+    }
+
+    public Searcher acquireSearcher(
+        String source,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary,
+        Function<Searcher, Searcher> wrapper
+    ) throws EngineException {
         SearcherSupplier releasable = null;
         try {
-            SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope);
+            SearcherSupplier reader = releasable = acquireSearcherSupplier(wrapper, scope, splitShardCountSummary);
             Searcher searcher = reader.acquireSearcher(source);
             releasable = null;
             onSearcherCreation(source, scope);

@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
@@ -37,9 +38,17 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 public class AllocationBalancingRoundSummaryService {
 
-    /** Turns on or off balancing round summary reporting. */
-    public static final Setting<Boolean> ENABLE_BALANCER_ROUND_SUMMARIES_SETTING = Setting.boolSetting(
+    /** Turns on or off balancing round summary reporting to metrics */
+    public static final Setting<Boolean> ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING = Setting.boolSetting(
         "cluster.routing.allocation.desired_balance.enable_balancer_round_summaries",
+        false,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /** Turns on or off balancing round summary logging */
+    public static final Setting<Boolean> ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING = Setting.boolSetting(
+        "cluster.routing.allocation.desired_balance.enable_balancer_round_summaries_logging",
         false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
@@ -47,7 +56,7 @@ public class AllocationBalancingRoundSummaryService {
 
     /** Controls how frequently in time balancer round summaries are logged. */
     public static final Setting<TimeValue> BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING = Setting.timeSetting(
-        "cluster.routing.allocation.desired_balance.balanace_round_summaries_interval",
+        "cluster.routing.allocation.desired_balance.balancer_round_summaries_interval",
         TimeValue.timeValueSeconds(10),
         TimeValue.ZERO,
         Setting.Property.NodeScope,
@@ -56,8 +65,10 @@ public class AllocationBalancingRoundSummaryService {
 
     private static final Logger logger = LogManager.getLogger(AllocationBalancingRoundSummaryService.class);
     private final ThreadPool threadPool;
-    private volatile boolean enableBalancerRoundSummaries;
+    private volatile boolean enableBalancerRoundSummariesMetrics;
+    private volatile boolean enableBalancerRoundSummariesLogging;
     private volatile TimeValue summaryReportInterval;
+    private final AllocationBalancingRoundMetrics balancingRoundMetrics;
 
     /**
      * A concurrency-safe list of balancing round summaries. Balancer rounds are run and added here serially, so the queue will naturally
@@ -68,16 +79,25 @@ public class AllocationBalancingRoundSummaryService {
     /** This reference is set when reporting is scheduled. If it is null, then reporting is inactive. */
     private final AtomicReference<Scheduler.Cancellable> scheduledReportFuture = new AtomicReference<>();
 
-    public AllocationBalancingRoundSummaryService(ThreadPool threadPool, ClusterSettings clusterSettings) {
+    public AllocationBalancingRoundSummaryService(
+        ThreadPool threadPool,
+        ClusterSettings clusterSettings,
+        AllocationBalancingRoundMetrics balancingRoundMetrics
+    ) {
         this.threadPool = threadPool;
         // Initialize the local setting values to avoid a null access when ClusterSettings#initializeAndWatch is called on each setting:
         // updating enableBalancerRoundSummaries accesses summaryReportInterval.
-        this.enableBalancerRoundSummaries = clusterSettings.get(ENABLE_BALANCER_ROUND_SUMMARIES_SETTING);
+        this.enableBalancerRoundSummariesMetrics = clusterSettings.get(ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING);
+        this.enableBalancerRoundSummariesLogging = clusterSettings.get(ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING);
         this.summaryReportInterval = clusterSettings.get(BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING);
+        this.balancingRoundMetrics = balancingRoundMetrics;
 
-        clusterSettings.initializeAndWatch(ENABLE_BALANCER_ROUND_SUMMARIES_SETTING, value -> {
-            this.enableBalancerRoundSummaries = value;
-            updateBalancingRoundSummaryReporting();
+        clusterSettings.initializeAndWatch(ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING, value -> {
+            this.enableBalancerRoundSummariesMetrics = value;
+        });
+        clusterSettings.initializeAndWatch(ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING, value -> {
+            this.enableBalancerRoundSummariesLogging = value;
+            updateBalancingRoundSummaryLoggingReporting();
         });
         clusterSettings.initializeAndWatch(BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING, value -> {
             // The new value will get picked up the next time that the summary report task reschedules itself on the thread pool.
@@ -99,14 +119,14 @@ public class AllocationBalancingRoundSummaryService {
      * Creates a summary of the node weight changes from {@code oldDesiredBalance} to {@code newDesiredBalance}.
      * See {@link BalancingRoundSummary.NodesWeightsChanges} for content details.
      */
-    private static Map<String, BalancingRoundSummary.NodesWeightsChanges> createWeightsSummary(
+    private static Map<DiscoveryNode, BalancingRoundSummary.NodesWeightsChanges> createWeightsSummary(
         DesiredBalance oldDesiredBalance,
         DesiredBalance newDesiredBalance
     ) {
         var oldWeightsPerNode = oldDesiredBalance.weightsPerNode();
         var newWeightsPerNode = newDesiredBalance.weightsPerNode();
 
-        Map<String, BalancingRoundSummary.NodesWeightsChanges> nodeNameToWeightInfo = new HashMap<>(oldWeightsPerNode.size());
+        Map<DiscoveryNode, BalancingRoundSummary.NodesWeightsChanges> nodeNameToWeightInfo = new HashMap<>(oldWeightsPerNode.size());
         for (var nodeAndWeights : oldWeightsPerNode.entrySet()) {
             var discoveryNode = nodeAndWeights.getKey();
             var oldNodeWeightStats = nodeAndWeights.getValue();
@@ -116,7 +136,7 @@ public class AllocationBalancingRoundSummaryService {
             var newNodeWeightStats = newWeightsPerNode.getOrDefault(discoveryNode, DesiredBalanceMetrics.NodeWeightStats.ZERO);
 
             nodeNameToWeightInfo.put(
-                discoveryNode.getName(),
+                discoveryNode,
                 new BalancingRoundSummary.NodesWeightsChanges(
                     oldNodeWeightStats,
                     BalancingRoundSummary.NodeWeightsDiff.create(oldNodeWeightStats, newNodeWeightStats)
@@ -128,11 +148,11 @@ public class AllocationBalancingRoundSummaryService {
         // the new DesiredBalance to check.
         for (var nodeAndWeights : newWeightsPerNode.entrySet()) {
             var discoveryNode = nodeAndWeights.getKey();
-            if (nodeNameToWeightInfo.containsKey(discoveryNode.getName()) == false) {
+            if (nodeNameToWeightInfo.containsKey(discoveryNode) == false) {
                 // This node is new in the new DesiredBalance, there was no entry added during iteration of the nodes in the old
                 // DesiredBalance. So we'll make a new entry with a base of zero value weights and a weights diff of the new node's weights.
                 nodeNameToWeightInfo.put(
-                    discoveryNode.getName(),
+                    discoveryNode,
                     new BalancingRoundSummary.NodesWeightsChanges(
                         DesiredBalanceMetrics.NodeWeightStats.ZERO,
                         BalancingRoundSummary.NodeWeightsDiff.create(DesiredBalanceMetrics.NodeWeightStats.ZERO, nodeAndWeights.getValue())
@@ -146,8 +166,8 @@ public class AllocationBalancingRoundSummaryService {
 
     /**
      * Creates and saves a balancer round summary for the work to move from {@code oldDesiredBalance} to {@code newDesiredBalance}. If
-     * balancer round summaries are not enabled in the cluster (see {@link #ENABLE_BALANCER_ROUND_SUMMARIES_SETTING}), then the summary is
-     * immediately discarded.
+     * balancer round summaries are not enabled in the cluster (see {@link #ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING} and
+     * {@link #ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING}), then the summary is immediately discarded.
      */
     public void addBalancerRoundSummary(DesiredBalance oldDesiredBalance, DesiredBalance newDesiredBalance) {
         addBalancerRoundSummary(createBalancerRoundSummary(oldDesiredBalance, newDesiredBalance));
@@ -159,16 +179,18 @@ public class AllocationBalancingRoundSummaryService {
      * never be drained).
      */
     public void addBalancerRoundSummary(BalancingRoundSummary summary) {
-        if (enableBalancerRoundSummaries == false) {
-            return;
+        if (enableBalancerRoundSummariesMetrics) {
+            balancingRoundMetrics.addBalancingRoundSummary(summary);
         }
 
-        summaries.add(summary);
+        if (enableBalancerRoundSummariesLogging) {
+            summaries.add(summary);
+        }
     }
 
     /**
      * Reports on all the balancer round summaries added since the last call to this method, if there are any. Then reschedules itself per
-     * the {@link #ENABLE_BALANCER_ROUND_SUMMARIES_SETTING} and {@link #BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING} settings.
+     * the {@link #ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING} and {@link #BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING} settings.
      */
     private void reportSummariesAndThenReschedule() {
         drainAndReportSummaries();
@@ -206,8 +228,8 @@ public class AllocationBalancingRoundSummaryService {
      * setting values dictate a change to enable or disable reporting. A change to {@link #BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING}
      * will only take effect when the periodic task completes and reschedules itself.
      */
-    private void updateBalancingRoundSummaryReporting() {
-        if (this.enableBalancerRoundSummaries) {
+    private void updateBalancingRoundSummaryLoggingReporting() {
+        if (this.enableBalancerRoundSummariesLogging) {
             startReporting(this.summaryReportInterval);
         } else {
             cancelReporting();
@@ -248,7 +270,7 @@ public class AllocationBalancingRoundSummaryService {
      * Looks at the given setting values and decides whether to schedule another reporting task or cancel reporting now.
      */
     private void rescheduleReporting() {
-        if (this.enableBalancerRoundSummaries) {
+        if (this.enableBalancerRoundSummariesLogging) {
             // It's possible that this races with a concurrent call to cancel reporting, but that's okay. The next rescheduleReporting call
             // will check the latest settings and cancel.
             scheduleReporting(this.summaryReportInterval);

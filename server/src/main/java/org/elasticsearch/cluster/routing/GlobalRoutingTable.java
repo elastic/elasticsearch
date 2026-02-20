@@ -9,7 +9,7 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
 import org.elasticsearch.cluster.DiffableUtils;
@@ -316,6 +316,8 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         private static final DiffableUtils.DiffableValueReader<ProjectId, RoutingTable> DIFF_VALUE_READER =
             new DiffableUtils.DiffableValueReader<>(RoutingTable::readFrom, RoutingTable::readDiffFrom);
 
+        private static final TransportVersion MULTI_PROJECT = TransportVersion.fromName("multi_project");
+
         private final Diff<ImmutableOpenMap<ProjectId, RoutingTable>> routingTable;
         private final Diff<RoutingTable> singleProjectForBwc;
 
@@ -331,7 +333,7 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         }
 
         GlobalRoutingTableDiff(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            if (in.getTransportVersion().supports(MULTI_PROJECT)) {
                 this.routingTable = DiffableUtils.readImmutableOpenMapDiff(in, PROJECT_ID_KEY_SERIALIZER, DIFF_VALUE_READER);
                 this.singleProjectForBwc = null;
             } else {
@@ -364,7 +366,7 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.MULTI_PROJECT)) {
+            if (out.getTransportVersion().supports(MULTI_PROJECT)) {
                 routingTable.writeTo(out);
             } else {
                 if (singleProjectForBwc != null) {

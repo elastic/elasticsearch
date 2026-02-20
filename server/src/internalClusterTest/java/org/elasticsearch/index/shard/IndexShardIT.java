@@ -306,49 +306,26 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
     public void testNodeWriteLoadsArePresent() {
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+
+        // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
         ClusterInfoServiceUtils.refresh(clusterInfoService);
         Map<String, NodeUsageStatsForThreadPools> nodeThreadPoolStats = clusterInfoService.getClusterInfo()
             .getNodeUsageStatsForThreadPools();
         assertNotNull(nodeThreadPoolStats);
-        /** Not collecting stats yet because allocation write load stats collection is disabled by default.
-         *  see {@link WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING} */
-        assertTrue(nodeThreadPoolStats.isEmpty());
 
-        // Enable collection for node write loads.
-        updateClusterSettings(
-            Settings.builder()
-                .put(
-                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
-                    randomBoolean()
-                        ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-                        : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
-                )
-                .build()
-        );
-        try {
-            // Force a ClusterInfo refresh to run collection of the node thread pool usage stats.
-            ClusterInfoServiceUtils.refresh(clusterInfoService);
-            nodeThreadPoolStats = clusterInfoService.getClusterInfo().getNodeUsageStatsForThreadPools();
-
-            /** Verify that each node has usage stats reported. */
-            ClusterState state = getInstanceFromNode(ClusterService.class).state();
-            assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
-            for (DiscoveryNode node : state.nodes()) {
-                assertTrue(nodeThreadPoolStats.containsKey(node.getId()));
-                NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = nodeThreadPoolStats.get(node.getId());
-                assertThat(nodeUsageStatsForThreadPools.nodeId(), equalTo(node.getId()));
-                NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = nodeUsageStatsForThreadPools
-                    .threadPoolUsageStatsMap()
-                    .get(ThreadPool.Names.WRITE);
-                assertNotNull(writeThreadPoolStats);
-                assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));
-                assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
-                assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
-            }
-        } finally {
-            updateClusterSettings(
-                Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build()
-            );
+        /** Verify that each node has usage stats reported. */
+        ClusterState state = getInstanceFromNode(ClusterService.class).state();
+        assertEquals(state.nodes().size(), nodeThreadPoolStats.size());
+        for (DiscoveryNode node : state.nodes()) {
+            assertTrue(nodeThreadPoolStats.containsKey(node.getId()));
+            NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools = nodeThreadPoolStats.get(node.getId());
+            assertThat(nodeUsageStatsForThreadPools.nodeId(), equalTo(node.getId()));
+            NodeUsageStatsForThreadPools.ThreadPoolUsageStats writeThreadPoolStats = nodeUsageStatsForThreadPools.threadPoolUsageStatsMap()
+                .get(ThreadPool.Names.WRITE);
+            assertNotNull(writeThreadPoolStats);
+            assertThat(writeThreadPoolStats.totalThreadPoolThreads(), greaterThanOrEqualTo(0));
+            assertThat(writeThreadPoolStats.averageThreadPoolUtilization(), greaterThanOrEqualTo(0.0f));
+            assertThat(writeThreadPoolStats.maxThreadPoolQueueLatencyMillis(), greaterThanOrEqualTo(0L));
         }
     }
 
@@ -365,27 +342,25 @@ public class IndexShardIT extends ESSingleNodeTestCase {
 
         final InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
 
-        // Not collecting stats yet because allocation write load stats collection is disabled by default.
-        {
-            ClusterInfoServiceUtils.refresh(clusterInfoService);
-            final Map<ShardId, Double> shardWriteLoads = clusterInfoService.getClusterInfo().getShardWriteLoads();
-            assertNotNull(shardWriteLoads);
-            assertTrue(shardWriteLoads.isEmpty());
-        }
-
-        // Turn on collection of write-load stats.
-        updateClusterSettings(
-            Settings.builder()
-                .put(
-                    WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
-                    randomBoolean()
-                        ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
-                        : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
-                )
-                .build()
-        );
-
         try {
+            // Explicitly disable write load decider
+            setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus.DISABLED);
+
+            // Stats should not be collected when the decider is disabled
+            {
+                ClusterInfoServiceUtils.refresh(clusterInfoService);
+                final Map<ShardId, Double> shardWriteLoads = clusterInfoService.getClusterInfo().getShardWriteLoads();
+                assertNotNull(shardWriteLoads);
+                assertTrue(shardWriteLoads.isEmpty());
+            }
+
+            // Turn on collection of write-load stats.
+            setWriteLoadDeciderEnablement(
+                randomBoolean()
+                    ? WriteLoadConstraintSettings.WriteLoadDeciderStatus.ENABLED
+                    : WriteLoadConstraintSettings.WriteLoadDeciderStatus.LOW_THRESHOLD_ONLY
+            );
+
             // Force a ClusterInfo refresh to run collection of the write-load stats.
             ClusterInfoServiceUtils.refresh(clusterInfoService);
             final Map<ShardId, Double> shardWriteLoads = clusterInfoService.getClusterInfo().getShardWriteLoads();
@@ -404,9 +379,24 @@ public class IndexShardIT extends ESSingleNodeTestCase {
                 assertThat(maximumLoadRecorded, greaterThan(0.0));
             }
         } finally {
-            updateClusterSettings(
-                Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build()
-            );
+            clearWriteLoadDeciderEnablementSetting();
+        }
+    }
+
+    private void clearWriteLoadDeciderEnablementSetting() {
+        updateClusterSettings(Settings.builder().putNull(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey()).build());
+    }
+
+    public void testMaxHeapPerNodeIsPresent() {
+        InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
+        ClusterInfoServiceUtils.refresh(clusterInfoService);
+        Map<String, ByteSizeValue> maxHeapSizePerNode = clusterInfoService.getClusterInfo().getMaxHeapSizePerNode();
+        assertNotNull(maxHeapSizePerNode);
+        ClusterState state = getInstanceFromNode(ClusterService.class).state();
+        assertEquals(state.nodes().size(), maxHeapSizePerNode.size());
+        for (DiscoveryNode node : state.nodes()) {
+            assertTrue(maxHeapSizePerNode.containsKey(node.getId()));
+            assertThat(maxHeapSizePerNode.get(node.getId()), greaterThan(ByteSizeValue.ZERO));
         }
     }
 
@@ -564,7 +554,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
             .put("index.number_of_shards", 1)
             .put("index.translog.generation_threshold_size", generationThreshold + "b")
             .build();
-        createIndex("test", settings, "test");
+        createIndex("test", settings);
         ensureGreen("test");
         final IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         final IndexService test = indicesService.indexService(resolveIndex("test"));
@@ -751,6 +741,12 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         }
     }
 
+    private void setWriteLoadDeciderEnablement(WriteLoadConstraintSettings.WriteLoadDeciderStatus status) {
+        updateClusterSettings(
+            Settings.builder().put(WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(), status).build()
+        );
+    }
+
     public static final IndexShard recoverShard(IndexShard newShard) throws IOException {
         DiscoveryNode localNode = DiscoveryNodeUtils.builder("foo").roles(emptySet()).build();
         newShard.markAsRecovering("store", new RecoveryState(newShard.routingEntry(), localNode, null));
@@ -865,7 +861,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         Settings settings = indexSettings(1, 0).put("index.translog.flush_threshold_size", "512mb") // do not flush
             .put("index.soft_deletes.enabled", true)
             .build();
-        IndexService indexService = createIndex("index", settings, "user_doc", "title", "type=keyword");
+        IndexService indexService = createIndex("index", settings, "title", "type=keyword");
         int numOps = between(1, 10);
         for (int i = 0; i < numOps; i++) {
             if (randomBoolean()) {

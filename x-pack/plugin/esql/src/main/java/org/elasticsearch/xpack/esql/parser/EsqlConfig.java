@@ -8,32 +8,21 @@
 package org.elasticsearch.xpack.esql.parser;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
-class EsqlConfig {
+public class EsqlConfig {
 
     // versioning information
-    boolean devVersion = Build.current().isSnapshot();
+    private final boolean isDevVersion;
 
-    boolean metricsCommand = EsqlCapabilities.Cap.METRICS_COMMAND.isEnabled();
+    public EsqlConfig(boolean isDevVersion) {
+        this.isDevVersion = isDevVersion;
+    }
+
+    public EsqlConfig() {
+        this(Build.current().isSnapshot());
+    }
 
     public boolean isDevVersion() {
-        return devVersion;
-    }
-
-    boolean isReleaseVersion() {
-        return isDevVersion() == false;
-    }
-
-    public void setDevVersion(boolean dev) {
-        this.devVersion = dev;
-    }
-
-    public boolean hasMetricsCommand() {
-        return metricsCommand;
-    }
-
-    public void setMetricsCommand(boolean metricsCommand) {
-        this.metricsCommand = metricsCommand;
+        return isDevVersion;
     }
 }

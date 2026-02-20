@@ -10,7 +10,6 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -44,7 +43,7 @@ public record EmptySecretSettings() implements SecretSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_16_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

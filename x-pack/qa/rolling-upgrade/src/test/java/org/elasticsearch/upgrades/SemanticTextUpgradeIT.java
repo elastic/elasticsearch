@@ -194,7 +194,7 @@ public class SemanticTextUpgradeIT extends AbstractUpgradeTestCase {
                     Arrays.fill(queryVector, 1.0f);
                 }
 
-                yield new KnnVectorQueryBuilder(embeddingsFieldName, queryVector, DOC_VALUES.size(), null, null, null);
+                yield new KnnVectorQueryBuilder(embeddingsFieldName, queryVector, DOC_VALUES.size(), null, null, null, null);
             }
             default -> throw new UnsupportedOperationException("Unhandled task type [" + fieldModel.getTaskType() + "]");
         };

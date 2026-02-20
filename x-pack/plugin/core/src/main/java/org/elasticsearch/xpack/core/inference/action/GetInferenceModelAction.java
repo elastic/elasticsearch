@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -19,7 +18,6 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -59,11 +57,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             super(in);
             this.inferenceEntityId = in.readString();
             this.taskType = TaskType.fromStream(in);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                this.persistDefaultConfig = in.readBoolean();
-            } else {
-                this.persistDefaultConfig = PERSIST_DEFAULT_CONFIGS;
-            }
+            this.persistDefaultConfig = in.readBoolean();
         }
 
         public String getInferenceEntityId() {
@@ -83,9 +77,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
             super.writeTo(out);
             out.writeString(inferenceEntityId);
             taskType.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-                out.writeBoolean(this.persistDefaultConfig);
-            }
+            out.writeBoolean(this.persistDefaultConfig);
         }
 
         @Override
@@ -113,12 +105,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
         }
 
         public Response(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                endpoints = in.readCollectionAsList(ModelConfigurations::new);
-            } else {
-                endpoints = new ArrayList<>();
-                endpoints.add(new ModelConfigurations(in));
-            }
+            endpoints = in.readCollectionAsList(ModelConfigurations::new);
         }
 
         public List<ModelConfigurations> getEndpoints() {
@@ -127,11 +114,7 @@ public class GetInferenceModelAction extends ActionType<GetInferenceModelAction.
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeCollection(endpoints);
-            } else {
-                endpoints.get(0).writeTo(out);
-            }
+            out.writeCollection(endpoints);
         }
 
         @Override

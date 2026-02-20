@@ -19,6 +19,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -30,31 +31,32 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChatCompletionResults;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettings;
+import org.elasticsearch.xpack.inference.common.model.Truncation;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceComponentsTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockMockRequestSender;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettings;
+import org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsTaskSettingsTests;
-import org.elasticsearch.xpack.inference.services.cohere.CohereTruncation;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matchers;
@@ -70,23 +72,26 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResultsTests.buildExpectationCompletion;
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.common.amazon.AwsSecretSettingsTests.getAmazonBedrockSecretSettingsMap;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockProviderCapabilities.getProviderDefaultSimilarityMeasure;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionServiceSettingsTests.createChatCompletionRequestSettingsMap;
-import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockChatCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap;
+import static org.elasticsearch.xpack.inference.services.amazonbedrock.completion.AmazonBedrockCompletionTaskSettingsTests.getChatCompletionTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.embeddings.AmazonBedrockEmbeddingsServiceSettingsTests.createEmbeddingsRequestSettingsMap;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -95,11 +100,17 @@ import static org.mockito.Mockito.when;
 
 public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
+    private static final String INFERENCE_ID_VALUE = "id";
+    private static final String REGION_VALUE = "region";
+    private static final String MODEL_VALUE = "model";
+    private static final AmazonBedrockProvider AMAZON_BEDROCK_PROVIDER_VALUE = AmazonBedrockProvider.AMAZONTITAN;
+    private static final String ACCESS_KEY_VALUE = "access";
+    private static final String SECRET_KEY_VALUE = "secret";
     private ThreadPool threadPool;
 
     @Before
     public void init() throws Exception {
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
     }
 
     @After
@@ -113,21 +124,21 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
                 var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-                assertThat(settings.region(), is("region"));
-                assertThat(settings.modelId(), is("model"));
-                assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+                assertThat(settings.region(), is(REGION_VALUE));
+                assertThat(settings.modelId(), is(MODEL_VALUE));
+                assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
                 var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-                assertThat(secretSettings.accessKey().toString(), is("access"));
-                assertThat(secretSettings.secretKey().toString(), is("secret"));
+                assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
+                assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
             });
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, null, null, null),
+                    createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, null, null, null),
                     Map.of(),
-                    getAmazonBedrockSecretSettingsMap("access", "secret")
+                    getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -140,21 +151,21 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
                 var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-                assertThat(settings.region(), is("region"));
-                assertThat(settings.modelId(), is("model"));
+                assertThat(settings.region(), is(REGION_VALUE));
+                assertThat(settings.modelId(), is(MODEL_VALUE));
                 assertThat(settings.provider(), is(AmazonBedrockProvider.COHERE));
                 var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-                assertThat(secretSettings.accessKey().toString(), is("access"));
-                assertThat(secretSettings.secretKey().toString(), is("secret"));
+                assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
+                assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
             });
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    createEmbeddingsRequestSettingsMap("region", "model", "cohere", null, null, null, null),
-                    AmazonBedrockEmbeddingsTaskSettingsTests.mutableMap("truncate", CohereTruncation.START),
-                    getAmazonBedrockSecretSettingsMap("access", "secret")
+                    createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "cohere", null, null, null, null),
+                    AmazonBedrockEmbeddingsTaskSettingsTests.mutableMap("truncate", Truncation.START),
+                    getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -172,12 +183,12 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             });
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, null, null, null),
-                    AmazonBedrockEmbeddingsTaskSettingsTests.mutableMap("truncate", CohereTruncation.START),
-                    getAmazonBedrockSecretSettingsMap("access", "secret")
+                    createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, null, null, null),
+                    AmazonBedrockEmbeddingsTaskSettingsTests.mutableMap("truncate", Truncation.START),
+                    getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -192,12 +203,12 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             });
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.SPARSE_EMBEDDING,
                 getRequestConfigMap(
-                    createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null),
+                    createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null),
                     Map.of(),
-                    getAmazonBedrockSecretSettingsMap("access", "secret")
+                    getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -212,7 +223,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                     {
                          "service": "amazonbedrock",
                          "name": "Amazon Bedrock",
-                         "task_types": ["text_embedding", "completion"],
+                         "task_types": ["text_embedding", "completion", "chat_completion"],
                          "configurations": {
                               "dimensions": {
                                  "description": "The number of dimensions the resulting embeddings should have. For more information refer to https://docs.aws.amazon.com/bedrock/latest/userguide/model-parameters-titan-embed-text.html.",
@@ -230,7 +241,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                                  "sensitive": true,
                                  "updatable": true,
                                  "type": "str",
-                                 "supported_task_types": ["text_embedding", "completion"]
+                                 "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                              },
                              "provider": {
                                  "description": "The model provider for your deployment.",
@@ -239,7 +250,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                                  "sensitive": false,
                                  "updatable": false,
                                  "type": "str",
-                                 "supported_task_types": ["text_embedding", "completion"]
+                                 "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                              },
                              "access_key": {
                                  "description": "A valid AWS access key that has permissions to use Amazon Bedrock.",
@@ -248,7 +259,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                                  "sensitive": true,
                                  "updatable": true,
                                  "type": "str",
-                                 "supported_task_types": ["text_embedding", "completion"]
+                                 "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                              },
                              "model": {
                                  "description": "The base model ID or an ARN to a custom model based on a foundational model.",
@@ -257,7 +268,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                                  "sensitive": false,
                                  "updatable": false,
                                  "type": "str",
-                                 "supported_task_types": ["text_embedding", "completion"]
+                                 "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                              },
                              "rate_limit.requests_per_minute": {
                                  "description": "By default, the amazonbedrock service sets the number of requests allowed per minute to 240.",
@@ -266,7 +277,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                                  "sensitive": false,
                                  "updatable": false,
                                  "type": "int",
-                                 "supported_task_types": ["text_embedding", "completion"]
+                                 "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                              },
                              "region": {
                                  "description": "The region that your model or ARN is deployed in.",
@@ -275,7 +286,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                                  "sensitive": false,
                                  "updatable": false,
                                  "type": "str",
-                                 "supported_task_types": ["text_embedding", "completion"]
+                                 "supported_task_types": ["text_embedding", "completion", "chat_completion"]
                              }
                          }
                      }
@@ -304,12 +315,12 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             });
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    createEmbeddingsRequestSettingsMap("region", "model", "anthropic", null, null, null, null),
+                    createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "anthropic", null, null, null, null),
                     Map.of(),
-                    getAmazonBedrockSecretSettingsMap("access", "secret")
+                    getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -318,30 +329,34 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
 
     public void testCreateModel_TopKParameter_NotAvailable() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoSuccessListener(exception -> {
+            var topKNotAvailableListener = ActionTestUtils.<Model>assertNoSuccessListener(exception -> {
                 assertThat(exception, instanceOf(ElasticsearchStatusException.class));
                 assertThat(exception.getMessage(), is("The [top_k] task parameter is not available for provider [amazontitan]"));
             });
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.COMPLETION,
-                getRequestConfigMap(
-                    createChatCompletionRequestSettingsMap("region", "model", "amazontitan"),
-                    getChatCompletionTaskSettingsMap(1.0, 0.5, 0.2, 128),
-                    getAmazonBedrockSecretSettingsMap("access", "secret")
-                ),
-                modelVerificationListener
-            );
+            assertTopKParameter(TaskType.COMPLETION, service, topKNotAvailableListener);
+            assertTopKParameter(TaskType.CHAT_COMPLETION, service, topKNotAvailableListener);
         }
+    }
+
+    private void assertTopKParameter(TaskType taskType, AmazonBedrockService service, ActionListener<Model> modelVerificationListener) {
+        service.parseRequestConfig(
+            INFERENCE_ID_VALUE,
+            taskType,
+            getRequestConfigMap(
+                createChatCompletionRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan"),
+                getChatCompletionTaskSettingsMap(1.0, 0.5, 0.2, 128),
+                getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE)
+            ),
+            modelVerificationListener
+        );
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createAmazonBedrockService()) {
             var config = getRequestConfigMap(
-                createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, null, null, null),
+                createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, null, null, null),
                 Map.of(),
-                getAmazonBedrockSecretSettingsMap("access", "secret")
+                getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE)
             );
 
             config.put("extra_key", "value");
@@ -354,16 +369,20 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 );
             });
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInServiceSettingsMap() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var serviceSettings = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, null, null, null);
+            var serviceSettings = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, null, null, null);
             serviceSettings.put("extra_key", "value");
 
-            var config = getRequestConfigMap(serviceSettings, Map.of(), getAmazonBedrockSecretSettingsMap("access", "secret"));
+            var config = getRequestConfigMap(
+                serviceSettings,
+                Map.of(),
+                getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE)
+            );
 
             ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoSuccessListener(e -> {
                 assertThat(e, instanceOf(ElasticsearchStatusException.class));
@@ -373,52 +392,63 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 );
             });
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
+            service.parseRequestConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInTaskSettingsMap() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createChatCompletionRequestSettingsMap("region", "model", "anthropic");
-            var taskSettingsMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.2, 128);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
-
-            taskSettingsMap.put("extra_key", "value");
-
-            var config = getRequestConfigMap(settingsMap, taskSettingsMap, secretSettingsMap);
-
-            ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoSuccessListener(e -> {
-                assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(
-                    e.getMessage(),
-                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
-                );
-            });
-
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
+            assertThrowsWhenAnExtraKeyExistsInTaskSettingsMap(TaskType.COMPLETION, service);
+            assertThrowsWhenAnExtraKeyExistsInTaskSettingsMap(TaskType.CHAT_COMPLETION, service);
         }
+    }
+
+    private void assertThrowsWhenAnExtraKeyExistsInTaskSettingsMap(TaskType taskType, AmazonBedrockService service) {
+        var settingsMap = createChatCompletionRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "anthropic");
+        var taskSettingsMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.2, 128);
+        var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
+
+        taskSettingsMap.put("extra_key", "value");
+
+        assertParseRequestConfigThrowsWhenExtraKeyPresent(
+            taskType,
+            service,
+            getRequestConfigMap(settingsMap, taskSettingsMap, secretSettingsMap)
+        );
     }
 
     public void testParseRequestConfig_ThrowsWhenAnExtraKeyExistsInSecretSettingsMap() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createChatCompletionRequestSettingsMap("region", "model", "anthropic");
-            var taskSettingsMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.2, 128);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
-
-            secretSettingsMap.put("extra_key", "value");
-
-            var config = getRequestConfigMap(settingsMap, taskSettingsMap, secretSettingsMap);
-
-            ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoSuccessListener(e -> {
-                assertThat(e, instanceOf(ElasticsearchStatusException.class));
-                assertThat(
-                    e.getMessage(),
-                    is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service")
-                );
-            });
-
-            service.parseRequestConfig("id", TaskType.COMPLETION, config, modelVerificationListener);
+            assertThrowsWhenAnExtraKeyExistsInSecretSettingsMap(TaskType.COMPLETION, service);
+            assertThrowsWhenAnExtraKeyExistsInSecretSettingsMap(TaskType.CHAT_COMPLETION, service);
         }
+    }
+
+    private void assertThrowsWhenAnExtraKeyExistsInSecretSettingsMap(TaskType taskType, AmazonBedrockService service) {
+        var settingsMap = createChatCompletionRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "anthropic");
+        var taskSettingsMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.2, 128);
+        var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
+
+        secretSettingsMap.put("extra_key", "value");
+
+        assertParseRequestConfigThrowsWhenExtraKeyPresent(
+            taskType,
+            service,
+            getRequestConfigMap(settingsMap, taskSettingsMap, secretSettingsMap)
+        );
+    }
+
+    private void assertParseRequestConfigThrowsWhenExtraKeyPresent(
+        TaskType taskType,
+        AmazonBedrockService service,
+        Map<String, Object> config
+    ) {
+        ActionListener<Model> modelVerificationListener = ActionTestUtils.assertNoSuccessListener(e -> {
+            assertThat(e, instanceOf(ElasticsearchStatusException.class));
+            assertThat(e.getMessage(), is("Configuration contains settings [{extra_key=value}] unknown to the [amazonbedrock] service"));
+        });
+
+        service.parseRequestConfig(INFERENCE_ID_VALUE, taskType, config, modelVerificationListener);
     }
 
     public void testParseRequestConfig_MovesModel() throws IOException {
@@ -427,21 +457,21 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
                 var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-                assertThat(settings.region(), is("region"));
-                assertThat(settings.modelId(), is("model"));
-                assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+                assertThat(settings.region(), is(REGION_VALUE));
+                assertThat(settings.modelId(), is(MODEL_VALUE));
+                assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
                 var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-                assertThat(secretSettings.accessKey().toString(), is("access"));
-                assertThat(secretSettings.secretKey().toString(), is("secret"));
+                assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
+                assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
             });
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, null, null, null),
+                    createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, null, null, null),
                     Map.of(),
-                    getAmazonBedrockSecretSettingsMap("access", "secret")
+                    getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -454,23 +484,23 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
                 var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-                assertThat(settings.region(), is("region"));
-                assertThat(settings.modelId(), is("model"));
-                assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+                assertThat(settings.region(), is(REGION_VALUE));
+                assertThat(settings.modelId(), is(MODEL_VALUE));
+                assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
                 var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-                assertThat(secretSettings.accessKey().toString(), is("access"));
-                assertThat(secretSettings.secretKey().toString(), is("secret"));
+                assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
+                assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
                 assertThat(model.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             });
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, null, null, null),
+                    createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, null, null, null),
                     Map.of(),
                     createRandomChunkingSettingsMap(),
-                    getAmazonBedrockSecretSettingsMap("access", "secret")
+                    getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -483,22 +513,22 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
                 var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-                assertThat(settings.region(), is("region"));
-                assertThat(settings.modelId(), is("model"));
-                assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+                assertThat(settings.region(), is(REGION_VALUE));
+                assertThat(settings.modelId(), is(MODEL_VALUE));
+                assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
                 var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-                assertThat(secretSettings.accessKey().toString(), is("access"));
-                assertThat(secretSettings.secretKey().toString(), is("secret"));
+                assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
+                assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
                 assertThat(model.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             });
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, null, null, null),
+                    createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, null, null, null),
                     Map.of(),
-                    getAmazonBedrockSecretSettingsMap("access", "secret")
+                    getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -513,12 +543,12 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             });
 
             service.parseRequestConfig(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(
-                    createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", 512, null, null, null),
+                    createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", 512, null, null, null),
                     Map.of(),
-                    getAmazonBedrockSecretSettingsMap("access", "secret")
+                    getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE)
                 ),
                 modelVerificationListener
             );
@@ -527,13 +557,13 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
 
     public void testParsePersistedConfigWithSecrets_CreatesAnAmazonBedrockEmbeddingsModel() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var settingsMap = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null);
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
 
             var persistedConfig = getPersistedConfigMap(settingsMap, new HashMap<>(Map.of()), secretSettingsMap);
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -542,19 +572,19 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+            assertThat(settings.region(), is(REGION_VALUE));
+            assertThat(settings.modelId(), is(MODEL_VALUE));
+            assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey().toString(), is("access"));
-            assertThat(secretSettings.secretKey().toString(), is("secret"));
+            assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
+            assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var settingsMap = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null);
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
 
             var persistedConfig = getPersistedConfigMap(
                 settingsMap,
@@ -564,7 +594,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             );
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -573,26 +603,26 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+            assertThat(settings.region(), is(REGION_VALUE));
+            assertThat(settings.modelId(), is(MODEL_VALUE));
+            assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             assertThat(model.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey().toString(), is("access"));
-            assertThat(secretSettings.secretKey().toString(), is("secret"));
+            assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
+            assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsNotProvided()
         throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var settingsMap = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null);
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
 
             var persistedConfig = getPersistedConfigMap(settingsMap, new HashMap<String, Object>(Map.of()), secretSettingsMap);
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -601,50 +631,51 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+            assertThat(settings.region(), is(REGION_VALUE));
+            assertThat(settings.modelId(), is(MODEL_VALUE));
+            assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             assertThat(model.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey().toString(), is("access"));
-            assertThat(secretSettings.secretKey().toString(), is("secret"));
+            assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
+            assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createChatCompletionRequestSettingsMap("region", "model", "amazontitan");
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var settingsMap = createChatCompletionRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan");
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
 
             var persistedConfig = getPersistedConfigMap(settingsMap, Map.of(), secretSettingsMap);
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
                 () -> service.parsePersistedConfigWithSecrets(
-                    "id",
+                    INFERENCE_ID_VALUE,
                     TaskType.SPARSE_EMBEDDING,
                     persistedConfig.config(),
                     persistedConfig.secrets()
                 )
             );
 
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [amazonbedrock] service"));
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [amazonbedrock] service, please delete and add the service again")
+                containsString("The [amazonbedrock] service does not support task type [sparse_embedding]")
             );
         }
     }
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var settingsMap = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null);
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
 
             var persistedConfig = getPersistedConfigMap(settingsMap, new HashMap<>(Map.of()), secretSettingsMap);
             persistedConfig.config().put("extra_key", "value");
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -653,25 +684,25 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+            assertThat(settings.region(), is(REGION_VALUE));
+            assertThat(settings.modelId(), is(MODEL_VALUE));
+            assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey().toString(), is("access"));
-            assertThat(secretSettings.secretKey().toString(), is("secret"));
+            assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
+            assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var settingsMap = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null);
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(settingsMap, new HashMap<>(Map.of()), secretSettingsMap);
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -680,25 +711,25 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+            assertThat(settings.region(), is(REGION_VALUE));
+            assertThat(settings.modelId(), is(MODEL_VALUE));
+            assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey().toString(), is("access"));
-            assertThat(secretSettings.secretKey().toString(), is("secret"));
+            assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
+            assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInSecrets() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var settingsMap = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null);
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
 
             var persistedConfig = getPersistedConfigMap(settingsMap, new HashMap<>(Map.of()), secretSettingsMap);
             persistedConfig.secrets().put("extra_key", "value");
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -707,25 +738,25 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+            assertThat(settings.region(), is(REGION_VALUE));
+            assertThat(settings.modelId(), is(MODEL_VALUE));
+            assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey().toString(), is("access"));
-            assertThat(secretSettings.secretKey().toString(), is("secret"));
+            assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
+            assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
+            var settingsMap = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null);
             settingsMap.put("extra_key", "value");
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
 
             var persistedConfig = getPersistedConfigMap(settingsMap, new HashMap<>(Map.of()), secretSettingsMap);
 
             var model = service.parsePersistedConfigWithSecrets(
-                "id",
+                INFERENCE_ID_VALUE,
                 TaskType.TEXT_EMBEDDING,
                 persistedConfig.config(),
                 persistedConfig.secrets()
@@ -734,71 +765,78 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+            assertThat(settings.region(), is(REGION_VALUE));
+            assertThat(settings.modelId(), is(MODEL_VALUE));
+            assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey().toString(), is("access"));
-            assertThat(secretSettings.secretKey().toString(), is("secret"));
+            assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
+            assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createChatCompletionRequestSettingsMap("region", "model", "anthropic");
-            var taskSettingsMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.2, 128);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
-            taskSettingsMap.put("extra_key", "value");
-
-            var persistedConfig = getPersistedConfigMap(settingsMap, taskSettingsMap, secretSettingsMap);
-
-            var model = service.parsePersistedConfigWithSecrets(
-                "id",
-                TaskType.COMPLETION,
-                persistedConfig.config(),
-                persistedConfig.secrets()
-            );
-
-            assertThat(model, instanceOf(AmazonBedrockChatCompletionModel.class));
-
-            var settings = (AmazonBedrockChatCompletionServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.ANTHROPIC));
-            var taskSettings = (AmazonBedrockChatCompletionTaskSettings) model.getTaskSettings();
-            assertThat(taskSettings.temperature(), is(1.0));
-            assertThat(taskSettings.topP(), is(0.5));
-            assertThat(taskSettings.topK(), is(0.2));
-            assertThat(taskSettings.maxNewTokens(), is(128));
-            var secretSettings = (AwsSecretSettings) model.getSecretSettings();
-            assertThat(secretSettings.accessKey().toString(), is("access"));
-            assertThat(secretSettings.secretKey().toString(), is("secret"));
+            assertNotThrowWhenAnExtraKeyExistsInTaskSettings_WithSecrets(TaskType.COMPLETION, service);
+            assertNotThrowWhenAnExtraKeyExistsInTaskSettings_WithSecrets(TaskType.CHAT_COMPLETION, service);
         }
+    }
+
+    private void assertNotThrowWhenAnExtraKeyExistsInTaskSettings_WithSecrets(TaskType taskType, AmazonBedrockService service) {
+        var expectedProviderString = "anthropic";
+        var expectedProvider = AmazonBedrockProvider.ANTHROPIC;
+        var expectedTemperature = 1.0;
+        var expectedTopP = 0.5;
+        var expectedTopK = 0.2;
+        var expectedMaxNewTokens = 128;
+
+        var settingsMap = createChatCompletionRequestSettingsMap(REGION_VALUE, MODEL_VALUE, expectedProviderString);
+        var taskSettingsMap = getChatCompletionTaskSettingsMap(expectedTemperature, expectedTopP, expectedTopK, expectedMaxNewTokens);
+        var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
+        taskSettingsMap.put("extra_key", "value");
+
+        var persistedConfig = getPersistedConfigMap(settingsMap, taskSettingsMap, secretSettingsMap);
+
+        var model = service.parsePersistedConfigWithSecrets("id", taskType, persistedConfig.config(), persistedConfig.secrets());
+
+        assertThat(model, instanceOf(AmazonBedrockChatCompletionModel.class));
+
+        var settings = (AmazonBedrockChatCompletionServiceSettings) model.getServiceSettings();
+        assertThat(settings.region(), is(REGION_VALUE));
+        assertThat(settings.modelId(), is(MODEL_VALUE));
+        assertThat(settings.provider(), is(expectedProvider));
+        var taskSettings = (AmazonBedrockCompletionTaskSettings) model.getTaskSettings();
+        assertThat(taskSettings.temperature(), is(expectedTemperature));
+        assertThat(taskSettings.topP(), is(expectedTopP));
+        assertThat(taskSettings.topK(), is(expectedTopK));
+        assertThat(taskSettings.maxNewTokens(), is(expectedMaxNewTokens));
+        var secretSettings = (AwsSecretSettings) model.getSecretSettings();
+        assertThat(secretSettings.accessKey().toString(), is(ACCESS_KEY_VALUE));
+        assertThat(secretSettings.secretKey().toString(), is(SECRET_KEY_VALUE));
     }
 
     public void testParsePersistedConfig_CreatesAnAmazonBedrockEmbeddingsModel() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var settingsMap = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null);
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
 
             var persistedConfig = getPersistedConfigMap(settingsMap, new HashMap<String, Object>(Map.of()), secretSettingsMap);
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+            assertThat(settings.region(), is(REGION_VALUE));
+            assertThat(settings.modelId(), is(MODEL_VALUE));
+            assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             assertNull(model.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var settingsMap = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null);
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
 
             var persistedConfig = getPersistedConfigMap(
                 settingsMap,
@@ -807,14 +845,14 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 secretSettingsMap
             );
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+            assertThat(settings.region(), is(REGION_VALUE));
+            assertThat(settings.modelId(), is(MODEL_VALUE));
+            assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             assertThat(model.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(model.getSecretSettings());
         }
@@ -822,19 +860,19 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
 
     public void testParsePersistedConfig_CreatesAnAmazonBedrockEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var settingsMap = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null);
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
 
             var persistedConfig = getPersistedConfigMap(settingsMap, new HashMap<>(Map.of()), secretSettingsMap);
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+            assertThat(settings.region(), is(REGION_VALUE));
+            assertThat(settings.modelId(), is(MODEL_VALUE));
+            assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             assertThat(model.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertNull(model.getSecretSettings());
         }
@@ -842,115 +880,140 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
 
     public void testParsePersistedConfig_CreatesAnAmazonBedrockChatCompletionModel() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createChatCompletionRequestSettingsMap("region", "model", "anthropic");
-            var taskSettingsMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.2, 128);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
-
-            var persistedConfig = getPersistedConfigMap(settingsMap, taskSettingsMap, secretSettingsMap);
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
-
-            assertThat(model, instanceOf(AmazonBedrockChatCompletionModel.class));
-
-            var settings = (AmazonBedrockChatCompletionServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.ANTHROPIC));
-            var taskSettings = (AmazonBedrockChatCompletionTaskSettings) model.getTaskSettings();
-            assertThat(taskSettings.temperature(), is(1.0));
-            assertThat(taskSettings.topP(), is(0.5));
-            assertThat(taskSettings.topK(), is(0.2));
-            assertThat(taskSettings.maxNewTokens(), is(128));
-            assertNull(model.getSecretSettings());
+            assertCreatesAnAmazonBedrockChatCompletionModel(TaskType.COMPLETION, service);
+            assertCreatesAnAmazonBedrockChatCompletionModel(TaskType.CHAT_COMPLETION, service);
         }
+    }
+
+    private void assertCreatesAnAmazonBedrockChatCompletionModel(TaskType taskType, AmazonBedrockService service) {
+        var expectedProviderString = "anthropic";
+        var expectedProvider = AmazonBedrockProvider.ANTHROPIC;
+        var expectedTemperature = 1.0;
+        var expectedTopP = 0.5;
+        var expectedTopK = 0.2;
+        var expectedMaxNewTokens = 128;
+
+        var settingsMap = createChatCompletionRequestSettingsMap(REGION_VALUE, MODEL_VALUE, expectedProviderString);
+        var taskSettingsMap = getChatCompletionTaskSettingsMap(expectedTemperature, expectedTopP, expectedTopK, expectedMaxNewTokens);
+        var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
+
+        var persistedConfig = getPersistedConfigMap(settingsMap, taskSettingsMap, secretSettingsMap);
+        var model = service.parsePersistedConfig("id", taskType, persistedConfig.config());
+
+        assertThat(model, instanceOf(AmazonBedrockChatCompletionModel.class));
+
+        var settings = (AmazonBedrockChatCompletionServiceSettings) model.getServiceSettings();
+        assertThat(settings.region(), is(REGION_VALUE));
+        assertThat(settings.modelId(), is(MODEL_VALUE));
+        assertThat(settings.provider(), is(expectedProvider));
+        var taskSettings = (AmazonBedrockCompletionTaskSettings) model.getTaskSettings();
+        assertThat(taskSettings.temperature(), is(expectedTemperature));
+        assertThat(taskSettings.topP(), is(expectedTopP));
+        assertThat(taskSettings.topK(), is(expectedTopK));
+        assertThat(taskSettings.maxNewTokens(), is(expectedMaxNewTokens));
+        assertNull(model.getSecretSettings());
     }
 
     public void testParsePersistedConfig_ThrowsErrorTryingToParseInvalidModel() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var settingsMap = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null);
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
 
             var persistedConfig = getPersistedConfigMap(settingsMap, new HashMap<>(Map.of()), secretSettingsMap);
 
             var thrownException = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> service.parsePersistedConfig("id", TaskType.SPARSE_EMBEDDING, persistedConfig.config())
+                () -> service.parsePersistedConfig(INFERENCE_ID_VALUE, TaskType.SPARSE_EMBEDDING, persistedConfig.config())
             );
 
+            assertThat(thrownException.getMessage(), containsString("Failed to parse stored model [id] for [amazonbedrock] service"));
             assertThat(
                 thrownException.getMessage(),
-                is("Failed to parse stored model [id] for [amazonbedrock] service, please delete and add the service again")
+                containsString("The [amazonbedrock] service does not support task type [sparse_embedding]")
             );
         }
     }
 
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var settingsMap = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null);
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
 
             var persistedConfig = getPersistedConfigMap(settingsMap, new HashMap<>(Map.of()), secretSettingsMap);
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+            assertThat(settings.region(), is(REGION_VALUE));
+            assertThat(settings.modelId(), is(MODEL_VALUE));
+            assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             assertNull(model.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInServiceSettings() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createEmbeddingsRequestSettingsMap("region", "model", "amazontitan", null, false, null, null);
+            var settingsMap = createEmbeddingsRequestSettingsMap(REGION_VALUE, MODEL_VALUE, "amazontitan", null, false, null, null);
             settingsMap.put("extra_key", "value");
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+            var secretSettingsMap = getAmazonBedrockSecretSettingsMap(ACCESS_KEY_VALUE, SECRET_KEY_VALUE);
 
             var persistedConfig = getPersistedConfigMap(settingsMap, new HashMap<>(Map.of()), secretSettingsMap);
             persistedConfig.config().put("extra_key", "value");
 
-            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+            var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, TaskType.TEXT_EMBEDDING, persistedConfig.config());
 
             assertThat(model, instanceOf(AmazonBedrockEmbeddingsModel.class));
 
             var settings = (AmazonBedrockEmbeddingsServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.AMAZONTITAN));
+            assertThat(settings.region(), is(REGION_VALUE));
+            assertThat(settings.modelId(), is(MODEL_VALUE));
+            assertThat(settings.provider(), is(AMAZON_BEDROCK_PROVIDER_VALUE));
             assertNull(model.getSecretSettings());
         }
     }
 
     public void testParsePersistedConfig_NotThrowWhenAnExtraKeyExistsInTaskSettings() throws IOException {
         try (var service = createAmazonBedrockService()) {
-            var settingsMap = createChatCompletionRequestSettingsMap("region", "model", "anthropic");
-            var taskSettingsMap = getChatCompletionTaskSettingsMap(1.0, 0.5, 0.2, 128);
-            taskSettingsMap.put("extra_key", "value");
-            var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
-
-            var persistedConfig = getPersistedConfigMap(settingsMap, taskSettingsMap, secretSettingsMap);
-            var model = service.parsePersistedConfig("id", TaskType.COMPLETION, persistedConfig.config());
-
-            assertThat(model, instanceOf(AmazonBedrockChatCompletionModel.class));
-
-            var settings = (AmazonBedrockChatCompletionServiceSettings) model.getServiceSettings();
-            assertThat(settings.region(), is("region"));
-            assertThat(settings.modelId(), is("model"));
-            assertThat(settings.provider(), is(AmazonBedrockProvider.ANTHROPIC));
-            var taskSettings = (AmazonBedrockChatCompletionTaskSettings) model.getTaskSettings();
-            assertThat(taskSettings.temperature(), is(1.0));
-            assertThat(taskSettings.topP(), is(0.5));
-            assertThat(taskSettings.topK(), is(0.2));
-            assertThat(taskSettings.maxNewTokens(), is(128));
-            assertNull(model.getSecretSettings());
+            assertNotThrowWhenAnExtraKeyExistsInTaskSettings(TaskType.COMPLETION, service);
+            assertNotThrowWhenAnExtraKeyExistsInTaskSettings(TaskType.CHAT_COMPLETION, service);
         }
     }
 
+    private void assertNotThrowWhenAnExtraKeyExistsInTaskSettings(TaskType taskType, AmazonBedrockService service) {
+        var expectedProviderString = "anthropic";
+        var expectedProvider = AmazonBedrockProvider.ANTHROPIC;
+        var expectedTemperature = 1.0;
+        var expectedTopP = 0.5;
+        var expectedTopK = 0.2;
+        var expectedMaxNewTokens = 128;
+
+        var settingsMap = createChatCompletionRequestSettingsMap(REGION_VALUE, MODEL_VALUE, expectedProviderString);
+        var taskSettingsMap = getChatCompletionTaskSettingsMap(expectedTemperature, expectedTopP, expectedTopK, expectedMaxNewTokens);
+        taskSettingsMap.put("extra_key", "value");
+        var secretSettingsMap = getAmazonBedrockSecretSettingsMap("access", "secret");
+
+        var persistedConfig = getPersistedConfigMap(settingsMap, taskSettingsMap, secretSettingsMap);
+        var model = service.parsePersistedConfig(INFERENCE_ID_VALUE, taskType, persistedConfig.config());
+
+        assertThat(model, instanceOf(AmazonBedrockChatCompletionModel.class));
+
+        var settings = (AmazonBedrockChatCompletionServiceSettings) model.getServiceSettings();
+        assertThat(settings.region(), is(REGION_VALUE));
+        assertThat(settings.modelId(), is(MODEL_VALUE));
+        assertThat(settings.provider(), is(expectedProvider));
+        var taskSettings = (AmazonBedrockCompletionTaskSettings) model.getTaskSettings();
+        assertThat(taskSettings.temperature(), is(expectedTemperature));
+        assertThat(taskSettings.topP(), is(expectedTopP));
+        assertThat(taskSettings.topK(), is(expectedTopK));
+        assertThat(taskSettings.maxNewTokens(), is(expectedMaxNewTokens));
+        assertNull(model.getSecretSettings());
+    }
+
     public void testInfer_ThrowsErrorWhenModelIsNotAmazonBedrockModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -989,7 +1052,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
         verify(sender, times(1)).close();
         verifyNoMoreInteractions(factory);
@@ -997,7 +1060,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_SendsRequest_ForTitanEmbeddingsModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1006,12 +1069,12 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             mockClusterServiceEmpty()
         );
         var model = AmazonBedrockEmbeddingsModelTests.createModel(
-            "id",
-            "region",
-            "model",
-            AmazonBedrockProvider.AMAZONTITAN,
-            "access",
-            "secret"
+            INFERENCE_ID_VALUE,
+            REGION_VALUE,
+            MODEL_VALUE,
+            AMAZON_BEDROCK_PROVIDER_VALUE,
+            ACCESS_KEY_VALUE,
+            SECRET_KEY_VALUE
         );
 
         try (
@@ -1023,7 +1086,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             );
             var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()
         ) {
-            var results = new TextEmbeddingFloatResults(List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F })));
+            var results = new DenseEmbeddingFloatResults(List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F })));
             requestSender.enqueue(results);
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             service.infer(
@@ -1046,7 +1109,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_SendsRequest_ForCohereEmbeddingsModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1064,18 +1127,18 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             )
         ) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
-                var results = new TextEmbeddingFloatResults(
-                    List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
+                var results = new DenseEmbeddingFloatResults(
+                    List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
                 );
                 requestSender.enqueue(results);
 
                 var model = AmazonBedrockEmbeddingsModelTests.createModel(
-                    "id",
-                    "region",
-                    "model",
+                    INFERENCE_ID_VALUE,
+                    REGION_VALUE,
+                    MODEL_VALUE,
                     AmazonBedrockProvider.COHERE,
-                    "access",
-                    "secret"
+                    ACCESS_KEY_VALUE,
+                    SECRET_KEY_VALUE
                 );
                 PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
                 service.infer(
@@ -1099,7 +1162,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_SendsRequest_ForChatCompletionModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1120,13 +1183,13 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 var mockResults = new ChatCompletionResults(List.of(new ChatCompletionResults.Result("test result")));
                 requestSender.enqueue(mockResults);
 
-                var model = AmazonBedrockChatCompletionModelTests.createModel(
-                    "id",
-                    "region",
-                    "model",
-                    AmazonBedrockProvider.AMAZONTITAN,
-                    "access",
-                    "secret"
+                var model = AmazonBedrockChatCompletionModelTests.createCompletionModel(
+                    INFERENCE_ID_VALUE,
+                    REGION_VALUE,
+                    MODEL_VALUE,
+                    AMAZON_BEDROCK_PROVIDER_VALUE,
+                    ACCESS_KEY_VALUE,
+                    SECRET_KEY_VALUE
                 );
                 PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
                 service.infer(
@@ -1149,8 +1212,58 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    public void testInfer_SendsUnifiedRequest_ForChatCompletionModel() throws IOException {
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+
+        when(factory.createSender()).thenReturn(sender);
+
+        var amazonBedrockFactory = new AmazonBedrockMockRequestSender.Factory(
+            ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
+            mockClusterServiceEmpty()
+        );
+
+        try (
+            var service = new AmazonBedrockService(
+                factory,
+                amazonBedrockFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
+            )
+        ) {
+            try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
+                var mockResults = new ChatCompletionResults(List.of(new ChatCompletionResults.Result("test result")));
+                requestSender.enqueue(mockResults);
+
+                var model = AmazonBedrockChatCompletionModelTests.createChatCompletionModel(
+                    INFERENCE_ID_VALUE,
+                    REGION_VALUE,
+                    MODEL_VALUE,
+                    AmazonBedrockProvider.AMAZONTITAN,
+                    ACCESS_KEY_VALUE,
+                    SECRET_KEY_VALUE
+                );
+                PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+                service.unifiedCompletionInfer(
+                    model,
+                    UnifiedCompletionRequest.of(
+                        List.of(
+                            new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString("hello"), "user", null, null)
+                        )
+                    ),
+                    TIMEOUT,
+                    listener
+                );
+
+                var result = listener.actionGet(TIMEOUT);
+
+                assertThat(result.asMap(), Matchers.is(buildExpectationCompletion(List.of("test result"))));
+            }
+        }
+    }
+
     public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1167,7 +1280,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                 mockClusterServiceEmpty()
             )
         ) {
-            var model = AmazonBedrockChatCompletionModelTests.createModel(
+            var model = AmazonBedrockChatCompletionModelTests.createCompletionModel(
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
                 randomAlphaOfLength(10),
@@ -1191,7 +1304,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
     }
 
     private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1236,7 +1349,7 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_UnauthorizedResponse() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1259,10 +1372,10 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             );
 
             var model = AmazonBedrockEmbeddingsModelTests.createModel(
-                "id",
+                INFERENCE_ID_VALUE,
                 "us-east-1",
                 "amazon.titan-embed-text-v1",
-                AmazonBedrockProvider.AMAZONTITAN,
+                AMAZON_BEDROCK_PROVIDER_VALUE,
                 "_INVALID_AWS_ACCESS_KEY_",
                 "_INVALID_AWS_SECRET_KEY_"
             );
@@ -1287,20 +1400,20 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
 
     public void testSupportsStreaming() throws IOException {
         try (var service = new AmazonBedrockService(mock(), mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION)));
+            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
             assertFalse(service.canStream(TaskType.ANY));
         }
     }
 
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
         var model = AmazonBedrockEmbeddingsModelTests.createModel(
-            "id",
-            "region",
-            "model",
-            AmazonBedrockProvider.AMAZONTITAN,
+            INFERENCE_ID_VALUE,
+            REGION_VALUE,
+            MODEL_VALUE,
+            AMAZON_BEDROCK_PROVIDER_VALUE,
             createRandomChunkingSettings(),
-            "access",
-            "secret"
+            ACCESS_KEY_VALUE,
+            SECRET_KEY_VALUE
         );
 
         testChunkedInfer(model);
@@ -1308,20 +1421,64 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
 
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
         var model = AmazonBedrockEmbeddingsModelTests.createModel(
-            "id",
-            "region",
-            "model",
-            AmazonBedrockProvider.AMAZONTITAN,
+            INFERENCE_ID_VALUE,
+            REGION_VALUE,
+            MODEL_VALUE,
+            AMAZON_BEDROCK_PROVIDER_VALUE,
             null,
-            "access",
-            "secret"
+            ACCESS_KEY_VALUE,
+            SECRET_KEY_VALUE
         );
 
         testChunkedInfer(model);
     }
 
+    public void testChunkedInfer_noInputs() throws IOException {
+        var model = AmazonBedrockEmbeddingsModelTests.createModel(
+            INFERENCE_ID_VALUE,
+            REGION_VALUE,
+            MODEL_VALUE,
+            AMAZON_BEDROCK_PROVIDER_VALUE,
+            null,
+            ACCESS_KEY_VALUE,
+            SECRET_KEY_VALUE
+        );
+
+        var sender = createMockSender();
+        var factory = mock(HttpRequestSender.Factory.class);
+        when(factory.createSender()).thenReturn(sender);
+
+        var amazonBedrockFactory = new AmazonBedrockMockRequestSender.Factory(
+            ServiceComponentsTests.createWithSettings(threadPool, Settings.EMPTY),
+            mockClusterServiceEmpty()
+        );
+
+        try (
+            var service = new AmazonBedrockService(
+                factory,
+                amazonBedrockFactory,
+                createWithEmptySettings(threadPool),
+                mockClusterServiceEmpty()
+            )
+        ) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+        }
+    }
+
     private void testChunkedInfer(AmazonBedrockEmbeddingsModel model) throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
@@ -1340,14 +1497,14 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
         ) {
             try (var requestSender = (AmazonBedrockMockRequestSender) amazonBedrockFactory.createSender()) {
                 {
-                    var mockResults1 = new TextEmbeddingFloatResults(
-                        List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
+                    var mockResults1 = new DenseEmbeddingFloatResults(
+                        List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.123F, 0.678F }))
                     );
                     requestSender.enqueue(mockResults1);
                 }
                 {
-                    var mockResults2 = new TextEmbeddingFloatResults(
-                        List.of(new TextEmbeddingFloatResults.Embedding(new float[] { 0.223F, 0.278F }))
+                    var mockResults2 = new DenseEmbeddingFloatResults(
+                        List.of(new DenseEmbeddingFloatResults.Embedding(new float[] { 0.223F, 0.278F }))
                     );
                     requestSender.enqueue(mockResults2);
                 }
@@ -1370,10 +1527,10 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                     var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                     assertThat(floatResult.chunks(), hasSize(1));
                     assertEquals(new ChunkedInference.TextOffset(0, 1), floatResult.chunks().get(0).offset());
-                    assertThat(floatResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                    assertThat(floatResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                     assertArrayEquals(
                         new float[] { 0.123F, 0.678F },
-                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                         0.0f
                     );
                 }
@@ -1382,10 +1539,10 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
                     var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                     assertThat(floatResult.chunks(), hasSize(1));
                     assertEquals(new ChunkedInference.TextOffset(0, 2), floatResult.chunks().get(0).offset());
-                    assertThat(floatResult.chunks().get(0).embedding(), instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                    assertThat(floatResult.chunks().get(0).embedding(), instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                     assertArrayEquals(
                         new float[] { 0.223F, 0.278F },
-                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values(),
                         0.0f
                     );
                 }
@@ -1459,5 +1616,83 @@ public class AmazonBedrockServiceTests extends InferenceServiceTestCase {
             new HashMap<>(Map.of(ModelConfigurations.SERVICE_SETTINGS, serviceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)),
             new HashMap<>(Map.of(ModelSecrets.SECRET_SETTINGS, secretSettings))
         );
+    }
+
+    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException {
+        var model = createTestModel(TaskType.TEXT_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException {
+        var model = createTestModel(TaskType.COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        TaskType unsupportedTaskType = TaskType.SPARSE_EMBEDDING;
+        var modelConfigurations = new ModelConfigurations(
+            INFERENCE_ID_VALUE,
+            unsupportedTaskType,
+            AmazonBedrockService.NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    Strings.format(
+                        """
+                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
+                            Please delete and add the service again""",
+                        INFERENCE_ID_VALUE,
+                        AmazonBedrockService.NAME,
+                        AmazonBedrockService.NAME,
+                        unsupportedTaskType
+                    )
+                )
+
+            );
+        }
+    }
+
+    private Model createTestModel(TaskType taskType) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> AmazonBedrockEmbeddingsModelTests.createModel(
+                INFERENCE_ID_VALUE,
+                REGION_VALUE,
+                MODEL_VALUE,
+                AMAZON_BEDROCK_PROVIDER_VALUE,
+                ACCESS_KEY_VALUE,
+                SECRET_KEY_VALUE
+            );
+            case COMPLETION -> AmazonBedrockChatCompletionModelTests.createCompletionModel(
+                INFERENCE_ID_VALUE,
+                REGION_VALUE,
+                MODEL_VALUE,
+                AMAZON_BEDROCK_PROVIDER_VALUE,
+                ACCESS_KEY_VALUE,
+                SECRET_KEY_VALUE
+            );
+            case CHAT_COMPLETION -> AmazonBedrockChatCompletionModelTests.createChatCompletionModel(
+                INFERENCE_ID_VALUE,
+                REGION_VALUE,
+                MODEL_VALUE,
+                AMAZON_BEDROCK_PROVIDER_VALUE,
+                ACCESS_KEY_VALUE,
+                SECRET_KEY_VALUE
+            );
+            default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
+        };
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, is(model));
+        }
     }
 }

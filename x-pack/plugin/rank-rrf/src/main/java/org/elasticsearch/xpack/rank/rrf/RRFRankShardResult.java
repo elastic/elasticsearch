@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.rank.RankShardResult;
@@ -49,7 +48,7 @@ public class RRFRankShardResult implements RankShardResult {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_8_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

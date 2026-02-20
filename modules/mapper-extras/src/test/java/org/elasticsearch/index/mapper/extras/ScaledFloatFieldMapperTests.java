@@ -46,7 +46,6 @@ import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
@@ -341,7 +340,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         }));
         var ft = (ScaledFloatFieldMapper.ScaledFloatFieldType) mapperService.fieldType("field");
         assertThat(ft.getMetricType(), equalTo(randomMetricType));
-        assertThat(ft.isIndexed(), is(false));
+        assertTrue(ft.hasDocValues());
+        assertFalse(ft.indexType().hasDenseIndex());
     }
 
     @Override
@@ -648,5 +648,13 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
 
     private static double randomValue() {
         return randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(
+            // TODO doubles currently disable pruning, can we re-enable?
+            new SortShortcutSupport(this::minimalMapping, this::writeField, false)
+        );
     }
 }

@@ -7,15 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
+import java.net.URISyntaxException;
 import java.util.Objects;
 
-public abstract class ElasticInferenceServiceModel extends RateLimitGroupingModel {
+public class ElasticInferenceServiceModel extends RateLimitGroupingModel {
 
     private final ElasticInferenceServiceRateLimitServiceSettings rateLimitServiceSettings;
 
@@ -52,5 +54,23 @@ public abstract class ElasticInferenceServiceModel extends RateLimitGroupingMode
 
     public ElasticInferenceServiceComponents elasticInferenceServiceComponents() {
         return elasticInferenceServiceComponents;
+    }
+
+    public URIBuilder getBaseURIBuilder() throws URISyntaxException {
+        return new URIBuilder(elasticInferenceServiceComponents.elasticInferenceServiceUrl());
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o == null || getClass() != o.getClass()) return false;
+        if (super.equals(o) == false) return false;
+        ElasticInferenceServiceModel that = (ElasticInferenceServiceModel) o;
+        return Objects.equals(rateLimitServiceSettings, that.rateLimitServiceSettings)
+            && Objects.equals(elasticInferenceServiceComponents, that.elasticInferenceServiceComponents);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), rateLimitServiceSettings, elasticInferenceServiceComponents);
     }
 }

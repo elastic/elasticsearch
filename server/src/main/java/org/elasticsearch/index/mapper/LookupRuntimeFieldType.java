@@ -181,7 +181,7 @@ public final class LookupRuntimeFieldType extends MappedFieldType {
         String targetField,
         List<FieldAndFormat> fetchFields
     ) {
-        super(name, false, false, false, TextSearchInfo.NONE, meta);
+        super(name, IndexType.NONE, false, meta);
         this.lookupIndex = lookupIndex;
         this.inputField = inputField;
         this.targetField = targetField;

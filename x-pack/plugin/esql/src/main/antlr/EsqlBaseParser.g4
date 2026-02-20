@@ -21,7 +21,12 @@ options {
 }
 
 import Expression,
-       Join;
+       Join,
+       Promql;
+
+statements
+    : setCommand* singleStatement EOF
+    ;
 
 singleStatement
     : query EOF
@@ -36,9 +41,11 @@ sourceCommand
     : fromCommand
     | rowCommand
     | showCommand
+    | timeSeriesCommand
+    | promqlCommand
     // in development
-    | {this.isDevVersion()}? timeSeriesCommand
     | {this.isDevVersion()}? explainCommand
+    | {this.isDevVersion()}? externalCommand
     ;
 
 processingCommand
@@ -60,11 +67,14 @@ processingCommand
     | sampleCommand
     | forkCommand
     | rerankCommand
+    | inlineStatsCommand
+    | fuseCommand
+    | uriPartsCommand
+    | metricsInfoCommand
     // in development
-    | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? fuseCommand
+    | {this.isDevVersion()}? mmrCommand
     ;
 
 whereCommand
@@ -87,29 +97,33 @@ field
     : (qualifiedName ASSIGN)? booleanExpression
     ;
 
-rerankFields
-    : rerankField (COMMA rerankField)*
-    ;
-
-rerankField
-    : qualifiedName (ASSIGN booleanExpression)?
-    ;
-
 fromCommand
     : FROM indexPatternAndMetadataFields
     ;
 
 timeSeriesCommand
-    : DEV_TIME_SERIES indexPatternAndMetadataFields
+    : TS indexPatternAndMetadataFields
     ;
 
-indexPatternAndMetadataFields:
-    indexPattern (COMMA indexPattern)* metadata?
+externalCommand
+    : EXTERNAL stringOrParameter commandNamedParameters
+    ;
+
+indexPatternAndMetadataFields
+    : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* metadata?
+    ;
+
+indexPatternOrSubquery
+    : indexPattern
+    | {this.isDevVersion()}? subquery
+    ;
+
+subquery
+    : LP fromCommand (PIPE processingCommand)* RP
     ;
 
 indexPattern
-    : clusterString COLON unquotedIndexString
-    | unquotedIndexString CAST_OP selectorString
+    : (clusterString COLON)? unquotedIndexString (CAST_OP selectorString)?
     | indexString
     ;
 
@@ -199,6 +213,11 @@ identifierOrParameter
     | doubleParameter
     ;
 
+stringOrParameter
+    : string
+    | parameter
+    ;
+
 limitCommand
     : LIMIT constant
     ;
@@ -246,7 +265,7 @@ commandNamedParameters
     ;
 
 grokCommand
-    : GROK primaryExpression string
+    : GROK primaryExpression string (COMMA string)*
     ;
 
 mvExpandCommand
@@ -308,11 +327,36 @@ forkSubQueryProcessingCommand
     ;
 
 rerankCommand
-    : RERANK (targetField=qualifiedName ASSIGN)? queryText=constant ON rerankFields commandNamedParameters
+    : RERANK (targetField=qualifiedName ASSIGN)? queryText=constant ON rerankFields=fields commandNamedParameters
     ;
 
 completionCommand
     : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression commandNamedParameters
+    ;
+
+inlineStatsCommand
+    : INLINE INLINE_STATS stats=aggFields (BY grouping=fields)?
+    // TODO: drop after next minor release
+    | INLINESTATS stats=aggFields (BY grouping=fields)?
+    ;
+
+fuseCommand
+    : FUSE (fuseType=identifier)? (fuseConfiguration)*
+    ;
+
+fuseConfiguration
+    : SCORE BY score=qualifiedName
+    | KEY BY key=fuseKeyByFields
+    | GROUP BY group=qualifiedName
+    | WITH options=mapExpression
+    ;
+
+fuseKeyByFields
+   : qualifiedName (COMMA qualifiedName)*
+   ;
+
+metricsInfoCommand
+    : METRICS_INFO
     ;
 
 //
@@ -322,14 +366,27 @@ lookupCommand
     : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
     ;
 
-inlinestatsCommand
-    : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
-    ;
-
 insistCommand
     : DEV_INSIST qualifiedNamePatterns
     ;
 
-fuseCommand
-    : DEV_FUSE
+uriPartsCommand
+    : URI_PARTS qualifiedName ASSIGN primaryExpression
+    ;
+
+setCommand
+    : SET setField SEMICOLON
+    ;
+
+setField
+    : identifier ASSIGN ( constant | mapExpression )
+    ;
+
+mmrCommand
+    :  DEV_MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    ;
+
+mmrQueryVectorParams
+    : parameter                           # mmrQueryVectorParameter
+    | primaryExpression                   # mmrQueryVectorExpression
     ;

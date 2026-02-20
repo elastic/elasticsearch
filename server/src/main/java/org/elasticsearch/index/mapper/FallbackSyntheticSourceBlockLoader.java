@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -23,7 +24,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.Stack;
-import java.util.stream.Collectors;
 
 /**
  * Block loader for fields that use fallback synthetic source implementation.
@@ -55,7 +55,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
     }
 
     @Override
-    public ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) throws IOException {
+    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         return null;
     }
 
@@ -66,14 +66,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        Set<String> ignoredFieldNames;
-        if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.PER_FIELD_IGNORED_SOURCE) {
-            ignoredFieldNames = fieldPaths.stream().map(IgnoredSourceFieldMapper::ignoredFieldName).collect(Collectors.toSet());
-        } else {
-            ignoredFieldNames = Set.of(IgnoredSourceFieldMapper.NAME);
-        }
-
-        return new StoredFieldsSpec(false, false, ignoredFieldNames);
+        return StoredFieldsSpec.withSourcePaths(ignoredSourceFormat, Set.of(fieldName));
     }
 
     @Override
@@ -84,6 +77,11 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
     @Override
     public SortedSetDocValues ordinals(LeafReaderContext context) throws IOException {
         throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public String toString() {
+        return "FallbackToSource[" + reader + "]";
     }
 
     public static Set<String> splitIntoFieldPaths(String fieldName) {
@@ -269,6 +267,11 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         @Override
         public boolean canReuse(int startingDocID) {
             return true;
+        }
+
+        @Override
+        public String toString() {
+            return "FallbackToSource[" + reader + "]";
         }
     }
 

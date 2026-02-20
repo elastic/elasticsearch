@@ -40,11 +40,15 @@ $endif$
 
     @Override
 $if(BytesRef)$
-    public BytesRef getBytesRef(int position, BytesRef ignore) {
+    public BytesRef getBytesRef(int position, BytesRef scratch) {
+        scratch.bytes = value.bytes;
+        scratch.offset = value.offset;
+        scratch.length = value.length;
+        return scratch;
 $else$
     public $type$ get$Type$(int position) {
-$endif$
         return value;
+$endif$
     }
 
     @Override
@@ -60,7 +64,7 @@ $if(BytesRef)$
 $endif$
 
     @Override
-    public $Type$Vector filter(int... positions) {
+    public $Type$Vector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstant$Type$Vector(value, positions.length);
     }
 
@@ -180,13 +184,13 @@ $endif$
     }
 
 $if(BytesRef)$
-    public static long ramBytesUsed(BytesRef value) {
-        return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(value.bytes);
+    public static long ramBytesUsedWithLength(BytesRef value) {
+        return BASE_RAM_BYTES_USED + RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + value.length);
     }
 
     @Override
     public long ramBytesUsed() {
-        return ramBytesUsed(value);
+        return ramBytesUsedWithLength(value);
     }
 
 $else$

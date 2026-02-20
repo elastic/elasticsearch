@@ -174,6 +174,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         ShardId shardId = indexShard.shardId();
         if (request.refresh()) {
             logger.trace("send refresh action for shard {}", shardId);
+            // TODO: Do we need to pass in shardCountSummary here ?
             var refreshRequest = new BasicReplicationRequest(shardId);
             refreshRequest.setParentTask(request.getParentTask());
             client.executeLocally(
@@ -330,7 +331,8 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                     item.versionType(),
                     item.fetchSourceContext(),
                     request.isForceSyntheticSource(),
-                    mget
+                    mget,
+                    request.getSplitShardCountSummary()
                 );
             response.add(request.locations.get(location), new GetResponse(getResult));
         } catch (RuntimeException e) {

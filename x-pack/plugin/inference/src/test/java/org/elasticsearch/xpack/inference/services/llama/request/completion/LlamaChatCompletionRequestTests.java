@@ -36,7 +36,7 @@ public class LlamaChatCompletionRequestTests extends ESTestCase {
         assertThat(requestMap.get("stream"), is(true));
         assertThat(requestMap.get("model"), is("model"));
         assertThat(requestMap.get("n"), is(1));
-        assertThat(requestMap.get("stream_options"), is(Map.of("include_usage", true)));
+        assertNull(requestMap.get("stream_options"));
         assertThat(requestMap.get("messages"), is(List.of(Map.of("role", "user", "content", input))));
         assertThat(httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
     }

@@ -46,7 +46,7 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
 
   public static CountDistinctLongAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels, int precision) {
-    return new CountDistinctLongAggregatorFunction(driverContext, channels, CountDistinctLongAggregator.initSingle(driverContext.bigArrays(), precision), precision);
+    return new CountDistinctLongAggregatorFunction(driverContext, channels, CountDistinctLongAggregator.initSingle(driverContext, precision), precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -108,11 +108,12 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
 
   private void addRawBlock(LongBlock vBlock) {
     for (int p = 0; p < vBlock.getPositionCount(); p++) {
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
         CountDistinctLongAggregator.combine(state, vValue);
@@ -125,11 +126,12 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
       if (mask.getBoolean(p) == false) {
         continue;
       }
-      if (vBlock.isNull(p)) {
+      int vValueCount = vBlock.getValueCount(p);
+      if (vValueCount == 0) {
         continue;
       }
       int vStart = vBlock.getFirstValueIndex(p);
-      int vEnd = vStart + vBlock.getValueCount(p);
+      int vEnd = vStart + vValueCount;
       for (int vOffset = vStart; vOffset < vEnd; vOffset++) {
         long vValue = vBlock.getLong(vOffset);
         CountDistinctLongAggregator.combine(state, vValue);
@@ -147,8 +149,8 @@ public final class CountDistinctLongAggregatorFunction implements AggregatorFunc
     }
     BytesRefVector hll = ((BytesRefBlock) hllUncast).asVector();
     assert hll.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    CountDistinctLongAggregator.combineIntermediate(state, hll.getBytesRef(0, scratch));
+    BytesRef hllScratch = new BytesRef();
+    CountDistinctLongAggregator.combineIntermediate(state, hll.getBytesRef(0, hllScratch));
   }
 
   @Override

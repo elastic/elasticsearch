@@ -8,7 +8,7 @@ applies_to:
 
 # Retrieve stored fields using the Get document API [get-stored-fields]
 
-Use the `stored_fields` query parameter in a [Get document](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get) API request to retrieve fields marked as stored (`"store": true`) in the index mapping.
+You can use the Get API's [`stored_fields` parameter](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-get#operation-get-stored_fields) to retrieve fields marked as stored (`"store": true`) in the index mapping.
 
 Fields not marked as stored are excluded from the response, even if specified in the request.
 
@@ -43,7 +43,6 @@ PUT my-index-000001/_doc/1
   "tags": [ "production" ]
 }
 ```
-
 % TEST[continued]
 
 This request retrieves the stored fields from the document:
@@ -51,7 +50,6 @@ This request retrieves the stored fields from the document:
 ```console
 GET my-index-000001/_doc/1?stored_fields=tags,counter
 ```
-
 % TEST[continued]
 
 The API returns the following response:
@@ -61,7 +59,7 @@ The API returns the following response:
   "_index": "my-index-000001",
   "_id": "1",
   "_version": 1,
-  "_seq_no": 22,
+  "_seq_no": 0,
   "_primary_term": 1,
   "found": true,
   "fields": {
@@ -71,7 +69,6 @@ The API returns the following response:
   }
 }
 ```
-
 % TESTRESPONSE[s/"_seq_no" : \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 Although the `counter` field is specified in the request, it's not included in the response because it's not actually a stored field.

@@ -21,6 +21,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkE
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadJdkImageEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
@@ -113,7 +114,28 @@ class HardcodedEntitlements {
                     new FilesEntitlement(serverModuleFileDatas)
                 )
             ),
-            new Scope("java.desktop", List.of(new LoadNativeLibrariesEntitlement())),
+            new Scope(
+                "java.desktop",
+                List.of(
+                    new LoadNativeLibrariesEntitlement(),
+                    new ManageThreadsEntitlement() // For sun.java2d.Disposer. TODO: https://elasticco.atlassian.net/browse/ES-12888
+                )
+            ),
+            new Scope(
+                "java.xml",
+                List.of(
+                    new ReadJdkImageEntitlement(),
+                    // java.xml does some reflective stuff that reads calling jars, so allow reading the codebases
+                    // of any code in the system so that they can all use java.xml
+                    new FilesEntitlement(
+                        List.of(
+                            FilesEntitlement.FileData.ofBaseDirPath(LIB, READ),
+                            FilesEntitlement.FileData.ofBaseDirPath(MODULES, READ),
+                            FilesEntitlement.FileData.ofBaseDirPath(PLUGINS, READ)
+                        )
+                    )
+                )
+            ),
             new Scope("org.apache.httpcomponents.httpclient", List.of(new OutboundNetworkEntitlement())),
             new Scope(
                 "org.apache.lucene.core",

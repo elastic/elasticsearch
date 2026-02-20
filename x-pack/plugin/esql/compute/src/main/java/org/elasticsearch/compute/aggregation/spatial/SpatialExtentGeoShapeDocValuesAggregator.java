@@ -10,6 +10,8 @@ package org.elasticsearch.compute.aggregation.spatial;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
+import org.elasticsearch.compute.ann.Position;
+import org.elasticsearch.compute.data.IntBlock;
 
 /**
  * Computes the extent of a set of geo shapes read from doc-values, which means they are encoded as an array of integers.
@@ -38,11 +40,17 @@ class SpatialExtentGeoShapeDocValuesAggregator extends SpatialExtentLongitudeWra
         return new SpatialExtentGroupingStateWrappedLongitudeState();
     }
 
-    public static void combine(SpatialExtentStateWrappedLongitudeState current, int[] values) {
-        current.add(values);
+    public static void combine(SpatialExtentStateWrappedLongitudeState current, @Position int p, IntBlock values) {
+        if (values.getValueCount(p) == 0) {
+            return;
+        }
+        current.add(p, values);
     }
 
-    public static void combine(SpatialExtentGroupingStateWrappedLongitudeState current, int groupId, int[] values) {
-        current.add(groupId, values);
+    public static void combine(SpatialExtentGroupingStateWrappedLongitudeState current, int groupId, @Position int p, IntBlock values) {
+        if (values.isNull(p)) {
+            return;
+        }
+        current.add(groupId, p, values);
     }
 }

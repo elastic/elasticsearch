@@ -2,7 +2,8 @@
 
 ## `LAST` [esql-last]
 ```{applies_to}
-stack: unavailable
+stack: preview
+serverless: preview
 ```
 
 **Syntax**
@@ -23,4 +24,7 @@ stack: unavailable
 :::
 
 :::{include} ../examples/last.md
+:::
+
+:::{include} ../appendix/last.md
 :::

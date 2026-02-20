@@ -11,8 +11,7 @@ package org.elasticsearch.entitlement.runtime.policy;
 
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager.ModuleEntitlements;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.CreateClassLoaderEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.Entitlement;
@@ -21,6 +20,7 @@ import org.elasticsearch.entitlement.runtime.policy.entitlements.InboundNetworkE
 import org.elasticsearch.entitlement.runtime.policy.entitlements.LoadNativeLibrariesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ManageThreadsEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.OutboundNetworkEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadJdkImageEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.ReadStoreAttributesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.SetHttpsConnectionPropertiesEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.entitlements.WriteSystemPropertiesEntitlement;
@@ -33,7 +33,6 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLConnection;
-import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -57,6 +56,7 @@ import static org.elasticsearch.entitlement.runtime.policy.PathLookup.BaseDir.TE
  */
 @SuppressForbidden(reason = "Explicitly checking APIs that are forbidden")
 public class PolicyCheckerImpl implements PolicyChecker {
+    private static String CHECK_METHOD_NAME = "check$";
 
     protected final Set<Package> suppressFailureLogPackages;
     /**
@@ -172,11 +172,11 @@ public class PolicyCheckerImpl implements PolicyChecker {
         // This way, we don't need to painstakingly describe every individual global-state change.
         return StackWalker.getInstance()
             .walk(
-                frames -> frames.map(StackWalker.StackFrame::getMethodName)
-                    .dropWhile(not(methodName -> methodName.startsWith(InstrumentationService.CHECK_METHOD_PREFIX)))
+                frames -> frames.dropWhile(not(frame -> frame.getMethodName().equals(CHECK_METHOD_NAME)))
+                    .skip(1)
                     .findFirst()
-            )
-            .map(this::operationDescription);
+                    .map(frame -> frame.getClassName() + "." + frame.getMethodName() + "()")
+            );
     }
 
     /**
@@ -205,16 +205,13 @@ public class PolicyCheckerImpl implements PolicyChecker {
     public void checkFileRead(Class<?> callerClass, Path path) {
         try {
             checkFileRead(callerClass, path, false);
-        } catch (NoSuchFileException e) {
-            assert false : "NoSuchFileException should only be thrown when following links";
-            var notEntitledException = new NotEntitledException(e.getMessage());
-            notEntitledException.addSuppressed(e);
-            throw notEntitledException;
+        } catch (IOException e) {
+            throw new AssertionError("IOException should be impossible unless following links", e);
         }
     }
 
     @Override
-    public void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) throws NoSuchFileException {
+    public void checkFileRead(Class<?> callerClass, Path path, boolean followLinks) throws IOException {
         if (isPathOnDefaultFilesystem(path) == false) {
             return;
         }
@@ -228,15 +225,9 @@ public class PolicyCheckerImpl implements PolicyChecker {
         Path realPath = null;
         boolean canRead = entitlements.fileAccess().canRead(path);
         if (canRead && followLinks) {
-            try {
-                realPath = path.toRealPath();
-                if (realPath.equals(path) == false) {
-                    canRead = entitlements.fileAccess().canRead(realPath);
-                }
-            } catch (NoSuchFileException e) {
-                throw e; // rethrow
-            } catch (IOException e) {
-                canRead = false;
+            realPath = path.toRealPath();
+            if (realPath.equals(path) == false) {
+                canRead = entitlements.fileAccess().canRead(realPath);
             }
         }
 
@@ -333,11 +324,6 @@ public class PolicyCheckerImpl implements PolicyChecker {
     @Override
     public void checkLoadingNativeLibraries(Class<?> callerClass) {
         checkEntitlementPresent(callerClass, LoadNativeLibrariesEntitlement.class);
-    }
-
-    private String operationDescription(String methodName) {
-        // TODO: Use a more human-readable description. Perhaps share code with InstrumentationServiceImpl.parseCheckerMethodName
-        return methodName.substring(methodName.indexOf('$'));
     }
 
     @Override
@@ -490,6 +476,8 @@ public class PolicyCheckerImpl implements PolicyChecker {
             if (jarFileUrl == null || handleNetworkOrFileUrlCheck(callerClass, jarFileUrl) == false) {
                 checkUnsupportedURLProtocolConnection(callerClass, "jar with unsupported inner protocol");
             }
+        } else if (isJrtUrl(url)) {
+            checkEntitlementPresent(callerClass, ReadJdkImageEntitlement.class);
         } else {
             checkUnsupportedURLProtocolConnection(callerClass, url.getProtocol());
         }
@@ -558,6 +546,10 @@ public class PolicyCheckerImpl implements PolicyChecker {
 
     private static boolean isJarUrl(java.net.URL url) {
         return "jar".equals(url.getProtocol());
+    }
+
+    private static boolean isJrtUrl(java.net.URL url) {
+        return "jrt".equals(url.getProtocol());
     }
 
     // We have to use class names for sun.net.www classes as java.base does not export them

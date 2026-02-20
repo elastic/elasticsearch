@@ -1,6 +1,0 @@
-pr: 74274
-summary: Introduce new rescorer based on script
-area: Search
-type: feature
-issues:
-  - 52338

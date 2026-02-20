@@ -32,6 +32,8 @@ import static java.util.Arrays.compareUnsigned;
  * Query merging two point in range queries.
  */
 public class MergedPointRangeQuery extends Query {
+    private static final MatchNoDocsQuery DISJOINT = new MatchNoDocsQuery("disjoint ranges");
+
     /**
      * Merge two {@linkplain PointRangeQuery}s into a {@linkplain MergedPointRangeQuery}
      * that matches points that match both filters.
@@ -69,7 +71,7 @@ public class MergedPointRangeQuery extends Query {
         for (int dim = 0; dim < numDims; dim++) {
             int offset = dim * bytesPerDim;
             if (compareUnsigned(lower, offset, offset + bytesPerDim, upper, offset, offset + bytesPerDim) > 0) {
-                return new MatchNoDocsQuery("disjoint ranges");
+                return DISJOINT;
             }
         }
         // Otherwise on single valued segments we can only match docs the match the UNION of the two ranges.

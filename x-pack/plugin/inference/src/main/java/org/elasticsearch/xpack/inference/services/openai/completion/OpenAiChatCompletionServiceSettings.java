@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.openai.completion;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -47,7 +46,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
     // The rate limit for usage tier 1 is 500 request per minute for most of the completion models
     // To find this information you need to access your account's limits https://platform.openai.com/account/limits
     // 500 requests per minute
-    private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(500);
+    public static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(500);
 
     public static OpenAiChatCompletionServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -118,12 +117,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         this.uri = createOptionalUri(in.readOptionalString());
         this.organizationId = in.readOptionalString();
         this.maxInputTokens = in.readOptionalVInt();
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings = new RateLimitSettings(in);
-        } else {
-            rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
-        }
+        this.rateLimitSettings = new RateLimitSettings(in);
     }
 
     @Override
@@ -187,7 +181,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -196,10 +190,7 @@ public class OpenAiChatCompletionServiceSettings extends FilteredXContentObject 
         out.writeOptionalString(uri != null ? uri.toString() : null);
         out.writeOptionalString(organizationId);
         out.writeOptionalVInt(maxInputTokens);
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-            rateLimitSettings.writeTo(out);
-        }
+        rateLimitSettings.writeTo(out);
     }
 
     @Override

@@ -1,0 +1,52 @@
+import org.elasticsearch.gradle.OS
+
+plugins {
+  id 'application'
+}
+
+apply plugin: 'elasticsearch.build'
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /asm-.*/, to: 'asm'
+}
+
+group = 'org.elasticsearch.entitlement.tools'
+
+ext {
+  javaMainClass = "org.elasticsearch.entitlement.tools.jdkapi.JdkApiExtractor"
+}
+
+def addIncubatorModules = {
+  file("${buildParams.runtimeJavaHome.get()}/jmods")
+    .listFiles()
+    .findAll { it.name.endsWith('.jmod') && it.name.contains('.incubator.') }
+    .collectMany { ['--add-modules', it.name[0..-6]] }
+}
+
+application {
+  mainClass.set(javaMainClass)
+  applicationDefaultJvmArgs = addIncubatorModules()
+}
+
+tasks.named("run").configure {
+  executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
+}
+
+repositories {
+  mavenCentral()
+}
+
+dependencies {
+  implementation(project(':libs:core'))
+  implementation 'org.ow2.asm:asm:9.9'
+  implementation 'org.ow2.asm:asm-util:9.9'
+  implementation(project(':libs:entitlement:tools:common'))
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+}

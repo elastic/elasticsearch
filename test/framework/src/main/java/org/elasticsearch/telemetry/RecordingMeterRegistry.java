@@ -23,9 +23,13 @@ import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.hamcrest.BaseMatcher;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.function.Supplier;
 
 /**
@@ -236,5 +240,101 @@ public class RecordingMeterRegistry implements MeterRegistry {
 
     protected LongHistogram buildLongHistogram(String name, String description, String unit) {
         return new RecordingInstruments.RecordingLongHistogram(name, recorder);
+    }
+
+    /**
+     * @return a {@link Matcher} that matches a list of {@link Measurement} returned by the {@link MetricRecorder}, verifying it contains
+     *         exactly one measurement whose value matches {@code expectedValue}.
+     */
+    public static Matcher<List<Measurement>> measures(long expectedValue) {
+        return new BaseMatcher<>() {
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("metric which measures ").appendValue(expectedValue);
+            }
+
+            @SuppressWarnings("rawtypes")
+            @Override
+            public boolean matches(Object actual) {
+                if (actual instanceof List list
+                    && list.size() == 1
+                    && list.getFirst() instanceof Measurement measurement
+                    && measurement.isLong()) {
+                    return measurement.getLong() == expectedValue;
+                }
+                return false;
+            }
+
+            @SuppressWarnings("rawtypes")
+            @Override
+            public void describeMismatch(Object actual, Description description) {
+                if (actual instanceof List list) {
+                    if (list.size() == 1) {
+                        if (list.getFirst() instanceof Measurement measurement) {
+                            if (measurement.isLong()) {
+                                description.appendText("was ").appendValue(measurement.getLong());
+                            } else {
+                                description.appendText("Measurement.isLong() expected but saw ").appendValue(measurement.value());
+                            }
+                        } else {
+                            description.appendText("not a List<Measurement>, first item was a ")
+                                .appendValue(list.getFirst().getClass().getCanonicalName());
+                        }
+                    } else {
+                        description.appendText("List<Measurement> size expected to be 1 but was ").appendValue(list.size());
+                    }
+                } else {
+                    description.appendText("not a List<>");
+                }
+            }
+        };
+    }
+
+    /**
+     * @return a {@link Matcher} that matches a list of {@link Measurement} returned by the {@link MetricRecorder}, verifying it contains
+     *         exactly one measurement whose value matches {@code expectedValue}.
+     */
+    public static Matcher<List<Measurement>> measures(double expectedValue) {
+        return new BaseMatcher<>() {
+            @Override
+            public void describeTo(Description description) {
+                description.appendText("metric which measures ").appendValue(expectedValue);
+            }
+
+            @SuppressWarnings("rawtypes")
+            @Override
+            public boolean matches(Object actual) {
+                if (actual instanceof List list
+                    && list.size() == 1
+                    && list.getFirst() instanceof Measurement measurement
+                    && measurement.isDouble()) {
+                    return measurement.getDouble() == expectedValue;
+                }
+                return false;
+            }
+
+            @SuppressWarnings("rawtypes")
+            @Override
+            public void describeMismatch(Object actual, Description description) {
+                if (actual instanceof List list) {
+                    if (list.size() == 1) {
+                        if (list.getFirst() instanceof Measurement measurement) {
+                            if (measurement.isDouble()) {
+                                description.appendText("was ").appendValue(measurement.getDouble());
+                            } else {
+                                description.appendText("Measurement.isDouble() expected but saw ").appendValue(measurement.value());
+                            }
+                        } else {
+                            description.appendText("not a List<Measurement>, first item was a ")
+                                .appendValue(list.getFirst().getClass().getCanonicalName());
+                        }
+                    } else {
+                        description.appendText("List<Measurement> size expected to be 1 but was ").appendValue(list.size());
+                    }
+                } else {
+                    description.appendText("not a List<>");
+                }
+            }
+        };
     }
 }

@@ -16,6 +16,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -24,7 +25,7 @@ import java.io.IOException;
 /**
  * Compact serializable container for ByteRefs
  */
-public final class BytesRefArray implements Accountable, Releasable, Writeable {
+public final class BytesRefArray extends AbstractRefCounted implements Accountable, Releasable, Writeable {
 
     // base size of the bytes ref array
     private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArray.class);
@@ -76,7 +77,7 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
         }
     }
 
-    private BytesRefArray(LongArray startOffsets, ByteArray bytes, long size, BigArrays bigArrays) {
+    public BytesRefArray(LongArray startOffsets, ByteArray bytes, long size, BigArrays bigArrays) {
         this.bytes = bytes;
         this.startOffsets = startOffsets;
         this.size = size;
@@ -84,7 +85,6 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
     }
 
     public void append(BytesRef key) {
-        assert startOffsets != null : "using BytesRefArray after ownership taken";
         final long startOffset = startOffsets.get(size);
         startOffsets = bigArrays.grow(startOffsets, size + 2);
         startOffsets.set(size + 1, startOffset + key.length);
@@ -100,7 +100,6 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
      * <p>Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
      */
     public BytesRef get(long id, BytesRef dest) {
-        assert startOffsets != null : "using BytesRefArray after ownership taken";
         final long startOffset = startOffsets.get(id);
         final int length = (int) (startOffsets.get(id + 1) - startOffset);
         bytes.get(startOffset, length, dest);
@@ -113,32 +112,16 @@ public final class BytesRefArray implements Accountable, Releasable, Writeable {
 
     @Override
     public void close() {
-        Releasables.close(bytes, startOffsets);
+        decRef();
     }
 
-    /**
-     * Create new instance and pass ownership of this array to the new one.
-     *
-     * Note, this closes this array. Don't use it after passing ownership.
-     *
-     * @param other BytesRefArray to claim ownership from
-     * @return a new BytesRefArray instance with the payload of other
-     */
-    public static BytesRefArray takeOwnershipOf(BytesRefArray other) {
-        BytesRefArray b = new BytesRefArray(other.startOffsets, other.bytes, other.size, other.bigArrays);
-
-        // don't leave a broken array behind, although it isn't used any longer
-        // on append both arrays get re-allocated
-        other.startOffsets = null;
-        other.bytes = null;
-        other.size = 0;
-
-        return b;
+    @Override
+    protected void closeInternal() {
+        Releasables.close(bytes, startOffsets);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        assert startOffsets != null : "using BytesRefArray after ownership taken";
         out.writeVLong(size);
         long sizeOfStartOffsets = size + 1;
 

@@ -12,7 +12,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.geo.GeometryParser;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
@@ -268,6 +267,6 @@ public class GeoShapeQueryBuilder extends AbstractGeometryQueryBuilder<GeoShapeQ
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

@@ -98,19 +98,18 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     }
 
     @Override
-    @SuppressWarnings("checkstyle:EqualsHashCode")// equals is implemented in parent. See innerEquals instead
-    public int hashCode() {
-        return Objects.hash(super.hashCode(), pattern);
+    protected int innerHashCode(boolean ignoreIds) {
+        return Objects.hash(super.innerHashCode(true), pattern);
     }
 
     @Override
-    protected boolean innerEquals(Object o) {
+    protected boolean innerEquals(Object o, boolean ignoreIds) {
         var other = (UnresolvedNamePattern) o;
-        return super.innerEquals(other) && Objects.equals(pattern, other.pattern);
+        return super.innerEquals(other, true) && Objects.equals(pattern, other.pattern);
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return toString();
     }
 

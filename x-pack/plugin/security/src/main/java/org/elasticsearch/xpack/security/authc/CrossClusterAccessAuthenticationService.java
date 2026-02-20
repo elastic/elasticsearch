@@ -14,6 +14,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -22,7 +23,10 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
+import org.elasticsearch.xpack.security.transport.CrossClusterApiKeySignatureManager;
+import org.elasticsearch.xpack.security.transport.X509CertificateSignature;
 
+import java.security.GeneralSecurityException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -30,28 +34,33 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.transport.RemoteClusterPortSettings.TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY;
 import static org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.CROSS_CLUSTER_ACCESS_SUBJECT_INFO_HEADER_KEY;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
+import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.getCertificateIdentity;
+import static org.elasticsearch.xpack.security.transport.X509CertificateSignature.CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY;
 
-public class CrossClusterAccessAuthenticationService {
+public class CrossClusterAccessAuthenticationService implements RemoteClusterAuthenticationService {
 
     private static final Logger logger = LogManager.getLogger(CrossClusterAccessAuthenticationService.class);
 
     private final ClusterService clusterService;
     private final ApiKeyService apiKeyService;
     private final AuthenticationService authenticationService;
+    private final CrossClusterApiKeySignatureManager.Verifier crossClusterApiKeySignatureVerifier;
 
     public CrossClusterAccessAuthenticationService(
         ClusterService clusterService,
         ApiKeyService apiKeyService,
-        AuthenticationService authenticationService
+        AuthenticationService authenticationService,
+        CrossClusterApiKeySignatureManager.Verifier crossClusterApiKeySignatureVerifier
     ) {
         this.clusterService = clusterService;
         this.apiKeyService = apiKeyService;
         this.authenticationService = authenticationService;
+        this.crossClusterApiKeySignatureVerifier = crossClusterApiKeySignatureVerifier;
     }
 
+    @Override
     public void authenticate(final String action, final TransportRequest request, final ActionListener<Authentication> listener) {
         final ThreadContext threadContext = clusterService.threadPool().getThreadContext();
         final CrossClusterAccessHeaders crossClusterAccessHeaders;
@@ -59,32 +68,27 @@ public class CrossClusterAccessAuthenticationService {
         try {
             // parse and add as authentication token as early as possible so that failure events in audit log include API key ID
             crossClusterAccessHeaders = CrossClusterAccessHeaders.readFromContext(threadContext);
+            // Extract credentials, including certificate identity from the optional signature without actually verifying the signature
             final ApiKeyService.ApiKeyCredentials apiKeyCredentials = crossClusterAccessHeaders.credentials();
             assert ApiKey.Type.CROSS_CLUSTER == apiKeyCredentials.getExpectedType();
             // authn must verify only the provided api key and not try to extract any other credential from the thread context
             authcContext = authenticationService.newContext(action, request, apiKeyCredentials);
+            var signingInfo = crossClusterAccessHeaders.signature();
+
+            // Verify the signing info if provided. The signing info contains both the signature and the certificate identity, but only the
+            // signature is validated here. The certificate identity is validated later as part of the ApiKeyCredentials validation
+            if (signingInfo != null && verifySignature(authcContext, signingInfo, crossClusterAccessHeaders, listener) == false) {
+                return;
+            }
         } catch (Exception ex) {
             withRequestProcessingFailure(authenticationService.newContext(action, request, null), ex, listener);
             return;
         }
+
         try {
             apiKeyService.ensureEnabled();
         } catch (Exception ex) {
             withRequestProcessingFailure(authcContext, ex, listener);
-            return;
-        }
-
-        // This check is to ensure all nodes understand cross_cluster_access subject type
-        if (getMinTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
-            withRequestProcessingFailure(
-                authcContext,
-                new IllegalArgumentException(
-                    "all nodes must have version ["
-                        + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
-                        + "] or higher to support cross cluster requests through the dedicated remote cluster port"
-                ),
-                listener
-            );
             return;
         }
 
@@ -117,7 +121,39 @@ public class CrossClusterAccessAuthenticationService {
         }
     }
 
-    public void tryAuthenticate(Map<String, String> headers, ActionListener<Void> listener) {
+    private boolean verifySignature(
+        Authenticator.Context context,
+        X509CertificateSignature signature,
+        CrossClusterAccessHeaders crossClusterAccessHeaders,
+        ActionListener<Authentication> listener
+    ) {
+        assert signature.certificates().length > 0 : "Signatures without certificates should not be considered for verification";
+        ElasticsearchSecurityException authException = null;
+        try {
+            if (crossClusterApiKeySignatureVerifier.verify(signature, crossClusterAccessHeaders.signablePayload()) == false) {
+                logger.debug(Strings.format("Invalid cross cluster api key signature received [%s]", signature));
+                authException = Exceptions.authenticationError(
+                    "Invalid cross cluster api key signature from [{}]",
+                    X509CertificateSignature.certificateToString(signature.leafCertificate())
+                );
+            }
+        } catch (GeneralSecurityException securityException) {
+            logger.debug(Strings.format("Failed to verify cross cluster api key signature certificate [%s]", signature), securityException);
+            authException = Exceptions.authenticationError(
+                "Failed to verify cross cluster api key signature certificate from [{}]",
+                X509CertificateSignature.certificateToString(signature.leafCertificate())
+            );
+        }
+        if (authException != null) {
+            // TODO handle audit logging
+            listener.onFailure(context.getRequest().exceptionProcessingRequest(authException, context.getMostRecentAuthenticationToken()));
+            return false;
+        }
+        return true;
+    }
+
+    @Override
+    public void authenticateHeaders(Map<String, String> headers, ActionListener<Void> listener) {
         final ApiKeyService.ApiKeyCredentials credentials;
         try {
             credentials = extractApiKeyCredentialsFromHeaders(headers);
@@ -128,7 +164,8 @@ public class CrossClusterAccessAuthenticationService {
         tryAuthenticate(credentials, listener);
     }
 
-    public void tryAuthenticate(ApiKeyService.ApiKeyCredentials credentials, ActionListener<Void> listener) {
+    // package-private for testing
+    void tryAuthenticate(ApiKeyService.ApiKeyCredentials credentials, ActionListener<Void> listener) {
         Objects.requireNonNull(credentials);
         apiKeyService.tryAuthenticate(clusterService.threadPool().getThreadContext(), credentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
@@ -136,7 +173,7 @@ public class CrossClusterAccessAuthenticationService {
                 listener.onResponse(null);
                 return;
             }
-
+            // TODO handle audit logging
             if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                 Exception e = (authResult.getException() != null)
                     ? authResult.getException()
@@ -166,7 +203,14 @@ public class CrossClusterAccessAuthenticationService {
             if (credentials == null) {
                 throw requiredHeaderMissingException(CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY);
             }
-            return CrossClusterAccessHeaders.parseCredentialsHeader(credentials);
+
+            String certificateIdentity = null;
+            final String signature = headers.get(CROSS_CLUSTER_ACCESS_SIGNATURE_HEADER_KEY);
+            if (signature != null) {
+                certificateIdentity = getCertificateIdentity(X509CertificateSignature.decode(signature));
+            }
+
+            return CrossClusterAccessHeaders.parseCredentialsHeader(credentials, certificateIdentity);
         } catch (Exception ex) {
             throw Exceptions.authenticationError("failed to extract credentials from headers", ex);
         }

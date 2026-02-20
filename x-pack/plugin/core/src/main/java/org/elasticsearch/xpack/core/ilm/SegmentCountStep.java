@@ -16,10 +16,10 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -30,6 +30,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BiFunction;
 import java.util.stream.Collectors;
 
 /**
@@ -39,12 +40,33 @@ public class SegmentCountStep extends AsyncWaitStep {
 
     private static final Logger logger = LogManager.getLogger(SegmentCountStep.class);
     public static final String NAME = "segment-count";
+    private static final BiFunction<String, LifecycleExecutionState, String> DEFAULT_TARGET_INDEX_NAME_SUPPLIER = (
+        indexName,
+        lifecycleState) -> indexName;
 
     private final int maxNumSegments;
+    private final BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier;
 
+    /**
+     * Creates a new {@link SegmentCountStep} that will check the segment count on the index that ILM is currently operating on.
+     */
     public SegmentCountStep(StepKey key, StepKey nextStepKey, Client client, int maxNumSegments) {
+        this(key, nextStepKey, client, maxNumSegments, DEFAULT_TARGET_INDEX_NAME_SUPPLIER);
+    }
+
+    /**
+     * Creates a new {@link SegmentCountStep} that will check the segment count on the index name returned by the supplier.
+     */
+    public SegmentCountStep(
+        StepKey key,
+        StepKey nextStepKey,
+        Client client,
+        int maxNumSegments,
+        BiFunction<String, LifecycleExecutionState, String> targetIndexNameSupplier
+    ) {
         super(key, nextStepKey, client);
         this.maxNumSegments = maxNumSegments;
+        this.targetIndexNameSupplier = targetIndexNameSupplier;
     }
 
     @Override
@@ -58,16 +80,20 @@ public class SegmentCountStep extends AsyncWaitStep {
 
     @Override
     public void evaluateCondition(ProjectState state, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
-        Index index = indexMetadata.getIndex();
+        String targetIndexName = targetIndexNameSupplier.apply(
+            indexMetadata.getIndex().getName(),
+            indexMetadata.getLifecycleExecutionState()
+        );
+        assert targetIndexName != null : "target index name supplier must not return null";
         getClient(state.projectId()).admin()
             .indices()
-            .segments(new IndicesSegmentsRequest(index.getName()), ActionListener.wrap(response -> {
-                IndexSegments idxSegments = response.getIndices().get(index.getName());
+            .segments(new IndicesSegmentsRequest(targetIndexName), ActionListener.wrap(response -> {
+                IndexSegments idxSegments = response.getIndices().get(targetIndexName);
                 if (idxSegments == null || (response.getShardFailures() != null && response.getShardFailures().length > 0)) {
                     final DefaultShardOperationFailedException[] failures = response.getShardFailures();
                     logger.info(
                         "[{}] retrieval of segment counts after force merge did not succeed, there were {} shard failures. failures: {}",
-                        index.getName(),
+                        targetIndexName,
                         response.getFailedShards(),
                         failures == null
                             ? "n/a"
@@ -86,7 +112,7 @@ public class SegmentCountStep extends AsyncWaitStep {
                             .collect(Collectors.toMap(ShardSegments::getShardRouting, ss -> ss.getSegments().size()));
                         logger.info(
                             "[{}] best effort force merge to [{}] segments did not succeed for {} shards: {}",
-                            index.getName(),
+                            targetIndexName,
                             maxNumSegments,
                             unmergedShards.size(),
                             unmergedShardCounts

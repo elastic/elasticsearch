@@ -5,9 +5,11 @@
       "description": "Import a dangling index"
     },
     "stability": "stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
@@ -28,14 +30,17 @@
     "params": {
       "accept_data_loss": {
         "type": "boolean",
+        "default": false,
         "description": "Must be set to true in order to import the dangling index"
       },
       "timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Explicit operation timeout"
       },
       "master_timeout": {
         "type": "time",
+        "default": "30s",
         "description": "Specify timeout for connection to master"
       }
     }

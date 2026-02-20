@@ -14,16 +14,18 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.AbstractWireTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.SerializationTestUtils;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
-public abstract class AbstractEsFieldTypeTests<T extends EsField> extends AbstractWireTestCase<EsField> {
+public abstract class AbstractEsFieldTypeTests<T extends EsField> extends AbstractWireTestCase<T> {
     public static EsField randomAnyEsField(int maxDepth) {
         return switch (between(0, 5)) {
             case 0 -> EsFieldTests.randomEsField(maxDepth);
@@ -39,22 +41,24 @@ public abstract class AbstractEsFieldTypeTests<T extends EsField> extends Abstra
     @Override
     protected abstract T createTestInstance();
 
-    protected abstract T mutate(T instance);
-
     @Override
-    protected EsField copyInstance(EsField instance, TransportVersion version) throws IOException {
+    protected T copyInstance(T instance, TransportVersion version) throws IOException {
         NamedWriteableRegistry namedWriteableRegistry = getNamedWriteableRegistry();
         try (BytesStreamOutput output = new BytesStreamOutput(); var pso = new PlanStreamOutput(output, EsqlTestUtils.TEST_CFG)) {
             pso.setTransportVersion(version);
             instance.writeTo(pso);
             try (
                 StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry);
-                var psi = new PlanStreamInput(in, in.namedWriteableRegistry(), EsqlTestUtils.TEST_CFG)
+                var psi = new PlanStreamInput(in, in.namedWriteableRegistry(), config(), new SerializationTestUtils.TestNameIdMapper())
             ) {
                 psi.setTransportVersion(version);
                 return EsField.readFrom(psi);
             }
         }
+    }
+
+    protected Configuration config() {
+        return EsqlTestUtils.TEST_CFG;
     }
 
     /**
@@ -77,13 +81,7 @@ public abstract class AbstractEsFieldTypeTests<T extends EsField> extends Abstra
     }
 
     @Override
-    @SuppressWarnings("unchecked")
-    protected final T mutateInstance(EsField instance) throws IOException {
-        return mutate((T) instance);
-    }
-
-    @Override
-    protected final NamedWriteableRegistry getNamedWriteableRegistry() {
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(List.of());
     }
 }

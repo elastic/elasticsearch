@@ -1,0 +1,6 @@
+area: Search
+issues: []
+pr: 141904
+summary: Ensure Rewriteable.rewriteAndFetch listeners are not executed on transport
+  threads
+type: bug

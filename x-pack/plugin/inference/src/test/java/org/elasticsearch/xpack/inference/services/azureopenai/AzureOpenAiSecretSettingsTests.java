@@ -165,7 +165,22 @@ public class AzureOpenAiSecretSettingsTests extends AbstractBWCWireSerialization
 
     @Override
     protected AzureOpenAiSecretSettings mutateInstance(AzureOpenAiSecretSettings instance) throws IOException {
-        return randomValueOtherThan(instance, AzureOpenAiSecretSettingsTests::createRandom);
+        SecureString apiKey = instance.apiKey();
+        SecureString entraId = instance.entraId();
+        if (apiKey == null || entraId == null) {
+            if (randomBoolean()) {
+                apiKey = randomValueOtherThan(instance.apiKey(), () -> randomSecureStringOfLength(15));
+            } else {
+                entraId = randomValueOtherThan(instance.entraId(), () -> randomSecureStringOfLength(15));
+            }
+        } else {
+            if (randomBoolean()) {
+                apiKey = randomBoolean() ? null : randomValueOtherThan(instance.apiKey(), () -> randomSecureStringOfLength(15));
+            } else {
+                entraId = randomBoolean() ? null : randomValueOtherThan(instance.entraId(), () -> randomSecureStringOfLength(15));
+            }
+        }
+        return new AzureOpenAiSecretSettings(apiKey, entraId);
     }
 
     @Override

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.services.voyageai.rerank;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -30,6 +29,8 @@ public class VoyageAIRerankServiceSettings extends FilteredXContentObject implem
     public static final String NAME = "voyageai_rerank_service_settings";
 
     private static final Logger logger = LogManager.getLogger(VoyageAIRerankServiceSettings.class);
+
+    private static final TransportVersion VOYAGE_AI_INTEGRATION_ADDED = TransportVersion.fromName("voyage_ai_integration_added");
 
     public static VoyageAIRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         ValidationException validationException = new ValidationException();
@@ -91,13 +92,12 @@ public class VoyageAIRerankServiceSettings extends FilteredXContentObject implem
     @Override
     public TransportVersion getMinimalSupportedVersion() {
         assert false : "should never be called when supportsVersion is used";
-        return TransportVersions.VOYAGE_AI_INTEGRATION_ADDED;
+        return VOYAGE_AI_INTEGRATION_ADDED;
     }
 
     @Override
     public boolean supportsVersion(TransportVersion version) {
-        return version.onOrAfter(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED)
-            || version.isPatchFrom(TransportVersions.VOYAGE_AI_INTEGRATION_ADDED_BACKPORT_8_X);
+        return version.supports(VOYAGE_AI_INTEGRATION_ADDED);
     }
 
     @Override

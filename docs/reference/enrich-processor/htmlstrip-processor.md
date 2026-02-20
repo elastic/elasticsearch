@@ -34,4 +34,5 @@ $$$htmlstrip-options$$$
   }
 }
 ```
+% NOTCONSOLE
 

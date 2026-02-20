@@ -16,13 +16,13 @@ import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper.GeoPointFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.ParseField;
@@ -143,7 +143,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         MappedFieldType fieldType = context.getFieldType(fieldName);
         if (fieldType == null) {
             if (ignoreUnmapped) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             } else {
                 throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
             }
@@ -319,6 +319,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

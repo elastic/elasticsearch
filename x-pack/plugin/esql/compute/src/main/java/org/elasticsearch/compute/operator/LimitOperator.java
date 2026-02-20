@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -73,6 +72,8 @@ public class LimitOperator implements Operator {
     @Override
     public void addInput(Page page) {
         assert lastInput == null : "has pending input page";
+        rowsReceived += page.getPositionCount();
+
         final int acceptedRows = limiter.tryAccumulateHits(page.getPositionCount());
         if (acceptedRows == 0) {
             page.releaseBlocks();
@@ -82,7 +83,6 @@ public class LimitOperator implements Operator {
         } else {
             lastInput = page;
         }
-        rowsReceived += acceptedRows;
     }
 
     @Override
@@ -93,6 +93,11 @@ public class LimitOperator implements Operator {
     @Override
     public boolean isFinished() {
         return lastInput == null && (finished || limiter.remaining() == 0);
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return lastInput != null;
     }
 
     @Override
@@ -116,7 +121,7 @@ public class LimitOperator implements Operator {
         Page result = null;
         try {
             for (int b = 0; b < blocks.length; b++) {
-                blocks[b] = page.getBlock(b).filter(filter);
+                blocks[b] = page.getBlock(b).filter(false, filter);
             }
             result = new Page(blocks);
         } finally {
@@ -192,13 +197,8 @@ public class LimitOperator implements Operator {
             limit = in.readVInt();
             limitRemaining = in.readVInt();
             pagesProcessed = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                rowsReceived = in.readVLong();
-                rowsEmitted = in.readVLong();
-            } else {
-                rowsReceived = 0;
-                rowsEmitted = 0;
-            }
+            rowsReceived = in.readVLong();
+            rowsEmitted = in.readVLong();
         }
 
         @Override
@@ -206,10 +206,8 @@ public class LimitOperator implements Operator {
             out.writeVInt(limit);
             out.writeVInt(limitRemaining);
             out.writeVInt(pagesProcessed);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                out.writeVLong(rowsReceived);
-                out.writeVLong(rowsEmitted);
-            }
+            out.writeVLong(rowsReceived);
+            out.writeVLong(rowsEmitted);
         }
 
         @Override
@@ -287,7 +285,7 @@ public class LimitOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_11_X;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

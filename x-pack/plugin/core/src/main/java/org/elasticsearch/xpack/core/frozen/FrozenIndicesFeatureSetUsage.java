@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.frozen;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.UpdateForV10;
@@ -18,7 +17,7 @@ import org.elasticsearch.xpack.core.XPackField;
 import java.io.IOException;
 import java.util.Objects;
 
-@UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove this: it is unused in v9 but needed for mixed v8/v9 clusters
+@UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // Remove this: it is unused in v9 but needed for mixed v8/v9 clusters
 public class FrozenIndicesFeatureSetUsage extends XPackFeatureUsage {
 
     private final int numberOfFrozenIndices;
@@ -30,7 +29,7 @@ public class FrozenIndicesFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     @Override

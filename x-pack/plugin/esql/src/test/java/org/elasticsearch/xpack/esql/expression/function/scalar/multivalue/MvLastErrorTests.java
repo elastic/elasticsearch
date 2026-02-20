@@ -32,21 +32,30 @@ public class MvLastErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
 
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
-        return equalTo(typeErrorMessage(false, validPerPosition, signature, (v, p) -> {
-            /*
-             * In general MvLast should support all signatures. While building a
-             * new type you may we to temporarily remove this.
-             */
-            throw new UnsupportedOperationException("all signatures should be supported");
-        }));
+        return equalTo(
+            typeErrorMessage(
+                false,
+                validPerPosition,
+                signature,
+                (v, p) -> "any type except counter types, dense_vector, "
+                    + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range"
+            )
+        );
     }
 
     @Override
-    protected void assertNumberOfCheckedSignatures(int checked) {
-        /*
-         * In general MvLast should support all signatures. While building a
-         * new type you may we to temporarily relax this.
-         */
-        assertThat("all signatures should be supported", checked, equalTo(0));
+    protected void assertCheckedSignatures(Set<List<DataType>> invalidSignatureSamples) {
+        assertThat(
+            invalidSignatureSamples,
+            equalTo(
+                Set.of(
+                    List.of(DataType.DENSE_VECTOR),
+                    List.of(DataType.EXPONENTIAL_HISTOGRAM),
+                    List.of(DataType.AGGREGATE_METRIC_DOUBLE),
+                    List.of(DataType.HISTOGRAM),
+                    List.of(DataType.TDIGEST)
+                )
+            )
+        );
     }
 }

@@ -4,7 +4,7 @@
       "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-delete",
       "description": "Delete a search application"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

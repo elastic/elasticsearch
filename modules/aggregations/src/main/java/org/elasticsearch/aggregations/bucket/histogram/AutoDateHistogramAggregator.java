@@ -8,9 +8,7 @@
  */
 package org.elasticsearch.aggregations.bucket.histogram;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
@@ -19,6 +17,7 @@ import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -125,17 +124,17 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         return deferringCollector;
     }
 
-    protected abstract LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) throws IOException;
+    protected abstract LeafBucketCollector getLeafCollector(SortedNumericLongValues values, LeafBucketCollector sub) throws IOException;
 
-    protected abstract LeafBucketCollector getLeafCollector(NumericDocValues values, LeafBucketCollector sub) throws IOException;
+    protected abstract LeafBucketCollector getLeafCollector(LongValues values, LeafBucketCollector sub) throws IOException;
 
     @Override
     public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        final SortedNumericDocValues values = valuesSource.longValues(aggCtx.getLeafReaderContext());
-        final NumericDocValues singleton = DocValues.unwrapSingleton(values);
+        final SortedNumericLongValues values = valuesSource.longValues(aggCtx.getLeafReaderContext());
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(values);
         return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
     }
 
@@ -239,7 +238,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) {
+        protected LeafBucketCollector getLeafCollector(SortedNumericLongValues values, LeafBucketCollector sub) {
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -265,7 +264,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(NumericDocValues values, LeafBucketCollector sub) {
+        protected LeafBucketCollector getLeafCollector(LongValues values, LeafBucketCollector sub) {
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -461,7 +460,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(SortedNumericDocValues values, LeafBucketCollector sub) {
+        protected LeafBucketCollector getLeafCollector(SortedNumericLongValues values, LeafBucketCollector sub) {
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
@@ -487,7 +486,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         @Override
-        protected LeafBucketCollector getLeafCollector(NumericDocValues values, LeafBucketCollector sub) {
+        protected LeafBucketCollector getLeafCollector(LongValues values, LeafBucketCollector sub) {
             return new LeafBucketCollectorBase(sub, values) {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {

@@ -48,7 +48,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -94,8 +93,7 @@ class S3Service extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
-    private final Runnable defaultRegionSetter;
-    private volatile Region defaultRegion;
+    private final S3DefaultRegionHolder defaultRegionHolder;
 
     /**
      * Use a signer that does not require to pre-read (and checksum) the body of PutObject and UploadPart requests since we can rely on
@@ -121,15 +119,13 @@ class S3Service extends AbstractLifecycleComponent {
         final Settings nodeSettings = clusterService.getSettings();
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
             environment,
-            System::getenv,
-            System::getProperty,
             Clock.systemUTC(),
             resourceWatcherService
         );
         compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
         compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
         isStateless = DiscoveryNode.isStateless(nodeSettings);
-        defaultRegionSetter = new RunOnce(() -> defaultRegion = defaultRegionSupplier.get());
+        defaultRegionHolder = new S3DefaultRegionHolder(defaultRegionSupplier);
         s3ClientsManager = new S3ClientsManager(
             nodeSettings,
             this::buildClientReference,
@@ -266,7 +262,7 @@ class S3Service extends AbstractLifecycleComponent {
         } else {
             endpointDescription = "no configured endpoint";
         }
-        final var defaultRegion = this.defaultRegion;
+        final var defaultRegion = defaultRegionHolder.getDefaultRegion();
         if (defaultRegion != null) {
             LOGGER.debug("""
                 found S3 client with no configured region and {}, using region [{}] from SDK""", endpointDescription, defaultRegion);
@@ -312,6 +308,7 @@ class S3Service extends AbstractLifecycleComponent {
 
         httpClientBuilder.maxConnections(clientSettings.maxConnections);
         httpClientBuilder.socketTimeout(Duration.ofMillis(clientSettings.readTimeoutMillis));
+        httpClientBuilder.connectionMaxIdleTime(Duration.ofMillis(clientSettings.connectionMaxIdleTimeMillis));
 
         Optional<ProxyConfiguration> proxyConfiguration = buildProxyConfiguration(clientSettings);
         if (proxyConfiguration.isPresent()) {
@@ -344,6 +341,10 @@ class S3Service extends AbstractLifecycleComponent {
             retryStrategyBuilder.retryOnException(S3Service::isInvalidAccessKeyIdException);
         }
         clientOverrideConfiguration.retryStrategy(retryStrategyBuilder.build());
+        final long apiCallTimeoutMillis = clientSettings.apiCallTimeout.millis();
+        if (apiCallTimeoutMillis >= 0) {
+            clientOverrideConfiguration.apiCallTimeout(Duration.ofMillis(apiCallTimeoutMillis));
+        }
         return clientOverrideConfiguration.build();
     }
 
@@ -415,7 +416,7 @@ class S3Service extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
-        defaultRegionSetter.run();
+        defaultRegionHolder.start();
     }
 
     @Override
@@ -445,15 +446,9 @@ class S3Service extends AbstractLifecycleComponent {
         private StsWebIdentityTokenFileCredentialsProvider credentialsProvider;
         private StsClient securityTokenServiceClient;
 
-        CustomWebIdentityTokenCredentialsProvider(
-            Environment environment,
-            SystemEnvironment systemEnvironment,
-            JvmEnvironment jvmEnvironment,
-            Clock clock,
-            ResourceWatcherService resourceWatcherService
-        ) {
-            // Check whether the original environment variable exists. If it doesn't, the system doesn't support AWS web identity tokens
-            final var webIdentityTokenFileEnvVar = systemEnvironment.getEnv(AWS_WEB_IDENTITY_TOKEN_FILE.name());
+        CustomWebIdentityTokenCredentialsProvider(Environment environment, Clock clock, ResourceWatcherService resourceWatcherService) {
+            // Check whether the original environment variable exists. If it doesn't, the system doesn't support AWS web identity tokens.
+            final var webIdentityTokenFileEnvVar = System.getenv(AWS_WEB_IDENTITY_TOKEN_FILE.name());
             if (webIdentityTokenFileEnvVar == null) {
                 return;
             }
@@ -484,7 +479,7 @@ class S3Service extends AbstractLifecycleComponent {
                 );
             }
 
-            final var roleArn = systemEnvironment.getEnv(AWS_ROLE_ARN.name());
+            final var roleArn = System.getenv(AWS_ROLE_ARN.name());
             if (roleArn == null) {
                 LOGGER.warn(
                     """
@@ -496,7 +491,7 @@ class S3Service extends AbstractLifecycleComponent {
             }
 
             final var roleSessionName = Objects.requireNonNullElseGet(
-                systemEnvironment.getEnv(AWS_ROLE_SESSION_NAME.name()),
+                System.getenv(AWS_ROLE_SESSION_NAME.name()),
                 // Mimic the default behaviour of the AWS SDK in case the session name is not set
                 // See `com.amazonaws.auth.WebIdentityTokenCredentialsProvider#45`
                 () -> "aws-sdk-java-" + clock.millis()
@@ -505,7 +500,7 @@ class S3Service extends AbstractLifecycleComponent {
             {
                 final var securityTokenServiceClientBuilder = StsClient.builder();
                 // allow an endpoint override in tests
-                final var endpointOverride = jvmEnvironment.getProperty("org.elasticsearch.repositories.s3.stsEndpointOverride", null);
+                final var endpointOverride = System.getProperty("org.elasticsearch.repositories.s3.stsEndpointOverride", null);
                 if (endpointOverride != null) {
                     securityTokenServiceClientBuilder.endpointOverride(URI.create(endpointOverride));
                 }
@@ -670,15 +665,5 @@ class S3Service extends AbstractLifecycleComponent {
         public String toString() {
             return "ErrorLogging[" + delegate + "]";
         }
-    }
-
-    @FunctionalInterface
-    interface SystemEnvironment {
-        String getEnv(String name);
-    }
-
-    @FunctionalInterface
-    interface JvmEnvironment {
-        String getProperty(String key, String defaultValue);
     }
 }

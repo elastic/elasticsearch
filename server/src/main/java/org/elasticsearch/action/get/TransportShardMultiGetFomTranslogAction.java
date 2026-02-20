@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.get;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
@@ -17,11 +16,11 @@ import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.TransportActions;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
@@ -77,7 +76,8 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
                                 item.version(),
                                 item.versionType(),
                                 item.fetchSourceContext(),
-                                multiGetShardRequest.isForceSyntheticSource()
+                                multiGetShardRequest.isForceSyntheticSource(),
+                                SplitShardCountSummary.UNSET
                             );
                         GetResponse getResponse = null;
                         if (result == null) {
@@ -176,16 +176,14 @@ public class TransportShardMultiGetFomTranslogAction extends HandledTransportAct
         public Response(StreamInput in) throws IOException {
             segmentGeneration = in.readZLong();
             multiGetShardResponse = new MultiGetShardResponse(in);
-            primaryTerm = in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVLong() : Engine.UNKNOWN_PRIMARY_TERM;
+            primaryTerm = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeZLong(segmentGeneration);
             multiGetShardResponse.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeVLong(primaryTerm);
-            }
+            out.writeVLong(primaryTerm);
         }
 
         public long segmentGeneration() {

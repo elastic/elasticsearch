@@ -29,6 +29,8 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.Utils.randomSimilarityMeasure;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUri;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -428,7 +430,23 @@ public class LlamaEmbeddingsServiceSettingsTests extends AbstractWireSerializing
 
     @Override
     protected LlamaEmbeddingsServiceSettings mutateInstance(LlamaEmbeddingsServiceSettings instance) throws IOException {
-        return randomValueOtherThan(instance, LlamaEmbeddingsServiceSettingsTests::createRandom);
+        var modelId = instance.modelId();
+        var uri = instance.uri();
+        var dimensions = instance.dimensions();
+        var similarity = instance.similarity();
+        var maxInputTokens = instance.maxInputTokens();
+        var rateLimitSettings = instance.rateLimitSettings();
+        switch (randomInt(5)) {
+            case 0 -> modelId = randomValueOtherThan(modelId, () -> randomAlphaOfLength(8));
+            case 1 -> uri = randomValueOtherThan(uri, () -> createUri(randomAlphaOfLength(15)));
+            case 2 -> dimensions = randomValueOtherThan(dimensions, () -> randomFrom(randomIntBetween(32, 256), null));
+            case 3 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(randomSimilarityMeasure(), null));
+            case 4 -> maxInputTokens = randomValueOtherThan(maxInputTokens, () -> randomFrom(randomIntBetween(128, 256), null));
+            case 5 -> rateLimitSettings = randomValueOtherThan(rateLimitSettings, RateLimitSettingsTests::createRandom);
+            default -> throw new AssertionError("Illegal randomisation branch");
+        }
+
+        return new LlamaEmbeddingsServiceSettings(modelId, uri, dimensions, similarity, maxInputTokens, rateLimitSettings);
     }
 
     private static LlamaEmbeddingsServiceSettings createRandom() {

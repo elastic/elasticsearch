@@ -63,20 +63,28 @@ public final class Case extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = {
+            "aggregate_metric_double",
             "boolean",
             "cartesian_point",
             "cartesian_shape",
             "date",
             "date_nanos",
+            "dense_vector",
             "double",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
+            "histogram",
             "integer",
             "ip",
             "keyword",
             "long",
+            "tdigest",
             "unsigned_long",
-            "version" },
+            "version",
+            "exponential_histogram" },
         description = """
             Accepts pairs of conditions and values. The function returns the value that
             belongs to the first condition that evaluates to `true`.
@@ -103,21 +111,29 @@ public final class Case extends EsqlScalarFunction {
         @Param(
             name = "trueValue",
             type = {
+                "aggregate_metric_double",
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
                 "date_nanos",
+                "dense_vector",
                 "double",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
+                "histogram",
                 "integer",
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "text",
                 "unsigned_long",
-                "version" },
+                "version",
+                "exponential_histogram" },
             description = "The value that’s returned when the corresponding condition is the first to evaluate to `true`. "
                 + "The default value is returned when no condition matches."
         ) List<Expression> rest
@@ -196,12 +212,19 @@ public final class Case extends EsqlScalarFunction {
 
     private TypeResolution resolveValueType(Expression value, int position) {
         if (dataType == null || dataType == NULL) {
+            boolean originalWasNull = dataType == NULL;
             dataType = value.dataType().noText();
-            return TypeResolution.TYPE_RESOLVED;
+            return TypeResolutions.isType(
+                value,
+                t -> t != DataType.DATE_RANGE,
+                sourceText(),
+                TypeResolutions.ParamOrdinal.fromIndex(position),
+                originalWasNull ? NULL.typeName() : "any but date_range"
+            );
         }
         return TypeResolutions.isType(
             value,
-            t -> t.noText() == dataType,
+            t -> t.noText() == dataType && t != DataType.DATE_RANGE,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
             dataType.typeName()
@@ -247,6 +270,22 @@ public final class Case extends EsqlScalarFunction {
             }
         }
         return elseValue.foldable();
+    }
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        DataType type = dataType();
+        if (type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION) {
+            // These can't be managed by evaluators, we have to fold them manually.
+            // TODO manage warnings for MV condition (evaluators take care of that, here we don't have the components)
+            for (Condition condition : conditions) {
+                if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
+                    return condition.value.fold(ctx);
+                }
+            }
+            return elseValue.fold(ctx);
+        }
+        return super.fold(ctx);
     }
 
     /**
@@ -343,12 +382,7 @@ public final class Case extends EsqlScalarFunction {
                  * Rather than go into depth about this in the warning message,
                  * we just say "false".
                  */
-                Warnings.createWarningsTreatedAsFalse(
-                    driverContext.warningsMode(),
-                    conditionSource.source().getLineNumber(),
-                    conditionSource.source().getColumnNumber(),
-                    conditionSource.text()
-                ),
+                Warnings.createWarningsTreatedAsFalse(driverContext.warningsMode(), conditionSource),
                 condition.get(driverContext),
                 value.get(driverContext)
             );
@@ -442,7 +476,9 @@ public final class Case extends EsqlScalarFunction {
                     int[] positions = new int[] { p };
                     Page limited = new Page(
                         1,
-                        IntStream.range(0, page.getBlockCount()).mapToObj(b -> page.getBlock(b).filter(positions)).toArray(Block[]::new)
+                        IntStream.range(0, page.getBlockCount())
+                            .mapToObj(b -> page.getBlock(b).filter(false, positions))
+                            .toArray(Block[]::new)
                     );
                     try (Releasable ignored = limited::releaseBlocks) {
                         for (ConditionEvaluator condition : conditions) {

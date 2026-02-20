@@ -21,7 +21,7 @@ $$$ingest-user-agent-options$$$
 | `target_field` | no | user_agent | The field that will be filled with the user agent details. |
 | `regex_file` | no | - | The name of the file in the `config/ingest-user-agent` directory containing the regular expressions for parsing the user agent string. Both the directory and the file have to be created before starting Elasticsearch. If not specified, ingest-user-agent will use the regexes.yaml from uap-core it ships with (see below). |
 | `properties` | no | [`name`, `os`, `device`, `original`, `version`] | Controls what properties are added to `target_field`. |
-| `extract_device_type` | no | `false` | [beta] Extracts device type from the user agent string on a best-effort basis. |
+| `extract_device_type` | no | `false` | {applies_to}`stack: beta` {applies_to}`serverless: beta` Extracts device type from the user agent string on a best-effort basis. |
 | `ignore_missing` | no | `false` | If `true` and `field` does not exist, the processor quietly exits without modifying the document |
 
 Here is an example that adds the user agent details to the `user_agent` field based on the `agent` field:
@@ -73,6 +73,7 @@ Which returns
   }
 }
 ```
+% TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term": 1/"_primary_term" : $body._primary_term/]
 
 ### Using a custom regex file [_using_a_custom_regex_file]
 

@@ -9,11 +9,13 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -69,6 +71,11 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         }
     }
 
+    enum ConnectionAttempt {
+        initial,
+        reconnect
+    }
+
     private final int maxPendingConnectionListeners;
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -76,12 +83,17 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final Object mutex = new Object();
     private List<ActionListener<Void>> listeners = new ArrayList<>();
+    private final AtomicBoolean initialConnectionAttempted = new AtomicBoolean(false);
 
     protected final TransportService transportService;
     protected final RemoteConnectionManager connectionManager;
+    protected final ProjectId originProjectId;
+    protected final ProjectId linkedProjectId;
     protected final String clusterAlias;
 
     RemoteConnectionStrategy(LinkedProjectConfig config, TransportService transportService, RemoteConnectionManager connectionManager) {
+        this.originProjectId = config.originProjectId();
+        this.linkedProjectId = config.linkedProjectId();
         this.clusterAlias = config.linkedProjectAlias();
         this.transportService = transportService;
         this.connectionManager = connectionManager;
@@ -89,11 +101,7 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
         connectionManager.addListener(this);
     }
 
-    static ConnectionProfile buildConnectionProfile(LinkedProjectConfig config, boolean credentialsProtected) {
-        final String transportProfile = credentialsProtected
-            ? RemoteClusterPortSettings.REMOTE_CLUSTER_PROFILE
-            : TransportSettings.DEFAULT_PROFILE;
-
+    static ConnectionProfile buildConnectionProfile(LinkedProjectConfig config, String transportProfile) {
         ConnectionProfile.Builder builder = new ConnectionProfile.Builder().setConnectTimeout(config.transportConnectTimeout())
             .setHandshakeTimeout(config.transportConnectTimeout())
             .setCompressionEnabled(config.connectionCompression())
@@ -190,16 +198,35 @@ public abstract class RemoteConnectionStrategy implements TransportConnectionLis
                     connectImpl(new ActionListener<>() {
                         @Override
                         public void onResponse(Void aVoid) {
+                            connectionAttemptCompleted(null);
                             ActionListener.onResponse(getAndClearListeners(), aVoid);
                         }
 
                         @Override
                         public void onFailure(Exception e) {
+                            connectionAttemptCompleted(e);
                             ActionListener.onFailure(getAndClearListeners(), e);
                         }
                     });
                 }
             });
+        }
+    }
+
+    private void connectionAttemptCompleted(@Nullable Exception e) {
+        final boolean isInitialAttempt = initialConnectionAttempted.compareAndSet(false, true);
+        final org.apache.logging.log4j.util.Supplier<String> msgSupplier = () -> format(
+            "Origin project [%s] %s linked project [%s] with alias [%s] on %s attempt",
+            originProjectId,
+            e == null ? "successfully connected to" : "failed to connect to",
+            linkedProjectId,
+            clusterAlias,
+            isInitialAttempt ? "the initial connection" : "a reconnection"
+        );
+        if (e == null) {
+            logger.debug(msgSupplier);
+        } else {
+            logger.log(isClosed() ? Level.DEBUG : Level.WARN, msgSupplier, e);
         }
     }
 

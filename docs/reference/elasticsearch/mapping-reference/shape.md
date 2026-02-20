@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Shape"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/shape.html
@@ -47,6 +50,7 @@ PUT /example
   }
 }
 ```
+% TESTSETUP
 
 This mapping definition maps the geometry field to the shape type. The indexer uses single precision floats for the vertex values so accuracy is guaranteed to the same precision as `float` values provided by the java virtual machine approximately (typically 1E-38).
 

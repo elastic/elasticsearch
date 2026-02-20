@@ -4,14 +4,17 @@
 
 | field | result |
 | --- | --- |
+| aggregate_metric_double | double |
 | boolean | boolean |
 | date | date |
 | date_nanos | date_nanos |
 | double | double |
+| exponential_histogram | double |
 | integer | integer |
 | ip | ip |
 | keyword | keyword |
 | long | long |
+| tdigest | double |
 | text | keyword |
 | unsigned_long {applies_to}`stack: ga 9.2.0` | unsigned_long |
 | version | version |

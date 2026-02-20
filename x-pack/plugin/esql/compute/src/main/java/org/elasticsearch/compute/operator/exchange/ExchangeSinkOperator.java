@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator.exchange;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -114,21 +113,13 @@ public class ExchangeSinkOperator extends SinkOperator {
 
         Status(StreamInput in) throws IOException {
             pagesReceived = in.readVInt();
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                rowsReceived = in.readVLong();
-            } else {
-                rowsReceived = 0;
-            }
+            rowsReceived = in.readVLong();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(pagesReceived);
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_PROFILE_ROWS_PROCESSED)) {
-                out.writeVLong(rowsReceived);
-            }
+            out.writeVLong(rowsReceived);
         }
 
         @Override
@@ -172,7 +163,7 @@ public class ExchangeSinkOperator extends SinkOperator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_11_X;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

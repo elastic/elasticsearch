@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.aggs.correlation;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
@@ -138,6 +137,6 @@ public class BucketCorrelationAggregationBuilder extends BucketMetricsPipelineAg
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

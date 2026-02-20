@@ -1,0 +1,132 @@
+// Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+// or more contributor license agreements. Licensed under the Elastic License
+// 2.0; you may not use this file except in compliance with the Elastic License
+// 2.0.
+package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
+
+import java.lang.Override;
+import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.FloatBlock;
+import org.elasticsearch.compute.data.Vector;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+
+/**
+ * {@link EvalOperator.ExpressionEvaluator} implementation for {@link ToDenseVector}.
+ * This class is generated. Edit {@code ConvertEvaluatorImplementer} instead.
+ */
+public final class ToDenseVectorFromDoubleEvaluator extends AbstractConvertFunction.AbstractEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(ToDenseVectorFromDoubleEvaluator.class);
+
+  private final EvalOperator.ExpressionEvaluator d;
+
+  public ToDenseVectorFromDoubleEvaluator(Source source, EvalOperator.ExpressionEvaluator d,
+      DriverContext driverContext) {
+    super(driverContext, source);
+    this.d = d;
+  }
+
+  @Override
+  public EvalOperator.ExpressionEvaluator next() {
+    return d;
+  }
+
+  @Override
+  public Block evalVector(Vector v) {
+    DoubleVector vector = (DoubleVector) v;
+    int positionCount = v.getPositionCount();
+    if (vector.isConstant()) {
+      return driverContext.blockFactory().newConstantFloatBlockWith(evalValue(vector, 0), positionCount);
+    }
+    try (FloatBlock.Builder builder = driverContext.blockFactory().newFloatBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        builder.appendFloat(evalValue(vector, p));
+      }
+      return builder.build();
+    }
+  }
+
+  private float evalValue(DoubleVector container, int index) {
+    double value = container.getDouble(index);
+    return ToDenseVector.fromDouble(value);
+  }
+
+  @Override
+  public Block evalBlock(Block b) {
+    DoubleBlock block = (DoubleBlock) b;
+    int positionCount = block.getPositionCount();
+    try (FloatBlock.Builder builder = driverContext.blockFactory().newFloatBlockBuilder(positionCount)) {
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = block.getValueCount(p);
+        int start = block.getFirstValueIndex(p);
+        int end = start + valueCount;
+        boolean positionOpened = false;
+        boolean valuesAppended = false;
+        for (int i = start; i < end; i++) {
+          float value = evalValue(block, i);
+          if (positionOpened == false && valueCount > 1) {
+            builder.beginPositionEntry();
+            positionOpened = true;
+          }
+          builder.appendFloat(value);
+          valuesAppended = true;
+        }
+        if (valuesAppended == false) {
+          builder.appendNull();
+        } else if (positionOpened) {
+          builder.endPositionEntry();
+        }
+      }
+      return builder.build();
+    }
+  }
+
+  private float evalValue(DoubleBlock container, int index) {
+    double value = container.getDouble(index);
+    return ToDenseVector.fromDouble(value);
+  }
+
+  @Override
+  public String toString() {
+    return "ToDenseVectorFromDoubleEvaluator[" + "d=" + d + "]";
+  }
+
+  @Override
+  public void close() {
+    Releasables.closeExpectNoException(d);
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += d.baseRamBytesUsed();
+    return baseRamBytesUsed;
+  }
+
+  public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+    private final Source source;
+
+    private final EvalOperator.ExpressionEvaluator.Factory d;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory d) {
+      this.source = source;
+      this.d = d;
+    }
+
+    @Override
+    public ToDenseVectorFromDoubleEvaluator get(DriverContext context) {
+      return new ToDenseVectorFromDoubleEvaluator(source, d.get(context), context);
+    }
+
+    @Override
+    public String toString() {
+      return "ToDenseVectorFromDoubleEvaluator[" + "d=" + d + "]";
+    }
+  }
+}

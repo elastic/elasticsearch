@@ -14,6 +14,8 @@ import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Arrays;
+import java.util.stream.IntStream;
 
 public class IndexReshardingMetadataSerializationTests extends AbstractXContentSerializingTestCase<IndexReshardingMetadata> {
     @Override
@@ -46,6 +48,10 @@ public class IndexReshardingMetadataSerializationTests extends AbstractXContentS
         for (int i = 0; i < oldShards; i++) {
             sourceShardStates[i] = randomFrom(IndexReshardingState.Split.SourceShardState.values());
         }
+        // All sources done is an invalid state, will fail assert in Split constructor
+        if (Arrays.stream(sourceShardStates).allMatch(state -> state == IndexReshardingState.Split.SourceShardState.DONE)) {
+            sourceShardStates[0] = IndexReshardingState.Split.SourceShardState.SOURCE;
+        }
         for (int i = 0; i < targetShardStates.length; i++) {
             targetShardStates[i] = randomFrom(IndexReshardingState.Split.TargetShardState.values());
         }
@@ -74,16 +80,18 @@ public class IndexReshardingMetadataSerializationTests extends AbstractXContentS
         var sourceShardStates = split.sourceShards().clone();
         var targetShardStates = split.targetShards().clone();
 
-        switch (randomFrom(Mutation.values())) {
-            case SOURCE_SHARD_STATES:
-                var is = randomInt(sourceShardStates.length - 1);
-                sourceShardStates[is] = IndexReshardingState.Split.SourceShardState.values()[(sourceShardStates[is].ordinal() + 1)
-                    % IndexReshardingState.Split.SourceShardState.values().length];
-                break;
-            case TARGET_SHARD_STATES:
-                var it = randomInt(targetShardStates.length - 1);
-                targetShardStates[it] = IndexReshardingState.Split.TargetShardState.values()[(targetShardStates[it].ordinal() + 1)
-                    % IndexReshardingState.Split.TargetShardState.values().length];
+        var is = randomInt(sourceShardStates.length - 1);
+        boolean allOtherSourcesDone = IntStream.range(0, sourceShardStates.length)
+            .filter(i -> i != is)
+            .allMatch(i -> sourceShardStates[i] == IndexReshardingState.Split.SourceShardState.DONE);
+        // All sources done is an invalid state, will fail assert in Split constructor
+        if (allOtherSourcesDone || randomFrom(Mutation.values()) == Mutation.TARGET_SHARD_STATES) {
+            var it = randomInt(targetShardStates.length - 1);
+            targetShardStates[it] = IndexReshardingState.Split.TargetShardState.values()[(targetShardStates[it].ordinal() + 1)
+                % IndexReshardingState.Split.TargetShardState.values().length];
+        } else {
+            sourceShardStates[is] = IndexReshardingState.Split.SourceShardState.values()[(sourceShardStates[is].ordinal() + 1)
+                % IndexReshardingState.Split.SourceShardState.values().length];
         }
 
         return new IndexReshardingState.Split(sourceShardStates, targetShardStates);

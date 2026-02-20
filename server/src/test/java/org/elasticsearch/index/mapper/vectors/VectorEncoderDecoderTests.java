@@ -28,13 +28,12 @@ public class VectorEncoderDecoderTests extends ESTestCase {
         int dims = 3;
         for (IndexVersion version : List.of(
             IndexVersionUtils.randomVersionBetween(
-                random(),
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersionUtils.getPreviousVersion(DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)
             ),
             DenseVectorFieldMapper.LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION
         )) {
-            ByteBuffer byteBuffer = DenseVectorFieldMapper.ElementType.FLOAT.createByteBuffer(version, 20);
+            ByteBuffer byteBuffer = DenseVectorFieldMapper.FLOAT_ELEMENT.createByteBuffer(version, 20);
             double magnitude = 0.0;
             for (float f : inputFloats) {
                 byteBuffer.putFloat(f);

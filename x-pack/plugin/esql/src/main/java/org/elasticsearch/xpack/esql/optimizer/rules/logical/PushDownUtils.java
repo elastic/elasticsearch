@@ -14,7 +14,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -154,7 +153,7 @@ class PushDownUtils {
             rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
                 if (attributeNamesToRename.contains(attr.name())) {
                     Alias renamedAttribute = aliasesForReplacedAttributesBuilder.computeIfAbsent(attr, a -> {
-                        String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name());
+                        String tempName = TemporaryNameGenerator.locallyUniqueTemporaryName(a.name());
                         return new Alias(a.source(), tempName, a, null, true);
                     });
                     return renamedAttribute.toAttribute();
@@ -179,7 +178,7 @@ class PushDownUtils {
         for (Attribute attr : potentiallyConflictingAttributes) {
             String name = attr.name();
             if (reservedNames.contains(name)) {
-                renameAttributeTo.putIfAbsent(name, TemporaryNameUtils.locallyUniqueTemporaryName(name));
+                renameAttributeTo.putIfAbsent(name, TemporaryNameGenerator.locallyUniqueTemporaryName(name));
             }
         }
 
@@ -206,7 +205,7 @@ class PushDownUtils {
 
     @SuppressWarnings("unchecked")
     public static <P extends LogicalPlan> P resolveRenamesFromMap(P plan, AttributeMap<Expression> map) {
-        return (P) plan.transformExpressionsOnly(ReferenceAttribute.class, r -> map.resolve(r, r));
+        return (P) plan.transformExpressionsOnly(Attribute.class, r -> map.resolve(r, r));
     }
 
     private record AttributeReplacement(List<Expression> rewrittenExpressions, AttributeMap<Alias> replacedAttributes) {}

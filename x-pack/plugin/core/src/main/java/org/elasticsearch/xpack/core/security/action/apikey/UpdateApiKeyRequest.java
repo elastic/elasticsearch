@@ -25,7 +25,7 @@ public final class UpdateApiKeyRequest extends BaseSingleUpdateApiKeyRequest {
         @Nullable final Map<String, Object> metadata,
         @Nullable final TimeValue expiration
     ) {
-        super(roleDescriptors, metadata, expiration, id);
+        super(roleDescriptors, metadata, expiration, id, null);
     }
 
     @Override

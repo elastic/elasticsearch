@@ -95,10 +95,11 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
         SourceToParse source = source(b -> b.field(ft.name(), value));
         ValueFetcher docValueFetcher = new DocValueFetcher(
             ft.docValueFormat(format, null),
-            ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+            ft.fielddataBuilder(FieldDataContext.noRuntimeFields(mapperService.getIndexSettings().getIndex().getName(), "test"))
                 .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
         );
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
+        when(searchExecutionContext.getIndexSettings()).thenReturn(mapperService.getIndexSettings());
         when(searchExecutionContext.isSourceEnabled()).thenReturn(true);
         when(searchExecutionContext.sourcePath(field)).thenReturn(Set.of(field));
         when(searchExecutionContext.getForField(ft, fdt)).thenAnswer(inv -> fieldDataLookup(mapperService).apply(ft, () -> {
@@ -146,5 +147,15 @@ public class Murmur3FieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of(new SortShortcutSupport(this::minimalMapping, this::writeField, false));
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

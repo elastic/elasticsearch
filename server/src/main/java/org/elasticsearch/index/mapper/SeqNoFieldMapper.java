@@ -14,10 +14,10 @@ import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DocValuesType;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
@@ -144,12 +144,17 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         private static final SeqNoFieldType NO_POINT = new SeqNoFieldType(false);
 
         private SeqNoFieldType(boolean indexed) {
-            super(NAME, indexed, false, true, TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS, Collections.emptyMap());
+            super(NAME, IndexType.points(indexed, true), false, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public TextSearchInfo getTextSearchInfo() {
+            return TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS;
         }
 
         private static long parse(Object value) {
@@ -182,7 +187,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termQuery(Object value, @Nullable SearchExecutionContext context) {
             long v = parse(value);
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 return LongPoint.newExactQuery(name(), v);
             } else {
                 return NumericDocValuesField.newSlowExactQuery(name(), v);
@@ -192,7 +197,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
         @Override
         public Query termsQuery(Collection<?> values, @Nullable SearchExecutionContext context) {
             long[] v = values.stream().mapToLong(SeqNoFieldType::parse).toArray();
-            if (isIndexed()) {
+            if (indexType.hasPoints()) {
                 return LongPoint.newSetQuery(name(), v);
             } else {
                 return NumericDocValuesField.newSlowSetQuery(name(), v);
@@ -213,7 +218,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                 l = parse(lowerTerm);
                 if (includeLower == false) {
                     if (l == Long.MAX_VALUE) {
-                        return new MatchNoDocsQuery();
+                        return Queries.NO_DOCS_INSTANCE;
                     }
                     ++l;
                 }
@@ -222,23 +227,23 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
                 u = parse(upperTerm);
                 if (includeUpper == false) {
                     if (u == Long.MIN_VALUE) {
-                        return new MatchNoDocsQuery();
+                        return Queries.NO_DOCS_INSTANCE;
                     }
                     --u;
                 }
             }
-            return rangeQueryForSeqNo(isIndexed(), l, u);
+            return rangeQueryForSeqNo(indexType.hasPoints(), l, u);
         }
 
         @Override
         public IndexFieldData.Builder fielddataBuilder(FieldDataContext fieldDataContext) {
             failIfNoDocValues();
-            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, SeqNoDocValuesField::new, isIndexed());
+            return new SortedNumericIndexFieldData.Builder(name(), NumericType.LONG, SeqNoDocValuesField::new, indexType);
         }
 
         @Override
         public boolean isSearchable() {
-            return isIndexed() || hasDocValues();
+            return indexType.hasPoints() || hasDocValues();
         }
     }
 

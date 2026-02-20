@@ -1,0 +1,129 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.patterned_text" ]
+      reason: "pattern_text mappings are used in this test"
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              message:
+                type: pattern_text
+              message_standard:
+                type: pattern_text
+                analyzer: standard
+
+  - do:
+      index:
+        index: test
+        id:    "1"
+        body:  { "message": "[2025-09-07T15:22:26,451][WARN ][o.e.c.c.ClusterBootstrapService] [runTask-0] this node is locked into cluster UUID [ozu-Fa0JTzW_AVu4uAL41g] but [cluster.initial_master_nodes] is set to [runTask-0]; remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts; for further information see https://www.elastic.co/docs/deploy-manage/deploy/self-managed/important-settings-configuration?version=master#initial_master_nodes" }
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body: { "message": "[2025-09-07T15:22:26,451][WARN ][o.e.c.c.ClusterBootstrapService] [runTask-0] another UUID [Fa0JTzW_AVu4uAL41g-ozu-ozu]" }
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body: { "message_standard": "[2025-09-07T15:22:26,451][WARN ][o.e.c.c.ClusterBootstrapService] [runTask-0] this node is locked into cluster UUID [ozu-Fa0JTzW_AVu4uAL41g] but [cluster.initial_master_nodes] is set to [runTask-0]; remove this setting to avoid possible data loss caused by subsequent cluster bootstrap attempts; for further information see https://www.elastic.co/docs/deploy-manage/deploy/self-managed/important-settings-configuration?version=master#initial_master_nodes" }
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        body: { "message_standard": "[2025-09-07T15:22:26,451][WARN ][o.e.c.c.ClusterBootstrapService] [runTask-0] another UUID [Fa0JTzW_AVu4uAL41g-ozu-ozu]" }
+
+  - do:
+      indices.refresh: {}
+
+---
+Match it:
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | WHERE MATCH(message, "ozu-Fa0JTzW_AVu4uAL41g") | KEEP _id | LIMIT 10'
+
+  - length: {values: 1}
+  - match: {values.0.0: "1" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | WHERE MATCH(message_standard, "ozu-Fa0JTzW_AVu4uAL41g") | KEEP _id | SORT _id | LIMIT 10'
+
+  - length: {values: 2}
+  - match: {values.0.0: "3" }
+  - match: {values.1.0: "4" }
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | WHERE MATCH(message, "2025") | KEEP _id | LIMIT 10'
+
+  - length: {values: 0}
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | WHERE MATCH(message_standard, "2025") | KEEP _id | SORT _id | LIMIT 10'
+
+  - length: {values: 2}
+  - match: {values.0.0: "3" }
+  - match: {values.1.0: "4" }
+
+---
+Text analysis:
+
+  - do:
+      indices.analyze:
+        index: test
+        body:
+          field: message
+          text: "[2025-09-07T15:22:27,206][INFO ][o.e.c.f.AbstractFileWatchingService] [runTask-0] file settings service up and running [tid=58]"
+  - length: { tokens: 14 }
+  - match:  { tokens.0.token: "2025-09-07t15" }
+  - match:  { tokens.1.token: "22" }
+  - match:  { tokens.2.token: "27,206" }
+  - match:  { tokens.3.token: "info" }
+  - match:  { tokens.4.token: "o.e.c.f.abstractfilewatchingservice" }
+  - match:  { tokens.5.token: "runtask-0" }
+  - match:  { tokens.6.token: "file" }
+  - match:  { tokens.7.token: "settings" }
+  - match:  { tokens.8.token: "service" }
+  - match:  { tokens.9.token: "up" }
+  - match:  { tokens.10.token: "and" }
+  - match:  { tokens.11.token: "running" }
+  - match:  { tokens.12.token: "tid" }
+  - match:  { tokens.13.token: "58" }
+
+
+  - do:
+      indices.analyze:
+        index: test
+        body:
+          field: message_standard
+          text: "[2025-09-07T15:22:27,206][INFO ][o.e.c.f.AbstractFileWatchingService] [runTask-0] file settings service up and running [tid=58]"
+  - length: { tokens: 17 }
+  - match:  { tokens.0.token: "2025" }
+  - match:  { tokens.1.token: "09" }
+  - match:  { tokens.2.token: "07t15" }
+  - match:  { tokens.3.token: "22" }
+  - match:  { tokens.4.token: "27,206" }
+  - match:  { tokens.5.token: "info" }
+  - match:  { tokens.6.token: "o.e.c.f.abstractfilewatchingservice" }
+  - match:  { tokens.7.token: "runtask" }
+  - match:  { tokens.8.token: "0" }
+  - match:  { tokens.9.token: "file" }
+  - match:  { tokens.10.token: "settings" }
+  - match:  { tokens.11.token: "service" }
+  - match:  { tokens.12.token: "up" }
+  - match:  { tokens.13.token: "and" }
+  - match:  { tokens.14.token: "running" }
+  - match:  { tokens.15.token: "tid" }
+  - match:  { tokens.16.token: "58" }

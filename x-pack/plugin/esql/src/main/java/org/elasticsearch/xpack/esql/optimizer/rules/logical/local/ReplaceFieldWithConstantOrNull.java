@@ -14,9 +14,11 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
+import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -25,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
 
 import java.util.HashMap;
@@ -37,6 +40,9 @@ import java.util.function.Predicate;
  * This should minimize the plan execution, in the best scenario skipping its execution all together.
  */
 public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPlan, LogicalPlan, LocalLogicalOptimizerContext> {
+
+    // Prefix for project metadata fields (e.g., _project._alias, _project.my_tag)
+    private static final String PROJECT_METADATA_PREFIX = "_project.";
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LocalLogicalOptimizerContext localLogicalOptimizerContext) {
@@ -61,6 +67,11 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
                         if (val != null) {
                             attrToConstant.put(attribute, Literal.of(attribute, BytesRefs.toBytesRef(val)));
                         }
+                    } else if (attribute instanceof MetadataAttribute ma && ma.name().startsWith(PROJECT_METADATA_PREFIX)) {
+                        String val = localLogicalOptimizerContext.searchStats().constantValue(new FieldAttribute.FieldName(ma.name()));
+                        if (val != null) {
+                            attrToConstant.put(attribute, Literal.of(attribute, BytesRefs.toBytesRef(val)));
+                        }
                     }
                 }
             }
@@ -70,6 +81,8 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
         // Do not use the attribute name, this can deviate from the field name for union types; use fieldName() instead.
         // Also retain fields from lookup indices because we do not have stats for these.
         Predicate<FieldAttribute> shouldBeRetained = f -> f.field() instanceof PotentiallyUnmappedKeywordEsField
+            // The source (or doc) field is added to the relation output as a hack to enable late materialization in the reduce driver.
+            || EsQueryExec.isDocAttribute(f)
             || localLogicalOptimizerContext.searchStats().exists(f.fieldName())
             || lookupFields.contains(f);
 
@@ -109,13 +122,26 @@ public class ReplaceFieldWithConstantOrNull extends ParameterizedRule<LogicalPla
             || plan instanceof Filter
             || plan instanceof OrderBy
             || plan instanceof RegexExtract
+            || plan instanceof CompoundOutputEval<?>
             || plan instanceof TopN) {
-            return plan.transformExpressionsOnlyUp(FieldAttribute.class, f -> {
+
+            LogicalPlan transformed = plan.transformExpressionsOnlyUp(FieldAttribute.class, f -> {
                 if (attrToConstant.containsKey(f)) {// handle constant values field and use the value itself instead
                     return attrToConstant.get(f);
                 } else {// handle missing fields and replace them with null
                     return shouldBeRetained.test(f) ? f : Literal.of(f, null);
                 }
+            });
+            // Handle MetadataAttribute: replace project metadata fields with constant values if available
+            // Note: We only replace if we successfully retrieved the constant value.
+            // If it's not the case, we leave the attribute as is and let the normal
+            // ES|QL execution path handle it via block loaders.
+            return transformed.transformExpressionsOnlyUp(MetadataAttribute.class, ma -> {
+                if (attrToConstant.containsKey(ma)) {
+                    // metadata field has a constant value on this node
+                    return attrToConstant.get(ma);
+                }
+                return ma;
             });
         }
 

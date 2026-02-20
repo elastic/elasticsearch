@@ -29,4 +29,5 @@ $$$urldecode-options$$$
   }
 }
 ```
+% NOTCONSOLE
 

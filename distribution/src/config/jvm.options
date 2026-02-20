@@ -65,6 +65,11 @@
 # Lucene 10: apply MADV_NORMAL advice to enable more aggressive readahead
 -Dorg.apache.lucene.store.defaultReadAdvice=normal
 
+# Lucene provides a mechanism for shared mmapped arenas to be referenced between multiple threads
+# this is to get around potential performance issues when closing shared arenas on many threads
+# default to 1 to disable this feature
+-Dorg.apache.lucene.store.MMapDirectory.sharedArenaMaxPermits=1
+
 ## heap dumps
 
 # generate a heap dump when an allocation from the Java heap fails; heap dumps

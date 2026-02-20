@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical.local;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.Page;
 
 import java.util.function.Supplier;
 
@@ -22,10 +23,10 @@ import java.util.function.Supplier;
  *     {@link UnsupportedOperationException}.
  * </p>
  */
-public interface LocalSupplier extends Supplier<Block[]>, NamedWriteable {
+public interface LocalSupplier extends Supplier<Page>, NamedWriteable {
 
-    static LocalSupplier of(Block[] blocks) {
-        return new ImmediateLocalSupplier(blocks);
+    static LocalSupplier of(Page page) {
+        return new ImmediateLocalSupplier(page);
     }
 
 }

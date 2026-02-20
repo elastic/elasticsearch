@@ -11,11 +11,12 @@ applies_to:
 
 This section provides detailed **reference information** for Elasticsearch privileges.
 
-Refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md) in the **Deploy and manage** section for more information on how role-based access control works.
+If you're using a stack-versioned deployment such as a self-managed cluster, {{ech}}, {{eck}}, or {{ece}}, then refer to [User roles](docs-content://deploy-manage/users-roles/cluster-or-deployment-auth/user-roles.md) for more information on how role-based access control works.
 
+If you're using {{serverless-full}}, then refer to [Serverless project custom roles](docs-content://deploy-manage/users-roles/serverless-custom-roles.md) to learn how to build roles using these privileges.
 
 :::{note}
-In {{serverless-full}}, Elastic manages the underlying infrastructure for you. Because of this, privileges related to cluster administration, scaling, snapshots, and availability are not available. Learn more about the [project custom roles managed by {{serverless-full}}](docs-content://deploy-manage/users-roles/serverless-custom-roles.md).
+In {{serverless-full}}, Elastic manages the underlying infrastructure for you. Because of this, privileges related to cluster administration, scaling, snapshots, and availability are not available. [Learn more about the features managed by {{serverless-full}}](docs-content://deploy-manage/deploy/elastic-cloud/differences-from-other-elasticsearch-offerings.md).
 :::
 
 Roles are governed by a set of configurable privileges grouped into these categories:
@@ -33,7 +34,7 @@ When creating roles, refer to this page for a complete list of available privile
 :   All cluster administration operations, like snapshotting, node shutdown/restart, settings update, rerouting, or managing users and roles.
 
 `cancel_task`
-:   Privileges to cancel tasks and delete async searches. See [delete async search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-async-search-submit) API for more informations.
+:   Privileges to cancel tasks and delete async searches. See [delete async search](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-async-search-submit) API for more information.
 
 `create_snapshot` {applies_to}`serverless: unavailable`
 :   Privileges to create snapshots for existing repositories. Can also list and view details on existing repositories and snapshots.

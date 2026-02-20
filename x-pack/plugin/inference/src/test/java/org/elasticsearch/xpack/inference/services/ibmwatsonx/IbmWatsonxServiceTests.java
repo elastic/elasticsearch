@@ -18,6 +18,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
@@ -29,6 +30,9 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankingInferenceService;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
@@ -38,7 +42,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
-import org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -50,10 +54,12 @@ import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelTests;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModelTests;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -62,6 +68,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -70,23 +77,27 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
+import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
-import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
+import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService.RERANK_WINDOW_SIZE;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -100,16 +111,16 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
     private HttpClientManager clientManager;
 
-    private static final String apiKey = "apiKey";
-    private static final String modelId = "model";
-    private static final String projectId = "project_id";
-    private static final String url = "https://abc.com";
-    private static final String apiVersion = "2023-04-03";
+    private static final String API_KEY_VALUE = "apiKey";
+    private static final String MODEL_ID_VALUE = "model";
+    private static final String PROJECT_ID_VALUE = "project_id";
+    private static final String URL_VALUE = "https://abc.com";
+    private static final String API_VERSION_VALUE = "2023-04-03";
 
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -126,11 +137,11 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
 
                 var embeddingsModel = (IbmWatsonxEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-                assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
-                assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(url)));
-                assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(apiVersion));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().projectId(), is(PROJECT_ID_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(URL_VALUE)));
+                assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
 
@@ -141,17 +152,17 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                     new HashMap<>(
                         Map.of(
                             ServiceFields.MODEL_ID,
-                            modelId,
+                            MODEL_ID_VALUE,
                             IbmWatsonxServiceFields.PROJECT_ID,
-                            projectId,
+                            PROJECT_ID_VALUE,
                             ServiceFields.URL,
-                            url,
+                            URL_VALUE,
                             IbmWatsonxServiceFields.API_VERSION,
-                            apiVersion
+                            API_VERSION_VALUE
                         )
                     ),
                     new HashMap<>(Map.of()),
-                    getSecretSettingsMap(apiKey)
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
             );
@@ -164,10 +175,10 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(IbmWatsonxRerankModel.class));
 
                 var rerankModel = (IbmWatsonxRerankModel) model;
-                assertThat(rerankModel.getServiceSettings().modelId(), is(modelId));
-                assertThat(rerankModel.getServiceSettings().projectId(), is(projectId));
-                assertThat(rerankModel.getServiceSettings().apiVersion(), is(apiVersion));
-                assertThat(rerankModel.getSecretSettings().apiKey().toString(), is(apiKey));
+                assertThat(rerankModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+                assertThat(rerankModel.getServiceSettings().projectId(), is(PROJECT_ID_VALUE));
+                assertThat(rerankModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
+                assertThat(rerankModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
 
             service.parseRequestConfig(
@@ -177,17 +188,17 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                     new HashMap<>(
                         Map.of(
                             ServiceFields.MODEL_ID,
-                            modelId,
+                            MODEL_ID_VALUE,
                             IbmWatsonxServiceFields.PROJECT_ID,
-                            projectId,
+                            PROJECT_ID_VALUE,
                             ServiceFields.URL,
-                            url,
+                            URL_VALUE,
                             IbmWatsonxServiceFields.API_VERSION,
-                            apiVersion
+                            API_VERSION_VALUE
                         )
                     ),
                     new HashMap<>(Map.of()),
-                    getSecretSettingsMap(apiKey)
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
             );
@@ -200,11 +211,11 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
 
                 var embeddingsModel = (IbmWatsonxEmbeddingsModel) model;
-                assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-                assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
-                assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(url)));
-                assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(apiVersion));
-                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().projectId(), is(PROJECT_ID_VALUE));
+                assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(URL_VALUE)));
+                assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
                 assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             }, e -> fail("Model parsing should have succeeded, but failed: " + e.getMessage()));
 
@@ -215,18 +226,18 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                     new HashMap<>(
                         Map.of(
                             ServiceFields.MODEL_ID,
-                            modelId,
+                            MODEL_ID_VALUE,
                             IbmWatsonxServiceFields.PROJECT_ID,
-                            projectId,
+                            PROJECT_ID_VALUE,
                             ServiceFields.URL,
-                            url,
+                            URL_VALUE,
                             IbmWatsonxServiceFields.API_VERSION,
-                            apiVersion
+                            API_VERSION_VALUE
                         )
                     ),
                     new HashMap<>(Map.of()),
                     createRandomChunkingSettingsMap(),
-                    getSecretSettingsMap(apiKey)
+                    getSecretSettingsMap(API_KEY_VALUE)
                 ),
                 modelListener
             );
@@ -262,13 +273,13 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(
                     Map.of(
                         ServiceFields.MODEL_ID,
-                        modelId,
+                        MODEL_ID_VALUE,
                         IbmWatsonxServiceFields.PROJECT_ID,
-                        projectId,
+                        PROJECT_ID_VALUE,
                         ServiceFields.URL,
-                        url,
+                        URL_VALUE,
                         IbmWatsonxServiceFields.API_VERSION,
-                        apiVersion
+                        API_VERSION_VALUE
                     )
                 ),
                 getTaskSettingsMapEmpty(),
@@ -289,17 +300,17 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(
                     Map.of(
                         ServiceFields.MODEL_ID,
-                        modelId,
+                        MODEL_ID_VALUE,
                         IbmWatsonxServiceFields.PROJECT_ID,
-                        projectId,
+                        PROJECT_ID_VALUE,
                         ServiceFields.URL,
-                        url,
+                        URL_VALUE,
                         IbmWatsonxServiceFields.API_VERSION,
-                        apiVersion
+                        API_VERSION_VALUE
                     )
                 ),
                 getTaskSettingsMapEmpty(),
-                getSecretSettingsMap(apiKey)
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             var model = service.parsePersistedConfigWithSecrets(
@@ -312,12 +323,12 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
 
             var embeddingsModel = (IbmWatsonxEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
-            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(url)));
-            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(apiVersion));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().projectId(), is(PROJECT_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(URL_VALUE)));
+            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
         }
     }
@@ -328,18 +339,18 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(
                     Map.of(
                         ServiceFields.MODEL_ID,
-                        modelId,
+                        MODEL_ID_VALUE,
                         IbmWatsonxServiceFields.PROJECT_ID,
-                        projectId,
+                        PROJECT_ID_VALUE,
                         ServiceFields.URL,
-                        url,
+                        URL_VALUE,
                         IbmWatsonxServiceFields.API_VERSION,
-                        apiVersion
+                        API_VERSION_VALUE
                     )
                 ),
                 getTaskSettingsMapEmpty(),
                 createRandomChunkingSettingsMap(),
-                getSecretSettingsMap(apiKey)
+                getSecretSettingsMap(API_KEY_VALUE)
             );
 
             var model = service.parsePersistedConfigWithSecrets(
@@ -352,12 +363,12 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
 
             var embeddingsModel = (IbmWatsonxEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
-            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(url)));
-            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(apiVersion));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().projectId(), is(PROJECT_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(URL_VALUE)));
+            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
         }
     }
@@ -368,17 +379,17 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(
                     Map.of(
                         ServiceFields.MODEL_ID,
-                        modelId,
+                        MODEL_ID_VALUE,
                         IbmWatsonxServiceFields.PROJECT_ID,
-                        projectId,
+                        PROJECT_ID_VALUE,
                         ServiceFields.URL,
-                        url,
+                        URL_VALUE,
                         IbmWatsonxServiceFields.API_VERSION,
-                        apiVersion
+                        API_VERSION_VALUE
                     )
                 ),
                 getTaskSettingsMapEmpty(),
-                getSecretSettingsMap(apiKey)
+                getSecretSettingsMap(API_KEY_VALUE)
             );
             persistedConfig.config().put("extra_key", "value");
 
@@ -392,31 +403,31 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
 
             var embeddingsModel = (IbmWatsonxEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
-            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(url)));
-            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(apiVersion));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().projectId(), is(PROJECT_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(URL_VALUE)));
+            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertThat(embeddingsModel.getSecretSettings().apiKey(), is(apiKey));
+            assertThat(embeddingsModel.getSecretSettings().apiKey(), is(API_KEY_VALUE));
         }
     }
 
     public void testParsePersistedConfigWithSecrets_DoesNotThrowWhenAnExtraKeyExistsInSecretsSettings() throws IOException {
         try (var service = createIbmWatsonxService()) {
-            var secretSettingsMap = getSecretSettingsMap(apiKey);
+            var secretSettingsMap = getSecretSettingsMap(API_KEY_VALUE);
             secretSettingsMap.put("extra_key", "value");
 
             var persistedConfig = getPersistedConfigMap(
                 new HashMap<>(
                     Map.of(
                         ServiceFields.MODEL_ID,
-                        modelId,
+                        MODEL_ID_VALUE,
                         IbmWatsonxServiceFields.PROJECT_ID,
-                        projectId,
+                        PROJECT_ID_VALUE,
                         ServiceFields.URL,
-                        url,
+                        URL_VALUE,
                         IbmWatsonxServiceFields.API_VERSION,
-                        apiVersion
+                        API_VERSION_VALUE
                     )
                 ),
                 getTaskSettingsMapEmpty(),
@@ -433,12 +444,12 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
 
             var embeddingsModel = (IbmWatsonxEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
-            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(url)));
-            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(apiVersion));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().projectId(), is(PROJECT_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(URL_VALUE)));
+            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -447,18 +458,18 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             Map<String, Object> serviceSettingsMap = new HashMap<>(
                 Map.of(
                     ServiceFields.MODEL_ID,
-                    modelId,
+                    MODEL_ID_VALUE,
                     IbmWatsonxServiceFields.PROJECT_ID,
-                    projectId,
+                    PROJECT_ID_VALUE,
                     ServiceFields.URL,
-                    url,
+                    URL_VALUE,
                     IbmWatsonxServiceFields.API_VERSION,
-                    apiVersion
+                    API_VERSION_VALUE
                 )
             );
             serviceSettingsMap.put("extra_key", "value");
 
-            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMapEmpty(), getSecretSettingsMap(apiKey));
+            var persistedConfig = getPersistedConfigMap(serviceSettingsMap, getTaskSettingsMapEmpty(), getSecretSettingsMap(API_KEY_VALUE));
 
             var model = service.parsePersistedConfigWithSecrets(
                 "id",
@@ -470,12 +481,12 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
 
             var embeddingsModel = (IbmWatsonxEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
-            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(url)));
-            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(apiVersion));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().projectId(), is(PROJECT_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(URL_VALUE)));
+            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
-            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(API_KEY_VALUE));
         }
     }
 
@@ -493,11 +504,11 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                         ServiceFields.MODEL_ID,
                         modelId,
                         IbmWatsonxServiceFields.PROJECT_ID,
-                        projectId,
+                        PROJECT_ID_VALUE,
                         ServiceFields.URL,
-                        url,
+                        URL_VALUE,
                         IbmWatsonxServiceFields.API_VERSION,
-                        apiVersion
+                        API_VERSION_VALUE
                     )
                 ),
                 taskSettings,
@@ -515,9 +526,9 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
             var embeddingsModel = (IbmWatsonxEmbeddingsModel) model;
             assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
-            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(url)));
-            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(apiVersion));
+            assertThat(embeddingsModel.getServiceSettings().projectId(), is(PROJECT_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(URL_VALUE)));
+            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is(apiKey));
         }
@@ -529,13 +540,13 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(
                     Map.of(
                         ServiceFields.MODEL_ID,
-                        modelId,
+                        MODEL_ID_VALUE,
                         IbmWatsonxServiceFields.PROJECT_ID,
-                        projectId,
+                        PROJECT_ID_VALUE,
                         ServiceFields.URL,
-                        url,
+                        URL_VALUE,
                         IbmWatsonxServiceFields.API_VERSION,
-                        apiVersion
+                        API_VERSION_VALUE
                     )
                 ),
                 getTaskSettingsMapEmpty(),
@@ -547,10 +558,10 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
 
             var embeddingsModel = (IbmWatsonxEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
-            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(url)));
-            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(apiVersion));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().projectId(), is(PROJECT_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(URL_VALUE)));
+            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
         }
@@ -562,13 +573,13 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 new HashMap<>(
                     Map.of(
                         ServiceFields.MODEL_ID,
-                        modelId,
+                        MODEL_ID_VALUE,
                         IbmWatsonxServiceFields.PROJECT_ID,
-                        projectId,
+                        PROJECT_ID_VALUE,
                         ServiceFields.URL,
-                        url,
+                        URL_VALUE,
                         IbmWatsonxServiceFields.API_VERSION,
-                        apiVersion
+                        API_VERSION_VALUE
                     )
                 ),
                 getTaskSettingsMapEmpty(),
@@ -581,17 +592,17 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             assertThat(model, instanceOf(IbmWatsonxEmbeddingsModel.class));
 
             var embeddingsModel = (IbmWatsonxEmbeddingsModel) model;
-            assertThat(embeddingsModel.getServiceSettings().modelId(), is(modelId));
-            assertThat(embeddingsModel.getServiceSettings().projectId(), is(projectId));
-            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(url)));
-            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(apiVersion));
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is(MODEL_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().projectId(), is(PROJECT_ID_VALUE));
+            assertThat(embeddingsModel.getServiceSettings().url(), is(URI.create(URL_VALUE)));
+            assertThat(embeddingsModel.getServiceSettings().apiVersion(), is(API_VERSION_VALUE));
             assertThat(embeddingsModel.getTaskSettings(), is(EmptyTaskSettings.INSTANCE));
             assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
         }
     }
 
     public void testInfer_ThrowsErrorWhenModelIsNotIbmWatsonxModel() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
@@ -620,7 +631,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -629,38 +640,44 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     }
 
     public void testInfer_ThrowsErrorWhenInputTypeIsSpecified() throws IOException {
-        var sender = mock(Sender.class);
+        var sender = createMockSender();
 
         var factory = mock(HttpRequestSender.Factory.class);
         when(factory.createSender()).thenReturn(sender);
 
-        var model = IbmWatsonxEmbeddingsModelTests.createModel(modelId, projectId, URI.create(url), apiVersion, apiKey, getUrl(webServer));
+        var model = IbmWatsonxEmbeddingsModelTests.createModel(
+            MODEL_ID_VALUE,
+            PROJECT_ID_VALUE,
+            URI.create(URL_VALUE),
+            API_VERSION_VALUE,
+            API_KEY_VALUE,
+            getUrl(webServer)
+        );
 
         try (var service = new IbmWatsonxService(factory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
-            var thrownException = expectThrows(
-                ValidationException.class,
-                () -> service.infer(
-                    model,
-                    null,
-                    null,
-                    null,
-                    List.of(""),
-                    false,
-                    new HashMap<>(),
-                    InputType.INGEST,
-                    InferenceAction.Request.DEFAULT_TIMEOUT,
-                    listener
-                )
+            service.infer(
+                model,
+                null,
+                null,
+                null,
+                List.of(""),
+                false,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
             );
+
+            var thrownException = expectThrows(ValidationException.class, () -> listener.actionGet(TIMEOUT));
             MatcherAssert.assertThat(
                 thrownException.getMessage(),
                 is("Validation Failed: 1: Invalid input_type [ingest]. The input_type option is not supported by this service;")
             );
 
             verify(factory, times(1)).createSender();
-            verify(sender, times(1)).start();
+            verify(sender, times(1)).startAsynchronously(any());
         }
 
         verify(sender, times(1)).close();
@@ -691,11 +708,11 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = IbmWatsonxEmbeddingsModelTests.createModel(
-                modelId,
-                projectId,
-                URI.create(url),
-                apiVersion,
-                apiKey,
+                MODEL_ID_VALUE,
+                PROJECT_ID_VALUE,
+                URI.create(URL_VALUE),
+                API_VERSION_VALUE,
+                API_KEY_VALUE,
                 getUrl(webServer)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -719,7 +736,10 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap, aMapWithSize(3));
-            assertThat(requestMap, Matchers.is(Map.of("project_id", projectId, "inputs", List.of(input), "model_id", modelId)));
+            assertThat(
+                requestMap,
+                Matchers.is(Map.of("project_id", PROJECT_ID_VALUE, "inputs", List.of(input), "model_id", MODEL_ID_VALUE))
+            );
         }
     }
 
@@ -729,6 +749,34 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
     public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
         testChunkedInfer_Batches(createRandomChunkingSettings());
+    }
+
+    public void testChunkedInfer_noInputs() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        var model = IbmWatsonxEmbeddingsModelTests.createModel(
+            MODEL_ID_VALUE,
+            PROJECT_ID_VALUE,
+            URI.create(URL_VALUE),
+            API_VERSION_VALUE,
+            API_KEY_VALUE,
+            getUrl(webServer)
+        );
+        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
+            PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
+            service.chunkedInfer(
+                model,
+                null,
+                List.of(),
+                new HashMap<>(),
+                InputType.INTERNAL_INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            var results = listener.actionGet(TIMEOUT);
+            assertThat(results, empty());
+            assertThat(webServer.requests(), empty());
+        }
     }
 
     private void testChunkedInfer_Batches(ChunkingSettings chunkingSettings) throws IOException {
@@ -761,11 +809,11 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = IbmWatsonxEmbeddingsModelTests.createModel(
-                modelId,
-                projectId,
-                URI.create(url),
-                apiVersion,
-                apiKey,
+                MODEL_ID_VALUE,
+                PROJECT_ID_VALUE,
+                URI.create(URL_VALUE),
+                API_VERSION_VALUE,
+                API_KEY_VALUE,
                 getUrl(webServer)
             );
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
@@ -787,12 +835,12 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 assertThat(results.get(0), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(0);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, input.get(0).input().length()), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(0).inputText().length()), floatResult.chunks().get(0).offset());
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
                         new float[] { 0.0123f, -0.0123f },
-                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
                     )
                 );
             }
@@ -802,12 +850,12 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 assertThat(results.get(1), instanceOf(ChunkedInferenceEmbedding.class));
                 var floatResult = (ChunkedInferenceEmbedding) results.get(1);
                 assertThat(floatResult.chunks(), hasSize(1));
-                assertEquals(new ChunkedInference.TextOffset(0, input.get(1).input().length()), floatResult.chunks().get(0).offset());
-                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(TextEmbeddingFloatResults.Embedding.class));
+                assertEquals(new ChunkedInference.TextOffset(0, input.get(1).inputText().length()), floatResult.chunks().get(0).offset());
+                assertThat(floatResult.chunks().get(0).embedding(), Matchers.instanceOf(DenseEmbeddingFloatResults.Embedding.class));
                 assertTrue(
                     Arrays.equals(
                         new float[] { 0.0456f, -0.0456f },
-                        ((TextEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
+                        ((DenseEmbeddingFloatResults.Embedding) floatResult.chunks().get(0).embedding()).values()
                     )
                 );
             }
@@ -817,7 +865,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
             var requestMap = entityAsMap(webServer.requests().get(0).getBody());
             assertThat(requestMap, aMapWithSize(3));
-            assertThat(requestMap, is(Map.of("project_id", projectId, "inputs", List.of("a", "bb"), "model_id", modelId)));
+            assertThat(requestMap, is(Map.of("project_id", PROJECT_ID_VALUE, "inputs", List.of("a", "bb"), "model_id", MODEL_ID_VALUE)));
         }
     }
 
@@ -836,11 +884,11 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(404).setBody(responseJson));
 
             var model = IbmWatsonxEmbeddingsModelTests.createModel(
-                modelId,
-                projectId,
-                URI.create(url),
-                apiVersion,
-                apiKey,
+                MODEL_ID_VALUE,
+                PROJECT_ID_VALUE,
+                URI.create(URL_VALUE),
+                API_VERSION_VALUE,
+                API_KEY_VALUE,
                 getUrl(webServer)
             );
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -920,7 +968,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 {
                        "service": "watsonxai",
                        "name": "IBM watsonx",
-                       "task_types": ["text_embedding", "completion", "chat_completion"],
+                       "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
                        "configurations": {
                            "project_id": {
                                "description": "",
@@ -929,7 +977,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                            },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
@@ -938,7 +986,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                            },
                            "api_version": {
                                "description": "The IBM watsonx API version ID to use.",
@@ -947,7 +995,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",
@@ -965,7 +1013,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                            }
                        }
                    }
@@ -1025,6 +1073,11 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     @Override
     public InferenceService createInferenceService() {
         return createIbmWatsonxService();
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(RERANK_WINDOW_SIZE));
     }
 
     private static class IbmWatsonxServiceWithoutAuth extends IbmWatsonxService {
@@ -1089,6 +1142,98 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 embeddingsRequest.truncationResult(),
                 embeddingsRequest.model()
             );
+        }
+    }
+
+    public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException, URISyntaxException {
+        var model = createTestModel(TaskType.TEXT_EMBEDDING);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Completion() throws IOException, URISyntaxException {
+        var model = createTestModel(TaskType.COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_ChatCompletion() throws IOException, URISyntaxException {
+        var model = createTestModel(TaskType.CHAT_COMPLETION);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_Rerank() throws IOException, URISyntaxException {
+        var model = createTestModel(TaskType.RERANK);
+        validateModelBuilding(model);
+    }
+
+    public void testBuildModelFromConfigAndSecrets_UnsupportedTaskType() throws IOException {
+        var modelConfigurations = new ModelConfigurations(
+            "id",
+            TaskType.SPARSE_EMBEDDING,
+            IbmWatsonxService.NAME,
+            mock(ServiceSettings.class)
+        );
+        try (var inferenceService = createInferenceService()) {
+            var thrownException = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> inferenceService.buildModelFromConfigAndSecrets(modelConfigurations, mock(ModelSecrets.class))
+            );
+            assertThat(
+                thrownException.getMessage(),
+                is(
+                    Strings.format(
+                        """
+                            Failed to parse stored model [%s] for [%s] service, error: [The [%s] service does not support task type [%s]]. \
+                            Please delete and add the service again""",
+                        "id",
+                        IbmWatsonxService.NAME,
+                        IbmWatsonxService.NAME,
+                        TaskType.SPARSE_EMBEDDING
+                    )
+                )
+
+            );
+        }
+    }
+
+    private Model createTestModel(TaskType taskType) {
+        return switch (taskType) {
+            case TEXT_EMBEDDING -> IbmWatsonxEmbeddingsModelTests.createModel(
+                MODEL_ID_VALUE,
+                PROJECT_ID_VALUE,
+                URI.create(URL_VALUE),
+                API_VERSION_VALUE,
+                API_KEY_VALUE,
+                URL_VALUE
+            );
+            case COMPLETION -> IbmWatsonxChatCompletionModelTests.createCompletionModel(
+                URI.create(URL_VALUE),
+                API_VERSION_VALUE,
+                MODEL_ID_VALUE,
+                PROJECT_ID_VALUE,
+                API_KEY_VALUE
+            );
+            case CHAT_COMPLETION -> IbmWatsonxChatCompletionModelTests.createChatCompletionModel(
+                URI.create(URL_VALUE),
+                API_VERSION_VALUE,
+                MODEL_ID_VALUE,
+                PROJECT_ID_VALUE,
+                API_KEY_VALUE
+            );
+            case RERANK -> IbmWatsonxRerankModelTests.createModel(
+                MODEL_ID_VALUE,
+                PROJECT_ID_VALUE,
+                URI.create(URL_VALUE),
+                API_VERSION_VALUE,
+                API_KEY_VALUE
+            );
+            default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
+        };
+    }
+
+    private void validateModelBuilding(Model model) throws IOException {
+        try (var inferenceService = createInferenceService()) {
+            var resultModel = inferenceService.buildModelFromConfigAndSecrets(model.getConfigurations(), model.getSecrets());
+            assertThat(resultModel, is(model));
         }
     }
 }

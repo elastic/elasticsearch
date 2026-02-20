@@ -41,7 +41,6 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -54,8 +53,8 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.BaseKnnVectorsFormatTestCase;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
-import org.elasticsearch.index.codec.vectors.reflect.OffHeapByteSizeUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -108,7 +107,7 @@ public class ES816BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
         VectorSimilarityFunction similarityFunction = VectorSimilarityFunction.EUCLIDEAN;
         try (Directory d = newDirectory()) {
             IndexWriterConfig iwc = newIndexWriterConfig().setCodec(codec);
-            iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", MatchAllDocsQuery::new, iwc.getMergePolicy()));
+            iwc.setMergePolicy(new SoftDeletesRetentionMergePolicy("soft_delete", () -> Queries.ALL_DOCS_INSTANCE, iwc.getMergePolicy()));
             try (IndexWriter w = new IndexWriter(d, iwc)) {
                 List<Document> toAdd = new ArrayList<>();
                 for (int j = 1; j <= 5; j++) {
@@ -262,7 +261,7 @@ public class ES816BinaryQuantizedVectorsFormatTests extends BaseKnnVectorsFormat
                         knnVectorsReader = fieldsReader.getFieldReader("f");
                     }
                     var fieldInfo = r.getFieldInfos().fieldInfo("f");
-                    var offHeap = OffHeapByteSizeUtils.getOffHeapByteSize(knnVectorsReader, fieldInfo);
+                    var offHeap = knnVectorsReader.getOffHeapByteSize(fieldInfo);
                     assertEquals(2, offHeap.size());
                     assertEquals(vector.length * Float.BYTES, (long) offHeap.get("vec"));
                     assertTrue(offHeap.get("veb") > 0L);

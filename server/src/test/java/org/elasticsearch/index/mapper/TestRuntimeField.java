@@ -56,7 +56,7 @@ public final class TestRuntimeField implements RuntimeField {
         private final String type;
 
         public TestRuntimeFieldType(String name, String type) {
-            super(name, false, false, false, TextSearchInfo.NONE, Collections.emptyMap());
+            super(name, IndexType.NONE, false, Collections.emptyMap());
             this.type = type;
         }
 

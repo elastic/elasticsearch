@@ -1,0 +1,5 @@
+pr: 139343
+summary: "Introduce SwissTable-based hashing for ES|QL STATS"
+area: "ES|QL"
+type: enhancement
+issues: []

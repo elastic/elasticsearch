@@ -7,15 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.openai;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
@@ -29,10 +28,9 @@ import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
-import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
-import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.chunking.EmbeddingRequestChunker;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
@@ -41,12 +39,15 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.ModelCreator;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelCreator;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.request.OpenAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.services.openai.response.OpenAiChatCompletionResponseEntity;
@@ -64,13 +65,13 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.DIMENSION
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedTaskTypeStatusException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.useChatCompletionUrlMessage;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.HEADERS;
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.ORGANIZATION;
 import static org.elasticsearch.xpack.inference.services.openai.action.OpenAiActionCreator.COMPLETION_ERROR_PREFIX;
 
@@ -91,6 +92,15 @@ public class OpenAiService extends SenderService {
     private static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
         "openai completion",
         OpenAiChatCompletionResponseEntity::fromResponse
+    );
+    private static final OpenAiChatCompletionModelCreator COMPLETION_MODEL_CREATOR = new OpenAiChatCompletionModelCreator();
+    private static final Map<TaskType, ModelCreator<? extends OpenAiModel>> MODEL_CREATORS = Map.of(
+        TaskType.TEXT_EMBEDDING,
+        new OpenAiEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        COMPLETION_MODEL_CREATOR,
+        TaskType.CHAT_COMPLETION,
+        COMPLETION_MODEL_CREATOR
     );
 
     public OpenAiService(
@@ -137,7 +147,6 @@ public class OpenAiService extends SenderService {
                 taskSettingsMap,
                 chunkingSettings,
                 serviceSettingsMap,
-                TaskType.unsupportedTaskTypeErrorMsg(taskType, NAME),
                 ConfigurationParseContext.REQUEST
             );
 
@@ -157,8 +166,7 @@ public class OpenAiService extends SenderService {
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
-        @Nullable Map<String, Object> secretSettings,
-        String failureMessage
+        @Nullable Map<String, Object> secretSettings
     ) {
         return createModel(
             inferenceEntityId,
@@ -167,7 +175,6 @@ public class OpenAiService extends SenderService {
             taskSettings,
             chunkingSettings,
             secretSettings,
-            failureMessage,
             ConfigurationParseContext.PERSISTENT
         );
     }
@@ -179,31 +186,18 @@ public class OpenAiService extends SenderService {
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secretSettings,
-        String failureMessage,
         ConfigurationParseContext context
     ) {
-        return switch (taskType) {
-            case TEXT_EMBEDDING -> new OpenAiEmbeddingsModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                chunkingSettings,
-                secretSettings,
-                context
-            );
-            case COMPLETION, CHAT_COMPLETION -> new OpenAiChatCompletionModel(
-                inferenceEntityId,
-                taskType,
-                NAME,
-                serviceSettings,
-                taskSettings,
-                secretSettings,
-                context
-            );
-            default -> throw new ElasticsearchStatusException(failureMessage, RestStatus.BAD_REQUEST);
-        };
+        return retrieveModelCreatorFromMapOrThrow(MODEL_CREATORS, inferenceEntityId, taskType, NAME, context).createFromMaps(
+            inferenceEntityId,
+            taskType,
+            NAME,
+            serviceSettings,
+            taskSettings,
+            chunkingSettings,
+            secretSettings,
+            context
+        );
     }
 
     @Override
@@ -230,9 +224,19 @@ public class OpenAiService extends SenderService {
             serviceSettingsMap,
             taskSettingsMap,
             chunkingSettings,
-            secretSettingsMap,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
+            secretSettingsMap
         );
+    }
+
+    @Override
+    public Model buildModelFromConfigAndSecrets(ModelConfigurations config, ModelSecrets secrets) {
+        return retrieveModelCreatorFromMapOrThrow(
+            MODEL_CREATORS,
+            config.getInferenceEntityId(),
+            config.getTaskType(),
+            config.getService(),
+            ConfigurationParseContext.PERSISTENT
+        ).createFromModelConfigurationsAndSecrets(config, secrets);
     }
 
     @Override
@@ -247,15 +251,7 @@ public class OpenAiService extends SenderService {
 
         moveModelFromTaskToServiceSettings(taskSettingsMap, serviceSettingsMap);
 
-        return createModelFromPersistent(
-            inferenceEntityId,
-            taskType,
-            serviceSettingsMap,
-            taskSettingsMap,
-            chunkingSettings,
-            null,
-            parsePersistedConfigErrorMsg(inferenceEntityId, NAME)
-        );
+        return createModelFromPersistent(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, null);
     }
 
     @Override
@@ -277,12 +273,8 @@ public class OpenAiService extends SenderService {
         ActionListener<InferenceServiceResults> listener
     ) {
         if (SUPPORTED_INFERENCE_ACTION_TASK_TYPES.contains(model.getTaskType()) == false) {
-            var responseString = ServiceUtils.unsupportedTaskTypeForInference(model, SUPPORTED_INFERENCE_ACTION_TASK_TYPES);
-
-            if (model.getTaskType() == TaskType.CHAT_COMPLETION) {
-                responseString = responseString + " " + useChatCompletionUrlMessage(model);
-            }
-            listener.onFailure(new ElasticsearchStatusException(responseString, RestStatus.BAD_REQUEST));
+            listener.onFailure(createUnsupportedTaskTypeStatusException(model, SUPPORTED_INFERENCE_ACTION_TASK_TYPES));
+            return;
         }
 
         if (model instanceof OpenAiModel == false) {
@@ -335,7 +327,7 @@ public class OpenAiService extends SenderService {
     @Override
     protected void doChunkedInfer(
         Model model,
-        EmbeddingsInput inputs,
+        List<ChunkInferenceInput> inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -350,14 +342,14 @@ public class OpenAiService extends SenderService {
         var actionCreator = new OpenAiActionCreator(getSender(), getServiceComponents());
 
         List<EmbeddingRequestChunker.BatchRequestAndListener> batchedRequests = new EmbeddingRequestChunker<>(
-            inputs.getInputs(),
+            inputs,
             EMBEDDING_MAX_BATCH_SIZE,
             openAiModel.getConfigurations().getChunkingSettings()
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
             var action = openAiModel.accept(actionCreator, taskSettings);
-            action.execute(EmbeddingsInput.fromStrings(request.batch().inputs().get(), inputType), timeout, request.listener());
+            action.execute(new EmbeddingsInput(request.batch().inputs(), inputType), timeout, request.listener());
         }
     }
 
@@ -387,7 +379,7 @@ public class OpenAiService extends SenderService {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -422,10 +414,10 @@ public class OpenAiService extends SenderService {
 
     public static class Configuration {
         public static InferenceServiceConfiguration get() {
-            return configuration.getOrCompute();
+            return CONFIGURATION.getOrCompute();
         }
 
-        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> CONFIGURATION = new LazyInitializable<>(
             () -> {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
 
@@ -479,6 +471,18 @@ public class OpenAiService extends SenderService {
                         .setSensitive(false)
                         .setUpdatable(false)
                         .setType(SettingsConfigurationFieldType.INTEGER)
+                        .build()
+                );
+
+                configurationMap.put(
+                    HEADERS,
+                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION))
+                        .setDescription("Custom headers to include in the requests to OpenAI.")
+                        .setLabel("Custom Headers")
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setUpdatable(true)
+                        .setType(SettingsConfigurationFieldType.MAP)
                         .build()
                 );
 

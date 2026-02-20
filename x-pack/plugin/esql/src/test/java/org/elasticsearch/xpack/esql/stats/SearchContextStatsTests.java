@@ -167,8 +167,7 @@ public class SearchContextStatsTests extends MapperServiceTestCase {
     }
 
     public void testPointValuesMinMaxDoesNotReturnSentinelValues() throws IOException {
-        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
-        };
+        final MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
         final List<SearchExecutionContext> contexts = new ArrayList<>();
         final List<Closeable> toClose = new ArrayList<>();
 

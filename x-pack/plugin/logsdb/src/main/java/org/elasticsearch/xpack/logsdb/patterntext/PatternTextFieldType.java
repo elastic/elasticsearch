@@ -145,6 +145,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
 
             @Override
             public StoredFieldsSpec storedFieldsSpec() {
+                // Pattern Text may require a stored field, but it handles loading this field internally.
                 return StoredFieldsSpec.NO_REQUIREMENTS;
             }
         };

@@ -41,23 +41,28 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
         Settings settings,
         ThreadPool threadPool,
         CustomDictionaryService customDictionaryService
-    ) {
+    ) throws IOException {
         super(name);
         validateSettings(settings);
 
         this.overrideMapFuture = new PlainActionFuture<>();
-        final Supplier<List<String>> rulesSupplier = Analysis.getWordListSupplier(
-            customDictionaryService,
-            env,
-            settings,
-            RULES_PATH_KEY,
-            RULES_KEY,
-            RULES_DICTIONARY_KEY,
-            true
-        );
 
-        threadPool.executor(ThreadPool.Names.ANALYZE)
-            .execute(ActionRunnable.supply(overrideMapFuture, () -> buildStemmerOverrideMap(rulesSupplier.get())));
+        if (settings.hasValue(RULES_DICTIONARY_KEY)) {
+            final Supplier<List<String>> rulesSupplier = Analysis.getWordListSupplier(
+                customDictionaryService,
+                env,
+                settings,
+                RULES_PATH_KEY,
+                RULES_KEY,
+                RULES_DICTIONARY_KEY,
+                true
+            );
+            threadPool.executor(ThreadPool.Names.ANALYZE)
+                .execute(ActionRunnable.supply(overrideMapFuture, () -> buildStemmerOverrideMap(rulesSupplier.get())));
+        } else {
+            List<String> rules = Analysis.getWordList(env, settings, RULES_PATH_KEY, RULES_KEY, true);
+            overrideMapFuture.onResponse(buildStemmerOverrideMap(rules));
+        }
     }
 
     @Override

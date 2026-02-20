@@ -94,19 +94,20 @@ public class CsvTestsDataLoader {
     private static final TestDataset MULTI_COLUMN_JOINABLE_LOOKUP = new TestDataset(
         "multi_column_joinable_lookup",
         "mapping-multi_column_joinable_lookup.json",
-        "multi_column_joinable_lookup.csv"
-    ).withSetting("lookup-settings.json");
+        "multi_column_joinable_lookup.csv",
+        "lookup-settings.json"
+    );
     private static final TestDataset LANGUAGES = new TestDataset("languages");
     private static final TestDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup").withSetting("lookup-settings.json");
-    private static final TestDataset LANGUAGES_NON_UNIQUE_KEY = new TestDataset("languages_non_unique_key");
     private static final TestDataset LANGUAGES_LOOKUP_NON_UNIQUE_KEY = LANGUAGES_LOOKUP.withIndex("languages_lookup_non_unique_key")
         .withData("languages_non_unique_key.csv")
         .withDynamicTypeMapping(Map.of("country", "text"));
     private static final TestDataset LANGUAGES_NESTED_FIELDS = new TestDataset(
         "languages_nested_fields",
         "mapping-languages_nested_fields.json",
-        "languages_nested_fields.csv"
-    ).withSetting("lookup-settings.json");
+        "languages_nested_fields.csv",
+        "lookup-settings.json"
+    );
     private static final TestDataset LANGUAGES_MIX_NUMERICS = new TestDataset("languages_mixed_numerics").withSetting(
         "lookup-settings.json"
     );
@@ -187,17 +188,21 @@ public class CsvTestsDataLoader {
     private static final TestDataset K8S_DOWNSAMPLED = new TestDataset(
         "k8s-downsampled",
         "k8s-downsampled-mappings.json",
-        "k8s-downsampled.csv"
-    ).withSetting("k8s-downsampled-settings.json");
+        "k8s-downsampled.csv",
+        "k8s-downsampled-settings.json"
+    );
     private static final TestDataset ADDRESSES = new TestDataset("addresses");
     private static final TestDataset BOOKS = new TestDataset("books").withSetting("books-settings.json");
-    private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(true);
+    private static final TestDataset SEMANTIC_TEXT = new TestDataset("semantic_text").withInferenceEndpoint(
+        "test_sparse_inference",
+        "test_dense_inference"
+    );
     private static final TestDataset LOGS = new TestDataset("logs");
     private static final TestDataset DENSE_VECTOR_TEXT = new TestDataset("dense_vector_text");
     private static final TestDataset MV_TEXT = new TestDataset("mv_text");
     private static final TestDataset DENSE_VECTOR = new TestDataset("dense_vector");
     private static final TestDataset DENSE_VECTOR_BFLOAT16 = new TestDataset("dense_vector_bfloat16").withRequiredCapabilities(
-        List.of(EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT)
+        EsqlCapabilities.Cap.GENERIC_VECTOR_FORMAT
     );
     private static final TestDataset DENSE_VECTOR_ARITHMETIC = new TestDataset("dense_vector_arithmetic");
     private static final TestDataset WEB_LOGS = new TestDataset("web_logs");
@@ -207,27 +212,27 @@ public class CsvTestsDataLoader {
     private static final TestDataset EXP_HISTO_SAMPLE = new TestDataset(
         "exp_histo_sample",
         "exp_histo_sample-mappings.json",
-        "exp_histo_sample.csv"
-    ).withSetting("exp_histo_sample-settings.json")
-        .withRequiredCapabilities(List.of(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW));
+        "exp_histo_sample.csv",
+        "exp_histo_sample-settings.json"
+    ).withRequiredCapabilities(EsqlCapabilities.Cap.EXPONENTIAL_HISTOGRAM_TECH_PREVIEW);
     private static final TestDataset TDIGEST_STANDARD_INDEX = new TestDataset("tdigest_standard_index").withRequiredCapabilities(
-        List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW)
+        EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW
     );
     private static final TestDataset HISTOGRAM_STANDARD_INDEX = new TestDataset("histogram_standard_index").withRequiredCapabilities(
-        List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION)
+        EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION
     );
     private static final TestDataset TDIGEST_TIMESERIES_INDEX = new TestDataset(
         "tdigest_timeseries_index",
         "tdigest_timeseries_index-mappings.json",
-        "tdigest_standard_index.csv"
-    ).withSetting("tdigest_timeseries_index-settings.json")
-        .withRequiredCapabilities(List.of(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW, EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC));
+        "tdigest_standard_index.csv",
+        "tdigest_timeseries_index-settings.json"
+    ).withRequiredCapabilities(EsqlCapabilities.Cap.TDIGEST_TECH_PREVIEW, EsqlCapabilities.Cap.TDIGEST_TIME_SERIES_METRIC);
     private static final TestDataset HISTOGRAM_TIMESERIES_INDEX = new TestDataset(
         "histogram_timeseries_index",
         "mapping-histogram_time_series_index.json",
-        "histogram_standard_index.csv"
-    ).withSetting("settings-histogram_time_series_index.json")
-        .withRequiredCapabilities(List.of(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION));
+        "histogram_standard_index.csv",
+        "settings-histogram_time_series_index.json"
+    ).withRequiredCapabilities(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION);
     private static final TestDataset MANY_NUMBERS = new TestDataset("many_numbers");
     private static final TestDataset MMR_TEXT_VECTOR_KEYWORD = new TestDataset("mmr_text_vector_keyword");
 
@@ -492,7 +497,7 @@ public class CsvTestsDataLoader {
         Set<TestDataset> testDataSets = new HashSet<>();
 
         for (TestDataset dataset : CSV_DATASET_MAP.values()) {
-            if ((inferenceEnabled || dataset.requiresInferenceEndpoint == false)
+            if ((inferenceEnabled || dataset.inferenceEndpoints().isEmpty())
                 && (supportsIndexModeLookup || isLookupDataset(dataset) == false)
                 && (supportsSourceFieldMapping || isSourceMappingDataset(dataset) == false)
                 && (requiresTimeSeries == false || isTimeSeries(dataset))
@@ -1015,15 +1020,20 @@ public class CsvTestsDataLoader {
         boolean allowSubFields,
         @Nullable Map<String, String> typeMapping, // Override mappings read from mappings file
         @Nullable Map<String, String> dynamicTypeMapping, // Define mappings not in the mapping files, but available from field-caps
-        boolean requiresInferenceEndpoint,
+        List<String> inferenceEndpoints,
         List<EsqlCapabilities.Cap> requiredCapabilities
     ) {
-        public TestDataset(String indexName, String mappingFileName, String dataFileName) {
-            this(indexName, mappingFileName, dataFileName, null, true, null, null, false, List.of());
-        }
 
         public TestDataset(String indexName) {
-            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, false, List.of());
+            this(indexName, "mapping-" + indexName + ".json", indexName + ".csv", null, true, null, null, List.of(), List.of());
+        }
+
+        public TestDataset(String indexName, String mappingFileName, String dataFileName) {
+            this(indexName, mappingFileName, dataFileName, null, true, null, null, List.of(), List.of());
+        }
+
+        public TestDataset(String indexName, String mappingFileName, String dataFileName, String settingFileName) {
+            this(indexName, mappingFileName, dataFileName, settingFileName, true, null, null, List.of(), List.of());
         }
 
         public TestDataset withIndex(String indexName) {
@@ -1035,7 +1045,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint,
+                inferenceEndpoints,
                 requiredCapabilities
             );
         }
@@ -1049,7 +1059,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint,
+                inferenceEndpoints,
                 requiredCapabilities
             );
         }
@@ -1063,7 +1073,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint,
+                inferenceEndpoints,
                 requiredCapabilities
             );
         }
@@ -1077,7 +1087,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint,
+                inferenceEndpoints,
                 requiredCapabilities
             );
         }
@@ -1091,7 +1101,7 @@ public class CsvTestsDataLoader {
                 false,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint,
+                inferenceEndpoints,
                 requiredCapabilities
             );
         }
@@ -1105,7 +1115,7 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint,
+                inferenceEndpoints,
                 requiredCapabilities
             );
         }
@@ -1119,12 +1129,12 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint,
+                inferenceEndpoints,
                 requiredCapabilities
             );
         }
 
-        public TestDataset withInferenceEndpoint(boolean needsInference) {
+        public TestDataset withInferenceEndpoint(String... inferenceEndpoints) {
             return new TestDataset(
                 indexName,
                 mappingFileName,
@@ -1133,12 +1143,12 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                needsInference,
+                List.of(inferenceEndpoints),
                 requiredCapabilities
             );
         }
 
-        public TestDataset withRequiredCapabilities(List<EsqlCapabilities.Cap> requiredCapabilities) {
+        public TestDataset withRequiredCapabilities(EsqlCapabilities.Cap... requiredCapabilities) {
             return new TestDataset(
                 indexName,
                 mappingFileName,
@@ -1147,8 +1157,8 @@ public class CsvTestsDataLoader {
                 allowSubFields,
                 typeMapping,
                 dynamicTypeMapping,
-                requiresInferenceEndpoint,
-                requiredCapabilities
+                inferenceEndpoints,
+                List.of(requiredCapabilities)
             );
         }
 

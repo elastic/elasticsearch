@@ -432,197 +432,97 @@ tests:
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/142426
 # TSDB synthetic ID / feature flag removal - PR 142366
+# NESTED DOCS
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=delete/70_tsdb/basic tsdb delete}
+  methods:
+    - test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
+    - test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
   issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  methods:
+    - test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
+    - test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  methods:
+    - test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
+    - test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  methods:
+    - test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
+    - test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+# HARD CODED ID IN TEST
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
+  methods:
+    - test {yaml=delete/70_tsdb/basic tsdb delete}
+    - test {yaml=tsdb/25_id_generation/create operation on top of old document fails}
+    - test {yaml=tsdb/25_id_generation/create operation on top of old document fails over bulk}
+    - test {yaml=tsdb/25_id_generation/delete}
+    - test {yaml=tsdb/25_id_generation/delete over _bulk}
+    - test {yaml=tsdb/25_id_generation/generates a consistent id}
+    - test {yaml=tsdb/25_id_generation/get}
+    - test {yaml=tsdb/25_id_generation/ids query}
+    - test {yaml=tsdb/25_id_generation/index a new document on top of an old one}
+    - test {yaml=tsdb/25_id_generation/index a new document on top of an old one over bulk}
+    - test {yaml=tsdb/25_id_generation/routing_path matches deep object}
+    - test {yaml=tsdb/25_id_generation/routing_path matches object}
   issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
+- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
+  methods:
+    - test {yaml=delete/70_tsdb/basic tsdb delete}
+    - test {yaml=tsdb/25_id_generation/create operation on top of old document fails}
+    - test {yaml=tsdb/25_id_generation/create operation on top of old document fails over bulk}
+    - test {yaml=tsdb/25_id_generation/delete}
+    - test {yaml=tsdb/25_id_generation/delete over _bulk}
+    - test {yaml=tsdb/25_id_generation/generates a consistent id}
+    - test {yaml=tsdb/25_id_generation/get}
+    - test {yaml=tsdb/25_id_generation/ids query}
+    - test {yaml=tsdb/25_id_generation/index a new document on top of an old one}
+    - test {yaml=tsdb/25_id_generation/index a new document on top of an old one over bulk}
+    - test {yaml=tsdb/25_id_generation/routing_path matches deep object}
+    - test {yaml=tsdb/25_id_generation/routing_path matches object}
   issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/create operation on top of old document fails}
+- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
+  methods:
+    - test {yaml=delete/70_tsdb/basic tsdb delete}
+    - test {yaml=tsdb/25_id_generation/create operation on top of old document fails}
+    - test {yaml=tsdb/25_id_generation/create operation on top of old document fails over bulk}
+    - test {yaml=tsdb/25_id_generation/delete}
+    - test {yaml=tsdb/25_id_generation/delete over _bulk}
+    - test {yaml=tsdb/25_id_generation/generates a consistent id}
+    - test {yaml=tsdb/25_id_generation/get}
+    - test {yaml=tsdb/25_id_generation/ids query}
+    - test {yaml=tsdb/25_id_generation/index a new document on top of an old one}
+    - test {yaml=tsdb/25_id_generation/index a new document on top of an old one over bulk}
+    - test {yaml=tsdb/25_id_generation/routing_path matches deep object}
+    - test {yaml=tsdb/25_id_generation/routing_path matches object}
   issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/create operation on top of old document fails over bulk}
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  methods:
+    - test {yaml=delete/70_tsdb/basic tsdb delete}
+    - test {yaml=tsdb/25_id_generation/create operation on top of old document fails}
+    - test {yaml=tsdb/25_id_generation/create operation on top of old document fails over bulk}
+    - test {yaml=tsdb/25_id_generation/delete}
+    - test {yaml=tsdb/25_id_generation/delete over _bulk}
+    - test {yaml=tsdb/25_id_generation/generates a consistent id}
+    - test {yaml=tsdb/25_id_generation/get}
+    - test {yaml=tsdb/25_id_generation/ids query}
+    - test {yaml=tsdb/25_id_generation/index a new document on top of an old one}
+    - test {yaml=tsdb/25_id_generation/index a new document on top of an old one over bulk}
+    - test {yaml=tsdb/25_id_generation/routing_path matches deep object}
+    - test {yaml=tsdb/25_id_generation/routing_path matches object}
   issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/delete}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/delete over _bulk}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/generates a consistent id}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/get}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/ids query}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/index a new document on top of an old one}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/index a new document on top of an old one over bulk}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/routing_path matches deep object}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/routing_path matches object}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.logsdb.TsdbIT
-  method: testTsdbDataStream
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-# Failing seed: 2F7CB88BCB870938. Assertion in VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion (line 174)
+# ID MISS MATCH assert uid.equals(new BytesRef(Base64.getUrlDecoder().decode(id)));
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
-  method: testGaugeGroupByRandomAndRandomAgg
+  method: testGaugeGroupByRandomAndRandomAgg # -Dtests.seed=2F7CB88BCB870938
   issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=delete/70_tsdb/basic tsdb delete}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/create operation on top of old document fails}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/create operation on top of old document fails over bulk}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/delete}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/delete over _bulk}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/generates a consistent id}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/get}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/ids query}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/index a new document on top of an old one}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/index a new document on top of an old one over bulk}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/routing_path matches deep object}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/routing_path matches object}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=delete/70_tsdb/basic tsdb delete}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/create operation on top of old document fails}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/create operation on top of old document fails over bulk}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/delete}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/delete over _bulk}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/generates a consistent id}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/get}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/ids query}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/index a new document on top of an old one}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/index a new document on top of an old one over bulk}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/routing_path matches deep object}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/routing_path matches object}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=delete/70_tsdb/basic tsdb delete}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/create operation on top of old document fails}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/create operation on top of old document fails over bulk}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/delete}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/delete over _bulk}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/generates a consistent id}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/get}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/ids query}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/index a new document on top of an old one}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/index a new document on top of an old one over bulk}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/routing_path matches deep object}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
-  method: test {yaml=tsdb/25_id_generation/routing_path matches object}
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.index.mapper.SourceFieldMapperTests
-  methods:
-  - testRecoverySourceWithTimeSeriesCustom
-  - testRecoverySourceWithTimeSeries
-  issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.cluster.routing.IndexRoutingTests
-  methods:
-  - testRoutingPathNumbersInSource
-  - testRoutingPathManyTopLevel
-  - testRoutingPathDotInName
-  - testRoutingPathBwc
-  issue: https://github.com/elastic/elasticsearch/pull/142366
+# UNEXPECTED INSTANCE OF TSDBSyntheticIdPostingsFormat
 - class: org.elasticsearch.index.codec.PerFieldMapperCodecTests
   methods:
   - testUseEs812PostingsFormatForIdField
-  - testUseBloomFilter
+  - testUseBloomFilter # -Dtests.seed=3EF6FC8177783864
   - testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter
   - testUseBloomFilterWithTimestampFieldEnabled
   issue: https://github.com/elastic/elasticsearch/pull/142366
@@ -634,12 +534,26 @@ tests:
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
   issue: https://github.com/elastic/elasticsearch/pull/142366
+# ROUTING TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId
 - class: org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapperTests
   method: testRetrievedFromIdInTimeSeriesMode
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.cluster.routing.IndexRoutingTests
   method: testRoutingPathOneSub
   issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.index.mapper.SourceFieldMapperTests
+  methods:
+    - testRecoverySourceWithTimeSeriesCustom
+    - testRecoverySourceWithTimeSeries
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.cluster.routing.IndexRoutingTests
+  methods:
+    - testRoutingPathNumbersInSource
+    - testRoutingPathManyTopLevel
+    - testRoutingPathDotInName
+    - testRoutingPathBwc
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+# TEST EXPECTATION stored_fields_in_bytes - TSDB synthetic ID / feature flag removal - PR 142366
 - class: org.elasticsearch.datastreams.TSDBIndexingIT
   method: testTrimId
   issue: https://github.com/elastic/elasticsearch/pull/142366

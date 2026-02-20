@@ -24,7 +24,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -61,11 +60,13 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
         MockTransportService node1TransportService = MockTransportService.getInstance(node1);
         MockTransportService node2TransportService = MockTransportService.getInstance(node2);
         node1TransportService.addRequestHandlingBehavior(
-            TransportShardBulkAction.ACTION_NAME + "[p]", // needed to make sure we hook into TransportReplicationAction.handlePrimaryRequest
+            TransportShardBulkAction.ACTION_NAME + "[p]", // needed to make sure we hook into
+                                                          // TransportReplicationAction.handlePrimaryRequest
             (handler, request, channel, task) -> {
                 node1ReceivedBulk.countDown();
                 handler.messageReceived(request, channel, task);
-        });
+            }
+        );
         // hook into the relocation by waiting for the context hand off request, then relocate the shard
         node2TransportService.addRequestHandlingBehavior(
             PeerRecoveryTargetService.Actions.HANDOFF_PRIMARY_CONTEXT,
@@ -87,44 +88,46 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
                     .filter(r -> r.request() instanceof IndexRequest)
                     .allMatch(r -> ((IndexRequest) r.request()).isRetry() == false)
             );
-            logger.info("==> node2 cs version {}, req version {}, master version {}, node1 version {}",
+            logger.info(
+                "==> node2 cs version {}, req version {}, master version {}, node1 version {}",
                 internalCluster().clusterService(node2).state().version(),
                 getRoutedBasedOnClusterVersion(bulkShardRequest),
                 internalCluster().clusterService(master).state().version(),
-                internalCluster().clusterService(node1).state().version());
-//            safeAwait(
-                ClusterServiceUtils.addTemporaryStateListener(
-                    internalCluster().clusterService(node2),
-                    state -> state.version() >= getRoutedBasedOnClusterVersion(bulkShardRequest)
-                ).addListener(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Void unused) {
-                        try {
-                            handler.messageReceived(request, channel, task);
-                        } catch (Exception e) {
-                            throw new RuntimeException(e);
-                        }
+                internalCluster().clusterService(node1).state().version()
+            );
+            // safeAwait(
+            ClusterServiceUtils.addTemporaryStateListener(
+                internalCluster().clusterService(node2),
+                state -> state.version() >= getRoutedBasedOnClusterVersion(bulkShardRequest)
+            ).addListener(new ActionListener<>() {
+                @Override
+                public void onResponse(Void unused) {
+                    try {
+                        handler.messageReceived(request, channel, task);
+                    } catch (Exception e) {
+                        throw new RuntimeException(e);
                     }
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        fail("failed to wait for node2 cluster state to advance: " + e.getMessage());
-                    }
-                });
-//            );
-//            assertBusy(() ->
-//                assertThat(
-//                    internalCluster().clusterService(node2).state().version(),
-//                    Matchers.greaterThanOrEqualTo(((BulkShardRequest)request).routedBasedOnClusterVersion())
-//                ));
+                @Override
+                public void onFailure(Exception e) {
+                    fail("failed to wait for node2 cluster state to advance: " + e.getMessage());
+                }
+            });
+            // );
+            // assertBusy(() ->
+            // assertThat(
+            // internalCluster().clusterService(node2).state().version(),
+            // Matchers.greaterThanOrEqualTo(((BulkShardRequest)request).routedBasedOnClusterVersion())
+            // ));
 
         });
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node2), "index1");
         logger.info("==> Updated allocation tag, waiting for hand off...");
         safeAwait(handOffReceivedLatch);
         logger.info("==> sending some indexing requests");
-        final var useBulk = false; //randomBoolean();
-        final var indexRequestUsesId = false; //randomBoolean();
+        final var useBulk = false; // randomBoolean();
+        final var indexRequestUsesId = false; // randomBoolean();
         final var indexRequestsWithId = useBulk ? randomIntBetween(1, 10) : indexRequestUsesId ? 1 : 0;
         final var indexRequestsWithoutId = useBulk ? randomIntBetween(1, 10) : indexRequestUsesId ? 0 : 1;
         if (useBulk) {

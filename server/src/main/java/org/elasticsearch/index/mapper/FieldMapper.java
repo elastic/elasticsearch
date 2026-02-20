@@ -1015,10 +1015,6 @@ public abstract class FieldMapper extends Mapper {
             setValue(parser.apply(field, context, in));
         }
 
-        private void merge(FieldMapper toMerge, Conflicts conflicts) {
-            mergeValue(initializer.apply(toMerge), conflicts);
-        }
-
         @SuppressWarnings("unchecked")
         void mergeFrom(Parameter<?> other, Conflicts conflicts) {
             mergeValue((T) other.getValue(), conflicts);
@@ -1605,19 +1601,6 @@ public abstract class FieldMapper extends Mapper {
 
         protected BuilderParams builderParams(Mapper.Builder mainFieldBuilder, MapperBuilderContext context) {
             return new BuilderParams(multiFieldsBuilder.build(mainFieldBuilder, context), copyTo, sourceKeepMode, hasScript, onScriptError);
-        }
-
-        protected void merge(FieldMapper in, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
-            for (Parameter<?> param : getParameters()) {
-                param.merge(in, conflicts);
-            }
-            MapperMergeContext childContext = mapperMergeContext.createChildContext(in.leafName(), null);
-            for (FieldMapper newSubField : in.builderParams.multiFields.mappers) {
-                multiFieldsBuilder.update(newSubField, childContext);
-            }
-            this.copyTo = in.builderParams.copyTo;
-            this.sourceKeepMode = in.builderParams.sourceKeepMode;
-            validate();
         }
 
         protected final void validate() {

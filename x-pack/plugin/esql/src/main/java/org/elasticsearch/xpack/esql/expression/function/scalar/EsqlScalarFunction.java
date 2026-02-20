@@ -16,7 +16,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
-import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;

@@ -39,6 +39,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.requestObjec
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsql;
 import static org.elasticsearch.xpack.esql.qa.single_node.RestEsqlIT.signature;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -191,6 +192,7 @@ public class MinCompetitiveIT extends ESRestTestCase {
         Map<?, ?> profile = (Map<?, ?>) result.get("profile");
         List<?> drivers = (List<?>) profile.get("drivers");
         boolean foundData = false;
+        int totalMinCompetitiveUpdates = 0;
         for (Object d : drivers) {
             Map<?, ?> driver = (Map<?, ?>) d;
             String description = (String) driver.get("description");
@@ -215,10 +217,12 @@ public class MinCompetitiveIT extends ESRestTestCase {
                             .entry("changed_value", greaterThanOrEqualTo(0))
                             .entry("update_nanos", greaterThanOrEqualTo(0));
                         assertThat(status, matchesMap().extraOk().entry("min_competitive", minCompetitive));
+                        logger.info("LuceneSourceOperator {}", status);
                     }
                     case "TopNOperator" -> {
                         foundTopN = true;
-                        // NOCOMMIT check min_competitive_updates
+                        totalMinCompetitiveUpdates += (int) status.get("min_competitive_updates");
+                        logger.info("TopNOperator {}", status);
                     }
                 }
             }
@@ -226,6 +230,7 @@ public class MinCompetitiveIT extends ESRestTestCase {
             assertThat(foundTopN, equalTo(true));
         }
         assertThat(foundData, equalTo(true));
+        assertThat(totalMinCompetitiveUpdates, greaterThan(0));
     }
 
     @Before

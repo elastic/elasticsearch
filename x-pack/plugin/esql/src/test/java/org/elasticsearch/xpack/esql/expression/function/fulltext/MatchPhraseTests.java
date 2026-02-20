@@ -101,7 +101,7 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
                     new TestCaseSupplier.TypedData(
                         new MapExpression(
                             Source.EMPTY,
-                            List.of(new Literal(Source.EMPTY, "slop", INTEGER), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
+                            List.of(new Literal(Source.EMPTY, "slop", INTEGER), Literal.integer(Source.EMPTY, randomNonNegativeInt()))
                         ),
                         UNSUPPORTED,
                         "options"
@@ -112,6 +112,11 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
             }));
         }
         return result;
+    }
+
+    public final void testLiteralExpressions() {
+        Expression expression = buildLiteralExpression(testCase);
+        assertFalse("expected resolved", expression.typeResolved().unresolved());
     }
 
     @Override

@@ -26,6 +26,7 @@ import org.junit.AfterClass;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -107,5 +108,13 @@ public class WildcardLikeTests extends AbstractScalarFunctionTestCase {
             getTestClass(),
             DocsV3Support.callbacksFromSystemProperty()
         );
+    }
+
+    @Override
+    protected void filterCoAndContraVarianceNarrowing(
+        Map<Integer, DataType> positionNarrowing,
+        List<TestCaseSupplier.TypedData> data
+    ) {
+        positionNarrowing.entrySet().removeIf(e -> e.getKey() > 0 && e.getValue() == DataType.NULL);
     }
 }

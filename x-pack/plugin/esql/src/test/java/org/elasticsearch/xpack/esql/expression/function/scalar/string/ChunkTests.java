@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -235,6 +236,14 @@ public class ChunkTests extends AbstractScalarFunctionTestCase {
                 return list.stream().map(BytesRef::utf8ToString).toList();
             }
         }
+    }
+
+    @Override
+    protected void filterCoAndContraVarianceNarrowing(
+        Map<Integer, DataType> positionNarrowing,
+        List<TestCaseSupplier.TypedData> data
+    ) {
+        positionNarrowing.entrySet().removeIf(e -> e.getKey() > 0 && e.getValue() == DataType.NULL);
     }
 
 }

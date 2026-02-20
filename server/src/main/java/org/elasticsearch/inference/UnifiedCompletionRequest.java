@@ -31,12 +31,15 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.ContentObjectType.FILE;
+import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.ContentObjectType.IMAGE_URL;
+import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.ContentObjectType.TEXT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -196,6 +199,9 @@ public record UnifiedCompletionRequest(
         return List.of(
             new NamedWriteableRegistry.Entry(Content.class, ContentObjects.NAME, ContentObjects::new),
             new NamedWriteableRegistry.Entry(Content.class, ContentString.NAME, ContentString::new),
+            new NamedWriteableRegistry.Entry(ContentObject.class, ContentObjectText.NAME, ContentObjectText::new),
+            new NamedWriteableRegistry.Entry(ContentObject.class, ContentObjectImage.NAME, ContentObjectImage::new),
+            new NamedWriteableRegistry.Entry(ContentObject.class, ContentObjectFile.NAME, ContentObjectFile::new),
             new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceObject.NAME, ToolChoiceObject::new),
             new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new)
         );
@@ -340,12 +346,12 @@ public record UnifiedCompletionRequest(
         public static final String NAME = "content_objects";
 
         public ContentObjects(StreamInput in) throws IOException {
-            this(in.readCollectionAsImmutableList(ContentObject::fromStreamInput));
+            this(in.readNamedWriteableCollectionAsList(ContentObject.class));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(contentObjects);
+            out.writeNamedWriteableCollection(contentObjects);
         }
 
         @Override
@@ -360,93 +366,68 @@ public record UnifiedCompletionRequest(
 
         @Override
         public boolean containsMultimodalContent() {
-            return contentObjects.stream().anyMatch(o -> o.type().equals(ContentObject.TEXT_TYPE) == false);
+            return contentObjects.stream().anyMatch(o -> o.type().equals(TEXT) == false);
         }
     }
 
-    public abstract static sealed class ContentObject implements Writeable, ToXContent permits ContentObjectText, ContentObjectImage,
+    public abstract static sealed class ContentObject implements NamedWriteable, ToXContent permits ContentObjectText, ContentObjectImage,
         ContentObjectFile {
-        public static final String TEXT_TYPE = "text";
-        public static final String IMAGE_URL_TYPE = "image_url";
-        public static final String FILE_TYPE = "file";
-        public static final String[] SUPPORTED_CONTENT_OBJECT_TYPES = { FILE_TYPE, IMAGE_URL_TYPE, TEXT_TYPE };
 
-        final String type;
+        public enum ContentObjectType {
+            TEXT,
+            IMAGE_URL,
+            FILE;
 
-        protected ContentObject(String type) {
+            @Override
+            public String toString() {
+                return name().toLowerCase(Locale.ROOT);
+            }
+
+            public static ContentObjectType fromString(String name) {
+                try {
+                    return valueOf(name.trim().toUpperCase(Locale.ROOT));
+                } catch (IllegalArgumentException ex) {
+                    throw getUnrecognizedTypeException(name, CONTENT_FIELD, ContentObjectType.class);
+                }
+            }
+        }
+
+        final ContentObjectType type;
+
+        ContentObject(ContentObjectType type) {
             this.type = type;
         }
 
         @SuppressWarnings("unchecked")
         public static ContentObject fromMap(Map<String, Object> map) {
-            String type = extractRequiredFieldOfType(map, TYPE_FIELD, String.class, CONTENT_FIELD);
+            String typeString = extractRequiredFieldOfType(map, TYPE_FIELD, String.class, CONTENT_FIELD);
+            ContentObjectType type = ContentObjectType.fromString(typeString);
             ContentObject content = switch (type) {
-                case TEXT_TYPE -> new ContentObjectText(extractRequiredFieldOfType(map, TEXT_FIELD, String.class, CONTENT_FIELD));
-                case IMAGE_URL_TYPE -> {
+                case TEXT -> new ContentObjectText(extractRequiredFieldOfType(map, TEXT_FIELD, String.class, CONTENT_FIELD));
+                case IMAGE_URL -> {
                     Map<String, Object> imageUrlMap = extractRequiredFieldOfType(map, IMAGE_URL_FIELD, Map.class, CONTENT_FIELD);
                     yield new ContentObjectImage(ContentObjectImageUrl.fromMap(imageUrlMap));
                 }
-                case FILE_TYPE -> {
+                case FILE -> {
                     Map<String, Object> fileFieldsMap = extractRequiredFieldOfType(map, FILE_FIELD, Map.class, CONTENT_FIELD);
                     yield new ContentObjectFile(ContentObjectFileFields.fromMap(fileFieldsMap));
                 }
-                default -> throw new ElasticsearchStatusException(
-                    Strings.format(
-                        "Unexpected [type] value [%s]. Valid values are %s",
-                        type,
-                        Arrays.toString(SUPPORTED_CONTENT_OBJECT_TYPES)
-                    ),
-                    RestStatus.BAD_REQUEST
-                );
             };
             throwIfNotEmptyMap(map, CONTENT_FIELD);
             return content;
         }
 
-        public static ContentObject fromStreamInput(StreamInput in) throws IOException {
-            if (in.getTransportVersion().supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)) {
-                var type = in.readString();
-                return switch (type) {
-                    case TEXT_TYPE -> new ContentObjectText(in);
-                    case IMAGE_URL_TYPE -> new ContentObjectImage(in);
-                    case FILE_TYPE -> new ContentObjectFile(in);
-                    default -> throw new ElasticsearchStatusException(
-                        Strings.format(
-                            "Unexpected [type] value [%s]. Valid values are %s",
-                            type,
-                            Arrays.toString(SUPPORTED_CONTENT_OBJECT_TYPES)
-                        ),
-                        RestStatus.BAD_REQUEST
-                    );
-                };
-            } else {
-                return new ContentObjectText(in);
-            }
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion().supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)) {
-                out.writeString(type);
-            } else if (this instanceof ContentObjectText == false) {
-                throw new ElasticsearchStatusException(
-                    "Cannot send a multimodal chat completion request to an older node. "
-                        + "Please wait until all nodes are upgraded before using multimodal chat completion inputs",
-                    RestStatus.BAD_REQUEST
-                );
-            }
-        }
-
-        public String type() {
+        public ContentObjectType type() {
             return type;
         }
     }
 
     public static final class ContentObjectText extends ContentObject {
+        public static final String NAME = "content_object_text";
         private final String text;
 
         public ContentObjectText(String text) {
-            super(TEXT_TYPE);
+            super(TEXT);
             this.text = text;
         }
 
@@ -460,23 +441,22 @@ public record UnifiedCompletionRequest(
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED)) {
-                super.writeTo(out);
                 out.writeString(text);
             } else {
                 out.writeString(text);
-                out.writeString(TEXT_TYPE);
+                out.writeString(TEXT.toString());
             }
         }
 
         public String toString() {
-            return text + ":" + TEXT_TYPE;
+            return text + ":" + type;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(TEXT_FIELD, text);
-            builder.field(TYPE_FIELD, TEXT_TYPE);
+            builder.field(TYPE_FIELD, type.toString());
             return builder.endObject();
         }
 
@@ -496,13 +476,19 @@ public record UnifiedCompletionRequest(
         public int hashCode() {
             return Objects.hash(text);
         }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
     }
 
     public static final class ContentObjectImage extends ContentObject {
+        public static final String NAME = "content_object_image";
         private final ContentObjectImageUrl imageUrl;
 
         public ContentObjectImage(ContentObjectImageUrl imageUrl) {
-            super(IMAGE_URL_TYPE);
+            super(IMAGE_URL);
             this.imageUrl = imageUrl;
         }
 
@@ -512,7 +498,13 @@ public record UnifiedCompletionRequest(
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+            if (out.getTransportVersion().supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED) == false) {
+                throw new ElasticsearchStatusException(
+                    "Cannot send a multimodal chat completion request to an older node. "
+                        + "Please wait until all nodes are upgraded before using multimodal chat completion inputs",
+                    RestStatus.BAD_REQUEST
+                );
+            }
             imageUrl.writeTo(out);
         }
 
@@ -524,7 +516,7 @@ public record UnifiedCompletionRequest(
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(IMAGE_URL_FIELD, imageUrl);
-            builder.field(TYPE_FIELD, IMAGE_URL_TYPE);
+            builder.field(TYPE_FIELD, type.toString());
             return builder.endObject();
         }
 
@@ -543,6 +535,11 @@ public record UnifiedCompletionRequest(
         @Override
         public int hashCode() {
             return Objects.hash(imageUrl);
+        }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
         }
     }
 
@@ -590,24 +587,17 @@ public record UnifiedCompletionRequest(
             try {
                 return valueOf(name.trim().toUpperCase(Locale.ROOT));
             } catch (IllegalArgumentException ex) {
-                throw new ElasticsearchStatusException(
-                    Strings.format(
-                        "Unrecognized detail [%s] in object [%s], must be one of %s",
-                        name,
-                        URL_FIELD,
-                        Arrays.toString(ImageUrlDetail.values())
-                    ),
-                    RestStatus.BAD_REQUEST
-                );
+                throw getUnrecognizedTypeException(name, URL_FIELD, ImageUrlDetail.class);
             }
         }
     }
 
     public static final class ContentObjectFile extends ContentObject {
+        public static final String NAME = "content_object_file";
         private final ContentObjectFileFields fileFields;
 
         public ContentObjectFile(ContentObjectFileFields fileFields) {
-            super(FILE_TYPE);
+            super(FILE);
             this.fileFields = fileFields;
         }
 
@@ -617,7 +607,13 @@ public record UnifiedCompletionRequest(
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
+            if (out.getTransportVersion().supports(MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED) == false) {
+                throw new ElasticsearchStatusException(
+                    "Cannot send a multimodal chat completion request to an older node. "
+                        + "Please wait until all nodes are upgraded before using multimodal chat completion inputs",
+                    RestStatus.BAD_REQUEST
+                );
+            }
             fileFields.writeTo(out);
         }
 
@@ -629,7 +625,7 @@ public record UnifiedCompletionRequest(
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             builder.field(FILE_FIELD, fileFields);
-            builder.field(TYPE_FIELD, FILE_TYPE);
+            builder.field(TYPE_FIELD, type.toString());
             return builder.endObject();
         }
 
@@ -649,6 +645,11 @@ public record UnifiedCompletionRequest(
         public int hashCode() {
             return Objects.hash(fileFields);
         }
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
     }
 
     // The file_id field is not currently supported, but it's part of the OpenAI schema, so it's treated as an optional field for
@@ -665,7 +666,11 @@ public record UnifiedCompletionRequest(
             String filename = extractRequiredFieldOfType(map, FILENAME_FIELD, String.class, FILE_FIELD);
             if (map.containsKey(FILE_ID_FIELD)) {
                 throw new ElasticsearchStatusException(
-                    Strings.format("Field [%s] is not supported for content of type [%s]", FILE_ID_FIELD, ContentObject.FILE_TYPE),
+                    Strings.format(
+                        "Field [%s] is not supported for content of type [%s]",
+                        FILE_ID_FIELD,
+                        ContentObject.ContentObjectType.FILE
+                    ),
                     RestStatus.BAD_REQUEST
                 );
             }
@@ -1034,5 +1039,16 @@ public record UnifiedCompletionRequest(
                 RestStatus.BAD_REQUEST
             );
         }
+    }
+
+    private static <E extends Enum<E>> ElasticsearchStatusException getUnrecognizedTypeException(
+        String name,
+        String containingObject,
+        Class<E> clazz
+    ) {
+        return new ElasticsearchStatusException(
+            Strings.format("Unrecognized type [%s] in object [%s], must be one of %s", name, containingObject, EnumSet.allOf(clazz)),
+            RestStatus.BAD_REQUEST
+        );
     }
 }

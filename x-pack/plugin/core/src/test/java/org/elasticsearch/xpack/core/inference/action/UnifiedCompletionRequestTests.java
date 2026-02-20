@@ -28,10 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.FILE_TYPE;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.IMAGE_URL_TYPE;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.SUPPORTED_CONTENT_OBJECT_TYPES;
-import static org.elasticsearch.inference.UnifiedCompletionRequest.ContentObject.TEXT_TYPE;
 import static org.elasticsearch.inference.UnifiedCompletionRequest.MULTIMODAL_CHAT_COMPLETION_SUPPORT_ADDED;
 import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 import static org.hamcrest.Matchers.is;
@@ -248,7 +244,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 exception,
                 ElasticsearchStatusException.class
             );
-            assertThat(rootCause.getMessage(), is("Unexpected [type] value [unknown type]. Valid values are [file, image_url, text]"));
+            assertThat(
+                rootCause.getMessage(),
+                is("Unrecognized type [unknown type] in object [content], must be one of [text, image_url, file]")
+            );
             assertThat(rootCause.status(), is(RestStatus.BAD_REQUEST));
         }
     }
@@ -525,11 +524,10 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         if (allowMultimodal == false) {
             return randomContentObjectText();
         } else {
-            return switch (randomFrom(SUPPORTED_CONTENT_OBJECT_TYPES)) {
-                case TEXT_TYPE -> randomContentObjectText();
-                case IMAGE_URL_TYPE -> randomContentObjectImage();
-                case FILE_TYPE -> randomContentObjectFile();
-                default -> throw new IllegalStateException("Illegal randomization branch");
+            return switch (randomFrom(UnifiedCompletionRequest.ContentObject.ContentObjectType.values())) {
+                case TEXT -> randomContentObjectText();
+                case IMAGE_URL -> randomContentObjectImage();
+                case FILE -> randomContentObjectFile();
             };
         }
     }

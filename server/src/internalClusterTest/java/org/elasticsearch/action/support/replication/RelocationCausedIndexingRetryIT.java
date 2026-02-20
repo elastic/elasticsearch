@@ -115,6 +115,7 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
         final var indexRequestUsesId = randomBoolean();
         final var indexRequestsWithId = useBulk ? randomIntBetween(1, 10) : indexRequestUsesId ? 1 : 0;
         final var indexRequestsWithoutId = useBulk ? randomIntBetween(1, 10) : indexRequestUsesId ? 0 : 1;
+        final List<String> returnedIds;
         if (useBulk) {
             BulkRequestBuilder bulk = client().prepareBulk();
             for (int i = 0; i < indexRequestsWithId; i++) {
@@ -130,6 +131,7 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
             assertThat(node2ReceivedTheBulk.get(), equalTo(true));
             assertThat(bulkResponse.hasFailures(), equalTo(false));
             assertThat(bulkResponse.getItems().length, equalTo(indexRequestsWithId + indexRequestsWithoutId));
+            returnedIds = Arrays.stream(bulkResponse.getItems()).map(item -> item.getId()).toList();
         } else {
             final var indexRequest = client(node1).prepareIndex("index1");
             if (indexRequestUsesId) {
@@ -141,6 +143,12 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
             final var indexResponse = listener.get();
             assertThat(node2ReceivedTheBulk.get(), equalTo(true));
             assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));
+            returnedIds = List.of(indexResponse.getId());
+        }
+        // Verify that each returned doc ID can be looked up; a incorrectly retried auto-ID request could cause a mismatch.
+        for (var id : returnedIds) {
+            var getResponse = client().prepareGet("index1", id).get();
+            assertTrue("document [" + id + "] should exist", getResponse.isExists());
         }
 
         var indicesService = internalCluster().getInstance(org.elasticsearch.indices.IndicesService.class, node2);

@@ -71,6 +71,7 @@ import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
@@ -497,7 +498,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(e.getCause().getCause(), hasToString(containsString("shard is not in primary mode")));
     }
 
-    public void testRetryOnRelocationDoesMarksRequestAsRetried() {
+    public void testRetryOnRelocationMarksRequestAsRetried() {
         final String index = "test";
         final ShardId shardId = new ShardId(index, "_na_", 0);
         setState(clusterService, stateWithActivePrimary(index, true, randomInt(3)));
@@ -529,6 +530,50 @@ public class TransportReplicationActionTests extends ESTestCase {
             transport.handleRemoteError(capturedRequests[0].requestId(), e);
             assertTrue(request.isRetrySet.get());
         }
+        assertFalse(listener.isDone());
+    }
+
+    public void testSubsequentRetryWithPossiblyExecutedFalseShouldNotClearRetryFlag() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        setState(clusterService, stateWithActivePrimary(index, true, randomInt(3)));
+
+        final Request request = new Request(shardId);
+        final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        final ReplicationTask task = maybeTask();
+        final TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
+        reroutePhase.run();
+
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
+
+        // First failure: ConnectTransportException — the op may have been executed, so the request must be marked as retry
+        transport.handleRemoteError(
+            capturedRequests[0].requestId(),
+            new ConnectTransportException(clusterService.state().nodes().getLocalNode(), "simulated disconnect")
+        );
+        assertTrue("request should be marked as retry after ConnectTransportException", request.isRetrySet.get());
+
+        // Trigger a cluster state change so the retry proceeds and re-sends the request
+        setState(clusterService, clusterService.state());
+
+        capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
+
+        // Second failure: RetryOnPrimaryException with possiblyExecutedOnPrimary=false (relocation case).
+        // This must NOT clear the retry flag that was set by the first failure.
+        transport.handleRemoteError(
+            capturedRequests[0].requestId(),
+            new ReplicationOperation.RetryOnPrimaryException(
+                shardId,
+                "shard is not in primary mode",
+                new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED),
+                false
+            )
+        );
+        assertTrue("retry flag must not be cleared by a subsequent retry with possiblyExecutedOnPrimary=false", request.isRetrySet.get());
         assertFalse(listener.isDone());
     }
 
@@ -1502,7 +1547,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         @Override
         public void onRetry(boolean markAsRetry) {
             super.onRetry(markAsRetry);
-            isRetrySet.set(markAsRetry);
+            if (markAsRetry) {
+                isRetrySet.set(true);
+            }
         }
 
         @Override

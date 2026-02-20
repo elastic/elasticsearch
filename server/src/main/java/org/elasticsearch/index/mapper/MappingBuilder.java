@@ -63,7 +63,7 @@ public class MappingBuilder {
         MapperMergeContext objectMergeContext = mergeContext.createChildContext(null, rootBuilder.dynamic);
         rootBuilder.merge(incoming.rootBuilder, objectMergeContext, rootBuilder.leafName());
 
-        // Merge metadata field builders, skipping unconfigured incoming builders
+        // Merge metadata field builders, skipping incoming builders that weren't explicitly set
         // (if a metadata field wasn't explicitly set in the incoming mapping, there's nothing to merge)
         for (var entry : incoming.metadataBuilders.entrySet()) {
             MetadataFieldMapper.Builder incomingBuilder = entry.getValue();

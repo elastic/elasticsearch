@@ -120,7 +120,23 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             super(name);
         }
 
+        /**
+         * Returns true if any parameter on this builder was explicitly set (e.g. via parsing),
+         * even if the value matches the default.
+         */
         boolean isConfigured() {
+            for (Parameter<?> param : getParameters()) {
+                if (param.isSet()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Returns true if any parameter has a value that differs from its default.
+         */
+        private boolean hasNonDefaultParameters() {
             for (Parameter<?> param : getParameters()) {
                 if (param.isConfigured()) {
                     return true;
@@ -215,7 +231,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         MetadataFieldMapper.Builder mergeBuilder = (MetadataFieldMapper.Builder) getMergeBuilder();
-        if (mergeBuilder.isConfigured() == false) {
+        if (mergeBuilder.hasNonDefaultParameters() == false) {
             return builder;
         }
         builder.startObject(leafName());

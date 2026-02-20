@@ -426,7 +426,6 @@ public class ObjectMapper extends Mapper {
             Map<String, Mapper.Builder> incomingBuilders,
             MapperMergeContext objectMergeContext
         ) {
-            MapperBuilderContext builderContext = objectMergeContext.getMapperBuilderContext();
             Map<String, Mapper.Builder> mergedBuilders = new HashMap<>(existingBuilders);
 
             for (var entry : incomingBuilders.entrySet()) {

@@ -66,11 +66,11 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
 
     /**
      * These thresholds determine the size of a compressed binary block. We build a new block if the uncompressed data in the block
-     * is 1MB, or if the number of values is 16384. These values are a tradeoff between the high compression ratio and decompression
+     * is 1MB, or if the number of values is 65536. These values are a tradeoff between the high compression ratio and decompression
      * speed of large blocks, and the ability to avoid decompressing unneeded values provided by small blocks.
       */
     public static final int BLOCK_BYTES_THRESHOLD = 1024 * 1024;
-    public static final int BLOCK_COUNT_THRESHOLD = 16384;
+    public static final int BLOCK_COUNT_THRESHOLD = 65536;
 
     // number of documents in an interval
     private static final int DEFAULT_SKIP_INDEX_INTERVAL_SIZE = 4096;

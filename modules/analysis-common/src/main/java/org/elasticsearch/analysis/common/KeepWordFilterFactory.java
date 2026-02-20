@@ -70,18 +70,22 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
         validateSettings(settings);
 
         this.keepWordsFuture = new PlainActionFuture<>();
-        final Supplier<CharArraySet> keepWordsSupplier = Analysis.getWordSetSupplier(
-            customDictionaryService,
-            env,
-            settings,
-            KEEP_WORDS_PATH_KEY,
-            KEEP_WORDS_KEY,
-            KEEP_WORDS_DICTIONARY_KEY,
-            KEEP_WORDS_CASE_KEY,
-            true
-        );
-        // TODO: Use SEARCH_COORDINATION thread pool?
-        threadPool.executor(ThreadPool.Names.ANALYZE).execute(ActionRunnable.supply(keepWordsFuture, keepWordsSupplier::get));
+        if (settings.hasValue(KEEP_WORDS_DICTIONARY_KEY)) {
+            final Supplier<CharArraySet> keepWordsSupplier = Analysis.getWordSetSupplier(
+                customDictionaryService,
+                env,
+                settings,
+                KEEP_WORDS_PATH_KEY,
+                KEEP_WORDS_KEY,
+                KEEP_WORDS_DICTIONARY_KEY,
+                KEEP_WORDS_CASE_KEY,
+                true
+            );
+            // TODO: Use SEARCH_COORDINATION thread pool?
+            threadPool.executor(ThreadPool.Names.ANALYZE).execute(ActionRunnable.supply(keepWordsFuture, keepWordsSupplier::get));
+        } else {
+            keepWordsFuture.onResponse(Analysis.getWordSet(env, settings, KEEP_WORDS_KEY));
+        }
     }
 
     @Override

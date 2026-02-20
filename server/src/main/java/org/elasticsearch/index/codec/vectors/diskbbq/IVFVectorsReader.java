@@ -298,8 +298,10 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
             // clip so we visit at least one vector
             visitRatio = estimated / numVectors;
         }
-        // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
-        long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
+        // maxExpectedTraversed controls how many posting list entries we traverse (pre-filter).
+        // The collector's visitedCount is post-filter (scored vectors only), which may be lower with selective filters.
+        // We account for soar vectors here. We can potentially visit a vector twice so we multiply by 2.
+        long maxExpectedTraversed = (long) (2.0 * visitRatio * numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
@@ -321,7 +323,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
         // TODO do we need to handle nested doc counts similarly to how we handle
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
         while (centroidPrefetchingIterator.hasNext()
-            && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
+            && (maxExpectedTraversed > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
             PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
             expectedDocs += scorer.resetPostingsScorer(postingMetadata);
             actualDocs += scorer.visit(knnCollector);

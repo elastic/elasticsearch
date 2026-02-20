@@ -527,7 +527,7 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
          * The maintenance task, once it has opened its PIT and started running so that it has all the state it needs to do its job.
          */
         private class RunningPeriodicMaintenanceTask implements Runnable {
-            private final BytesReference pointInTimeId;
+            private BytesReference pointInTimeId;
             private final RefCountingListener listeners;
             private final Instant expirationTime;
             private final Map<String, Set<String>> existingSnapshots;
@@ -584,6 +584,12 @@ public class BlobStoreCacheMaintenanceService implements ClusterStateListener {
 
             private void handleSearchResponse(SearchResponse searchResponse, RefCounted refs) {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
+                // if the pit id has changed, we update the one held by this task for future calls
+                BytesReference pitInResponse = searchResponse.pointInTimeId();
+                if (this.pointInTimeId.equals(pitInResponse) == false) {
+                    this.pointInTimeId = pitInResponse;
+                    logger.trace("periodic maintenance task updated to point-in-time id [{}]", this.pointInTimeId);
+                }
 
                 if (listeners.isFailing()) {
                     return;

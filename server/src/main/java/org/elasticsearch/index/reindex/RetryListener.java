@@ -20,31 +20,29 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Iterator;
 import java.util.function.Consumer;
 
-class RetryListener extends DelegatingActionListener<ScrollableHitSource.Response, ScrollableHitSource.Response>
-    implements
-        RejectAwareActionListener<ScrollableHitSource.Response> {
+public class RetryListener<T> extends DelegatingActionListener<T, T> implements RejectAwareActionListener<T> {
     private final Logger logger;
     private final Iterator<TimeValue> retries;
     private final ThreadPool threadPool;
-    private final Consumer<RejectAwareActionListener<ScrollableHitSource.Response>> retryScrollHandler;
+    private final Consumer<RejectAwareActionListener<T>> retryHandler;
     private int retryCount = 0;
 
-    RetryListener(
+    public RetryListener(
         Logger logger,
         ThreadPool threadPool,
         BackoffPolicy backoffPolicy,
-        Consumer<RejectAwareActionListener<ScrollableHitSource.Response>> retryScrollHandler,
-        ActionListener<ScrollableHitSource.Response> delegate
+        Consumer<RejectAwareActionListener<T>> retryHandler,
+        ActionListener<T> delegate
     ) {
         super(delegate);
         this.logger = logger;
         this.threadPool = threadPool;
         this.retries = backoffPolicy.iterator();
-        this.retryScrollHandler = retryScrollHandler;
+        this.retryHandler = retryHandler;
     }
 
     @Override
-    public void onResponse(ScrollableHitSource.Response response) {
+    public void onResponse(T response) {
         delegate.onResponse(response);
     }
 
@@ -54,7 +52,7 @@ class RetryListener extends DelegatingActionListener<ScrollableHitSource.Respons
             retryCount += 1;
             TimeValue delay = retries.next();
             logger.trace(() -> "retrying rejected search after [" + delay + "]", e);
-            schedule(() -> retryScrollHandler.accept(this), delay);
+            schedule(() -> retryHandler.accept(this), delay);
         } else {
             logger.warn(() -> "giving up on search because we retried [" + retryCount + "] times without success", e);
             delegate.onFailure(e);

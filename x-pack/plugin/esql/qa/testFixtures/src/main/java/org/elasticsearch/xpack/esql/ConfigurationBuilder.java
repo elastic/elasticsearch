@@ -164,7 +164,8 @@ public class ConfigurationBuilder {
             allowPartialResults,
             resultTruncationMaxSizeTimeseries,
             resultTruncationDefaultSizeTimeseries,
-            projectRouting
+            projectRouting,
+            Map.of()
         );
     }
 }

@@ -130,7 +130,9 @@ class DownsampleShardIndexer {
                 searcher,
                 () -> 0L,
                 null,
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                null,
+                null
             );
             this.dimensions = dimensions;
             this.timestampField = (DateFieldMapper.DateFieldType) searchExecutionContext.getFieldType(config.getTimestampField());

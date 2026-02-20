@@ -22,7 +22,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
-import org.elasticsearch.compute.lucene.LuceneOperator;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
@@ -31,6 +31,7 @@ import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverStatus;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.LimitOperator;
+import org.elasticsearch.compute.operator.MMROperator;
 import org.elasticsearch.compute.operator.MvExpandOperator;
 import org.elasticsearch.compute.operator.SampleOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
@@ -45,6 +46,7 @@ import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
+import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
@@ -73,6 +75,8 @@ import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
@@ -95,6 +99,7 @@ import org.elasticsearch.xpack.esql.view.RestPutViewAction;
 import org.elasticsearch.xpack.esql.view.TransportDeleteViewAction;
 import org.elasticsearch.xpack.esql.view.TransportGetViewAction;
 import org.elasticsearch.xpack.esql.view.TransportPutViewAction;
+import org.elasticsearch.xpack.esql.view.ViewResolver;
 import org.elasticsearch.xpack.esql.view.ViewService;
 
 import java.util.ArrayList;
@@ -106,7 +111,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.plugin.EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG;
+import static org.elasticsearch.xpack.core.esql.EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
@@ -186,6 +191,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     );
 
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
+    private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
@@ -202,25 +208,52 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             .flatMap(p -> p.checkers(services.projectResolver(), services.clusterService()).stream())
             .toList();
 
-        List<Object> components = List.of(
-            new PlanExecutor(
-                new IndexResolver(services.client()),
-                services.telemetryProvider().getMeterRegistry(),
-                getLicenseState(),
-                new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
-                extraCheckers
-            ),
-            new ExchangeService(
-                services.clusterService().getSettings(),
-                services.threadPool(),
-                ThreadPool.Names.SEARCH,
-                blockFactoryProvider.blockFactory()
-            ),
-            blockFactoryProvider
+        // Discover DataSourcePlugin implementations via SPI (META-INF/services)
+        // This discovers built-in plugins from this plugin's classloader
+        List<DataSourcePlugin> allDataSourcePlugins = new ArrayList<>(dataSourcePlugins);
+        SPIClassIterator<DataSourcePlugin> spiIterator = SPIClassIterator.get(DataSourcePlugin.class, getClass().getClassLoader());
+        while (spiIterator.hasNext()) {
+            Class<? extends DataSourcePlugin> pluginClass = spiIterator.next();
+            try {
+                allDataSourcePlugins.add(pluginClass.getConstructor().newInstance());
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to instantiate DataSourcePlugin: " + pluginClass.getName(), e);
+            }
+        }
+
+        // Create DataSourceModule with all discovered plugins
+        // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
+        DataSourceModule dataSourceModule = new DataSourceModule(
+            allDataSourcePlugins,
+            settings,
+            blockFactoryProvider.blockFactory(),
+            services.threadPool().executor(ThreadPool.Names.GENERIC)
+        );
+
+        List<Object> components = new ArrayList<>(
+            List.of(
+                new PlanExecutor(
+                    new IndexResolver(services.client()),
+                    services.telemetryProvider().getMeterRegistry(),
+                    getLicenseState(),
+                    new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
+                    extraCheckers,
+                    dataSourceModule
+                ),
+                new ExchangeService(
+                    services.clusterService().getSettings(),
+                    services.threadPool(),
+                    ThreadPool.Names.SEARCH,
+                    blockFactoryProvider.blockFactory()
+                ),
+                blockFactoryProvider,
+                dataSourceModule
+            )
         );
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             components = new ArrayList<>(components);
-            components.add(new ViewService(services.clusterService(), services.projectResolver(), settings));
+            components.add(new ViewResolver(services.clusterService(), services.projectResolver()));
+            components.add(new ViewService(services.clusterService()));
         }
         return components;
     }
@@ -253,20 +286,16 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 ESQL_QUERYLOG_THRESHOLD_INFO_SETTING,
                 ESQL_QUERYLOG_THRESHOLD_WARN_SETTING,
                 ESQL_QUERYLOG_INCLUDE_USER_SETTING,
-                PlannerSettings.DEFAULT_DATA_PARTITIONING,
-                PlannerSettings.VALUES_LOADING_JUMBO_SIZE,
-                PlannerSettings.LUCENE_TOPN_LIMIT,
-                PlannerSettings.INTERMEDIATE_LOCAL_RELATION_MAX_SIZE,
-                PlannerSettings.REDUCTION_LATE_MATERIALIZATION,
                 STORED_FIELDS_SEQUENTIAL_PROPORTION,
                 EsqlFlags.ESQL_STRING_LIKE_ON_INDEX,
                 EsqlFlags.ESQL_ROUNDTO_PUSHDOWN_THRESHOLD
             )
         );
+        settings.addAll(PlannerSettings.settings());
         if (ESQL_VIEWS_FEATURE_FLAG.isEnabled()) {
             settings.add(ViewService.MAX_VIEWS_COUNT_SETTING);
             settings.add(ViewService.MAX_VIEW_LENGTH_SETTING);
-            settings.add(ViewService.MAX_VIEW_DEPTH_SETTING);
+            settings.add(ViewResolver.MAX_VIEW_DEPTH_SETTING);
         }
 
         // Inference command settings
@@ -341,6 +370,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(EsqlQueryStatus.ENTRY);
         entries.add(ExchangeSinkOperator.Status.ENTRY);
         entries.add(ExchangeSourceOperator.Status.ENTRY);
+        entries.add(org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator.Status.ENTRY);
         entries.add(HashAggregationOperator.Status.ENTRY);
         entries.add(LimitOperator.Status.ENTRY);
         entries.add(LuceneOperator.Status.ENTRY);
@@ -353,6 +383,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         entries.add(LookupFromIndexOperator.Status.ENTRY);
         entries.add(SampleOperator.Status.ENTRY);
         entries.add(LinearScoreEvalOperator.Status.ENTRY);
+        entries.add(MMROperator.Status.ENTRY);
 
         entries.add(ExpressionQueryBuilder.ENTRY);
         entries.add(PlanStreamWrapperQueryBuilder.ENTRY);
@@ -395,6 +426,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
+        dataSourcePlugins.addAll(loader.loadExtensions(DataSourcePlugin.class));
     }
 
     @Override

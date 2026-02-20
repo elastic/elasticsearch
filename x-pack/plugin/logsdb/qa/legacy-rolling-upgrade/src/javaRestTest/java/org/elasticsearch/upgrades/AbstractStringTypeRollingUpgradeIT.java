@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
@@ -31,8 +32,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.enableLogsdbByDefault;
-import static org.elasticsearch.upgrades.StandardToLogsDbIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -362,6 +361,27 @@ public abstract class AbstractStringTypeRollingUpgradeIT extends AbstractRolling
 
     static String formatInstant(Instant instant) {
         return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).format(instant);
+    }
+
+    static void enableLogsdbByDefault() throws IOException {
+        var request = new Request("PUT", "/_cluster/settings");
+        request.setJsonEntity("""
+            {
+                "persistent": {
+                    "cluster.logsdb.enabled": true
+                }
+            }
+            """);
+        assertOK(client().performRequest(request));
+    }
+
+    @SuppressWarnings("unchecked")
+    static String getWriteBackingIndex(final RestClient client, final String dataStreamName, int backingIndex) throws IOException {
+        final Request request = new Request("GET", "_data_stream/" + dataStreamName);
+        final List<Object> DATA_STREAMs = (List<Object>) entityAsMap(client.performRequest(request)).get("data_streams");
+        final Map<String, Object> DATA_STREAM = (Map<String, Object>) DATA_STREAMs.get(0);
+        final List<Map<String, String>> backingIndices = (List<Map<String, String>>) DATA_STREAM.get("indices");
+        return backingIndices.get(backingIndex).get("index_name");
     }
 
 }

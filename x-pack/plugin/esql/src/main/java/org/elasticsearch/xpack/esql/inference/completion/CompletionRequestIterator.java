@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceOperator.BulkInferenceReq
 import org.elasticsearch.xpack.esql.inference.InputTextReader;
 
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 
 /**
@@ -33,6 +34,7 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
 
     private final InputTextReader textReader;
     private final String inferenceId;
+    private final Map<String, Object> taskSettings;
     private final int size;
     private final PositionValueCountsBuilder positionValueCountsBuilder = BulkInferenceRequestItem.positionValueCountsBuilder();
 
@@ -43,11 +45,13 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
      *
      * @param inferenceId The ID of the inference model to invoke.
      * @param promptBlock The input block containing prompts.
+     * @param taskSettings Task-specific settings to include in inference requests.
      */
-    CompletionRequestIterator(String inferenceId, BytesRefBlock promptBlock) {
+    CompletionRequestIterator(String inferenceId, BytesRefBlock promptBlock, Map<String, Object> taskSettings) {
         this.textReader = new InputTextReader(promptBlock);
         this.size = promptBlock.getPositionCount();
         this.inferenceId = inferenceId;
+        this.taskSettings = taskSettings;
     }
 
     @Override
@@ -91,7 +95,17 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
             return null;
         }
 
-        return InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION).setInput(List.of(prompt)).build();
+        InferenceAction.Request.Builder builder = InferenceAction.Request.builder(inferenceId, TaskType.COMPLETION)
+            .setInput(List.of(prompt));
+
+        // Only set task settings if explicitly provided by the user.
+        // This preserves backward compatibility and avoids sending empty
+        // maps to the inference service, which could have unexpected behavior.
+        if (taskSettings != null && taskSettings.isEmpty() == false) {
+            builder.setTaskSettings(taskSettings);
+        }
+
+        return builder.build();
     }
 
     @Override
@@ -107,11 +121,13 @@ class CompletionRequestIterator implements BulkInferenceRequestItemIterator {
     /**
      * Factory for creating {@link CompletionRequestIterator} instances.
      */
-    record Factory(String inferenceId, ExpressionEvaluator promptEvaluator) implements BulkInferenceRequestItemIterator.Factory {
+    record Factory(String inferenceId, ExpressionEvaluator promptEvaluator, Map<String, Object> taskSettings)
+        implements
+            BulkInferenceRequestItemIterator.Factory {
 
         @Override
         public BulkInferenceRequestItemIterator create(Page inputPage) {
-            return new CompletionRequestIterator(inferenceId, (BytesRefBlock) promptEvaluator.eval(inputPage));
+            return new CompletionRequestIterator(inferenceId, (BytesRefBlock) promptEvaluator.eval(inputPage), taskSettings);
         }
 
         @Override

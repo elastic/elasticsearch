@@ -97,6 +97,7 @@ import org.elasticsearch.search.vectors.IVFKnnFloatVectorQuery;
 import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
+import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -130,6 +131,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_VER
 import static org.elasticsearch.common.Strings.format;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.index.IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING;
+import static org.elasticsearch.index.IndexVersions.DISK_BBQ_QUANTIZE_BITS;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MAX_VECTORS_PER_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.MIN_VECTORS_PER_CLUSTER;
 
@@ -139,6 +141,8 @@ import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsF
 public class DenseVectorFieldMapper extends FieldMapper {
     public static final String COSINE_MAGNITUDE_FIELD_SUFFIX = "._magnitude";
     public static final int BBQ_MIN_DIMS = 64;
+
+    private static final int DEFAULT_BBQ_IVF_QUANTIZE_BITS = 1;
 
     /**
      * The heuristic to utilize when executing a filtered search against vectors indexed in an HNSW graph.
@@ -1041,7 +1045,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
 
         @Override
         public double computeSquaredMagnitude(VectorData vectorData) {
-            return VectorUtil.dotProduct(vectorData.asFloatVector(), vectorData.asFloatVector());
+            return ESVectorUtil.dotProduct(vectorData.asFloatVector(), vectorData.asFloatVector());
         }
 
         @Override
@@ -1743,9 +1747,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
 
                 RescoreVector rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
-                if (rescoreVector == null) {
-                    rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
-                }
 
                 Object visitPercentageNode = indexOptionsMap.remove("default_visit_percentage");
                 double visitPercentage = 0d;
@@ -1765,13 +1766,43 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
 
+                int quantizeBits;
+                if (indexVersion.onOrAfter(DISK_BBQ_QUANTIZE_BITS) && Build.current().isSnapshot()) {
+                    Object quantizeBitsNode = indexOptionsMap.remove("bits");
+                    quantizeBits = XContentMapValues.nodeIntegerValue(quantizeBitsNode, DEFAULT_BBQ_IVF_QUANTIZE_BITS);
+                    if ((quantizeBits == 1 || quantizeBits == 2 || quantizeBits == 4) == false) {
+                        throw new IllegalArgumentException(
+                            "'bits' must be 1, 2 or 4, got: " + quantizeBits + " for field [" + fieldName + "]"
+                        );
+                    }
+                } else {
+                    quantizeBits = 1;
+                }
+                if (rescoreVector == null) {
+                    // adjust the oversampling factor based on quantization scheme
+                    // no oversampling with 4 bits
+                    if (quantizeBits == 2) {
+                        rescoreVector = new RescoreVector(1.5f);
+                    } else if (quantizeBits == 1) {
+                        rescoreVector = new RescoreVector(DEFAULT_OVERSAMPLE);
+                    }
+                }
+
                 boolean doPrecondition = false;
                 if (Build.current().isSnapshot()) {
                     doPrecondition = XContentMapValues.nodeBooleanValue(indexOptionsMap.remove("precondition"), false);
                 }
 
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQIVFIndexOptions(clusterSize, visitPercentage, onDiskRescore, rescoreVector, indexVersion, doPrecondition);
+                return new BBQIVFIndexOptions(
+                    clusterSize,
+                    visitPercentage,
+                    onDiskRescore,
+                    rescoreVector,
+                    indexVersion,
+                    doPrecondition,
+                    quantizeBits
+                );
             }
 
             @Override
@@ -2422,6 +2453,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         final double defaultVisitPercentage;
         final boolean onDiskRescore;
         final IndexVersion indexVersionCreated;
+        final int bits;
         final boolean doPrecondition;
 
         BBQIVFIndexOptions(
@@ -2430,13 +2462,15 @@ public class DenseVectorFieldMapper extends FieldMapper {
             boolean onDiskRescore,
             RescoreVector rescoreVector,
             IndexVersion indexVersionCreated,
-            boolean doPrecondition
+            boolean doPrecondition,
+            int bits
         ) {
             super(VectorIndexType.BBQ_DISK, rescoreVector);
             this.clusterSize = clusterSize;
             this.defaultVisitPercentage = defaultVisitPercentage;
             this.onDiskRescore = onDiskRescore;
             this.indexVersionCreated = indexVersionCreated;
+            this.bits = bits;
             this.doPrecondition = doPrecondition;
         }
 
@@ -2453,7 +2487,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             if (Build.current().isSnapshot()) {
                 return new ESNextDiskBBQVectorsFormat(
-                    ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+                    ESNextDiskBBQVectorsFormat.QuantEncoding.fromId(bits >> 1),
                     clusterSize,
                     ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
                     elementType,
@@ -2485,12 +2519,13 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return clusterSize == that.clusterSize
                 && defaultVisitPercentage == that.defaultVisitPercentage
                 && onDiskRescore == that.onDiskRescore
+                && bits == that.bits
                 && Objects.equals(rescoreVector, that.rescoreVector);
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(clusterSize, defaultVisitPercentage, onDiskRescore, rescoreVector);
+            return Objects.hash(clusterSize, defaultVisitPercentage, onDiskRescore, rescoreVector, bits);
         }
 
         @Override
@@ -2509,6 +2544,9 @@ public class DenseVectorFieldMapper extends FieldMapper {
             }
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
+            }
+            if (indexVersionCreated.onOrAfter(DISK_BBQ_QUANTIZE_BITS) && Build.current().isSnapshot()) {
+                builder.field("bits", bits);
             }
             if (doPrecondition) {
                 builder.field("precondition", doPrecondition);
@@ -2699,16 +2737,27 @@ public class DenseVectorFieldMapper extends FieldMapper {
             throw new IllegalArgumentException("Field [" + name() + "] of type [" + typeName() + "] doesn't support term queries");
         }
 
+        public VectorData resolveQueryVector(VectorData queryVector) {
+            if (queryVector == null || queryVector.isStringVector() == false) {
+                return queryVector;
+            }
+            return VectorData.decodeQueryVector(queryVector.stringVector(), element.elementType(), dims);
+        }
+
         public Query createExactKnnQuery(VectorData queryVector, Float vectorSimilarity) {
             if (indexType() == IndexType.NONE) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
+            if (dims == null) {
+                return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
+            }
+            VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             Query knnQuery = switch (element.elementType()) {
-                case BYTE -> createExactKnnByteQuery(queryVector.asByteVector());
-                case FLOAT, BFLOAT16 -> createExactKnnFloatQuery(queryVector.asFloatVector());
-                case BIT -> createExactKnnBitQuery(queryVector.asByteVector());
+                case BYTE -> createExactKnnByteQuery(resolvedQueryVector.asByteVector());
+                case FLOAT, BFLOAT16 -> createExactKnnFloatQuery(resolvedQueryVector.asFloatVector());
+                case BIT -> createExactKnnBitQuery(resolvedQueryVector.asByteVector());
             };
             if (vectorSimilarity != null) {
                 knnQuery = new VectorSimilarityQuery(
@@ -2742,7 +2791,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             element.checkDimensions(dims, queryVector.length);
             element.checkVectorBounds(queryVector);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
+                float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(similarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
                 if (isNormalized() && element.isUnitVector(squaredMagnitude) == false) {
                     float length = (float) Math.sqrt(squaredMagnitude);
@@ -2775,11 +2824,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (dims == null) {
                 return new MatchNoDocsQuery("No data has been indexed for field [" + name() + "]");
             }
+            VectorData resolvedQueryVector = resolveQueryVector(queryVector);
             KnnSearchStrategy knnSearchStrategy = heuristic.getKnnSearchStrategy();
             hnswEarlyTermination &= canApplyPatienceQuery();
             return switch (getElementType()) {
                 case BYTE -> createKnnByteQuery(
-                    queryVector.asByteVector(),
+                    resolvedQueryVector.asByteVector(),
                     k,
                     numCands,
                     filter,
@@ -2789,7 +2839,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     hnswEarlyTermination
                 );
                 case FLOAT, BFLOAT16 -> createKnnFloatQuery(
-                    queryVector.asFloatVector(),
+                    resolvedQueryVector.asFloatVector(),
                     k,
                     numCands,
                     visitPercentage,
@@ -2801,7 +2851,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     hnswEarlyTermination
                 );
                 case BIT -> createKnnBitQuery(
-                    queryVector.asByteVector(),
+                    resolvedQueryVector.asByteVector(),
                     k,
                     numCands,
                     filter,
@@ -2938,7 +2988,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             element.checkDimensions(dims, queryVector.length);
             element.checkVectorBounds(queryVector);
             if (similarity == VectorSimilarity.DOT_PRODUCT || similarity == VectorSimilarity.COSINE) {
-                float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
+                float squaredMagnitude = ESVectorUtil.dotProduct(queryVector, queryVector);
                 element.checkVectorMagnitude(similarity, FloatElement.errorElementsAppender(queryVector), squaredMagnitude);
                 if (isNormalized() && element.isUnitVector(squaredMagnitude) == false) {
                     float length = (float) Math.sqrt(squaredMagnitude);

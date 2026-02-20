@@ -34,9 +34,10 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
-import org.elasticsearch.compute.lucene.LuceneSourceOperatorTests;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.compute.operator.WarningsTests.TestWarningsSource;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -213,6 +214,143 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
         }
     }
 
+    public void testCanProduceMoreDataWithoutExtraInput() throws Exception {
+        // Test that EnrichQuerySourceOperator follows the SourceOperator default behavior:
+        // canProduceMoreDataWithoutExtraInput() returns false because source operators
+        // are gated by nextOp.needsInput() in the driver loop.
+        int numQueries = 100;
+        int maxPageSize = 9; // Small page size to ensure multiple pages
+
+        List<List<String>> directoryTermsList = IntStream.range(0, numQueries).mapToObj(i -> List.of("term-" + i)).toList();
+        List<List<String>> inputTermsList = IntStream.range(0, numQueries).mapToObj(i -> List.of("term-" + i)).toList();
+
+        try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
+
+            Page inputPage = new Page(inputTerms);
+            EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
+                blockFactory,
+                maxPageSize,
+                queryList,
+                inputPage,
+                BlockOptimization.NONE,
+                new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                0,
+                directoryData.searchExecutionContext,
+                warnings()
+            );
+
+            // SourceOperator.canProduceMoreDataWithoutExtraInput() returns false by default
+            // because source data production is gated by nextOp.needsInput() in the driver loop
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
+                queryOperator.canProduceMoreDataWithoutExtraInput()
+            );
+
+            int pageCount = 0;
+            int totalPositions = 0;
+
+            // Process pages until finished
+            while (queryOperator.isFinished() == false) {
+                Page page = queryOperator.getOutput();
+                if (page != null) {
+                    pageCount++;
+                    int positions = page.getPositionCount();
+                    totalPositions += positions;
+
+                    // canProduceMoreDataWithoutExtraInput always returns false for source operators
+                    assertFalse(
+                        "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
+                        queryOperator.canProduceMoreDataWithoutExtraInput()
+                    );
+
+                    page.releaseBlocks();
+                }
+            }
+
+            // Verify we got multiple pages (due to small maxPageSize)
+            assertThat("Should produce multiple pages", pageCount, lessThanOrEqualTo((numQueries / maxPageSize) + 1));
+            assertThat("Total positions should match number of queries", totalPositions, equalTo(numQueries));
+
+            // After finishing, canProduceMoreDataWithoutExtraInput should still return false
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false after operator is finished",
+                queryOperator.canProduceMoreDataWithoutExtraInput()
+            );
+            assertTrue("Operator should be finished", queryOperator.isFinished());
+        }
+    }
+
+    public void testCanProduceMoreDataWithoutExtraInput_WithManyMatches() throws Exception {
+        // Test that EnrichQuerySourceOperator follows the SourceOperator default behavior
+        // even when a single query matches many documents.
+        // canProduceMoreDataWithoutExtraInput() returns false because source operators
+        // are gated by nextOp.needsInput() in the driver loop.
+
+        // Create directory with many documents matching the same term
+        int numMatchingDocs = 50;
+        List<List<String>> directoryTermsList = IntStream.range(0, numMatchingDocs).mapToObj(i -> List.of("common-term")).toList();
+
+        // Single query that matches all documents
+        List<List<String>> inputTermsList = List.of(List.of("common-term"));
+
+        try (var directoryData = makeDirectoryWith(directoryTermsList); var inputTerms = makeTermsBlock(inputTermsList)) {
+            QueryList queryList = QueryList.rawTermQueryList(directoryData.field, AliasFilter.EMPTY, 0, ElementType.BYTES_REF);
+
+            int maxPageSize = 10; // Small page size to ensure multiple pages from single query
+            Page inputPage = new Page(inputTerms);
+            EnrichQuerySourceOperator queryOperator = new EnrichQuerySourceOperator(
+                blockFactory,
+                maxPageSize,
+                queryList,
+                inputPage,
+                BlockOptimization.NONE,
+                new IndexedByShardIdFromSingleton<>(new LuceneSourceOperatorTests.MockShardContext(directoryData.reader)),
+                0,
+                directoryData.searchExecutionContext,
+                warnings()
+            );
+
+            // SourceOperator.canProduceMoreDataWithoutExtraInput() returns false by default
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
+                queryOperator.canProduceMoreDataWithoutExtraInput()
+            );
+
+            int pageCount = 0;
+            int totalPositions = 0;
+
+            // Process pages until finished
+            while (queryOperator.isFinished() == false) {
+                Page page = queryOperator.getOutput();
+                if (page != null) {
+                    pageCount++;
+                    int positions = page.getPositionCount();
+                    totalPositions += positions;
+
+                    // canProduceMoreDataWithoutExtraInput always returns false for source operators
+                    assertFalse(
+                        "canProduceMoreDataWithoutExtraInput should return false (SourceOperator default)",
+                        queryOperator.canProduceMoreDataWithoutExtraInput()
+                    );
+
+                    page.releaseBlocks();
+                }
+            }
+
+            // Verify we got multiple pages (due to small maxPageSize and many matches)
+            assertThat("Should produce multiple pages", pageCount, lessThanOrEqualTo((numMatchingDocs / maxPageSize) + 1));
+            assertThat("Total positions should match number of matching documents", totalPositions, equalTo(numMatchingDocs));
+
+            // After finishing, canProduceMoreDataWithoutExtraInput should still return false
+            assertFalse(
+                "canProduceMoreDataWithoutExtraInput should return false after operator is finished",
+                queryOperator.canProduceMoreDataWithoutExtraInput()
+            );
+            assertTrue("Operator should be finished", queryOperator.isFinished());
+        }
+    }
+
     public void testQueries_OnlySingleValues() throws Exception {
         try (
             var directoryData = makeDirectoryWith(
@@ -258,8 +396,8 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
                 assertTrue(queryOperator.isFinished());
             }
             assertWarnings(
-                "Line -1:-1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: java.lang.IllegalArgumentException: multi-value found"
+                "Line 1:1: evaluation of [test] failed, treating result as null. Only first 20 failures recorded.",
+                "Line 1:1: java.lang.IllegalArgumentException: multi-value found"
             );
         }
     }
@@ -270,7 +408,7 @@ public class EnrichQuerySourceOperatorTests extends ESTestCase {
     }
 
     private static Warnings warnings() {
-        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, -1, -1, "test");
+        return Warnings.createWarnings(DriverContext.WarningsMode.COLLECT, new TestWarningsSource("test"));
     }
 
     private record DirectoryData(

@@ -46,15 +46,18 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.codec.FilterDocValuesProducer;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
-import java.util.function.IntSupplier;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.Numbers.isPowerOfTwo;
 import static org.elasticsearch.index.codec.bloomfilter.BloomFilterHashFunctions.MurmurHash3.hash64;
@@ -91,13 +94,18 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
     // We use prime numbers with the Kirsch-Mitzenmacher technique to obtain multiple hashes from two hash functions
     private static final int[] PRIMES = new int[] { 2, 5, 11, 17, 23, 29, 41, 47, 53, 59, 71 };
     private static final int DEFAULT_NUM_HASH_FUNCTIONS = 7;
-    private static final ByteSizeValue MAX_BLOOM_FILTER_SIZE = ByteSizeValue.ofMb(8);
-    public static final ByteSizeValue DEFAULT_BLOOM_FILTER_SIZE = ByteSizeValue.ofMb(1);
+    // With the default oversize factor of 24 and 7 hash functions, the theoretical false positive rate is approximately 6.63E-5,
+    // calculated as (1 - e^(-k/o))^k where k = number of hash functions and o = oversize factor.
+    //
+    // Note: The bloom filter size is capped at MAX_BLOOM_FILTER_SIZE, so this false positive rate only holds for segments
+    // with up to ~2.8 million documents. Larger segments will have higher false positive rates.
+    static final int DEFAULT_BLOOM_FILTER_OVERSIZE_FACTOR = 24;
+    static final ByteSizeValue MAX_BLOOM_FILTER_SIZE = ByteSizeValue.ofMb(8);
 
     private final BigArrays bigArrays;
     private final String bloomFilterFieldName;
+    private final boolean optimizedMergeEnabled;
     private final int numHashFunctions;
-    private final int bloomFilterSizeInBits;
 
     // Public constructor SPI use for reads only
     public ES94BloomFilterDocValuesFormat() {
@@ -105,28 +113,27 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         bigArrays = null;
         bloomFilterFieldName = null;
         numHashFunctions = 0;
-        bloomFilterSizeInBits = 0;
+        optimizedMergeEnabled = true;
     }
 
-    public ES94BloomFilterDocValuesFormat(BigArrays bigArrays, ByteSizeValue bloomFilterSize, String bloomFilterFieldName) {
+    public ES94BloomFilterDocValuesFormat(BigArrays bigArrays, String bloomFilterFieldName) {
+        this(bigArrays, bloomFilterFieldName, true);
+    }
+
+    public ES94BloomFilterDocValuesFormat(BigArrays bigArrays, String bloomFilterFieldName, boolean optimizedMergeEnabled) {
         super(FORMAT_NAME);
         this.bigArrays = bigArrays;
         this.bloomFilterFieldName = bloomFilterFieldName;
+        this.optimizedMergeEnabled = optimizedMergeEnabled;
         this.numHashFunctions = DEFAULT_NUM_HASH_FUNCTIONS;
-
-        if (bloomFilterSize.getBytes() <= 0) {
-            throw new IllegalArgumentException("bloom filter size must be greater than 0");
-        }
-
-        this.bloomFilterSizeInBits = closestPowerOfTwoBloomFilterSizeInBits(bloomFilterSize);
     }
 
     @Override
     public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
         assert bigArrays != null;
         assert numHashFunctions > 0;
-        assert bloomFilterSizeInBits > 0;
-        return new Writer(state, bigArrays, numHashFunctions, this::getBloomFilterSizeInBits, bloomFilterFieldName);
+        assert numHashFunctions <= PRIMES.length : "Number of hash functions must be <= " + PRIMES.length + " but was " + numHashFunctions;
+        return new Writer(state);
     }
 
     @Override
@@ -134,61 +141,42 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         return new Reader(state);
     }
 
-    int getBloomFilterSizeInBits() {
-        return bloomFilterSizeInBits;
-    }
+    static int closestPowerOfTwoBloomFilterSizeInBytes(int bloomFilterSizeInBytes) {
+        assert bloomFilterSizeInBytes > 0 : "Bloom filter size must be > 0 but was " + bloomFilterSizeInBytes;
 
-    static int closestPowerOfTwoBloomFilterSizeInBits(ByteSizeValue bloomFilterSize) {
-        var closestPowerOfTwoBloomFilterSizeInBytes = Long.highestOneBit(bloomFilterSize.getBytes());
+        var closestPowerOfTwoBloomFilterSizeInBytes = Integer.highestOneBit(bloomFilterSizeInBytes);
+        // Round up to the next power of two if it's necessary
+        if (closestPowerOfTwoBloomFilterSizeInBytes < bloomFilterSizeInBytes) {
+            closestPowerOfTwoBloomFilterSizeInBytes <<= 1;
+        }
         if (closestPowerOfTwoBloomFilterSizeInBytes > MAX_BLOOM_FILTER_SIZE.getBytes()) {
             throw new IllegalArgumentException(
                 "bloom filter size ["
-                    + bloomFilterSize
+                    + ByteSizeValue.ofBytes(bloomFilterSizeInBytes)
                     + "] is too large; "
                     + "must be "
                     + MAX_BLOOM_FILTER_SIZE
                     + " or less (rounded to nearest power of two)"
             );
         }
-        return Math.toIntExact(Math.multiplyExact(closestPowerOfTwoBloomFilterSizeInBytes, Byte.SIZE));
+        return Math.toIntExact(closestPowerOfTwoBloomFilterSizeInBytes);
     }
 
-    static class Writer extends DocValuesConsumer {
-        private final int numHashFunctions;
-        private final String bloomFilterFieldName;
-        private final List<Closeable> toClose = new ArrayList<>(3);
+    class Writer extends DocValuesConsumer {
+        private IndexOutput metadataOut;
+        private IndexOutput bloomFilterDataOut;
+        private final SegmentWriteState state;
+        // Lazy initialized
+        private BitSetBuffer bitSetBuffer;
 
-        private final IndexOutput metadataOut;
-        private final IndexOutput bloomFilterDataOut;
-        private final int bitsetSizeInBits;
-        private final int bitSetSizeInBytes;
-        private final ByteArray buffer;
-        private boolean closed;
-
-        Writer(
-            SegmentWriteState state,
-            BigArrays bigArrays,
-            int numHashFunctions,
-            IntSupplier defaultBloomFilterSizeInBitsSupplier,
-            String bloomFilterFieldName
-        ) throws IOException {
+        Writer(SegmentWriteState state) throws IOException {
+            this.state = state;
             final SegmentInfo segmentInfo = state.segmentInfo;
             final IOContext context = state.context;
-            assert numHashFunctions <= PRIMES.length
-                : "Number of hash functions must be <= " + PRIMES.length + " but was " + numHashFunctions;
 
-            this.numHashFunctions = numHashFunctions;
-            this.bloomFilterFieldName = bloomFilterFieldName;
-
+            final List<Closeable> toClose = new ArrayList<>(2);
             boolean success = false;
             try {
-                int bloomFilterSizeInBits = defaultBloomFilterSizeInBitsSupplier.getAsInt();
-                assert isPowerOfTwo(bloomFilterSizeInBits) : "Bloom filter size is not a power of 2: " + bloomFilterSizeInBits;
-                this.bitsetSizeInBits = bloomFilterSizeInBits;
-                this.bitSetSizeInBytes = bitsetSizeInBits / Byte.SIZE;
-                this.buffer = bigArrays.newByteArray(bitSetSizeInBytes);
-                toClose.add(buffer);
-
                 metadataOut = state.directory.createOutput(bloomFilterMetadataFileName(segmentInfo, state.segmentSuffix), context);
                 toClose.add(metadataOut);
                 CodecUtil.writeIndexHeader(metadataOut, FORMAT_NAME, VERSION_CURRENT, segmentInfo.getId(), state.segmentSuffix);
@@ -233,6 +221,10 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         @Override
         public void addBinaryField(FieldInfo field, DocValuesProducer valuesProducer) throws IOException {
             assert field.name.equals(bloomFilterFieldName) : "Expected field " + bloomFilterFieldName + " but got " + field.name;
+            // Capture maxDoc at flush time when the final document count is known
+            var numDocs = state.segmentInfo.maxDoc();
+            initBitSetBufferForNewSegment(numDocs);
+
             var values = valuesProducer.getBinary(field);
             for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
                 BytesRef value = values.binaryValue();
@@ -241,6 +233,8 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         }
 
         private void addToBloomFilter(BytesRef value) {
+            assert bitSetBuffer != null;
+
             long hash64 = hash64(value.bytes, value.offset, value.length);
             // First use output splitting to get two hash values out of a single hash function
             int upperHalf = (int) (hash64 >> Integer.SIZE);
@@ -250,158 +244,157 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 // Use prime numbers as the constant for the KM technique so these don't have a common gcd
                 final int hash = (lowerHalf + PRIMES[i] * upperHalf) & 0x7FFF_FFFF; // Clears sign bit, gives positive 31-bit values
 
-                final int posInBitArray = hash & (bitsetSizeInBits - 1);
+                final int posInBitArray = hash & (bitSetBuffer.sizeInBits - 1);
                 final int pos = posInBitArray >> 3; // div 8
                 final int mask = 1 << (posInBitArray & 7); // mod 8
-                final byte val = (byte) (buffer.get(pos) | mask);
-                buffer.set(pos, val);
+                final byte val = (byte) (bitSetBuffer.get(pos) | mask);
+                bitSetBuffer.set(pos, val);
             }
-        }
-
-        private void flush() throws IOException {
-            BloomFilterMetadata bloomFilterMetadata = new BloomFilterMetadata(
-                bloomFilterDataOut.getFilePointer(),
-                bitsetSizeInBits,
-                numHashFunctions
-            );
-
-            if (buffer.hasArray()) {
-                bloomFilterDataOut.writeBytes(buffer.array(), 0, bitSetSizeInBytes);
-            } else {
-                BytesReference.fromByteArray(buffer, bitSetSizeInBytes)
-                    .writeTo(
-                        // do not close the stream as it would close bloomFilterDataOut
-                        new IndexOutputOutputStream(bloomFilterDataOut)
-                    );
-            }
-            CodecUtil.writeFooter(bloomFilterDataOut);
-
-            bloomFilterMetadata.writeTo(metadataOut);
-            CodecUtil.writeFooter(metadataOut);
         }
 
         @Override
         public void merge(MergeState mergeState) throws IOException {
-            if (useOptimizedMerge(mergeState)) {
-                mergeOptimized(mergeState);
+            BloomFilterReaders bloomFilterReaders = new BloomFilterReaders(mergeState, bloomFilterFieldName);
+            if (optimizedMergeEnabled && bloomFilterReaders.supportsOptimizedMerge()) {
+                mergeOptimized(bloomFilterReaders);
             } else {
                 rebuildBloomFilterFromSegments(mergeState);
             }
         }
 
         /**
-         * Determines whether bloom filters can be merged using a bitwise OR operation.
-         *
-         * <p>Fast merging is possible when all segments in the merge state satisfy two conditions:
+         * Merges bloom filters from multiple segments using a hybrid fold/expand strategy.
+         * <p>
+         * When merging filters of different sizes (all powers of 2):
          * <ul>
-         *   <li>Each segment has an associated bloom filter
-         *   <li>All bloom filters have identical dimensions (same bit array size)
+         *   <li><b>Fold</b>: Larger filters are folded down by OR-ing overlapping regions</li>
+         *   <li><b>Expand</b>: Smaller filters are expanded by duplicating the bit pattern</li>
          * </ul>
-         *
-         * <p>When these conditions are met, the bloom filters can be efficiently combined by
-         * performing a bitwise OR across their underlying bitsets, avoiding the need to
-         * re-hash and re-insert elements.
-         *
-         * @param mergeState the merge state containing segments to be merged
-         * @return {@code true} if all segments have compatible bloom filters that can be
-         *         merged via bitwise OR; {@code false} otherwise
+         * This preserves correctness (no false negatives) while allowing efficient bitwise merging
+         * without re-hashing elements.
          */
-        private boolean useOptimizedMerge(MergeState mergeState) throws IOException {
-            int expectedBloomFilterSize = -1;
-            for (int i = 0; i < mergeState.docValuesProducers.length; i++) {
-                final FieldInfo fieldInfo = mergeState.fieldInfos[i].fieldInfo(bloomFilterFieldName);
-                if (fieldInfo == null) {
-                    continue;
-                }
-                DocValuesProducer docValuesProducer = mergeState.docValuesProducers[i];
-                if (docValuesProducer instanceof FilterDocValuesProducer filterDocValuesProducer) {
-                    docValuesProducer = filterDocValuesProducer.getIn();
-                }
-
-                if (docValuesProducer instanceof Reader == false) {
-                    return false;
-                }
-
-                var reader = (Reader) docValuesProducer;
-
-                if (expectedBloomFilterSize == -1) {
-                    expectedBloomFilterSize = reader.bloomFilterMetadata.sizeInBits();
-                }
-
-                if (reader.bloomFilterMetadata.sizeInBits() != expectedBloomFilterSize) {
-                    return false;
-                }
-            }
-            return true;
-        }
-
-        private void mergeOptimized(MergeState mergeState) throws IOException {
-            assert useOptimizedMerge(mergeState);
-
-            if (mergeState.fieldsProducers.length == 0) {
+        private void mergeOptimized(BloomFilterReaders bloomFilterReaders) throws IOException {
+            if (bloomFilterReaders.maxCount() == 0) {
                 return;
             }
 
+            List<Integer> bloomFilterSizes = bloomFilterReaders.sizesInBytes();
+            initBitSetBufferForMerge(bloomFilterSizes);
+
             final var pageSizeInBytes = PageCacheRecycler.PAGE_SIZE_IN_BYTES;
-            final var newBloomFilterPageScratch = new BytesRef(pageSizeInBytes);
-            final var existingPageScratch = new BytesRef(pageSizeInBytes);
-            for (int readerIdx = 0; readerIdx < mergeState.docValuesProducers.length; readerIdx++) {
-                final FieldInfo fieldInfo = mergeState.fieldInfos[readerIdx].fieldInfo(bloomFilterFieldName);
-                if (fieldInfo == null) {
-                    continue;
-                }
-                DocValuesProducer docValuesProducer = mergeState.docValuesProducers[readerIdx];
-                if (docValuesProducer instanceof FilterDocValuesProducer filterDocValuesProducer) {
-                    docValuesProducer = filterDocValuesProducer.getIn();
-                }
-
-                if (docValuesProducer instanceof Reader == false) {
-                    throw new IllegalStateException("Expected a Reader but got " + docValuesProducer);
-                }
-
-                var reader = (Reader) docValuesProducer;
-                reader.checkIntegrity();
-
-                BloomFilterFieldReader bloomFilterFieldReader = reader.createBloomFilterReader();
-                assert bloomFilterFieldReader.getBloomFilterBitSetSizeInBits() == bitsetSizeInBits
-                    : "Expected a bloom filter bitset size "
-                        + bitsetSizeInBits
-                        + " but got "
-                        + bloomFilterFieldReader.getBloomFilterBitSetSizeInBits();
+            final var sourcePageScratch = new BytesRef(pageSizeInBytes);
+            final var targetPageScratch = new BytesRef(pageSizeInBytes);
+            final var firstBloomFilter = new AtomicBoolean(true);
+            bloomFilterReaders.forEach(bloomFilterFieldReader -> {
+                assert bitSetBuffer != null;
+                bloomFilterFieldReader.checkIntegrity();
+                final int targetBitSetSizeInBytes = bitSetBuffer.sizeInBytes;
 
                 RandomAccessInput bloomFilterData = bloomFilterFieldReader.bloomFilterIn;
-                int offset = 0;
-                while (offset < bitSetSizeInBytes) {
-                    var pageLen = Math.min(pageSizeInBytes, bitSetSizeInBytes - offset);
-                    // Read one BigArrays page at a time to amortize the cost of going through
-                    // the big arrays machinery. In most systems, this means that we'll read
-                    // 4 OS page cache pages at a time, but since we're reading it sequentially
-                    // and when we create the BloomFilterFieldReader we call madvise to prefetch
-                    // the entire bloom filter, it should be fine.
-                    buffer.get(offset, pageLen, newBloomFilterPageScratch);
-                    bloomFilterData.readBytes(offset, existingPageScratch.bytes, 0, pageLen);
+                final int sourceSizeInBytes = bloomFilterFieldReader.getBloomFilterBitSetSizeInBytes();
+
+                if (sourceSizeInBytes >= targetBitSetSizeInBytes) {
+                    // Fold: source is larger (or equal), so we partition it into chunks
+                    // and OR each chunk into the target. This is equivalent to:
+                    // target[i] |= source[i] | source[i + targetSize] | source[i + 2*targetSize] | ...
+                    // which matches how hash(x) mod targetSize would map bits from the larger filter.
+                    int foldFactor = sourceSizeInBytes / targetBitSetSizeInBytes;
+                    for (int i = 0; i < foldFactor; i++) {
+                        orRegion(
+                            bloomFilterData,
+                            i * targetBitSetSizeInBytes,
+                            0,
+                            targetBitSetSizeInBytes,
+                            sourcePageScratch,
+                            targetPageScratch,
+                            firstBloomFilter.get() && i == 0
+                        );
+                    }
+                } else {
+                    // Expand: source is smaller, so we duplicate its bit pattern across the target.
+                    // This is equivalent to:
+                    // target[i] |= source[i mod sourceSize]
+                    // which ensures that queries using hash(x) mod targetSize will still find bits
+                    // that were set using hash(x) mod sourceSize, since for powers of 2:
+                    // (hash mod targetSize) mod sourceSize == hash mod sourceSize
+                    int expandFactor = targetBitSetSizeInBytes / sourceSizeInBytes;
+                    for (int i = 0; i < expandFactor; i++) {
+                        orRegion(
+                            bloomFilterData,
+                            0,
+                            i * sourceSizeInBytes,
+                            sourceSizeInBytes,
+                            sourcePageScratch,
+                            targetPageScratch,
+                            firstBloomFilter.get()
+                        );
+                    }
+                }
+                firstBloomFilter.set(false);
+            });
+        }
+
+        private void orRegion(
+            RandomAccessInput source,
+            int sourceOffset,
+            int targetOffset,
+            int length,
+            BytesRef sourcePageScratch,
+            BytesRef targetPageScratch,
+            boolean firstPass
+        ) throws IOException {
+            assert sourcePageScratch.bytes.length == PageCacheRecycler.PAGE_SIZE_IN_BYTES
+                : sourcePageScratch.bytes.length + " vs " + PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+            assert targetPageScratch.bytes.length == PageCacheRecycler.PAGE_SIZE_IN_BYTES
+                : targetPageScratch.bytes.length + " vs " + PageCacheRecycler.PAGE_SIZE_IN_BYTES;
+
+            // throwaway, just to call bitSetBuffer.get()
+            BytesRef scratchRef = new BytesRef();
+
+            int offset = 0;
+            while (offset < length) {
+                int pageLen = Math.min(PageCacheRecycler.PAGE_SIZE_IN_BYTES, length - offset);
+
+                source.readBytes(sourceOffset + offset, sourcePageScratch.bytes, 0, pageLen);
+                var materialized = bitSetBuffer.get(targetOffset + offset, pageLen, scratchRef);
+                assert materialized == false : "Unexpected materialized array";
+
+                if (firstPass) {
+                    // If we're just processing the first bloom filter the first pass, we can just copy the
+                    // bytes from the source bloom filter into the new bloom filter and skip all the OR operations.
+                    bitSetBuffer.set(targetOffset + offset, sourcePageScratch.bytes, 0, pageLen);
+                } else {
+                    // Unfortunately we have to copy the bytes that we read from bitSetBuffer since the
+                    // BigArrays ByteArray just provides a view from the page that shouldn't be mutated
+                    // (this mostly apply to the initial empty pages which are shared across all the byte buffers).
+                    System.arraycopy(scratchRef.bytes, scratchRef.offset, targetPageScratch.bytes, 0, pageLen);
 
                     int i = 0;
                     for (; i + Long.BYTES <= pageLen; i += Long.BYTES) {
-                        long existing = (long) BitUtil.VH_LE_LONG.get(existingPageScratch.bytes, i);
-                        long current = (long) BitUtil.VH_LE_LONG.get(newBloomFilterPageScratch.bytes, i);
-                        BitUtil.VH_LE_LONG.set(newBloomFilterPageScratch.bytes, i, existing | current);
+                        long existing = (long) BitUtil.VH_LE_LONG.get(sourcePageScratch.bytes, i);
+                        long current = (long) BitUtil.VH_LE_LONG.get(targetPageScratch.bytes, i);
+                        BitUtil.VH_LE_LONG.set(targetPageScratch.bytes, i, existing | current);
                     }
 
-                    // OR the remaining bytes that do not fit in a Long
+                    // OR any remaining bytes if length isn't a multiple of 8.
+                    // In practice this only applies for segments with 1 document where the bloom filter size is 4 bytes
                     for (; i < pageLen; i++) {
-                        newBloomFilterPageScratch.bytes[i] |= existingPageScratch.bytes[i];
+                        targetPageScratch.bytes[i] |= sourcePageScratch.bytes[i];
                     }
 
-                    buffer.set(offset, newBloomFilterPageScratch.bytes, 0, pageLen);
-                    offset += pageLen;
+                    bitSetBuffer.set(targetOffset + offset, targetPageScratch.bytes, 0, pageLen);
                 }
+
+                offset += pageLen;
             }
         }
 
         private void rebuildBloomFilterFromSegments(MergeState mergeState) throws IOException {
             final List<Fields> fields = new ArrayList<>();
             final List<ReaderSlice> slices = new ArrayList<>();
+
+            var docCount = Arrays.stream(mergeState.maxDocs).sum();
+            initBitSetBufferForNewSegment(docCount);
 
             int docBase = 0;
             for (int readerIndex = 0; readerIndex < mergeState.fieldsProducers.length; readerIndex++) {
@@ -426,7 +419,6 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 return;
             }
 
-            // TODO: use terms.docCount to compute an optimal bloom filter size
             final TermsEnum termsEnum = terms.iterator();
             while (true) {
                 final BytesRef term = termsEnum.next();
@@ -439,13 +431,39 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
         @Override
         public void close() throws IOException {
-            if (closed) {
-                return;
-            }
+            try {
+                if (Assertions.ENABLED) {
+                    boolean allNull = (bitSetBuffer == null && bloomFilterDataOut == null && metadataOut == null);
+                    boolean allSet = (bitSetBuffer != null && bloomFilterDataOut != null && metadataOut != null);
+                    assert allNull || allSet : bitSetBuffer + " vs " + bloomFilterDataOut + " vs " + metadataOut;
+                }
+                try {
+                    BloomFilterMetadata bloomFilterMetadata = null;
+                    if (bloomFilterDataOut != null) {
+                        bloomFilterMetadata = new BloomFilterMetadata(
+                            bloomFilterDataOut.getFilePointer(),
+                            bitSetBuffer == null ? 0 : bitSetBuffer.sizeInBits,
+                            numHashFunctions
+                        );
 
-            closed = true;
-            flush();
-            IOUtils.close(toClose);
+                        if (bitSetBuffer != null) {
+                            bitSetBuffer.writeTo(bloomFilterDataOut);
+                        }
+                        CodecUtil.writeFooter(bloomFilterDataOut);
+                    }
+                    if (metadataOut != null) {
+                        bloomFilterMetadata.writeTo(metadataOut);
+                        CodecUtil.writeFooter(metadataOut);
+                    }
+                } catch (Throwable t) {
+                    IOUtils.closeWhileHandlingException(bitSetBuffer, bloomFilterDataOut, metadataOut);
+                    throw t;
+                }
+                IOUtils.close(bitSetBuffer, bloomFilterDataOut, metadataOut);
+            } finally {
+                metadataOut = bloomFilterDataOut = null;
+                bitSetBuffer = null;
+            }
         }
 
         @Override
@@ -470,6 +488,123 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
         private void throwUnsupportedOperationException() {
             throw new UnsupportedOperationException("Not implemented");
+        }
+
+        private void initBitSetBufferForNewSegment(int numDocs) {
+            int sizeInBytes = bloomFilterSizeInBytesForNewSegment(numDocs);
+            initBitSetBuffer(sizeInBytes);
+        }
+
+        private void initBitSetBufferForMerge(List<Integer> bloomFilterSizes) {
+            var sizeInBytes = bloomFilterSizeInBytesForMergedSegment(bloomFilterSizes);
+            initBitSetBuffer(sizeInBytes);
+        }
+
+        private void initBitSetBuffer(int sizeInBytes) {
+            assert isPowerOfTwo(sizeInBytes);
+            if (bitSetBuffer != null) {
+                throw new IllegalStateException("BitSetBuffer already exists");
+            }
+
+            this.bitSetBuffer = new BitSetBuffer(bigArrays, sizeInBytes);
+        }
+    }
+
+    static class BitSetBuffer implements Closeable {
+        private final int sizeInBits;
+        private final int sizeInBytes;
+        private final ByteArray buffer;
+
+        BitSetBuffer(BigArrays bigArrays, int sizeInBytes) {
+            assert sizeInBytes > 0;
+            assert sizeInBytes <= MAX_BLOOM_FILTER_SIZE.getBytes();
+            assert isPowerOfTwo(sizeInBytes) : "Expected a power of two size but got " + sizeInBytes;
+
+            this.sizeInBits = Math.multiplyExact(sizeInBytes, Byte.SIZE);
+            this.sizeInBytes = sizeInBytes;
+            this.buffer = bigArrays.newByteArray(sizeInBytes);
+        }
+
+        byte get(int position) {
+            return buffer.get(position);
+        }
+
+        boolean get(long index, int length, BytesRef bytesRef) {
+            return buffer.get(index, length, bytesRef);
+        }
+
+        void set(int position, byte value) {
+            buffer.set(position, value);
+        }
+
+        void set(long index, byte[] buf, int offset, int len) {
+            buffer.set(index, buf, offset, len);
+        }
+
+        public void writeTo(IndexOutput indexOut) throws IOException {
+            if (buffer.hasArray()) {
+                indexOut.writeBytes(buffer.array(), 0, sizeInBytes);
+            } else {
+                BytesReference.fromByteArray(buffer, sizeInBytes)
+                    .writeTo(
+                        // do not close the stream as it would close indexOut
+                        new IndexOutputOutputStream(indexOut)
+                    );
+            }
+        }
+
+        @Override
+        public void close() throws IOException {
+            buffer.close();
+        }
+    }
+
+    record BloomFilterReaders(MergeState mergeState, String bloomFilterFieldName) {
+        void forEach(CheckedConsumer<BloomFilterFieldReader, IOException> consumer) throws IOException {
+            for (int readerIdx = 0; readerIdx < mergeState.docValuesProducers.length; readerIdx++) {
+                final FieldInfo fieldInfo = mergeState.fieldInfos[readerIdx].fieldInfo(bloomFilterFieldName);
+                if (fieldInfo == null) {
+                    continue;
+                }
+                DocValuesProducer docValuesProducer = mergeState.docValuesProducers[readerIdx];
+                var binaryDocValues = docValuesProducer.getBinary(fieldInfo);
+                if (binaryDocValues instanceof BloomFilterFieldReader == false) {
+                    throw new IllegalStateException("Expected a BloomFilterFieldReader but got " + binaryDocValues.getClass().getName());
+                }
+
+                BloomFilterFieldReader bloomFilterFieldReader = (BloomFilterFieldReader) binaryDocValues;
+                consumer.accept(bloomFilterFieldReader);
+            }
+        }
+
+        /**
+         * Returns true if all segments have bloom filter readers, allowing for an optimized merge
+         * via bitwise OR (fold/expand) rather than rebuilding from the bloomFilterField terms.
+         */
+        boolean supportsOptimizedMerge() throws IOException {
+            for (int readerIdx = 0; readerIdx < mergeState.docValuesProducers.length; readerIdx++) {
+                final FieldInfo fieldInfo = mergeState.fieldInfos[readerIdx].fieldInfo(bloomFilterFieldName);
+                if (fieldInfo == null) {
+                    return false;
+                }
+                DocValuesProducer docValuesProducer = mergeState.docValuesProducers[readerIdx];
+                var binaryDocValues = docValuesProducer.getBinary(fieldInfo);
+                if (binaryDocValues instanceof BloomFilterFieldReader == false) {
+                    return false;
+                }
+            }
+
+            return mergeState.docValuesProducers.length > 0;
+        }
+
+        List<Integer> sizesInBytes() throws IOException {
+            List<Integer> sizes = new ArrayList<>();
+            forEach(reader -> sizes.add(reader.getBloomFilterBitSetSizeInBytes()));
+            return sizes;
+        }
+
+        int maxCount() {
+            return mergeState.docValuesProducers.length;
         }
     }
 
@@ -548,7 +683,8 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
                 return new BloomFilterFieldReader(
                     bloomFilterData.randomAccessSlice(bloomFilterMetadata.fileOffset(), bloomFilterMetadata.sizeInBytes()),
                     bloomFilterMetadata.sizeInBits(),
-                    bloomFilterMetadata.numHashFunctions()
+                    bloomFilterMetadata.numHashFunctions(),
+                    this::checkIntegrity
                 );
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -585,11 +721,18 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
         private final RandomAccessInput bloomFilterIn;
         private final int bloomFilterBitSetSizeInBits;
         private final int numHashFunctions;
+        private final CheckedRunnable<IOException> checkIntegrityFn;
 
-        private BloomFilterFieldReader(RandomAccessInput bloomFilterIn, int bloomFilterBitSetSizeInBits, int numHashFunctions) {
+        private BloomFilterFieldReader(
+            RandomAccessInput bloomFilterIn,
+            int bloomFilterBitSetSizeInBits,
+            int numHashFunctions,
+            CheckedRunnable<IOException> checkIntegrityFn
+        ) {
             this.bloomFilterIn = bloomFilterIn;
             this.bloomFilterBitSetSizeInBits = bloomFilterBitSetSizeInBits;
             this.numHashFunctions = numHashFunctions;
+            this.checkIntegrityFn = checkIntegrityFn;
         }
 
         public boolean mayContainValue(String field, BytesRef value) throws IOException {
@@ -613,8 +756,13 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
             return true;
         }
 
-        int getBloomFilterBitSetSizeInBits() {
-            return bloomFilterBitSetSizeInBits;
+        int getBloomFilterBitSetSizeInBytes() {
+            return Math.divideExact(bloomFilterBitSetSizeInBits, Byte.SIZE);
+        }
+
+        @Override
+        public long sizeInBytes() {
+            return getBloomFilterBitSetSizeInBytes();
         }
 
         @Override
@@ -649,6 +797,10 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
         @Override
         public void close() throws IOException {}
+
+        void checkIntegrity() throws IOException {
+            checkIntegrityFn.run();
+        }
     }
 
     record BloomFilterMetadata(long fileOffset, int sizeInBits, int numHashFunctions) {
@@ -680,5 +832,45 @@ public class ES94BloomFilterDocValuesFormat extends DocValuesFormat {
 
     private static String bloomFilterFileName(SegmentInfo segmentInfo, String segmentSuffix) {
         return IndexFileNames.segmentFileName(segmentInfo.name, segmentSuffix, STORED_FIELDS_BLOOM_FILTER_EXTENSION);
+    }
+
+    /**
+     * Calculates the bloom filter size in bytes for a given number of documents.
+     * <p>
+     * The size is determined by (numDocs * oversizeFactor) / 8, rounded to the nearest power of two,
+     * and capped at {@link #MAX_BLOOM_FILTER_SIZE} to limit memory usage.
+     * <p>
+     * With the default oversize factor of 24 and 7 hash functions, the theoretical false positive rate
+     * is approximately 6.63E-5, calculated as (1 - e^(-k/o))^k where k = hash functions and o = oversize factor.
+     * This rate only holds when the size cap is not reached (segments up to ~2.8M docs); larger segments
+     * will have higher false positive rates.
+     * <p>
+     * It guarantees that the size is a power of two
+     *
+     * @param numDocs number of documents in the segment
+     * @return bloom filter size in bytes, as a power of two
+     */
+    // Visible for testing
+    public int bloomFilterSizeInBytesForNewSegment(int numDocs) {
+        assert numDocs > 0 : "Unexpected number of docs " + numDocs;
+        assert MAX_BLOOM_FILTER_SIZE.getBytes() <= Integer.MAX_VALUE : MAX_BLOOM_FILTER_SIZE;
+
+        long idealSizeInBytes = Math.divideExact(Math.multiplyExact((long) numDocs, DEFAULT_BLOOM_FILTER_OVERSIZE_FACTOR), Byte.SIZE);
+        return boundAndRoundBloomFilterSizeInBytes(idealSizeInBytes);
+    }
+
+    int bloomFilterSizeInBytesForMergedSegment(List<Integer> segmentSizes) {
+        assert segmentSizes.isEmpty() == false : "Expected at least one segment size";
+        // TODO: consider how to decrease the bloom filter overhead as segments get merged
+
+        // Use median size as a balance: folding very large filters loses precision,
+        // while expanding very small filters increases false positive rate.
+        // Median minimizes the worst-case precision loss across all merged filters.
+        return boundAndRoundBloomFilterSizeInBytes(segmentSizes.stream().sorted().skip(segmentSizes.size() / 2).findFirst().orElseThrow());
+    }
+
+    private int boundAndRoundBloomFilterSizeInBytes(long idealSizeInBytes) {
+        long boundedSize = Math.min(MAX_BLOOM_FILTER_SIZE.getBytes(), idealSizeInBytes);
+        return closestPowerOfTwoBloomFilterSizeInBytes(Math.toIntExact(boundedSize));
     }
 }

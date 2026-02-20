@@ -1,5 +1,0 @@
-pr: 140701
-summary: Fix stderr leak in Docker ES process detection
-area: Packaging
-type: bug
-issues: []

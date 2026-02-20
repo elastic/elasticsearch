@@ -144,7 +144,8 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 randomBoolean(),
                 randomFrom((DenseVectorFieldMapper.RescoreVector) null, randomRescoreVector()),
                 IndexVersion.current(),
-                randomBoolean()
+                randomBoolean(),
+                randomFrom(1, 2, 4)
             )
         );
 
@@ -370,7 +371,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 queryVector[i] = randomByte();
                 floatQueryVector[i] = queryVector[i];
             }
-            VectorData vectorData = new VectorData(null, queryVector);
+            VectorData vectorData = VectorData.fromBytes(queryVector);
             Query query = field.createKnnQuery(
                 vectorData,
                 10,
@@ -389,7 +390,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
                 assertTrue(query instanceof DiversifyingChildrenByteKnnVectorQuery);
             }
 
-            vectorData = new VectorData(floatQueryVector, null);
+            vectorData = VectorData.fromFloats(floatQueryVector);
             query = field.createKnnQuery(
                 vectorData,
                 10,
@@ -600,7 +601,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
             for (int i = 0; i < 4096; i++) {
                 queryVector[i] = randomByte();
             }
-            VectorData vectorData = new VectorData(null, queryVector);
+            VectorData vectorData = VectorData.fromBytes(queryVector);
             Query query = fieldWith4096dims.createKnnQuery(
                 vectorData,
                 10,
@@ -681,7 +682,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         e = expectThrows(
             IllegalArgumentException.class,
             () -> cosineField.createKnnQuery(
-                new VectorData(null, new byte[] { 0, 0, 0 }),
+                VectorData.fromBytes(new byte[] { 0, 0, 0 }),
                 10,
                 10,
                 10f,
@@ -711,7 +712,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
 
         Query knnQuery = nonQuantizedField.createKnnQuery(
-            new VectorData(null, new byte[] { 1, 4, 10 }),
+            VectorData.fromBytes(new byte[] { 1, 4, 10 }),
             10,
             100,
             10f,

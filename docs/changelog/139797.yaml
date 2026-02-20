@@ -1,7 +1,0 @@
-pr: 139797
-summary: Fix aggregation on null value
-area: ES|QL
-type: bug
-issues:
- - 110257
- - 137544

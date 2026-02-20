@@ -345,6 +345,7 @@ public class IndicesOptionsTests extends ESTestCase {
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),
+            randomBoolean(),
             randomBoolean()
         );
         GatekeeperOptions gatekeeperOptions = new GatekeeperOptions(
@@ -380,6 +381,7 @@ public class IndicesOptionsTests extends ESTestCase {
 
     public void testFromXContent() throws IOException {
         WildcardOptions wildcardOptions = new WildcardOptions(
+            randomBoolean(),
             randomBoolean(),
             randomBoolean(),
             randomBoolean(),

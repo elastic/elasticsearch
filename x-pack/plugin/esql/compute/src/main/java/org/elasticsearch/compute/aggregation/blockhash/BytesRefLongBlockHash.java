@@ -40,6 +40,7 @@ public final class BytesRefLongBlockHash extends BlockHash {
     private final BytesRefBlockHash bytesHash;
     private final LongLongHashTable finalHash;
     private long minLongKey = Long.MAX_VALUE;
+    private long maxLongKey = Long.MIN_VALUE;
 
     BytesRefLongBlockHash(BlockFactory blockFactory, int bytesChannel, int longsChannel, boolean reverseOutput, int emitBatchSize) {
         super(blockFactory);
@@ -160,8 +161,8 @@ public final class BytesRefLongBlockHash extends BlockHash {
                     }
                     longs.appendLong(finalHash.getKey2(p));
                 }
-                // TODO: make takeOwnershipOf work?
-                BytesRefArray bytes = BytesRefArray.deepCopy(bytesHash.hash.getBytesRefs());
+                BytesRefArray bytes = bytesHash.hash.getBytesRefs();
+                bytes.incRef();
                 BytesRefVector dict = null;
 
                 try {
@@ -222,6 +223,7 @@ public final class BytesRefLongBlockHash extends BlockHash {
 
     public long addGroup(long bytesKey, long longKey) {
         minLongKey = Math.min(minLongKey, longKey);
+        maxLongKey = Math.min(maxLongKey, longKey);
         return finalHash.add(bytesKey, longKey);
     }
 
@@ -233,6 +235,10 @@ public final class BytesRefLongBlockHash extends BlockHash {
         return minLongKey;
     }
 
+    public long getMaxLongKey() {
+        return maxLongKey;
+    }
+
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
         return new SeenGroupIds.Range(0, Math.toIntExact(finalHash.size())).seenGroupIds(bigArrays);
@@ -241,6 +247,11 @@ public final class BytesRefLongBlockHash extends BlockHash {
     @Override
     public IntVector nonEmpty() {
         return blockFactory.newIntRangeVector(0, Math.toIntExact(finalHash.size()));
+    }
+
+    @Override
+    public int numKeys() {
+        return Math.toIntExact(finalHash.size());
     }
 
     @Override

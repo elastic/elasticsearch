@@ -1,0 +1,6 @@
+area: Search
+issues: []
+pr: 141747
+summary: Reduce cancellation check interval in `CancellableBulkScorer` for better
+  responsiveness
+type: bug

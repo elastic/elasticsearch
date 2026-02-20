@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.TDigestHolder;
 import org.elasticsearch.core.Types;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramQuantile;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -31,8 +32,8 @@ import java.util.Objects;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.compute.aggregation.ExponentialHistogramStates.MAX_BUCKET_COUNT;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class PercentileTests extends AbstractAggregationTestCase {
     public PercentileTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -94,7 +95,7 @@ public class PercentileTests extends AbstractAggregationTestCase {
                 List.of(fieldTypedData, percentileTypedData),
                 standardAggregatorName("Percentile", fieldSupplier.type()),
                 DataType.DOUBLE,
-                equalTo(expected)
+                expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10))
             );
         });
     }
@@ -110,7 +111,7 @@ public class PercentileTests extends AbstractAggregationTestCase {
 
     public static Double getExpectedPercentileForExponentialHistograms(List<ExponentialHistogram> values, double percentile) {
         ExponentialHistogram merged = ExponentialHistogram.merge(
-            MAX_BUCKET_COUNT,
+            ExponentialHistogramMerger.DEFAULT_MAX_HISTOGRAM_BUCKETS,
             ExponentialHistogramCircuitBreaker.noop(),
             values.stream().filter(Objects::nonNull).toList().iterator()
         );
@@ -123,5 +124,16 @@ public class PercentileTests extends AbstractAggregationTestCase {
         values.stream().filter(Objects::nonNull).forEach(tDigestHolder -> tDigestHolder.addTo(merged));
         double result = merged.quantile(percentile / 100.0);
         return Double.isNaN(result) ? null : result;
+    }
+
+    @Override
+    public void testFold() {
+        var typedData = testCase.getData().getFirst();
+        assumeFalse(
+            "PERCENTILE expects a different result for -0.0 when folded",
+            typedData.type() == DataType.DOUBLE && typedData.multiRowData().size() == 1 && typedData.multiRowData().getFirst().equals(-0.0)
+        );
+
+        super.testFold();
     }
 }

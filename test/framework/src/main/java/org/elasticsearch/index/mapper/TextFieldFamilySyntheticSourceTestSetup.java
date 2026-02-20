@@ -15,19 +15,22 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.List;
 
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
+import static org.elasticsearch.test.ESTestCase.randomInt;
 
 /**
  * Provides functionality needed to test synthetic source support in text and text-like fields (e.g. "text", "annotated_text").
  */
 public final class TextFieldFamilySyntheticSourceTestSetup {
+
     public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(String fieldType, boolean supportsCustomIndexConfiguration) {
-        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, true);
+        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, true, false);
     }
 
     public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(
@@ -35,7 +38,40 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         boolean supportsCustomIndexConfiguration,
         boolean fallbackUsesBinaryDocValues
     ) {
-        return new TextFieldFamilySyntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, fallbackUsesBinaryDocValues);
+        return syntheticSourceSupport(fieldType, supportsCustomIndexConfiguration, fallbackUsesBinaryDocValues, false);
+    }
+
+    public static MapperTestCase.SyntheticSourceSupport syntheticSourceSupport(
+        String fieldType,
+        boolean supportsCustomIndexConfiguration,
+        boolean fallbackUsesBinaryDocValues,
+        boolean supportsDocValues
+    ) {
+        return new TextFieldFamilySyntheticSourceSupport(
+            fieldType,
+            supportsCustomIndexConfiguration,
+            fallbackUsesBinaryDocValues,
+            supportsDocValues
+        );
+    }
+
+    private static FieldMapper.DocValuesParameter.Values docValuesParams(boolean supportsDocValues) {
+        // currently, only text fields support doc values, so if doc_values aren't supported, then there is no reason to generate them
+        if (supportsDocValues == false) {
+            return FieldMapper.DocValuesParameter.Values.DISABLED;
+        }
+
+        // text field doc_values support is behind a feature flag
+        if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+            return FieldMapper.DocValuesParameter.Values.DISABLED;
+        }
+
+        return switch (randomInt(2)) {
+            case 0 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.LOW);
+            case 1 -> new FieldMapper.DocValuesParameter.Values(true, FieldMapper.DocValuesParameter.Values.Cardinality.HIGH);
+            case 2 -> FieldMapper.DocValuesParameter.Values.DISABLED;
+            default -> throw new IllegalStateException();
+        };
     }
 
     public static void validateRoundTripReader(String syntheticSource, DirectoryReader reader, DirectoryReader roundTripReader) {
@@ -50,6 +86,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
     private static class TextFieldFamilySyntheticSourceSupport implements MapperTestCase.SyntheticSourceSupport {
         private final String fieldType;
         private final boolean store;
+        private final FieldMapper.DocValuesParameter.Values docValues;
         private final boolean index;
         private final Integer ignoreAbove;
         private final boolean fallbackUsesBinaryDocValues;
@@ -58,7 +95,8 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         TextFieldFamilySyntheticSourceSupport(
             String fieldType,
             boolean supportsCustomIndexConfiguration,
-            boolean fallbackUsesBinaryDocValues
+            boolean fallbackUsesBinaryDocValues,
+            boolean supportsDocValues
         ) {
             this.fieldType = fieldType;
             this.store = randomBoolean();
@@ -72,6 +110,7 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
                 false,
                 KeywordFieldSyntheticSourceSupport.randomDocValuesParams(false)
             );
+            this.docValues = docValuesParams(supportsDocValues);
         }
 
         @Override
@@ -82,15 +121,11 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
         @Override
         public MapperTestCase.SyntheticSourceExample example(int maxValues) {
             if (store) {
-                CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
-                    b.field("type", fieldType);
-                    b.field("store", true);
-                    if (index == false) {
-                        b.field("index", false);
-                    }
-                };
+                return storedFieldExample(maxValues);
+            }
 
-                return storedFieldExample(maxValues, mapping);
+            if (docValues.enabled()) {
+                return docValuesFieldExample(maxValues);
             }
 
             // Block loader will not use keyword multi-field if it has ignore_above configured.
@@ -118,10 +153,15 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             });
         }
 
-        private MapperTestCase.SyntheticSourceExample storedFieldExample(
-            int maxValues,
-            CheckedConsumer<XContentBuilder, IOException> mapping
-        ) {
+        private MapperTestCase.SyntheticSourceExample storedFieldExample(int maxValues) {
+            CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
+                b.field("type", fieldType);
+                b.field("store", true);
+                if (index == false) {
+                    b.field("index", false);
+                }
+            };
+
             if (randomBoolean()) {
                 var randomString = randomString();
                 return new MapperTestCase.SyntheticSourceExample(randomString, randomString, mapping);
@@ -130,6 +170,33 @@ public final class TextFieldFamilySyntheticSourceTestSetup {
             var list = ESTestCase.randomList(1, maxValues, this::randomString);
             var output = list.size() == 1 ? list.get(0) : list;
 
+            return new MapperTestCase.SyntheticSourceExample(list, output, mapping);
+        }
+
+        private MapperTestCase.SyntheticSourceExample docValuesFieldExample(int maxValues) {
+            CheckedConsumer<XContentBuilder, IOException> mapping = b -> {
+                b.field("type", fieldType);
+                // TODO: Remove this case when FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF is removed.
+                if (FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled() == false) {
+                    b.field("doc_values", true);
+                } else {
+                    b.startObject("doc_values");
+                    b.field("cardinality", docValues.cardinality().toString());
+                    b.endObject();
+                }
+            };
+
+            if (randomBoolean()) {
+                var randomString = randomString();
+                return new MapperTestCase.SyntheticSourceExample(randomString, randomString, mapping);
+            }
+
+            var list = ESTestCase.randomList(1, maxValues, this::randomString);
+
+            // Doc values (both LOW and HIGH cardinality) return sorted and deduplicated values
+            List<String> outputList = new HashSet<>(list).stream().sorted().toList();
+
+            var output = outputList.size() == 1 ? outputList.get(0) : outputList;
             return new MapperTestCase.SyntheticSourceExample(list, output, mapping);
         }
 

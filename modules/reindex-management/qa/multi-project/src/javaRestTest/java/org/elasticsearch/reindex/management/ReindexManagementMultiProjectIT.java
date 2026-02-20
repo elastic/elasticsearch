@@ -14,6 +14,7 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -64,8 +65,11 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
     }
 
     @After
-    public void removeNonDefaultProjects() throws IOException {
+    public void cleanup() throws Exception {
         if (preserveClusterUponCompletion() == false) {
+            // Cancel all running reindex tasks before deleting projects to avoid
+            // errors when tasks try to access project metadata after project deletion
+            cancelAllRunningReindexTasks();
             cleanUpProjects();
         }
     }
@@ -258,4 +262,12 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
         options.addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
         request.setOptions(options);
     }
+
+    private void cancelAllRunningReindexTasks() throws IOException {
+        final Request cancelRequest = new Request("POST", "/_tasks/_cancel");
+        cancelRequest.addParameter("actions", ReindexAction.NAME);
+        cancelRequest.addParameter("wait_for_completion", "true");
+        assertOK(adminClient().performRequest(cancelRequest));
+    }
+
 }

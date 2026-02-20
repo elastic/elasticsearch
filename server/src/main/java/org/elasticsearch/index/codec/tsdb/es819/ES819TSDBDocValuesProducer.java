@@ -526,7 +526,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     data.clone(),
                     entry.maxUncompressedChunkSize,
                     entry.maxNumDocsInAnyBlock,
-                    version);
+                    version
+                );
 
                 @Override
                 public BytesRef binaryValue() throws IOException {
@@ -565,7 +566,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             IndexInput compressedData,
             int biggestUncompressedBlockSize,
             int maxNumDocsInAnyBlock,
-            int version) {
+            int version
+        ) {
             this.decompressor = decompressor;
             this.addresses = addresses;
             this.docOffsets = docOffsets;

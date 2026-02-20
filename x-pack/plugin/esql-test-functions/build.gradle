@@ -55,11 +55,99 @@ tasks.named('javaRestTest').configure {
     usesDefaultDistribution("esql-test-functions plugin requires ES|QL plugin which is part of default distribution")
 }
 
+// Interface for injecting FileSystemOperations
+interface Injected {
+    @javax.inject.Inject
+    FileSystemOperations getFs()
+}
+
 // Configure doc generation for unit tests
 tasks.named('test').configure {
+    def injected = project.objects.newInstance(Injected)
+    def folder = 'esql'
+    def docFolder = file("${rootDir}/docs/reference/query-languages/${folder}").toPath()
+    def imagesDocFolder = file("${docFolder}/images")
+    def snippetsDocFolder = file("${docFolder}/_snippets")
+    def kibanaDocFolder = file("${docFolder}/kibana")
+    File imagesFolder = file("build/testrun/test/temp/${folder}/images")
+    File snippetsFolder = file("build/testrun/test/temp/${folder}/_snippets")
+    File kibanaFolder = file("build/testrun/test/temp/${folder}/kibana")
+
     if (buildParams.ci) {
         systemProperty 'generateDocs', 'assert'
+        doFirst {
+            injected.fs.sync {
+                from snippetsDocFolder
+                into snippetsFolder
+            }
+            injected.fs.sync {
+                from imagesDocFolder
+                into imagesFolder
+            }
+            injected.fs.sync {
+                from kibanaDocFolder
+                into kibanaFolder
+            }
+        }
     } else {
         systemProperty 'generateDocs', 'write'
+        def snippetsTree = fileTree(snippetsFolder).matching {
+            include "**/types/*.md"
+        }
+        def imagesTree = fileTree(imagesFolder).matching {
+            include "**/*.svg"
+        }
+        def kibanaTree = fileTree(kibanaFolder).matching {
+            include "**/*.md", "**/*.json"
+        }
+
+        doLast {
+            def snippets = snippetsTree.files.collect { it.name }
+            int countSnippets = snippets.size()
+            def images = imagesTree.files.collect { it.name }
+            int countImages = images.size()
+            def kibana = kibanaTree.files.collect { it.name }
+            int countKibana = kibana.size()
+
+            if (countSnippets == 0) {
+                logger.quiet("ESQL-TEST-FUNCTIONS Docs: No function snippets created. Skipping sync.")
+            } else {
+                logger.quiet("ESQL-TEST-FUNCTIONS Docs: Found $countSnippets generated function snippets to patch into docs")
+                injected.fs.sync {
+                    from snippetsFolder
+                    into snippetsDocFolder
+                    include '**/*.md'
+                    preserve {
+                        include '**/*.md'
+                    }
+                }
+            }
+            if (countImages == 0) {
+                logger.quiet("ESQL-TEST-FUNCTIONS Docs: No function signatures created. Skipping sync.")
+            } else {
+                logger.quiet("ESQL-TEST-FUNCTIONS Docs: Found $countImages generated SVG files to patch into docs")
+                injected.fs.sync {
+                    from imagesFolder
+                    into imagesDocFolder
+                    include '**/*.svg'
+                    preserve {
+                        include '**/*.svg'
+                    }
+                }
+            }
+            if (countKibana == 0) {
+                logger.quiet("ESQL-TEST-FUNCTIONS Docs: No kibana docs created. Skipping sync.")
+            } else {
+                logger.quiet("ESQL-TEST-FUNCTIONS Docs: Found $countKibana generated kibana files to patch into docs")
+                injected.fs.sync {
+                    from kibanaFolder
+                    into kibanaDocFolder
+                    include '**/*.md', '**/*.json'
+                    preserve {
+                        include '**/*.md', '**/*.json'
+                    }
+                }
+            }
+        }
     }
 }

@@ -62,7 +62,7 @@ public class ForceMergeStep implements DlmStep {
      * @return True if the force merge has been completed, false otherwise.
      */
     protected boolean isForceMergeComplete(Index index, ProjectState projectState) {
-        return Optional.of(projectState.metadata().index(index))
+        return Optional.ofNullable(projectState.metadata().index(index))
             .map(indexMetadata -> indexMetadata.getSettings().getAsBoolean(DLM_FORCE_MERGE_COMPLETE_SETTING, false))
             .orElse(false);
     }

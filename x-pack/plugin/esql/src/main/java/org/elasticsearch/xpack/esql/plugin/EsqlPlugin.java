@@ -22,7 +22,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
-import org.elasticsearch.compute.lucene.LuceneOperator;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
@@ -108,7 +108,7 @@ import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.plugin.EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG;
+import static org.elasticsearch.xpack.core.esql.EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 

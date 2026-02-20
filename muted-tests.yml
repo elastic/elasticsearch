@@ -126,9 +126,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.shared.NodesCachesStatsIntegTests
   method: testNodesCachesStats
   issue: https://github.com/elastic/elasticsearch/issues/129863
-- class: org.elasticsearch.index.IndexingPressureIT
-  method: testWriteCanRejectOnPrimaryBasedOnMaxOperationSize
-  issue: https://github.com/elastic/elasticsearch/issues/130281
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFilterCacheStats
   issue: https://github.com/elastic/elasticsearch/issues/124447
@@ -162,15 +159,6 @@ tests:
 - class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
   method: testCBTrippingOnReduction
   issue: https://github.com/elastic/elasticsearch/issues/134667
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=transform/transforms_start_stop/Test stop transform with force and wait_for_checkpoint true}
-  issue: https://github.com/elastic/elasticsearch/issues/135135
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=analytics/nested_top_metrics_sort/terms order by top metrics numeric not null double values}
-  issue: https://github.com/elastic/elasticsearch/issues/135159
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=analytics/nested_top_metrics_sort/terms order by top metrics numeric not null integer values}
-  issue: https://github.com/elastic/elasticsearch/issues/135162
 - class: org.elasticsearch.gradle.TestClustersPluginFuncTest
   method: override jdk usage via ES_JAVA_HOME for known jdk os incompatibilities
   issue: https://github.com/elastic/elasticsearch/issues/135413
@@ -276,9 +264,6 @@ tests:
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointServiceNodeTests
   method: testGetCheckpointStats
   issue: https://github.com/elastic/elasticsearch/issues/141112
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=esql/240_base_conversion/numeric_family, to_integer first argument, integer not a string}
-  issue: https://github.com/elastic/elasticsearch/issues/141113
 - class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/141200
@@ -288,12 +273,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortOneField
   issue: https://github.com/elastic/elasticsearch/issues/141203
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:spatial-grid.GridGeohexByBoundsDropLocation}
-  issue: https://github.com/elastic/elasticsearch/issues/141233
-- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
-  method: testQuantizedXY
-  issue: https://github.com/elastic/elasticsearch/issues/141234
 - class: org.elasticsearch.snapshots.SnapshotStatusApisIT
   method: testFailedSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/141279
@@ -318,9 +297,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:ints.ConvertStringToBaseIndexGroup7}
   issue: https://github.com/elastic/elasticsearch/issues/141375
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:spatial_shapes.CartesianPolygonEnvelopeXYMinMax}
-  issue: https://github.com/elastic/elasticsearch/issues/141425
 - class: org.elasticsearch.xpack.security.authc.TokenServiceTests
   method: testAttachAndGetToken
   issue: https://github.com/elastic/elasticsearch/issues/141470
@@ -350,9 +326,6 @@ tests:
 - class: org.elasticsearch.compute.operator.topn.TopNOomRaceTests
   method: testRace {repeats = 50}
   issue: https://github.com/elastic/elasticsearch/issues/141773
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=esql/50_index_patterns/disjoint_mappings}
-  issue: https://github.com/elastic/elasticsearch/issues/141856
 - class: org.elasticsearch.compute.lucene.read.ValueSourceReaderTypeConversionTests
   method: testLoadAll
   issue: https://github.com/elastic/elasticsearch/issues/141954
@@ -383,33 +356,12 @@ tests:
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
-- class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
-  method: testTsIndexConflictingTypes {null}
-  issue: https://github.com/elastic/elasticsearch/issues/142410
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
   method: testBulkScalarVsVectorized {p0=768 p1=1 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/142413
-- class: org.elasticsearch.xpack.esql.expression.promql.function.PromqlKibanaDefinitionGeneratorTests
-  method: testGenerateDefinitions
-  issue: https://github.com/elastic/elasticsearch/issues/142417
-- class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
-  method: testInstantVectorExpectedWithGrouping
-  issue: https://github.com/elastic/elasticsearch/issues/142418
-- class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
-  method: testRangeVectorExpected
-  issue: https://github.com/elastic/elasticsearch/issues/142419
-- class: org.elasticsearch.xpack.esql.parser.promql.PromqlParserTests
-  method: testInstantVectorExpected
-  issue: https://github.com/elastic/elasticsearch/issues/142420
-- class: org.elasticsearch.xpack.security.CoreWithSecurityClientYamlTestSuiteIT
-  method: test {yaml=search.retrievers/result-diversification/10_mmr_result_diversification_retriever/Test MMR result diversification multiple indexes}
-  issue: https://github.com/elastic/elasticsearch/issues/142422
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFieldDataStats
   issue: https://github.com/elastic/elasticsearch/issues/142424
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/142426
 - class: org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests
   method: testWithNulls
   issue: https://github.com/elastic/elasticsearch/issues/142434
@@ -419,20 +371,86 @@ tests:
 - class: org.elasticsearch.xpack.esql.common.spatial.H3SphericalGeometryTests
   method: testIndexPoints
   issue: https://github.com/elastic/elasticsearch/issues/142439
-- class: org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormatTests
-  method: testSyntheticId
-  issue: https://github.com/elastic/elasticsearch/issues/142393
 - class: org.elasticsearch.compute.operator.MMROperatorTests
   method: testSimpleSmallInput
   issue: https://github.com/elastic/elasticsearch/issues/142436
 - class: org.elasticsearch.xpack.esql.core.util.RemoteClusterUtilsTests
   method: testQualifyAndJoinIndices
   issue: https://github.com/elastic/elasticsearch/issues/142442
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+- class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
+  method: testTsIndexConflictingTypes {NONE}
+  issue: https://github.com/elastic/elasticsearch/issues/142477
+- class: org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorTests
+  method: testOrderByCardinality
+  issue: https://github.com/elastic/elasticsearch/issues/142484
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testBulkScalarVsVectorized {p0=768 p1=2 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/142490
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testBulkScalarVsVectorized {p0=384 p1=4 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/142491
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testBulkScalarVsVectorized {p0=384 p1=1 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/142492
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
+  method: test {csv-spec:match-function.TestMatchWithReplace}
+  issue: https://github.com/elastic/elasticsearch/issues/142501
+- class: org.elasticsearch.search.query.VectorIT
+  method: testFilteredQueryStrategy
+  issue: https://github.com/elastic/elasticsearch/issues/142511
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/suggested_type}
+  issue: https://github.com/elastic/elasticsearch/issues/142525
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/TS Command grouping on text field}
+  issue: https://github.com/elastic/elasticsearch/issues/142544
+- class: org.elasticsearch.index.IndexSettingsTests
+  method: testSyntheticIdBadVersion
+  issue: https://github.com/elastic/elasticsearch/issues/142508
+- class: org.elasticsearch.index.IndexSettingsTests
+  method: testSyntheticIdBadCodec
+  issue: https://github.com/elastic/elasticsearch/issues/142509
+- class: org.elasticsearch.index.IndexSettingsTests
+  method: testSyntheticIdBadMode
+  issue: https://github.com/elastic/elasticsearch/issues/142510
+- class: org.elasticsearch.index.IndexSettingsTests
+  method: testSyntheticIdCorrectSettings
+  issue: https://github.com/elastic/elasticsearch/issues/142507
+- class: org.elasticsearch.xpack.esql.datasources.GlobDiscoveryLocalTests
+  method: testRecursiveDoubleStarAllFiles
+  issue: https://github.com/elastic/elasticsearch/issues/142576
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testBulkScalarVsVectorized {p0=768 p1=4 p2=MMAP p3=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/142587
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testBulkScalarVsVectorized {p0=768 p1=4 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/142588
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testBulkScalarVsVectorized {p0=768 p1=4 p2=MMAP p3=DOT_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/142589
+- class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
+  method: testFatalFailureDuringFetch
+  issue: https://github.com/elastic/elasticsearch/issues/142626
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/160_union_types/suggested_type}
+  issue: https://github.com/elastic/elasticsearch/issues/142525
+- class: org.elasticsearch.xpack.esql.spatial.SpatialPushDownGeoShapeIT
+  method: testQuantizedXY
+  issue: https://github.com/elastic/elasticsearch/issues/141234
+- class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
+  method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.MMR}
+  issue: https://github.com/elastic/elasticsearch/issues/142674
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/142426
-# TSDB synthetic ID / feature flag removal - PR 142366
-# NESTED DOCS
+- class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
+  method: testTsIndexConflictingTypes {null}
+  issue: https://github.com/elastic/elasticsearch/issues/142410
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/142739
+  # TSDB synthetic ID / feature flag removal - PR 142366
+  # NESTED DOCS
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   methods:
     - test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
@@ -453,7 +471,7 @@ tests:
     - test {yaml=tsdb/160_nested_fields/Create TSDB index with field of nested type}
     - test {yaml=tsdb/160_nested_fields/TSDB index with multi-level nested fields}
   issue: https://github.com/elastic/elasticsearch/pull/142366
-# HARD CODED ID IN TEST
+  # HARD CODED ID IN TEST
 - class: org.elasticsearch.test.rest.ClientYamlTestSuiteIT
   methods:
     - test {yaml=delete/70_tsdb/basic tsdb delete}
@@ -514,17 +532,17 @@ tests:
     - test {yaml=tsdb/25_id_generation/routing_path matches deep object}
     - test {yaml=tsdb/25_id_generation/routing_path matches object}
   issue: https://github.com/elastic/elasticsearch/pull/142366
-# ID MISS MATCH assert uid.equals(new BytesRef(Base64.getUrlDecoder().decode(id)));
+  # ID MISS MATCH assert uid.equals(new BytesRef(Base64.getUrlDecoder().decode(id)));
 - class: org.elasticsearch.xpack.esql.action.RandomizedTimeSeriesIT
   method: testGaugeGroupByRandomAndRandomAgg # -Dtests.seed=2F7CB88BCB870938
   issue: https://github.com/elastic/elasticsearch/pull/142366
-# UNEXPECTED INSTANCE OF TSDBSyntheticIdPostingsFormat
+  # UNEXPECTED INSTANCE OF TSDBSyntheticIdPostingsFormat
 - class: org.elasticsearch.index.codec.PerFieldMapperCodecTests
   methods:
-  - testUseEs812PostingsFormatForIdField
-  - testUseBloomFilter # -Dtests.seed=3EF6FC8177783864
-  - testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter
-  - testUseBloomFilterWithTimestampFieldEnabled
+    - testUseEs812PostingsFormatForIdField
+    - testUseBloomFilter # -Dtests.seed=3EF6FC8177783864
+    - testUseBloomFilterWithTimestampFieldEnabled_disableBloomFilter
+    - testUseBloomFilterWithTimestampFieldEnabled
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.index.mapper.TextFieldMapperTests
   method: testNormsDisabledWhenIndexModeIsTsdb
@@ -534,7 +552,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
   issue: https://github.com/elastic/elasticsearch/pull/142366
-# ROUTING TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId
+  # ROUTING TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId
 - class: org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapperTests
   method: testRetrievedFromIdInTimeSeriesMode
   issue: https://github.com/elastic/elasticsearch/pull/142366
@@ -553,7 +571,7 @@ tests:
     - testRoutingPathDotInName
     - testRoutingPathBwc
   issue: https://github.com/elastic/elasticsearch/pull/142366
-# TEST EXPECTATION stored_fields_in_bytes - TSDB synthetic ID / feature flag removal - PR 142366
+  # TEST EXPECTATION stored_fields_in_bytes - TSDB synthetic ID / feature flag removal - PR 142366
 - class: org.elasticsearch.datastreams.TSDBIndexingIT
   method: testTrimId
   issue: https://github.com/elastic/elasticsearch/pull/142366

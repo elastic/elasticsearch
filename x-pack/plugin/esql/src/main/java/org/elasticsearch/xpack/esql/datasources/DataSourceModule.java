@@ -149,6 +149,11 @@ public final class DataSourceModule implements Closeable {
         // It must be last so that plugin-provided factories (Iceberg, Flight) get priority.
         FileSourceFactory fileFallback = new FileSourceFactory(storageProviderRegistry, formatReaderRegistry, settings);
         sourceFactoryMap.put("file", fileFallback);
+        // Also register under each format name so OperatorFactoryRegistry can look up
+        // by the sourceType returned from FormatReader.formatName() (e.g. "parquet", "csv").
+        for (String formatName : formatFactories.keySet()) {
+            sourceFactoryMap.putIfAbsent(formatName, fileFallback);
+        }
 
         this.sourceFactories = Map.copyOf(sourceFactoryMap);
         this.pluginFactories = Map.copyOf(operatorFactoryProviders);

@@ -304,17 +304,15 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertFalse(region0.isEvicted());
             assertFalse(region1.isEvicted());
 
-            // acquire region 2, which should evict region 0 (oldest)
+            // acquire region 2, which should evict one of the existing entries
             final var region2 = cacheService.get(cacheKey, size(250), 2);
             assertEquals(size(50), region2.tracker.getLength());
             assertEquals(0, cacheService.freeRegionCount());
-            assertTrue(region0.isEvicted());
-            assertFalse(region1.isEvicted());
+            assertTrue(region0.isEvicted() != region1.isEvicted());
 
-            // explicitly evict region 1
-            synchronized (cacheService) {
-                assertTrue(tryEvict(region1));
-            }
+            // explicitly evict the remaining entry
+            var remaining = region0.isEvicted() ? region1 : region0;
+            assertTrue(tryEvict(remaining));
             assertEquals(1, cacheService.freeRegionCount());
         }
     }
@@ -438,10 +436,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     public void testDecay() throws IOException {
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
-        // we have 8 regions
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(400)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(300)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
             .put("path.home", createTempDir())
@@ -457,15 +454,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 metrics
             )
         ) {
-            assertEquals(4, cacheService.freeRegionCount());
+            assertEquals(3, cacheService.freeRegionCount());
 
             final var cacheKey1 = generateCacheKey();
             final var cacheKey2 = generateCacheKey();
             final var cacheKey3 = generateCacheKey();
-            final var evictKey = generateCacheKey();
-            // add a region that we can evict when provoking first decay
-            cacheService.get(evictKey, size(250), 0);
-            assertEquals(3, cacheService.freeRegionCount());
             final var region0 = cacheService.get(cacheKey1, size(250), 0);
             assertEquals(2, cacheService.freeRegionCount());
             final var region1 = cacheService.get(cacheKey2, size(250), 1);
@@ -478,9 +471,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(1, cacheService.getFreq(region2));
             AtomicLong expectedEpoch = new AtomicLong();
             Runnable triggerDecay = () -> {
-                assertThat(taskQueue.hasRunnableTasks(), is(false));
-                cacheService.get(generateCacheKey(), size(250), 0);
-                assertThat(taskQueue.hasRunnableTasks(), is(true));
+                cacheService.maybeScheduleDecayAndNewEpoch();
                 taskQueue.runAllRunnableTasks();
                 assertThat(cacheService.epoch(), equalTo(expectedEpoch.incrementAndGet()));
                 long epochs = recordedEpochs(recordingMeterRegistry);
@@ -497,7 +488,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             final var region0Again = cacheService.get(cacheKey1, size(250), 0);
             assertSame(region0Again, region0);
-            cacheService.drainPendingPromotions();
             assertEquals(3, cacheService.getFreq(region0));
             assertEquals(1, cacheService.getFreq(region1));
             assertEquals(1, cacheService.getFreq(region2));
@@ -505,7 +495,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             triggerDecay.run();
 
             cacheService.get(cacheKey1, size(250), 0);
-            cacheService.drainPendingPromotions();
             assertEquals(4, cacheService.getFreq(region0));
             cacheService.get(cacheKey1, size(250), 0);
             assertEquals(4, cacheService.getFreq(region0));
@@ -515,7 +504,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // ensure no freq=0 entries
             cacheService.get(cacheKey2, size(250), 1);
             cacheService.get(cacheKey3, size(250), 1);
-            cacheService.drainPendingPromotions();
             assertEquals(2, cacheService.getFreq(region1));
             assertEquals(2, cacheService.getFreq(region2));
 
@@ -533,7 +521,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // ensure no freq=0 entries
             cacheService.get(cacheKey2, size(250), 1);
             cacheService.get(cacheKey3, size(250), 1);
-            cacheService.drainPendingPromotions();
             assertEquals(2, cacheService.getFreq(region1));
             assertEquals(2, cacheService.getFreq(region2));
 
@@ -679,9 +666,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
         RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
         BlobCacheMetrics metrics = new BlobCacheMetrics(recordingMeterRegistry);
         int regions = 1024; // to measure decay time, increase to 1024*1024 and disable assertions.
+        int maxRounds = 5;
+        int totalRegions = regions + maxRounds;
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(regions)).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(totalRegions)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(1)).getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
             .put("path.home", createTempDir())
@@ -698,24 +687,22 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             )
         ) {
             Runnable decay = () -> {
+                cacheService.maybeScheduleDecayAndNewEpoch();
                 assertThat(taskQueue.hasRunnableTasks(), is(true));
                 long before = System.currentTimeMillis();
                 taskQueue.runAllRunnableTasks();
                 long after = System.currentTimeMillis();
                 logger.debug("took {} ms", (after - before));
             };
-            long fileLength = size(regions + 100);
+            long fileLength = size(totalRegions + 100);
             TestCacheKey cacheKey = generateCacheKey();
-            for (int i = 0; i < regions; ++i) {
+            for (int i = 0; i <= regions; ++i) {
                 cacheService.get(cacheKey, fileLength, i);
                 if (Integer.bitCount(i) == 1) {
                     logger.debug("did {} gets", i);
                 }
             }
-            assertThat(taskQueue.hasRunnableTasks(), is(false));
-            cacheService.get(cacheKey, fileLength, regions);
             decay.run();
-            int maxRounds = 5;
             for (int round = 2; round <= maxRounds; ++round) {
                 for (int i = round; i < regions + round; ++i) {
                     cacheService.get(cacheKey, fileLength, i);
@@ -729,7 +716,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             Map<Integer, Integer> freqs = new HashMap<>();
             for (int i = maxRounds; i < regions + maxRounds; ++i) {
                 var entry = cacheService.get(cacheKey, fileLength, i);
-                cacheService.drainPendingPromotions();
                 int freq = cacheService.getFreq(entry) - 2;
                 freqs.compute(freq, (k, v) -> v == null ? 1 : v + 1);
                 if (Integer.bitCount(i) == 1) {
@@ -1096,7 +1082,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             // touch some random cache entries
             var usedCacheKeys = Set.copyOf(randomSubsetOf(cacheEntries.keySet()));
             usedCacheKeys.forEach(key -> cacheService.get(key, regionSize, 0));
-            cacheService.drainPendingPromotions();
 
             cacheEntries.forEach(
                 (key, entry) -> assertThat(cacheService.getFreq(entry), usedCacheKeys.contains(key) ? equalTo(3) : equalTo(1))
@@ -2127,7 +2112,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      * Verifies that pending (deferred) promotions are drained before eviction decisions,
      * so recently-accessed entries are promoted and protected from premature eviction.
      */
-    public void testDeferredPromotionProtectsFromEviction() throws IOException {
+    public void testPromotedEntryProtectedFromEviction() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(500)).getStringRep())
@@ -2170,12 +2155,12 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             assertEquals(0, cacheService.getFreq(protectedRegion2));
             assertEquals(0, cacheService.getFreq(victimRegion1));
 
-            // access the protected entries at epoch 1 (creates deferred promotions)
+            // access the protected entries at epoch 1 (immediate CAS promotion to freq 2)
             cacheService.get(protectedKey1, size(250), 0);
             cacheService.get(protectedKey2, size(250), 0);
 
-            // maybeEvictLeastUsed drains pending promotions before scanning freq 0,
-            // so protected entries move to freq 2 and only victims can be evicted
+            // maybeEvictLeastUsed skips entries with freq > 0,
+            // so protected entries (freq 2) are safe and only victims (freq 0) can be evicted
             assertThat(cacheService.maybeEvictLeastUsed(), is(true));
             assertEquals(1, cacheService.freeRegionCount());
 
@@ -2193,10 +2178,10 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
     }
 
     /**
-     * Verifies that a pending promotion for an entry that was force-evicted is silently
-     * skipped during drain, without corruption or exceptions.
+     * Verifies that a force-evicted entry is excluded from decay and does not
+     * interfere with other entries' frequency tracking.
      */
-    public void testPromotionOfEvictedEntryIsSkipped() throws IOException {
+    public void testForceEvictedEntryExcludedFromDecay() throws IOException {
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(300)).getStringRep())
@@ -2231,22 +2216,21 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             taskQueue.runAllRunnableTasks();
             assertThat(cacheService.epoch(), equalTo(1L));
 
-            // access all entries at epoch 1, creating deferred promotions for all three
+            // access all entries at epoch 1, promoting them to freq 2 via CAS
             cacheService.get(key1, size(250), 0);
             cacheService.get(key2, size(250), 0);
             cacheService.get(key3, size(250), 0);
 
-            // force-evict key1 while its promotion is still pending in the queue
+            // force-evict key1 (removes from keyMapping, so decay won't see it)
             assertEquals(1, cacheService.forceEvict(k -> k.equals(key1)));
             assertTrue(region1.isEvicted());
 
-            // trigger decay, which drains pending promotions;
-            // key1's promotion should be silently skipped
+            // trigger decay; key1 is gone from keyMapping so only key2/key3 are decayed
             cacheService.maybeScheduleDecayAndNewEpoch();
             taskQueue.runAllRunnableTasks();
             assertThat(cacheService.epoch(), equalTo(2L));
 
-            // key2 and key3: promoted 0->2 during drain, then decayed to 1
+            // key2 and key3: promoted to 2, then decayed to 1
             assertEquals(1, cacheService.getFreq(region2));
             assertEquals(1, cacheService.getFreq(region3));
             assertFalse(region2.isEvicted());
@@ -2294,7 +2278,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             }
 
             // should be promoted by exactly +2, not +20
-            cacheService.drainPendingPromotions();
             assertEquals(2, cacheService.getFreq(region));
         }
     }
@@ -2348,8 +2331,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertFalse("Thread did not finish in time", thread.isAlive());
             }
 
-            // CAS deduplication: exactly one promotion enqueued, so freq is exactly +2
-            cacheService.drainPendingPromotions();
+            // CAS deduplication: exactly one CAS promotion, so freq is exactly +2
             assertEquals(2, cacheService.getFreq(region));
         } finally {
             threadPool.shutdownNow();
@@ -2360,7 +2342,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      * Exercises concurrent gets (which enqueue deferred promotions) alongside eviction and decay
      * to verify no assertion errors or data structure corruption under contention.
      */
-    public void testConcurrentDeferredPromotions() throws Exception {
+    public void testConcurrentPromotions() throws Exception {
         final int numRegions = between(10, 30);
         final int numKeys = between(1, 100);
         Settings settings = Settings.builder()
@@ -2369,7 +2351,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size(100)).getStringRep())
             .put("path.home", createTempDir())
             .build();
-        ThreadPool threadPool = new TestThreadPool("testConcurrentDeferredPromotions");
+        ThreadPool threadPool = new TestThreadPool("testConcurrentPromotions");
         try (
             NodeEnvironment environment = new NodeEnvironment(settings, TestEnvironment.newEnvironment(settings));
             var cacheService = new SharedBlobCacheService<TestCacheKey>(

@@ -138,7 +138,8 @@ public class PatternTextFieldType extends TextFamilyFieldType {
 
             @Override
             public List<Object> fetchValues(Source source, int doc, List<Object> ignoredValues) throws IOException {
-                if (false == docValues.advanceExact(doc)) {
+                // docValues is null when the segment has no documents with this field
+                if (docValues == null || false == docValues.advanceExact(doc)) {
                     return List.of();
                 }
                 return List.of(docValues.binaryValue().utf8ToString());

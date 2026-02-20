@@ -87,7 +87,8 @@ public class PatternTextIndexFieldData implements IndexFieldData<LeafFieldData> 
                 return new SortedBinaryDocValues() {
                     @Override
                     public boolean advanceExact(int doc) throws IOException {
-                        return values.advanceExact(doc);
+                        // values is null when the segment has no documents with this field
+                        return values != null && values.advanceExact(doc);
                     }
 
                     @Override

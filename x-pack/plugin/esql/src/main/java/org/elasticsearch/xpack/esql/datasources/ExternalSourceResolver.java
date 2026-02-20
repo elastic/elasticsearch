@@ -146,10 +146,19 @@ public class ExternalSourceResolver {
     }
 
     private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {
+        Exception lastFailure = null;
         for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
             if (factory.canHandle(path)) {
-                return factory.resolveMetadata(path, config);
+                try {
+                    return factory.resolveMetadata(path, config);
+                } catch (Exception e) {
+                    LOGGER.debug("Factory [{}] claimed path [{}] but failed: {}", factory.type(), path, e.getMessage());
+                    lastFailure = e;
+                }
             }
+        }
+        if (lastFailure != null) {
+            throw new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure);
         }
         throw new UnsupportedOperationException(
             "No handler found for source at path [" + path + "]. " + "Please ensure the appropriate data source plugin is installed."

@@ -171,6 +171,8 @@ public class SearchTaskWatchdog extends AbstractLifecycleComponent {
                     } catch (Exception e) {
                         logger.debug("error processing task [{}]", info.task().getId(), e);
                     }
+                    // we logged a slow task in this iteration, so skip checking other tasks
+                    // as we're now in the cooldown period
                     return lastLoggedNanos != now;
                 });
             }

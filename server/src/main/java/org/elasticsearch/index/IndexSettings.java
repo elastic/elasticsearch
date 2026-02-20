@@ -650,6 +650,17 @@ public final class IndexSettings {
         return es87TSDBCodecEnabled;
     }
 
+    public boolean isAdaptiveEncodingProfilerEnabled() {
+        return adaptiveEncodingProfiler;
+    }
+
+    public static final Setting<Boolean> TSDB_ADAPTIVE_ENCODING_PROFILER_SETTING = Setting.boolSetting(
+        "index.codec.tsdb.adaptive_encoding_profiler",
+        true,
+        Property.IndexScope,
+        Property.Final
+    );
+
     public static final Setting<Boolean> LOGSDB_ROUTE_ON_SORT_FIELDS = Setting.boolSetting(
         "index.logsdb.route_on_sort_fields",
         false,
@@ -1032,6 +1043,7 @@ public final class IndexSettings {
     private final boolean softDeleteEnabled;
     private volatile long softDeleteRetentionOperations;
     private final boolean es87TSDBCodecEnabled;
+    private final boolean adaptiveEncodingProfiler;
     private final boolean logsdbRouteOnSortFields;
     private final boolean logsdbSortOnHostName;
     private final boolean logsdbAddHostNameField;
@@ -1266,6 +1278,7 @@ public final class IndexSettings {
         indexRouting = IndexRouting.fromIndexMetadata(indexMetadata);
         sourceKeepMode = scopedSettings.get(Mapper.SYNTHETIC_SOURCE_KEEP_INDEX_SETTING);
         es87TSDBCodecEnabled = scopedSettings.get(TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING);
+        adaptiveEncodingProfiler = scopedSettings.get(TSDB_ADAPTIVE_ENCODING_PROFILER_SETTING);
         logsdbRouteOnSortFields = scopedSettings.get(LOGSDB_ROUTE_ON_SORT_FIELDS);
         logsdbSortOnHostName = scopedSettings.get(LOGSDB_SORT_ON_HOST_NAME);
         logsdbAddHostNameField = scopedSettings.get(LOGSDB_ADD_HOST_NAME_FIELD);

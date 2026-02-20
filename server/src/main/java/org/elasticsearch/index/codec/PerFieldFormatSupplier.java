@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.codec;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -25,9 +23,15 @@ import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat;
-import org.elasticsearch.index.codec.tsdb.pipeline.DefaultPipelineResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.BlockSizeResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.StaticBlockSizeResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.profiler.AdaptivePipelineResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.profiler.BlockProfiler;
+import org.elasticsearch.index.codec.tsdb.pipeline.profiler.PipelineSelector;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -54,8 +58,6 @@ import static org.apache.lucene.util.hnsw.HnswGraphBuilder.DEFAULT_MAX_CONN;
  * vectors.
  */
 public class PerFieldFormatSupplier {
-
-    private static final Logger logger = LogManager.getLogger(PerFieldFormatSupplier.class);
 
     private static final Set<String> INCLUDE_META_FIELDS;
     private static final Set<String> EXCLUDE_MAPPER_TYPES;
@@ -97,12 +99,22 @@ public class PerFieldFormatSupplier {
         this.knnVectorsFormat = getDefaultKnnVectorsFormat(mapperService, threadPool);
         this.syntheticIdPostingsFormat = new TSDBSyntheticIdPostingsFormat();
         this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME);
-        final PipelineResolver resolver = new DefaultPipelineResolver();
-        this.es94TsdbDocValuesFormat = ES94TSDBDocValuesFormat.getInstance(false, fieldName -> resolveWithMapper(fieldName, resolver));
-        // TODO: remove after adding suitable PipelineConfig
+        final FieldContextResolver fieldContextResolver = this::resolveFieldContext;
+        final BlockSizeResolver blockSizeResolver = StaticBlockSizeResolver.INSTANCE;
+        final PipelineResolver pipelineResolver = mapperService.getIndexSettings().isAdaptiveEncodingProfilerEnabled()
+            ? new AdaptivePipelineResolver(blockSizeResolver, BlockProfiler.INSTANCE, PipelineSelector.INSTANCE)
+            : new StaticPipelineResolver(blockSizeResolver);
+        this.es94TsdbDocValuesFormat = ES94TSDBDocValuesFormat.getInstance(
+            false,
+            fieldContextResolver,
+            blockSizeResolver,
+            pipelineResolver
+        );
         this.es94TsdbDocValuesFormatLargeNumericBlock = ES94TSDBDocValuesFormat.getInstance(
             true,
-            fieldName -> resolveWithMapper(fieldName, resolver)
+            fieldContextResolver,
+            blockSizeResolver,
+            pipelineResolver
         );
     }
 
@@ -207,35 +219,36 @@ public class PerFieldFormatSupplier {
         return knnVectorsFormat;
     }
 
-    private PipelineConfig resolveWithMapper(final String fieldName, final PipelineResolver resolver) {
+    @Nullable
+    private PipelineResolver.FieldContext resolveFieldContext(final String fieldName) {
         final Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         if (mapper instanceof NumberFieldMapper numberFieldMapper) {
-            final var ctx = new PipelineResolver.FieldContext(
+            return new PipelineResolver.FieldContext(
+                fieldName,
                 mapperService.getIndexSettings().getMode(),
                 numberFieldMapper.fieldType(),
-                parseOptimizeFor(numberFieldMapper.fieldType().optimizeFor())
+                parseOptimizeFor(numberFieldMapper.fieldType().optimizeFor()),
+                resolveDataType(numberFieldMapper.type())
             );
-            final PipelineConfig config = resolver.resolve(fieldName, ctx);
-            logger.trace(
-                "pipeline resolve [{}] mapper=NumberFieldMapper type=[{}] config=[{}]",
-                fieldName,
-                numberFieldMapper.typeName(),
-                config
-            );
-            return config;
         }
         if (mapper instanceof DateFieldMapper dateFieldMapper) {
-            final var ctx = new PipelineResolver.FieldContext(
+            return new PipelineResolver.FieldContext(
+                fieldName,
                 mapperService.getIndexSettings().getMode(),
                 dateFieldMapper.fieldType(),
-                parseOptimizeFor(dateFieldMapper.fieldType().optimizeFor())
+                parseOptimizeFor(dateFieldMapper.fieldType().optimizeFor()),
+                PipelineConfig.DataType.LONG
             );
-            final PipelineConfig config = resolver.resolve(fieldName, ctx);
-            logger.trace("pipeline resolve [{}] mapper=DateFieldMapper config=[{}]", fieldName, config);
-            return config;
         }
-        logger.trace("pipeline resolve [{}] mapper=[{}] -> default", fieldName, mapper != null ? mapper.typeName() : "null");
-        return PipelineConfig.defaultConfig();
+        return null;
+    }
+
+    private static PipelineConfig.DataType resolveDataType(final NumberFieldMapper.NumberType numberType) {
+        return switch (numberType) {
+            case DOUBLE -> PipelineConfig.DataType.DOUBLE;
+            case FLOAT, HALF_FLOAT -> PipelineConfig.DataType.FLOAT;
+            default -> PipelineConfig.DataType.LONG;
+        };
     }
 
     @Nullable

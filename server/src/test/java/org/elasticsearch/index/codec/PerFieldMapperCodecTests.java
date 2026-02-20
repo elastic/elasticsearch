@@ -289,6 +289,17 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         IndexMode mode,
         String mapping
     ) throws IOException {
+        return createFormatSupplier(useTimeSeriesDocValuesFormatSetting, enableES87TSDBCodec, useEs812PostingsFormat, null, mode, mapping);
+    }
+
+    private PerFieldFormatSupplier createFormatSupplier(
+        Boolean useTimeSeriesDocValuesFormatSetting,
+        Boolean enableES87TSDBCodec,
+        Boolean useEs812PostingsFormat,
+        Boolean adaptiveEncodingProfiler,
+        IndexMode mode,
+        String mapping
+    ) throws IOException {
         Settings.Builder settings = Settings.builder();
         settings.put(IndexSettings.MODE.getKey(), mode);
         if (mode == IndexMode.TIME_SERIES) {
@@ -303,9 +314,24 @@ public class PerFieldMapperCodecTests extends ESTestCase {
         if (useEs812PostingsFormat) {
             settings.put(IndexSettings.USE_ES_812_POSTINGS_FORMAT.getKey(), true);
         }
+        if (adaptiveEncodingProfiler != null) {
+            settings.put(IndexSettings.TSDB_ADAPTIVE_ENCODING_PROFILER_SETTING.getKey(), adaptiveEncodingProfiler);
+        }
         MapperService mapperService = MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), settings.build(), "test");
         mapperService.merge("type", new CompressedXContent(mapping), MapperService.MergeReason.MAPPING_UPDATE);
         return new PerFieldFormatSupplier(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
+    }
+
+    public void testAdaptiveEncodingProfilerEnabled() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(null, true, false, true, IndexMode.TIME_SERIES, MAPPING_1);
+        assertThat(perFieldMapperCodec.useTSDBDocValuesFormat("gauge"), is(true));
+        assertNotNull(perFieldMapperCodec.getDocValuesFormatForField("gauge"));
+    }
+
+    public void testAdaptiveEncodingProfilerDisabled() throws IOException {
+        PerFieldFormatSupplier perFieldMapperCodec = createFormatSupplier(null, true, false, false, IndexMode.TIME_SERIES, MAPPING_1);
+        assertThat(perFieldMapperCodec.useTSDBDocValuesFormat("gauge"), is(true));
+        assertNotNull(perFieldMapperCodec.getDocValuesFormatForField("gauge"));
     }
 
 }

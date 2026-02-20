@@ -197,6 +197,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.LIFECYCLE_ORIGINATION_DATE_SETTING,
                 IndexSettings.LIFECYCLE_PARSE_ORIGINATION_DATE_SETTING,
                 IndexSettings.TIME_SERIES_ES87TSDB_CODEC_ENABLED_SETTING,
+                IndexSettings.TSDB_ADAPTIVE_ENCODING_PROFILER_SETTING,
                 IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS,
                 IndexSettings.LOGSDB_SORT_ON_HOST_NAME,
                 IndexSettings.LOGSDB_SORT_ON_MESSAGE_TEMPLATE,

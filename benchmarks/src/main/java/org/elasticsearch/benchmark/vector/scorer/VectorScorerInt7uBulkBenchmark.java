@@ -48,9 +48,9 @@ import java.util.stream.IntStream;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.getScorerFactoryOrDie;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScoreSupplier;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.luceneScorer;
+import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.quantizedVectorValues;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomInt7BytesBetween;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.vectorValues;
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.writeInt7VectorData;
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.dotProduct;
 import static org.elasticsearch.benchmark.vector.scorer.ScalarOperations.squareDistance;
@@ -160,15 +160,14 @@ public class VectorScorerInt7uBulkBenchmark {
         }
     }
 
-    float[] scores;
-    int[] ordinals;
-    int[] ids;
-    int targetOrd;
+    private float[] scores;
+    private int[] ordinals;
+    private int[] ids;
 
-    UpdateableRandomVectorScorer scorer;
-    RandomVectorScorer queryScorer;
+    private UpdateableRandomVectorScorer scorer;
+    private RandomVectorScorer queryScorer;
 
-    public static class VectorData {
+    static class VectorData {
         private final int numVectorsToScore;
         private final byte[][] vectorData;
         private final float[] offsets;
@@ -176,7 +175,7 @@ public class VectorScorerInt7uBulkBenchmark {
         private final int targetOrd;
         private final float[] queryVector;
 
-        public VectorData(int dims, int numVectors, int numVectorsToScore) {
+        VectorData(int dims, int numVectors, int numVectorsToScore) {
             this.numVectorsToScore = numVectorsToScore;
             vectorData = new byte[numVectors][];
             offsets = new float[numVectors];
@@ -206,7 +205,7 @@ public class VectorScorerInt7uBulkBenchmark {
         setup(new VectorData(dims, numVectors, Math.min(numVectors, 20_000)));
     }
 
-    public void setup(VectorData vectorData) throws IOException {
+    void setup(VectorData vectorData) throws IOException {
         VectorScorerFactory factory = getScorerFactoryOrDie();
 
         path = Files.createTempDirectory("Int7uBulkScorerBenchmark");
@@ -217,11 +216,10 @@ public class VectorScorerInt7uBulkBenchmark {
         scores = new float[numVectorsToScore];
         ids = IntStream.range(0, numVectors).toArray();
         ordinals = vectorData.ordinals;
-        targetOrd = vectorData.targetOrd;
 
         in = dir.openInput("vector.data", IOContext.DEFAULT);
 
-        var values = vectorValues(dims, numVectors, in, function.function());
+        var values = quantizedVectorValues(dims, numVectors, in, function.function());
         float scoreCorrectionConstant = values.getScalarQuantizer().getConstantMultiplier();
 
         switch (implementation) {
@@ -246,7 +244,7 @@ public class VectorScorerInt7uBulkBenchmark {
                 break;
         }
 
-        scorer.setScoringOrdinal(targetOrd);
+        scorer.setScoringOrdinal(vectorData.targetOrd);
     }
 
     @TearDown

@@ -22,9 +22,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
 import org.elasticsearch.lucene.spatial.CartesianShapeIndexer;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
-import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -44,10 +42,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEOHEX;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEOTILE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
-import static org.elasticsearch.xpack.esql.expression.Foldables.valueOf;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
-import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 /**
  * This is the primary class for supporting the function ST_DISJOINT.
@@ -147,26 +141,8 @@ public class SpatialDisjoint extends SpatialRelatesFunction {
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
-        try {
-            if (DataType.isGeoGrid(left().dataType())) {
-                return foldGeoGrid(ctx, right(), left(), left().dataType());
-            } else if (DataType.isGeoGrid(right().dataType())) {
-                return foldGeoGrid(ctx, left(), right(), right().dataType());
-            }
-            GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
-            Component2D component2D = asLuceneComponent2D(ctx, crsType(), right());
-            return (crsType() == SpatialCrsType.GEO)
-                ? GEO.geometryRelatesGeometry(docValueReader, component2D)
-                : CARTESIAN.geometryRelatesGeometry(docValueReader, component2D);
-        } catch (IOException e) {
-            throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
-        }
-    }
-
-    private Object foldGeoGrid(FoldContext ctx, Expression spatialExp, Expression gridExp, DataType gridType) throws IOException {
-        long gridId = (Long) valueOf(ctx, gridExp);
-        return GEO.compareGeometryAndGrid(makeGeometryFromLiteral(ctx, spatialExp), gridId, gridType);
+    protected SpatialRelations getSpatialRelations() {
+        return crsType() == SpatialCrsType.GEO ? GEO : CARTESIAN;
     }
 
     @Override

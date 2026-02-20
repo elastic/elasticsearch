@@ -154,7 +154,8 @@ public class MockPluginsService extends PluginsService {
             // For one argument constructors we cannot validate from which plugin they should be loaded, which
             // is why we de-dup the instances by using a Set in loadServiceProviders.
             for (var constructor : constructors) {
-                if (constructor.getParameterCount() == 1 && constructor.getParameterTypes()[0] != plugin.getClass()) {
+                if (constructor.getParameterCount() == 1
+                    && constructor.getParameterTypes()[0].isAssignableFrom(plugin.getClass()) == false) {
                     compatible = false;
                     break;
                 }

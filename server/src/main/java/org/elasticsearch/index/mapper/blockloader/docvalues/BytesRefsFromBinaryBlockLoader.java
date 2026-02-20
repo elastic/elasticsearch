@@ -10,10 +10,13 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
 import java.io.IOException;
 
@@ -24,10 +27,19 @@ import java.io.IOException;
  */
 public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
-    private final String fieldName;
+    private final IOFunction<LeafReader, BinaryDocValues> docValuesSupplier;
 
     public BytesRefsFromBinaryBlockLoader(String fieldName) {
-        this.fieldName = fieldName;
+        this(leafReader -> leafReader.getBinaryDocValues(fieldName));
+    }
+
+    /**
+     * Create a block loader from a {@link BinaryDocValues} supplier.
+     * This is useful when the doc values are not directly stored in a single field
+     * but are composed of multiple sources, as is the case for Pattern Text.
+     */
+    public BytesRefsFromBinaryBlockLoader(IOFunction<LeafReader, BinaryDocValues> docValuesSupplier) {
+        this.docValuesSupplier = docValuesSupplier;
     }
 
     @Override
@@ -37,13 +49,13 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
 
     @Override
     public AllReader reader(LeafReaderContext context) throws IOException {
-        BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
+        BinaryDocValues docValues = docValuesSupplier.apply(context.reader());
         return createReader(docValues);
     }
 
     public static AllReader createReader(@Nullable BinaryDocValues docValues) {
         if (docValues == null) {
-            return new ConstantNullsReader();
+            return ConstantNull.READER;
         }
         return new BytesRefsFromBinary(docValues);
     }
@@ -52,9 +64,9 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
      * Read BinaryDocValues with no additional structure in the BytesRefs.
      * Each BytesRef from the doc values maps directly to a value in the block loader.
      */
-    static class BytesRefsFromBinary extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
+    public static class BytesRefsFromBinary extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
 
-        BytesRefsFromBinary(BinaryDocValues docValues) {
+        public BytesRefsFromBinary(BinaryDocValues docValues) {
             super(docValues);
         }
 

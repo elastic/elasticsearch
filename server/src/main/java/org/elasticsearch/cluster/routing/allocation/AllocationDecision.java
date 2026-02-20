@@ -72,7 +72,7 @@ public enum AllocationDecision implements Writeable {
 
     final byte id;
 
-    private static final TransportVersion ADD_NOT_PREFERRED_ALLOCATION_DECISION = TransportVersion.fromName(
+    public static final TransportVersion ADD_NOT_PREFERRED_ALLOCATION_DECISION = TransportVersion.fromName(
         "add_not_preferred_allocation_decision"
     );
 
@@ -86,8 +86,7 @@ public enum AllocationDecision implements Writeable {
             if (id == NOT_PREFERRED.id) {
                 // NOT_PREFERRED was originally hidden / unimplemented converted to YES. So for older versions continue to use YES.
                 out.write(YES.id);
-            }
-            if (id > THROTTLED.id) {
+            } else if (id > THROTTLED.id) {
                 // NOT_PREFERRED was placed after THROTTLE in the enum list, so any subsequent values were pushed +1. Shift the enum value
                 // back for older versions.
                 out.write(id - 1);

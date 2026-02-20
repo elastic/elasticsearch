@@ -1033,11 +1033,11 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     public void testExplainUnassigableDuringRestore() {
-        final String repoName = "repo-" + randomIdentifier();
+        final String repoName = randomRepoName();
         createRepository(repoName, FsRepository.TYPE);
-        final String indexName = "index-" + randomIdentifier();
+        final String indexName = randomIndexName();
         createIndexWithContent(indexName);
-        final String snapshotName = "snapshot-" + randomIdentifier();
+        final String snapshotName = randomSnapshotName();
         createSnapshot(repoName, snapshotName, List.of(indexName));
         assertAcked(indicesAdmin().prepareDelete(indexName));
 
@@ -1050,7 +1050,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .setRestoreGlobalState(false)
             .setWaitForCompletion(true)
             .setIndexSettings(
-                Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", "not-a-node-" + randomIdentifier())
+                Settings.builder().put(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX + "._name", randomIdentifier("not-a-node-"))
             )
             .get();
 

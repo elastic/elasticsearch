@@ -7,6 +7,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.spatial;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import java.util.function.Function;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -29,14 +30,17 @@ public final class StXMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
 
   private final EvalOperator.ExpressionEvaluator wkbBlock;
 
+  private final SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StXMaxFromWKBEvaluator(Source source, EvalOperator.ExpressionEvaluator wkbBlock,
-      DriverContext driverContext) {
+      SpatialEnvelopeResults<DoubleBlock.Builder> resultsBuilder, DriverContext driverContext) {
     this.source = source;
     this.wkbBlock = wkbBlock;
+    this.resultsBuilder = resultsBuilder;
     this.driverContext = driverContext;
   }
 
@@ -66,7 +70,7 @@ public final class StXMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
           continue position;
         }
         try {
-          StXMax.fromWellKnownBinary(result, p, wkbBlockBlock);
+          StXMax.fromWKB(result, p, wkbBlockBlock, this.resultsBuilder);
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -88,12 +92,7 @@ public final class StXMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
@@ -103,14 +102,18 @@ public final class StXMaxFromWKBEvaluator implements EvalOperator.ExpressionEval
 
     private final EvalOperator.ExpressionEvaluator.Factory wkbBlock;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkbBlock) {
+    private final Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder;
+
+    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory wkbBlock,
+        Function<DriverContext, SpatialEnvelopeResults<DoubleBlock.Builder>> resultsBuilder) {
       this.source = source;
       this.wkbBlock = wkbBlock;
+      this.resultsBuilder = resultsBuilder;
     }
 
     @Override
     public StXMaxFromWKBEvaluator get(DriverContext context) {
-      return new StXMaxFromWKBEvaluator(source, wkbBlock.get(context), context);
+      return new StXMaxFromWKBEvaluator(source, wkbBlock.get(context), resultsBuilder.apply(context), context);
     }
 
     @Override

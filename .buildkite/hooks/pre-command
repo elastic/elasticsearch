@@ -152,7 +152,7 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
 
   if BUILD_JSON=$(curl --max-time 30 -H "Authorization: Bearer $BUILDKITE_API_TOKEN" -X GET "https://api.buildkite.com/v2/organizations/elastic/pipelines/${BUILDKITE_PIPELINE_SLUG}/builds/${BUILDKITE_BUILD_NUMBER}?include_retried_jobs=true" 2>/dev/null); then
     if ORIGIN_JOB_ID=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg jobId "$BUILDKITE_JOB_ID" ' .jobs[] | select(.id == $jobId) | .retry_source.job_id' 2>/dev/null) && [ "$ORIGIN_JOB_ID" != "null" ] && [ -n "$ORIGIN_JOB_ID" ]; then
-      
+
       # Attempt to retrieve build scan ID directly from metadata
       BUILD_SCAN_ID=$(printf '%s\n' "$BUILD_JSON" | jq -r --arg job_id "$ORIGIN_JOB_ID" '.meta_data["build-scan-id-" + $job_id]' 2>/dev/null)
 
@@ -171,6 +171,53 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
           DEVELOCITY_BASE_URL="${DEVELOCITY_BASE_URL:-https://gradle-enterprise.elastic.co}"
           DEVELOCITY_FAILED_TEST_API_URL="${DEVELOCITY_BASE_URL}/api/tests/build/${BUILD_SCAN_ID}?testOutcomes=failed"
 
+          # Fetch test seed from build scan custom values
+          # Support both DEVELOCITY_API_KEY and DEVELOCITY_API_ACCESS_KEY
+          API_KEY="${DEVELOCITY_API_KEY:-$DEVELOCITY_API_ACCESS_KEY}"
+
+          if [[ -z "$API_KEY" ]]; then
+            echo "Warning: No Develocity API key available (DEVELOCITY_API_KEY or DEVELOCITY_API_ACCESS_KEY)"
+            echo "Test seed retrieval will be skipped"
+          else
+            DEVELOCITY_BUILD_SCAN_API_URL="${DEVELOCITY_BASE_URL}/api/builds/${BUILD_SCAN_ID}?models=gradle-attributes"
+            TESTS_SEED=""
+
+            echo "Fetching test seed from build scan: $BUILD_SCAN_ID"
+            echo "API URL: $DEVELOCITY_BUILD_SCAN_API_URL"
+
+            if BUILD_SCAN_DATA=$(curl --silent --show-error --compressed --request GET \
+              --url "$DEVELOCITY_BUILD_SCAN_API_URL" \
+              --max-time 30 \
+              --header 'accept: application/json' \
+              --header "authorization: Bearer $API_KEY" \
+              --header 'content-type: application/json' 2>&1); then
+
+              # Check if we got valid JSON
+              if echo "$BUILD_SCAN_DATA" | jq empty 2>/dev/null; then
+                # Extract test seed from gradle attributes
+                TESTS_SEED=$(printf '%s\n' "$BUILD_SCAN_DATA" | jq -r '.models.gradleAttributes.model.values[]? | select(.name == "tests.seed") | .value' 2>/dev/null)
+
+                if [[ -z "$TESTS_SEED" ]] || [[ "$TESTS_SEED" == "null" ]]; then
+                  echo "Could not retrieve test seed from build scan"
+                  echo "Debug: Checking available gradle attributes..."
+                  printf '%s\n' "$BUILD_SCAN_DATA" | jq -r '.models.gradleAttributes.model.values[]? | .name' 2>/dev/null || echo "No gradle attributes found"
+                  TESTS_SEED=""
+                else
+                  echo "Retrieved test seed: $TESTS_SEED"
+                  export TESTS_SEED
+                fi
+              else
+                echo "Error: Invalid JSON response from Develocity API"
+                echo "Response preview: ${BUILD_SCAN_DATA:0:200}"
+                TESTS_SEED=""
+              fi
+            else
+              echo "Error: Failed to fetch build scan data from Develocity API"
+              echo "Curl output: ${BUILD_SCAN_DATA:0:200}"
+              TESTS_SEED=""
+            fi
+          fi
+
           # Add random delay to prevent API rate limiting from parallel retries
           sleep $((RANDOM % 5))
 
@@ -180,7 +227,7 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
             --max-time 30 \
             --header 'accept: application/json' \
             --header "authorization: Bearer $DEVELOCITY_API_ACCESS_KEY" \
-            --header 'content-type: application/json' 2>/dev/null | jq '.' &> .failed-test-history.json; then
+            --header 'content-type: application/json' 2>/dev/null | jq --arg testseed "$TESTS_SEED" '. + {testseed: $testseed}' &> .failed-test-history.json; then
 
             # Set secure file permissions
             chmod 600 .failed-test-history.json
@@ -196,7 +243,7 @@ if [[ "${SMART_RETRIES:-}" == "true" && "${BUILDKITE_RETRY_COUNT:-0}" -gt 0 ]]; 
               ORIGIN_JOB_NAME="previous attempt"
             fi
 
-            echo "✓ Smart retry enabled: filtering to $FILTERED_WORK_UNITS work units"
+            echo "Smart retry enabled: filtering to $FILTERED_WORK_UNITS work units"
 
             # Create Buildkite annotation for visibility
             # Use unique context per job to support multiple retries

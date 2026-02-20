@@ -2548,3 +2548,25 @@ true               | 1990-08-01T00:00:00.000Z
 true               | 1990-09-01T00:00:00.000Z
 true               | 1990-12-01T00:00:00.000Z
 ;
+
+unionTypesResolvePastProjections
+required_capability: union_types
+required_capability: casting_operator
+required_capability: union_types_resolve_past_projections
+
+FROM apps, apps_short
+| KEEP id, name
+| MV_EXPAND name
+| EVAL id = id::integer
+| KEEP id, name
+| SORT id ASC, name ASC
+| LIMIT 5
+;
+
+id:integer  | name:keyword
+1           | aaaaa
+1           | aaaaa
+2           | bbbbb
+2           | bbbbb
+3           | ccccc
+;

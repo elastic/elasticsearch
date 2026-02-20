@@ -10,6 +10,7 @@
 package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.util.BitUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
 
@@ -23,7 +24,15 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         }
     }
 
-    DefaultESVectorUtilSupport() {}
+    @Override
+    public float dotProduct(float[] a, float[] b) {
+        return VectorUtil.dotProduct(a, b);
+    }
+
+    @Override
+    public float squareDistance(float[] a, float[] b) {
+        return VectorUtil.squareDistance(a, b);
+    }
 
     @Override
     public long ipByteBinByte(byte[] q, byte[] d) {
@@ -454,5 +463,10 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public int indexOf(byte[] bytes, int offset, int length, byte marker) {
         return ByteArrayUtils.indexOf(bytes, offset, length, marker);
+    }
+
+    @Override
+    public int codePointCount(BytesRef bytesRef) {
+        return ByteArrayUtils.codePointCount(bytesRef.bytes, bytesRef.offset, bytesRef.length);
     }
 }

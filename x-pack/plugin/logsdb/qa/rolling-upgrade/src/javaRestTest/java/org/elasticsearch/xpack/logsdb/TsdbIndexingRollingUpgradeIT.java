@@ -43,10 +43,10 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
         createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), TEMPLATE);
 
         Instant startTime = Instant.now().minusSeconds(60 * 60);
-        bulkIndex(dataStreamName, 4, 1024, startTime);
+        bulkIndex(dataStreamName, 4, 1024, startTime, TsdbIndexingRollingUpgradeIT::docSupplier);
 
-        String firstBackingIndex = getWriteBackingIndex(client(), dataStreamName, 0);
-        var settings = (Map<?, ?>) getIndexSettingsWithDefaults(firstBackingIndex).get(firstBackingIndex);
+        String firstBackingIndex = getDataStreamBackingIndexNames(dataStreamName).getFirst();
+        var settings = (Map<?, ?>) getIndexSettings(firstBackingIndex, true).get(firstBackingIndex);
         assertThat(((Map<?, ?>) settings.get("settings")).get("index.mode"), equalTo("time_series"));
         assertThat(((Map<?, ?>) settings.get("defaults")).get("index.mapping.source.mode"), equalTo("SYNTHETIC"));
 
@@ -65,7 +65,7 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
         for (int i = 0; i < numNodes; i++) {
             upgradeNode(i);
             startTime = startTime.plusNanos(60 * 30);
-            bulkIndex(dataStreamName, 4, 1024, startTime);
+            bulkIndex(dataStreamName, 4, 1024, startTime, TsdbIndexingRollingUpgradeIT::docSupplier);
             search(dataStreamName);
             query(dataStreamName);
         }
@@ -79,38 +79,19 @@ public class TsdbIndexingRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTe
         query(dataStreamName);
     }
 
-    static void bulkIndex(String dataStreamName, int numRequest, int numDocs, Instant startTime) throws Exception {
-        for (int i = 0; i < numRequest; i++) {
-            var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
-            StringBuilder requestBody = new StringBuilder();
-            for (int j = 0; j < numDocs; j++) {
-                String podName = "pod" + j % 5; // Not realistic, but makes asserting search / query response easier.
-                String podUid = randomUUID();
-                String podIp = NetworkAddress.format(randomIp(true));
-                long podTx = randomLong();
-                long podRx = randomLong();
+    static String docSupplier(Instant time, int j) {
+        String podName = "pod" + j % 5; // Not realistic, but makes asserting search / query response easier.
+        String podUid = randomUUID();
+        String podIp = NetworkAddress.format(randomIp(true));
+        long podTx = randomLong();
+        long podRx = randomLong();
 
-                requestBody.append("{\"create\": {}}");
-                requestBody.append('\n');
-                requestBody.append(
-                    BULK_ITEM_TEMPLATE.replace("$now", formatInstant(startTime))
-                        .replace("$name", podName)
-                        .replace("$uid", podUid)
-                        .replace("$ip", podIp)
-                        .replace("$tx", Long.toString(podTx))
-                        .replace("$rx", Long.toString(podRx))
-                );
-                requestBody.append('\n');
-
-                startTime = startTime.plusMillis(1);
-            }
-            bulkRequest.setJsonEntity(requestBody.toString());
-            bulkRequest.addParameter("refresh", "true");
-            var response = client().performRequest(bulkRequest);
-            assertOK(response);
-            var responseBody = entityAsMap(response);
-            assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
-        }
+        return BULK_ITEM_TEMPLATE.replace("$now", formatInstant(time))
+            .replace("$name", podName)
+            .replace("$uid", podUid)
+            .replace("$ip", podIp)
+            .replace("$tx", Long.toString(podTx))
+            .replace("$rx", Long.toString(podRx));
     }
 
     void search(String dataStreamName) throws Exception {

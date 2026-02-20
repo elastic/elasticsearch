@@ -39,8 +39,8 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AsyncOperatorTestCase;
 import org.elasticsearch.compute.test.NoOpReleasable;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
-import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -69,7 +69,6 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -239,8 +238,16 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         DataType inputDataType = DataType.LONG;
         String lookupIndex = "idx";
         List<NamedExpression> loadFields = List.of(
-            new ReferenceAttribute(Source.EMPTY, "lkwd", DataType.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, "lint", DataType.INTEGER)
+            new FieldAttribute(
+                Source.EMPTY,
+                "lkwd",
+                new EsField("lkwd", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            ),
+            new FieldAttribute(
+                Source.EMPTY,
+                "lint",
+                new EsField("lint", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            )
         );
 
         List<MatchConfig> matchFields = new ArrayList<>();
@@ -326,7 +333,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     protected Matcher<String> expectedToStringOfSimple() {
         StringBuilder sb = new StringBuilder();
         String suffix = (operation == null) ? "" : ("_left");
-        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{r}#\\d+, lint\\{r}#\\d+] ");
+        sb.append("LookupOperator\\[index=idx load_fields=\\[lkwd\\{f}#\\d+, lint\\{f}#\\d+] ");
         for (int i = 0; i < numberOfJoinColumns; i++) {
             // match_field=match<i>_left (index first, then suffix)
             sb.append("input_type=LONG match_field=match").append(i).append(suffix).append(" inputChannel=").append(i).append(" ");
@@ -440,8 +447,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
 
     private AbstractLookupService.LookupShardContextFactory lookupShardContextFactory() {
         return shardId -> {
-            MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
-            };
+            MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
             String suffix = (operation == null) ? "" : ("_right");
             StringBuilder props = new StringBuilder();
             props.append(String.format(Locale.ROOT, "\"match0%s\": { \"type\": \"long\" }", suffix));
@@ -483,7 +489,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     }
 
     @Override
-    public void testSimpleCircuitBreaking() {
+    public void testSimpleCircuitBreaking() throws Exception {
         // only test field based join and EQ to prevents timeouts in Ci
         if (operation == null || operation.equals(EsqlBinaryComparison.BinaryComparisonOperation.EQ)) {
             super.testSimpleCircuitBreaking();

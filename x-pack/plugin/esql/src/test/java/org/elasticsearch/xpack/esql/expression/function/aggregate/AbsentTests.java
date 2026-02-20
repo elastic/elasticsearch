@@ -46,6 +46,7 @@ public class AbsentTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.aggregateMetricDoubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
             MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
+            MultiRowTestCaseSupplier.denseVectorCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),
@@ -71,6 +72,7 @@ public class AbsentTests extends AbstractAggregationTestCase {
             DataType.DATE_NANOS,
             DataType.DATETIME,
             DataType.DATE_NANOS,
+            DataType.DENSE_VECTOR,
             DataType.DOUBLE,
             DataType.GEO_POINT,
             DataType.GEO_SHAPE,
@@ -108,7 +110,7 @@ public class AbsentTests extends AbstractAggregationTestCase {
         return new Absent(source, args.getFirst());
     }
 
-    private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
+    static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
         return new TestCaseSupplier(fieldSupplier.name(), List.of(fieldSupplier.type()), () -> {
             TestCaseSupplier.TypedData fieldTypedData = fieldSupplier.get();
             boolean absent = fieldTypedData.multiRowData().stream().allMatch(Objects::isNull);

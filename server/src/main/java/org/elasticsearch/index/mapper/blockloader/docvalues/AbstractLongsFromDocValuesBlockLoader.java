@@ -13,6 +13,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
 import java.io.IOException;
 
@@ -45,7 +46,7 @@ public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValu
         if (singleton != null) {
             return singletonReader(singleton);
         }
-        return new ConstantNullsReader();
+        return ConstantNull.READER;
     }
 
     protected abstract AllReader singletonReader(NumericDocValues docValues);

@@ -1,6 +1,6 @@
 config:
   allow-labels:
-    - test-fips-140-3
+    - test-fips
 steps:
   - label: part-4-fips-140-3
     command: .ci/scripts/run-gradle.sh -Dignore.tests.seed -Dtests.fips.enabled=true -Dtests.fips.mode=140-3 checkPart4

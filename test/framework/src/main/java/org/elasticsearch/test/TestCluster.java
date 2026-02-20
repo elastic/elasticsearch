@@ -109,6 +109,7 @@ public abstract class TestCluster {
 
                         deleteTemplates(excludeTemplates, listeners.acquire());
                     })
+                    .<Void>andThen((l, res) -> wipeViewsAsync(Strings.EMPTY_ARRAY, l))
                     .addListener(listeners.acquire());
             }
         });
@@ -254,6 +255,16 @@ public abstract class TestCluster {
                 )
                 .execute(l.delegateResponse((ll, exception) -> handleWipeIndicesFailure(exception, "_all".equals(indices[0]), ll)))
         ).andThenAccept(ElasticsearchAssertions::assertAcked).addListener(listener);
+    }
+
+    public void wipeViews(String... views) {
+        safeAwait((ActionListener<Void> l) -> wipeViewsAsync(views, l));
+    }
+
+    private void wipeViewsAsync(String[] views, ActionListener<Void> listener) {
+        logger.info("---- wiping views [{}]", Strings.arrayToCommaDelimitedString(views));
+        listener.onResponse(null);
+        // TODO: implement me once views are used in integration tests
     }
 
     private void handleWipeIndicesFailure(Exception exception, boolean wipingAllIndices, ActionListener<AcknowledgedResponse> listener) {

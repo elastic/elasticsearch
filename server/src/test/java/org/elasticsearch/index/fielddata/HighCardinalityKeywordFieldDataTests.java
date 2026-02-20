@@ -11,13 +11,15 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
+import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.BinaryFieldMapper.CustomBinaryDocValuesField;
+import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 public class HighCardinalityKeywordFieldDataTests extends AbstractStringFieldDataTestCase {
 
@@ -38,7 +40,7 @@ public class HighCardinalityKeywordFieldDataTests extends AbstractStringFieldDat
 
     // Trick to index multi-valued binary doc values fields using AbstractStringFieldDataTestCase:
     private Document current;
-    private Map<String, CustomBinaryDocValuesField> fields = new HashMap<>();
+    private Map<String, MultiValuedBinaryDocValuesField> fields = new HashMap<>();
 
     @Override
     protected void addField(Document d, String name, String value) {
@@ -49,13 +51,58 @@ public class HighCardinalityKeywordFieldDataTests extends AbstractStringFieldDat
 
         d.add(new StringField(name, value, Field.Store.YES));
         var field = fields.get(name);
+        var countsField = (NumericDocValuesField) d.getField(name + COUNT_FIELD_SUFFIX);
         if (field != null) {
-            fields.get(name).add(value.getBytes(StandardCharsets.UTF_8));
+            fields.get(name).add(new BytesRef(value));
+            countsField.setLongValue(field.count());
         } else {
-            field = new CustomBinaryDocValuesField(name, value.getBytes(StandardCharsets.UTF_8));
+            field = new MultiValuedBinaryDocValuesField.SeparateCount(name, false);
+            field.add(new BytesRef(value));
+            countsField = NumericDocValuesField.indexedField(name + COUNT_FIELD_SUFFIX, 1);
             fields.put(name, field);
             d.add(field);
+            d.add(countsField);
         }
+    }
+
+    @Override
+    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueAllSet() {
+        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
+    }
+
+    @Override
+    protected SortedBinaryDocValues.Sparsity expectedSparsitySingleValueAllSet() {
+        return SortedBinaryDocValues.Sparsity.DENSE;
+    }
+
+    @Override
+    protected SortedBinaryDocValues.ValueMode expectedValueModeMultiValueAllSet() {
+        return SortedBinaryDocValues.ValueMode.MULTI_VALUED;
+    }
+
+    @Override
+    protected SortedBinaryDocValues.Sparsity expectedSparsityMultiValueAllSet() {
+        return SortedBinaryDocValues.Sparsity.DENSE;
+    }
+
+    @Override
+    protected SortedBinaryDocValues.ValueMode expectedValueModeMultiValueWithMissing() {
+        return SortedBinaryDocValues.ValueMode.MULTI_VALUED;
+    }
+
+    @Override
+    protected SortedBinaryDocValues.ValueMode expectedValueModeSingleValueWithMissing() {
+        return SortedBinaryDocValues.ValueMode.SINGLE_VALUED;
+    }
+
+    @Override
+    protected SortedBinaryDocValues.Sparsity expectedSparsityMultiValueWithMissing() {
+        return SortedBinaryDocValues.Sparsity.SPARSE;
+    }
+
+    @Override
+    protected SortedBinaryDocValues.Sparsity expectedSparsitySingleValueWithMissing() {
+        return SortedBinaryDocValues.Sparsity.SPARSE;
     }
 
     // Don't run tests that binary doc values based field data doesn't support:

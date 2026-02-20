@@ -1098,7 +1098,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> try deleting snapshot");
         assertRequestBuilderThrows(
             client.admin().cluster().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, "readonly-repo", "test-snap"),
-            RepositoryException.class,
+            IllegalArgumentException.class,
             "repository is readonly"
         );
 
@@ -1109,7 +1109,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
                 .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, "readonly-repo", "test-snap-2")
                 .setWaitForCompletion(true)
                 .setIndices("test-idx"),
-            RepositoryException.class,
+            IllegalArgumentException.class,
             "cannot create snapshot in a readonly repository"
         );
     }

@@ -496,7 +496,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             EMPTY_NODE_ALLOCATION_STATS,
             TEST_ONLY_EXPLAINER,
             DesiredBalanceMetrics.NOOP,
-            AllocationBalancingRoundMetrics.NOOP
+            AllocationBalancingRoundMetrics.NOOP,
+            new ShardRelocationOrder.DefaultOrder()
         ) {
             @Override
             public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
@@ -509,7 +510,8 @@ public class ClusterAllocationSimulationTests extends ESAllocationTestCase {
             new TestGatewayAllocator(),
             desiredBalanceShardsAllocator,
             clusterInfoService,
-            () -> SnapshotShardSizeInfo.EMPTY
+            () -> SnapshotShardSizeInfo.EMPTY,
+            TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         strategyRef.set(strategy);
         return Map.entry(strategy, desiredBalanceShardsAllocator);

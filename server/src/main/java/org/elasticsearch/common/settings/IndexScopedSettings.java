@@ -251,7 +251,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         );
 
         if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            settings.add(IndexSettings.USE_SYNTHETIC_ID);
+            settings.add(IndexSettings.SYNTHETIC_ID);
         }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);

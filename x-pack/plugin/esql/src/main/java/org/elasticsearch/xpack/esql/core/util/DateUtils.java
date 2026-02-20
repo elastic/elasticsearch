@@ -170,16 +170,20 @@ public class DateUtils {
     /**
      * Creates a datetime from the millis since epoch (thus the time-zone is UTC).
      */
-    public static ZonedDateTime asDateTime(long millis) {
-        return ZonedDateTime.ofInstant(Instant.ofEpochMilli(millis), UTC);
+    public static ZonedDateTime asDateTime(long millis, ZoneId zoneId) {
+        return asDateTime(Instant.ofEpochMilli(millis), zoneId);
     }
 
-    public static ZonedDateTime asDateTime(Instant instant) {
-        return ZonedDateTime.ofInstant(instant, UTC);
+    public static ZonedDateTime asDateTime(Instant instant, ZoneId zoneId) {
+        return ZonedDateTime.ofInstant(instant, zoneId);
     }
 
     public static long asMillis(ZonedDateTime zonedDateTime) {
         return zonedDateTime.toInstant().toEpochMilli();
+    }
+
+    public static long asNanos(ZonedDateTime zonedDateTime) {
+        return org.elasticsearch.common.time.DateUtils.toLong(zonedDateTime.toInstant());
     }
 
     /**

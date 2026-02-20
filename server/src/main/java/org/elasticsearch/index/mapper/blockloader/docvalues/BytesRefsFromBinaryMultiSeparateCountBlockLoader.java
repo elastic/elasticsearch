@@ -13,6 +13,7 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
 import java.io.IOException;
 
@@ -38,7 +39,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
     public AllReader reader(LeafReaderContext context) throws IOException {
         BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
         if (values == null) {
-            return new ConstantNullsReader();
+            return ConstantNull.READER;
         }
 
         String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;

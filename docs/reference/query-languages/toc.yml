@@ -99,6 +99,9 @@ toc:
           - file: esql/esql-syntax.md
           - file: esql/esql-commands.md
             children:
+              - file: esql/commands/directives.md
+                children:
+                  - file: esql/commands/set.md
               - file: esql/commands/source-commands.md
                 children:
                   - file: esql/commands/from.md
@@ -126,6 +129,7 @@ toc:
                   - file: esql/commands/sample.md
                   - file: esql/commands/sort.md
                   - file: esql/commands/stats-by.md
+                  - file: esql/commands/uri-parts.md
                   - file: esql/commands/where.md
           - file: esql/esql-functions-operators.md
             children:

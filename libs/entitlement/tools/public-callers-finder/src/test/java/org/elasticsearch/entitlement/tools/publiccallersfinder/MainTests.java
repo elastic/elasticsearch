@@ -25,8 +25,6 @@ public class MainTests extends ESTestCase {
 
     record OutputRow(
         String moduleName,
-        String source,
-        String line,
         String className,
         String methodName,
         String methodDescriptor,
@@ -37,7 +35,8 @@ public class MainTests extends ESTestCase {
         String originalAccess
     ) {
         OutputRow(String[] row) {
-            this(row[0], row[1], row[2], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10]);
+            // skip row[1] (source) and row[2] (line number) as they vary by JDK version/build
+            this(row[0], row[3], row[4], row[5], row[6], row[7], row[8], row[9], row[10]);
         }
     }
 
@@ -47,9 +46,7 @@ public class MainTests extends ESTestCase {
 
         var expectedRow = new OutputRow(
             "java.base",
-            "System.java",
-            "1540",
-            "java/lang/System",
+            "java/lang/Runtime",
             "exit",
             "(I)V",
             "PUBLIC_CLASS:PUBLIC_METHOD",

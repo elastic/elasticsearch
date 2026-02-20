@@ -35,14 +35,9 @@ public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
     public static final Class<IllegalArgumentException> IAE = IllegalArgumentException.class;
     public static final Class<IndexOutOfBoundsException> IOOBE = IndexOutOfBoundsException.class;
 
-    public enum SimilarityFunction {
-        DOT_PRODUCT,
-        SQUARE_DISTANCE
-    }
-
     protected static Arena arena;
 
-    protected final SimilarityFunction function;
+    protected final VectorSimilarityFunctions.Function function;
     protected final int size;
     protected final Optional<VectorSimilarityFunctions> vectorSimilarityFunctions;
 
@@ -52,11 +47,11 @@ public abstract class VectorSimilarityFunctionsTests extends ESTestCase {
         var dims2 = Arrays.stream(new int[] { 1000, 1023, 1024, 1025, 2047, 2048, 2049, 4095, 4096, 4097 });
         return () -> IntStream.concat(dims1, dims2)
             .boxed()
-            .flatMap(i -> Stream.of(SimilarityFunction.values()).map(f -> new Object[] { f, i }))
+            .flatMap(i -> Stream.of(VectorSimilarityFunctions.Function.values()).map(f -> new Object[] { f, i }))
             .iterator();
     }
 
-    protected VectorSimilarityFunctionsTests(SimilarityFunction function, int size) {
+    protected VectorSimilarityFunctionsTests(VectorSimilarityFunctions.Function function, int size) {
         this.function = function;
         this.size = size;
         vectorSimilarityFunctions = NativeAccess.instance().getVectorSimilarityFunctions();

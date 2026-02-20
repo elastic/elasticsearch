@@ -53,10 +53,15 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DEFAULT_CENTROIDS_PER_PARENT_CLUSTER;
 import static org.elasticsearch.index.codec.vectors.diskbbq.ES920DiskBBQVectorsFormat.DEFAULT_VECTORS_PER_CLUSTER;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
@@ -64,12 +69,18 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
     public static final String FIELD_NAME = "float_vector";
 
+    /*
+     * Original KNN scoring and rescoring can use slightly different calculation methods,
+     * so there may be a very slight difference in the scores after rescoring.
+     */
+    private static final float DELTA = 1e-6f;
+
     public void testRescoreDocs() throws Exception {
         int numDocs = randomIntBetween(10, 100);
         int numDims = randomIntBetween(5, 100);
         int k = randomIntBetween(1, numDocs - 1);
 
-        var queryVector = randomVector(numDims);
+        float[] queryVector = randomVector(numDims);
         List<Query> innerQueries = new ArrayList<>();
         innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
         innerQueries.add(
@@ -83,8 +94,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
             addRandomDocuments(numDocs, d, numDims);
 
             try (IndexReader reader = DirectoryReader.open(d)) {
-
-                for (var innerQuery : innerQueries) {
+                for (Query innerQuery : innerQueries) {
                     RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
                         FIELD_NAME,
                         queryVector,
@@ -95,8 +105,26 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     );
 
                     IndexSearcher searcher = newSearcher(reader, true, false);
+
                     TopDocs rescoredDocs = searcher.search(rescoreKnnVectorQuery, numDocs);
-                    assertThat(rescoredDocs.scoreDocs.length, equalTo(k));
+                    assertThat(rescoredDocs.scoreDocs, arrayWithSize(k));
+
+                    if (innerQuery instanceof KnnFloatVectorQuery) {
+                        // check that at least one doc has its score changed, indicating rescoring has happened
+                        TopDocs unrescoredDocs = searcher.search(innerQuery, numDocs);
+                        Map<Integer, Double> rescoredScores = Arrays.stream(rescoredDocs.scoreDocs)
+                            .collect(Collectors.toMap(sd -> sd.doc, sd -> (double) sd.score));
+
+                        boolean changed = false;
+                        for (ScoreDoc unrescored : unrescoredDocs.scoreDocs) {
+                            Double rescored = rescoredScores.get(unrescored.doc);
+                            if (rescored != null && Math.abs(rescored - unrescored.score) > DELTA) {
+                                changed = true;
+                                break;
+                            }
+                        }
+                        assertTrue("No docs had their scores changed", changed);
+                    }
 
                     // Get real scores
                     DoubleValuesSource valueSource = new FullPrecisionFloatVectorSimilarityValuesSource(
@@ -118,7 +146,11 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                         if (i >= realScoreDocs.length) {
                             fail("Rescored doc not found in real score docs");
                         }
-                        assertThat("Real score is not the same as rescored score", rescoreDoc.score, equalTo(realScoreDocs[i].score));
+                        assertThat(
+                            "Real score is not the same as rescored score",
+                            (double) rescoreDoc.score,
+                            closeTo(realScoreDocs[i].score, DELTA)
+                        );
                     }
                 }
             }
@@ -130,7 +162,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         int numDims = randomIntBetween(5, 100);
         int k = randomIntBetween(1, numDocs - 1);
 
-        var queryVector = randomVector(numDims);
+        float[] queryVector = randomVector(numDims);
 
         List<Query> innerQueries = new ArrayList<>();
         innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
@@ -144,7 +176,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         try (Directory d = newDirectory()) {
             addRandomDocuments(numDocs, d, numDims);
             try (DirectoryReader reader = DirectoryReader.open(d)) {
-                for (var innerQuery : innerQueries) {
+                for (Query innerQuery : innerQueries) {
                     RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
                         FIELD_NAME,
                         queryVector,
@@ -156,7 +188,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
                     IndexSearcher searcher = newSearcher(reader, true, false);
                     TopDocs rescoredDocs = searcher.search(rescoreKnnVectorQuery, numDocs);
-                    assertThat(rescoredDocs.scoreDocs.length, equalTo(k));
+                    assertThat(rescoredDocs.scoreDocs, arrayWithSize(k));
 
                     searcher = newSearcher(new SingleVectorQueryIndexReader(reader), true, false);
                     rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
@@ -168,14 +200,14 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                         innerQuery
                     );
                     TopDocs singleRescored = searcher.search(rescoreKnnVectorQuery, numDocs);
-                    assertThat(singleRescored.scoreDocs.length, equalTo(k));
+                    assertThat(singleRescored.scoreDocs, arrayWithSize(k));
 
                     // Get real scores
                     ScoreDoc[] singleRescoreDocs = singleRescored.scoreDocs;
                     int i = 0;
                     for (ScoreDoc rescoreDoc : rescoredDocs.scoreDocs) {
                         assertThat(rescoreDoc.doc, equalTo(singleRescoreDocs[i].doc));
-                        assertThat(rescoreDoc.score, equalTo(singleRescoreDocs[i].score));
+                        assertThat((double) rescoreDoc.score, closeTo(singleRescoreDocs[i].score, DELTA));
                         i++;
                     }
                 }
@@ -282,28 +314,26 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
     private static void addRandomDocuments(int numDocs, Directory d, int numDims) throws IOException {
         IndexWriterConfig iwc = new IndexWriterConfig();
         // Pick codec from quantized vector formats to ensure scores use real scores when using knn rescore
+        DenseVectorFieldMapper.ElementType elementType = randomFrom(
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            DenseVectorFieldMapper.ElementType.BFLOAT16
+        );
         KnnVectorsFormat format = randomFrom(
             new ES920DiskBBQVectorsFormat(
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
-                randomBoolean()
+                elementType,
+                randomBoolean(),
+                null,
+                1
             ),
-            new ES93BinaryQuantizedVectorsFormat(
-                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
-                false
-            ),
-            new ES93HnswBinaryQuantizedVectorsFormat(
-                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
-                randomBoolean()
-            ),
-            new ES93ScalarQuantizedVectorsFormat(
-                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16)
-            ),
+            new ES93BinaryQuantizedVectorsFormat(elementType, false),
+            new ES93HnswBinaryQuantizedVectorsFormat(elementType, randomBoolean()),
+            new ES93ScalarQuantizedVectorsFormat(elementType),
             new ES93HnswScalarQuantizedVectorsFormat(
                 DEFAULT_VECTORS_PER_CLUSTER,
                 DEFAULT_CENTROIDS_PER_PARENT_CLUSTER,
-                randomFrom(DenseVectorFieldMapper.ElementType.FLOAT, DenseVectorFieldMapper.ElementType.BFLOAT16),
+                elementType,
                 null,
                 7,
                 false,

@@ -11,6 +11,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
+import org.elasticsearch.common.util.concurrent.EsExecutors.HotThreadsOnLargeQueueConfig;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
@@ -72,9 +73,21 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         ThreadFactory threadFactory,
         RejectedExecutionHandler handler,
         ThreadContext contextHolder,
-        TaskTrackingConfig trackingConfig
+        TaskTrackingConfig trackingConfig,
+        HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig
     ) {
-        super(name, corePoolSize, maximumPoolSize, keepAliveTime, unit, workQueue, threadFactory, handler, contextHolder);
+        super(
+            name,
+            corePoolSize,
+            maximumPoolSize,
+            keepAliveTime,
+            unit,
+            workQueue,
+            threadFactory,
+            handler,
+            contextHolder,
+            hotThreadsOnLargeQueueConfig
+        );
 
         this.runnableWrapper = runnableWrapper;
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getExecutionTimeEwmaAlpha(), 0);

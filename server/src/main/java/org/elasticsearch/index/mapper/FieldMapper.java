@@ -1439,15 +1439,31 @@ public abstract class FieldMapper extends Mapper {
             );
         }
 
+        /**
+         * Parses the doc_values parameter from the field mapping.
+         * <p>
+         * Doc values can be configured in the following ways:
+         * <ul>
+         *   <li>{@code "doc_values": false} - doc_values disabled</li>
+         *   <li>{@code "doc_values": true} - doc_values enabled with the default cardinality</li>
+         *   <li>{@code "doc_values": { "cardinality": "low" }} - doc_values enabled with LOW cardinality
+         *   <li>{@code "doc_values": { "cardinality": "high" }} - doc_values enabled with HIGH cardinality
+         * </ul>
+         * <p>
+         * The presence of {@code doc_values} as a map indicates the user wants doc_values enabled. The map format allows specifying an
+         * additional cardinality setting.
+         */
         @Override
         public void parse(String field, MappingParserContext context, Object value) {
+            // if doc_values are given as a map, then parse cardinality
             if (value instanceof Map<?, ?> valueMap && EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled()) {
                 cardinalityParameter.parse(field, context, valueMap.get(cardinalityParameter.name));
 
                 setValue(new Values(true, cardinalityParameter.getValue()));
             } else {
+                // otherwise, parse the boolean value from the mapping, but set the cardinality ourselves to ensure bwc
                 if (XContentMapValues.nodeBooleanValue(value, name)) {
-                    setValue(getDefaultValue());
+                    setValue(new Values(true, getDefaultValue().cardinality()));
                 } else {
                     setValue(Values.DISABLED);
                 }

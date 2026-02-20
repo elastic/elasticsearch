@@ -490,7 +490,9 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
         BlockLoader loader = fieldType.blockLoader(blContext(settings, true));
         List<Object> all = new ArrayList<>();
         for (LeafReaderContext ctx : reader.leaves()) {
-            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx).read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
+            TestBlock block = (TestBlock) loader.columnAtATimeReader(ctx)
+                .get()
+                .read(TestBlock.factory(), TestBlock.docs(ctx), offset, false);
             for (int i = 0; i < block.size(); i++) {
                 all.add(block.get(i));
             }
@@ -536,20 +538,10 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
     protected MappedFieldType.BlockLoaderContext blContext(Settings settings, boolean fieldOnlyMappedAsRuntimeField) {
         String indexName = "test_index";
         var imd = IndexMetadata.builder(indexName).settings(ESTestCase.indexSettings(IndexVersion.current(), 1, 1).put(settings)).build();
-        return new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return indexName;
-            }
-
+        return new DummyBlockLoaderContext(indexName) {
             @Override
             public IndexSettings indexSettings() {
                 return new IndexSettings(imd, settings);
-            }
-
-            @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
             }
 
             @Override
@@ -560,21 +552,6 @@ public abstract class AbstractScriptFieldTypeTestCase extends MapperServiceTestC
                     null,
                     SourceProvider.fromLookup(MappingLookup.EMPTY, null, SourceFieldMetrics.NOOP)
                 ).lookup();
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String parentField(String field) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
             }
         };
     }

@@ -16,6 +16,7 @@ import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.bulk.WriteAckDelay;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
+import org.elasticsearch.action.search.SearchLogProducer;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -67,6 +68,7 @@ import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.activity.ActivityLogger;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
@@ -124,6 +126,7 @@ import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.decider.EnableAssignmentDecider;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
+import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -219,7 +222,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
     }
 
     public static final Set<Setting<?>> BUILT_IN_CLUSTER_SETTINGS = Set.of(
-        AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_SETTING,
+        AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_METRICS_SETTING,
+        AllocationBalancingRoundSummaryService.ENABLE_BALANCER_ROUND_SUMMARIES_LOGGING_SETTING,
         AllocationBalancingRoundSummaryService.BALANCER_ROUND_SUMMARIES_LOG_INTERVAL_SETTING,
         AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTE_SETTING,
         AwarenessAllocationDecider.CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP_SETTING,
@@ -228,6 +232,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         BalancedShardsAllocator.WRITE_LOAD_BALANCE_FACTOR_SETTING,
         BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING,
         BalancedShardsAllocator.THRESHOLD_SETTING,
+        BalancedShardsAllocator.INVALID_WEIGHTS_MINIMUM_LOG_INTERVAL,
         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_DECREASE_SHARDS_COOLDOWN,
         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_INCREASE_SHARDS_COOLDOWN,
         DataStreamAutoShardingService.DATA_STREAMS_AUTO_SHARDING_EXCLUDES_SETTING,
@@ -377,6 +382,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         MasterService.MASTER_SERVICE_EXECUTION_HISTORY_SIZE_SETTING,
         SearchService.DEFAULT_SEARCH_TIMEOUT_SETTING,
         SearchService.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS_SETTING,
+        SearchService.PIT_RELOCATION_ENABLED,
         TransportSearchAction.SHARD_COUNT_LIMIT_SETTING,
         TransportSearchAction.DEFAULT_PRE_FILTER_SHARD_SIZE,
         RemoteClusterSettings.REMOTE_CLUSTER_SKIP_UNAVAILABLE,
@@ -591,6 +597,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         HandshakingTransportAddressConnector.PROBE_CONNECT_TIMEOUT_SETTING,
         HandshakingTransportAddressConnector.PROBE_HANDSHAKE_TIMEOUT_SETTING,
         SnapshotsService.MAX_CONCURRENT_SNAPSHOT_OPERATIONS_SETTING,
+        RepositoriesService.DEFAULT_REPOSITORY_SETTING,
         RestoreService.REFRESH_REPO_UUID_ON_RESTORE_SETTING,
         FsHealthService.ENABLED_SETTING,
         FsHealthService.REFRESH_INTERVAL_SETTING,
@@ -671,6 +678,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
         SamplingService.TTL_POLL_INTERVAL_SETTING,
         BlobStoreRepository.MAX_HEAP_SIZE_FOR_SNAPSHOT_DELETION_SETTING,
         ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW,
-        ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED
+        ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED,
+        ActivityLogger.ACTIVITY_LOGGER_ENABLED,
+        ActivityLogger.ACTIVITY_LOGGER_THRESHOLD,
+        ActivityLogger.ACTIVITY_LOGGER_LEVEL,
+        ActivityLogger.ACTIVITY_LOGGER_INCLUDE_USER,
+        SearchLogProducer.SEARCH_LOGGER_LOG_SYSTEM
     );
 }

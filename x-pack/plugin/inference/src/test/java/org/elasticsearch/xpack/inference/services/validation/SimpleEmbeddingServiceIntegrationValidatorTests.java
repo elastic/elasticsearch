@@ -13,8 +13,10 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -22,6 +24,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.validation.SimpleEmbeddingServiceIntegrationValidator.TEST_IMAGE_BASE64_INPUT;
 import static org.elasticsearch.xpack.inference.services.validation.SimpleEmbeddingServiceIntegrationValidator.TEST_TEXT_INPUT;
@@ -37,16 +40,14 @@ import static org.mockito.MockitoAnnotations.openMocks;
 
 public class SimpleEmbeddingServiceIntegrationValidatorTests extends ESTestCase {
 
-    private static final EmbeddingRequest EXPECTED_REQUEST = new EmbeddingRequest(
-        List.of(TEST_TEXT_INPUT, TEST_IMAGE_BASE64_INPUT),
-        InputType.INTERNAL_INGEST
-    );
     private static final TimeValue TIMEOUT = TimeValue.ONE_MINUTE;
 
     @Mock
     private InferenceService mockInferenceService;
     @Mock
     private Model mockModel;
+    @Mock
+    private ServiceSettings mockServiceSettings;
     @Mock
     private ActionListener<InferenceServiceResults> mockActionListener;
     @Mock
@@ -61,11 +62,14 @@ public class SimpleEmbeddingServiceIntegrationValidatorTests extends ESTestCase 
         underTest = new SimpleEmbeddingServiceIntegrationValidator();
 
         when(mockActionListener.delegateFailureAndWrap(any())).thenCallRealMethod();
+        when(mockModel.getServiceSettings()).thenReturn(mockServiceSettings);
+        when(mockServiceSettings.isMultimodal()).thenReturn(randomBoolean());
     }
 
     public void testValidate_ServiceThrowsException() {
+        var expectedRequest = getExpectedRequest();
         doThrow(ElasticsearchStatusException.class).when(mockInferenceService)
-            .embeddingInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(TIMEOUT), any());
+            .embeddingInfer(eq(mockModel), eq(expectedRequest), eq(TIMEOUT), any());
 
         assertThrows(
             ElasticsearchStatusException.class,
@@ -114,11 +118,12 @@ public class SimpleEmbeddingServiceIntegrationValidatorTests extends ESTestCase 
     }
 
     private void mockSuccessfulCallToService(InferenceServiceResults result) {
+        var expectedRequest = getExpectedRequest();
         doAnswer(ans -> {
             ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
             responseListener.onResponse(result);
             return null;
-        }).when(mockInferenceService).embeddingInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(TIMEOUT), any());
+        }).when(mockInferenceService).embeddingInfer(eq(mockModel), eq(expectedRequest), eq(TIMEOUT), any());
 
         underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
     }
@@ -128,17 +133,30 @@ public class SimpleEmbeddingServiceIntegrationValidatorTests extends ESTestCase 
     }
 
     private void mockFailureResponseFromService(Exception exception) {
+        var expectedRequest = getExpectedRequest();
         doAnswer(ans -> {
             ActionListener<InferenceServiceResults> responseListener = ans.getArgument(3);
             responseListener.onFailure(exception);
             return null;
-        }).when(mockInferenceService).embeddingInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(TIMEOUT), any());
+        }).when(mockInferenceService).embeddingInfer(eq(mockModel), eq(expectedRequest), eq(TIMEOUT), any());
 
         underTest.validate(mockInferenceService, mockModel, TIMEOUT, mockActionListener);
     }
 
     private void verifyCallToService() {
-        verify(mockInferenceService).embeddingInfer(eq(mockModel), eq(EXPECTED_REQUEST), eq(TIMEOUT), any());
+        var expectedRequest = getExpectedRequest();
+        verify(mockModel).getServiceSettings();
+        verify(mockInferenceService).embeddingInfer(eq(mockModel), eq(expectedRequest), eq(TIMEOUT), any());
         verifyNoMoreInteractions(mockInferenceService, mockModel, mockActionListener, mockInferenceServiceResults);
+    }
+
+    private EmbeddingRequest getExpectedRequest() {
+        List<InferenceStringGroup> inputs;
+        if (mockServiceSettings.isMultimodal()) {
+            inputs = List.of(TEST_TEXT_INPUT, TEST_IMAGE_BASE64_INPUT);
+        } else {
+            inputs = List.of(TEST_TEXT_INPUT);
+        }
+        return new EmbeddingRequest(inputs, InputType.INTERNAL_INGEST, Map.of());
     }
 }

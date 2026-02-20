@@ -556,9 +556,21 @@ public class AggregatorImplementer {
         builder.addAnnotation(Override.class).addModifiers(Modifier.PUBLIC).addParameter(PAGE, "page");
         builder.addStatement("assert channels.size() == intermediateBlockCount()");
         builder.addStatement("assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size()");
+
+        // NOTE:
+        // In FIRST & LAST only, this forces the aggregator function's "addIntermediateInput" methods to call the
+        // aggregator's "combineIntermediate" method, and let it handle null blocks however it wants. This will be removed once
+        // BlockArgument can have two variants: One that wants to handle nulls itself like in this case, and one that wants
+        // them filtered out like in the case for geo functions.
+        String aggregatorName = this.declarationType.getSimpleName().toString();
+
+        // First/Last aggregators still retain the "All" prefix, in order to not conflict with the aggregators for the old First/Last that
+        // are still used by some functions.
+        boolean isFirstLast = aggregatorName.startsWith("AllFirst") || aggregatorName.startsWith("AllLast");
+
         for (int i = 0; i < intermediateState.size(); i++) {
             var interState = intermediateState.get(i);
-            interState.assignToVariable(builder, i);
+            interState.assignToVariable(builder, i, isFirstLast);
             builder.addStatement("assert $L.getPositionCount() == 1", interState.name());
         }
         if (aggState.declaredType().isPrimitive()) {
@@ -720,15 +732,18 @@ public class AggregatorImplementer {
             }
         }
 
-        public void assignToVariable(MethodSpec.Builder builder, int offset) {
+        public void assignToVariable(MethodSpec.Builder builder, int offset, boolean forcePassDown) {
             builder.addStatement("Block $L = page.getBlock(channels.get($L))", name + "Uncast", offset);
             ClassName blockType = blockType(elementType());
-            builder.beginControlFlow("if ($L.areAllValuesNull())", name + "Uncast");
-            {
-                builder.addStatement("return");
-                builder.endControlFlow();
+            if (forcePassDown == false) {
+                builder.beginControlFlow("if ($L.areAllValuesNull())", name + "Uncast");
+                {
+                    builder.addStatement("return");
+                    builder.endControlFlow();
+                }
             }
-            if (block || vectorType(elementType) == null) {
+
+            if (block || vectorType(elementType) == null || forcePassDown) {
                 builder.addStatement("$T $L = ($T) $L", blockType, name, blockType, name + "Uncast");
             } else {
                 builder.addStatement("$T $L = (($T) $L).asVector()", vectorType(elementType), name, blockType, name + "Uncast");

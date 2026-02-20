@@ -32,10 +32,10 @@ public final class VectorBinaryArithmetic extends VectorBinaryOperator {
             return switch (this) {
                 case ADD -> Add::new;
                 case SUB -> Sub::new;
-                case MUL -> Mul::new;
-                case DIV -> Div::new;
-                case MOD -> Mod::new;
-                case POW -> Pow::new;
+                case MUL -> (s, l, r, c) -> new Mul(s, l, r);
+                case DIV -> (s, l, r, c) -> new Div(s, l, r);
+                case MOD -> (s, l, r, c) -> new Mod(s, l, r);
+                case POW -> (s, l, r, c) -> new Pow(s, l, r);
             };
         }
     }

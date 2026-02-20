@@ -7,17 +7,23 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.action.DocWriteRequest.OpType;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -30,8 +36,10 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.Collection;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -45,7 +53,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), DataStreamsPlugin.class);
+        return CollectionUtils.concatLists(List.of(MapperExtrasPlugin.class, DataStreamsPlugin.class), super.nodePlugins());
     }
 
     public void testResolvesConcreteIndex() {
@@ -74,6 +82,10 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
                 new TransportPutComposableIndexTemplateAction.Request("data-stream-1-template").indexTemplate(
                     ComposableIndexTemplate.builder()
                         .indexPatterns(List.of("data-stream-1*"))
+                        .template(
+                            Template.builder()
+                                .dataStreamOptions(new DataStreamOptions.Template(new DataStreamFailureStore.Template(true, null)))
+                        )
                         .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                         .build()
                 )
@@ -86,10 +98,19 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             )
         );
 
+        client().bulk(
+            new BulkRequest() // create a valid and invalid document to initialize failure store
+                .add(prepareIndex("data-stream-1").setOpType(OpType.CREATE).setSource("@timestamp", 1).request())
+                .add(prepareIndex("data-stream-1").setOpType(OpType.CREATE).setSource("@timestamp", "invalid").request())
+        ).actionGet();
+
         try (var response = run(syncEsqlQueryRequest("FROM data-stream-1"))) {
             assertOk(response);
         }
         try (var response = run(syncEsqlQueryRequest("FROM data-stream-1::data"))) {
+            assertOk(response);
+        }
+        try (var response = run(syncEsqlQueryRequest("FROM data-stream-1::failures"))) {
             assertOk(response);
         }
         expectThrows(
@@ -106,7 +127,7 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
 
     public void testResolvesDateMath() {
         var date = LocalDate.ofInstant(Instant.now(), ZoneOffset.UTC);
-        var index = "index-" + date.getYear() + "." + date.getMonthValue();
+        var index = DateTimeFormatter.ofPattern("'index-'yyyy.MM", Locale.ROOT).format(date);
         assertAcked(client().admin().indices().prepareCreate(index));
         indexRandom(true, index, 1);
 
@@ -144,23 +165,20 @@ public class IndexResolutionIT extends AbstractEsqlIntegTestCase {
             assertOk(response);
             assertResultConcreteIndices(response, "index-1");// excludes pattern from pattern
         }
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [index-*,-*]"),
-            () -> run(syncEsqlQueryRequest("FROM index-*,-* METADATA _index")) // exclude all resolves to empty
-        );
+        try (var response = run(syncEsqlQueryRequest("FROM index-*,-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);// exclude all resolves to empty
+        }
     }
 
-    public void testDoesNotResolveEmptyPattern() {
+    public void testResolveEmptyPattern() {
         assertAcked(client().admin().indices().prepareCreate("data"));
         indexRandom(true, "data", 1);
 
-        expectThrows(
-            VerificationException.class,
-            containsString("Unknown index [index-*]"),
-            () -> run(syncEsqlQueryRequest("FROM index-* METADATA _index"))
-        );
-
+        try (var response = run(syncEsqlQueryRequest("FROM index-* METADATA _index"))) {
+            assertOk(response);
+            assertResultConcreteIndices(response);
+        }
         try (var response = run(syncEsqlQueryRequest("FROM data,index-* METADATA _index"))) {
             assertOk(response);
             assertResultConcreteIndices(response, "data");

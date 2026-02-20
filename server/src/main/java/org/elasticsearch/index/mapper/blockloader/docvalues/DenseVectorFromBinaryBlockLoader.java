@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
@@ -46,7 +47,7 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
     public AllReader reader(LeafReaderContext context) throws IOException {
         BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
         if (docValues == null) {
-            return new ConstantNullsReader();
+            return ConstantNull.READER;
         }
         return switch (elementType) {
             case FLOAT -> new FloatDenseVectorFromBinary(docValues, dims, indexVersion);

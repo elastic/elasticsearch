@@ -32,7 +32,6 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,7 +67,7 @@ public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTes
             try (var indexReader = DirectoryReader.open(iw)) {
                 var searcher = new IndexSearcher(indexReader);
                 LeafReaderContext leafReaderContext = indexReader.leaves().getFirst();
-                var context = indexService.newSearchExecutionContext(0, 0, searcher, () -> 1L, null, Map.of());
+                var context = indexService.newSearchExecutionContext(0, 0, searcher, () -> 1L, null, Map.of(), null, null);
                 var fieldType = (AbstractScriptFieldType<?>) indexService.mapperService().fieldType("field");
 
                 // The other_field should have been filtered out, otherwise the mechanism that pushes field name as source filter to
@@ -122,7 +121,7 @@ public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTes
             try (var indexReader = DirectoryReader.open(iw)) {
                 var searcher = new IndexSearcher(indexReader);
                 LeafReaderContext leafReaderContext = indexReader.leaves().getFirst();
-                var context = indexService.newSearchExecutionContext(0, 0, searcher, () -> 1L, null, Map.of());
+                var context = indexService.newSearchExecutionContext(0, 0, searcher, () -> 1L, null, Map.of(), null, null);
                 var fieldType = (AbstractScriptFieldType<?>) indexService.mapperService().fieldType("field");
 
                 var leafFactory = (LongFieldScript.LeafFactory) fieldType.leafFactory(context);
@@ -171,7 +170,7 @@ public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTes
             iw.addDocument(new Document());
             try (var indexReader = DirectoryReader.open(iw)) {
                 var searcher = new IndexSearcher(indexReader);
-                var context = indexService.newSearchExecutionContext(0, 0, searcher, () -> 1L, null, Map.of());
+                var context = indexService.newSearchExecutionContext(0, 0, searcher, () -> 1L, null, Map.of(), null, null);
 
                 // field name 'field' is both mapped as runtime and normal field and so LongScriptBlockLoader is expected:
                 BlockLoader loader = fieldType1.blockLoader(blContext(settings, context.lookup()));
@@ -188,40 +187,15 @@ public class RuntimeFieldSourceProviderOptimizationTests extends ESSingleNodeTes
     static MappedFieldType.BlockLoaderContext blContext(Settings settings, SearchLookup lookup) {
         String indexName = "test_index";
         var imd = IndexMetadata.builder(indexName).settings(ESTestCase.indexSettings(IndexVersion.current(), 1, 1).put(settings)).build();
-        return new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return indexName;
-            }
-
+        return new DummyBlockLoaderContext(indexName) {
             @Override
             public IndexSettings indexSettings() {
                 return new IndexSettings(imd, settings);
             }
 
             @Override
-            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
-                return MappedFieldType.FieldExtractPreference.NONE;
-            }
-
-            @Override
             public SearchLookup lookup() {
                 return lookup;
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public String parentField(String field) {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return FieldNamesFieldMapper.FieldNamesFieldType.get(true);
             }
         };
     }

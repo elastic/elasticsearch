@@ -754,6 +754,7 @@ public class Security extends Plugin
             return createComponents(
                 services.client(),
                 services.threadPool(),
+                services.bigArrays(),
                 services.clusterService(),
                 services.featureService(),
                 services.resourceWatcherService(),
@@ -776,6 +777,7 @@ public class Security extends Plugin
     Collection<Object> createComponents(
         Client client,
         ThreadPool threadPool,
+        BigArrays bigArrays,
         ClusterService clusterService,
         FeatureService featureService,
         ResourceWatcherService resourceWatcherService,
@@ -840,7 +842,8 @@ public class Security extends Plugin
             securityContext.get(),
             systemIndices.getMainIndexManager(),
             systemIndices.getTokenIndexManager(),
-            clusterService
+            clusterService,
+            bigArrays.bytesRefRecycler()
         );
         this.tokenService.set(tokenService);
         components.add(tokenService);
@@ -1673,6 +1676,7 @@ public class Security extends Plugin
         Set<RestHeaderDefinition> headers = new HashSet<>();
         headers.add(new RestHeaderDefinition(UsernamePasswordToken.BASIC_AUTH_HEADER, false));
         headers.add(new RestHeaderDefinition(SecondaryAuthenticator.SECONDARY_AUTH_HEADER_NAME, false));
+        headers.add(new RestHeaderDefinition(SecondaryAuthenticator.SECONDARY_X_CLIENT_AUTH_HEADER_NAME, false));
         if (XPackSettings.AUDIT_ENABLED.get(settings)) {
             headers.add(new RestHeaderDefinition(AuditTrail.X_FORWARDED_FOR_HEADER, true));
         }
@@ -1717,7 +1721,9 @@ public class Security extends Plugin
                             },
                             null,
                             // Don't use runtime mappings in the security query
-                            emptyMap()
+                            emptyMap(),
+                            null,
+                            null
                         ),
                         dlsBitsetCache.get(),
                         securityContext.get(),
@@ -2465,7 +2471,7 @@ public class Security extends Plugin
         future.actionGet();
     }
 
-    public Map<String, String> getAuthContextForSlowLog() {
+    public Map<String, String> getAuthContextForLogging() {
         if (this.securityContext.get() != null && this.securityContext.get().getAuthentication() != null) {
             Authentication authentication = this.securityContext.get().getAuthentication();
             Map<String, String> authContext;
@@ -2556,7 +2562,7 @@ public class Security extends Plugin
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
         loadSingletonExtensionAndSetOnce(loader, operatorOnlyRegistry, OperatorOnlyRegistry.class);
         loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
-        // TODO add bulkPutRoleRequestBuilderFactory loading here when available
+        loadSingletonExtensionAndSetOnce(loader, bulkPutRoleRequestBuilderFactory, BulkPutRoleRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, getBuiltinPrivilegesResponseTranslator, GetBuiltinPrivilegesResponseTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, updateApiKeyRequestTranslator, UpdateApiKeyRequestTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, bulkUpdateApiKeyRequestTranslator, BulkUpdateApiKeyRequestTranslator.class);

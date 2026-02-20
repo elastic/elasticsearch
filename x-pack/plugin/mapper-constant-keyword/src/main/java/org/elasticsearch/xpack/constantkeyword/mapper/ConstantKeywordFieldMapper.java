@@ -44,6 +44,8 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -150,9 +152,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (value == null) {
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
-            return BlockLoader.constantBytes(new BytesRef(value));
+            return new ConstantBytes(new BytesRef(value));
         }
 
         @Override

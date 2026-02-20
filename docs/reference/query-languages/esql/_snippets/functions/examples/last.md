@@ -3,15 +3,24 @@
 **Example**
 
 ```esql
-FROM k8s
-| STATS last_bytes_in = LAST(network.bytes_in, @timestamp) BY pod
-| SORT pod ASC
+        @timestamp        |  name   | number
+"2025-11-25T00:00:00.000Z | alpha   | 1"
+"2025-11-25T00:00:01.000Z | alpha   | 2"
+"2025-11-25T00:00:02.000Z | bravo   | null"
+"2025-11-25T00:00:03.000Z | alpha   | 4"
+"2025-11-25T00:00:04.000Z | bravo   | 5"
+"2025-11-25T00:00:05.000Z | charlie | [6, 7, 8]"
+"2025-11-25T00:00:06.000Z | delta   | null"
+
+From dataset
+| STATS last_val = LAST(number, @timestamp) BY name
 ```
 
-| last_bytes_in:long | pod:keyword |
+| last_val:long | name:keyword |
 | --- | --- |
-| 206 | one |
-| 972 | three |
-| 812 | two |
+| 4 | alpha |
+| 5 | bravo |
+| [6, 7, 8] | charlie |
+| null | delta |
 
 

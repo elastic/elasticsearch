@@ -24,7 +24,6 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.lucene.spatial.CoordinateEncoder;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -283,9 +282,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
-        var leftGeom = makeGeometryFromLiteral(ctx, left());
-        var rightGeom = makeGeometryFromLiteral(ctx, right());
+    protected Object fold(Geometry leftGeom, Geometry rightGeom) {
         return (crsType() == SpatialCrsType.GEO) ? GEO.distance(leftGeom, rightGeom) : CARTESIAN.distance(leftGeom, rightGeom);
     }
 

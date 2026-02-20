@@ -73,7 +73,7 @@ Use the filter if you want to narrow the item set analysis to fields of interest
 
 ### Examples [frequent-item-sets-example]
 
-In the following examples, we use the e-commerce {{kib}} sample data set.
+The following examples use the {{kib}} eCommerce sample data set.
 
 
 ### Aggregation with two analyzed fields and an `exclude` parameter [_aggregation_with_two_analyzed_fields_and_an_exclude_parameter]
@@ -205,7 +205,7 @@ POST /kibana_sample_data_ecommerce/_async_search
 ```
 % TEST[skip:setup kibana sample data]
 
-The result will only show item sets that created from documents matching the filter, namely purchases in Europe. Using `filter`, the calculated `support` still takes all purchases into acount. That’s different than specifying a query at the top-level, in which case `support` gets calculated only from purchases in Europe.
+The result will only show item sets that created from documents matching the filter, namely purchases in Europe. Using `filter`, the calculated `support` still takes all purchases into account. That’s different than specifying a query at the top-level, in which case `support` gets calculated only from purchases in Europe.
 
 
 ### Analyzing numeric values by using a runtime field [_analyzing_numeric_values_by_using_a_runtime_field]

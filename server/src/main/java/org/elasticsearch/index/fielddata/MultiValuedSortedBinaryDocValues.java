@@ -11,6 +11,7 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.BytesRef;
@@ -38,17 +39,26 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
 
         // Obtain counts directly from leafReader so that null is returned rather than an empty doc values.
         // Whether counts is null allows us to determine which multivalued format was used.
-
-        String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
-        NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
-        return from(values, counts);
+        return from(leafReader, valuesFieldName, values);
     }
 
-    public static MultiValuedSortedBinaryDocValues from(BinaryDocValues values, NumericDocValues counts) throws IOException {
+    public static MultiValuedSortedBinaryDocValues from(LeafReader leafReader, String valuesFieldName, BinaryDocValues values)
+        throws IOException {
+        String countsFieldName = valuesFieldName + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+        NumericDocValues counts = leafReader.getNumericDocValues(countsFieldName);
         if (counts == null) {
             return new IntegratedCounts(values);
         } else {
-            return new SeparateCounts(values, counts);
+            Sparsity sparsity = Sparsity.UNKNOWN;
+            ValueMode valueMode = ValueMode.UNKNOWN;
+
+            DocValuesSkipper countsSkipper = leafReader.getDocValuesSkipper(countsFieldName);
+            if (countsSkipper != null) {
+                sparsity = countsSkipper.docCount() == leafReader.maxDoc() ? Sparsity.DENSE : Sparsity.SPARSE;
+                valueMode = countsSkipper.maxValue() == 1 ? ValueMode.SINGLE_VALUED : ValueMode.MULTI_VALUED;
+            }
+
+            return new SeparateCounts(values, counts, sparsity, valueMode);
         }
     }
 
@@ -103,10 +113,14 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
      */
     private static class SeparateCounts extends MultiValuedSortedBinaryDocValues {
         private final NumericDocValues counts;
+        private final Sparsity sparsity;
+        private final ValueMode valueMode;
 
-        SeparateCounts(BinaryDocValues values, NumericDocValues counts) {
+        SeparateCounts(BinaryDocValues values, NumericDocValues counts, Sparsity sparsity, ValueMode valueMode) {
             super(values);
             this.counts = counts;
+            this.sparsity = sparsity;
+            this.valueMode = valueMode;
         }
 
         @Override
@@ -142,6 +156,16 @@ public abstract class MultiValuedSortedBinaryDocValues extends SortedBinaryDocVa
             scratch.offset = in.getPosition();
             in.setPosition(scratch.offset + scratch.length);
             return scratch;
+        }
+
+        @Override
+        public Sparsity getSparsity() {
+            return sparsity;
+        }
+
+        @Override
+        public ValueMode getValueMode() {
+            return valueMode;
         }
     }
 }

@@ -80,6 +80,15 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
     }
 
     public MapperTestCase.SyntheticSourceExample example(int maxValues, boolean loadBlockFromSource, boolean flipOrder) {
+        return example(maxValues, loadBlockFromSource, flipOrder, true);
+    }
+
+    public MapperTestCase.SyntheticSourceExample example(
+        int maxValues,
+        boolean loadBlockFromSource,
+        boolean flipOrder,
+        boolean ignoredValuesSorted
+    ) {
         if (ESTestCase.randomBoolean()) {
             Tuple<String, String> v = generateValue();
             Object sourceValue = preservesExactSource() ? v.v1() : v.v2();
@@ -103,12 +112,17 @@ public class KeywordFieldSyntheticSourceSupport implements MapperTestCase.Synthe
         if (preservesExactSource()) {
             out = in;
         } else {
+            // stored fields are not sorted
             var validValuesInCorrectOrder = store ? validValues : outputFromDocValues;
+            // when fallback fields use binary doc values, then ignored values are sorted
+            // however, when fallback fields use stored fields, then ignored values are not sorted
+            var ignoredValuesInCorrectOrder = ignoredValuesSorted ? ignoredValues.stream().sorted().toList() : ignoredValues;
+
             // this is an ugly little hack that flips the order of ignored values, which is important for the text-family fields where the
             // ordering of produced synthetic source values can be different from what was supplied
             var syntheticSourceOutputList = flipOrder
-                ? Stream.concat(ignoredValues.stream(), validValuesInCorrectOrder.stream()).toList()
-                : Stream.concat(validValuesInCorrectOrder.stream(), ignoredValues.stream()).toList();
+                ? Stream.concat(ignoredValuesInCorrectOrder.stream(), validValuesInCorrectOrder.stream()).toList()
+                : Stream.concat(validValuesInCorrectOrder.stream(), ignoredValuesInCorrectOrder.stream()).toList();
             out = syntheticSourceOutputList.size() == 1 ? syntheticSourceOutputList.get(0) : syntheticSourceOutputList;
         }
 

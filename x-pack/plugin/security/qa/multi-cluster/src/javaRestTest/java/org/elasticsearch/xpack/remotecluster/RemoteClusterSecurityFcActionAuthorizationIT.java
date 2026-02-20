@@ -29,6 +29,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -394,7 +395,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                     "cross_cluster",
                     null,
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices("index").privileges("read", "read_cross_cluster").build() },
+                        RoleDescriptor.IndicesPrivileges.builder().indices("index").privileges("read").build() },
                     null
                 )
             )
@@ -559,7 +560,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
                     "cross_cluster",
                     null,
                     new RoleDescriptor.IndicesPrivileges[] {
-                        RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("read", "read_cross_cluster").build() },
+                        RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges("read").build() },
                     null
                 )
             )
@@ -663,6 +664,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
             out.writeLong(Versions.MATCH_ANY); // version
             out.writeOptionalWriteable(null); // fetch source context
             out.writeBoolean(false); // force synthetic source
+            SplitShardCountSummary.UNSET.writeTo(out);
         }
 
         /**

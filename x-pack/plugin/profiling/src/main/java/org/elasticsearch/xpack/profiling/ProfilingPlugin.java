@@ -101,8 +101,8 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
         indexStateResolver.set(new IndexStateResolver(PROFILING_CHECK_OUTDATED_INDICES.get(settings)));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_CHECK_OUTDATED_INDICES, this::updateCheckOutdatedIndices);
 
-        indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService, indexStateResolver.get()));
-        dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver.get()));
+        indexManager.set(new ProfilingIndexManager(threadPool, client, clusterService, indexStateResolver.get(), registry.get()));
+        dataStreamManager.set(new ProfilingDataStreamManager(threadPool, client, clusterService, indexStateResolver.get(), registry.get()));
         // set initial value
         updateTemplatesEnabled(PROFILING_TEMPLATES_ENABLED.get(settings));
         clusterService.getClusterSettings().addSettingsUpdateConsumer(PROFILING_TEMPLATES_ENABLED, this::updateTemplatesEnabled);
@@ -111,7 +111,7 @@ public class ProfilingPlugin extends Plugin implements ActionPlugin {
             indexManager.get().initialize();
             dataStreamManager.get().initialize();
         }
-        return List.of(createLicenseChecker());
+        return List.of(createLicenseChecker(), registry.get());
     }
 
     protected ProfilingLicenseChecker createLicenseChecker() {

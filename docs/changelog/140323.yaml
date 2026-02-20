@@ -1,0 +1,5 @@
+pr: 140323
+summary: "[Inference API] Add support for embedding task to JinaAI service"
+area: Inference
+type: enhancement
+issues: []

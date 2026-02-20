@@ -47,6 +47,7 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.LongsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.DocValueFormat;
@@ -355,7 +356,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (indexMode == IndexMode.TIME_SERIES && metricType == TimeSeriesParams.MetricType.COUNTER) {
                 // Counters are not supported by ESQL so we load them in null
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
             if (hasDocValues() && (blContext.fieldExtractPreference() != FieldExtractPreference.STORED || isSyntheticSource)) {
                 return new LongsBlockLoader(name());

@@ -1,0 +1,5 @@
+area: "Search"
+issues: []
+pr: 141819
+summary: Account for ES|QL Lucene query rewrite in recent search load
+type: enhancement

@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadConstraintSettings;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
@@ -42,8 +43,22 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     @Nullable // if no fakery should take place
     private volatile BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFunction;
 
-    public MockInternalClusterInfoService(Settings settings, ClusterService clusterService, ThreadPool threadPool, NodeClient client) {
-        super(settings, clusterService, threadPool, client, EstimatedHeapUsageCollector.EMPTY, NodeUsageStatsForThreadPoolsCollector.EMPTY);
+    public MockInternalClusterInfoService(
+        Settings settings,
+        WriteLoadConstraintSettings writeLoadConstraintSettings,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        NodeClient client
+    ) {
+        super(
+            settings,
+            writeLoadConstraintSettings,
+            clusterService,
+            threadPool,
+            client,
+            EstimatedHeapUsageCollector.EMPTY,
+            NodeUsageStatsForThreadPoolsCollector.EMPTY
+        );
     }
 
     public void setDiskUsageFunctionAndRefresh(BiFunction<DiscoveryNode, FsInfo.Path, FsInfo.Path> diskUsageFn) {

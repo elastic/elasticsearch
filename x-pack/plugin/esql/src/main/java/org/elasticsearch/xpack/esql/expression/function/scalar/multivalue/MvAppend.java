@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -194,20 +193,6 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             resolveType();
         }
         return dataType;
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(field1, field2);
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == null || obj.getClass() != getClass()) {
-            return false;
-        }
-        MvAppend other = (MvAppend) obj;
-        return Objects.equals(other.field1, field1) && Objects.equals(other.field2, field2);
     }
 
     @Evaluator(extraName = "Int")

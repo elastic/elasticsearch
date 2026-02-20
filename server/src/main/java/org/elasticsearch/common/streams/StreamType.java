@@ -11,11 +11,10 @@ package org.elasticsearch.common.streams;
 
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.StreamsMetadata;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Arrays;
-import java.util.EnumSet;
-import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.List;
 
 public enum StreamType {
 
@@ -42,7 +41,7 @@ public enum StreamType {
         };
     }
 
-    public boolean matchesStreamPrefix(String indexName) {
+    private boolean matchesStreamPrefix(String indexName) {
         if (indexName == null) {
             return false;
         }
@@ -58,10 +57,48 @@ public enum StreamType {
         };
     }
 
-    public static Set<StreamType> getEnabledStreamTypesForProject(ProjectMetadata projectMetadata) {
+    /**
+     * For a given index name, return the StreamType that it matches exactly.
+     */
+    @Nullable
+    public static StreamType exactEnabledStreamMatch(ProjectMetadata projectMetadata, String indexName) {
         return Arrays.stream(values())
             .filter(t -> t.streamTypeIsEnabled(projectMetadata))
-            .collect(Collectors.toCollection(() -> EnumSet.noneOf(StreamType.class)));
+            .filter(t -> t.getStreamName().equals(indexName))
+            .findFirst()
+            .orElse(null);
     }
 
+    /**
+     * For a given index name, return the enabled stream of which it would be part.
+     *
+     * For example, for an index 'logs.ecs.foo' if the LOGS_ECS stream type is enabled,
+     * this will return LOGS_ECS. If LOGS_ECS were not enabled but LOGS was, then LOGS
+     * would be returned. If neither were enabled, null would be returned.
+     *
+     * If no enabled stream type matches, returns null.
+     */
+    @Nullable
+    public static StreamType enabledParentStreamOf(ProjectMetadata projectMetadata, String indexName) {
+        // Check for exact names first, in which case indexing is allowed
+        if (Arrays.stream(values())
+            .filter(t -> t.streamTypeIsEnabled(projectMetadata))
+            .anyMatch(t -> t.getStreamName().equals(indexName))) {
+            return null;
+        } else {
+            // Check that any enabled stream type isn't targeted by the index
+            List<StreamType> matchingStreamTypes = Arrays.stream(values())
+                .filter(t -> t.streamTypeIsEnabled(projectMetadata))
+                .filter(t -> t.matchesStreamPrefix(indexName))
+                .toList();
+            if (matchingStreamTypes.isEmpty()) {
+                return null;
+            } else if (matchingStreamTypes.size() == 1) {
+                return matchingStreamTypes.getFirst();
+            } else {
+                // Try to return the most fine-grained stream type, otherwise `LOGS`
+                return matchingStreamTypes.stream().filter(s -> s != LOGS).findFirst().orElse(LOGS);
+            }
+        }
+    }
 }

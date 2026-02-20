@@ -55,9 +55,9 @@ import org.supercsv.prefs.CsvPreference;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.math.BigDecimal;
-import java.net.URL;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -160,7 +160,7 @@ public final class CsvTestUtils {
         return null;
     }
 
-    public static Tuple<Page, List<String>> loadPageFromCsv(URL source, Map<String, String> typeMapping) throws Exception {
+    public static Tuple<Page, List<String>> loadPageFromCsv(InputStream source, Map<String, String> typeMapping) throws Exception {
 
         record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {
@@ -687,8 +687,8 @@ public final class CsvTestUtils {
         List<Page> pages,
         Map<String, List<String>> responseHeaders
     ) {
-        Iterator<Iterator<Object>> values() {
-            return ResponseValueUtils.pagesToValues(dataTypes(), pages, configuration.zoneId());
+        List<List<Object>> values() {
+            return EsqlTestUtils.getValuesList(ResponseValueUtils.pagesToValues(dataTypes(), pages, configuration.zoneId()));
         }
     }
 

@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils;
@@ -96,6 +97,7 @@ public class PromqlCoverageAnalyzer implements Closeable {
         this.printer = printer;
     }
 
+    @SuppressForbidden(reason = "CLI tool prints help to stdout")
     public static void main(String[] args) throws IOException {
         var parser = new OptionParser();
         var inputOpt = parser.accepts("input", "Path to query file").withRequiredArg().required();

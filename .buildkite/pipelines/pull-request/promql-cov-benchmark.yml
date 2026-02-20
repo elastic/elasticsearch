@@ -1,23 +1,15 @@
-
 # This pipeline detects regressions in PromQL query coverage.
 
 config:
-  allow-labels: promql
+  allow-labels: ":StorageEngine/PromQL"
   trigger-phrase: '.*run\W+elasticsearch-ci/promql-cov-bench.*'
 steps:
-  - label: promql-cov-benchmark
-    command: .buildkite/scripts/promql-cov-benchmark.sh
-    timeout_in_minutes: 120
-    retry:
-      automatic:
-        - exit_status: -1
-          limit: 2
-        - exit_status: 137
-          limit: 2
+  - label: ":gear: promql-cov setup"
+    key: promql-cov-setup
+    command: .buildkite/scripts/promql-cov.sh setup
+    timeout_in_minutes: 10
     agents:
       provider: gcp
       image: family/elasticsearch-ubuntu-2404
-      machineType: n1-standard-8
+      machineType: n1-standard-2
       buildDirectory: /dev/shm/bk
-    artifact_paths:
-      - "/tmp/elastic/grafana-dashboards-analysis/output/*"

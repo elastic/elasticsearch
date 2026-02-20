@@ -79,7 +79,6 @@ interface ResultBuilder extends Releasable {
             if (blocks[blocks.length - 1] == null) {
                 Releasables.closeExpectNoException(blocks);
             }
-            Releasables.closeExpectNoException(builders);
         }
         return blocks;
     }

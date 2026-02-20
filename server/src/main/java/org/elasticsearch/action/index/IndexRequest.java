@@ -815,9 +815,8 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
         return isRetry;
     }
 
-    @Override
-    public void onRetry() {
-        isRetry = true;
+    public void onRetry(boolean markAsRetry) {
+        isRetry = markAsRetry;
     }
 
     /**

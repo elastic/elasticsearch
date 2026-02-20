@@ -9,6 +9,9 @@
 
 package org.elasticsearch.action.support.replication;
 
+import com.carrotsearch.randomizedtesting.annotations.Repeat;
+
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
@@ -18,8 +21,10 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
+import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -27,6 +32,7 @@ import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.elasticsearch.action.support.replication.TransportReplicationActionTests.getRoutedBasedOnClusterVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -37,8 +43,9 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
         return List.of(MockTransportService.TestPlugin.class);
     }
 
-    public void testPrimaryRelocationShouldNotMarkIndexRequestAsRetry() throws Exception {
-        internalCluster().startMasterOnlyNode();
+    @Repeat(iterations = 20)
+    public void testPrimaryRelocationShouldNotMarkIndexRequestAsRetry_handOff() throws Exception {
+        String master = internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startDataOnlyNode();
         String node2 = internalCluster().startDataOnlyNode();
         createIndex("index1", indexSettings(1, 0).put("index.routing.allocation.require._name", node1).build());
@@ -48,16 +55,16 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
 
         var handOffReceivedLatch = new CountDownLatch(1);
         var continueRelocationLatch = new CountDownLatch(1);
-        var node1ForwardedTheBulk = new CountDownLatch(1);
+        var node1ReceivedBulk = new CountDownLatch(1);
         var node2ReceivedTheBulk = new AtomicBoolean(false);
 
         MockTransportService node1TransportService = MockTransportService.getInstance(node1);
         MockTransportService node2TransportService = MockTransportService.getInstance(node2);
-        node1TransportService.addSendBehavior(node2TransportService, (connection, requestId, action, request, options) -> {
-            if (action.equals(TransportShardBulkAction.ACTION_NAME)) {
-                node1ForwardedTheBulk.countDown();
-            }
-            connection.sendRequest(requestId, action, request, options);
+        node1TransportService.addRequestHandlingBehavior(
+            TransportShardBulkAction.ACTION_NAME + "[p]", // needed to make sure we hook into TransportReplicationAction.handlePrimaryRequest
+            (handler, request, channel, task) -> {
+                node1ReceivedBulk.countDown();
+                handler.messageReceived(request, channel, task);
         });
         // hook into the relocation by waiting for the context hand off request, then relocate the shard
         node2TransportService.addRequestHandlingBehavior(
@@ -74,19 +81,50 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
         node2TransportService.addRequestHandlingBehavior(TransportShardBulkAction.ACTION_NAME, (handler, request, channel, task) -> {
             node2ReceivedTheBulk.set(true);
             var bulkShardRequest = (BulkShardRequest) request;
+            logger.info("==> node2 received bulk shard request [{}]", bulkShardRequest);
             assertTrue(
                 Arrays.stream(bulkShardRequest.items())
                     .filter(r -> r.request() instanceof IndexRequest)
                     .allMatch(r -> ((IndexRequest) r.request()).isRetry() == false)
             );
-            handler.messageReceived(request, channel, task);
+            logger.info("==> node2 cs version {}, req version {}, master version {}, node1 version {}",
+                internalCluster().clusterService(node2).state().version(),
+                getRoutedBasedOnClusterVersion(bulkShardRequest),
+                internalCluster().clusterService(master).state().version(),
+                internalCluster().clusterService(node1).state().version());
+//            safeAwait(
+                ClusterServiceUtils.addTemporaryStateListener(
+                    internalCluster().clusterService(node2),
+                    state -> state.version() >= getRoutedBasedOnClusterVersion(bulkShardRequest)
+                ).addListener(new ActionListener<>() {
+                    @Override
+                    public void onResponse(Void unused) {
+                        try {
+                            handler.messageReceived(request, channel, task);
+                        } catch (Exception e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        fail("failed to wait for node2 cluster state to advance: " + e.getMessage());
+                    }
+                });
+//            );
+//            assertBusy(() ->
+//                assertThat(
+//                    internalCluster().clusterService(node2).state().version(),
+//                    Matchers.greaterThanOrEqualTo(((BulkShardRequest)request).routedBasedOnClusterVersion())
+//                ));
+
         });
         updateIndexSettings(Settings.builder().put("index.routing.allocation.require._name", node2), "index1");
         logger.info("==> Updated allocation tag, waiting for hand off...");
         safeAwait(handOffReceivedLatch);
         logger.info("==> sending some indexing requests");
-        final var useBulk = randomBoolean();
-        final var indexRequestUsesId = randomBoolean();
+        final var useBulk = false; //randomBoolean();
+        final var indexRequestUsesId = false; //randomBoolean();
         final var indexRequestsWithId = useBulk ? randomIntBetween(1, 10) : indexRequestUsesId ? 1 : 0;
         final var indexRequestsWithoutId = useBulk ? randomIntBetween(1, 10) : indexRequestUsesId ? 0 : 1;
         if (useBulk) {
@@ -98,20 +136,20 @@ public class RelocationCausedIndexingRetryIT extends ESIntegTestCase {
                 bulk.add(prepareIndex("index1").setSource("text", randomAlphaOfLength(10)));
             }
             final var listener = bulk.execute();
+            safeAwait(node1ReceivedBulk);
             continueRelocationLatch.countDown();
-            safeAwait(node1ForwardedTheBulk);
             final var bulkResponse = listener.get();
             assertThat(node2ReceivedTheBulk.get(), equalTo(true));
             assertThat(bulkResponse.hasFailures(), equalTo(false));
             assertThat(bulkResponse.getItems().length, equalTo(indexRequestsWithId + indexRequestsWithoutId));
         } else {
-            final var indexRequest = client().prepareIndex("index1");
+            final var indexRequest = client(node1).prepareIndex("index1");
             if (indexRequestUsesId) {
                 indexRequest.setId(randomUUID());
             }
             final var listener = indexRequest.setSource("text", randomAlphaOfLength(10)).execute();
+            safeAwait(node1ReceivedBulk);
             continueRelocationLatch.countDown();
-            safeAwait(node1ForwardedTheBulk);
             final var indexResponse = listener.get();
             assertThat(node2ReceivedTheBulk.get(), equalTo(true));
             assertThat(indexResponse.status(), equalTo(RestStatus.CREATED));

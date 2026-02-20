@@ -434,7 +434,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         assertListenerThrows("unassigned primary didn't cause a timeout", listener, UnavailableShardsException.class);
         assertPhase(task, "failed");
-        assertFalse(request.isRetrySet.get());
+        assertTrue(request.isRetrySet.get());
 
         request = new Request(shardId);
         listener = new PlainActionFuture<>();
@@ -442,7 +442,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         reroutePhase.run();
         assertFalse("unassigned primary didn't cause a retry", listener.isDone());
         assertPhase(task, "waiting_for_retry");
-        assertFalse(request.isRetrySet.get());
+        assertTrue(request.isRetrySet.get());
 
         setState(clusterService, state(index, true, ShardRoutingState.STARTED));
         logger.debug("--> primary assigned state:\n{}", clusterService.state());
@@ -522,13 +522,14 @@ public class TransportReplicationActionTests extends ESTestCase {
         TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(null, request, listener);
         reroutePhase.run();
         assertListenerThrows("cluster state too old didn't cause a timeout", listener, UnavailableShardsException.class);
+        assertTrue(request.isRetrySet.compareAndSet(true, false));
 
         request = new Request(shardId).routedBasedOnClusterVersion(clusterService.state().version() + 1);
         listener = new PlainActionFuture<>();
         reroutePhase = action.new ReroutePhase(null, request, listener);
         reroutePhase.run();
         assertFalse("cluster state too old didn't cause a retry", listener.isDone());
-        assertFalse(request.isRetrySet.get());
+        assertTrue(request.isRetrySet.get());
 
         // finish relocation
         ShardRouting relocationTarget = clusterService.state()
@@ -1645,4 +1646,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         return new TestTransportChannel(listener);
     }
 
+    public static long getRoutedBasedOnClusterVersion(ReplicationRequest<?> request) {
+        return request.routedBasedOnClusterVersion();
+    }
 }

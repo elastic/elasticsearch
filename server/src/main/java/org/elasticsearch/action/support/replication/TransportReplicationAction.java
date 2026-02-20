@@ -491,7 +491,7 @@ public abstract class TransportReplicationAction<
                 primaryRequest.getRequest(),
                 ActionListener.wrap(releasable -> runWithPrimaryShardReference(new PrimaryShardReference(indexShard, releasable)), e -> {
                     if (e instanceof ShardNotInPrimaryModeException) {
-                        onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e));
+                        onFailure(new ReplicationOperation.RetryOnPrimaryException(shardId, "shard is not in primary mode", e, false));
                     } else {
                         onFailure(e);
                     }
@@ -1067,15 +1067,6 @@ public abstract class TransportReplicationAction<
                     try {
                         // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
                         final Throwable cause = exp.unwrapCause();
-                        boolean markAsRetry = true;
-                        // When the request is forwarded to the relocated primary (during relocation handoff),
-                        // and that node throws a RetryOnPrimaryException, the request has NOT been executed yet.
-                        // In this case, we should NOT mark the request as a retry to avoid unnecessary version lookups.
-                        if (isPrimaryAction
-                            && cause.getClass() == ReplicationOperation.RetryOnPrimaryException.class
-                            && request instanceof BulkShardRequest) {
-                            markAsRetry = false;
-                        }
                         if (cause instanceof ConnectTransportException
                             || cause instanceof NodeClosedException
                             || (isPrimaryAction && retryPrimaryException(cause))) {
@@ -1087,6 +1078,10 @@ public abstract class TransportReplicationAction<
                                 ),
                                 exp
                             );
+                            boolean markAsRetry = true;
+                            if (cause instanceof ReplicationOperation.RetryOnPrimaryException retryOnPrimaryException) {
+                                markAsRetry = retryOnPrimaryException.operationAppliedOnPrimary();
+                            }
                             retry(exp, markAsRetry);
                         } else {
                             finishAsFailed(exp);
@@ -1169,7 +1164,7 @@ public abstract class TransportReplicationAction<
         }
 
         void retryBecauseUnavailable(ShardId shardId, String message) {
-            retry(new UnavailableShardsException(shardId, "{} Timeout: [{}], request: [{}]", message, request.timeout(), request), false);
+            retry(new UnavailableShardsException(shardId, "{} Timeout: [{}], request: [{}]", message, request.timeout(), request));
         }
     }
 

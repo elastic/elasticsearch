@@ -278,11 +278,17 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         return toString();
     }
 
-    /**
-     * This method is called before this replication request is retried
-     * the first time.
-     */
     public void onRetry() {
+        onRetry(true);
+    }
+
+    /**
+     * Called before this replication request is retried.
+     * <p>
+     * {@code markAsRetry} controls whether retry-specific request state should be set. For some retry paths (for example relocation handoff),
+     * the operation is known not to have been applied on the old primary and callers may therefore pass {@code false}.
+     */
+    public void onRetry(boolean markAsRetry) {
         // nothing by default
     }
 }

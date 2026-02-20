@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -34,6 +36,7 @@ public class AnalyzerContext {
     private final ProjectMetadata projectMetadata;
     private Boolean hasRemoteIndices;
     private final UnmappedResolution unmappedResolution;
+    private final TimestampBounds timestampBounds;
 
     public AnalyzerContext(
         Configuration configuration,
@@ -46,6 +49,32 @@ public class AnalyzerContext {
         TransportVersion minimumVersion,
         UnmappedResolution unmappedResolution
     ) {
+        this(
+            configuration,
+            functionRegistry,
+            projectMetadata,
+            indexResolution,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            minimumVersion,
+            unmappedResolution,
+            null
+        );
+    }
+
+    public AnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        ProjectMetadata projectMetadata,
+        Map<IndexPattern, IndexResolution> indexResolution,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution,
+        TransportVersion minimumVersion,
+        UnmappedResolution unmappedResolution,
+        @Nullable TimestampBounds timestampBounds
+    ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
         this.projectMetadata = projectMetadata;
@@ -55,6 +84,7 @@ public class AnalyzerContext {
         this.inferenceResolution = inferenceResolution;
         this.minimumVersion = minimumVersion;
         this.unmappedResolution = unmappedResolution;
+        this.timestampBounds = timestampBounds;
 
         assert minimumVersion != null : "AnalyzerContext must have a minimum transport version";
         assert TransportVersion.current().supports(minimumVersion)
@@ -129,6 +159,14 @@ public class AnalyzerContext {
         return unmappedResolution;
     }
 
+    /**
+     * Returns the {@code @timestamp} bounds extracted from the query DSL filter, or {@code null} if not available.
+     */
+    @Nullable
+    public TimestampBounds timestampBounds() {
+        return timestampBounds;
+    }
+
     public Set<String> allowedTags() {
         Set<String> result = new HashSet<>();
         result.addAll(MetadataAttribute.ATTRIBUTES_MAP.keySet());
@@ -156,6 +194,17 @@ public class AnalyzerContext {
         ProjectMetadata projectMetadata,
         EsqlSession.PreAnalysisResult result
     ) {
+        this(configuration, functionRegistry, unmappedResolution, projectMetadata, result, null);
+    }
+
+    public AnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        UnmappedResolution unmappedResolution,
+        ProjectMetadata projectMetadata,
+        EsqlSession.PreAnalysisResult result,
+        @Nullable TimestampBounds timestampBounds
+    ) {
         this(
             configuration,
             functionRegistry,
@@ -165,7 +214,8 @@ public class AnalyzerContext {
             result.enrichResolution(),
             result.inferenceResolution(),
             result.minimumTransportVersion(),
-            unmappedResolution
+            unmappedResolution,
+            timestampBounds
         );
     }
 }

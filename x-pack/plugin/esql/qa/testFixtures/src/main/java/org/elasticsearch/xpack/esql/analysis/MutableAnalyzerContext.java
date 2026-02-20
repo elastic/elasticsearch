@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -34,15 +36,32 @@ public class MutableAnalyzerContext extends AnalyzerContext {
         TransportVersion minimumVersion,
         UnmappedResolution unmappedResolution
     ) {
+        this(configuration, functionRegistry, indexResolution, lookupResolution, enrichResolution, inferenceResolution,
+            minimumVersion, unmappedResolution, null);
+    }
+
+    public MutableAnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        Map<IndexPattern, IndexResolution> indexResolution,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution,
+        TransportVersion minimumVersion,
+        UnmappedResolution unmappedResolution,
+        @Nullable TimestampBounds timestampBounds
+    ) {
         super(
             configuration,
             functionRegistry,
+            null,
             indexResolution,
             lookupResolution,
             enrichResolution,
             inferenceResolution,
             minimumVersion,
-            unmappedResolution
+            unmappedResolution,
+            timestampBounds
         );
         this.currentVersion = minimumVersion;
     }

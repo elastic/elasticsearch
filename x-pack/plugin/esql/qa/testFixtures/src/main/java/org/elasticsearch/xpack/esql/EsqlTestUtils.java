@@ -45,6 +45,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TDigestHolder;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
@@ -85,6 +86,7 @@ import org.elasticsearch.xpack.esql.analysis.MutableAnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -570,6 +572,28 @@ public final class EsqlTestUtils {
         InferenceResolution inferenceResolution,
         UnmappedResolution unmappedResolution
     ) {
+        return testAnalyzerContext(
+            configuration,
+            functionRegistry,
+            indexResolutions,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            unmappedResolution,
+            null
+        );
+    }
+
+    public static MutableAnalyzerContext testAnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        Map<IndexPattern, IndexResolution> indexResolutions,
+        Map<String, IndexResolution> lookupResolution,
+        EnrichResolution enrichResolution,
+        InferenceResolution inferenceResolution,
+        UnmappedResolution unmappedResolution,
+        @Nullable TimestampBounds timestampBounds
+    ) {
         return new MutableAnalyzerContext(
             configuration,
             functionRegistry,
@@ -578,7 +602,8 @@ public final class EsqlTestUtils {
             enrichResolution,
             inferenceResolution,
             randomMinimumVersion(),
-            unmappedResolution
+            unmappedResolution,
+            timestampBounds
         );
     }
 

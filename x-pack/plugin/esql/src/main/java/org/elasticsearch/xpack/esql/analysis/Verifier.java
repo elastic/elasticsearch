@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -95,6 +96,7 @@ public class Verifier {
         checkUnresolvedAttributes(plan, failures);
 
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
+        checkUnresolvedTimestampBounds(plan, failures);
 
         // in case of failures bail-out as all other checks will be redundant
         if (failures.hasFailures()) {
@@ -218,6 +220,20 @@ public class Verifier {
                 p.forEachExpression(unresolvedExpressions);
             }
         });
+    }
+
+    private static void checkUnresolvedTimestampBounds(LogicalPlan plan, Failures failures) {
+        plan.forEachDown(p -> p.forEachExpression(Expression.class, e -> {
+            if (e instanceof TimestampBoundsAware<?> tba && tba.needsTimestampBounds()) {
+                failures.add(
+                    fail(
+                        e,
+                        "[{}] requires a time range; provide explicit from/to parameters or add a @timestamp range to the query filter",
+                        e.sourceText()
+                    )
+                );
+            }
+        }));
     }
 
     /**

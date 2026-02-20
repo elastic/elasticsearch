@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
+import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
@@ -44,7 +45,12 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Container plan for embedded PromQL queries.
  * Gets eliminated by the analyzer once the query is validated.
  */
-public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware, TimestampAware {
+public class PromqlCommand extends UnaryPlan
+    implements
+        TelemetryAware,
+        PostAnalysisVerificationAware,
+        TimestampAware,
+        TimestampBoundsAware<LogicalPlan> {
 
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
@@ -162,7 +168,18 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         );
     }
 
-    public PromqlCommand withStartEnd(Literal start, Literal end) {
+    /**
+     * Bounds are only needed when {@code buckets} is specified without an explicit time range.
+     * When {@code step} alone is set, the query can proceed without start/end because the step
+     * directly defines the bucket size; {@link #postAnalysisVerification} validates that case.
+     */
+    @Override
+    public boolean needsTimestampBounds() {
+        return buckets.value() != null && hasTimeRange() == false;
+    }
+
+    @Override
+    public LogicalPlan withTimestampBounds(Literal start, Literal end) {
         return new PromqlCommand(
             source(),
             child(),

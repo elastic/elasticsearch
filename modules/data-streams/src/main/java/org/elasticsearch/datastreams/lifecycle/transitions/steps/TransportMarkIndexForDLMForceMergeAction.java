@@ -12,7 +12,7 @@ package org.elasticsearch.datastreams.lifecycle.transitions.steps;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.action.support.master.TransportMasterNodeAction;
+import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -26,9 +26,8 @@ import org.elasticsearch.transport.TransportService;
 /**
  * Transport action to mark an index to be force merged by updating its custom metadata.
  */
-public class TransportMarkIndexForDLMForceMergeAction extends TransportMasterNodeAction<
-    MarkIndexForDLMForceMergeAction.Request,
-    AcknowledgedResponse> {
+public class TransportMarkIndexForDLMForceMergeAction extends AcknowledgedTransportMasterNodeAction<
+    MarkIndexForDLMForceMergeAction.Request> {
 
     private final DataStreamLifecycleService dataStreamLifecycleService;
 
@@ -47,7 +46,6 @@ public class TransportMarkIndexForDLMForceMergeAction extends TransportMasterNod
             threadPool,
             actionFilters,
             MarkIndexForDLMForceMergeAction.Request::new,
-            AcknowledgedResponse::readFrom,
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.dataStreamLifecycleService = dataStreamLifecycleService;

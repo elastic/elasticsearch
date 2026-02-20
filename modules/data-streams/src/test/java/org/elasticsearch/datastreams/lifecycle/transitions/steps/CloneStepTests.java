@@ -227,47 +227,13 @@ public class CloneStepTests extends ESTestCase {
         assertThat(capturedDeleteRequest.get(), is(nullValue()));
     }
 
-    public void testGetCloneIndexNameIsDeterministic() {
-        String cloneName1 = getDLMCloneIndexName(indexName);
-        String cloneName2 = getDLMCloneIndexName(indexName);
-        assertThat(cloneName1, equalTo(cloneName2));
-        assertThat(cloneName1, containsString(indexName));
-        assertThat(cloneName1, containsString("dlm-clone-"));
-    }
-
     public void testGetDLMCloneIndexName() {
-        // Test with short name - should not be truncated
-        String shortName = "test-index";
-        String cloneName = getDLMCloneIndexName(shortName);
-        assertThat("Clone name should be deterministic", cloneName, equalTo(getDLMCloneIndexName(shortName)));
+        String name = "test-index";
+        String cloneName = getDLMCloneIndexName(name);
+        assertThat("Clone name should be deterministic", cloneName, equalTo(getDLMCloneIndexName(name)));
         assertThat("Clone name should contain prefix", cloneName, containsString("dlm-clone-"));
-        assertThat("Clone name should contain original name", cloneName, containsString(shortName));
         int shortNameLength = cloneName.getBytes(StandardCharsets.UTF_8).length;
         assertThat("Clone name should not exceed 255 bytes", shortNameLength <= 255, is(true));
-
-        // Test with maximum length name that doesn't need truncation
-        // 255 - 10 (prefix) - 64 (hash) - 1 (separator) = 180 bytes max for original name
-        String maxLengthName = randomAlphaOfLength(180);
-        String maxCloneName = getDLMCloneIndexName(maxLengthName);
-        int maxLength = maxCloneName.getBytes(StandardCharsets.UTF_8).length;
-        assertThat("Max length clone name should be exactly 255 bytes", maxLength, is(255));
-        assertThat("Max length clone name should contain original name", maxCloneName, containsString(maxLengthName));
-
-        // Test with name that exceeds max and needs truncation
-        String longName = randomAlphaOfLength(200);
-        String longCloneName = getDLMCloneIndexName(longName);
-        int longLength = longCloneName.getBytes(StandardCharsets.UTF_8).length;
-        assertThat("Long clone name should be exactly 255 bytes", longLength, is(255));
-        assertThat("Long clone name should be deterministic", longCloneName, equalTo(getDLMCloneIndexName(longName)));
-        assertThat("Long clone name should start with prefix", longCloneName, containsString("dlm-clone-"));
-        // Original name should be truncated
-        assertThat("Long clone name should not contain full original name", longCloneName.contains(longName), is(false));
-
-        // Test with multi-byte UTF-8 characters - short enough to not need truncation
-        String unicodeName = "index-unicode-αβγ";
-        String unicodeCloneName = getDLMCloneIndexName(unicodeName);
-        int unicodeLength = unicodeCloneName.getBytes(StandardCharsets.UTF_8).length;
-        assertThat("Unicode clone name should not exceed 255 bytes", unicodeLength <= 255, is(true));
 
         // Test that different names produce different clone names (due to different hashes)
         String name1 = "index-1";

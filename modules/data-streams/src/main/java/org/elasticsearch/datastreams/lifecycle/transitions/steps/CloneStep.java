@@ -403,40 +403,17 @@ public class CloneStep implements DlmStep {
 
     /**
      * Gets a unique name deterministically for the clone index based on the original index name.
-     * The generated name format is "dlm-clone-{hash}-{truncated-original-name}" where the hash is a full 64-character
-     * SHA-256 hex digest of the original name to ensure uniqueness, and the original name is truncated if necessary
-     * to keep the total name length under 255 bytes.
+     * The generated name format is "dlm-clone-{hash}" where the hash is a full 64-character
+     * SHA-256 hex digest of the original name to ensure uniqueness.
      *
      * @param originalName the original index name
      * @return a deterministic unique name for the clone index based on the original index name
      */
     public static String getDLMCloneIndexName(String originalName) {
-        // Uses full SHA-256 hash (64 hex chars) to ensure uniqueness
         String hash = MessageDigests.toHexString(MessageDigests.sha256().digest(originalName.getBytes(StandardCharsets.UTF_8)));
         String prefix = "dlm-clone-";
-        String separator = "-";
 
-        // Calculate max length for original name: 255 - prefix - hash - separator
-        int maxOriginalNameLength = 255 - prefix.length() - hash.length() - separator.length();
-
-        // Truncate original name if needed, keeping it in bytes not characters
-        String truncatedName = getTruncatedName(originalName, maxOriginalNameLength);
-
-        return prefix + hash + separator + truncatedName;
-    }
-
-    private static String getTruncatedName(String originalName, int maxOriginalNameLength) {
-        String truncatedName = originalName;
-        byte[] nameBytes = originalName.getBytes(StandardCharsets.UTF_8);
-        if (nameBytes.length > maxOriginalNameLength) {
-            // Truncate to max length, being careful with multi-byte UTF-8 characters
-            truncatedName = new String(nameBytes, 0, maxOriginalNameLength, StandardCharsets.UTF_8);
-            // Remove any partial UTF-8 character at the end
-            while (truncatedName.getBytes(StandardCharsets.UTF_8).length > maxOriginalNameLength) {
-                truncatedName = truncatedName.substring(0, truncatedName.length() - 1);
-            }
-        }
-        return truncatedName;
+        return prefix + hash;
     }
 
     /**

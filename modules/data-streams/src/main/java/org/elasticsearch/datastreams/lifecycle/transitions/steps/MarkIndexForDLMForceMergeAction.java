@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Action to mark an index to be force merged by updating its custom metadata.
@@ -36,6 +37,12 @@ public class MarkIndexForDLMForceMergeAction {
         private final String originalIndex;
         private final String indexToBeForceMerged;
 
+        /**
+         * Constructor for the request.
+         * @param projectId the project id of the index
+         * @param originalIndex the original index that is being transitioned through DLM lifecycle
+         * @param indexToBeForceMerged the index that needs to be force merged
+         */
         public Request(ProjectId projectId, String originalIndex, String indexToBeForceMerged) {
             super(INFINITE_MASTER_NODE_TIMEOUT);
             if (projectId == null) {
@@ -62,6 +69,7 @@ public class MarkIndexForDLMForceMergeAction {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            projectId.writeTo(out);
             out.writeString(originalIndex);
             out.writeString(indexToBeForceMerged);
         }
@@ -81,6 +89,25 @@ public class MarkIndexForDLMForceMergeAction {
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(projectId, originalIndex, indexToBeForceMerged);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+            Request request = (Request) o;
+            return Objects.equals(projectId, request.projectId)
+                && Objects.equals(originalIndex, request.originalIndex)
+                && Objects.equals(indexToBeForceMerged, request.indexToBeForceMerged);
         }
     }
 }

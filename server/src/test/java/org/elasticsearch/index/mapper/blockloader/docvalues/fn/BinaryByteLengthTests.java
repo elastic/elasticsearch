@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -18,13 +16,13 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.mapper.AbstractBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.MockWarnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,32 +32,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class BinaryByteLengthTests extends ESTestCase {
-
-    @ParametersFactory(argumentFormatting = "blockAtATime=%s, multiValues=%s, missingValues=%s")
-    public static List<Object[]> parameters() throws IOException {
-        List<Object[]> parameters = new ArrayList<>();
-        for (boolean blockAtATime : new boolean[] { true, false }) {
-            for (boolean multiValues : new boolean[] { true, false }) {
-                for (boolean missingValues : new boolean[] { true, false }) {
-                    parameters.add(new Object[] { blockAtATime, multiValues, missingValues });
-                }
-            }
-        }
-        return parameters;
-    }
-
-    private final boolean blockAtATime;
-    private final boolean multiValues;
-    private final boolean missingValues;
-
+public class BinaryByteLengthTests extends AbstractBlockLoaderTestCase {
     public BinaryByteLengthTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        this.blockAtATime = blockAtATime;
-        this.multiValues = multiValues;
-        this.missingValues = missingValues;
+        super(blockAtATime, multiValues, missingValues);
     }
 
-    public void testBinaryDocValues() throws IOException {
+    @Override
+    protected void test(CircuitBreaker breaker, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrap) throws IOException {
         int mvCount = 0;
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             int docCount = 10_000;
@@ -81,7 +60,7 @@ public class BinaryByteLengthTests extends ESTestCase {
                 iw.addDocument(List.of());
             }
             iw.forceMerge(1);
-            try (DirectoryReader dr = iw.getReader()) {
+            try (DirectoryReader dr = wrap.apply(iw.getReader())) {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
                 List<MockWarnings.MockWarning> expectedWarnings = new ArrayList<>();
                 for (int i = 0; i < mvCount; i++) {
@@ -90,7 +69,6 @@ public class BinaryByteLengthTests extends ESTestCase {
                     );
                 }
 
-                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(5));
                 var warnings = new MockWarnings();
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
                 var lengthLoader = new ByteLengthFromBytesRefDocValuesBlockLoader(warnings, "field");

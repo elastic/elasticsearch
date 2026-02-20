@@ -9,8 +9,6 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.index.DirectoryReader;
@@ -19,83 +17,24 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.breaker.CircuitBreakingException;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.mapper.AbstractBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
-import org.elasticsearch.index.mapper.blockloader.CrankyDirectoryReader;
-import org.elasticsearch.indices.CrankyCircuitBreakerService;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
-
-public abstract class AbstractLongsFromDocValuesBlockLoaderTests extends ESTestCase {
-    @ParametersFactory(argumentFormatting = "blockAtATime=%s, multiValues=%s, missingValues=%s")
-    public static List<Object[]> parameters() throws IOException {
-        List<Object[]> parameters = new ArrayList<>();
-        for (boolean blockAtATime : new boolean[] { true, false }) {
-            for (boolean multiValues : new boolean[] { true, false }) {
-                for (boolean missingValues : new boolean[] { true, false }) {
-                    parameters.add(new Object[] { blockAtATime, multiValues, missingValues });
-                }
-            }
-        }
-        return parameters;
-    }
-
-    protected final boolean blockAtATime;
-    protected final boolean multiValues;
-    protected final boolean missingValues;
-
+public abstract class AbstractLongsFromDocValuesBlockLoaderTests extends AbstractBlockLoaderTestCase {
     public AbstractLongsFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        this.blockAtATime = blockAtATime;
-        this.multiValues = multiValues;
-        this.missingValues = missingValues;
+        super(blockAtATime, multiValues, missingValues);
     }
 
     protected abstract void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException;
 
-    public void test() throws IOException {
-        test(newLimitedBreaker(ByteSizeValue.ofMb(1)), r -> r);
-    }
-
-    public void testWithCranky() throws IOException {
-        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
-        try {
-            test(cranky, r -> r);
-            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
-        } catch (CircuitBreakingException e) {
-            logger.info("Cranky breaker broke", e);
-        }
-        assertThat(cranky.getUsed(), equalTo(0L));
-    }
-
-    public void testWithCrankyReader() {
-        try {
-            test(newLimitedBreaker(ByteSizeValue.ofMb(1)), CrankyDirectoryReader::new);
-            logger.info("Cranky reader didn't break.");
-        } catch (IOException e) {
-            logger.info("Cranky reader broke", e);
-        }
-    }
-
-    public void testWithCrankyBreakerAndReader() {
-        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
-        try {
-            test(cranky, CrankyDirectoryReader::new);
-            logger.info("Cranky breaker nor reader didn't break. This should be rare, but possible randomly.");
-        } catch (IOException | CircuitBreakingException e) {
-            logger.info("Cranky breaker or reader broke", e);
-        }
-        assertThat(cranky.getUsed(), equalTo(0L));
-    }
-
-    private void test(CircuitBreaker breaker, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrap) throws IOException {
+    @Override
+    protected void test(CircuitBreaker breaker, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrap) throws IOException {
         int mvCount = 0;
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             int docCount = 10_000;

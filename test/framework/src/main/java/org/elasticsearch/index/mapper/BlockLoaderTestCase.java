@@ -37,6 +37,13 @@ import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Test case for {@link MappedFieldType#blockLoader} specializing in configuring the mapping and
+ * invoking {@link BlockLoader}. See {@link AbstractBlockLoaderTestCase} for tests that don't
+ * require setting up a field mapper.
+ *
+ * TODO rename this.
+ */
 public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
     protected static final MappedFieldType.FieldExtractPreference[] PREFERENCES = new MappedFieldType.FieldExtractPreference[] {
         MappedFieldType.FieldExtractPreference.NONE,

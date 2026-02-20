@@ -1,0 +1,5 @@
+area: Searchable Snapshots
+issues: []
+pr: 142745
+summary: Make blob cache promote lock-free
+type: enhancement

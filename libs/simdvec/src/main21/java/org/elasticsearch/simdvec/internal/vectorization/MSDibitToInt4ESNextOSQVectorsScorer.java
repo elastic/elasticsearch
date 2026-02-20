@@ -239,6 +239,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                         MemorySegment.copy(scoresSegment, ValueLayout.JAVA_FLOAT, 0, scores, 0, scores.length);
                     }
                 }
+                return true;
             } else if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
                 if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
                     quantizeScore256Bulk(q, count, scores);
@@ -353,6 +354,36 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
             }
         }
         return Float.NEGATIVE_INFINITY;
+    }
+
+    private float nativeApplyCorrectionsBulk(
+        float queryLowerInterval,
+        float queryUpperInterval,
+        int queryComponentSum,
+        float queryAdditionalCorrection,
+        VectorSimilarityFunction similarityFunction,
+        float centroidDp,
+        MemorySegment scoresSegment,
+        int bulkSize
+    ) throws IOException {
+        long offset = in.getFilePointer();
+
+        final float maxScore = ScoreCorrections.nativeApplyCorrectionsBulk(
+            similarityFunction,
+            memorySegment.asSlice(offset),
+            bulkSize,
+            dimensions,
+            queryLowerInterval,
+            queryUpperInterval,
+            queryComponentSum,
+            queryAdditionalCorrection,
+            FOUR_BIT_SCALE,
+            TWO_BIT_SCALE,
+            centroidDp,
+            scoresSegment
+        );
+        in.seek(offset + 16L * bulkSize);
+        return maxScore;
     }
 
     private float applyCorrections128Bulk(
@@ -533,36 +564,6 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
                 maxScore
             );
         }
-        in.seek(offset + 16L * bulkSize);
-        return maxScore;
-    }
-
-    private float nativeApplyCorrectionsBulk(
-        float queryLowerInterval,
-        float queryUpperInterval,
-        int queryComponentSum,
-        float queryAdditionalCorrection,
-        VectorSimilarityFunction similarityFunction,
-        float centroidDp,
-        MemorySegment scoresSegment,
-        int bulkSize
-    ) throws IOException {
-        long offset = in.getFilePointer();
-
-        final float maxScore = ScoreCorrections.nativeApplyCorrectionsBulk(
-            similarityFunction,
-            memorySegment.asSlice(offset),
-            bulkSize,
-            dimensions,
-            queryLowerInterval,
-            queryUpperInterval,
-            queryComponentSum,
-            queryAdditionalCorrection,
-            FOUR_BIT_SCALE,
-            TWO_BIT_SCALE,
-            centroidDp,
-            scoresSegment
-        );
         in.seek(offset + 16L * bulkSize);
         return maxScore;
     }

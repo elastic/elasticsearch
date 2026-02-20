@@ -62,7 +62,7 @@ public class VectorScorerInt8OperationBenchmark {
     @Param({ "1", "128", "207", "256", "300", "512", "702", "1024", "1536", "2048" })
     public int size;
 
-    @Param({ "DOT_PRODUCT", "EUCLIDEAN" })
+    @Param({ "COSINE", "DOT_PRODUCT", "EUCLIDEAN" })
     public VectorSimilarityType function;
 
     @FunctionalInterface
@@ -92,11 +92,13 @@ public class VectorScorerInt8OperationBenchmark {
         MemorySegment.copy(MemorySegment.ofArray(bytesB), JAVA_BYTE, 0L, nativeSegB, JAVA_BYTE, 0L, bytesB.length);
 
         luceneImpl = switch (function) {
+            case COSINE -> VectorUtil::cosine;
             case DOT_PRODUCT -> VectorUtil::dotProduct;
             case EUCLIDEAN -> VectorUtil::squareDistance;
             default -> throw new UnsupportedOperationException("Not used");
         };
         nativeImpl = vectorSimilarityFunctions.getHandle(switch (function) {
+            case COSINE -> VectorSimilarityFunctions.Function.COSINE;
             case DOT_PRODUCT -> VectorSimilarityFunctions.Function.DOT_PRODUCT;
             case EUCLIDEAN -> VectorSimilarityFunctions.Function.SQUARE_DISTANCE;
             default -> throw new IllegalArgumentException(function.toString());
@@ -121,18 +123,18 @@ public class VectorScorerInt8OperationBenchmark {
     }
 
     @Benchmark
-    public int nativeWithNativeSeg() {
+    public float nativeWithNativeSeg() {
         try {
-            return (int) nativeImpl.invokeExact(nativeSegA, nativeSegB, size);
+            return (float) nativeImpl.invokeExact(nativeSegA, nativeSegB, size);
         } catch (Throwable t) {
             throw rethrow(t);
         }
     }
 
     @Benchmark
-    public int nativeWithHeapSeg() {
+    public float nativeWithHeapSeg() {
         try {
-            return (int) nativeImpl.invokeExact(heapSegA, heapSegB, size);
+            return (float) nativeImpl.invokeExact(heapSegA, heapSegB, size);
         } catch (Throwable t) {
             throw rethrow(t);
         }

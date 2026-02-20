@@ -1,0 +1,5 @@
+ExchangeSinkExec[[emp_no{f}, height{f}],false]
+\_ProjectExec[[emp_no{f}, height{f}]]
+  \_FieldExtractExec[emp_no{f}]<[],[]>
+    \_TopNExec[[Order[height{f},ASC,LAST]],20[INTEGER],32]
+      \_ExchangeSourceExec[[_doc{f}, height{f}],false]

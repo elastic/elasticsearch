@@ -14,6 +14,7 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
@@ -90,6 +91,21 @@ import static org.hamcrest.Matchers.startsWith;
  *     load constant field values and have simple mappings.
  */
 public class AllSupportedFieldsTestCase extends ESRestTestCase {
+
+    private static final RequestOptions DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER = RequestOptions.DEFAULT.toBuilder()
+        .setWarningsHandler(warnings -> {
+            if (warnings.isEmpty()) {
+                return false;
+            } else {
+                for (String warning : warnings) {
+                    if ("Parameter [default_metric] is deprecated and will be removed in a future version".equals(warning) == false) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+        })
+        .build();
 
     @Rule(order = Integer.MIN_VALUE)
     public ProfileLogger profileLogger = new ProfileLogger();
@@ -829,6 +845,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
             config.endObject().endObject().endObject();
         }
         Request request = new Request("PUT", indexName);
+        request.setOptions(DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
         request.setJsonEntity(Strings.toString(config));
         client.performRequest(request);
     }
@@ -900,6 +917,7 @@ public class AllSupportedFieldsTestCase extends ESRestTestCase {
         doc.endObject();
         Request request = new Request("POST", indexName + "/_doc");
         request.addParameter("refresh", "");
+        request.setOptions(DEPRECATED_DEFAULT_METRIC_WARNING_HANDLER);
         request.setJsonEntity(Strings.toString(doc));
         client.performRequest(request);
     }

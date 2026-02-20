@@ -128,6 +128,7 @@ class LateMaterializationPlanner {
         }
         var updatedFragment = new Project(Source.EMPTY, withAddedDocToRelation, expectedDataOutput);
         FragmentExec updatedFragmentExec = fragmentExec.withFragment(updatedFragment);
+        // TODO This ignores the possible change in output, see #141654
         ExchangeSinkExec updatedDataPlan = originalPlan.replaceChild(updatedFragmentExec);
 
         // Replace the TopN child with the data driver as the source.
@@ -141,7 +142,9 @@ class LateMaterializationPlanner {
             EstimatesRowSize.estimateRowSize(updatedFragmentExec.estimatedRowSize(), reductionPlan)
         );
 
-        return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan));
+        // The TopN reduction plan should not be further optimized locally on the node reduce driver, since we took great pains to
+        // preplan in advance, including all the necessary field extractions!
+        return Optional.of(new ReductionPlan(reductionPlanWithSize, updatedDataPlan, LocalPhysicalOptimization.DISABLED));
     }
 
     private static PhysicalPlan toPhysical(LogicalPlan plan, LocalPhysicalOptimizerContext context) {

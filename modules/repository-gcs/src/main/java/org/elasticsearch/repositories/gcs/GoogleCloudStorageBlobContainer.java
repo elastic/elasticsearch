@@ -155,4 +155,9 @@ class GoogleCloudStorageBlobContainer extends AbstractBlobContainer {
     public void getRegister(OperationPurpose purpose, String key, ActionListener<OptionalBytesReference> listener) {
         ActionListener.completeWith(listener, () -> blobStore.getRegister(purpose, buildKey(key), path, key));
     }
+
+    // visible for testing
+    public GoogleCloudStorageBlobStore getBlobStore() {
+        return blobStore;
+    }
 }

@@ -151,7 +151,7 @@ teardown:
         transform_id: "simple-remote-transform"
 
   - do:
-      catch: /Source indices have been deleted or closed./
+      catch: /lacks the required permissions/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         transform_id: "simple-remote-transform"
@@ -306,6 +306,7 @@ teardown:
 ---
 "Batch transform from remote cluster when the user is not authorized":
   - do:
+      catch: /lacks the required permissions/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.put_transform:
         transform_id: "simple-remote-transform-3"
@@ -318,6 +319,30 @@ teardown:
               "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
             }
           }
+
+---
+"Batch transform _start from remote cluster when the user is not authorized":
+  - do:
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.put_transform:
+        transform_id: "simple-remote-transform-unauthorized-start"
+        defer_validation: true
+        body: >
+          {
+            "source": { "index": "my_remote_cluster:remote_test_index" },
+            "dest": { "index": "simple-remote-transform-unauthorized-start" },
+            "pivot": {
+              "group_by": { "user": {"terms": {"field": "user"}}},
+              "aggs": { "avg_stars": {"avg": {"field": "stars"}}}
+            }
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      catch: /lacks the required permissions/
+      headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
+      transform.start_transform:
+        transform_id: "simple-remote-transform-unauthorized-start"
 
 ---
 "Batch transform update from remote cluster when the user is not authorized":
@@ -348,7 +373,7 @@ teardown:
 ---
 "Batch transform preview from remote cluster when the user is not authorized":
   - do:
-      catch: /Source indices have been deleted or closed./
+      catch: /lacks the required permissions/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         body: >
@@ -361,7 +386,7 @@ teardown:
             }
           }
   - do:
-      catch: /Source indices have been deleted or closed./
+      catch: /lacks the required permissions/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         body: >

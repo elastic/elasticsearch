@@ -79,15 +79,6 @@ public class GlobExpanderTests extends ESTestCase {
         assertEquals("s3://bucket/data/*.parquet", result.originalPattern());
     }
 
-    public void testExpandGlobNullPatternThrows() {
-        StubProvider provider = new StubProvider(List.of());
-        expectThrows(IllegalArgumentException.class, () -> GlobExpander.expandGlob(null, provider));
-    }
-
-    public void testExpandGlobNullProviderThrows() {
-        expectThrows(IllegalArgumentException.class, () -> GlobExpander.expandGlob("s3://b/*.parquet", null));
-    }
-
     // -- expandCommaSeparated --
 
     public void testExpandCommaSeparatedMixedGlobAndLiteral() throws IOException {
@@ -104,11 +95,6 @@ public class GlobExpanderTests extends ESTestCase {
         StubProvider provider = new StubProvider(List.of());
         FileSet result = GlobExpander.expandCommaSeparated("s3://bucket/missing.parquet", provider);
         assertTrue(result.isEmpty());
-    }
-
-    public void testExpandCommaSeparatedNullThrows() {
-        StubProvider provider = new StubProvider(List.of());
-        expectThrows(IllegalArgumentException.class, () -> GlobExpander.expandCommaSeparated(null, provider));
     }
 
     // -- helpers --

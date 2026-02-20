@@ -97,10 +97,11 @@ import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.esql.CsvAssert.assertResultsWithTransformer;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.loadCsvSpecValues;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.CSV_DATASET;
+import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.INFERENCE_CONFIGS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.greaterThan;
@@ -234,10 +235,8 @@ public class CsvIT extends ESTestCase {
                 Map.of()
             );
 
-            assertResultsWithTransformer(
+            CsvAssert.assertDataWithValueConverter(
                 expected,
-                actual.columnNames(),
-                actual.columnTypes(),
                 actual.values(),
                 testCase.ignoreOrder,
                 false,
@@ -351,15 +350,15 @@ public class CsvIT extends ESTestCase {
             if (pattern.contains("*")) {
                 assert pattern.endsWith("*") : "Only suffix patterns are supported in test";
                 var prefix = pattern.substring(pattern.startsWith("-") ? 1 : 0, pattern.length() - 1);
-                return CsvTestsDataLoader.CSV_DATASET_MAP.values().stream().filter(ds -> ds.indexName().startsWith(prefix));
+                return CSV_DATASET.values().stream().filter(ds -> ds.indexName().startsWith(prefix));
             } else {
-                return Stream.of(CsvTestsDataLoader.CSV_DATASET_MAP.get(pattern));
+                return Stream.of(CSV_DATASET.get(pattern));
             }
         }).filter(Objects::nonNull).forEach(resource -> indices.maybeLoad(resource));
     }
 
     private static void loadInference(GetInferenceModelAction.Request request) {
-        inference.maybeLoad(CsvTestsDataLoader.findInferenceConfigByName(request.getInferenceEntityId()));
+        inference.maybeLoad(INFERENCE_CONFIGS.get(request.getInferenceEntityId()));
     }
 
     private static void loadEnrichPolicy(EnrichPolicyResolver.LookupRequest request) {
@@ -379,12 +378,10 @@ public class CsvIT extends ESTestCase {
         @Override
         protected void load(CsvTestsDataLoader.TestDataset dataset) throws IOException {
             logger.info("Loading dataset [{}]", dataset.indexName());
-            if (dataset.inferenceEndpoint() != null) {
-                dataset.inferenceEndpoint()
-                    .stream()
-                    .map(CsvTestsDataLoader::findInferenceConfigByName)
-                    .forEach(c -> inference.maybeLoad(c));
-            }
+            dataset.inferenceEndpoints()
+                .stream()
+                .map(INFERENCE_CONFIGS::get)
+                .forEach(c -> inference.maybeLoad(c));
             assertAcked(
                 cluster.client()
                     .admin()
@@ -427,7 +424,7 @@ public class CsvIT extends ESTestCase {
                 JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, policy.streamPolicy())
             );
             for (var index : p.getIndices()) {
-                indices.maybeLoad(CsvTestsDataLoader.CSV_DATASET_MAP.get(index));
+                indices.maybeLoad(CSV_DATASET.get(index));
             }
             assertAcked(
                 cluster.client()
@@ -449,19 +446,19 @@ public class CsvIT extends ESTestCase {
     private static ResourceLoader<CsvTestsDataLoader.InferenceConfig> inference = new ResourceLoader<>() {
         @Override
         protected String name(CsvTestsDataLoader.InferenceConfig resource) {
-            return resource.name();
+            return resource.id();
         }
 
         @Override
         protected void load(CsvTestsDataLoader.InferenceConfig inference) {
-            logger.info("Loading inference [{}]", inference.name());
+            logger.info("Loading inference [{}]", inference.id());
             cluster.client()
                 .execute(
                     PutInferenceModelAction.INSTANCE,
                     new PutInferenceModelAction.Request(
                         inference.type(),
-                        inference.name(),
-                        new BytesArray(inference.definition()),
+                        inference.id(),
+                        new BytesArray(inference.loadConfig()),
                         XContentType.JSON,
                         TEST_REQUEST_TIMEOUT
                     )

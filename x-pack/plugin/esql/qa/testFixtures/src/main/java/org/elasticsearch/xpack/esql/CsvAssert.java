@@ -29,7 +29,6 @@ import org.elasticsearch.test.ListMatcher;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Description;
@@ -78,30 +77,8 @@ import static org.junit.Assert.fail;
 public final class CsvAssert {
     private CsvAssert() {}
 
-    public static void assertResultsWithTransformer(
-        ExpectedResults expected,
-        List<String> actualColumnNames,
-        List<CsvTestUtils.Type> actualColumnTypes,
-        List<List<Object>> actualValues,
-        boolean ignoreOrder,
-        boolean ignoreValueOrder,
-        boolean enableRoundingDoubleValuesOnAsserting,
-        Logger logger
-    ) {
-        assertMetadata(expected, actualColumnNames, actualColumnTypes, List.of(), logger);
-        assertData(
-            expected,
-            actualValues,
-            ignoreOrder,
-            ignoreValueOrder,
-            logger,
-            new AssertedValueTransformer(enableRoundingDoubleValuesOnAsserting)
-        );
-    }
-
-    static void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
-        assertMetadata(expected, actual.columnNames(), actual.columnTypes(), actual.pages(), logger);
-        assertData(expected, actual.values(), ignoreOrder, false, logger, (t, v) -> v);
+    public static void assertMetadata(ExpectedResults expected, List<String> actualNames, List<Type> actualTypes, Logger logger) {
+        assertMetadata(expected, actualNames, actualTypes, List.of(), logger);
     }
 
     public static void assertMetadata(
@@ -217,6 +194,117 @@ public final class CsvAssert {
         List<List<Object>> actualValues,
         boolean ignoreOrder,
         boolean ignoreValueOrder,
+        Logger logger
+    ) {
+        assertData(expected, actualValues, ignoreOrder, ignoreValueOrder, logger, (type, o) -> o);
+    }
+
+    public static void assertDataWithValueConverter(
+        ExpectedResults expected,
+        List<List<Object>> actualValues,
+        boolean ignoreOrder,
+        boolean ignoreValueOrder,
+        boolean enableRoundingDoubleValuesOnAsserting,
+        Logger logger
+    ) {
+        assertData(
+            expected,
+            actualValues,
+            ignoreOrder,
+            ignoreValueOrder,
+            logger,
+            new ValueTransformer(enableRoundingDoubleValuesOnAsserting)
+        );
+    }
+
+    private record ValueTransformer(boolean enableRoundingDoubleValuesOnAsserting) implements BiFunction<Type, Object, Object> {
+
+        @Override
+        public Object apply(Type type, Object value) {
+            if (value == null) {
+                return "null";
+            }
+            if (value instanceof CsvTestUtils.Range) {
+                return value;
+            }
+            if (type == CsvTestUtils.Type.GEO_POINT || type == CsvTestUtils.Type.CARTESIAN_POINT) {
+                // Point tests are failing in clustered integration tests because of tiny precision differences at very small scales
+                if (value instanceof String wkt) {
+                    try {
+                        Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+                        if (geometry instanceof Point point) {
+                            return normalizedPoint(type, point.getX(), point.getY());
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            }
+            if (type == CsvTestUtils.Type.EXPONENTIAL_HISTOGRAM) {
+                if (value instanceof Map<?, ?> map) {
+                    return ExponentialHistogramXContent.parseForTesting(Types.<Map<String, Object>>forciblyCast(map));
+                }
+                if (value instanceof String json) {
+                    try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+                        return ExponentialHistogramXContent.parseForTesting(parser);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            if (value instanceof List<?> vs) {
+                return vs.stream().map(v -> apply(type, v)).toList();
+            }
+            if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting) {
+                if (value instanceof Double d) {
+                    if (Double.isNaN(d) || Double.isInfinite(d)) {
+                        return d;
+                    }
+                    return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
+                } else if (value instanceof String s) {
+                    if ("NaN".equals(s)) {
+                        return Double.NaN;
+                    }
+                    return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
+                }
+            }
+            if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
+                if (value instanceof String s) {
+                    value = s.replaceAll("\\\\n", "\n");
+                }
+            }
+            if (type == CsvTestUtils.Type.DOUBLE) {
+                if (value instanceof String s && "NaN".equals(s)) {
+                    return Double.NaN;
+                }
+                return ((Number) value).doubleValue();
+            }
+            if (type == CsvTestUtils.Type.INTEGER) {
+                return ((Number) value).intValue();
+            }
+            if (type == CsvTestUtils.Type.LONG) {
+                return ((Number) value).longValue();
+            }
+            return value.toString();
+        }
+
+        private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {
+            if (type == CsvTestUtils.Type.GEO_POINT) {
+                return normalizedGeoPoint(x, y);
+            }
+            return String.format(Locale.ROOT, "POINT (%f %f)", (float) x, (float) y);
+        }
+
+        private static String normalizedGeoPoint(double x, double y) {
+            x = decodeLongitude(encodeLongitude(x));
+            y = decodeLatitude(encodeLatitude(y));
+            return String.format(Locale.ROOT, "POINT (%f %f)", x, y);
+        }
+    }
+
+    private static void assertData(
+        ExpectedResults expected,
+        List<List<Object>> actualValues,
+        boolean ignoreOrder,
+        boolean ignoreValueOrder,
         Logger logger,
         BiFunction<Type, Object, Object> valueTransformer
     ) {
@@ -323,89 +411,6 @@ public final class CsvAssert {
             return expectedRange.includes(actual);
         } else {
             return Objects.equals(expected, actual);
-        }
-    }
-
-    private record AssertedValueTransformer(boolean enableRoundingDoubleValuesOnAsserting) implements BiFunction<Type, Object, Object> {
-
-        @Override
-        public Object apply(Type type, Object value) {
-            if (value == null) {
-                return "null";
-            }
-            if (value instanceof CsvTestUtils.Range) {
-                return value;
-            }
-            if (type == CsvTestUtils.Type.GEO_POINT || type == CsvTestUtils.Type.CARTESIAN_POINT) {
-                // Point tests are failing in clustered integration tests because of tiny precision differences at very small scales
-                if (value instanceof String wkt) {
-                    try {
-                        Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
-                        if (geometry instanceof Point point) {
-                            return normalizedPoint(type, point.getX(), point.getY());
-                        }
-                    } catch (Throwable ignored) {}
-                }
-            }
-            if (type == CsvTestUtils.Type.EXPONENTIAL_HISTOGRAM) {
-                if (value instanceof Map<?, ?> map) {
-                    return ExponentialHistogramXContent.parseForTesting(Types.<Map<String, Object>>forciblyCast(map));
-                }
-                if (value instanceof String json) {
-                    try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
-                        return ExponentialHistogramXContent.parseForTesting(parser);
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                }
-            }
-            if (value instanceof List<?> vs) {
-                return vs.stream().map(v -> apply(type, v)).toList();
-            }
-            if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting) {
-                if (value instanceof Double d) {
-                    if (Double.isNaN(d) || Double.isInfinite(d)) {
-                        return d;
-                    }
-                    return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
-                } else if (value instanceof String s) {
-                    if ("NaN".equals(s)) {
-                        return Double.NaN;
-                    }
-                    return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
-                }
-            }
-            if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
-                if (value instanceof String s) {
-                    value = s.replaceAll("\\\\n", "\n");
-                }
-            }
-            if (type == CsvTestUtils.Type.DOUBLE) {
-                if (value instanceof String s && "NaN".equals(s)) {
-                    return Double.NaN;
-                }
-                return ((Number) value).doubleValue();
-            }
-            if (type == CsvTestUtils.Type.INTEGER) {
-                return ((Number) value).intValue();
-            }
-            if (type == CsvTestUtils.Type.LONG) {
-                return ((Number) value).longValue();
-            }
-            return value.toString();
-        }
-
-        private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {
-            if (type == CsvTestUtils.Type.GEO_POINT) {
-                return normalizedGeoPoint(x, y);
-            }
-            return String.format(Locale.ROOT, "POINT (%f %f)", (float) x, (float) y);
-        }
-
-        private static String normalizedGeoPoint(double x, double y) {
-            x = decodeLongitude(encodeLongitude(x));
-            y = decodeLatitude(encodeLatitude(y));
-            return String.format(Locale.ROOT, "POINT (%f %f)", x, y);
         }
     }
 

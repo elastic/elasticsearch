@@ -153,7 +153,7 @@ public class LookupJoinIT extends AbstractEsqlIntegTestCase {
         RestClient restClient = getRestClient();
 
         for (String indexName : indexNames) {
-            CsvTestsDataLoader.TestDataset dataset = CsvTestsDataLoader.CSV_DATASET_MAP.get(indexName);
+            CsvTestsDataLoader.TestDataset dataset = CsvTestsDataLoader.CSV_DATASET.get(indexName);
             if (dataset == null) {
                 throw new IllegalArgumentException("No definition found for index: " + indexName);
             }

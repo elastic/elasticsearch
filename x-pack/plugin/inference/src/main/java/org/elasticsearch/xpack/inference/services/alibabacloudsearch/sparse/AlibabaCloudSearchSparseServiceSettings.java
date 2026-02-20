@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.inference.ServiceSettings;
@@ -24,7 +25,13 @@ public class AlibabaCloudSearchSparseServiceSettings implements ServiceSettings 
     public static final String NAME = "alibabacloud_search_sparse_embeddings_service_settings";
 
     public static AlibabaCloudSearchSparseServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        return new AlibabaCloudSearchSparseServiceSettings(AlibabaCloudSearchServiceSettings.fromMap(map, context));
+        var validationException = new ValidationException();
+
+        var commonServiceSettings = AlibabaCloudSearchServiceSettings.fromMap(map, context, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AlibabaCloudSearchSparseServiceSettings(commonServiceSettings);
     }
 
     private final AlibabaCloudSearchServiceSettings commonSettings;
@@ -48,7 +55,13 @@ public class AlibabaCloudSearchSparseServiceSettings implements ServiceSettings 
 
     @Override
     public AlibabaCloudSearchSparseServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        return new AlibabaCloudSearchSparseServiceSettings(commonSettings.updateServiceSettings(serviceSettings));
+        var validationException = new ValidationException();
+
+        var updatedCommonServiceSettings = commonSettings.updateServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new AlibabaCloudSearchSparseServiceSettings(updatedCommonServiceSettings);
     }
 
     @Override

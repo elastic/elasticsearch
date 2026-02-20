@@ -42,8 +42,11 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
 
     private static final RateLimitSettings DEFAULT_RATE_LIMIT_SETTINGS = new RateLimitSettings(1_000);
 
-    public static AlibabaCloudSearchServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
-        var validationException = new ValidationException();
+    public static AlibabaCloudSearchServiceSettings fromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext context,
+        ValidationException validationException
+    ) {
 
         var serviceId = extractRequiredString(map, SERVICE_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var host = extractRequiredString(map, HOST, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -59,8 +62,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
             AlibabaCloudSearchService.NAME,
             context
         );
-
-        validationException.throwIfValidationErrorsExist();
 
         return new AlibabaCloudSearchServiceSettings(serviceId, host, workspaceName, httpSchema, rateLimitSettings);
     }
@@ -104,10 +105,10 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
         return serviceId;
     }
 
-    @Override
-    public AlibabaCloudSearchServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
-        var validationException = new ValidationException();
-
+    public AlibabaCloudSearchServiceSettings updateServiceSettings(
+        Map<String, Object> serviceSettings,
+        ValidationException validationException
+    ) {
         var extractedHttpSchema = extractOptionalString(
             serviceSettings,
             HTTP_SCHEMA_NAME,
@@ -124,8 +125,6 @@ public class AlibabaCloudSearchServiceSettings extends FilteredXContentObject
             AlibabaCloudSearchService.NAME,
             ConfigurationParseContext.REQUEST
         );
-
-        validationException.throwIfValidationErrorsExist();
 
         return new AlibabaCloudSearchServiceSettings(
             this.serviceId,

@@ -36,7 +36,8 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
 
     public static AlibabaCloudSearchEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var validationException = new ValidationException();
-        var commonServiceSettings = AlibabaCloudSearchServiceSettings.fromMap(map, context);
+
+        var commonServiceSettings = AlibabaCloudSearchServiceSettings.fromMap(map, context, validationException);
 
         var similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
@@ -111,7 +112,7 @@ public class AlibabaCloudSearchEmbeddingsServiceSettings implements ServiceSetti
     @Override
     public AlibabaCloudSearchEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
-        var commonServiceSettings = commonSettings.updateServiceSettings(serviceSettings);
+        var commonServiceSettings = commonSettings.updateServiceSettings(serviceSettings, validationException);
 
         var extractedMaxInputTokens = extractOptionalPositiveInteger(
             serviceSettings,

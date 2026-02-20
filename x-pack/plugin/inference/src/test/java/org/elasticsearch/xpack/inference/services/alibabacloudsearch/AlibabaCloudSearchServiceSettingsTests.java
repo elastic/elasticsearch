@@ -70,7 +70,8 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractBWCWireSeria
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
                 )
-            )
+            ),
+            new ValidationException()
         );
 
         assertThat(
@@ -94,7 +95,7 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractBWCWireSeria
             INITIAL_TEST_WORKSPACE_NAME,
             INITIAL_TEST_HTTP_SCHEMA,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(new HashMap<>());
+        ).updateServiceSettings(new HashMap<>(), new ValidationException());
 
         assertThat(
             serviceSettings,
@@ -124,7 +125,8 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractBWCWireSeria
                     TEST_HTTP_SCHEMA
                 )
             ),
-            null
+            null,
+            new ValidationException()
         );
 
         assertThat(
@@ -149,7 +151,8 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractBWCWireSeria
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
                 )
             ),
-            null
+            null,
+            new ValidationException()
         );
 
         assertThat(

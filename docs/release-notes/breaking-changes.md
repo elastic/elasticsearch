@@ -12,6 +12,16 @@ If you are migrating from a version prior to version 9.0, you must first upgrade
 
 % ## Next version [elasticsearch-nextversion-breaking-changes]
 
+<!-- :::{include} _snippets/9.3.0/breaking-changes.md
+::: -->
+
+:::{changelog} /changelog/new/bundles
+:subsections:
+:type: breaking-change
+:config: /changelog.yml
+:product: elasticsearch
+:::
+
 ## 9.3.0 [elasticsearch-9.3.0-breaking-changes]
 
 Mapping:

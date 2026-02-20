@@ -77,11 +77,12 @@ The search task watchdog monitors long-running search tasks and logs hot threads
 This helps diagnose slow searches by capturing threads activity while the search is still running, rather
 than just logging after completion.
 
-On data nodes, it logs hot threads when a shard-level search operation (query/fetch phase)
-exceeds the data node threshold. On coordinator nodes, it logs hot threads for long-running
-coordinator search tasks only when they have no outstanding shard child requests. This avoids
-logging while the coordinator is mainly waiting for slow shards (those shards will log hot
-threads themselves).
+On [data nodes](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#data-node-role),
+the watchdog logs hot threads when a shard-level search operation (query/fetch phase) exceeds the
+data node threshold. On [coordinator nodes](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#coordinating-only-node-role),
+it logs hot threads for long-running coordinator search tasks only when they have no outstanding
+shard child requests. This avoids redundant logging when the coordinator is simply waiting for
+slow shards, which log their own hot threads.
 
 The hot threads output is gzip compressed and base64-encoded. To decode it, use:
 

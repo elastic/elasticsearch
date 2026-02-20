@@ -15,7 +15,6 @@ import org.elasticsearch.core.Nullable;
 
 import java.util.Arrays;
 import java.util.List;
-import java.util.Objects;
 
 public enum StreamType {
 
@@ -88,13 +87,10 @@ public enum StreamType {
             return null;
         } else {
             // Check that any enabled stream type isn't targeted by the index
-            List<StreamType> matchingStreamTypes = Arrays.stream(values()).filter(t -> t.streamTypeIsEnabled(projectMetadata)).map(t -> {
-                if (t.matchesStreamPrefix(indexName)) {
-                    return t;
-                } else {
-                    return null;
-                }
-            }).filter(Objects::nonNull).toList();
+            List<StreamType> matchingStreamTypes = Arrays.stream(values())
+                .filter(t -> t.streamTypeIsEnabled(projectMetadata))
+                .filter(t -> t.matchesStreamPrefix(indexName))
+                .toList();
             if (matchingStreamTypes.isEmpty()) {
                 return null;
             } else if (matchingStreamTypes.size() == 1) {

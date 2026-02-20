@@ -15,18 +15,18 @@ import org.elasticsearch.cluster.metadata.StreamsMetadata;
 import org.elasticsearch.test.ESTestCase;
 
 public class StreamTypeTests extends ESTestCase {
-    public void testTargetSubIndex() {
+    public void testStreamMatchAndParent() {
         {
-            ProjectMetadata logsOnly = createMetadata(false, false, false);
-            assertNull(StreamType.exactEnabledStreamMatch(logsOnly, "logs"));
-            assertNull(StreamType.exactEnabledStreamMatch(logsOnly, "logs.otel"));
-            assertNull(StreamType.exactEnabledStreamMatch(logsOnly, "logs.ecs"));
-            assertNull(StreamType.enabledParentStreamOf(logsOnly, "logs"));
-            assertNull(StreamType.enabledParentStreamOf(logsOnly, "logs.foo"));
-            assertNull(StreamType.enabledParentStreamOf(logsOnly, "logs.otel"));
-            assertNull(StreamType.enabledParentStreamOf(logsOnly, "logs.otel.foo"));
-            assertNull(StreamType.enabledParentStreamOf(logsOnly, "logs.ecs"));
-            assertNull(StreamType.enabledParentStreamOf(logsOnly, "logs.ecs.foo"));
+            ProjectMetadata noneEnabled = createMetadata(false, false, false);
+            assertNull(StreamType.exactEnabledStreamMatch(noneEnabled, "logs"));
+            assertNull(StreamType.exactEnabledStreamMatch(noneEnabled, "logs.otel"));
+            assertNull(StreamType.exactEnabledStreamMatch(noneEnabled, "logs.ecs"));
+            assertNull(StreamType.enabledParentStreamOf(noneEnabled, "logs"));
+            assertNull(StreamType.enabledParentStreamOf(noneEnabled, "logs.foo"));
+            assertNull(StreamType.enabledParentStreamOf(noneEnabled, "logs.otel"));
+            assertNull(StreamType.enabledParentStreamOf(noneEnabled, "logs.otel.foo"));
+            assertNull(StreamType.enabledParentStreamOf(noneEnabled, "logs.ecs"));
+            assertNull(StreamType.enabledParentStreamOf(noneEnabled, "logs.ecs.foo"));
         }
 
         {
@@ -95,7 +95,7 @@ public class StreamTypeTests extends ESTestCase {
         }
     }
 
-    public ProjectMetadata createMetadata(boolean logsEnabled, boolean logsECSEnabled, boolean logsOTelEnabled) {
+    private ProjectMetadata createMetadata(boolean logsEnabled, boolean logsECSEnabled, boolean logsOTelEnabled) {
         return ProjectMetadata.builder(ProjectId.DEFAULT)
             .putCustom(StreamsMetadata.TYPE, new StreamsMetadata(logsEnabled, logsECSEnabled, logsOTelEnabled))
             .build();

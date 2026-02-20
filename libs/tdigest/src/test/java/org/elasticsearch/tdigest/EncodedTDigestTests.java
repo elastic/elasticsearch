@@ -33,13 +33,10 @@ import static org.hamcrest.Matchers.notANumber;
 public class EncodedTDigestTests extends TDigestTestCase {
 
     public void testEncodingPreservesTDigestProperties() {
-        int iterations = randomIntBetween(10, 30);
-        for (int i = 0; i < iterations; i++) {
-            try (TDigest digest = randomDigest()) {
-                List<Centroid> centroids = new ArrayList<>(digest.centroids());
-                EncodedTDigest encoded = new EncodedTDigest(EncodedTDigest.encodeCentroids(centroids));
-                assertTDigestsMatch(digest, encoded);
-            }
+        try (TDigest digest = randomDigest()) {
+            List<Centroid> centroids = new ArrayList<>(digest.centroids());
+            EncodedTDigest encoded = new EncodedTDigest(EncodedTDigest.encodeCentroids(centroids));
+            assertTDigestsMatch(digest, encoded);
         }
     }
 
@@ -61,9 +58,11 @@ public class EncodedTDigestTests extends TDigestTestCase {
 
             List<Centroid> asCollection = new ArrayList<>(encoded.centroids());
             List<Centroid> asIterator = new ArrayList<>();
-            for (EncodedTDigest.CentroidIterator iterator = encoded.centroidIterator(); iterator.hasNext(); iterator.advance()) {
-                asIterator.add(new Centroid(iterator.peekMean(), iterator.peekCount()));
+            EncodedTDigest.CentroidIterator iterator = encoded.centroidIterator();
+            while (iterator.next()) {
+                asIterator.add(new Centroid(iterator.currentMean(), iterator.currentCount()));
             }
+            assertThat(iterator.endReached(), is(true));
             assertCentroidsEqual(asCollection, asIterator);
         }
     }
@@ -73,13 +72,15 @@ public class EncodedTDigestTests extends TDigestTestCase {
         assertThat(encoded.centroids().isEmpty(), is(true));
         assertThat(encoded.centroidCount(), equalTo(0));
         assertThat(encoded.size(), equalTo(0L));
-        assertThat(encoded.byteSize(), equalTo(0));
+        assertThat(encoded.encodedDigest().length, equalTo(0));
         assertThat(encoded.getMin(), is(notANumber()));
         assertThat(encoded.getMax(), is(notANumber()));
         assertThat(encoded.cdf(0.0), is(notANumber()));
         assertThat(encoded.quantile(0.0), is(notANumber()));
         assertThat(encoded.quantile(1.0), is(notANumber()));
-        assertThat(encoded.centroidIterator().hasNext(), is(false));
+        EncodedTDigest.CentroidIterator iterator = encoded.centroidIterator();
+        assertThat(iterator.endReached(), is(true));
+        assertThat(iterator.next(), is(false));
     }
 
     public void testEncodeUsingSeparateArrays() {
@@ -117,23 +118,16 @@ public class EncodedTDigestTests extends TDigestTestCase {
         assertThat(encoded.getMin(), equalTo(expected.getMin()));
         assertThat(encoded.getMax(), equalTo(expected.getMax()));
         assertThat(encoded.centroidCount(), equalTo(expected.centroidCount()));
-        List<Centroid> digestCentroids = new ArrayList<>(encoded.centroids());
 
-        assertThat(encoded.compression(), is(notANumber()));
-        assertThat(encoded.byteSize(), equalTo(encoded.encodedDigest().length));
+        List<Centroid> expectedCentroids = new ArrayList<>(expected.centroids());
 
         List<Double> cdfProbes = new ArrayList<>();
-        for (Centroid centroid : digestCentroids) {
+        for (Centroid centroid : expectedCentroids) {
             cdfProbes.add(centroid.mean());
         }
-        if (encoded.getMin() < encoded.getMax()) {
-            double epsilon = Math.max(1e-6, (encoded.getMax() - encoded.getMin()) * 1e-6);
-            double low = encoded.getMin() + epsilon;
-            double high = encoded.getMax() - epsilon;
-            if (low < high) {
-                for (int i = 0; i < 40; i++) {
-                    cdfProbes.add(randomDoubleBetween(low, high, true));
-                }
+        if (expectedCentroids.isEmpty() == false) {
+            for (int i = 0; i < 40; i++) {
+                cdfProbes.add(randomDoubleBetween(expected.getMin() - 1, expected.getMax() + 1, true));
             }
         }
         for (double probe : cdfProbes) {

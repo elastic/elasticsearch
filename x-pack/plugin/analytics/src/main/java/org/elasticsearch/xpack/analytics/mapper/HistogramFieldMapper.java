@@ -409,9 +409,6 @@ public class HistogramFieldMapper extends FieldMapper {
 
     /** re-usable {@link HistogramValue} implementation */
     static class InternalHistogramValue extends HistogramValue {
-        double value;
-        long count;
-        boolean isExhausted;
         final EncodedTDigest encodedTDigest;
         EncodedTDigest.CentroidIterator centroidIterator;
 
@@ -423,37 +420,24 @@ public class HistogramFieldMapper extends FieldMapper {
         void reset(BytesRef bytesRef) {
             encodedTDigest.reset(bytesRef);
             centroidIterator = encodedTDigest.centroidIterator();
-            isExhausted = false;
-            value = 0;
-            count = 0;
         }
 
         @Override
         public boolean next() throws IOException {
-            if (centroidIterator != null && centroidIterator.hasNext()) {
-                count = centroidIterator.peekCount();
-                value = centroidIterator.peekMean();
-                centroidIterator.advance();
-                return true;
+            if (centroidIterator == null) {
+                return false;
             }
-            isExhausted = true;
-            return false;
+            return centroidIterator.next();
         }
 
         @Override
         public double value() {
-            if (isExhausted) {
-                throw new IllegalArgumentException("histogram already exhausted");
-            }
-            return value;
+            return centroidIterator.currentMean();
         }
 
         @Override
         public long count() {
-            if (isExhausted) {
-                throw new IllegalArgumentException("histogram already exhausted");
-            }
-            return count;
+            return centroidIterator.currentCount();
         }
     }
 

@@ -80,7 +80,6 @@ interface ResultBuilder extends Releasable {
                 Releasables.closeExpectNoException(blocks);
             }
         }
-        Releasables.closeExpectNoException(builders);
         return blocks;
     }
 }

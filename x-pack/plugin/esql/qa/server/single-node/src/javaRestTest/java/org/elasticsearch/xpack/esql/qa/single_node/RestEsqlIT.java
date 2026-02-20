@@ -1302,7 +1302,8 @@ public class RestEsqlIT extends RestEsqlTestCase {
                 .entry("ram_used", instanceOf(String.class))
                 .entry("ram_bytes_used", greaterThan(0))
                 .entry("receive_nanos", greaterThan(0))
-                .entry("emit_nanos", greaterThan(0));
+                .entry("emit_nanos", greaterThan(0))
+                .entry("min_competitive_updates", greaterThanOrEqualTo(0));
             case "LuceneTopNSourceOperator" -> matchesMap().entry("pages_emitted", greaterThan(0))
                 .entry("rows_emitted", greaterThan(0))
                 .entry("current", greaterThan(0))

@@ -48,7 +48,7 @@ public abstract class SideChannel extends AbstractRefCounted implements Releasab
 
         /**
          * Get the {@link SideChannel}, building it if this is the first call and
-         * {@link #mustIncRef()}ing it if it has already been built.
+         * incrementing its reference it if it has already been built.
          * <p>
          *     This will only ever build one channel at a time. There are 3
          *     possible states:

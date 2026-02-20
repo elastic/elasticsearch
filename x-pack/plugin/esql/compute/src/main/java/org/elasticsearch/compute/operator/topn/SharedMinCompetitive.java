@@ -65,17 +65,18 @@ public class SharedMinCompetitive extends SideChannel {
     /**
      * Offer an update to the min competitive value.
      * @param minCompetitive if it is accepted then the bytes are copied
+     * @return whether the update was accepted. {@code false} here means the minimum
+     *         value in the local top n is greater than or equal to the minimum
+     *         competitive value already recorded
      */
-    public void offer(BytesRef minCompetitive) {
-        if (value.length() > 0 && value.bytesRefView().compareTo(minCompetitive) <= 0) {
-            return;
-        }
+    public boolean offer(BytesRef minCompetitive) {
         synchronized (value) {
             if (value.length() > 0 && value.bytesRefView().compareTo(minCompetitive) <= 0) {
-                return;
+                return false;
             }
             value.clear();
             value.append(minCompetitive);
+            return true;
         }
     }
 

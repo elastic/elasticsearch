@@ -301,6 +301,11 @@ public class TopNOperator implements Operator, Accountable {
     @Nullable
     private final SharedMinCompetitive minCompetitive;
 
+    /**
+     * How many times {@link #minCompetitive} was updated.
+     */
+    private int minCompetitiveUpdates;
+
     private Queue inputQueue;
     private Row spare;
     private int spareValuesPreAllocSize = 0;
@@ -459,7 +464,9 @@ public class TopNOperator implements Operator, Accountable {
         if (minCompetitive == null || inputQueue == null || inputQueue.size() < inputQueue.topCount) {
             return;
         }
-        minCompetitive.offer(inputQueue.top().keys.bytesRefView());
+        if (minCompetitive.offer(inputQueue.top().keys.bytesRefView())) {
+            minCompetitiveUpdates++;
+        }
     }
 
     @Override
@@ -548,7 +555,8 @@ public class TopNOperator implements Operator, Accountable {
             pagesReceived,
             pagesEmitted,
             rowsReceived,
-            rowsEmitted
+            rowsEmitted,
+            minCompetitiveUpdates
         );
     }
 

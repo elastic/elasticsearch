@@ -285,8 +285,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     /**
      * Called before this replication request is retried.
      * <p>
-     * {@code markAsRetry} controls whether retry-specific request state should be set. For some retry paths (for example relocation handoff),
-     * the operation is known not to have been applied on the old primary and callers may therefore pass {@code false}.
+     * {@code markAsRetry} controls whether request should be marked as retry or not. For some retry paths (for example
+     * relocation handoff), we know that the request is not executed and can be retried more efficiently (and safely).
      */
     public void onRetry(boolean markAsRetry) {
         // nothing by default

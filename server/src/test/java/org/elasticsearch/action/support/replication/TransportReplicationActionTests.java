@@ -497,6 +497,41 @@ public class TransportReplicationActionTests extends ESTestCase {
         assertThat(e.getCause().getCause(), hasToString(containsString("shard is not in primary mode")));
     }
 
+    public void testRetryOnRelocationDoesMarksRequestAsRetried() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, "_na_", 0);
+        setState(clusterService, stateWithActivePrimary(index, true, randomInt(3)));
+
+        final Request request = new Request(shardId);
+        final PlainActionFuture<TestResponse> listener = new PlainActionFuture<>();
+        final ReplicationTask task = maybeTask();
+        final TestAction.ReroutePhase reroutePhase = action.new ReroutePhase(task, request, listener);
+        reroutePhase.run();
+
+        CapturingTransport.CapturedRequest[] capturedRequests = transport.getCapturedRequestsAndClear();
+        assertThat(capturedRequests, arrayWithSize(1));
+        assertThat(capturedRequests[0].action(), equalTo("internal:testAction[p]"));
+
+        if (randomBoolean()) {
+            final var markAsRetry = randomBoolean();
+            transport.handleRemoteError(
+                capturedRequests[0].requestId(),
+                new ReplicationOperation.RetryOnPrimaryException(
+                    shardId,
+                    "shard is not in primary mode",
+                    new ShardNotInPrimaryModeException(shardId, IndexShardState.STARTED),
+                    markAsRetry
+                )
+            );
+            assertThat(request.isRetrySet.get(), equalTo(markAsRetry));
+        } else {
+            final var e = randomRetryPrimaryException(shardId);
+            transport.handleRemoteError(capturedRequests[0].requestId(), e);
+            assertTrue(request.isRetrySet.get());
+        }
+        assertFalse(listener.isDone());
+    }
+
     /**
      * When relocating a primary shard, there is a cluster state update at the end of relocation where the active primary is switched from
      * the relocation source to the relocation target. If relocation source receives and processes this cluster state
@@ -1465,9 +1500,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        public void onRetry() {
-            super.onRetry();
-            isRetrySet.set(true);
+        public void onRetry(boolean markAsRetry) {
+            super.onRetry(markAsRetry);
+            isRetrySet.set(markAsRetry);
         }
 
         @Override

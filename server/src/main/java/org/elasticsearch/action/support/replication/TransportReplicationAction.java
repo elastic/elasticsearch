@@ -16,7 +16,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.UnavailableShardsException;
-import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ChannelActionListener;
@@ -1080,7 +1079,7 @@ public abstract class TransportReplicationAction<
                             );
                             boolean markAsRetry = true;
                             if (cause instanceof ReplicationOperation.RetryOnPrimaryException retryOnPrimaryException) {
-                                markAsRetry = retryOnPrimaryException.operationAppliedOnPrimary();
+                                markAsRetry = retryOnPrimaryException.possiblyExecutedOnPrimary();
                             }
                             retry(exp, markAsRetry);
                         } else {
@@ -1106,9 +1105,7 @@ public abstract class TransportReplicationAction<
                 return;
             }
             setPhase(task, "waiting_for_retry");
-            if (markRequestAsRetry) {
-                request.onRetry();
-            }
+            request.onRetry(markRequestAsRetry);
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {

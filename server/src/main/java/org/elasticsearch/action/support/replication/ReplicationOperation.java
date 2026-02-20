@@ -693,9 +693,9 @@ public class ReplicationOperation<
 
     public static final class RetryOnPrimaryException extends ElasticsearchException {
         private static final TransportVersion OPERATION_APPLIED_ON_PRIMARY = TransportVersion.fromName(
-            "retry_on_primary_operation_applied_on_primary"
+            "retry_on_primary_flag_possible_execution"
         );
-        private final boolean operationAppliedOnPrimary;
+        private final boolean possiblyExecutedOnPrimary;
 
         public RetryOnPrimaryException(ShardId shardId, String msg) {
             this(shardId, msg, null);
@@ -705,27 +705,27 @@ public class ReplicationOperation<
             this(shardId, msg, cause, true);
         }
 
-        RetryOnPrimaryException(ShardId shardId, String msg, Throwable cause, boolean mightHaveRun) {
+        RetryOnPrimaryException(ShardId shardId, String msg, Throwable cause, boolean possiblyExecutedOnPrimary) {
             super(msg, cause);
             setShard(shardId);
-            this.operationAppliedOnPrimary = mightHaveRun;
+            this.possiblyExecutedOnPrimary = possiblyExecutedOnPrimary;
         }
 
         public RetryOnPrimaryException(StreamInput in) throws IOException {
             super(in);
-            operationAppliedOnPrimary = in.getTransportVersion().supports(OPERATION_APPLIED_ON_PRIMARY) ? in.readBoolean() : true;
+            possiblyExecutedOnPrimary = in.getTransportVersion().supports(OPERATION_APPLIED_ON_PRIMARY) ? in.readBoolean() : true;
         }
 
         @Override
         protected void writeTo(StreamOutput out, Writeable.Writer<Throwable> nestedExceptionsWriter) throws IOException {
             super.writeTo(out, nestedExceptionsWriter);
             if (out.getTransportVersion().supports(OPERATION_APPLIED_ON_PRIMARY)) {
-                out.writeBoolean(operationAppliedOnPrimary);
+                out.writeBoolean(possiblyExecutedOnPrimary);
             }
         }
 
-        public boolean operationAppliedOnPrimary() {
-            return operationAppliedOnPrimary;
+        public boolean possiblyExecutedOnPrimary() {
+            return possiblyExecutedOnPrimary;
         }
     }
 

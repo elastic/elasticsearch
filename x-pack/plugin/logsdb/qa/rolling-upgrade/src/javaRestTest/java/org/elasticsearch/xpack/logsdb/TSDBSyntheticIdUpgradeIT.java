@@ -16,12 +16,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -31,19 +33,20 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
 
     public void testRollingUpgrade() throws IOException {
         int numNodes = getCluster().getNumNodes();
+        boolean isServerless = isServerless();
 
         if (oldClusterHasFeature(IndexFeatures.TIME_SERIES_SYNTHETIC_ID)) {
             // Should be able to create synthetic id index throughout the rolling upgrade
             for (int i = 0; i < numNodes; i++) {
                 assertWriteIndex(indexName(i));
                 for (int j = 0; j <= i; j++) {
-                    assertIndexRead(indexName(j));
+                    assertIndexRead(indexName(j), isServerless);
                 }
                 upgradeNode(i);
             }
             assertWriteIndex(indexName(numNodes));
             for (int j = 0; j <= numNodes; j++) {
-                assertIndexRead(indexName(j));
+                assertIndexRead(indexName(j), isServerless);
             }
         } else {
             // Cluster supports synthetic id index after all nodes have been upgraded, not before
@@ -52,7 +55,7 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
                 upgradeNode(i);
             }
             assertWriteIndex(indexName(numNodes));
-            assertIndexRead(indexName(numNodes));
+            assertIndexRead(indexName(numNodes), isServerless);
         }
     }
 
@@ -61,12 +64,14 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
         assertCanAddDocuments(indexName);
     }
 
-    private static void assertIndexRead(String indexName) throws IOException {
+    private static void assertIndexRead(String indexName, boolean isServerless) throws IOException {
         assertTrue("Expected index [" + indexName + "] to exist, but did not", indexExists(indexName));
         Map<String, Object> indexSettingsAsMap = getIndexSettingsAsMap(indexName);
         assertThat(indexSettingsAsMap.get(IndexSettings.SYNTHETIC_ID.getKey()), Matchers.equalTo("true"));
         assertDocCount(client(), indexName, DOC_COUNT);
-        assertThat(invertedIndexSize(indexName), Matchers.equalTo(0));
+        if (!isServerless) {
+            assertThat(invertedIndexSize(indexName), Matchers.equalTo(0));
+        }
     }
 
     private static int invertedIndexSize(String indexName) throws IOException {
@@ -160,5 +165,13 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
 
     private static String indexName(int i) {
         return "index_" + i;
+    }
+
+    private static boolean isServerless() throws IOException {
+        Map<String, Map<?, ?>> nodesInfo = getNodesInfo(adminClient());
+        List<?> buildFlavors = nodesInfo.values().stream().map(nodeInfoMap -> nodeInfoMap.get("build_flavor")).distinct().toList();
+        assertThat(buildFlavors.size(), Matchers.equalTo(1));
+        String buildFlavor = ESRestTestCase.asInstanceOf(String.class, buildFlavors.getFirst());
+        return "serverless".equals(buildFlavor);
     }
 }

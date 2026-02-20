@@ -103,6 +103,20 @@ public final class PipelineConfig {
         return Objects.hash(dataType, blockSize, specs);
     }
 
+    public String describeStages() {
+        if (specs.isEmpty()) {
+            return "default";
+        }
+        final StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < specs.size(); i++) {
+            if (i > 0) {
+                sb.append('>');
+            }
+            sb.append(specs.get(i).stageId().displayName);
+        }
+        return sb.toString();
+    }
+
     @Override
     public String toString() {
         return "PipelineConfig{" + "dataType=" + dataType + ", blockSize=" + blockSize + ", specs=" + specs + '}';

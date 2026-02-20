@@ -149,7 +149,7 @@ public final class PipelineDescriptor {
         StringBuilder sb = new StringBuilder("PipelineDescriptor{stages=[");
         for (int i = 0; i < stageIds.length; i++) {
             if (i > 0) sb.append(", ");
-            sb.append(StageId.fromId(stageIds[i]).name());
+            sb.append(StageId.fromId(stageIds[i]).displayName);
         }
         sb.append("], blockSize=").append(blockSize()).append(", dataType=").append(dataType).append("}");
         return sb.toString();

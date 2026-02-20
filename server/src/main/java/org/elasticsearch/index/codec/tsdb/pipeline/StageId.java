@@ -15,38 +15,40 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 // NOTE: ID 0x00 is reserved for test-only stages (see TestPayloadCodecStage).
 public enum StageId {
     // Transformation stages - applied in sequence, reversible
-    DELTA((byte) 0x01),
-    OFFSET((byte) 0x02),
-    GCD((byte) 0x03),
-    PATCHED_PFOR((byte) 0x04),
-    XOR((byte) 0x06),
-    QUANTIZE_DOUBLE((byte) 0x08),
-    DELTA_DELTA((byte) 0x05),
-    RLE((byte) 0x0B),
-    ALP_DOUBLE_STAGE((byte) 0x0C),
-    ALP_FLOAT_STAGE((byte) 0x0D),
-    ALP_RD_DOUBLE_STAGE((byte) 0x0E),
-    ALP_RD_FLOAT_STAGE((byte) 0x0F),
-    FPC_STAGE((byte) 0x10),
-    CHIMP_DOUBLE_STAGE((byte) 0x11),
-    CHIMP_FLOAT_STAGE((byte) 0x12),
+    DELTA((byte) 0x01, "delta"),
+    OFFSET((byte) 0x02, "offset"),
+    GCD((byte) 0x03, "gcd"),
+    PATCHED_PFOR((byte) 0x04, "pfor"),
+    XOR((byte) 0x06, "xor"),
+    QUANTIZE_DOUBLE((byte) 0x08, "quantize"),
+    DELTA_DELTA((byte) 0x05, "deltaDelta"),
+    RLE((byte) 0x0B, "rle"),
+    ALP_DOUBLE_STAGE((byte) 0x0C, "alp"),
+    ALP_FLOAT_STAGE((byte) 0x0D, "alp"),
+    ALP_RD_DOUBLE_STAGE((byte) 0x0E, "alpRd"),
+    ALP_RD_FLOAT_STAGE((byte) 0x0F, "alpRd"),
+    FPC_STAGE((byte) 0x10, "fpc"),
+    CHIMP_DOUBLE_STAGE((byte) 0x11, "chimp"),
+    CHIMP_FLOAT_STAGE((byte) 0x12, "chimp"),
 
     // Terminal stages - write final encoded payload
-    BIT_PACK((byte) 0xA1),
-    ZSTD((byte) 0xA2),
-    GORILLA_PAYLOAD((byte) 0xA3),
-    RLE_PAYLOAD((byte) 0xA4),
-    ALP_DOUBLE((byte) 0xA6),
-    ALP_FLOAT((byte) 0xA7),
-    ALP_RD_DOUBLE((byte) 0xA8),
-    ALP_RD_FLOAT((byte) 0xA9),
-    LZ4((byte) 0xA5),
-    GORILLA_FLOAT_PAYLOAD((byte) 0xAA);
+    BIT_PACK((byte) 0xA1, "bitPack"),
+    ZSTD((byte) 0xA2, "zstd"),
+    GORILLA_PAYLOAD((byte) 0xA3, "gorilla"),
+    RLE_PAYLOAD((byte) 0xA4, "rlePayload"),
+    ALP_DOUBLE((byte) 0xA6, "alpDouble"),
+    ALP_FLOAT((byte) 0xA7, "alpFloat"),
+    ALP_RD_DOUBLE((byte) 0xA8, "alpRdDouble"),
+    ALP_RD_FLOAT((byte) 0xA9, "alpRdFloat"),
+    LZ4((byte) 0xA5, "lz4"),
+    GORILLA_FLOAT_PAYLOAD((byte) 0xAA, "gorillaFloat");
 
     public final byte id;
+    public final String displayName;
 
-    StageId(byte id) {
+    StageId(byte id, String displayName) {
         this.id = id;
+        this.displayName = displayName;
     }
 
     public static StageId fromId(byte id) {

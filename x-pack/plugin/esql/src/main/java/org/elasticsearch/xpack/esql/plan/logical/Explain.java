@@ -25,13 +25,23 @@ public class Explain extends LeafPlan implements TelemetryAware {
         ANALYZED
     }
 
-    private final LogicalPlan query;
-
-    private final List<Attribute> output = List.of(
+    /**
+     * Output columns for EXPLAIN command.
+     * - cluster: the cluster alias (empty string for local cluster)
+     * - node: the node name where the plan runs
+     * - role: coordinator, data, or subplan
+     * - type: the plan type (parsedPlan, optimizedLogicalPlan, optimizedPhysicalPlan, localPlan)
+     * - plan: the plan string representation
+     */
+    public static final List<Attribute> OUTPUT_ATTRIBUTES = List.of(
+        new ReferenceAttribute(Source.EMPTY, null, "cluster", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "node", DataType.KEYWORD),
         new ReferenceAttribute(Source.EMPTY, null, "role", DataType.KEYWORD),
         new ReferenceAttribute(Source.EMPTY, null, "type", DataType.KEYWORD),
         new ReferenceAttribute(Source.EMPTY, null, "plan", DataType.KEYWORD)
     );
+
+    private final LogicalPlan query;
 
     public Explain(Source source, LogicalPlan query) {
         super(source);
@@ -54,7 +64,7 @@ public class Explain extends LeafPlan implements TelemetryAware {
 
     @Override
     public List<Attribute> output() {
-        return output;
+        return OUTPUT_ATTRIBUTES;
     }
 
     @Override

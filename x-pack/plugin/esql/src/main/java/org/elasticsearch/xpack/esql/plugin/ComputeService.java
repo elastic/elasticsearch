@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.ExplainPlanTransformer;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -709,10 +710,21 @@ public class ComputeService {
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
             }
+
+            // For EXPLAIN mode, replace data sources with empty sources to make execution cheap.
+            // The original localPlan is immutable and preserved for profiling.
+            PhysicalPlan planToExecute = localPlan;
+            if (context.configuration().explainOnly()) {
+                planToExecute = ExplainPlanTransformer.replaceDataSourcesWithEmpty(localPlan);
+                if (LOGGER.isDebugEnabled()) {
+                    LOGGER.debug("EXPLAIN mode: transformed plan for {}:\n{}", context.description(), planToExecute);
+                }
+            }
+
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
             // see also EsPhysicalOperationProviders.sourcePhysicalOperation
-            var localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plannerSettings, localPlan, shardContexts);
+            var localExecutionPlan = planner.plan(context.description(), context.foldCtx(), plannerSettings, planToExecute, shardContexts);
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local execution plan for {}:\n{}", context.description(), localExecutionPlan.describe());
             }
@@ -729,6 +741,7 @@ public class ComputeService {
                 throw new IllegalStateException("no drivers created");
             }
             LOGGER.debug("using {} drivers", drivers.size());
+            // Pass the ORIGINAL plan (immutable, not transformed) for profiling
             ActionListener<Void> driverListener = addCompletionInfo(listener, drivers, context, localPlan, planTimeProfile);
             driverRunner.executeDrivers(
                 task,
@@ -885,4 +898,5 @@ public class ComputeService {
         });
         return holder.getOrDefault(Map::of);
     }
+
 }

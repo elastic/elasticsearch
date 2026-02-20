@@ -2088,4 +2088,252 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
     private DiscoveryNode randomDataNode() {
         return randomFrom(clusterService().state().nodes().getDataNodes().values());
     }
+
+    public void testExplain() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+
+        String query = "FROM test | WHERE data > 2 | STATS count = COUNT(*) BY color";
+
+        // First, run the query with profile=true to get the actual execution plan
+        EsqlQueryRequest profileRequest = new EsqlQueryRequest();
+        profileRequest.query(query);
+        profileRequest.profile(true);
+        profileRequest.pragmas(randomPragmas());
+
+        String profiledPlanTree = null;
+        try (EsqlQueryResponse profiledResponse = run(profileRequest)) {
+            assertNotNull("Profile should be present", profiledResponse.profile());
+            assertThat("Should have plan profiles", profiledResponse.profile().plans().size(), greaterThan(0));
+
+            // Get the data node plan (the one that runs on data nodes)
+            for (var planProfile : profiledResponse.profile().plans()) {
+                if (planProfile.description().contains("data")) {
+                    profiledPlanTree = planProfile.planTree();
+                    break;
+                }
+            }
+        }
+        assertNotNull("Should have found a data node plan in profile", profiledPlanTree);
+
+        // Now run EXPLAIN and compare the local physical plan
+        try (EsqlQueryResponse explainResults = run("EXPLAIN (" + query + ")")) {
+            // Verify the columns are correct
+            assertThat(
+                explainResults.columns(),
+                equalTo(
+                    List.of(
+                        new ColumnInfoImpl("cluster", "keyword", null),
+                        new ColumnInfoImpl("node", "keyword", null),
+                        new ColumnInfoImpl("role", "keyword", null),
+                        new ColumnInfoImpl("type", "keyword", null),
+                        new ColumnInfoImpl("plan", "keyword", null)
+                    )
+                )
+            );
+
+            List<List<Object>> values = getValuesList(explainResults);
+
+            String explainLocalPhysicalPlan = null;
+            for (List<Object> row : values) {
+                String role = (String) row.get(2);
+                String type = (String) row.get(3);
+                String plan = (String) row.get(4);
+
+                if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
+                    explainLocalPhysicalPlan = plan;
+                    break;
+                }
+            }
+
+            assertNotNull("Should have local physical plan from EXPLAIN", explainLocalPhysicalPlan);
+
+            // Compare the plans by extracting operator sequence
+            List<String> profiledOperators = extractOperators(profiledPlanTree);
+            List<String> explainOperators = extractOperators(explainLocalPhysicalPlan);
+
+            // Strip ExchangeSinkExec from both plans if present (it's just a wrapper)
+            if (profiledOperators.size() > 0 && profiledOperators.get(0).equals("ExchangeSinkExec")) {
+                profiledOperators = profiledOperators.subList(1, profiledOperators.size());
+            }
+            if (explainOperators.size() > 0 && explainOperators.get(0).equals("ExchangeSinkExec")) {
+                explainOperators = explainOperators.subList(1, explainOperators.size());
+            }
+
+            assertThat(
+                "EXPLAIN local physical plan should have same operators as profiled execution plan",
+                explainOperators,
+                equalTo(profiledOperators)
+            );
+        }
+    }
+
+    /**
+     * Normalize a plan string by removing non-deterministic elements like IDs, timestamps, memory addresses,
+     * and computed statistics. This allows comparing plan structures across different executions.
+     */
+    private String normalizePlan(String plan) {
+        // Remove ExchangeSinkExec wrapper (present in profile but not in EXPLAIN local plan)
+        // This regex handles nested brackets by matching until we find "] \_"
+        String result = plan.replaceAll("ExchangeSinkExec\\[.*?\\],\\w+\\]\\s*\\\\_", "");
+
+        return result
+            // Remove attribute IDs like {r}#123, {f}#456
+            .replaceAll("\\{[rf]\\}#\\d+", "{_}#_")
+            // Remove reference IDs like #123
+            .replaceAll("#\\d+", "#_")
+            // Normalize estimatedRowSize (may have computed values or null)
+            .replaceAll("estimatedRowSize\\[\\d+\\]", "estimatedRowSize[_]")
+            .replaceAll("estimatedRowSize\\[null\\]", "estimatedRowSize[_]")
+            // Normalize the last parameter in AggregateExec (position/count - can be number or null)
+            .replaceAll("(\\],)(\\d+|null)(\\]\\s*\\\\_)", "$1_$3")
+            .replaceAll("(\\],)(\\d+|null)(\\]$)", "$1_$3")
+            // Normalize source position references like @1:19 or @_:19
+            .replaceAll("@\\d+:\\d+", "@_:_")
+            .replaceAll("@_:\\d+", "@_:_")
+            // Remove memory addresses
+            .replaceAll("@[0-9a-f]+", "@_")
+            // Remove UUIDs
+            .replaceAll("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", "_UUID_")
+            // Remove timestamps
+            .replaceAll("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}", "_TIMESTAMP_")
+            // Normalize whitespace
+            .replaceAll("\\s+", " ")
+            .trim();
+    }
+
+    /**
+     * Extract operator names from a plan string in order.
+     * Operators are identified by the pattern "OperatorName[" in the plan string.
+     */
+    private List<String> extractOperators(String plan) {
+        List<String> operators = new ArrayList<>();
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("([A-Z][a-zA-Z]+Exec)\\[");
+        java.util.regex.Matcher matcher = pattern.matcher(plan);
+        while (matcher.find()) {
+            operators.add(matcher.group(1));
+        }
+        return operators;
+    }
+
+    public void testExplainSimple() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        try (EsqlQueryResponse results = run("EXPLAIN (ROW x = 1)")) {
+            // Verify the columns are correct
+            assertThat(
+                results.columns(),
+                equalTo(
+                    List.of(
+                        new ColumnInfoImpl("cluster", "keyword", null),
+                        new ColumnInfoImpl("node", "keyword", null),
+                        new ColumnInfoImpl("role", "keyword", null),
+                        new ColumnInfoImpl("type", "keyword", null),
+                        new ColumnInfoImpl("plan", "keyword", null)
+                    )
+                )
+            );
+
+            // Verify we have rows with plan information (ROW doesn't need data nodes)
+            List<List<Object>> values = getValuesList(results);
+            assertThat(values.size(), greaterThanOrEqualTo(3));
+        }
+    }
+
+    /**
+     * Test EXPLAIN with multiple data nodes to verify that local plans are fetched from data nodes
+     * and match the actual profiled execution plans.
+     */
+    public void testExplainMultiNode() {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+
+        // Ensure we have at least 2 data nodes
+        internalCluster().ensureAtLeastNumDataNodes(2);
+
+        // Create a test index with multiple shards
+        String indexName = "explain_multinode_test";
+        assertAcked(
+            indicesAdmin().prepareCreate(indexName)
+                .setSettings(
+                    Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 2).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                )
+                .setMapping("value", "type=integer", "name", "type=keyword")
+        );
+
+        // Index some test data
+        int numDocs = 100;
+        BulkRequestBuilder bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        for (int i = 0; i < numDocs; i++) {
+            bulk.add(new IndexRequest(indexName).source(Map.of("value", i, "name", "doc" + i)));
+        }
+        BulkResponse bulkResponse = bulk.get();
+        assertFalse(bulkResponse.hasFailures());
+
+        String query = "FROM " + indexName + " | WHERE value > 50 | STATS count = COUNT(*)";
+
+        try {
+            // First, run the query with profile=true to get the actual execution plan
+            EsqlQueryRequest profileRequest = new EsqlQueryRequest();
+            profileRequest.query(query);
+            profileRequest.profile(true);
+            profileRequest.pragmas(randomPragmas());
+
+            String profiledPlanTree = null;
+            try (EsqlQueryResponse profiledResponse = run(profileRequest)) {
+                assertNotNull("Profile should be present", profiledResponse.profile());
+                // Get the data node plan
+                for (var planProfile : profiledResponse.profile().plans()) {
+                    if (planProfile.description().contains("data")) {
+                        profiledPlanTree = planProfile.planTree();
+                        break;
+                    }
+                }
+            }
+            assertNotNull("Should have found a data node plan in profile", profiledPlanTree);
+
+            // Now run EXPLAIN and compare
+            try (EsqlQueryResponse explainResults = run("EXPLAIN (" + query + ")")) {
+                List<List<Object>> values = getValuesList(explainResults);
+
+                String explainLocalPhysicalPlan = null;
+                String localPlanNodeName = null;
+
+                for (List<Object> row : values) {
+                    String node = (String) row.get(1);
+                    String role = (String) row.get(2);
+                    String type = (String) row.get(3);
+                    String plan = (String) row.get(4);
+
+                    if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
+                        explainLocalPhysicalPlan = plan;
+                        localPlanNodeName = node;
+                        break;
+                    }
+                }
+
+                assertNotNull("Should have local physical plan from EXPLAIN", explainLocalPhysicalPlan);
+
+                // Compare the plans by normalizing non-deterministic elements
+                String normalizedProfiledPlan = normalizePlan(profiledPlanTree);
+                String normalizedExplainPlan = normalizePlan(explainLocalPhysicalPlan);
+
+                assertThat(
+                    "EXPLAIN local physical plan should match profiled execution plan structure",
+                    normalizedExplainPlan,
+                    equalTo(normalizedProfiledPlan)
+                );
+
+                // Verify the node name is one of the actual cluster nodes
+                if (localPlanNodeName != null) {
+                    Set<String> nodeNames = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
+                    assertThat(
+                        "Local plan node name should be a valid cluster node",
+                        nodeNames,
+                        org.hamcrest.Matchers.hasItem(localPlanNodeName)
+                    );
+                }
+            }
+        } finally {
+            // Clean up the test index
+            assertAcked(indicesAdmin().prepareDelete(indexName));
+        }
+    }
 }

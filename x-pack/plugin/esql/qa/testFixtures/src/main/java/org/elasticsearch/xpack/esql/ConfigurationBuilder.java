@@ -42,6 +42,7 @@ public class ConfigurationBuilder {
 
     private boolean profile;
     private boolean allowPartialResults;
+    private boolean explainOnly;
 
     private Map<String, Map<String, Column>> tables;
     private long queryStartTimeNanos;
@@ -62,6 +63,7 @@ public class ConfigurationBuilder {
         query = configuration.query();
         profile = configuration.profile();
         allowPartialResults = configuration.allowPartialResults();
+        explainOnly = configuration.explainOnly();
         tables = configuration.tables();
         queryStartTimeNanos = configuration.queryStartTimeNanos();
         projectRouting = configuration.projectRouting();
@@ -147,8 +149,13 @@ public class ConfigurationBuilder {
         return this;
     }
 
+    public ConfigurationBuilder explainOnly(boolean explainOnly) {
+        this.explainOnly = explainOnly;
+        return this;
+    }
+
     public Configuration build() {
-        return new Configuration(
+        Configuration config = new Configuration(
             zoneId,
             now,
             locale,
@@ -167,5 +174,6 @@ public class ConfigurationBuilder {
             projectRouting,
             Map.of()
         );
+        return explainOnly ? config.withExplainOnly() : config;
     }
 }

@@ -106,7 +106,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
             generateRandomStringArray(10, 10, false, false),
             IndicesOptions.fromOptions(randomBoolean(), randomBoolean(), randomBoolean(), randomBoolean()),
             randomBoolean(),
-            randomBoolean()
+            randomBoolean(),
+            randomBoolean() // explainOnly
         );
         request.setParentTask(randomAlphaOfLength(10), randomNonNegativeLong());
         return request;
@@ -126,7 +127,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.indices(),
                     in.indicesOptions(),
                     in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
+                    in.reductionLateMaterialization(),
+                    in.explainOnly()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -142,7 +144,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.indices(),
                     in.indicesOptions(),
                     in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
+                    in.reductionLateMaterialization(),
+                    in.explainOnly()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -166,7 +169,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.indices(),
                     in.indicesOptions(),
                     in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
+                    in.reductionLateMaterialization(),
+                    in.explainOnly()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -195,7 +199,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.indices(),
                     in.indicesOptions(),
                     in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
+                    in.reductionLateMaterialization(),
+                    in.explainOnly()
                 );
                 request.setParentTask(in.getParentTask());
                 yield request;
@@ -217,7 +222,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.indices(),
                     in.indicesOptions(),
                     in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
+                    in.reductionLateMaterialization(),
+                    in.explainOnly()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
@@ -233,7 +239,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.indices(),
                     in.indicesOptions(),
                     in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
+                    in.reductionLateMaterialization(),
+                    in.explainOnly()
                 );
                 request.setParentTask(
                     randomValueOtherThan(request.getParentTask().getNodeId(), () -> randomAlphaOfLength(10)),
@@ -253,7 +260,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.indices(),
                     in.indicesOptions(),
                     in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
+                    in.reductionLateMaterialization(),
+                    in.explainOnly()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
@@ -270,7 +278,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     indices,
                     in.indicesOptions(),
                     in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
+                    in.reductionLateMaterialization(),
+                    in.explainOnly()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
@@ -290,7 +299,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.indices(),
                     indicesOptions,
                     in.runNodeLevelReduction(),
-                    in.reductionLateMaterialization()
+                    in.reductionLateMaterialization(),
+                    in.explainOnly()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;
@@ -306,7 +316,8 @@ public class DataNodeRequestSerializationTests extends AbstractWireSerializingTe
                     in.indices(),
                     in.indicesOptions(),
                     in.runNodeLevelReduction() == false,
-                    in.reductionLateMaterialization() == false
+                    in.reductionLateMaterialization() == false,
+                    in.explainOnly()
                 );
                 request.setParentTask(request.getParentTask());
                 yield request;

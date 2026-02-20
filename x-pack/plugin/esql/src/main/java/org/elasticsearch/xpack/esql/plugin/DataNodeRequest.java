@@ -48,6 +48,7 @@ import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResol
 
 final class DataNodeRequest extends AbstractTransportRequest implements IndicesRequest.Replaceable {
     private static final TransportVersion REDUCE_LATE_MATERIALIZATION = TransportVersion.fromName("esql_reduce_late_materialization");
+    private static final TransportVersion EXPLAIN_ONLY = TransportVersion.fromName("esql_explain_only");
 
     private static final Logger logger = LogManager.getLogger(DataNodeRequest.class);
 
@@ -61,7 +62,40 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
     private final IndicesOptions indicesOptions;
     private final boolean runNodeLevelReduction;
     private final boolean reductionLateMaterialization;
+    private final boolean explainOnly;
 
+    /**
+     * Constructor with all parameters including explainOnly.
+     */
+    DataNodeRequest(
+        String sessionId,
+        Configuration configuration,
+        String clusterAlias,
+        List<Shard> shards,
+        Map<Index, AliasFilter> aliasFilters,
+        PhysicalPlan plan,
+        String[] indices,
+        IndicesOptions indicesOptions,
+        boolean runNodeLevelReduction,
+        boolean reductionLateMaterialization,
+        boolean explainOnly
+    ) {
+        this.sessionId = sessionId;
+        this.configuration = configuration;
+        this.clusterAlias = clusterAlias;
+        this.shards = shards;
+        this.aliasFilters = aliasFilters;
+        this.plan = plan;
+        this.indices = indices;
+        this.indicesOptions = indicesOptions;
+        this.runNodeLevelReduction = runNodeLevelReduction;
+        this.reductionLateMaterialization = reductionLateMaterialization;
+        this.explainOnly = explainOnly;
+    }
+
+    /**
+     * Constructor that defaults explainOnly to false.
+     */
     DataNodeRequest(
         String sessionId,
         Configuration configuration,
@@ -74,16 +108,19 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         boolean runNodeLevelReduction,
         boolean reductionLateMaterialization
     ) {
-        this.sessionId = sessionId;
-        this.configuration = configuration;
-        this.clusterAlias = clusterAlias;
-        this.shards = shards;
-        this.aliasFilters = aliasFilters;
-        this.plan = plan;
-        this.indices = indices;
-        this.indicesOptions = indicesOptions;
-        this.runNodeLevelReduction = runNodeLevelReduction;
-        this.reductionLateMaterialization = reductionLateMaterialization;
+        this(
+            sessionId,
+            configuration,
+            clusterAlias,
+            shards,
+            aliasFilters,
+            plan,
+            indices,
+            indicesOptions,
+            runNodeLevelReduction,
+            reductionLateMaterialization,
+            false // explainOnly defaults to false
+        );
     }
 
     DataNodeRequest(StreamInput in) throws IOException {
@@ -118,6 +155,11 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         } else {
             this.reductionLateMaterialization = false;
         }
+        if (in.getTransportVersion().supports(EXPLAIN_ONLY)) {
+            this.explainOnly = in.readBoolean();
+        } else {
+            this.explainOnly = false;
+        }
     }
 
     @Override
@@ -138,6 +180,9 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         out.writeBoolean(runNodeLevelReduction);
         if (out.getTransportVersion().supports(REDUCE_LATE_MATERIALIZATION)) {
             out.writeBoolean(reductionLateMaterialization);
+        }
+        if (out.getTransportVersion().supports(EXPLAIN_ONLY)) {
+            out.writeBoolean(explainOnly);
         }
     }
 
@@ -219,6 +264,10 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
         return reductionLateMaterialization;
     }
 
+    boolean explainOnly() {
+        return explainOnly;
+    }
+
     @Override
     public String getDescription() {
         return "shards=" + shards + " plan=" + plan;
@@ -243,7 +292,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             && getParentTask().equals(request.getParentTask())
             && Arrays.equals(indices, request.indices)
             && indicesOptions.equals(request.indicesOptions)
-            && runNodeLevelReduction == request.runNodeLevelReduction;
+            && runNodeLevelReduction == request.runNodeLevelReduction
+            && explainOnly == request.explainOnly;
     }
 
     @Override
@@ -257,7 +307,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             plan,
             Arrays.hashCode(indices),
             indicesOptions,
-            runNodeLevelReduction
+            runNodeLevelReduction,
+            explainOnly
         );
     }
 
@@ -272,7 +323,8 @@ final class DataNodeRequest extends AbstractTransportRequest implements IndicesR
             indices,
             indicesOptions,
             runNodeLevelReduction,
-            reductionLateMaterialization
+            reductionLateMaterialization,
+            explainOnly
         );
     }
 

@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -46,6 +47,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomIncludeCCSMetadata;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -54,6 +56,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
     protected static final String IDX_ALIAS = "alias1";
@@ -1018,5 +1021,394 @@ public class CrossClusterQueryIT extends AbstractCrossClusterTestCase {
             expectThrows(VerificationException.class, () -> runQuery(request)).getMessage(),
             containsString("Both [include_execution_metadata] and [include_ccs_metadata] query parameters are set. Use only one")
         );
+    }
+
+    /**
+     * Test EXPLAIN with CCS (Cross-Cluster Search) to verify that local plans are fetched from remote clusters.
+     */
+    public void testExplainCCS() throws Exception {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        setupTwoClusters();
+
+        // Run EXPLAIN query that targets both local and remote clusters
+        String explainQuery = "EXPLAIN (FROM logs-*," + REMOTE_CLUSTER_1 + ":logs-* | STATS count = COUNT(*) BY tag)";
+
+        try (EsqlQueryResponse results = runQuery(explainQuery, false)) {
+            // Verify the columns are correct
+            assertThat(
+                results.columns(),
+                equalTo(
+                    List.of(
+                        new ColumnInfoImpl("cluster", "keyword", null),
+                        new ColumnInfoImpl("node", "keyword", null),
+                        new ColumnInfoImpl("role", "keyword", null),
+                        new ColumnInfoImpl("type", "keyword", null),
+                        new ColumnInfoImpl("plan", "keyword", null)
+                    )
+                )
+            );
+
+            // Verify we have rows with plan information
+            List<List<Object>> values = getValuesList(results);
+            assertThat(values.size(), greaterThanOrEqualTo(3));
+
+            // Check that we have coordinator plans and plans from remote cluster
+            boolean hasParsedPlan = false;
+            boolean hasOptimizedLogicalPlan = false;
+            boolean hasOptimizedPhysicalPlan = false;
+            boolean hasLocalPhysicalPlan = false;
+            boolean hasRemoteClusterPlan = false;
+
+            for (List<Object> row : values) {
+                String cluster = (String) row.get(0);
+                String node = (String) row.get(1);
+                String role = (String) row.get(2);
+                String type = (String) row.get(3);
+                String plan = (String) row.get(4);
+
+                assertNotNull(plan);
+                assertNotNull(role);
+                assertNotNull(type);
+
+                if ("coordinator".equals(role) && "parsedPlan".equals(type)) {
+                    hasParsedPlan = true;
+                    // Local cluster plans should have empty cluster name
+                    assertThat(cluster, equalTo(""));
+                }
+                if ("coordinator".equals(role) && "optimizedLogicalPlan".equals(type)) {
+                    hasOptimizedLogicalPlan = true;
+                }
+                if ("coordinator".equals(role) && "optimizedPhysicalPlan".equals(type)) {
+                    hasOptimizedPhysicalPlan = true;
+                }
+                if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
+                    hasLocalPhysicalPlan = true;
+                    // The local physical plan should contain an Elasticsearch execution node
+                    assertThat(
+                        "Local physical plan should contain an Es*Exec node",
+                        plan,
+                        anyOf(containsString("EsQueryExec"), containsString("EsStatsQueryExec"))
+                    );
+                    // Should not contain FragmentExec - that should be mapped to concrete operators
+                    assertThat("Local physical plan should not contain FragmentExec", plan, not(containsString("FragmentExec")));
+                    // Check if this is from remote cluster
+                    if (REMOTE_CLUSTER_1.equals(cluster)) {
+                        hasRemoteClusterPlan = true;
+                        assertThat(node, is(org.hamcrest.Matchers.not(org.hamcrest.Matchers.nullValue())));
+                    }
+                }
+            }
+
+            assertThat("Should have parsed plan", hasParsedPlan, is(true));
+            assertThat("Should have optimized logical plan", hasOptimizedLogicalPlan, is(true));
+            assertThat("Should have optimized physical plan", hasOptimizedPhysicalPlan, is(true));
+            assertThat("Should have local physical plan", hasLocalPhysicalPlan, is(true));
+            assertThat("Should have plan from remote cluster " + REMOTE_CLUSTER_1, hasRemoteClusterPlan, is(true));
+        }
+    }
+
+    /**
+     * Test EXPLAIN with CCS where a filter references a field that only exists on the local cluster.
+     * This demonstrates different local plans for different clusters based on field availability:
+     * - Local cluster: EsRelation (field exists, query proceeds normally)
+     * - Remote cluster: LocalRelation (field doesn't exist, optimizer prunes to empty result)
+     */
+    public void testExplainCCSWithFieldOnlyOnLocalCluster() throws Exception {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+
+        // First set up the standard cluster infrastructure
+        setupTwoClusters();
+
+        String localIndex = "test-local-field-index";
+        String remoteIndex = "test-remote-no-field-index";
+
+        // Create index on local cluster WITH the special field
+        assertAcked(
+            client(LOCAL_CLUSTER).admin()
+                .indices()
+                .prepareCreate(localIndex)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping("common_field", "type=keyword", "local_only_field", "type=keyword")
+        );
+        client(LOCAL_CLUSTER).prepareIndex(localIndex).setSource("common_field", "value1", "local_only_field", "local_value").get();
+        client(LOCAL_CLUSTER).admin().indices().prepareRefresh(localIndex).get();
+
+        // Wait for green status on the local index
+        client(LOCAL_CLUSTER).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT, localIndex).setWaitForGreenStatus().get();
+
+        // Create index on remote cluster WITHOUT the special field
+        Client remoteClient = client(REMOTE_CLUSTER_1);
+        assertAcked(
+            remoteClient.admin()
+                .indices()
+                .prepareCreate(remoteIndex)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping("common_field", "type=keyword")
+        );
+        remoteClient.prepareIndex(remoteIndex).setSource("common_field", "value2").get();
+        remoteClient.admin().indices().prepareRefresh(remoteIndex).get();
+
+        // Wait for green status on the remote index
+        cluster(REMOTE_CLUSTER_1).ensureAtLeastNumDataNodes(1);
+        remoteClient.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex).setWaitForGreenStatus().get();
+
+        // The query to test - filters on a field that only exists on local cluster
+        String baseQuery = "FROM "
+            + localIndex
+            + ","
+            + REMOTE_CLUSTER_1
+            + ":"
+            + remoteIndex
+            + " | WHERE local_only_field == \"test\" | KEEP common_field";
+
+        // Step 1: Run the query with profile=true to get actual execution plans
+        EsqlQueryRequest profileRequest = syncEsqlQueryRequest(baseQuery);
+        profileRequest.profile(true);
+
+        String profiledLocalPlan = null;
+        String profiledRemotePlan = null;
+
+        try (EsqlQueryResponse profiledResponse = runQuery(profileRequest)) {
+            assertNotNull("Profile should be present", profiledResponse.profile());
+
+            // Extract plans by cluster from profile
+            for (var planProfile : profiledResponse.profile().plans()) {
+                if (planProfile.description().contains("data")) {
+                    // Local cluster has empty cluster name
+                    if (planProfile.clusterName().isEmpty() || planProfile.clusterName().equals("main-cluster")) {
+                        profiledLocalPlan = planProfile.planTree();
+                    } else if (planProfile.clusterName().equals(REMOTE_CLUSTER_1)) {
+                        profiledRemotePlan = planProfile.planTree();
+                    }
+                }
+            }
+        }
+
+        // Step 2: Run EXPLAIN with a filter on the field that only exists locally
+        String explainQuery = "EXPLAIN (" + baseQuery + ")";
+
+        try (EsqlQueryResponse results = runQuery(explainQuery, false)) {
+            List<List<Object>> values = getValuesList(results);
+
+            // Track plans by cluster from EXPLAIN
+            // Note: localLogicalPlan is not yet implemented in profile capture, only localPhysicalPlan is available
+            String explainLocalPhysicalPlan = null;
+            String explainRemotePhysicalPlan = null;
+
+            for (List<Object> row : values) {
+                String cluster = (String) row.get(0);
+                String role = (String) row.get(2);
+                String type = (String) row.get(3);
+                String plan = (String) row.get(4);
+
+                if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
+                    if ("".equals(cluster)) {
+                        explainLocalPhysicalPlan = plan;
+                    } else if (REMOTE_CLUSTER_1.equals(cluster)) {
+                        explainRemotePhysicalPlan = plan;
+                    }
+                }
+            }
+
+            // Assertions for local cluster (field exists)
+            if (explainLocalPhysicalPlan != null) {
+                assertThat(
+                    "Local cluster physical plan should have EsQueryExec (field exists)",
+                    explainLocalPhysicalPlan,
+                    anyOf(containsString("EsQueryExec"), containsString("EsStatsQueryExec"))
+                );
+
+                // Compare with profiled plan if available
+                if (profiledLocalPlan != null) {
+                    List<String> profiledOperators = extractOperators(profiledLocalPlan);
+                    List<String> explainOperators = extractOperators(explainLocalPhysicalPlan);
+
+                    // Remove ExchangeSinkExec wrapper if present in either plan
+                    if (profiledOperators.size() > 0 && profiledOperators.get(0).equals("ExchangeSinkExec")) {
+                        profiledOperators = profiledOperators.subList(1, profiledOperators.size());
+                    }
+                    if (explainOperators.size() > 0 && explainOperators.get(0).equals("ExchangeSinkExec")) {
+                        explainOperators = explainOperators.subList(1, explainOperators.size());
+                    }
+
+                    assertThat(
+                        "EXPLAIN local physical plan should have same operators as profiled plan for local cluster",
+                        explainOperators,
+                        equalTo(profiledOperators)
+                    );
+                }
+            }
+
+            // Assertions for remote cluster (field doesn't exist, pruned)
+            // The physical plan should show LocalSourceExec indicating the query was pruned
+            assertNotNull("Should have local physical plan for remote cluster", explainRemotePhysicalPlan);
+            assertThat(
+                "Remote cluster physical plan should have LocalSourceExec (pruned to empty)",
+                explainRemotePhysicalPlan,
+                containsString("LocalSourceExec")
+            );
+
+            // Compare remote cluster plans with profile if available
+            if (profiledRemotePlan != null) {
+                List<String> profiledOperators = extractOperators(profiledRemotePlan);
+                List<String> explainOperators = extractOperators(explainRemotePhysicalPlan);
+
+                // Remove ExchangeSinkExec wrapper if present in either plan
+                if (profiledOperators.size() > 0 && profiledOperators.get(0).equals("ExchangeSinkExec")) {
+                    profiledOperators = profiledOperators.subList(1, profiledOperators.size());
+                }
+                if (explainOperators.size() > 0 && explainOperators.get(0).equals("ExchangeSinkExec")) {
+                    explainOperators = explainOperators.subList(1, explainOperators.size());
+                }
+
+                assertThat(
+                    "EXPLAIN local physical plan should have same operators as profiled plan for remote cluster",
+                    explainOperators,
+                    equalTo(profiledOperators)
+                );
+            }
+        }
+    }
+
+    /**
+     * Test EXPLAIN with INLINE STATS in a cross-cluster query.
+     * INLINE STATS creates a subplan that is executed separately, and EXPLAIN should show this.
+     *
+     * Note: EXPLAIN with INLINE STATS currently only returns coordinator-level plans (not data node plans).
+     * This is because InlineJoin contains StubRelation which cannot be serialized for remote execution.
+     * In normal execution, subplans are executed first and their results replace StubRelation.
+     * For EXPLAIN, we skip remote planning and only show coordinator plans plus subplan information.
+     */
+    public void testExplainCCSWithInlineStats() throws Exception {
+        assumeTrue("EXPLAIN requires the capability to be enabled", EsqlCapabilities.Cap.EXPLAIN.isEnabled());
+        assumeTrue("INLINE STATS requires the capability to be enabled", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        assumeTrue(
+            "INLINE STATS with remote requires the capability to be enabled",
+            EsqlCapabilities.Cap.INLINE_STATS_SUPPORTS_REMOTE.isEnabled()
+        );
+
+        // Set up the standard cluster infrastructure
+        setupTwoClusters();
+
+        String localIndex = "test-inline-stats-local";
+        String remoteIndex = "test-inline-stats-remote";
+
+        // Create index on local cluster
+        assertAcked(
+            client(LOCAL_CLUSTER).admin()
+                .indices()
+                .prepareCreate(localIndex)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping("category", "type=keyword", "value", "type=integer")
+        );
+        client(LOCAL_CLUSTER).prepareIndex(localIndex).setSource("category", "A", "value", 10).get();
+        client(LOCAL_CLUSTER).prepareIndex(localIndex).setSource("category", "A", "value", 20).get();
+        client(LOCAL_CLUSTER).prepareIndex(localIndex).setSource("category", "B", "value", 30).get();
+        client(LOCAL_CLUSTER).admin().indices().prepareRefresh(localIndex).get();
+        client(LOCAL_CLUSTER).admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT, localIndex).setWaitForGreenStatus().get();
+
+        // Create index on remote cluster
+        Client remoteClient = client(REMOTE_CLUSTER_1);
+        assertAcked(
+            remoteClient.admin()
+                .indices()
+                .prepareCreate(remoteIndex)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping("category", "type=keyword", "value", "type=integer")
+        );
+        remoteClient.prepareIndex(remoteIndex).setSource("category", "A", "value", 40).get();
+        remoteClient.prepareIndex(remoteIndex).setSource("category", "B", "value", 50).get();
+        remoteClient.admin().indices().prepareRefresh(remoteIndex).get();
+        cluster(REMOTE_CLUSTER_1).ensureAtLeastNumDataNodes(1);
+        remoteClient.admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex).setWaitForGreenStatus().get();
+
+        // Query with INLINE STATS - this creates a subplan for the aggregation
+        String baseQuery = "FROM "
+            + localIndex
+            + ","
+            + REMOTE_CLUSTER_1
+            + ":"
+            + remoteIndex
+            + " | INLINE STATS total = SUM(value) BY category | KEEP category, value, total | SORT category, value";
+
+        // Run EXPLAIN - for INLINE STATS, we only get coordinator plans (no data node plans)
+        String explainQuery = "EXPLAIN (" + baseQuery + ")";
+
+        try (EsqlQueryResponse results = runQuery(explainQuery, false)) {
+            List<List<Object>> values = getValuesList(results);
+
+            // Track plans from EXPLAIN
+            String explainParsedPlan = null;
+            String explainOptimizedLogicalPlan = null;
+            String explainOptimizedPhysicalPlan = null;
+            String explainSubplanLogical = null;
+            String explainSubplanPhysical = null;
+            boolean hasDataNodePlans = false;
+
+            for (List<Object> row : values) {
+                String role = (String) row.get(2);
+                String type = (String) row.get(3);
+                String plan = (String) row.get(4);
+
+                if ("coordinator".equals(role)) {
+                    if ("parsedPlan".equals(type)) {
+                        explainParsedPlan = plan;
+                    } else if ("optimizedLogicalPlan".equals(type)) {
+                        explainOptimizedLogicalPlan = plan;
+                    } else if ("optimizedPhysicalPlan".equals(type)) {
+                        explainOptimizedPhysicalPlan = plan;
+                    }
+                } else if (role.startsWith("subplan-")) {
+                    if ("logicalPlan".equals(type)) {
+                        explainSubplanLogical = plan;
+                    } else if ("physicalPlan".equals(type)) {
+                        explainSubplanPhysical = plan;
+                    }
+                } else if ("data".equals(role)) {
+                    hasDataNodePlans = true;
+                }
+            }
+
+            // Verify coordinator plans are present
+            assertNotNull("Should have parsed plan", explainParsedPlan);
+            assertNotNull("Should have optimized logical plan", explainOptimizedLogicalPlan);
+            assertNotNull("Should have optimized physical plan", explainOptimizedPhysicalPlan);
+
+            // Verify the optimized logical plan contains InlineJoin (INLINE STATS is transformed to InlineJoin)
+            assertThat(
+                "Optimized logical plan should contain InlineJoin (from INLINE STATS)",
+                explainOptimizedLogicalPlan,
+                containsString("InlineJoin")
+            );
+
+            // Verify subplan information is present
+            assertNotNull("Should have subplan logical plan", explainSubplanLogical);
+            assertNotNull("Should have subplan physical plan", explainSubplanPhysical);
+
+            // Verify subplan contains the aggregation
+            assertThat(
+                "Subplan should contain aggregation",
+                explainSubplanLogical,
+                anyOf(containsString("Aggregate"), containsString("SUM"))
+            );
+
+            // For INLINE STATS, we currently skip data node planning due to StubRelation serialization limitation
+            // This is expected behavior - we only show coordinator plans
+            assertFalse("EXPLAIN with INLINE STATS should not include data node plans (current limitation)", hasDataNodePlans);
+        }
+    }
+
+    /**
+     * Extract operator names from a plan string in order.
+     * Operators are identified by the pattern "OperatorExec[" in the plan string.
+     */
+    private List<String> extractOperators(String plan) {
+        List<String> operators = new ArrayList<>();
+        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile("([A-Z][a-zA-Z]+Exec)\\[");
+        java.util.regex.Matcher matcher = pattern.matcher(plan);
+        while (matcher.find()) {
+            operators.add(matcher.group(1));
+        }
+        return operators;
     }
 }

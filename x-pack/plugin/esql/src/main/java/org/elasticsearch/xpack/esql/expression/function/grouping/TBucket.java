@@ -67,7 +67,7 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
         description = """
             Creates groups of values - buckets - out of a @timestamp attribute. The size of the buckets can either be provided \
             directly as a duration or period, or chosen based on a target bucket count \
-            from explicit `from`/`to` parameters.""",
+            from explicit `from`/`to` parameters {applies_to}`stack: ga 9.4`.""",
         examples = {
             @Example(description = """
                 Provide a bucket size as an argument.""", file = "tbucket", tag = "docsTBucketByOneHourDuration", explanation = """
@@ -95,20 +95,20 @@ public class TBucket extends GroupingFunction.EvaluatableGroupingFunction
             name = "buckets",
             type = { "integer", "date_period", "time_duration" },
             description = "Target number of buckets, or desired bucket size. "
-                + "When a number, the actual bucket size is derived from `from`/`to`. "
+                + "When a number, the actual bucket size is derived from `from`/`to` {applies_to}`stack: ga 9.4`. "
                 + "When a duration or period, it is the explicit bucket size."
         ) Expression buckets,
         @Param(
             name = "from",
             type = { "date", "keyword", "text" },
             optional = true,
-            description = "Start of the range. Required with a numeric `buckets`."
+            description = "Start of the range. Required with a numeric `buckets` {applies_to}`stack: ga 9.4`."
         ) @Nullable Expression from,
         @Param(
             name = "to",
             type = { "date", "keyword", "text" },
             optional = true,
-            description = "End of the range. Required with a numeric `buckets`."
+            description = "End of the range. Required with a numeric `buckets` {applies_to}`stack: ga 9.4`."
         ) @Nullable Expression to,
         Expression timestamp,
         Configuration configuration

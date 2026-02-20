@@ -2,5 +2,5 @@
 
 **Description**
 
-Creates groups of values - buckets - out of a @timestamp attribute. The size of the buckets can either be provided directly as a duration or period, or chosen based on a target bucket count from explicit `from`/`to` parameters.
+Creates groups of values - buckets - out of a @timestamp attribute. The size of the buckets can either be provided directly as a duration or period, or chosen based on a target bucket count from explicit `from`/`to` parameters {applies_to}`stack: ga 9.4`.
 

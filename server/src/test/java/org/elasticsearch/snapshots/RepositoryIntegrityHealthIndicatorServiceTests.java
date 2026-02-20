@@ -79,7 +79,8 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
                     new RepositoriesHealthInfo(List.of(), List.of())
                 )
             ),
-            FileSettingsHealthInfo.INDETERMINATE
+            FileSettingsHealthInfo.INDETERMINATE,
+            Map.of()
         );
 
         featureService = Mockito.mock(FeatureService.class);
@@ -257,7 +258,7 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
         var service = createRepositoryIntegrityHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(true, new HealthInfo(Map.of(), null, Map.of(), FileSettingsHealthInfo.INDETERMINATE)),
+            service.calculate(true, new HealthInfo(Map.of(), null, Map.of(), FileSettingsHealthInfo.INDETERMINATE, Map.of())),
             equalTo(
                 new HealthIndicatorResult(
                     NAME,
@@ -296,7 +297,8 @@ public class RepositoryIntegrityHealthIndicatorServiceTests extends ESTestCase {
             healthInfo.diskInfoByNode(),
             healthInfo.dslHealthInfo(),
             repoHealthInfo,
-            FileSettingsHealthInfo.INDETERMINATE
+            FileSettingsHealthInfo.INDETERMINATE,
+            Map.of()
         );
 
         assertThat(

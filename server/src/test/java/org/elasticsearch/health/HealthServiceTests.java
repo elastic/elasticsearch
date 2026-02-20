@@ -24,6 +24,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
@@ -256,7 +257,8 @@ public class HealthServiceTests extends ESTestCase {
             diskHealthInfoMap,
             DataStreamLifecycleHealthInfo.NO_DSL_ERRORS,
             repoHealthInfoMap,
-            FileSettingsHealthInfo.INDETERMINATE
+            FileSettingsHealthInfo.INDETERMINATE,
+            Map.of()
         );
 
         var service = new HealthService(

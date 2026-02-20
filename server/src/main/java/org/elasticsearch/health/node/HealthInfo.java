@@ -25,24 +25,28 @@ import static org.elasticsearch.health.node.FileSettingsHealthInfo.INDETERMINATE
 /**
  * This class wraps all the data returned by the health node.
  *
- * @param diskInfoByNode         A Map of node id to DiskHealthInfo for that node
- * @param dslHealthInfo          The data stream lifecycle health information
- * @param repositoriesInfoByNode A Map of node id to RepositoriesHealthInfo for that node
- * @param fileSettingsHealthInfo The file-based settings health information
+ * @param diskInfoByNode              A Map of node id to DiskHealthInfo for that node
+ * @param dslHealthInfo               The data stream lifecycle health information
+ * @param repositoriesInfoByNode      A Map of node id to RepositoriesHealthInfo for that node
+ * @param fileSettingsHealthInfo      The file-based settings health information
+ * @param peerConnectionsInfoByNode  A Map of node id to PeerConnectionsHealthInfo for that node
  */
 public record HealthInfo(
     Map<String, DiskHealthInfo> diskInfoByNode,
     @Nullable DataStreamLifecycleHealthInfo dslHealthInfo,
     Map<String, RepositoriesHealthInfo> repositoriesInfoByNode,
-    FileSettingsHealthInfo fileSettingsHealthInfo
+    FileSettingsHealthInfo fileSettingsHealthInfo,
+    Map<String, PeerConnectionsHealthInfo> peerConnectionsInfoByNode
 ) implements Writeable {
 
-    public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of(), INDETERMINATE);
+    public static final HealthInfo EMPTY_HEALTH_INFO = new HealthInfo(Map.of(), NO_DSL_ERRORS, Map.of(), INDETERMINATE, Map.of());
 
     private static final TransportVersion FILE_SETTINGS_HEALTH_INFO = TransportVersion.fromName("file_settings_health_info");
+    private static final TransportVersion PEER_CONNECTIONS_HEALTH_INFO = TransportVersion.fromName("peer_connections_health_info");
 
     public HealthInfo {
         requireNonNull(fileSettingsHealthInfo);
+        requireNonNull(peerConnectionsInfoByNode);
     }
 
     public HealthInfo(StreamInput input) throws IOException {
@@ -52,7 +56,8 @@ public record HealthInfo(
             input.readMap(RepositoriesHealthInfo::new),
             input.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)
                 ? input.readOptionalWriteable(FileSettingsHealthInfo::new)
-                : INDETERMINATE
+                : INDETERMINATE,
+            input.getTransportVersion().supports(PEER_CONNECTIONS_HEALTH_INFO) ? input.readMap(PeerConnectionsHealthInfo::new) : Map.of()
         );
     }
 
@@ -63,6 +68,9 @@ public record HealthInfo(
         output.writeMap(repositoriesInfoByNode, StreamOutput::writeWriteable);
         if (output.getTransportVersion().supports(FILE_SETTINGS_HEALTH_INFO)) {
             output.writeOptionalWriteable(fileSettingsHealthInfo);
+        }
+        if (output.getTransportVersion().supports(PEER_CONNECTIONS_HEALTH_INFO)) {
+            output.writeMap(peerConnectionsInfoByNode, StreamOutput::writeWriteable);
         }
     }
 }

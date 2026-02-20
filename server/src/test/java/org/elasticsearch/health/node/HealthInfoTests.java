@@ -15,6 +15,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
@@ -30,11 +31,13 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
     protected HealthInfo createTestInstance() {
         var diskInfoByNode = randomMap(0, 10, () -> tuple(randomAlphaOfLength(10), randomDiskHealthInfo()));
         var repositoriesInfoByNode = randomMap(0, 10, () -> tuple(randomAlphaOfLength(10), randomRepoHealthInfo()));
+        var peerConnectionsInfoByNode = randomMap(0, 10, () -> tuple(randomAlphaOfLength(10), randomPeerConnectionsHealthInfo()));
         return new HealthInfo(
             diskInfoByNode,
             randomBoolean() ? randomDslHealthInfo() : null,
             repositoriesInfoByNode,
-            randomBoolean() ? FileSettingsHealthInfo.INDETERMINATE : mutateFileSettingsHealthInfo(FileSettingsHealthInfo.INDETERMINATE)
+            randomBoolean() ? FileSettingsHealthInfo.INDETERMINATE : mutateFileSettingsHealthInfo(FileSettingsHealthInfo.INDETERMINATE),
+            peerConnectionsInfoByNode
         );
     }
 
@@ -48,7 +51,8 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
         var dslHealth = originalHealthInfo.dslHealthInfo();
         var repoHealth = originalHealthInfo.repositoriesInfoByNode();
         var fsHealth = originalHealthInfo.fileSettingsHealthInfo();
-        switch (randomInt(3)) {
+        var peerHealth = originalHealthInfo.peerConnectionsInfoByNode();
+        switch (randomInt(4)) {
             case 0 -> diskHealth = mutateMap(
                 originalHealthInfo.diskInfoByNode(),
                 () -> randomAlphaOfLength(10),
@@ -61,8 +65,13 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
                 HealthInfoTests::randomRepoHealthInfo
             );
             case 3 -> fsHealth = mutateFileSettingsHealthInfo(fsHealth);
+            case 4 -> peerHealth = mutateMap(
+                originalHealthInfo.peerConnectionsInfoByNode(),
+                () -> randomAlphaOfLength(10),
+                HealthInfoTests::randomPeerConnectionsHealthInfo
+            );
         }
-        return new HealthInfo(diskHealth, dslHealth, repoHealth, fsHealth);
+        return new HealthInfo(diskHealth, dslHealth, repoHealth, fsHealth, peerHealth);
     }
 
     public static DiskHealthInfo randomDiskHealthInfo() {
@@ -80,6 +89,10 @@ public class HealthInfoTests extends AbstractWireSerializingTestCase<HealthInfo>
 
     public static RepositoriesHealthInfo randomRepoHealthInfo() {
         return new RepositoriesHealthInfo(randomList(5, () -> randomAlphaOfLength(10)), randomList(5, () -> randomAlphaOfLength(10)));
+    }
+
+    public static PeerConnectionsHealthInfo randomPeerConnectionsHealthInfo() {
+        return new PeerConnectionsHealthInfo(randomBoolean() ? List.of() : randomList(1, 5, () -> randomAlphaOfLength(10)));
     }
 
     static FileSettingsHealthInfo mutateFileSettingsHealthInfo(FileSettingsHealthInfo original) {

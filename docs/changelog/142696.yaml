@@ -1,0 +1,6 @@
+area: Health
+issues:
+ - 119262
+pr: 142696
+summary: Add peer connections health indicator to Health API
+type: enhancement

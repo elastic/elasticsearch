@@ -45,7 +45,7 @@ import java.util.Objects;
 public class EncodedTDigest implements ReadableTDigest {
     private static final BytesRef EMPTY_BYTES = new BytesRef();
 
-    private BytesRef encodedDigest = EMPTY_BYTES;
+    private final BytesRef encodedDigest = new BytesRef();
     private long cachedSize = -1L;
     private double cachedMax = Double.NaN;
     private int cachedCentroidCount = -1;
@@ -53,17 +53,20 @@ public class EncodedTDigest implements ReadableTDigest {
     public EncodedTDigest() {}
 
     public EncodedTDigest(BytesRef encodedDigest) {
-        this.encodedDigest = Objects.requireNonNullElse(encodedDigest, EMPTY_BYTES);
-        this.cachedSize = -1L;
-        this.cachedMax = Double.NaN;
-        this.cachedCentroidCount = -1;
+        reset(encodedDigest);
     }
 
     /**
      * Replaces the underlying encoded digest bytes.
+     * All decoding happens lazily when methods like {@link #size()} or {@link #cdf(double)} are called.
+     * The provided {@code encodedDigest} is copied shallowly, so the caller is responsible for ensuring
+     * that the bytes remain unchanged for the lifetime of this instance.
      */
     public void reset(BytesRef encodedDigest) {
-        this.encodedDigest = Objects.requireNonNullElse(encodedDigest, EMPTY_BYTES);
+        BytesRef source = Objects.requireNonNullElse(encodedDigest, EMPTY_BYTES);
+        this.encodedDigest.bytes = source.bytes;
+        this.encodedDigest.offset = source.offset;
+        this.encodedDigest.length = source.length;
         this.cachedSize = -1L;
         this.cachedMax = Double.NaN;
         this.cachedCentroidCount = -1;

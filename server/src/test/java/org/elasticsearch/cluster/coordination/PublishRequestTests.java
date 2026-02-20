@@ -15,11 +15,9 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-public class MessagesTests extends ESTestCase {
+import static org.elasticsearch.cluster.node.DiscoveryNodeUtils.create;
 
-    private DiscoveryNode createNode(String id) {
-        return DiscoveryNodeUtils.create(id);
-    }
+public class PublishRequestTests extends ESTestCase {
 
     public void testPublishRequestEqualsHashCode() {
         PublishRequest initialPublishRequest = new PublishRequest(randomClusterState());
@@ -30,34 +28,11 @@ public class MessagesTests extends ESTestCase {
         );
     }
 
-    public void testPublishResponseEqualsHashCodeSerialization() {
-        PublishResponse initialPublishResponse = new PublishResponse(randomNonNegativeLong(), randomNonNegativeLong());
-        EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            initialPublishResponse,
-            publishResponse -> copyWriteable(publishResponse, writableRegistry(), PublishResponse::new),
-            publishResponse -> switch (randomInt(1)) {
-                case 0 ->
-                    // change term
-                    new PublishResponse(
-                        randomValueOtherThan(publishResponse.getTerm(), ESTestCase::randomNonNegativeLong),
-                        publishResponse.getVersion()
-                    );
-                case 1 ->
-                    // change version
-                    new PublishResponse(
-                        publishResponse.getTerm(),
-                        randomValueOtherThan(publishResponse.getVersion(), ESTestCase::randomNonNegativeLong)
-                    );
-                default -> throw new AssertionError();
-            }
-        );
-    }
-
     public ClusterState randomClusterState() {
         return CoordinationStateTests.clusterState(
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            createNode(randomAlphaOfLength(10)),
+            create(randomAlphaOfLength(10)),
             new CoordinationMetadata.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),
             new CoordinationMetadata.VotingConfiguration(Sets.newHashSet(generateRandomStringArray(10, 10, false))),
             randomLong()

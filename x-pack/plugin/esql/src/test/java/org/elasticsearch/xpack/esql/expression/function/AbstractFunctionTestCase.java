@@ -741,7 +741,24 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     /**
      * Validates co- and contra-variance: if a function accepts certain input types, it should also accept strictly narrower types
      * (as defined by {@link DataType#strictlyNarrowerTypes()}) and produce an output type that is the same or narrower than before
-     * (as defined by {@link DataType#canWidenTo(DataType)})
+     * (as defined by {@link DataType#canWidenTo(DataType)}).
+     * <p>
+     * It is particularly important that the bottom type {@link DataType#NULL} is accepted in all positions to keep as many queries
+     * as possible intact when using {@code SET unmapped_fields="nullify"}.
+     * <p>
+     * We generally recognize two exceptions from this principle:
+     * <ul>
+     *     <li>Parameters that must be non-null constants (e.g. the pattern argument of {@code LIKE}) may reject {@code NULL}.
+     *         Use {@link #filterCoAndContraVarianceNarrowing(Map, List)} to remove the {@code NULL} type from the candidates in such cases.
+     *     <li>Parameters that must have the same type as other parameters (e.g. the arguments of {@code MV_CONTAINS}) only need to satisfy
+     *         the co- and contra-variance principle when narrowed uniformly (i.e. if one argument can be narrowed to a certain type,
+     *         then all arguments of the same original type can be narrowed to that type).
+     *         Use {@link #checkCoAndContraVarianceUniformly(java.util.function.Function)} to test this weaker condition for such functions.
+     * </ul>
+     * <p>
+     * <b>Note:</b> When designing new functions, it may be necessary that having {@link DataType#NULL} in one or more arguments turns the
+     * output type to {@code NULL} as well; this is the case when the function may output non-compatible types, or when the function
+     * may do so in the future.
      */
     public void testCoAndContraVariance() {
         checkCoAndContraVariance(DataType::strictlyNarrowerTypes);
@@ -839,7 +856,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
 
     /**
      * Filters the proposed position narrowings before they are applied. Subclasses can override this to remove
-     * narrowings that are not valid for specific argument positions, e.g. to prevent NULL in a literal-only argument.
+     * narrowings that are not valid for specific argument positions, e.g. to prevent {@code NULL} in a literal-only argument.
      * @param positionNarrowing mutable map from argument position to narrowed type; remove entries to prevent narrowing
      * @param data the original test case parameters for context
      */

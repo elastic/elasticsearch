@@ -211,7 +211,9 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
 
     /**
      * The {@link DataType} returned by executing the tree rooted at this
-     * expression. If {@link #typeResolved()} returns an error then the behavior
+     * expression.
+     * <p>
+     * If {@link #typeResolved()} returns an error then the behavior
      * of this method is undefined. It <strong>may</strong> return a valid
      * type. Or it may throw an exception. Or it may return a totally nonsensical
      * type.

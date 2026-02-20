@@ -18,10 +18,9 @@ import java.util.StringJoiner;
 
 /**
  * Any ESQL function; generally this is translated into a computation to be evaluated on arguments, including scalar functions (e.g. in
- * {@code EVAL}) or aggregation functions ({@code STATS}).
+ * {@code EVAL}), aggregation functions ({@code STATS}), but also operators like {@code +} and {@code AND}.
  */
 public abstract class Function extends Expression {
-    // TODO: Functions supporting distinct should add a dedicated constructor Location, List<Expression>, boolean
     protected Function(Source source, List<Expression> children) {
         super(source, children);
     }

@@ -549,6 +549,8 @@ public enum DataType implements Writeable {
         DATETIME,
         Set.of(DATE_NANOS),
         // We allow TEXT to be used where KEYWORD is expected because we load text fields without analysis, so they behave like keywords.
+        // This is only expected to be relevant for fields that are mapped as both text and keyword,
+        // but it is simpler to allow this in general than to special case it just for those fields.
         TEXT,
         Set.of(KEYWORD)
     );

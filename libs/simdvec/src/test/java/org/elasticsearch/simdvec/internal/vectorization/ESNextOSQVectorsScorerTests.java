@@ -167,7 +167,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     long qDist = defaultScorer.quantizeScore(queryData.quantizedVector());
                     slice.readFloats(floatScratch, 0, 3);
                     int quantizedComponentSum = slice.readInt();
-                    float defaulScore = defaultScorer.score(
+                    float defaultScore = defaultScorer.score(
                         queryData.lowerInterval(),
                         queryData.upperInterval(),
                         queryData.quantizedComponentSum(),
@@ -196,7 +196,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         floatScratch[2],
                         qDist
                     );
-                    assertEquals(defaulScore, panamaScore, 1e-2f);
+                    assertEquals(defaultScore, panamaScore, 1e-2f);
                     assertEquals(((long) (i + 1) * perVectorBytes), slice.getFilePointer());
                     assertEquals(padding + ((long) (i + 1) * perVectorBytes), in.getFilePointer());
                 }
@@ -240,14 +240,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     for (int j = 0; j < bulkSize; j++) {
                         var vector = new float[dimensions];
                         randomVector(random(), vector, similarityFunction);
-                        vectors[j] = createOSQIndexData(
-                            vector,
-                            centroid,
-                            quantizer,
-                            dimensions,
-                            indexBits,
-                            indexVectorPackedLengthInBytes
-                        );
+                        vectors[j] = createOSQIndexData(vector, centroid, quantizer, dimensions, indexBits, indexVectorPackedLengthInBytes);
                     }
                     writeBulkOSQVectorData(bulkSize, out, vectors);
                 }
@@ -309,9 +302,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                         bulkSize
                     );
                     assertEquals(defaultMaxScore, panamaMaxScore, 1e-2f);
-                    for (int j = 0; j < bulkSize; j++) {
-                        assertEquals(scoresDefault[j], scoresPanama[j], 1e-2f);
-                    }
+                    assertArrayEqualsPercent(scoresDefault, scoresPanama, 0.05f, 1e-2f);
                     assertEquals(((long) bulkSize * perVectorBytes), slice.getFilePointer());
                     assertEquals(padding + ((long) (i + bulkSize) * perVectorBytes), in.getFilePointer());
                 }

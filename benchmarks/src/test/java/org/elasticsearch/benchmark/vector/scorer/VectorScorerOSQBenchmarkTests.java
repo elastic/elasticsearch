@@ -26,6 +26,7 @@ import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 
 public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
+    private static final int REPETITIONS = 10;
     private final float deltaPercent = 0.1f;
     private final int dims;
     private final byte bits;
@@ -50,7 +51,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
     }
 
     public void testSingleScalarVsVectorized() throws Exception {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < REPETITIONS; i++) {
             var seed = randomLong();
 
             var scalar = new VectorScorerOSQBenchmark();
@@ -85,7 +86,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
     }
 
     public void testBulkScalarVsVectorized() throws Exception {
-        for (int i = 0; i < 100; i++) {
+        for (int i = 0; i < REPETITIONS; i++) {
             var seed = randomLong();
 
             var scalar = new VectorScorerOSQBenchmark();

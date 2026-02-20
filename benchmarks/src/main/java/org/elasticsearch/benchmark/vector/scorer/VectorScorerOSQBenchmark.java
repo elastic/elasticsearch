@@ -135,14 +135,7 @@ public class VectorScorerOSQBenchmark {
                 for (int j = 0; j < bulkSize; j++) {
                     var vector = new float[dims];
                     randomVector(random, vector, similarityFunction);
-                    vectors[j] = createOSQIndexData(
-                        vector,
-                        centroid,
-                        quantizer,
-                        dims,
-                        bits,
-                        length
-                    );
+                    vectors[j] = createOSQIndexData(vector, centroid, quantizer, dims, bits, length);
                 }
                 writeBulkOSQVectorData(bulkSize, output, vectors);
             }
@@ -160,7 +153,7 @@ public class VectorScorerOSQBenchmark {
         var query = new float[dims];
         for (int i = 0; i < numVectors; ++i) {
             randomVector(random, query, similarityFunction);
-            binaryQueries[i] = createOSQQueryData(query, centroid, quantizer, dims, (byte)4, binaryQueryLength);
+            binaryQueries[i] = createOSQQueryData(query, centroid, quantizer, dims, (byte) 4, binaryQueryLength);
         }
         centroidDp = VectorUtil.dotProduct(centroid, centroid);
 

@@ -115,7 +115,8 @@ public class VectorScorerTestUtils {
         out.writeInt(vectorData.quantizedComponentSum());
     }
 
-    public static void writeBulkOSQVectorData(int bulkSize, IndexOutput out, VectorScorerTestUtils.OSQVectorData[] vectors) throws IOException {
+    public static void writeBulkOSQVectorData(int bulkSize, IndexOutput out, VectorScorerTestUtils.OSQVectorData[] vectors)
+        throws IOException {
         for (int j = 0; j < bulkSize; j++) {
             out.writeBytes(vectors[j].quantizedVector(), 0, vectors[j].quantizedVector().length);
         }

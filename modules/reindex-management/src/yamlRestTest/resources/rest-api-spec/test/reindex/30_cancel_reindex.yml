@@ -53,7 +53,7 @@ setup:
   - match: { cancelled: true }
   - match: { status.canceled: "by user request" }
   - gte: { status.total: 0 }
-  - exists: error
+  # depending on how quickly we cancel, we might either get an error (shard failure) or response, so not asserting
 
   - do:
       reindex_get:

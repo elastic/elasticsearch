@@ -267,6 +267,162 @@ to communicate with Elasticsearch.
 
 (A node can coordinate a search across several other nodes, when the node itself does not have the data, and then return a result to the caller. Explain this coordinating role)
 
+### Cluster State
+
+[ClusterState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
+
+[Metadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
+
+[PersistedClusterStateService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java
+
+
+The [ClusterState] is the in memory data structure that represents the current state of the cluster. It is
+(conceptually) immutable: every update produces a new instance of the [ClusterState] class.
+The elected master is responsible for coordinating all cluster state updates and publishing the latest to the other
+nodes in the cluster.
+
+The [Metadata] part of the [ClusterState] is persisted to disk via the [PersistedClusterStateService] and will survive
+restarts. The rest of the [ClusterState] components are in-memory only, and need to be rebuilt every time the cluster
+reboots.
+
+#### Persisted State
+
+[ClusterState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
+
+[Metadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
+
+[ProjectMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/ProjectMetadata.java
+
+The [Metadata] of a [ClusterState] is persisted on disk and comprises information from two categories:
+
+1. Cluster scope information
+
+A few standouts are:
+
+- `clusterUUID`: the cluster unique identifier.
+- `coordinationMetadata`: the term, voting configurations ... etc. (see [Master Elections](#master-elections) section).
+- `persistentSettings`: cluster-level settings applied
+  via [the cluster settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings).
+- `customs`: cluster-level custom metadata: `NodesShutdownMetadata`,`RepositoriesMetadata` .. etc.
+- `reservedStateMetadata`: state managed by the file-based settings (operator) feature.
+
+2. Project scope information (located in the [ProjectMetadata])
+
+Notable components of the [ProjectMetadata] include:
+
+- `id`: the project unique id.
+- `indices`: map of index name to `IndexMetadata` (settings, mappings, aliases, number of shards/replicas, etc.).
+  Contains all indices in this project.
+- `aliasedIndices` and `templates`, also mapped by index name
+- `customs`: project-level custom metadata. Includes data stream definitions (via `DataStreamMetadata` project custom),
+  index lifecycle metadata (`IndexLifecycleMetadata`) and others.
+
+Note that some concepts are applicable to both cluster and project scopes, e.g. [persistent tasks](#persistent-tasks).
+
+#### Ephemeral State
+
+[DiscoveryNodes]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/node/DiscoveryNodes.java
+
+[GlobalRoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/GlobalRoutingTable.java
+
+[RoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/RoutingTable.java
+
+[IndexRoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexRoutingTable.java
+
+[IndexShardRoutingTable]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/IndexShardRoutingTable.java
+
+[ShardRouting]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/routing/ShardRouting.java
+
+[ClusterBlocks]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/block/ClusterBlocks.java
+
+[SnapshotsInProgress]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/SnapshotsInProgress.java
+
+[RestoreInProgress]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/RestoreInProgress.java
+
+[SnapshotDeletionsInProgress]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/SnapshotDeletionsInProgress.java
+
+[HealthMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/health/metadata/HealthMetadata.java
+
+[CompatibilityVersions]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/version/CompatibilityVersions.java
+
+[TransportVersion]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/TransportVersion.java
+
+[ClusterFeatures]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterFeatures.java
+
+The rest of the [ClusterState] is ephemeral, it is not persisted to disk and is rebuilt from scratch when the cluster
+restarts. The key components are:
+
+- `nodes` ([DiscoveryNodes])
+
+The set of all nodes currently in the cluster. Tracks the `masterNodeId`, the `localNodeId` and categorizes nodes by
+role (master-eligible, data and ingest). Also records the minimum and maximum node versions and supported index versions
+across the cluster.
+
+- `routingTable` ([GlobalRoutingTable])
+
+Maps each project to its [RoutingTable], which itself maps each index to an [IndexRoutingTable] containing
+an [IndexShardRoutingTable] per shard. Each [IndexShardRoutingTable] lists the [ShardRouting] entries for a shard (one
+per copy), detailing which node each copy is assigned to, its state (`UNASSIGNED`,`INITIALIZING`, `STARTED` or
+`RELOCATING`), and whether it is a primary or replica.
+
+- `blocks` ([ClusterBlocks])
+
+Cluster-level, project-level and index-level blocks that restrict certain operations for the relevant scope. For
+example, an index can be blocked for writes during a close operation, or the entire cluster can be set to read-only.
+Blocks operate at four levels: `READ`, `WRITE`, `METADATA_READ`, `METADATA_WRITE`.
+
+- `customs`
+
+Additional custom ephemeral state. Examples
+include [SnapshotsInProgress], [RestoreInProgress], [SnapshotDeletionsInProgress], and [HealthMetadata].
+
+- `compatibilityVersions` and `minVersions` ([CompatibilityVersions])
+
+Per-node & cluster-wide min [TransportVersion] and system index mappings versions used to figure out serialization
+compatibility across the cluster.
+
+- `clusterFeatures` ([ClusterFeatures])
+
+Info on what features are present throughout the cluster.
+
+- Cluster state versioning fields
+
+The `version` field is
+a [monotonically increasing](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java#L162)
+`long` that uniquely identifies committed states. It is technically persisted to disk by [PersistedClusterStateService],
+which stores it as `last_accepted_version` in the Lucene commit user data alongside the cluster metadata. On node
+startup, this version is loaded back and used to initialize the in-memory cluster state, so the monotonically-increasing
+property is preserved across restarts.
+The `stateUUID` field uniquely identifies every state, including uncommitted ones. It is not persisted. It gets
+regenerated every time a [ClusterState] is built and is used to verify that cluster state diffs are applied against the
+correct base state during publication.
+
+#### Master Service
+
+[MasterService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java
+
+[Priority]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/Priority.java
+
+[SnapshotService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/SnapshotsService.java
+
+The [MasterService] is the single-threaded coordinator for all cluster state updates on the master node. It organizes
+pending cluster state update tasks into [Priority]-based queues: `IMMEDIATE`, `URGENT`, `HIGH`, `NORMAL`, `LOW`, and
+`LANGUID`. It processes them in that order, highest priority first.
+
+The [MasterService] uses a batching framework that groups multiple cluster state update tasks together, processing them
+as a single batch and publishing only one resulting ClusterState update. This avoids triggering a distinct publication
+for each individual task, which would be very costly.
+
+Producers of cluster state update tasks, such as [SnapshotService] , can
+then [define](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1516)
+their own task queues and batch executors, which the [MasterService] uses to group and process related tasks together.
+
+#### Cluster State Publication
+
+#### Cluster State Application
+
+#### Persistence
+
 ### Node Roles
 
 ### Master Nodes
@@ -282,34 +438,6 @@ to communicate with Elasticsearch.
 #### Discovery
 
 ### Master Transport Actions
-
-### Cluster State
-
-[ClusterState]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
-[Metadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/Metadata.java
-[ProjectMetadata]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/cluster/metadata/ProjectMetadata.java
-
-The [Metadata] of a [ClusterState] is persisted on disk and comprises information from two categories:
-1. Cluster scope information such as `clusterUUID`, `CoordinationMetadata`
-2. Project scope information ([ProjectMetadata]) such as indices and templates belong to each project.
-
-Some concepts are applicable to both cluster and project scopes, e.g. [persistent tasks](#persistent-tasks). The state of a persistent task is therefore stored accordingly depending on the task's scope.
-
-#### Master Service
-
-#### Cluster State Publication
-
-(Majority consensus to apply, what happens if a master-eligible node falls behind / is incommunicado.)
-
-#### Cluster State Application
-
-(Go over the two kinds of listeners -- ClusterStateApplier and ClusterStateListener?)
-
-#### Persistence
-
-(Sketch ephemeral vs persisted cluster state.)
-
-(what's the format for persisted metadata)
 
 # Replication
 

@@ -7,24 +7,27 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.util.List;
 
 /**
  * Similar to {@link Percentile}, but it is used to calculate the percentile value over a time series of values from the given field.
  */
-public class PercentileOverTime extends TimeSeriesAggregateFunction {
+public class PercentileOverTime extends TimeSeriesAggregateFunction implements SurrogateExpression, ToAggregator {
     @FunctionInfo(
         returnType = "double",
         description = "Calculates the percentile over time of a field.",
@@ -79,6 +82,16 @@ public class PercentileOverTime extends TimeSeriesAggregateFunction {
     @Override
     public PercentileOverTime withFilter(Expression filter) {
         return new PercentileOverTime(source(), field(), filter, window(), children().get(3));
+    }
+
+    @Override
+    public Expression surrogate() {
+        return perTimeSeriesAggregation();
+    }
+
+    @Override
+    public AggregatorFunctionSupplier supplier() {
+        return ((ToAggregator) perTimeSeriesAggregation()).supplier();
     }
 
     @Override

@@ -2083,6 +2083,13 @@ public class EsqlCapabilities {
         FIX_INLINE_STATS_GROUP_BY_NULL(INLINE_STATS.enabled),
 
         /**
+         * Fix null comparison type check in binary comparisons.
+         * Null should be compatible with any type in binary comparisons.
+         * https://github.com/elastic/elasticsearch/issues/140460
+         */
+        FIX_NULL_COMPARISON_TYPE_CHECK,
+
+        /**
          * Adds a conditional block loader for text fields that prefers using the sub-keyword field whenever possible.
          */
         CONDITIONAL_BLOCK_LOADER_FOR_TEXT_FIELDS,
@@ -2155,6 +2162,16 @@ public class EsqlCapabilities {
          * TODO - remove this once the MMR operator is merged
          */
         MMR_V2(Build.current().isSnapshot()),
+
+        /**
+         * Supports the {@code URI_PARTS}) command.
+         */
+        URI_PARTS_COMMAND,
+
+        /**
+         * Support for the METRICS_INFO command.
+         */
+        METRICS_INFO_COMMAND,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

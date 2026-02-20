@@ -1649,14 +1649,22 @@ public abstract class FieldMapper extends Mapper {
                 if (builderContext.getMergeReason().isAutoUpdate()) {
                     return this;
                 }
-                throw new IllegalArgumentException(
-                    "mapper [" + fullName + "] cannot be changed from type [" + contentType() + "] to [" + incomingField.contentType() + "]"
-                );
+                throwMergeTypeConflict(incomingField, fullName);
             }
             Conflicts conflicts = new Conflicts(fullName);
             mergeFromBuilder(incomingField, conflicts, mergeContext);
             conflicts.check();
             return this;
+        }
+
+        /**
+         * Throws an error when the incoming builder has a different class or content type.
+         * Subclasses can override to provide more specific error messages.
+         */
+        protected void throwMergeTypeConflict(FieldMapper.Builder incoming, String fullName) {
+            throw new IllegalArgumentException(
+                "mapper [" + fullName + "] cannot be changed from type [" + contentType() + "] to [" + incoming.contentType() + "]"
+            );
         }
 
         protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {

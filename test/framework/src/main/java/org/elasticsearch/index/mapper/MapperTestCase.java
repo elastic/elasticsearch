@@ -803,7 +803,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             merge(mapperService, checker.conflictChecks.get(param).init);
             // merging the conflicting update should throw an exception
             Exception e = expectThrows(
-                IllegalArgumentException.class,
+                MapperParsingException.class,
                 "No conflict when updating parameter [" + param + "]",
                 () -> merge(mapperService, checker.conflictChecks.get(param).update)
             );

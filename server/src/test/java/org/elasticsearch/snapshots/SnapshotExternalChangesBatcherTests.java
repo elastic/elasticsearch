@@ -9,9 +9,11 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -27,7 +29,8 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
+import org.elasticsearch.cluster.service.ClusterApplierService;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Priority;
@@ -36,7 +39,9 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.StoppableExecutorServiceWrapper;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -61,12 +66,14 @@ import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptySet;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class SnapshotExternalChangesBatcherTests extends ESTestCase {
     private static final DiscoveryNode MASTER_NODE = DiscoveryNodeUtils.builder("node1")
@@ -215,82 +222,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         }
     }
 
-    public void testCloneSnapshotClusterStateUpdate() throws Exception {
-        final var repoClone = "repo-clone";
-        final var repoCloneWithShards = "repo-clone-with-shards";
-        final var isInitializingClone = randomBoolean();
-
-        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
-        final var cloned = new AtomicReference<SnapshotsInProgress>();
-        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
-
-        try (var masterService = createMasterService(new DeterministicTaskQueue().getThreadPool())) {
-            // executor passed to queue does not matter -> we directly call batcher.new Executor() later down
-            final ClusterStateTaskExecutor<SnapshotExternalChangesBatcher.Task> noopExecutor =
-                ClusterStateTaskExecutor.BatchExecutionContext::initialState;
-            final var batcher = new SnapshotExternalChangesBatcher(
-                masterService.createTaskQueue("test", Priority.NORMAL, noopExecutor),
-                s -> isInitializingClone,
-                (entry, _metadata) -> finalized.add(entry),
-                cloned::set,
-                deleted::put
-            );
-
-            // Clone with empty shardSnapshotStatusByRepoShardId -> retained only if isInitializingClone is true.
-            final var cloneIndexName = randomIndexName();
-            final var emptyClone = SnapshotsInProgress.startClone(
-                snapshot(repoClone, "empty-clone"),
-                new SnapshotId("empty-clone", uuid()),
-                Map.of(cloneIndexName, new IndexId(cloneIndexName, uuid())),
-                1L,
-                System.currentTimeMillis(),
-                IndexVersion.current()
-            );
-
-            // Clone with non-empty shardSnapshotStatusByRepoShardId -> retained unchanged
-            final var cloneWithShardIndexName = randomIndexName();
-            final var cloneWithShardsIndexId = new IndexId(cloneWithShardIndexName, uuid());
-            final var cloneWithShards = SnapshotsInProgress.startClone(
-                snapshot(repoCloneWithShards, "clone-with-shards"),
-                new SnapshotId("clone-with-shards", uuid()),
-                Map.of(cloneWithShardIndexName, cloneWithShardsIndexId),
-                1L,
-                System.currentTimeMillis(),
-                IndexVersion.current()
-            )
-                .withClones(
-                    Map.of(new RepositoryShardId(cloneWithShardsIndexId, 0), SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)
-                );
-
-            var clusterStateBuilder = ClusterState.builder(ClusterState.EMPTY_STATE)
-                .nodes(discoveryNodes(MASTER_NODE.getId()))
-                .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(emptyClone).withAddedEntry(cloneWithShards));
-
-            batcher.processExternalChanges(randomBoolean(), true);
-            final var updatedState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
-                clusterStateBuilder.build(),
-                batcher.new Executor(),
-                List.of(batcher.new Task())
-            );
-            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(updatedState);
-
-            assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
-            assertThat("snapshotFinalizer should not fire for clone snapshots", finalized, empty());
-            assertThat(
-                "empty-shards clone should be retained only when isInitializingClone is true",
-                updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repoClone),
-                isInitializingClone ? equalTo(List.of(emptyClone)) : empty()
-            );
-            assertThat(
-                "non-empty-shards clone should always be retained unchanged when there are no known failures",
-                updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repoCloneWithShards),
-                equalTo(List.of(cloneWithShards))
-            );
-            assertThat("deletionStarter should not fire when no deletion in cluster state", deleted.entrySet(), empty());
-        }
-    }
-
-    public void testStartedWaitingSnapshotClusterStateUpdate() throws Exception {
+    public void testStartedWaitingSnapshotClusterStateUpdate() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repoWaiting = "repo-waiting-snapshot";
         final var anotherNodeId = uuid();
         final var includeRoutingTable = randomBoolean();
@@ -299,12 +232,9 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         final var cloned = new AtomicReference<SnapshotsInProgress>();
         final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
-        try (var masterService = createMasterService(new DeterministicTaskQueue().getThreadPool())) {
-            // executor passed to queue does not matter -> we directly call batcher.new Executor() later down
-            final ClusterStateTaskExecutor<SnapshotExternalChangesBatcher.Task> noopExecutor =
-                ClusterStateTaskExecutor.BatchExecutionContext::initialState;
+        try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
-                masterService.createTaskQueue("test", Priority.NORMAL, noopExecutor),
+                clusterService,
                 s -> false,
                 (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
@@ -329,31 +259,33 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                     )
                 )
             );
-            var clusterStateBuilder = ClusterState.builder(ClusterState.EMPTY_STATE)
-                .nodes(discoveryNodes(MASTER_NODE.getId()))
-                .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(waitingEntry));
-            if (includeRoutingTable) {
-                clusterStateBuilder = clusterStateBuilder.putRoutingTable(
-                    ProjectId.DEFAULT,
-                    RoutingTable.builder()
-                        .add(
-                            IndexRoutingTable.builder(index)
-                                .addIndexShard(
-                                    IndexShardRoutingTable.builder(shardId)
-                                        .addShard(TestShardRouting.newShardRouting(shardId, anotherNodeId, true, ShardRoutingState.STARTED))
-                                )
-                        )
-                        .build()
-                );
-            }
+
+            updateClusterState(clusterService, deterministicTaskQueue, currentState -> {
+                var updateBuilder = ClusterState.builder(currentState)
+                    .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(waitingEntry));
+                if (includeRoutingTable) {
+                    updateBuilder = updateBuilder.putRoutingTable(
+                        ProjectId.DEFAULT,
+                        RoutingTable.builder()
+                            .add(
+                                IndexRoutingTable.builder(index)
+                                    .addIndexShard(
+                                        IndexShardRoutingTable.builder(shardId)
+                                            .addShard(
+                                                TestShardRouting.newShardRouting(shardId, anotherNodeId, true, ShardRoutingState.STARTED)
+                                            )
+                                    )
+                            )
+                            .build()
+                    );
+                }
+                return updateBuilder.build();
+            });
 
             batcher.processExternalChanges(randomBoolean(), true);
-            final var updatedState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
-                clusterStateBuilder.build(),
-                batcher.new Executor(),
-                List.of(batcher.new Task())
-            );
-            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(updatedState);
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
             final var updatedWaitingSnapshots = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repoWaiting);
 
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
@@ -385,25 +317,23 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                     is(SnapshotsInProgress.ShardState.FAILED)
                 );
                 assertThat("snapshotFinalizer should fire for the completed snapshot", finalized, hasSize(1));
-                assertTrue("finalised snapshot should be in a terminal state", finalized.get(0).state().completed());
+                assertTrue("finalised snapshot should be in a terminal state", finalized.getFirst().state().completed());
             }
             assertThat("deletionStarter should not fire when no deletion in cluster state", deleted.entrySet(), empty());
         }
     }
 
-    public void testCompletedSnapshotClusterStateUpdate() throws Exception {
+    public void testCompletedSnapshotClusterStateUpdate() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repoCompleted = "repo-completed-snapshot";
 
         final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
         final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
-        try (var masterService = createMasterService(new DeterministicTaskQueue().getThreadPool())) {
-            // executor passed to queue does not matter -> we directly call batcher.new Executor() later down
-            final ClusterStateTaskExecutor<SnapshotExternalChangesBatcher.Task> noopExecutor =
-                ClusterStateTaskExecutor.BatchExecutionContext::initialState;
+        try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
-                masterService.createTaskQueue("test", Priority.NORMAL, noopExecutor),
+                clusterService,
                 s -> false,
                 (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
@@ -447,35 +377,25 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                     )
                 )
             );
-            var clusterStateBuilder = ClusterState.builder(ClusterState.EMPTY_STATE)
-                .nodes(discoveryNodes(MASTER_NODE.getId()))
-                .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(completedEntry));
-            if (includeSameRepoDeletion) {
-                clusterStateBuilder = clusterStateBuilder.putCustom(SnapshotDeletionsInProgress.TYPE, deletionEntry);
-            }
+
+            updateClusterState(clusterService, deterministicTaskQueue, currentState -> {
+                var updateBuilder = ClusterState.builder(currentState)
+                    .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(completedEntry));
+                if (includeSameRepoDeletion) {
+                    updateBuilder = updateBuilder.putCustom(SnapshotDeletionsInProgress.TYPE, deletionEntry);
+                }
+                return updateBuilder.build();
+            });
 
             batcher.processExternalChanges(randomBoolean(), true);
-            final var updatedState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
-                clusterStateBuilder.build(),
-                batcher.new Executor(),
-                List.of(batcher.new Task())
-            );
-            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(updatedState);
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
             final var updatedCompletedSnapshots = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repoCompleted);
 
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
-            // Completed snapshots are left untouched in cluster
             assertThat("completed snapshot should remain in cluster state", updatedCompletedSnapshots, hasSize(1));
-            assertThat(
-                "completed snapshot state should be unchanged",
-                updatedCompletedSnapshots.getFirst().state(),
-                is(completedEntry.state())
-            );
-            assertThat(
-                "completed snapshot shard state should be unchanged",
-                updatedCompletedSnapshots.getFirst().shards().get(shardId).state(),
-                is(terminalShardState)
-            );
+            assertThat("completed snapshot should be untouched", updatedCompletedSnapshots.getFirst(), sameInstance(completedEntry));
             if (includeSameRepoDeletion) {
                 // snapshotFinalizer is skipped: the deletion completion will trigger finalization.
                 assertThat("snapshotFinalizer should not fire when a deletion exists in the same repo", finalized, empty());
@@ -488,7 +408,8 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         }
     }
 
-    public void testAbortedSnapshotClusterStateUpdateBasedOnNodeChanges() throws Exception {
+    public void testAbortedSnapshotClusterStateUpdateBasedOnNodeChanges() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repoAborted = "repo-aborted-snapshot";
 
         final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
@@ -496,12 +417,9 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
         final var isInitializingClone = randomBoolean();
 
-        try (var masterService = createMasterService(new DeterministicTaskQueue().getThreadPool())) {
-            // executor passed to queue does not matter -> we directly call batcher.new Executor() later down
-            final ClusterStateTaskExecutor<SnapshotExternalChangesBatcher.Task> noopExecutor =
-                ClusterStateTaskExecutor.BatchExecutionContext::initialState;
+        try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
-                masterService.createTaskQueue("test", Priority.NORMAL, noopExecutor),
+                clusterService,
                 s -> isInitializingClone,
                 (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
@@ -524,19 +442,19 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                 is(SnapshotsInProgress.ShardState.ABORTED)
             );
 
-            final var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-                .nodes(discoveryNodes(MASTER_NODE.getId()))
-                .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(abortedEntry))
-                .build();
+            updateClusterState(
+                clusterService,
+                deterministicTaskQueue,
+                currentState -> ClusterState.builder(currentState)
+                    .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(abortedEntry))
+                    .build()
+            );
 
             final var nodesChanged = randomBoolean();
             batcher.processExternalChanges(nodesChanged, true);
-            final var updatedState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
-                clusterState,
-                batcher.new Executor(),
-                List.of(batcher.new Task())
-            );
-            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(updatedState);
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
             final var updatedAbortedSnapshots = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repoAborted);
 
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
@@ -545,10 +463,10 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                 // ABORTED snapshots are included in update.
                 // The ABORTED shard on the departed node has failed -> the snapshot becomes completed -> snapshotFinalizer fires.
                 assertThat("snapshotFinalizer should fire for the completed aborted snapshot when nodes changed", finalized, hasSize(1));
-                assertTrue("completed aborted snapshot should be in a terminal state", finalized.get(0).state().completed());
+                assertTrue("completed aborted snapshot should be in a terminal state", finalized.getFirst().state().completed());
                 assertThat(
                     "shard should be FAILED",
-                    finalized.get(0).shards().get(shardId).state(),
+                    finalized.getFirst().shards().get(shardId).state(),
                     is(SnapshotsInProgress.ShardState.FAILED)
                 );
             } else {
@@ -556,34 +474,23 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                 // No shard-state changes are applied: the snapshot remains ABORTED and the finalizer is not called.
                 assertThat("snapshotFinalizer should not be called for an ABORTED snapshot when only shard changed", finalized, empty());
                 assertThat("aborted snapshot should remain in cluster state", updatedAbortedSnapshots, hasSize(1));
-                assertThat(
-                    "aborted snapshot should still be ABORTED",
-                    updatedAbortedSnapshots.getFirst().state(),
-                    is(SnapshotsInProgress.State.ABORTED)
-                );
-                assertThat(
-                    "shard should remain ABORTED when nodes have not changed",
-                    updatedAbortedSnapshots.getFirst().shards().get(shardId).state(),
-                    is(SnapshotsInProgress.ShardState.ABORTED)
-                );
+                assertThat("aborted snapshot should be untouched", updatedAbortedSnapshots.getFirst(), sameInstance(abortedEntry));
             }
             assertThat("deletionStarter should not fire when no deletion in cluster state", deleted.entrySet(), empty());
         }
     }
 
-    public void testBwcUnknownRepoGenEntryCleanup() throws Exception {
+    public void testBwcUnknownRepoGenEntryCleanup() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repo = "repo-bwc";
 
         final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
         final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
-        try (var masterService = createMasterService(new DeterministicTaskQueue().getThreadPool())) {
-            // executor passed to queue does not matter -> we directly call batcher.new Executor() later down
-            final ClusterStateTaskExecutor<SnapshotExternalChangesBatcher.Task> noopExecutor =
-                ClusterStateTaskExecutor.BatchExecutionContext::initialState;
+        try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
-                masterService.createTaskQueue("test", Priority.NORMAL, noopExecutor),
+                clusterService,
                 s -> false,
                 (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
@@ -613,18 +520,18 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             assertThat("bwc entry should be ABORTED", bwcEntry.state(), is(SnapshotsInProgress.State.ABORTED));
             assertThat("bwc entry should have UNKNOWN_REPO_GEN", bwcEntry.repositoryStateId(), is(RepositoryData.UNKNOWN_REPO_GEN));
 
-            final var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-                .nodes(discoveryNodes(MASTER_NODE.getId()))
-                .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(bwcEntry))
-                .build();
+            updateClusterState(
+                clusterService,
+                deterministicTaskQueue,
+                currentState -> ClusterState.builder(currentState)
+                    .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(bwcEntry))
+                    .build()
+            );
 
             batcher.processExternalChanges(false, true);
-            final var updatedState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
-                clusterState,
-                batcher.new Executor(),
-                List.of(batcher.new Task())
-            );
-            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(updatedState);
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
 
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
             assertThat("bwc entry should be removed", updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repo), empty());
@@ -633,18 +540,17 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         }
     }
 
-    public void testWaitingDeletionDoesNotSuppressFinalization() throws Exception {
+    public void testWaitingDeletionDoesNotSuppressFinalization() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var repo = "repo-waiting-deletion";
 
         final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
         final var cloned = new AtomicReference<SnapshotsInProgress>();
         final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
 
-        try (var masterService = createMasterService(new DeterministicTaskQueue().getThreadPool())) {
-            final ClusterStateTaskExecutor<SnapshotExternalChangesBatcher.Task> noopExecutor =
-                ClusterStateTaskExecutor.BatchExecutionContext::initialState;
+        try (var clusterService = createClusterService(deterministicTaskQueue)) {
             final var batcher = new SnapshotExternalChangesBatcher(
-                masterService.createTaskQueue("test", Priority.NORMAL, noopExecutor),
+                clusterService,
                 s -> false,
                 (entry, _metadata) -> finalized.add(entry),
                 cloned::set,
@@ -663,7 +569,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                     )
                 )
             );
-            assertThat("test precondition: snapshot should already be completed", completedEntry.state().completed(), is(true));
+            assertThat("snapshot should already be completed", completedEntry.state().completed(), is(true));
 
             // A WAITING deletion in the same repo.
             final var waitingDeletion = new SnapshotDeletionsInProgress.Entry(
@@ -675,19 +581,19 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                 SnapshotDeletionsInProgress.State.WAITING
             );
 
-            final var clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
-                .nodes(discoveryNodes(MASTER_NODE.getId()))
-                .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(completedEntry))
-                .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(List.of(waitingDeletion)))
-                .build();
+            updateClusterState(
+                clusterService,
+                deterministicTaskQueue,
+                currentState -> ClusterState.builder(currentState)
+                    .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(completedEntry))
+                    .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(List.of(waitingDeletion)))
+                    .build()
+            );
 
             batcher.processExternalChanges(randomBoolean(), true);
-            final var updatedState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
-                clusterState,
-                batcher.new Executor(),
-                List.of(batcher.new Task())
-            );
-            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(updatedState);
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
 
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
             assertThat(
@@ -695,7 +601,372 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                 finalized,
                 hasSize(1)
             );
+            assertThat(finalized.getFirst().snapshot().getSnapshotId().getName(), is("completed-snapshot"));
+            assertThat("finalized entry should be completed", finalized.getFirst().state(), is(SnapshotsInProgress.State.SUCCESS));
             assertThat("deletionStarter should not be called: WAITING deletion not yet started", deleted.entrySet(), empty());
+
+            final var updatedEntries = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repo);
+            assertThat("snapshot entry should be retained in cluster state", updatedEntries, hasSize(1));
+            assertThat("snapshot should be unchanged", updatedEntries.getFirst(), sameInstance(completedEntry));
+        }
+    }
+
+    public void testCloneSnapshotWithOrWithoutShardSnapshotStatus() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var repoClone = "repo-clone";
+        final var repoCloneWithShards = "repo-clone-with-shards";
+        final var isInitializingClone = randomBoolean();
+
+        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var cloned = new AtomicReference<SnapshotsInProgress>();
+        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
+
+        try (var clusterService = createClusterService(deterministicTaskQueue)) {
+            final var batcher = new SnapshotExternalChangesBatcher(
+                clusterService,
+                s -> isInitializingClone,
+                (entry, _metadata) -> finalized.add(entry),
+                cloned::set,
+                deleted::put
+            );
+
+            // Clone with empty shardSnapshotStatusByRepoShardId -> retained only if isInitializingClone is true.
+            final var cloneIndexName = randomIndexName();
+            final var emptyClone = SnapshotsInProgress.startClone(
+                snapshot(repoClone, "empty-clone"),
+                new SnapshotId("empty-clone", uuid()),
+                Map.of(cloneIndexName, new IndexId(cloneIndexName, uuid())),
+                1L,
+                System.currentTimeMillis(),
+                IndexVersion.current()
+            );
+
+            // Clone with non-empty shardSnapshotStatusByRepoShardId -> retained unchanged
+            final var cloneWithShardIndexName = randomIndexName();
+            final var cloneWithShardsIndexId = new IndexId(cloneWithShardIndexName, uuid());
+            final var cloneWithShards = SnapshotsInProgress.startClone(
+                snapshot(repoCloneWithShards, "clone-with-shards"),
+                new SnapshotId("clone-with-shards", uuid()),
+                Map.of(cloneWithShardIndexName, cloneWithShardsIndexId),
+                1L,
+                System.currentTimeMillis(),
+                IndexVersion.current()
+            )
+                .withClones(
+                    Map.of(new RepositoryShardId(cloneWithShardsIndexId, 0), SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED)
+                );
+
+            updateClusterState(
+                clusterService,
+                deterministicTaskQueue,
+                currentState -> ClusterState.builder(currentState)
+                    .putCustom(
+                        SnapshotsInProgress.TYPE,
+                        SnapshotsInProgress.EMPTY.withAddedEntry(emptyClone).withAddedEntry(cloneWithShards)
+                    )
+                    .build()
+            );
+
+            batcher.processExternalChanges(randomBoolean(), true);
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
+
+            assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
+            assertThat("snapshotFinalizer should not fire for clone snapshots", finalized, empty());
+            final var updatedEmptyClones = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repoClone);
+            if (isInitializingClone) {
+                assertThat("empty-shards clone should be retained when isInitializingClone is true", updatedEmptyClones, hasSize(1));
+                assertThat("empty-shards clone should be untouched", updatedEmptyClones.getFirst(), sameInstance(emptyClone));
+            } else {
+                assertThat("empty-shards clone should be removed when isInitializingClone is false", updatedEmptyClones, empty());
+            }
+            final var updatedClonesWithShards = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repoCloneWithShards);
+            assertThat("non-empty-shards clone should always be retained", updatedClonesWithShards, hasSize(1));
+            assertThat(
+                "non-empty-shards clone should be untouched when there are no known failures",
+                updatedClonesWithShards.getFirst(),
+                sameInstance(cloneWithShards)
+            );
+            assertThat("deletionStarter should not fire when no deletion in cluster state", deleted.entrySet(), empty());
+        }
+    }
+
+    public void testCloneSnapshotWhenExecutingDeletion() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var repo = "repo-clone-with-deletion";
+
+        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var cloned = new AtomicReference<SnapshotsInProgress>();
+        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
+
+        try (var clusterService = createClusterService(deterministicTaskQueue)) {
+            final var batcher = new SnapshotExternalChangesBatcher(
+                clusterService,
+                s -> false,
+                (entry, _metadata) -> finalized.add(entry),
+                cloned::set,
+                deleted::put
+            );
+
+            final var indexName = randomIndexName();
+            final var indexId = new IndexId(indexName, uuid());
+            final var cloneEntry = SnapshotsInProgress.startClone(
+                snapshot(repo, "clone"),
+                new SnapshotId("source", uuid()),
+                Map.of(indexName, indexId),
+                1L,
+                System.currentTimeMillis(),
+                IndexVersion.current()
+            ).withClones(Map.of(new RepositoryShardId(indexId, 0), SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED));
+
+            // STARTED deletion in the same repo prevents clone shard reassignment.
+            final var deletionEntry = new SnapshotDeletionsInProgress.Entry(
+                ProjectId.DEFAULT,
+                repo,
+                List.of(new SnapshotId("snap-to-delete", uuid())),
+                System.currentTimeMillis(),
+                1L,
+                SnapshotDeletionsInProgress.State.STARTED
+            );
+
+            updateClusterState(
+                clusterService,
+                deterministicTaskQueue,
+                currentState -> ClusterState.builder(currentState)
+                    .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(cloneEntry))
+                    .putCustom(SnapshotDeletionsInProgress.TYPE, SnapshotDeletionsInProgress.of(List.of(deletionEntry)))
+                    .build()
+            );
+
+            batcher.processExternalChanges(randomBoolean(), true);
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
+
+            assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
+            final var updatedClones = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repo);
+            assertThat("clone should be retained when a deletion is in progress in the same repo", updatedClones, hasSize(1));
+            assertThat("clone should be untouched", updatedClones.getFirst(), sameInstance(cloneEntry));
+            assertThat("snapshotFinalizer should not fire for clone snapshots", finalized, empty());
+            assertThat("deletionStarter should fire for the deletion", deleted.entrySet(), hasSize(1));
+        }
+    }
+
+    public void testCloneShardsReassignedFromKnownFailures() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var repo = "repo-clone-failures";
+
+        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var cloned = new AtomicReference<SnapshotsInProgress>();
+        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
+
+        try (var clusterService = createClusterService(deterministicTaskQueue)) {
+            final var batcher = new SnapshotExternalChangesBatcher(
+                clusterService,
+                s -> false,
+                (entry, _metadata) -> finalized.add(entry),
+                cloned::set,
+                deleted::put
+            );
+
+            final var indexName = randomIndexName();
+            final var indexId = new IndexId(indexName, uuid());
+            final var departedNodeId = uuid();
+            final var shardGeneration = ShardGeneration.newGeneration(random());
+
+            // Snapshot with shard in INIT on a departed node will fail -> knownFailures.
+            final var nonCloneEntry = snapshotEntry(
+                snapshot(repo, "non-clone"),
+                Map.of(indexName, indexId),
+                Map.of(
+                    new ShardId(new Index(indexName, uuid()), 0),
+                    new SnapshotsInProgress.ShardSnapshotStatus(departedNodeId, shardGeneration)
+                )
+            );
+
+            // Clone with UNASSIGNED_QUEUED shard in the failed RepositoryShardId
+            // -> reassigned using the generation from the known failure.
+            final var cloneEntry = SnapshotsInProgress.startClone(
+                snapshot(repo, "clone"),
+                new SnapshotId("source", uuid()),
+                Map.of(indexName, indexId),
+                1L,
+                System.currentTimeMillis(),
+                IndexVersion.current()
+            ).withClones(Map.of(new RepositoryShardId(indexId, 0), SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED));
+
+            updateClusterState(
+                clusterService,
+                deterministicTaskQueue,
+                currentState -> ClusterState.builder(currentState)
+                    // failing snapshot first, then clone
+                    .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(nonCloneEntry).withAddedEntry(cloneEntry))
+                    .build()
+            );
+
+            batcher.processExternalChanges(true, true);
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
+            assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
+
+            final var updatedEntries = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repo);
+            assertThat("both entries should be retained", updatedEntries, hasSize(2));
+
+            final var updatedNonClone = updatedEntries.get(0);
+            assertThat(updatedNonClone.snapshot().getSnapshotId().getName(), is("non-clone"));
+            assertThat(
+                "non-clone should be completed because its only shard failed on the departed node",
+                updatedNonClone.state(),
+                is(SnapshotsInProgress.State.SUCCESS)
+            );
+
+            final var updatedClone = updatedEntries.get(1);
+            assertThat(updatedClone.snapshot().getSnapshotId().getName(), is("clone"));
+            assertThat("clone should still be in progress", updatedClone.state(), is(SnapshotsInProgress.State.STARTED));
+            final var cloneShardStatus = updatedClone.shardSnapshotStatusByRepoShardId().get(new RepositoryShardId(indexId, 0));
+            assertThat(
+                "clone shard should be reassigned to local node using the failure's generation",
+                cloneShardStatus.nodeId(),
+                is(MASTER_NODE.getId())
+            );
+            assertThat("clone shard should use the generation from the known failure", cloneShardStatus.generation(), is(shardGeneration));
+        }
+    }
+
+    public void testCloneShardSkippedWhenAlreadyActiveInAnotherEntry() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var repo = "repo-active-shard";
+
+        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var cloned = new AtomicReference<SnapshotsInProgress>();
+        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
+
+        try (var clusterService = createClusterService(deterministicTaskQueue)) {
+            final var batcher = new SnapshotExternalChangesBatcher(
+                clusterService,
+                s -> false,
+                (entry, _metadata) -> finalized.add(entry),
+                cloned::set,
+                deleted::put
+            );
+
+            final var indexName = randomIndexName();
+            final var indexId = new IndexId(indexName, uuid());
+            final var departedNodeId = uuid();
+            final var shardGeneration = ShardGeneration.newGeneration(random());
+
+            // non-clone with a shard on a departed node -> fails, populates knownFailures.
+            final var failingEntry = snapshotEntry(
+                snapshot(repo, "failing"),
+                Map.of(indexName, indexId),
+                Map.of(
+                    new ShardId(new Index(indexName, uuid()), 0),
+                    new SnapshotsInProgress.ShardSnapshotStatus(departedNodeId, shardGeneration)
+                )
+            );
+
+            // first clone with UNASSIGNED_QUEUED for the same RepositoryShardId -> shard promoted.
+            final var firstClone = SnapshotsInProgress.startClone(
+                snapshot(repo, "clone-1"),
+                new SnapshotId("source-1", uuid()),
+                Map.of(indexName, indexId),
+                1L,
+                System.currentTimeMillis(),
+                IndexVersion.current()
+            ).withClones(Map.of(new RepositoryShardId(indexId, 0), SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED));
+
+            // second clone with UNASSIGNED_QUEUED for the same RepositoryShardId.
+            // knownFailures has a match, but isActive() is now true -> shard is skipped.
+            final var secondClone = SnapshotsInProgress.startClone(
+                snapshot(repo, "clone-2"),
+                new SnapshotId("source-2", uuid()),
+                Map.of(indexName, indexId),
+                1L,
+                System.currentTimeMillis(),
+                IndexVersion.current()
+            ).withClones(Map.of(new RepositoryShardId(indexId, 0), SnapshotsInProgress.ShardSnapshotStatus.UNASSIGNED_QUEUED));
+
+            updateClusterState(
+                clusterService,
+                deterministicTaskQueue,
+                currentState -> ClusterState.builder(currentState)
+                    .putCustom(
+                        SnapshotsInProgress.TYPE,
+                        SnapshotsInProgress.EMPTY.withAddedEntry(failingEntry).withAddedEntry(firstClone).withAddedEntry(secondClone)
+                    )
+                    .build()
+            );
+
+            batcher.processExternalChanges(true, true);
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
+            final var updatedEntries = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repo);
+            assertThat("all three entries should be retained", updatedEntries, hasSize(3));
+
+            // First clone should have been promoted
+            final var updatedFirstClone = updatedEntries.get(1);
+            assertTrue("second entry should be a clone", updatedFirstClone.isClone());
+            final var firstCloneStatus = updatedFirstClone.shardSnapshotStatusByRepoShardId().get(new RepositoryShardId(indexId, 0));
+            assertThat("first clone shard should be reassigned to local node", firstCloneStatus.nodeId(), is(MASTER_NODE.getId()));
+
+            assertThat(
+                "second clone should be untouched because the shard is already active in the first clone",
+                updatedEntries.get(2),
+                sameInstance(secondClone)
+            );
+
+            assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
+        }
+    }
+
+    public void testNonCloneEntryRetainedUnchangedWhenNoShardChanges() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var repo = "repo-no-changes";
+
+        final var finalized = new ArrayList<SnapshotsInProgress.Entry>();
+        final var cloned = new AtomicReference<SnapshotsInProgress>();
+        final var deleted = new HashMap<SnapshotDeletionsInProgress.Entry, IndexVersion>();
+
+        try (var clusterService = createClusterService(deterministicTaskQueue)) {
+            final var batcher = new SnapshotExternalChangesBatcher(
+                clusterService,
+                s -> false,
+                (entry, _metadata) -> finalized.add(entry),
+                cloned::set,
+                deleted::put
+            );
+
+            final var indexName = randomIndexName();
+            final var index = new Index(indexName, uuid());
+            final var shardId = new ShardId(index, 0);
+            // STARTED snapshot with a shard in INIT state on a node that still exists (MASTER_NODE).
+            final var entry = snapshotEntry(
+                snapshot(repo, "snapshot"),
+                Map.of(indexName, new IndexId(indexName, uuid())),
+                Map.of(shardId, new SnapshotsInProgress.ShardSnapshotStatus(MASTER_NODE.getId(), ShardGeneration.newGeneration(random())))
+            );
+
+            updateClusterState(
+                clusterService,
+                deterministicTaskQueue,
+                currentState -> ClusterState.builder(currentState)
+                    .putCustom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY.withAddedEntry(entry))
+                    .build()
+            );
+
+            batcher.processExternalChanges(randomBoolean(), true);
+            deterministicTaskQueue.runAllRunnableTasks();
+
+            final var updatedSnapshotsInProgress = SnapshotsInProgress.get(clusterService.state());
+            final var updatedEntries = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repo);
+            assertThat("snapshot should be retained in cluster state", updatedEntries, hasSize(1));
+            assertThat("snapshot should be untouched", updatedEntries.getFirst(), sameInstance(entry));
+            assertThat("snapshotFinalizer should not fire for a non-completed snapshot", finalized, empty());
+            assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
+            assertThat("deletionStarter should not fire when no deletion in cluster state", deleted.entrySet(), empty());
         }
     }
 
@@ -733,6 +1004,90 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
         return masterService;
     }
 
+    private static ClusterService createClusterService(DeterministicTaskQueue deterministicTaskQueue) {
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var settings = Settings.builder()
+            .put(ClusterName.CLUSTER_NAME_SETTING.getKey(), "test")
+            .put(Node.NODE_NAME_SETTING.getKey(), "test_node")
+            .put(ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL.getKey(), TimeValue.ZERO)
+            .build();
+        final var clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+
+        final var masterService = new MasterService(
+            settings,
+            clusterSettings,
+            threadPool,
+            new TaskManager(settings, threadPool, emptySet()),
+            MeterRegistry.NOOP
+        ) {
+            @Override
+            protected ExecutorService createThreadPoolExecutor() {
+                return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
+            }
+        };
+
+        final var clusterApplierService = new ClusterApplierService("test_node", settings, clusterSettings, threadPool) {
+            @Override
+            protected PrioritizedEsThreadPoolExecutor createThreadPoolExecutor() {
+                return deterministicTaskQueue.getPrioritizedEsThreadPoolExecutor();
+            }
+        };
+
+        final var initialState = ClusterState.builder(new ClusterName("test"))
+            .nodes(DiscoveryNodes.builder().add(MASTER_NODE).localNodeId(MASTER_NODE.getId()).masterNodeId(MASTER_NODE.getId()))
+            .putCompatibilityVersions(MASTER_NODE.getId(), CompatibilityVersionsUtils.staticCurrent())
+            .blocks(ClusterBlocks.EMPTY_CLUSTER_BLOCK)
+            .build();
+        clusterApplierService.setInitialState(initialState);
+        clusterApplierService.setNodeConnectionsService(ClusterServiceUtils.createNoOpNodeConnectionsService());
+
+        masterService.setClusterStateSupplier(clusterApplierService::state);
+        masterService.setClusterStatePublisher((event, publishListener, ackListener) -> {
+            ClusterServiceUtils.setAllElapsedMillis(event);
+            ackListener.onCommit(TimeValue.ZERO);
+            clusterApplierService.onNewClusterState(
+                "mock_publish[" + event.getSummary() + "]",
+                event::getNewState,
+                ActionTestUtils.assertNoFailureListener(ignored -> {
+                    ackListener.onNodeAck(MASTER_NODE, null);
+                    publishListener.onResponse(null);
+                })
+            );
+        });
+
+        final var clusterService = new ClusterService(settings, clusterSettings, masterService, clusterApplierService);
+        clusterService.start();
+        threadPool.getThreadContext().markAsSystemContext();
+        return clusterService;
+    }
+
+    private static void updateClusterState(
+        ClusterService clusterService,
+        DeterministicTaskQueue deterministicTaskQueue,
+        UnaryOperator<ClusterState> updater
+    ) {
+        final var completed = new AtomicBoolean();
+        // noinspection deprecation
+        clusterService.submitUnbatchedStateUpdateTask("test-setup", new ClusterStateUpdateTask() {
+            @Override
+            public ClusterState execute(ClusterState currentState) {
+                return updater.apply(currentState);
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError("test setup should not fail", e);
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                assertTrue(completed.compareAndSet(false, true));
+            }
+        });
+        deterministicTaskQueue.runAllRunnableTasks();
+        assertTrue(completed.get());
+    }
+
     private static String uuid() {
         return UUIDs.randomBase64UUID(random());
     }
@@ -759,12 +1114,5 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             IndexVersion.current(),
             Collections.emptyList()
         );
-    }
-
-    private static DiscoveryNodes discoveryNodes(String localNodeId) {
-        return DiscoveryNodes.builder()
-            .add(DiscoveryNodeUtils.builder(localNodeId).roles(new HashSet<>(DiscoveryNodeRole.roles())).build())
-            .localNodeId(localNodeId)
-            .build();
     }
 }

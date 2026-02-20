@@ -36,6 +36,10 @@ import static org.elasticsearch.index.reindex.resumeinfo.SliceStatusWireSerializ
  */
 public class ResumeInfoWireSerializingTests extends AbstractWireSerializingTestCase<ResumeInfoWireSerializingTests.Wrapper> {
 
+    /**
+     * Register {@link ResumeInfo.WorkerResumeInfo} and {@link Task.Status} so that the optional worker
+     * and any nested types inside slices can be deserialized when round-tripping {@link ResumeInfo}.
+     */
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(org.elasticsearch.cluster.ClusterModule.getNamedWriteables());

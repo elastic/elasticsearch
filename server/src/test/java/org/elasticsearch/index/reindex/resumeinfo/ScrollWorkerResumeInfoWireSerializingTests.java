@@ -27,6 +27,10 @@ import java.util.List;
  */
 public class ScrollWorkerResumeInfoWireSerializingTests extends AbstractWireSerializingTestCase<ResumeInfo.ScrollWorkerResumeInfo> {
 
+    /**
+     * Register {@link ResumeInfo.WorkerResumeInfo} and {@link Task.Status} so that
+     * {@link ResumeInfo.ScrollWorkerResumeInfo} and its status field can be deserialized by name.
+     */
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(org.elasticsearch.cluster.ClusterModule.getNamedWriteables());

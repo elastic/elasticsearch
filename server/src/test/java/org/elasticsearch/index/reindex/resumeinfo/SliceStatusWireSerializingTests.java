@@ -36,6 +36,10 @@ import static org.elasticsearch.index.reindex.resumeinfo.ScrollWorkerResumeInfoW
  */
 public class SliceStatusWireSerializingTests extends AbstractWireSerializingTestCase<SliceStatusWireSerializingTests.Wrapper> {
 
+    /**
+     * Register {@link ResumeInfo.WorkerResumeInfo} and {@link Task.Status} so that
+     * {@link ResumeInfo.SliceStatus}'s optional resumeInfo and nested status can be deserialized.
+     */
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>(org.elasticsearch.cluster.ClusterModule.getNamedWriteables());

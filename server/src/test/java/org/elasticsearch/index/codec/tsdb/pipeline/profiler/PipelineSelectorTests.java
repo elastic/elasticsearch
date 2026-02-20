@@ -161,20 +161,25 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
     }
 
-    public void testNoisyFloatSelectsFpc() {
+    public void testNoisyFloatSkipsXorAndFpc() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.FpcStage.class)));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Xor.class))));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.FpcStage.class))));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
     }
 
-    public void testNoisyDoubleSelectsXor() {
+    public void testNoisyDoubleSkipsXor() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Xor.class)));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Xor.class))));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
     }
 
     public void testHighRunRatioGcdOneSelectsOffsetBitPack() {

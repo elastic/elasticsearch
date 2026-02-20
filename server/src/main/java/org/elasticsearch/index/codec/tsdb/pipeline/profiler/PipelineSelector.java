@@ -114,14 +114,13 @@ public final class PipelineSelector {
         };
     }
 
+    // NOTE: only called when xorMaxBits >= rawMaxBits, meaning XOR provides no bit-width reduction.
+    // Skip XOR and FPC (both rely on consecutive-value correlation) and use offset + patchedPFor
+    // to handle magnitude and outliers without adding unnecessary encode/decode overhead.
     private static PipelineConfig selectGaugeNoisy(int blockSize, PipelineConfig.DataType dataType, @Nullable OptimizeFor hint) {
         return switch (dataType) {
-            // NOTE: noisy doubles — XOR is the only viable transform, patchedPFor handles outlier XOR widths
-            case DOUBLE -> PipelineConfig.forDoubles(blockSize).xor().patchedPFor().bitPack();
-            // NOTE: noisy floats — FPC predicts consecutive values and compresses residuals,
-            // works better than ALP on high-entropy float data
-            case FLOAT -> PipelineConfig.forFloats(blockSize).fpcStage().offset().gcd().bitPack();
-            // NOTE: noisy longs — no useful transform found, just offset to reduce magnitude and bitpack
+            case DOUBLE -> PipelineConfig.forDoubles(blockSize).offset().patchedPFor().bitPack();
+            case FLOAT -> PipelineConfig.forFloats(blockSize).offset().patchedPFor().bitPack();
             case LONG -> PipelineConfig.forLongs(blockSize).offset().bitPack();
         };
     }

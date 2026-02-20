@@ -51,9 +51,11 @@ public class MedianTests extends AbstractAggregationTestCase {
 
         // TDigest was added in 9.4
         FunctionAppliesTo shapeAppliesTo = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.4.0", "", true);
-        Stream.of(
-            MultiRowTestCaseSupplier.tdigestCases(1, 100)
-        ).flatMap(List::stream).map(s -> s.withAppliesTo(shapeAppliesTo)).map(MedianTests::makeSupplier).forEach(suppliers::add);
+        Stream.of(MultiRowTestCaseSupplier.tdigestCases(1, 100))
+            .flatMap(List::stream)
+            .map(s -> s.withAppliesTo(shapeAppliesTo))
+            .map(MedianTests::makeSupplier)
+            .forEach(suppliers::add);
 
         suppliers.addAll(
             List.of(

@@ -263,11 +263,7 @@ public class ObjectMapper extends Mapper {
                         || (this.subobjects != null && this.subobjects.explicit() && this.subobjects.value() != Subobjects.DISABLED)) {
                         MapperErrors.throwPassThroughMappingConflictError(fullPath);
                     }
-                    PassThroughObjectMapper.Builder ptBuilder = new PassThroughObjectMapper.Builder(leafName());
-                    ptBuilder.enabled = this.enabled;
-                    ptBuilder.dynamic = this.dynamic;
-                    ptBuilder.sourceKeepMode = this.sourceKeepMode;
-                    ptBuilder.mappersBuilders.addAll(this.mappersBuilders);
+                    PassThroughObjectMapper.Builder ptBuilder = new PassThroughObjectMapper.Builder(this);
                     MapperMergeContext childContext = parentContext.createChildContext(leafName(), this.dynamic);
                     ptBuilder.merge(ptIncoming, childContext, fullPath);
                     return ptBuilder;

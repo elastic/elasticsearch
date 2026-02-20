@@ -51,6 +51,18 @@ public class PassThroughObjectMapper extends ObjectMapper {
             super(name, Explicit.implicit(Subobjects.DISABLED));
         }
 
+        /**
+         * Creates a PassThroughObjectMapper.Builder by converting an existing ObjectMapper.Builder,
+         * preserving its settings and children.
+         */
+        Builder(ObjectMapper.Builder objectBuilder) {
+            this(objectBuilder.leafName());
+            this.enabled = objectBuilder.enabled;
+            this.dynamic = objectBuilder.dynamic;
+            this.sourceKeepMode = objectBuilder.sourceKeepMode;
+            this.mappersBuilders.addAll(objectBuilder.mappersBuilders);
+        }
+
         @Override
         public PassThroughObjectMapper.Builder add(Mapper.Builder builder) {
             if (timeSeriesDimensionSubFields.value() && builder instanceof FieldMapper.DimensionBuilder dimensionBuilder) {

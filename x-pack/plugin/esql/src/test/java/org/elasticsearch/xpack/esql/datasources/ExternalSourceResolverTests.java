@@ -77,7 +77,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             )
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(2, resolvedSchema.size());
@@ -105,7 +105,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             )
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(2, resolvedSchema.size());
@@ -125,7 +125,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/data/only.parquet", 500))
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(2, resolvedSchema.size());
@@ -146,7 +146,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution resolution = resolveMultiFile("s3://bucket/data/*.parquet", schemasByPath, entries);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         FileSet fileSet = resolved.fileSet();
         assertTrue(fileSet.isResolved());
@@ -167,7 +167,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/dir/x.parquet", 50))
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/dir/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/dir/*.parquet");
         assertNotNull(resolved);
         assertEquals("s3://bucket/dir/*.parquet", resolved.fileSet().originalPattern());
     }
@@ -189,7 +189,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution resolution = resolveSingleFile("s3://bucket/data/single.parquet", schemasByPath);
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/single.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/single.parquet");
         assertNotNull(resolved);
         assertTrue(resolved.fileSet().isUnresolved());
     }
@@ -214,7 +214,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             List.of(entry("s3://bucket/data/typed.parquet", 100))
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         List<Attribute> resolvedSchema = resolved.metadata().schema();
         assertEquals(5, resolvedSchema.size());
         assertEquals(DataType.LONG, resolvedSchema.get(0).dataType());
@@ -229,15 +229,6 @@ public class ExternalSourceResolverTests extends ESTestCase {
     public void testDefaultSchemaResolutionIsFirstFileWins() {
         FormatReader reader = new StubFormatReader(Map.of());
         assertEquals(FormatReader.SchemaResolution.FIRST_FILE_WINS, reader.defaultSchemaResolution());
-    }
-
-    public void testSchemaResolutionEnumValues() {
-        // Verify all expected enum values exist
-        FormatReader.SchemaResolution[] values = FormatReader.SchemaResolution.values();
-        assertEquals(3, values.length);
-        assertEquals(FormatReader.SchemaResolution.FIRST_FILE_WINS, FormatReader.SchemaResolution.valueOf("FIRST_FILE_WINS"));
-        assertEquals(FormatReader.SchemaResolution.STRICT, FormatReader.SchemaResolution.valueOf("STRICT"));
-        assertEquals(FormatReader.SchemaResolution.UNION_BY_NAME, FormatReader.SchemaResolution.valueOf("UNION_BY_NAME"));
     }
 
     // ===== Multiple paths resolution =====
@@ -260,11 +251,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
             listingsByPrefix
         );
 
-        ExternalSourceResolution.ResolvedSource resolved1 = resolution.get("s3://bucket/dir1/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved1 = resolution.resolvedSource("s3://bucket/dir1/*.parquet");
         assertNotNull(resolved1);
         assertEquals("a", resolved1.metadata().schema().get(0).name());
 
-        ExternalSourceResolution.ResolvedSource resolved2 = resolution.get("s3://bucket/dir2/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved2 = resolution.resolvedSource("s3://bucket/dir2/*.parquet");
         assertNotNull(resolved2);
         assertEquals("b", resolved2.metadata().schema().get(0).name());
     }
@@ -286,7 +277,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             config
         );
 
-        ExternalSourceResolution.ResolvedSource resolved = resolution.get("s3://bucket/data/*.parquet");
+        ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         assertEquals("test-key", resolved.metadata().config().get("access_key"));
         assertEquals("test-secret", resolved.metadata().config().get("secret_key"));

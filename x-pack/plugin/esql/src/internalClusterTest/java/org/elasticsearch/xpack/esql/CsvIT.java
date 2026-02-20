@@ -378,10 +378,7 @@ public class CsvIT extends ESTestCase {
         @Override
         protected void load(CsvTestsDataLoader.TestDataset dataset) throws IOException {
             logger.info("Loading dataset [{}]", dataset.indexName());
-            dataset.inferenceEndpoints()
-                .stream()
-                .map(INFERENCE_CONFIGS::get)
-                .forEach(c -> inference.maybeLoad(c));
+            dataset.inferenceEndpoints().stream().map(INFERENCE_CONFIGS::get).forEach(c -> inference.maybeLoad(c));
             assertAcked(
                 cluster.client()
                     .admin()

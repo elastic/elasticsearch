@@ -598,20 +598,39 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         }
 
         void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {
-            int numOffsets = numDocsInCurrentBlock + 1;
-            // delta encode
+            // delta encode: docOffsets[0] becomes 0, docOffsets[1..n] become the lengths
+            int minDelta = Integer.MAX_VALUE;
             int maxDelta = 0;
-            for (int i = numOffsets - 1; i > 0; i--) {
+            for (int i = numDocsInCurrentBlock; i > 0; i--) {
                 docOffsets[i] -= docOffsets[i - 1];
+                minDelta = Math.min(minDelta, docOffsets[i]);
                 maxDelta = Math.max(maxDelta, docOffsets[i]);
             }
-            int bitsPerValue = maxDelta == 0 ? 0 : PackedInts.bitsRequired(maxDelta);
-            output.writeByte((byte) bitsPerValue);
-            if (bitsPerValue > 0) {
+            if (numDocsInCurrentBlock == 0) {
+                minDelta = 0;
+            }
+
+            // Check if all deltas are the same (constant encoding)
+            boolean isConstant = (minDelta == maxDelta);
+
+            if (isConstant) {
+                // Header: high bit set (0x80) signals constant encoding
+                // Remaining 7 bits unused (reserved for future use)
+                output.writeByte((byte) 0x80);
+                output.writeVInt(minDelta);
+            } else {
+                // Apply frame-of-reference: subtract min from all deltas
+                int range = maxDelta - minDelta;
+                int bitsPerValue = PackedInts.bitsRequired(range);
+                // Header: high bit clear, lower 6 bits = bitsPerValue (max 32, fits in 6 bits)
+                output.writeByte((byte) bitsPerValue);
+                output.writeVInt(minDelta);
+                // Bit-pack only indices 1..numDocsInCurrentBlock (skip index 0 which is always 0)
                 long accumulator = 0;
                 int bitsInAccumulator = 0;
-                for (int i = 0; i < numOffsets; i++) {
-                    accumulator = (accumulator << bitsPerValue) | docOffsets[i];
+                for (int i = 1; i <= numDocsInCurrentBlock; i++) {
+                    int value = docOffsets[i] - minDelta;
+                    accumulator = (accumulator << bitsPerValue) | value;
                     bitsInAccumulator += bitsPerValue;
                     while (bitsInAccumulator >= 8) {
                         bitsInAccumulator -= 8;

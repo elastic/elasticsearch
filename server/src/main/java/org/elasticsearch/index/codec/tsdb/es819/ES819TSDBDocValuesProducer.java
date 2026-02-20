@@ -623,27 +623,44 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         void decompressDocOffsetsUsingBitUnpacking(int numDocsInBlock, DataInput input) throws IOException {
-            int numOffsets = numDocsInBlock + 1;
-            int bitsPerValue = input.readByte() & 0xFF;
-            if (bitsPerValue == 0) {
-                Arrays.fill(uncompressedDocStarts, 0, numOffsets, 0);
+            int header = input.readByte() & 0xFF;
+            boolean isConstant = (header & 0x80) != 0;
+            int minDelta = input.readVInt();
+
+            // index 0 is always 0
+            uncompressedDocStarts[0] = 0;
+
+            if (isConstant) {
+                // all deltas are the same value (minDelta)
+                for (int i = 1; i <= numDocsInBlock; i++) {
+                    uncompressedDocStarts[i] = minDelta;
+                }
             } else {
-                int totalBits = numOffsets * bitsPerValue;
-                int totalBytes = (totalBits + 7) / 8;
-                long accumulator = 0;
-                int bitsInAccumulator = 0;
-                int offsetIndex = 0;
-                int mask = (1 << bitsPerValue) - 1;
-                for (int i = 0; i < totalBytes && offsetIndex < numOffsets; i++) {
-                    accumulator = (accumulator << 8) | (input.readByte() & 0xFF);
-                    bitsInAccumulator += 8;
-                    while (bitsInAccumulator >= bitsPerValue && offsetIndex < numOffsets) {
-                        bitsInAccumulator -= bitsPerValue;
-                        uncompressedDocStarts[offsetIndex++] = (int) ((accumulator >>> bitsInAccumulator) & mask);
+                int bitsPerValue = header & 0x3F;
+                if (bitsPerValue == 0) {
+                    // all deltas equal minDelta (range is 0)
+                    for (int i = 1; i <= numDocsInBlock; i++) {
+                        uncompressedDocStarts[i] = minDelta;
+                    }
+                } else {
+                    // unpack bit-packed values and add minDelta
+                    int totalBits = numDocsInBlock * bitsPerValue;
+                    int totalBytes = (totalBits + 7) / 8;
+                    long accumulator = 0;
+                    int bitsInAccumulator = 0;
+                    int offsetIndex = 1;
+                    int mask = (1 << bitsPerValue) - 1;
+                    for (int i = 0; i < totalBytes && offsetIndex <= numDocsInBlock; i++) {
+                        accumulator = (accumulator << 8) | (input.readByte() & 0xFF);
+                        bitsInAccumulator += 8;
+                        while (bitsInAccumulator >= bitsPerValue && offsetIndex <= numDocsInBlock) {
+                            bitsInAccumulator -= bitsPerValue;
+                            uncompressedDocStarts[offsetIndex++] = ((int) ((accumulator >>> bitsInAccumulator) & mask)) + minDelta;
+                        }
                     }
                 }
             }
-            deltaDecode(uncompressedDocStarts, numOffsets);
+            deltaDecode(uncompressedDocStarts, numDocsInBlock + 1);
         }
 
         // Borrowed from to TSDBDocValuesEncoder.decodeDelta

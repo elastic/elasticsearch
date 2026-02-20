@@ -1439,6 +1439,10 @@ public class EsqlCapabilities {
          */
         EXPLAIN(Build.current().isSnapshot()),
         /**
+         * EXPLAIN command with remote plans (5 columns: cluster, node, role, type, plan)
+         */
+        EXPLAIN_WITH_REMOTE_PLANS(Build.current().isSnapshot()),
+        /**
          * Support for the RLIKE operator with a list of regexes.
          */
         RLIKE_WITH_LIST_OF_PATTERNS,

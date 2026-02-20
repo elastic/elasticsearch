@@ -12,10 +12,15 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
@@ -55,6 +60,7 @@ import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
+import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -415,52 +421,13 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         if (minCompetitive == null) {
             return null;
         }
-        MinCompetitiveQuery.BuildMinCompetitiveQuery buildMinCompetitiveQuery = (ctx, page, queryHelper) -> buildMinCompetitiveQuery(
-            (DefaultShardContext) ctx,
-            page,
-            minCompetitive,
-            queryHelper
-        );
+        MinCompetitiveQuery.BuildMinCompetitiveQuery buildMinCompetitiveQuery = (ctx, page) -> {
+            SearchExecutionContext executionContext = ((DefaultShardContext) ctx).ctx;
+            EsMinCompetitiveQueries minCompetitiveQueries = new EsMinCompetitiveQueries(minCompetitive, executionContext);
+            Query q = minCompetitiveQueries.buildMinCompetitiveQuery(page);
+            return q.rewrite(executionContext.searcher());
+        };
         return new MinCompetitiveQuery.Factory(minCompetitive.minCompetitive(), buildMinCompetitiveQuery);
-    }
-
-    private static Query buildMinCompetitiveQuery(
-        DefaultShardContext ctx,
-        Page page,
-        EsQueryExec.MinCompetitiveSetup setup,
-        MinCompetitiveQuery.QueryHelper queryHelper
-    ) {
-        if (page == null) {
-            return queryHelper.matchAll();
-        }
-        LongBlock minBlock = page.getBlock(0);
-        if (minBlock.isNull(0)) {
-            // NOCOMMIT is this backwards?
-            if (setup.minCompetitive().keyConfigs().getFirst().nullsFirst()) {
-                return queryHelper.matchAll();
-            }
-            return queryHelper.matchNone();
-        }
-        MappedFieldType ft = ctx.fieldType(setup.firstFieldName());
-        if (ft == null) {
-            return queryHelper.matchNone();
-        }
-
-        if (minBlock.getValueCount(0) != 1) {
-            throw new IllegalStateException("expected single value");
-        }
-        long minCompetitive = minBlock.getLong(0);
-
-        boolean includeMinCompetitive = setup.minCompetitive().keyConfigs().size() > 1;
-        // NOCOMMIT this should only work for ASC, right? isn't this wrong?
-        if (setup.minCompetitive().keyConfigs().getFirst().asc()) {
-            return queryHelper.greaterThanMinCompetitive(
-                ft.rangeQuery(null, minCompetitive, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx.ctx)
-            );
-        }
-        return queryHelper.greaterThanMinCompetitive(
-            ft.rangeQuery(minCompetitive, null, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx.ctx)
-        );
     }
 
     /**

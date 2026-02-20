@@ -10,6 +10,8 @@ package org.elasticsearch.compute.lucene.query;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
@@ -49,7 +51,7 @@ public class MinCompetitiveQuery implements Releasable {
 
     @FunctionalInterface
     public interface BuildMinCompetitiveQuery {
-        Query build(ShardContext ctx, Page page, QueryHelper helper);
+        Query build(ShardContext ctx, Page page) throws IOException;
     }
 
     private final BlockFactory blockFactory;
@@ -152,8 +154,8 @@ public class MinCompetitiveQuery implements Releasable {
 
         private PerMinValue newPerMinValue(Page value) throws IOException {
             try {
-                Query query = buildMinCompetitiveQuery.build(ctx, value, new QueryHelper());
-                log.debug("updating min competitive to {} {}", value, query);
+                Query query = buildMinCompetitiveQuery(value);
+                log.debug("updating min competitive to {} using {}", query, value);
                 changedValue++;
                 Weight weight = query.createWeight(ctx.searcher(), ScoreMode.COMPLETE_NO_SCORES, 0.0F);
                 PerMinValue result = new PerMinValue(value, weight);
@@ -162,6 +164,24 @@ public class MinCompetitiveQuery implements Releasable {
             } finally {
                 Releasables.close(value);
             }
+        }
+
+        private Query buildMinCompetitiveQuery(Page value) throws IOException {
+            if (value == null) {
+                // We haven't accumulated enough values to have a min_competitive
+                matchAll++;
+                return Queries.ALL_DOCS_INSTANCE;
+            }
+            Query q = buildMinCompetitiveQuery.build(ctx, value);
+            if (q instanceof MatchAllDocsQuery) {
+                matchAll++;
+                return q;
+            } else if (q instanceof MatchNoDocsQuery) {
+                matchNone++;
+                return q;
+            }
+            greaterThanMinCompetitive++;
+            return q;
         }
     }
 
@@ -240,23 +260,6 @@ public class MinCompetitiveQuery implements Releasable {
                 builder.field("update_time", TimeValue.timeValueNanos(updateNanos));
             }
             return builder.endObject();
-        }
-    }
-
-    public class QueryHelper {
-        public Query matchAll() {
-            matchAll++;
-            return Queries.ALL_DOCS_INSTANCE;
-        }
-
-        public Query matchNone() {
-            matchNone++;
-            return Queries.NO_DOCS_INSTANCE;
-        }
-
-        public Query greaterThanMinCompetitive(Query query) {
-            greaterThanMinCompetitive++;
-            return query;
         }
     }
 }

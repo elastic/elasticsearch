@@ -49,7 +49,9 @@ public class MinCompetitiveIT extends ESRestTestCase {
     private static final int PER_BATCH = 10000;
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster();
+    public static ElasticsearchCluster cluster = Clusters.testCluster(
+        c -> c.setting("logger.org.elasticsearch.compute.lucene.query", "TRACE")
+    );
 
     @Override
     protected String getTestRestCluster() {
@@ -60,14 +62,14 @@ public class MinCompetitiveIT extends ESRestTestCase {
         List<ListMatcher> values = new ArrayList<>();
         int n = 0;
         while (values.size() < 10) {
-            if (n % 10 < 9) {
+            if (n % 10 < 8) {
                 values.add(matchesList().item(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(DATE_ROOT + n * 1000L)).item(n));
             }
             n++;
         }
         run("""
             FROM test
-            | WHERE n % 10 < 9
+            | WHERE n % 10 < 8
             | SORT @timestamp ASC
             | LIMIT 10
             """, matchesList(values));
@@ -77,15 +79,83 @@ public class MinCompetitiveIT extends ESRestTestCase {
         List<ListMatcher> values = new ArrayList<>();
         int n = BATCHES * PER_BATCH - 1;
         while (values.size() < 10) {
-            if (n % 10 < 9) {
+            if (n % 10 < 8) {
                 values.add(matchesList().item(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(DATE_ROOT + n * 1000L)).item(n));
             }
             n--;
         }
         run("""
             FROM test
-            | WHERE n % 10 < 9
+            | WHERE n % 10 < 8
             | SORT @timestamp DESC
+            | LIMIT 10
+            """, matchesList(values));
+    }
+
+    public void testNAscNullsFirstTimestampAsc() throws IOException {
+        List<ListMatcher> values = new ArrayList<>();
+        int n = 0;
+        while (values.size() < 10) {
+            if (n % 10 == 9) {
+                values.add(matchesList().item(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(DATE_ROOT + n * 1000L)).item(null));
+            }
+            n++;
+        }
+        run("""
+            FROM test
+            | WHERE n % 10 < 8 OR n IS NULL
+            | SORT n ASC NULLS FIRST, @timestamp ASC
+            | LIMIT 10
+            """, matchesList(values));
+    }
+
+    public void testNAscNullsLastTimestampAsc() throws IOException {
+        List<ListMatcher> values = new ArrayList<>();
+        int n = 0;
+        while (values.size() < 10) {
+            if (n % 10 < 8) {
+                values.add(matchesList().item(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(DATE_ROOT + n * 1000L)).item(n));
+            }
+            n++;
+        }
+        run("""
+            FROM test
+            | WHERE n % 10 < 8 OR n IS NULL
+            | SORT n ASC NULLS LAST, @timestamp ASC
+            | LIMIT 10
+            """, matchesList(values));
+    }
+
+    public void testNDescNullsFirstTimestampAsc() throws IOException {
+        List<ListMatcher> values = new ArrayList<>();
+        int n = 0;
+        while (values.size() < 10) {
+            if (n % 10 == 9) {
+                values.add(matchesList().item(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(DATE_ROOT + n * 1000L)).item(null));
+            }
+            n++;
+        }
+        run("""
+            FROM test
+            | WHERE n % 10 < 8 OR n IS NULL
+            | SORT n DESC NULLS FIRST, @timestamp ASC
+            | LIMIT 10
+            """, matchesList(values));
+    }
+
+    public void testNDescNullsLastTimestampAsc() throws IOException {
+        List<ListMatcher> values = new ArrayList<>();
+        int n = BATCHES * PER_BATCH - 1;
+        while (values.size() < 10) {
+            if (n % 10 < 8) {
+                values.add(matchesList().item(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(DATE_ROOT + n * 1000L)).item(n));
+            }
+            n--;
+        }
+        run("""
+            FROM test
+            | WHERE n % 10 < 8 OR n IS NULL
+            | SORT n DESC NULLS LAST, @timestamp ASC
             | LIMIT 10
             """, matchesList(values));
     }
@@ -111,11 +181,13 @@ public class MinCompetitiveIT extends ESRestTestCase {
             .item(matchesMap().entry("name", "n").entry("type", "long"));
 
         MapMatcher matcher = matchesMap().extraOk();
+        // If this is equalTo then we didn't use min_competitive
         matcher = matcher.entry("documents_found", lessThan(BATCHES * PER_BATCH));
         matcher = matcher.entry("columns", columns);
         matcher = matcher.entry("values", valuesMatcher);
         assertMap(result, matcher);
 
+        // Check the profile for min_competitive
         Map<?, ?> profile = (Map<?, ?>) result.get("profile");
         List<?> drivers = (List<?>) profile.get("drivers");
         boolean foundData = false;
@@ -181,10 +253,13 @@ public class MinCompetitiveIT extends ESRestTestCase {
         int n = 0;
         for (int batch = 0; batch < BATCHES; batch++) {
             for (int i = 0; i < PER_BATCH; i++) {
-                b.append(String.format(Locale.ROOT, """
-                        {"create":{}}
-                        {"@timestamp": "%s", "n": %s}
-                    """, DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(DATE_ROOT + n * 1000L), n));
+                String ts = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(DATE_ROOT + n * 1000L);
+                b.append("{\"create\":{}}\n");
+                if (i % 10 == 9) {
+                    b.append(String.format(Locale.ROOT, "{\"@timestamp\": \"%s\"}\n", ts));
+                } else {
+                    b.append(String.format(Locale.ROOT, "{\"@timestamp\": \"%s\", \"n\": %s}\n", ts, n));
+                }
                 n++;
             }
             bulk.setJsonEntity(b.toString());

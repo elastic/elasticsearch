@@ -2000,6 +2000,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             assert entry.prev == null;
             assert entry.next == null;
             final FreqLevel level = freqs[entry.freq];
+            assert level != null : entry.freq;
             final LFUCacheEntry currFront = level.head;
             if (currFront == null) {
                 level.head = entry;

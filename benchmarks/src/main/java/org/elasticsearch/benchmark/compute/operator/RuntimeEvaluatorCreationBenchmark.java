@@ -51,12 +51,14 @@ public class RuntimeEvaluatorCreationBenchmark {
         LogConfigurator.configureESLogging();
     }
 
-    @Param({
-        "abs_long",         // Unary scalar
-        "add_long",         // Binary scalar
-        "greatest_long",    // Variadic
-        "mvsum_long"        // Multi-value
-    })
+    @Param(
+        {
+            "abs_long",         // Unary scalar
+            "add_long",         // Binary scalar
+            "greatest_long",    // Variadic
+            "mvsum_long"        // Multi-value
+        }
+    )
     public String operation;
 
     private Method processMethod;
@@ -107,9 +109,7 @@ public class RuntimeEvaluatorCreationBenchmark {
      */
     @Benchmark
     public Class<?> freshGeneration() {
-        RuntimeEvaluatorGenerator freshGenerator = new RuntimeEvaluatorGenerator(
-            RuntimeEvaluatorCreationBenchmark.class.getClassLoader()
-        );
+        RuntimeEvaluatorGenerator freshGenerator = new RuntimeEvaluatorGenerator(RuntimeEvaluatorCreationBenchmark.class.getClassLoader());
         if (isMv) {
             return freshGenerator.getOrGenerateMvEvaluator(processMethod);
         } else {

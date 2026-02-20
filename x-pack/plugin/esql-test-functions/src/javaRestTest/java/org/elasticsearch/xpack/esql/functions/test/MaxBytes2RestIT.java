@@ -69,9 +69,7 @@ public class MaxBytes2RestIT extends ESRestTestCase {
         createTestIndex();
         indexTestDataWithCategories();
 
-        Map<String, Object> responseMap = runQuery(
-            "FROM test_max_bytes2 | STATS max_name = max_bytes2(name) BY category | SORT category"
-        );
+        Map<String, Object> responseMap = runQuery("FROM test_max_bytes2 | STATS max_name = max_bytes2(name) BY category | SORT category");
 
         @SuppressWarnings("unchecked")
         List<List<Object>> values = (List<List<Object>>) responseMap.get("values");

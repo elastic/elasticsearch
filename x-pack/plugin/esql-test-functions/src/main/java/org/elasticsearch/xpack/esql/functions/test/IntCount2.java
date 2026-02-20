@@ -58,11 +58,7 @@ public class IntCount2 extends AggregateFunction implements ToAggregator {
     )
     public IntCount2(
         Source source,
-        @Param(
-            name = "number",
-            type = { "integer" },
-            description = "Integer expression to sum."
-        ) Expression field
+        @Param(name = "number", type = { "integer" }, description = "Integer expression to sum.") Expression field
     ) {
         super(source, field, Literal.TRUE, NO_WINDOW, List.of());
     }
@@ -107,13 +103,7 @@ public class IntCount2 extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(
-            field(),
-            dt -> dt == DataType.INTEGER,
-            sourceText(),
-            DEFAULT,
-            "integer"
-        );
+        return isType(field(), dt -> dt == DataType.INTEGER, sourceText(), DEFAULT, "integer");
     }
 
     @Override

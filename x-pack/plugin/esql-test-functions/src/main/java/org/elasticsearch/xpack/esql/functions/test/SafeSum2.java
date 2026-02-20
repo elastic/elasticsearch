@@ -49,11 +49,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
  */
 public class SafeSum2 extends AggregateFunction implements ToAggregator {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "SafeSum2",
-        SafeSum2::new
-    );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "SafeSum2", SafeSum2::new);
 
     @FunctionInfo(
         returnType = { "long" },
@@ -62,11 +58,7 @@ public class SafeSum2 extends AggregateFunction implements ToAggregator {
     )
     public SafeSum2(
         Source source,
-        @Param(
-            name = "number",
-            type = { "integer" },
-            description = "Integer expression to sum."
-        ) Expression field
+        @Param(name = "number", type = { "integer" }, description = "Integer expression to sum.") Expression field
     ) {
         super(source, field, Literal.TRUE, NO_WINDOW, List.of());
     }
@@ -111,13 +103,7 @@ public class SafeSum2 extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(
-            field(),
-            dt -> dt == DataType.INTEGER,
-            sourceText(),
-            DEFAULT,
-            "integer"
-        );
+        return isType(field(), dt -> dt == DataType.INTEGER, sourceText(), DEFAULT, "integer");
     }
 
     @Override

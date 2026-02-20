@@ -52,14 +52,7 @@ public class Sum2 extends AggregateFunction implements ToAggregator {
         description = "Sum of integer values (test function using runtime aggregator generation).",
         type = FunctionType.AGGREGATE
     )
-    public Sum2(
-        Source source,
-        @Param(
-            name = "number",
-            type = { "integer" },
-            description = "Integer expression to sum."
-        ) Expression field
-    ) {
+    public Sum2(Source source, @Param(name = "number", type = { "integer" }, description = "Integer expression to sum.") Expression field) {
         super(source, field, Literal.TRUE, NO_WINDOW, List.of());
     }
 
@@ -103,13 +96,7 @@ public class Sum2 extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(
-            field(),
-            dt -> dt == DataType.INTEGER,
-            sourceText(),
-            DEFAULT,
-            "integer"
-        );
+        return isType(field(), dt -> dt == DataType.INTEGER, sourceText(), DEFAULT, "integer");
     }
 
     @Override

@@ -43,11 +43,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
  */
 public class Concat2 extends EsqlScalarFunction {
 
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "Concat2",
-        Concat2::new
-    );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Concat2", Concat2::new);
 
     @FunctionInfo(
         returnType = { "keyword" },
@@ -69,10 +65,7 @@ public class Concat2 extends EsqlScalarFunction {
     }
 
     private Concat2(StreamInput in) throws IOException {
-        super(
-            Source.readFrom((PlanStreamInput) in),
-            in.readNamedWriteableCollectionAsList(Expression.class)
-        );
+        super(Source.readFrom((PlanStreamInput) in), in.readNamedWriteableCollectionAsList(Expression.class));
     }
 
     @Override
@@ -107,9 +100,7 @@ public class Concat2 extends EsqlScalarFunction {
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        List<ExpressionEvaluator.Factory> factories = children().stream()
-            .map(toEvaluator::apply)
-            .collect(Collectors.toList());
+        List<ExpressionEvaluator.Factory> factories = children().stream().map(toEvaluator::apply).collect(Collectors.toList());
 
         return RuntimeEvaluatorSupport.createVariadicFactory(Concat2.class, KEYWORD, source(), factories);
     }

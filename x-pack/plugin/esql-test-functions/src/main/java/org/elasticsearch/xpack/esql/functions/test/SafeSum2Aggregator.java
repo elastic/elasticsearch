@@ -32,8 +32,7 @@ import org.elasticsearch.compute.ann.RuntimeIntermediateState;
     intermediateState = {
         @RuntimeIntermediateState(name = "sum", type = "LONG"),
         @RuntimeIntermediateState(name = "seen", type = "BOOLEAN"),
-        @RuntimeIntermediateState(name = "failed", type = "BOOLEAN")
-    },
+        @RuntimeIntermediateState(name = "failed", type = "BOOLEAN") },
     warnExceptions = { ArithmeticException.class }
 )
 public class SafeSum2Aggregator {

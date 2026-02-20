@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Unit tests for the Concat2 variadic string concatenation function.
@@ -62,12 +61,7 @@ public class Concat2Tests extends ESTestCase {
     }
 
     public void testProcessManyStrings() {
-        BytesRef[] values = {
-            new BytesRef("a"),
-            new BytesRef("b"),
-            new BytesRef("c"),
-            new BytesRef("d"),
-            new BytesRef("e") };
+        BytesRef[] values = { new BytesRef("a"), new BytesRef("b"), new BytesRef("c"), new BytesRef("d"), new BytesRef("e") };
         assertThat(Concat2.process(values).utf8ToString(), equalTo("abcde"));
     }
 
@@ -115,11 +109,7 @@ public class Concat2Tests extends ESTestCase {
     }
 
     public void testTypeResolutionSingleArg() {
-        Concat2 concat2 = new Concat2(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, new BytesRef("solo"), DataType.KEYWORD),
-            List.of()
-        );
+        Concat2 concat2 = new Concat2(Source.EMPTY, new Literal(Source.EMPTY, new BytesRef("solo"), DataType.KEYWORD), List.of());
         assertThat(concat2.dataType(), equalTo(DataType.KEYWORD));
         assertThat(concat2.resolveType(), equalTo(Concat2.TypeResolution.TYPE_RESOLVED));
     }
@@ -128,22 +118,14 @@ public class Concat2Tests extends ESTestCase {
      * Test that invalid types are rejected.
      */
     public void testInvalidTypeResolution() {
-        Concat2 concat2Int = new Concat2(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, 42, DataType.INTEGER),
-            List.of()
-        );
+        Concat2 concat2Int = new Concat2(Source.EMPTY, new Literal(Source.EMPTY, 42, DataType.INTEGER), List.of());
         Concat2.TypeResolution resolution = concat2Int.resolveType();
         assertThat(resolution.resolved(), equalTo(false));
         assertTrue(resolution.message().contains("Expected string type"));
     }
 
     public void testInvalidTypeResolutionBoolean() {
-        Concat2 concat2Bool = new Concat2(
-            Source.EMPTY,
-            new Literal(Source.EMPTY, true, DataType.BOOLEAN),
-            List.of()
-        );
+        Concat2 concat2Bool = new Concat2(Source.EMPTY, new Literal(Source.EMPTY, true, DataType.BOOLEAN), List.of());
         Concat2.TypeResolution resolution = concat2Bool.resolveType();
         assertThat(resolution.resolved(), equalTo(false));
         assertTrue(resolution.message().contains("Expected string type"));

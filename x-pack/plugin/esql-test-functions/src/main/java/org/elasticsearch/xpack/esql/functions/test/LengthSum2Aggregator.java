@@ -18,8 +18,7 @@ import org.elasticsearch.compute.ann.RuntimeIntermediateState;
 @RuntimeAggregator(
     intermediateState = {
         @RuntimeIntermediateState(name = "lengthSum", type = "LONG"),
-        @RuntimeIntermediateState(name = "seen", type = "BOOLEAN")
-    }
+        @RuntimeIntermediateState(name = "seen", type = "BOOLEAN") }
 )
 public class LengthSum2Aggregator {
 

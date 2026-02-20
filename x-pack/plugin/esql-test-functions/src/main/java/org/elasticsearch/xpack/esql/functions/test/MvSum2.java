@@ -50,11 +50,7 @@ public class MvSum2 extends AbstractMultivalueFunction {
     )
     public MvSum2(
         Source source,
-        @Param(
-            name = "number",
-            type = { "double", "integer", "long" },
-            description = "Multivalue expression."
-        ) Expression field
+        @Param(name = "number", type = { "double", "integer", "long" }, description = "Multivalue expression.") Expression field
     ) {
         super(source, field);
     }

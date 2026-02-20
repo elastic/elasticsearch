@@ -57,11 +57,7 @@ public class MaxBytes2 extends AggregateFunction implements ToAggregator {
     )
     public MaxBytes2(
         Source source,
-        @Param(
-            name = "string",
-            type = { "keyword" },
-            description = "String expression to find maximum."
-        ) Expression field
+        @Param(name = "string", type = { "keyword" }, description = "String expression to find maximum.") Expression field
     ) {
         super(source, field, Literal.TRUE, NO_WINDOW, List.of());
     }
@@ -106,13 +102,7 @@ public class MaxBytes2 extends AggregateFunction implements ToAggregator {
 
     @Override
     protected TypeResolution resolveType() {
-        return isType(
-            field(),
-            dt -> dt == DataType.KEYWORD || dt == DataType.TEXT,
-            sourceText(),
-            DEFAULT,
-            "keyword or text"
-        );
+        return isType(field(), dt -> dt == DataType.KEYWORD || dt == DataType.TEXT, sourceText(), DEFAULT, "keyword or text");
     }
 
     @Override

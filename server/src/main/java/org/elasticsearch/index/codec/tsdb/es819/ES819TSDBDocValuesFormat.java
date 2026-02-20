@@ -41,9 +41,9 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     static final int NUMERIC_LARGE_BLOCK_SHIFT = 9;
     static final int DIRECT_MONOTONIC_BLOCK_SHIFT = 16;
     static final String CODEC_NAME = "ES819TSDB";
-    static final String DATA_CODEC = "ES819TSDBDocValuesData";
+    static final String DATA_CODEC = CODEC_NAME + "DocValuesData";
     static final String DATA_EXTENSION = "dvd";
-    static final String META_CODEC = "ES819TSDBDocValuesMetadata";
+    static final String META_CODEC = CODEC_NAME + "DocValuesMetadata";
     static final String META_EXTENSION = "dvm";
     static final byte NUMERIC = 0;
     static final byte BINARY = 1;
@@ -140,10 +140,6 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
     final BinaryDVCompressionMode binaryDVCompressionMode;
     final boolean enablePerBlockCompression;
 
-    public static ES819TSDBDocValuesFormat getInstance(boolean useLargeNumericBlock) {
-        return useLargeNumericBlock ? new ES819TSDBDocValuesFormat(NUMERIC_LARGE_BLOCK_SHIFT) : new ES819TSDBDocValuesFormat();
-    }
-
     public ES819TSDBDocValuesFormat() {
         this(NUMERIC_BLOCK_SHIFT);
     }
@@ -217,6 +213,17 @@ public class ES819TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValues
         this.enableOptimizedMerge = enableOptimizedMerge;
         this.binaryDVCompressionMode = binaryDVCompressionMode;
         this.enablePerBlockCompression = enablePerBlockCompression;
+        this.numericBlockShift = numericBlockShift;
+    }
+
+    protected ES819TSDBDocValuesFormat(String codecName, int numericBlockShift) {
+        super(codecName);
+        assert numericBlockShift == NUMERIC_BLOCK_SHIFT || numericBlockShift == NUMERIC_LARGE_BLOCK_SHIFT : numericBlockShift;
+        this.skipIndexIntervalSize = DEFAULT_SKIP_INDEX_INTERVAL_SIZE;
+        this.minDocsPerOrdinalForRangeEncoding = ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL;
+        this.enableOptimizedMerge = OPTIMIZED_MERGE_ENABLE_DEFAULT;
+        this.binaryDVCompressionMode = BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1;
+        this.enablePerBlockCompression = true;
         this.numericBlockShift = numericBlockShift;
     }
 

@@ -100,6 +100,16 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     };
 
+    protected final Codec codecLargerBlocks = new Elasticsearch92Lucene103Codec() {
+
+        final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBLargerNumericBlocksDocValuesFormat();
+
+        @Override
+        public DocValuesFormat getDocValuesFormatForField(String field) {
+            return docValuesFormat;
+        }
+    };
+
     public static class TestES819TSDBDocValuesFormatVersion0 extends ES819TSDBDocValuesFormat {
 
         public TestES819TSDBDocValuesFormatVersion0() {
@@ -124,7 +134,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
     @Override
     protected Codec getCodec() {
-        return codec;
+        return random().nextBoolean() ? codec : codecLargerBlocks;
     }
 
     public void testBinaryCompressionEnabled() {

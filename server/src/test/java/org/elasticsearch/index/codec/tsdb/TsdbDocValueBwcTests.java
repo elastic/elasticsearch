@@ -44,6 +44,7 @@ import org.elasticsearch.index.codec.perfield.XPerFieldDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormatTests;
+import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBLargerNumericBlocksDocValuesFormat;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -64,6 +65,12 @@ public class TsdbDocValueBwcTests extends ESTestCase {
         var compressionMode = ES819TSDBDocValuesFormatTests.randomBinaryCompressionMode();
         var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat(compressionMode));
         testMixedIndex(oldCodec, newCodec);
+    }
+
+    public void testMixedIndexFromDefaultBlocksToLargerBlocks() throws Exception {
+        var oldCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBDocValuesFormat());
+        var newCodec = TestUtil.alwaysDocValuesFormat(new ES819TSDBLargerNumericBlocksDocValuesFormat());
+        testMixedIndex(oldCodec, newCodec, this::assertVersion819, this::assertVersion819LargerNumericBlocks);
     }
 
     public void testMixedIndexDocValueVersion0ToVersion1() throws Exception {
@@ -135,6 +142,12 @@ public class TsdbDocValueBwcTests extends ESTestCase {
     void assertVersion819(DirectoryReader reader) throws IOException, NoSuchFieldException, ClassNotFoundException, IllegalAccessException {
         assert819DocValuesFormatVersion(reader);
         assertFieldInfoDocValuesFormat(reader, "0", "ES819TSDB");
+    }
+
+    void assertVersion819LargerNumericBlocks(DirectoryReader reader) throws IOException, NoSuchFieldException, ClassNotFoundException,
+        IllegalAccessException {
+        assert819DLargerNumericBlocksValuesFormatVersion(reader);
+        assertFieldInfoDocValuesFormat(reader, "0", "ES819TSDBLargerNumericBlocks");
     }
 
     void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException, NoSuchFieldException, IllegalAccessException,
@@ -499,6 +512,48 @@ public class TsdbDocValueBwcTests extends ESTestCase {
                 assertThat(
                     tsdbDvReader,
                     Matchers.instanceOf(Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer"))
+                );
+            }
+        }
+    }
+
+    private void assert819DLargerNumericBlocksValuesFormatVersion(DirectoryReader reader) throws NoSuchFieldException,
+        IllegalAccessException, IOException, ClassNotFoundException {
+
+        for (var leafReaderContext : reader.leaves()) {
+            var leaf = (SegmentReader) leafReaderContext.reader();
+            var dvReader = leaf.getDocValuesReader();
+            dvReader.checkIntegrity();
+
+            if (dvReader instanceof XPerFieldDocValuesFormat.FieldsReader perFieldDvReader) {
+                var formats = perFieldDvReader.getFormats();
+                assertThat(formats, Matchers.aMapWithSize(1));
+                var tsdbDvReader = formats.get("ES819TSDBLargerNumericBlocks_0");
+                tsdbDvReader.checkIntegrity();
+                assertThat(
+                    tsdbDvReader,
+                    Matchers.instanceOf(
+                        Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer")
+                    )
+                );
+            } else {
+                if (System.getSecurityManager() != null) {
+                    // With jvm version 24 entitlements are used and security manager is nog longer used.
+                    // Making this assertion work with security manager requires granting the entire test codebase privileges to use
+                    // suppressAccessChecks and suppressAccessChecks. This is undesired from a security manager perspective.
+                    logger.info("not asserting doc values format version, because security manager is used");
+                    continue;
+                }
+                var field = getFormatsFieldFromPerFieldFieldsReader(dvReader.getClass());
+                Map<?, ?> formats = (Map<?, ?>) field.get(dvReader);
+                assertThat(formats, Matchers.aMapWithSize(1));
+                var tsdbDvReader = (DocValuesProducer) formats.get("ES819TSDBLargerNumericBlocks_0");
+                tsdbDvReader.checkIntegrity();
+                assertThat(
+                    tsdbDvReader,
+                    Matchers.instanceOf(
+                        Class.forName("org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesProducer")
+                    )
                 );
             }
         }

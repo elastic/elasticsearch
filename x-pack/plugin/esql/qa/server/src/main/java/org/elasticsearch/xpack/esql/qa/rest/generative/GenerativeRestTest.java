@@ -409,8 +409,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * See <a href="https://github.com/elastic/elasticsearch/issues/142762">#142762</a>
      */
     static boolean isForkOptimizationBugWithUnmappedFields(String errorMessage, String query) {
-        return query.startsWith(SET_UNMAPPED_FIELDS_PREFIX)
-            && FORK_OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches();
+        return query.startsWith(SET_UNMAPPED_FIELDS_PREFIX) && FORK_OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches();
     }
 
     @Override

@@ -29,34 +29,38 @@ import java.util.Collection;
 public interface ReadableTDigest {
 
     /**
-     * Returns the number of points that have been added to this digest.
-     */
+        * Returns the number of points that have been added to this TDigest.
+     *
+         * @return The sum of the weights on all centroids.
+        */
     long size();
 
     /**
-     * Returns the fraction of all points added which are &le; x.
+     * Returns the fraction of all points added which are &le; x. Points
+     * that are exactly equal get half credit (i.e. we use the mid-point
+     * rule)
+     *
+     * @param x The cutoff for the cdf.
+     * @return The fraction of all data which is less or equal to x.
      */
     double cdf(double x);
 
     /**
-     * Returns an estimate of a cutoff for a requested quantile.
+     * Returns an estimate of a cutoff such that a specified fraction of the data
+     * added to this TDigest would be less than or equal to the cutoff.
+     *
+     * @param q The desired fraction
+     * @return The smallest value x such that cdf(x) &ge; q
      */
     double quantile(double q);
 
     /**
-     * Returns centroids in ascending order by mean.
+     * A {@link Collection} that lets you go through the centroids in ascending order by mean.  Centroids
+     * returned will not be re-used, but may or may not share storage with this TDigest.
+     *
+     * @return The centroids in the form of a Collection.
      */
     Collection<Centroid> centroids();
-
-    /**
-     * Returns the current compression factor.
-     */
-    double compression();
-
-    /**
-     * Returns the number of bytes required to encode this digest.
-     */
-    int byteSize();
 
     /**
      * Returns the current number of centroids.
@@ -64,12 +68,12 @@ public interface ReadableTDigest {
     int centroidCount();
 
     /**
-     * Returns the minimum value seen.
+     * Returns the minimum value seen. Returns NaN if this digest is empty.
      */
     double getMin();
 
     /**
-     * Returns the maximum value seen.
+     * Returns the maximum value seen. Returns NaN if this digest is empty.
      */
     double getMax();
 }

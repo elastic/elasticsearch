@@ -300,16 +300,6 @@ public class EncodedTDigest implements ReadableTDigest {
     }
 
     @Override
-    public double compression() {
-        return Double.NaN;
-    }
-
-    @Override
-    public int byteSize() {
-        return encodedDigest.length;
-    }
-
-    @Override
     public int centroidCount() {
         ensureCachedStatsPopulated();
         return cachedCentroidCount;

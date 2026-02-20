@@ -25,7 +25,6 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
-import java.util.Collection;
 import java.util.Locale;
 
 /**
@@ -127,40 +126,6 @@ public abstract class TDigest implements ReadableTDigest, Releasable, Accountabl
     public abstract void compress();
 
     /**
-     * Returns the number of points that have been added to this TDigest.
-     *
-     * @return The sum of the weights on all centroids.
-     */
-    public abstract long size();
-
-    /**
-     * Returns the fraction of all points added which are &le; x. Points
-     * that are exactly equal get half credit (i.e. we use the mid-point
-     * rule)
-     *
-     * @param x The cutoff for the cdf.
-     * @return The fraction of all data which is less or equal to x.
-     */
-    public abstract double cdf(double x);
-
-    /**
-     * Returns an estimate of a cutoff such that a specified fraction of the data
-     * added to this TDigest would be less than or equal to the cutoff.
-     *
-     * @param q The desired fraction
-     * @return The smallest value x such that cdf(x) &ge; q
-     */
-    public abstract double quantile(double q);
-
-    /**
-     * A {@link Collection} that lets you go through the centroids in ascending order by mean.  Centroids
-     * returned will not be re-used, but may or may not share storage with this TDigest.
-     *
-     * @return The centroids in the form of a Collection.
-     */
-    public abstract Collection<Centroid> centroids();
-
-    /**
      * Returns the current compression factor.
      *
      * @return The compression factor originally used to set up the TDigest.
@@ -187,8 +152,6 @@ public abstract class TDigest implements ReadableTDigest, Releasable, Accountabl
      * @param other The other digest
      */
     public abstract void add(ReadableTDigest other);
-
-    public abstract int centroidCount();
 
     /**
      * Prepare internal structure for loading the requested number of samples.

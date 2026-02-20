@@ -195,12 +195,13 @@ public class ObjectMapper extends Mapper {
         }
 
         /**
-         * @return a new builder with the same settings (subobjects, enabled, dynamic) but no children
+         * @return a new builder with the same settings (subobjects, enabled, dynamic, sourceKeepMode) but no children
          */
         Builder newEmptyBuilder() {
             Builder builder = new Builder(leafName(), subobjects);
             builder.enabled = this.enabled;
             builder.dynamic = this.dynamic;
+            builder.sourceKeepMode = this.sourceKeepMode;
             return builder;
         }
 
@@ -473,10 +474,7 @@ public class ObjectMapper extends Mapper {
             if (parentContext.decrementFieldBudgetIfPossible(1) == false) {
                 return null;
             }
-            ObjectMapper.Builder shallowBuilder = new ObjectMapper.Builder(incomingBuilder.leafName(), incomingBuilder.subobjects);
-            shallowBuilder.enabled = incomingBuilder.enabled;
-            shallowBuilder.dynamic = incomingBuilder.dynamic;
-            shallowBuilder.sourceKeepMode = incomingBuilder.sourceKeepMode;
+            ObjectMapper.Builder shallowBuilder = incomingBuilder.newEmptyBuilder();
             MapperMergeContext childContext = parentContext.createChildContext(incomingBuilder.leafName(), incomingBuilder.dynamic);
             String fullPath = parentContext.getMapperBuilderContext().buildFullName(incomingBuilder.leafName());
             shallowBuilder.merge(incomingBuilder, childContext, fullPath);
@@ -739,6 +737,7 @@ public class ObjectMapper extends Mapper {
         Builder builder = new Builder(leafName(), subobjects);
         builder.enabled = this.enabled;
         builder.dynamic = this.dynamic;
+        builder.sourceKeepMode = this.sourceKeepMode;
         return builder;
     }
 

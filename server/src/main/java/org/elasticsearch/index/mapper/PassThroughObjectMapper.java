@@ -167,6 +167,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
         PassThroughObjectMapper.Builder builder = new PassThroughObjectMapper.Builder(leafName());
         builder.enabled = enabled;
         builder.dynamic = dynamic;
+        builder.sourceKeepMode = sourceKeepMode;
         builder.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
         builder.priority = priority;
         return builder;

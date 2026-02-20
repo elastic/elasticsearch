@@ -111,6 +111,7 @@ public class NestedObjectMapper extends ObjectMapper {
             );
             builder.enabled = this.enabled;
             builder.dynamic = this.dynamic;
+            builder.sourceKeepMode = this.sourceKeepMode;
             builder.includeInRoot = this.includeInRoot;
             builder.includeInParent = this.includeInParent;
             return builder;
@@ -328,6 +329,7 @@ public class NestedObjectMapper extends ObjectMapper {
         NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(leafName(), indexVersionCreated, bitsetProducer, indexSettings);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
+        builder.sourceKeepMode = sourceKeepMode;
         builder.includeInRoot = includeInRoot;
         builder.includeInParent = includeInParent;
         return builder;

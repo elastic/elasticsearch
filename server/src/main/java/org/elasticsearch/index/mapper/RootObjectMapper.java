@@ -121,6 +121,7 @@ public class RootObjectMapper extends ObjectMapper {
             RootObjectMapper.Builder builder = new RootObjectMapper.Builder(leafName(), subobjects);
             builder.enabled = this.enabled;
             builder.dynamic = this.dynamic;
+            builder.sourceKeepMode = this.sourceKeepMode;
             builder.namespaceValidator = this.namespaceValidator;
             return builder;
         }
@@ -230,6 +231,7 @@ public class RootObjectMapper extends ObjectMapper {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder(this.fullPath(), subobjects);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
+        builder.sourceKeepMode = sourceKeepMode;
         return builder;
     }
 

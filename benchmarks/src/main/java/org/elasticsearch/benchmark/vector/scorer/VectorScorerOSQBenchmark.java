@@ -45,7 +45,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQIndexData;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQQueryData;
-import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.getVectorPackedLengthInBytes;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomVector;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeBulkOSQVectorData;
 
@@ -116,7 +115,7 @@ public class VectorScorerOSQBenchmark {
     }
 
     void setup(Random random) throws IOException {
-        this.length = getVectorPackedLengthInBytes(dims, bits);
+        this.length = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getDocPackedLength(dims);
 
         final float[] centroid = new float[dims];
         randomVector(random, centroid, similarityFunction);
@@ -142,12 +141,7 @@ public class VectorScorerOSQBenchmark {
             CodecUtil.writeFooter(output);
         }
         input = directory.openInput("vectors", IOContext.DEFAULT);
-        int binaryQueryLength = switch (bits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getQueryPackedLength(dims);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getQueryPackedLength(dims);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getQueryPackedLength(dims);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
-        };
+        int binaryQueryLength = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getQueryPackedLength(dims);
 
         binaryQueries = new VectorScorerTestUtils.OSQVectorData[numVectors];
         var query = new float[dims];

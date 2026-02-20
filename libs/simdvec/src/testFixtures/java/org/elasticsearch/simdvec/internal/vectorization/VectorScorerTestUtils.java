@@ -49,15 +49,7 @@ public class VectorScorerTestUtils {
             indexBits,
             centroid
         );
-
-        var quantEncoding = switch (indexBits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY;
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY;
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC;
-            default -> throw new IllegalArgumentException("Unsupported bits: " + indexBits);
-        };
-
-        quantEncoding.pack(scratch, qVector);
+        ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).pack(scratch, qVector);
 
         return new OSQVectorData(
             qVector,
@@ -96,15 +88,6 @@ public class VectorScorerTestUtils {
             queryCorrections.additionalCorrection(),
             queryCorrections.quantizedComponentSum()
         );
-    }
-
-    public static int getVectorPackedLengthInBytes(int dimensions, byte indexBits) {
-        return switch (indexBits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dimensions);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dimensions);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + indexBits);
-        };
     }
 
     public static void writeSingleOSQVectorData(IndexOutput out, OSQVectorData vectorData) throws IOException {

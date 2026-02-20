@@ -21,6 +21,7 @@ import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
@@ -31,7 +32,6 @@ import java.util.stream.Stream;
 
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQIndexData;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQQueryData;
-import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.getVectorPackedLengthInBytes;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomVector;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeBulkOSQVectorData;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeSingleOSQVectorData;
@@ -60,7 +60,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         final int dimensions = random().nextInt(1, 2000);
         final int numVectors = random().nextInt(1, 100);
 
-        final int length = getVectorPackedLengthInBytes(dimensions, indexBits);
+        final int length = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits).getDocPackedLength(dimensions);
 
         final byte[] vector = new byte[length];
 
@@ -111,7 +111,8 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         final int dimensions = random().nextInt(1, maxDims);
         final int numVectors = random().nextInt(10, 50);
 
-        final int indexVectorPackedLengthInBytes = getVectorPackedLengthInBytes(dimensions, indexBits);
+        final int indexVectorPackedLengthInBytes = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits)
+            .getDocPackedLength(dimensions);
 
         final float[] centroid = new float[dimensions];
         randomVector(random(), centroid, similarityFunction);
@@ -221,7 +222,8 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         final int dimensions = random().nextInt(1, maxDims);
         final int numVectors = bulkSize * random().nextInt(1, 10);
 
-        final int indexVectorPackedLengthInBytes = getVectorPackedLengthInBytes(dimensions, indexBits);
+        final int indexVectorPackedLengthInBytes = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(indexBits)
+            .getDocPackedLength(dimensions);
 
         final float[] centroid = new float[dimensions];
         randomVector(random(), centroid, similarityFunction);

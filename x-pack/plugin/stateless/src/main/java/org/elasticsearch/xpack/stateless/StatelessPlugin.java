@@ -1380,7 +1380,7 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.PREWARMING_RANGE_MINIMIZATION_STEP,
             RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING,
             StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT,
-            SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+            SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
             HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED,
             HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL,
             HollowShardsService.SETTING_HOLLOW_INGESTION_TTL,
@@ -1775,8 +1775,7 @@ public class StatelessPlugin extends Plugin
                     sharedBlobCacheService.get(),
                     clusterService.get().getClusterSettings(),
                     prefetchExecutor.get(),
-                    prefetchingDynamicSettings.get(),
-                    bccHeaderReadExecutor.get()
+                    prefetchingDynamicSettings.get()
                 );
             }
         });

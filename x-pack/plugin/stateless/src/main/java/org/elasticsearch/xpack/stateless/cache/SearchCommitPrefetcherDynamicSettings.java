@@ -43,14 +43,28 @@ public class SearchCommitPrefetcherDynamicSettings {
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );
+    // this is not really a prefetch-related setting, however it is only checked during prefetching, when processing commit notifications
+    // (we can't have the cluster settings updater hold references to each eg {@link SearchEngine} because that's a memory leak)
+    public static final Setting<Boolean> STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT = Setting.boolSetting(
+        "stateless.search.use_internal_files_replicated_content",
+        // TODO enable this by default
+        false,
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope
+    );
     private volatile boolean prefetchingEnabled;
     private volatile long prefetchSearchIdleTimeInMillis;
+    private volatile boolean useInternalFilesReplicatedContentForSearchShards;
 
     public SearchCommitPrefetcherDynamicSettings(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING, value -> this.prefetchingEnabled = value);
         clusterSettings.initializeAndWatch(
             PREFETCH_SEARCH_IDLE_TIME_SETTING,
             value -> this.prefetchSearchIdleTimeInMillis = value.millis()
+        );
+        clusterSettings.initializeAndWatch(
+            STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT,
+            value -> this.useInternalFilesReplicatedContentForSearchShards = value
         );
     }
 
@@ -60,5 +74,9 @@ public class SearchCommitPrefetcherDynamicSettings {
 
     public long searchIdleTimeInMillis() {
         return prefetchSearchIdleTimeInMillis;
+    }
+
+    public boolean internalFilesReplicatedContentForSearchShardsEnabled() {
+        return useInternalFilesReplicatedContentForSearchShards;
     }
 }

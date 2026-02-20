@@ -2372,12 +2372,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final CyclicBarrier barrier = new CyclicBarrier(numThreads);
             List<Thread> threadList = IntStream.range(0, numThreads).mapToObj(t -> {
                 final int iterations = between(100, 500);
-                final int[] keyIndices = IntStream.range(0, iterations)
-                    .map(i -> randomIntBetween(0, numKeys - 1))
-                    .toArray();
-                final int[] decayEvery = IntStream.range(0, iterations)
-                    .map(i -> between(0, 49))
-                    .toArray();
+                final int[] keyIndices = IntStream.range(0, iterations).map(i -> randomIntBetween(0, numKeys - 1)).toArray();
+                final int[] decayEvery = IntStream.range(0, iterations).map(i -> between(0, 49)).toArray();
                 return new Thread(() -> {
                     safeAwait(barrier);
                     for (int i = 0; i < iterations; i++) {

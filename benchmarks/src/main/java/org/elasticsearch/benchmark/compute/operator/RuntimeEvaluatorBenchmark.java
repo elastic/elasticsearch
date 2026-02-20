@@ -87,23 +87,24 @@ public class RuntimeEvaluatorBenchmark {
         LogConfigurator.configureESLogging();
     }
 
-    @Param({
-        // Unary - Abs
-        "compile_time_abs_long",
-        "runtime_abs_long",
-        // Binary - Add
-        "compile_time_add_long",
-        "runtime_add_long",
-        // Variadic - Greatest (3 args)
-        "compile_time_greatest_long",
-        "runtime_greatest_long",
-        // Multi-value - MvSum (with warnExceptions)
-        "compile_time_mvsum_long",
-        "runtime_mvsum_long",
-        // Multi-value - MvMax (with ascending optimization)
-        "compile_time_mvmax_long",
-        "runtime_mvmax_long"
-    })
+    @Param(
+        {
+            // Unary - Abs
+            "compile_time_abs_long",
+            "runtime_abs_long",
+            // Binary - Add
+            "compile_time_add_long",
+            "runtime_add_long",
+            // Variadic - Greatest (3 args)
+            "compile_time_greatest_long",
+            "runtime_greatest_long",
+            // Multi-value - MvSum (with warnExceptions)
+            "compile_time_mvsum_long",
+            "runtime_mvsum_long",
+            // Multi-value - MvMax (with ascending optimization)
+            "compile_time_mvmax_long",
+            "runtime_mvmax_long" }
+    )
     public String operation;
 
     private EvalOperator.ExpressionEvaluator evaluator;
@@ -122,11 +123,7 @@ public class RuntimeEvaluatorBenchmark {
     private static EvalOperator.ExpressionEvaluator createEvaluator(String operation) {
         return switch (operation) {
             // Unary - Abs (direct instantiation)
-            case "compile_time_abs_long" -> new AbsLongEvaluator(
-                Source.EMPTY,
-                new FieldEvaluator(0),
-                driverContext
-            );
+            case "compile_time_abs_long" -> new AbsLongEvaluator(Source.EMPTY, new FieldEvaluator(0), driverContext);
             case "runtime_abs_long" -> createRuntimeEvaluator(Abs2.class, "processLong", long.class, 1);
 
             // Binary - Add (direct instantiation)
@@ -141,28 +138,17 @@ public class RuntimeEvaluatorBenchmark {
             // Variadic - Greatest (direct instantiation)
             case "compile_time_greatest_long" -> new GreatestLongEvaluator(
                 Source.EMPTY,
-                new EvalOperator.ExpressionEvaluator[] {
-                    new FieldEvaluator(0),
-                    new FieldEvaluator(1),
-                    new FieldEvaluator(2)
-                },
+                new EvalOperator.ExpressionEvaluator[] { new FieldEvaluator(0), new FieldEvaluator(1), new FieldEvaluator(2) },
                 driverContext
             );
             case "runtime_greatest_long" -> createRuntimeVariadicEvaluator(Greatest2.class, "processLong", long[].class, 3);
 
             // Multi-value - MvSum (direct instantiation)
-            case "compile_time_mvsum_long" -> new MvSumLongEvaluator(
-                Source.EMPTY,
-                new FieldEvaluator(0),
-                driverContext
-            );
+            case "compile_time_mvsum_long" -> new MvSumLongEvaluator(Source.EMPTY, new FieldEvaluator(0), driverContext);
             case "runtime_mvsum_long" -> createRuntimeMvEvaluator(MvSum2.class, "processLong", long.class);
 
             // Multi-value - MvMax with ascending optimization (direct instantiation)
-            case "compile_time_mvmax_long" -> new MvMaxLongEvaluator(
-                new FieldEvaluator(0),
-                driverContext
-            );
+            case "compile_time_mvmax_long" -> new MvMaxLongEvaluator(new FieldEvaluator(0), driverContext);
             case "runtime_mvmax_long" -> createRuntimeMvEvaluator(MvMax2.class, "processLong", long.class);
 
             default -> throw new UnsupportedOperationException("Unknown operation: " + operation);
@@ -250,10 +236,7 @@ public class RuntimeEvaluatorBenchmark {
             // MvMax2 (no warnExceptions) uses: (ExpressionEvaluator, DriverContext)
             // MvSum2 (with warnExceptions) uses: (Source, ExpressionEvaluator, DriverContext)
             try {
-                var constructor = evaluatorClass.getConstructor(
-                    EvalOperator.ExpressionEvaluator.class,
-                    DriverContext.class
-                );
+                var constructor = evaluatorClass.getConstructor(EvalOperator.ExpressionEvaluator.class, DriverContext.class);
                 return (EvalOperator.ExpressionEvaluator) constructor.newInstance(new FieldEvaluator(0), driverContext);
             } catch (NoSuchMethodException e) {
                 var constructor = evaluatorClass.getConstructor(
@@ -297,8 +280,7 @@ public class RuntimeEvaluatorBenchmark {
                 }
                 yield new Page(builder1.build(), builder2.build(), builder3.build());
             }
-            case "compile_time_mvsum_long", "runtime_mvsum_long",
-                 "compile_time_mvmax_long", "runtime_mvmax_long" -> {
+            case "compile_time_mvsum_long", "runtime_mvsum_long", "compile_time_mvmax_long", "runtime_mvmax_long" -> {
                 var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
                 for (int i = 0; i < BLOCK_LENGTH; i++) {
                     builder.beginPositionEntry();

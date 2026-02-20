@@ -92,26 +92,27 @@ public class RuntimeAggregatorBenchmark {
         LogConfigurator.configureESLogging();
     }
 
-    @Param({
-        // Non-grouping sum long
-        "compile_time_sum_long",
-        "runtime_sum_long",
-        // Non-grouping sum double
-        "compile_time_sum_double",
-        "runtime_sum_double",
-        // Non-grouping max bytes
-        "compile_time_max_bytes",
-        "runtime_max_bytes",
-        // Grouping sum long
-        "compile_time_grouping_sum_long",
-        "runtime_grouping_sum_long",
-        // Grouping sum double
-        "compile_time_grouping_sum_double",
-        "runtime_grouping_sum_double",
-        // Grouping max bytes
-        "compile_time_grouping_max_bytes",
-        "runtime_grouping_max_bytes"
-    })
+    @Param(
+        {
+            // Non-grouping sum long
+            "compile_time_sum_long",
+            "runtime_sum_long",
+            // Non-grouping sum double
+            "compile_time_sum_double",
+            "runtime_sum_double",
+            // Non-grouping max bytes
+            "compile_time_max_bytes",
+            "runtime_max_bytes",
+            // Grouping sum long
+            "compile_time_grouping_sum_long",
+            "runtime_grouping_sum_long",
+            // Grouping sum double
+            "compile_time_grouping_sum_double",
+            "runtime_grouping_sum_double",
+            // Grouping max bytes
+            "compile_time_grouping_max_bytes",
+            "runtime_grouping_max_bytes" }
+    )
     public String operation;
 
     private AggregatorFunction aggregator;

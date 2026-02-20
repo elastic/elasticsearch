@@ -1855,8 +1855,9 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             var state = batchExecutionContext.initialState();
             for (final var taskContext : batchExecutionContext.taskContexts()) {
                 try {
-                    state = taskContext.getTask().execute(state);
-                    taskContext.success(() -> taskContext.getTask().listener.onResponse(AcknowledgedResponse.TRUE));
+                    final MarkIndexForDlmForceMergeTask task = taskContext.getTask();
+                    state = task.execute(state);
+                    taskContext.success(task);
                 } catch (Exception e) {
                     taskContext.onFailure(e);
                 }

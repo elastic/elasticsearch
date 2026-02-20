@@ -454,7 +454,7 @@ public class CloneStep implements DlmStep {
             .map(IndexAbstraction::getParentDataStream)
             .map(dataStream -> dataStream.getGenerationLifecycleDate(cloneIndexMetadata))
             .map(TimeValue::millis)
-            .orElse(null);
+            .orElse(cloneIndexMetadata.getCreationDate());
     }
 
 }

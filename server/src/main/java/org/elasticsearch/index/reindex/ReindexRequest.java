@@ -123,7 +123,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             // - Let the reindex resilience work (relocation and PIT) merge first
             // - Check whether anything needs to be updated because of relocation
             // - Check whether anything needs to be updated because of PIT (e.g. whether we can use PIT with remote in the same way)
-            // - Add new integration tests and/or update existing ones
+            // - Consider additional integration tests e.g. ReindexFromOldRemoteIT
+            // - Think about whether it's worthwhile to support ?slices=auto with a stateful remote
             if (getSlices() == AbstractBulkByScrollRequest.AUTO_SLICES) {
                 e = addValidationError("reindex from remote sources doesn't support slices=auto", e);
             }

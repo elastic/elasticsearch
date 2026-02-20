@@ -129,6 +129,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
     ) {
         input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
         if (input instanceof MemorySegmentAccessInput msInput) {
             checkInvariants(values.size(), values.dimension(), input);
             return switch (similarityType) {

@@ -52,6 +52,7 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
             return Optional.empty();
         }
         input = FilterIndexInput.unwrapOnlyTest(input);
+        input = MemorySegmentAccessInputAccess.unwrap(input);
         if ((input instanceof MemorySegmentAccessInput) == false) {
             return Optional.empty();
         }

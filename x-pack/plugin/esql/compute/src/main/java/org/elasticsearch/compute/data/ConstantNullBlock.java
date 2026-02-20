@@ -87,7 +87,7 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
-    public ConstantNullBlock filter(int... positions) {
+    public ConstantNullBlock filter(boolean mayContainDuplicates, int... positions) {
         return (ConstantNullBlock) blockFactory().newConstantNullBlock(positions.length);
     }
 

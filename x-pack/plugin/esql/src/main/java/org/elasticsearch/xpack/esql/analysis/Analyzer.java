@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
@@ -59,6 +60,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.expression.function.AggregateMetricDoubleNativeSupport;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -124,6 +126,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Insist;
@@ -132,10 +135,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
@@ -223,6 +228,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolveConfigurationAware(),
             new ResolveTable(),
+            new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
             new ResolveEnrich(),
             new ResolveLookupTables(),
@@ -247,6 +253,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolvedProjects(),
             new AddImplicitLimit(),
+            new AddImplicitTimestampSort(),
             new AddImplicitForkLimit(),
             new UnionTypesCleanup()
         )
@@ -436,6 +443,48 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     mappingAsAttributes(list, source, attribute.name(), fieldProperties);
                 }
             }
+        }
+    }
+
+    /**
+     * Resolves UnresolvedExternalRelation nodes using pre-resolved metadata from ExternalSourceResolver.
+     * This rule mirrors the ResolveTable pattern but uses ExternalSourceResolution instead of IndexResolution.
+     * <p>
+     * This rule creates {@link ExternalRelation} nodes from any SourceMetadata,
+     * avoiding the need for source-specific logical plan nodes in core ESQL code.
+     */
+    private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
+
+        @Override
+        protected LogicalPlan rule(UnresolvedExternalRelation plan, AnalyzerContext context) {
+            // Extract the table path from the expression
+            String tablePath = extractTablePath(plan.tablePath());
+            if (tablePath == null) {
+                // Path is not a simple literal (e.g., it's a parameter reference)
+                // Return the plan as-is for now
+                return plan;
+            }
+
+            // Get pre-resolved source (metadata + file set) from context
+            var resolvedSource = context.externalSourceResolution().resolvedSource(tablePath);
+            if (resolvedSource == null) {
+                // Still unresolved - return as-is to keep the error message
+                return plan;
+            }
+
+            var metadata = resolvedSource.metadata();
+            return new ExternalRelation(plan.source(), tablePath, metadata, metadata.schema(), resolvedSource.fileSet());
+        }
+
+        private String extractTablePath(Expression tablePath) {
+            if (tablePath instanceof Literal literal && literal.value() != null) {
+                Object value = literal.value();
+                if (value instanceof org.apache.lucene.util.BytesRef) {
+                    return BytesRefs.toString((org.apache.lucene.util.BytesRef) value);
+                }
+                return value.toString();
+            }
+            return null;
         }
     }
 
@@ -716,7 +765,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 prompt = prompt.transformUp(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
             }
 
-            return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField);
+            return new Completion(p.source(), p.child(), p.inferenceId(), p.rowLimit(), prompt, targetField, p.taskSettings());
         }
 
         private LogicalPlan resolveMvExpand(MvExpand p, List<Attribute> childrenOutput) {
@@ -1227,16 +1276,40 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (score instanceof UnresolvedAttribute) {
                 score = maybeResolveAttribute((UnresolvedAttribute) score, childrenOutput);
             }
+            if (score instanceof UnresolvedAttribute ua && score.name().equals(MetadataAttribute.SCORE)) {
+                score = ua.withUnresolvedMessage(
+                    "FUSE requires a score column, default [" + MetadataAttribute.SCORE + "] column not found."
+                );
+            }
 
             Attribute discriminator = fuse.discriminator();
             if (discriminator instanceof UnresolvedAttribute) {
                 discriminator = maybeResolveAttribute((UnresolvedAttribute) discriminator, childrenOutput);
             }
+            if (discriminator instanceof UnresolvedAttribute ua && discriminator.name().equals(Fork.FORK_FIELD)) {
+                discriminator = ua.withUnresolvedMessage(
+                    "FUSE requires a column to group by, default [" + Fork.FORK_FIELD + "] column not found."
+                );
+            }
 
-            List<NamedExpression> keys = fuse.keys()
-                .stream()
-                .map(attr -> attr instanceof UnresolvedAttribute ? maybeResolveAttribute((UnresolvedAttribute) attr, childrenOutput) : attr)
-                .toList();
+            List<NamedExpression> keys = fuse.keys().stream().map(attr -> {
+                if (attr.resolved()) {
+                    return attr;
+                }
+                attr = maybeResolveAttribute((UnresolvedAttribute) attr, childrenOutput);
+
+                if (attr instanceof UnresolvedAttribute ua && ua.name().equals(IdFieldMapper.NAME)) {
+                    return ua.withUnresolvedMessage("FUSE requires a key column, default [" + IdFieldMapper.NAME + "] column not found");
+                }
+
+                if (attr instanceof UnresolvedAttribute ua && ua.name().equals(MetadataAttribute.INDEX)) {
+                    return ua.withUnresolvedMessage(
+                        "FUSE requires a key column, default [" + MetadataAttribute.INDEX + "] column not found"
+                    );
+                }
+
+                return attr;
+            }).toList();
 
             // some attributes were unresolved or the wrong type
             // we return Fuse here so that the Verifier can raise an error message
@@ -1731,7 +1804,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             LogicalPlan child = plan.child();
 
             if (plan instanceof Completion completion) {
-                CompletionFunction completionFunction = new CompletionFunction(source, completion.prompt(), inferenceIdLiteral);
+                CompletionFunction completionFunction = new CompletionFunction(
+                    source,
+                    completion.prompt(),
+                    inferenceIdLiteral,
+                    completion.taskSettings()
+                );
                 Alias alias = new Alias(source, completion.targetField().name(), completionFunction, completion.targetField().id());
                 return new Eval(source, child, List.of(alias));
             }
@@ -1817,6 +1895,57 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 newSubPlans.add(addImplicitLimit.apply(subPlan, ctx));
             }
             return fork.replaceSubPlans(newSubPlans);
+        }
+    }
+
+    /**
+     * For TS queries without explicit SORT or STATS, inject an implicit SORT by @timestamp DESC
+     * so that the most recent points are returned first, instead of physical index order.
+     */
+    private static class AddImplicitTimestampSort extends Rule<LogicalPlan, LogicalPlan> {
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            if (plan instanceof Limit limit) {
+                return injectTimestampSort(limit);
+            }
+            throw new IllegalStateException(
+                "Rule " + AddImplicitTimestampSort.class.getName() + " should run after " + AddImplicitLimit.class.getName()
+            );
+        }
+
+        private LogicalPlan injectTimestampSort(Limit limit) {
+            LogicalPlan child = limit.child();
+
+            boolean hasExplicitSortOrAggregate = child.collectFirstChildren(lp -> lp instanceof OrderBy || lp instanceof Aggregate)
+                .isEmpty() == false;
+
+            if (hasExplicitSortOrAggregate) {
+                return limit;
+            }
+
+            boolean hasTimeSeries = child.collect(EsRelation.class, r -> r.indexMode() == IndexMode.TIME_SERIES).isEmpty() == false;
+            if (hasTimeSeries == false) {
+                return limit;
+            }
+
+            // Inject the OrderBy below each (to handle FORK) innermost Limit.
+            return limit.transformDown(Limit.class, l -> {
+                if (l.child().collect(Limit.class).isEmpty()) {
+                    var localChild = l.child();
+                    var localTimestampAttr = localChild.collect(EsRelation.class, r -> r.indexMode() == IndexMode.TIME_SERIES)
+                        .stream()
+                        .findFirst()
+                        .flatMap(r -> r.output().stream().filter(a -> MetadataAttribute.TIMESTAMP_FIELD.equals(a.name())).findFirst())
+                        .flatMap(ts -> localChild.output().stream().filter(a -> a.id().equals(ts.id())).findFirst());
+
+                    if (localTimestampAttr.isPresent()) {
+                        var source = l.source();
+                        Order order = new Order(source, localTimestampAttr.get(), Order.OrderDirection.DESC, Order.NullsPosition.LAST);
+                        return l.replaceChild(new OrderBy(source, localChild, List.of(order)));
+                    }
+                }
+                return l;
+            });
         }
     }
 

@@ -2,9 +2,9 @@
 
 **Parameters**
 
-`value`
-:   Values to return
+`field`
+:   The search field
 
-`sort`
-:   Sort key
+`sortField`
+:   The sort field
 

@@ -18,10 +18,14 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Absent;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AbsentOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinctOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.CountOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Present;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.PresentOverTime;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -127,7 +131,7 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
         return plan;
     }
 
-    private static boolean shouldReplace(AggregateFunction aggFunction) {
+    public static boolean shouldReplace(AggregateFunction aggFunction) {
         return hasFalseFilter(aggFunction) || DataType.isNull(aggFunction.field().dataType());
     }
 
@@ -135,12 +139,16 @@ public class ReplaceStatsFilteredOrNullAggWithEval extends OptimizerRules.Optimi
         return aggFunction.hasFilter() && aggFunction.filter() instanceof Literal literal && Boolean.FALSE.equals(literal.value());
     }
 
-    private static Object mapNullToValue(AggregateFunction aggFunction) {
+    public static Object mapNullToValue(AggregateFunction aggFunction) {
         return switch (aggFunction) {
             case Count ignored -> 0L;
+            case CountOverTime ignored -> 0L;
             case CountDistinct ignored -> 0L;
+            case CountDistinctOverTime ignored -> 0L;
             case Absent ignored -> true;
+            case AbsentOverTime ignored -> true;
             case Present ignored -> false;
+            case PresentOverTime ignored -> false;
             default -> null;
         };
     }

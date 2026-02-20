@@ -21,8 +21,12 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.InferenceString.FORMAT_FIELD;
+import static org.elasticsearch.inference.InferenceString.TYPE_FIELD;
+import static org.elasticsearch.inference.InferenceString.VALUE_FIELD;
 import static org.elasticsearch.inference.InferenceString.supportedFormatsForType;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -281,5 +285,13 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     @Override
     protected InferenceString doParseInstance(XContentParser parser) throws IOException {
         return InferenceString.PARSER.parse(parser, null);
+    }
+
+    /**
+     * Converts the given {@link InferenceString} to a map matching what is sent in the request body. Equivalent to converting the
+     * input to XContent, then parsing the XContent to a map.
+     */
+    public static Map<String, Object> toRequestMap(InferenceString input) {
+        return Map.of(TYPE_FIELD, input.dataType().toString(), FORMAT_FIELD, input.dataFormat().toString(), VALUE_FIELD, input.value());
     }
 }

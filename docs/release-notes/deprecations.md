@@ -16,11 +16,23 @@ To give you insight into what deprecated features you’re using, {{es}}:
 
 % ## Next version [elasticsearch-nextversion-deprecations]
 
-## 9.2.4 [elasticsearch-9.2.4-deprecations]
+## 9.3.0 [elasticsearch-9.3.0-deprecations]
+
+ILM:
+* Add deprecation notice for `max_size` rollover condition [#135765](https://github.com/elastic/elasticsearch/pull/135765) (issue: [#130737](https://github.com/elastic/elasticsearch/issues/130737))
+
+Infra/Logging:
+* Add deprecation lenient booleans usage for analysis boolean setting (3rd party plugins) and boolean system properties. [#137885](https://github.com/elastic/elasticsearch/pull/137885) (issue: [#128993](https://github.com/elastic/elasticsearch/issues/128993))
+
+## 9.2.5 [elasticsearch-9.2.5-deprecations]
 
 There are no deprecations associated with this release.
 
 ## 9.1.10 [elasticsearch-9.1.10-deprecations]
+
+There are no deprecations associated with this release.
+
+## 9.2.4 [elasticsearch-9.2.4-deprecations]
 
 There are no deprecations associated with this release.
 

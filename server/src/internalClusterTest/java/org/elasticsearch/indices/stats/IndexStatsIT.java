@@ -33,6 +33,7 @@ import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -133,10 +134,20 @@ public class IndexStatsIT extends ESIntegTestCase {
     public void testFieldDataStats() {
         assertAcked(
             indicesAdmin().prepareCreate("test")
-                .setSettings(settingsBuilder().put("index.number_of_shards", 2))
+                .setSettings(
+                    settingsBuilder().put("index.number_of_shards", 2)
+                        .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
+                )
                 .setMapping("field", "type=text,fielddata=true", "field2", "type=text,fielddata=true")
         );
         ensureGreen();
+
+        // Ensure each node has at least one shard
+        if (internalCluster().nodesInclude("test").size() == 1) {
+            updateIndexSettings(Settings.builder().put("index.number_of_replicas", 1), "test");
+            ensureGreen();
+        }
+
         prepareIndex("test").setId("1").setSource("field", "value1", "field2", "value1").get();
         prepareIndex("test").setId("2").setSource("field", "value2", "field2", "value2").get();
         indicesAdmin().prepareRefresh().get();

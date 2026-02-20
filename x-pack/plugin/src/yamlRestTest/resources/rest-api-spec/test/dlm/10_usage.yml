@@ -135,3 +135,69 @@
   - match: { data_lifecycle.effective_retention.minimum_millis: 432000000 }
   - match: { data_lifecycle.effective_retention.maximum_millis: 432000000 }
   - match: { data_lifecycle.effective_retention.average_millis: 432000000 }
+
+---
+"Test DLM validates downsampling correctly":
+  - requires:
+      test_runner_features: [ allowed_warnings ]
+
+  - do:
+      catch: '/template downsampling rounds are not valid: Downsampling interval \[20d\] must be a multiple of the source index interval \[15d\]/'
+      indices.put_index_template:
+        name: my-template-1
+        body:
+          index_patterns: [foo-*]
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+            lifecycle:
+              data_retention: 10d
+              downsampling:
+                - {after: "5d", "fixed_interval": "5d"}
+                - {after: "15d", "fixed_interval": "15d"}
+                - {after: "20d", "fixed_interval": "20d"}
+          data_stream: {}
+
+  - do:
+      catch: '/template downsampling rounds are not valid: Downsampling interval \[20d\] must be a multiple of the source index interval \[15d\]/'
+      cluster.put_component_template:
+        name: comp-template-1
+        body:
+          template:
+            mappings:
+              properties:
+                '@timestamp':
+                  type: date
+            lifecycle:
+              data_retention: 10d
+              downsampling:
+                - {after: "5d", "fixed_interval": "5d"}
+                - {after: "15d", "fixed_interval": "15d"}
+                - {after: "20d", "fixed_interval": "20d"}
+
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template-1] has index patterns [foo-*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template-1] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template-1
+        body:
+          index_patterns: [foo-*]
+          data_stream: {}
+
+  - do:
+      indices.create_data_stream:
+        name: foo-foobar
+  - is_true: acknowledged
+
+  - do:
+      catch: '/downsampling rounds are not valid: Downsampling interval \[20d\] must be a multiple of the source index interval \[15d\]/'
+      indices.put_data_lifecycle:
+        name: foo-foobar
+        body:
+          downsampling:
+            - {after: "5d", "fixed_interval": "5d"}
+            - {after: "15d", "fixed_interval": "15d"}
+            - {after: "20d", "fixed_interval": "20d"}

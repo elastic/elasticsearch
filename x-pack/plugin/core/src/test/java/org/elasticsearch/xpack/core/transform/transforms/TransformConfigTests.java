@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -331,6 +332,30 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
     @Override
     protected TransformConfig mutateInstance(TransformConfig instance) {
         return null;// TODO implement https://github.com/elastic/elasticsearch/issues/25929
+    }
+
+    @Override
+    protected TransformConfig mutateInstanceForVersion(TransformConfig instance, TransportVersion version) {
+        return mutateForVersion(instance, version);
+    }
+
+    public static TransformConfig mutateForVersion(TransformConfig instance, TransportVersion version) {
+        return new TransformConfig(
+            instance.getId(),
+            SourceConfigTests.mutateForVersion(instance.getSource(), version),
+            instance.getDestination(),
+            instance.getFrequency(),
+            instance.getSyncConfig(),
+            instance.getHeaders(),
+            instance.getPivotConfig(),
+            instance.getLatestConfig(),
+            instance.getDescription(),
+            instance.getSettings(),
+            instance.getMetadata(),
+            instance.getRetentionPolicyConfig(),
+            instance.getCreateTime(),
+            instance.getVersion() == null ? null : instance.getVersion().toString()
+        );
     }
 
     @Override
@@ -1055,7 +1080,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         var transformConfig = createTransformConfigFromString("""
             {
               "source": {
-                "index": "project-1:src"
+                "index": "project-1:src",
+                "project_routing": "_alias:_origin"
               },
               "dest": {
                 "index": "dest"
@@ -1084,7 +1110,8 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
         var transformConfig = createTransformConfigFromString("""
             {
               "source": {
-                "index": "project-1:src"
+                "index": "project-1:src",
+                "project_routing": "_alias:_origin"
               },
               "dest": {
                 "index": "dest"
@@ -1112,13 +1139,18 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             validationException.getMessage(),
             containsString("Cross-project calls are not supported, but remote indices were requested: [project-1:src]")
         );
+        assertThat(
+            validationException.getMessage(),
+            containsString("Cross-project calls are not supported, but project_routing was requested: _alias:_origin")
+        );
     }
 
     public void testNotCrossProjectEnvironment() throws IOException {
         var transformConfig = createTransformConfigFromString("""
             {
               "source": {
-                "index": "remote-1:src"
+                "index": "remote-1:src",
+                "project_routing": "_alias:_origin"
               },
               "dest": {
                 "index": "dest"

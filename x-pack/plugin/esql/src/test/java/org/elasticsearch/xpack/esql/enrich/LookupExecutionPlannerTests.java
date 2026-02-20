@@ -520,8 +520,7 @@ public class LookupExecutionPlannerTests extends ESTestCase {
             writer.commit();
         }
         DirectoryReader reader = DirectoryReader.open(directory);
-        MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {
-        };
+        MapperServiceTestCase mapperHelper = new MapperServiceTestCase() {};
         String mapping = "{\n  \"doc\": { \"properties\": { \"field1\": { \"type\": \"keyword\" } } }\n}";
         MapperService mapperService = mapperHelper.createMapperService(mapping);
         SearchExecutionContext executionCtx = mapperHelper.createSearchExecutionContext(mapperService, newSearcher(reader));

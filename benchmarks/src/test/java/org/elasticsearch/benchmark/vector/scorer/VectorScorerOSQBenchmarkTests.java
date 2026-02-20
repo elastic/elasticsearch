@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
@@ -73,10 +74,12 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
 
                 float[] result = vectorized.score();
 
-                assertArrayEqualsPercent("single scoring, scalar VS vectorized", expected, result, deltaPercent);
+                assertArrayEqualsPercent("single scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
             } finally {
                 scalar.teardown();
                 vectorized.teardown();
+                IOUtils.rm(scalar.tempDir);
+                IOUtils.rm(vectorized.tempDir);
             }
         }
     }
@@ -93,6 +96,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 scalar.dims = dims;
                 scalar.bits = bits;
                 scalar.directoryType = directoryType;
+                scalar.similarityFunction = similarityFunction;
                 scalar.setup(new Random(seed));
 
                 float[] expected = scalar.bulkScore();
@@ -101,14 +105,17 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
                 vectorized.dims = dims;
                 vectorized.bits = bits;
                 vectorized.directoryType = directoryType;
+                vectorized.similarityFunction = similarityFunction;
                 vectorized.setup(new Random(seed));
 
                 float[] result = vectorized.bulkScore();
 
-                assertArrayEqualsPercent("bulk scoring, scalar VS vectorized", expected, result, deltaPercent);
+                assertArrayEqualsPercent("bulk scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
             } finally {
                 scalar.teardown();
                 vectorized.teardown();
+                IOUtils.rm(scalar.tempDir);
+                IOUtils.rm(vectorized.tempDir);
             }
         }
     }

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.oteldata.otlp.datapoint;
 
+import io.opentelemetry.proto.common.v1.InstrumentationScope;
 import io.opentelemetry.proto.common.v1.KeyValue;
 
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -22,6 +23,7 @@ public final class TargetIndex {
 
     public static final String TYPE_METRICS = "metrics";
 
+    private static final String RECEIVER = "/receiver/";
     private static final String ELASTICSEARCH_INDEX = "elasticsearch.index";
     private static final String DATA_STREAM_DATASET = "data_stream.dataset";
     private static final String DATA_STREAM_NAMESPACE = "data_stream.namespace";
@@ -94,6 +96,20 @@ public final class TargetIndex {
             target.namespace = null;
         }
         return target;
+    }
+
+    public static @Nullable String extractReceiverName(InstrumentationScope scope) {
+        String scopeName = scope.getName();
+        int indexOfReceiver = scopeName.indexOf(RECEIVER);
+        if (indexOfReceiver >= 0) {
+            int beginIndex = indexOfReceiver + RECEIVER.length();
+            int endIndex = scopeName.indexOf('/', beginIndex);
+            if (endIndex < 0) {
+                endIndex = scopeName.length();
+            }
+            return scopeName.substring(beginIndex, endIndex);
+        }
+        return null;
     }
 
     private TargetIndex() {}

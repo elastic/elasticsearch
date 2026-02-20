@@ -466,6 +466,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                     EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY)
                 )
             ),
+            true,
             0
         );
     }

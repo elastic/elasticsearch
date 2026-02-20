@@ -337,7 +337,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
             }
         }
 
-        return new PatternTextBlockLoader((leafReader -> PatternTextFallbackDocValues.from(leafReader, this)));
+        return new BytesRefsFromBinaryBlockLoader(leafReader -> PatternTextFallbackDocValues.from(leafReader, this));
     }
 
     @Override

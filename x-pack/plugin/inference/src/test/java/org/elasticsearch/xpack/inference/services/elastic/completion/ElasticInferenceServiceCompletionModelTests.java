@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.completion;
 
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -41,11 +39,15 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
     }
 
     public void testUriCreation() {
-        var url = "http://eis-gateway.com";
-        var model = createModel(url, "my-model-id", TaskType.COMPLETION);
+        var model = createModel("http://eis-gateway.com", "my-model-id", TaskType.COMPLETION);
 
-        var uri = model.uri();
-        assertThat(uri.toString(), is(url + "/api/v1/chat"));
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/chat"));
+    }
+
+    public void testUriCreation_WithTrailingSlash() {
+        var model = createModel("http://eis-gateway.com/", "my-model-id", TaskType.COMPLETION);
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/chat"));
     }
 
     public void testGetServiceSettings() {
@@ -66,10 +68,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
         var model = new ElasticInferenceServiceCompletionModel(
             inferenceEntityId,
             TaskType.COMPLETION,
-            "elastic",
             new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of("http://eis-gateway.com")
         );
 
@@ -91,10 +90,7 @@ public class ElasticInferenceServiceCompletionModelTests extends ESTestCase {
         return new ElasticInferenceServiceCompletionModel(
             "id",
             taskType,
-            "elastic",
             new ElasticInferenceServiceCompletionServiceSettings(modelId),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             ElasticInferenceServiceComponents.of(url)
         );
     }

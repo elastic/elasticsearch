@@ -21,7 +21,7 @@ package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 /** Utility class for vector quantization calculations */
 public class BQVectorUtils {
@@ -37,7 +37,7 @@ public class BQVectorUtils {
     }
 
     public static boolean isUnitVector(float[] v) {
-        double l1norm = VectorUtil.dotProduct(v, v);
+        double l1norm = ESVectorUtil.dotProduct(v, v);
         return Math.abs(l1norm - 1.0d) <= EPSILON;
     }
 
@@ -100,7 +100,7 @@ public class BQVectorUtils {
     }
 
     public static float norm(float[] vector) {
-        float magnitude = VectorUtil.dotProduct(vector, vector);
+        float magnitude = ESVectorUtil.dotProduct(vector, vector);
         return (float) Math.sqrt(magnitude);
     }
 }

@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class BytesRefArrayTests extends ESTestCase {
 
@@ -64,17 +65,20 @@ public class BytesRefArrayTests extends ESTestCase {
         array.close();
     }
 
-    public void testTakeOwnership() {
+    public void testOwnership() {
         BytesRefArray array = randomArray();
         long size = array.size();
-        BytesRefArray newOwnerOfArray = BytesRefArray.takeOwnershipOf(array);
-
-        assertNotEquals(array, newOwnerOfArray);
-        assertEquals(0, array.size());
-        assertEquals(size, newOwnerOfArray.size());
-
+        array.incRef();
+        assertThat(array.refCount(), equalTo(2));
         array.close();
-        newOwnerOfArray.close();
+        // still accessible
+        BytesRef sparse = new BytesRef();
+        for (long l = 0; l < size; l++) {
+            var v = array.get(l, sparse);
+            assertThat(v.length, greaterThan(1));
+        }
+        assertThat(array.refCount(), equalTo(1));
+        array.close();
     }
 
     public void testLookup() throws IOException {
@@ -162,17 +166,6 @@ public class BytesRefArrayTests extends ESTestCase {
             return new BytesRef(str);
         });
         testReadWritten(IntStream.range(0, listSize).mapToObj(i -> values).flatMap(List::stream).toList(), 10);
-    }
-
-    public void testDeepCopy() {
-        try (
-            BytesRefArray bytes1 = randomArray(between(1, 50_000), between(10, 50_000), mockBigArrays());
-            BytesRefArray bytes2 = BytesRefArray.deepCopy(bytes1);
-            BytesRefArray bytes3 = BytesRefArray.deepCopy(bytes2)
-        ) {
-            assertEquality(bytes1, bytes2);
-            assertEquality(bytes1, bytes3);
-        }
     }
 
     private void testReadWritten(List<BytesRef> values, int initialCapacity) {

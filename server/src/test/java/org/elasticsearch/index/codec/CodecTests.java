@@ -145,7 +145,7 @@ public class CodecTests extends ESTestCase {
         var indexSettings = Settings.builder().put(nodeSettings);
         if (syntheticIdEnabled) {
             assertTrue(IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
-            indexSettings.put(IndexSettings.USE_SYNTHETIC_ID.getKey(), true)
+            indexSettings.put(IndexSettings.SYNTHETIC_ID.getKey(), true)
                 .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                 .put("index.routing_path", "hostname");
         }

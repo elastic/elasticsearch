@@ -178,6 +178,8 @@ public class MetricValidator {
             Map.entry("es.esql.commands.usages.total", ESQL_ATTRIBUTES),
             Map.entry("es.esql.functions.queries.total", ESQL_ATTRIBUTES),
             Map.entry("es.esql.functions.usages.total", ESQL_ATTRIBUTES),
+            Map.entry("es.esql.settings.queries.total", ESQL_ATTRIBUTES),
+            Map.entry("es.esql.settings.usages.total", ESQL_ATTRIBUTES),
             Map.entry("es.inference.requests.count.total", INFERENCE_ATTRIBUTES),
             Map.entry("es.inference.requests.time", INFERENCE_ATTRIBUTES),
             Map.entry("es.inference.trained_model.deployment.time", INFERENCE_ATTRIBUTES),

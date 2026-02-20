@@ -4,5 +4,5 @@
 
 | field | options | result |
 | --- | --- | --- |
-| keyword, text |  | keyword |
+| • keyword<br/>• text |  | keyword |
 

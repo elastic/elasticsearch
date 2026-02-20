@@ -4,13 +4,13 @@
 
 | field | query | result |
 | --- | --- | --- |
-| boolean | boolean, keyword | boolean |
-| date | date, keyword | boolean |
-| date_nanos | date_nanos, keyword | boolean |
-| double, integer | double, integer, keyword, long | boolean |
-| ip | ip, keyword | boolean |
-| keyword, long, text, unsigned_long, version | keyword | boolean |
-| long, unsigned_long | double, integer, long | boolean |
+| boolean | • boolean<br/>• keyword | boolean |
+| date | • date<br/>• keyword | boolean |
+| date_nanos | • date_nanos<br/>• keyword | boolean |
+| ip | • ip<br/>• keyword | boolean |
 | unsigned_long | unsigned_long | boolean |
 | version | version | boolean |
+| • double<br/>• integer | • double<br/>• integer<br/>• keyword<br/>• long | boolean |
+| • keyword<br/>• long<br/>• text<br/>• unsigned_long<br/>• version | keyword | boolean |
+| • long<br/>• unsigned_long | • double<br/>• integer<br/>• long | boolean |
 

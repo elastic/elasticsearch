@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | date | date | boolean |
 | date_nanos | date_nanos | boolean |
-| date_period, time_duration |  | boolean |
 | keyword | keyword | boolean |
 | long | long | boolean |
+| • date_period<br/>• time_duration |  | boolean |
 

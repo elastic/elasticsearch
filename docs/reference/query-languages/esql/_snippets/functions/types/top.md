@@ -8,18 +8,18 @@
 | boolean | integer | keyword |  | boolean |
 | date | integer |  |  | date |
 | date | integer | keyword |  | date |
-| date, double, integer, long | integer | keyword | date | date |
-| date, double, integer, long | integer | keyword | double | double |
-| date, double, integer, long | integer | keyword | integer | integer |
-| date, double, integer, long | integer | keyword | long | long |
 | double | integer |  |  | double |
 | double | integer | keyword |  | double |
 | integer | integer |  |  | integer |
 | integer | integer | keyword |  | integer |
 | ip | integer |  |  | ip |
 | ip | integer | keyword |  | ip |
-| keyword, text | integer |  |  | keyword |
-| keyword, text | integer | keyword |  | keyword |
 | long | integer |  |  | long |
 | long | integer | keyword |  | long |
+| • date<br/>• double<br/>• integer<br/>• long | integer | keyword | date | date |
+| • date<br/>• double<br/>• integer<br/>• long | integer | keyword | double | double |
+| • date<br/>• double<br/>• integer<br/>• long | integer | keyword | integer | integer |
+| • date<br/>• double<br/>• integer<br/>• long | integer | keyword | long | long |
+| • keyword<br/>• text | integer |  |  | keyword |
+| • keyword<br/>• text | integer | keyword |  | keyword |
 

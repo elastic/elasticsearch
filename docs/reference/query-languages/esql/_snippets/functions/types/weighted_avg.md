@@ -4,5 +4,5 @@
 
 | number | weight | result |
 | --- | --- | --- |
-| double, integer, long | double, integer, long | double |
+| • double<br/>• integer<br/>• long | • double<br/>• integer<br/>• long | double |
 

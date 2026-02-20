@@ -4,6 +4,6 @@
 
 | number | result |
 | --- | --- |
-| aggregate_metric_double, double, exponential_histogram, tdigest | double |
-| integer, long | long |
+| • aggregate_metric_double<br/>• double<br/>• exponential_histogram<br/>• tdigest | double |
+| • integer<br/>• long | long |
 

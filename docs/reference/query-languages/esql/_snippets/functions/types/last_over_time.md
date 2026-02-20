@@ -4,8 +4,8 @@
 
 | field | window | result |
 | --- | --- | --- |
-| counter_double, double | time_duration {applies_to}`stack: preview 9.3.0` | double |
-| counter_integer, integer | time_duration {applies_to}`stack: preview 9.3.0` | integer |
-| counter_long, long | time_duration {applies_to}`stack: preview 9.3.0` | long |
 | exponential_histogram | time_duration {applies_to}`stack: preview 9.3.0` | exponential_histogram |
+| • counter_double<br/>• double | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| • counter_integer<br/>• integer | time_duration {applies_to}`stack: preview 9.3.0` | integer |
+| • counter_long<br/>• long | time_duration {applies_to}`stack: preview 9.3.0` | long |
 

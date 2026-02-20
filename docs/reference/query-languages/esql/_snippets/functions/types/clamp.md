@@ -9,13 +9,13 @@
 | double | integer | integer | double |
 | double | long | long | double |
 | double | unsigned_long | unsigned_long | double |
-| double, integer, long, unsigned_long | double | double | double |
 | integer | integer | integer | integer |
-| integer, long, unsigned_long | long | long | long |
-| integer, long, unsigned_long | unsigned_long | unsigned_long | unsigned_long |
 | ip | ip | ip | ip |
 | keyword | keyword | keyword | keyword |
 | long | integer | integer | long |
 | unsigned_long | integer | integer | unsigned_long |
 | version | version | version | version |
+| • double<br/>• integer<br/>• long<br/>• unsigned_long | double | double | double |
+| • integer<br/>• long<br/>• unsigned_long | long | long | long |
+| • integer<br/>• long<br/>• unsigned_long | unsigned_long | unsigned_long | unsigned_long |
 

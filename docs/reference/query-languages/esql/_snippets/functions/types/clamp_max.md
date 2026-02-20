@@ -6,14 +6,14 @@
 | --- | --- | --- |
 | boolean | boolean | boolean |
 | date | date | date |
-| double | double, integer, long, unsigned_long | double |
+| double | • double<br/>• integer<br/>• long<br/>• unsigned_long | double |
 | integer | integer | integer |
-| integer, long, unsigned_long | double | double |
-| integer, long, unsigned_long | long | long |
-| integer, long, unsigned_long | unsigned_long | unsigned_long |
 | ip | ip | ip |
 | keyword | keyword | keyword |
 | long | integer | long |
 | unsigned_long | integer | unsigned_long |
 | version | version | version |
+| • integer<br/>• long<br/>• unsigned_long | double | double |
+| • integer<br/>• long<br/>• unsigned_long | long | long |
+| • integer<br/>• long<br/>• unsigned_long | unsigned_long | unsigned_long |
 

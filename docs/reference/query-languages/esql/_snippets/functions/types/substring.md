@@ -4,5 +4,5 @@
 
 | string | start | length | result |
 | --- | --- | --- | --- |
-| keyword, text | integer | integer | keyword |
+| • keyword<br/>• text | integer | integer | keyword |
 

@@ -4,5 +4,5 @@
 
 | string | substring | result |
 | --- | --- | --- |
-| keyword, text | keyword, text | boolean |
+| • keyword<br/>• text | • keyword<br/>• text | boolean |
 

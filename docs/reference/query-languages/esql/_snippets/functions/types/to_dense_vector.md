@@ -4,5 +4,5 @@
 
 | field | result |
 | --- | --- |
-| double, integer, keyword, long | dense_vector |
+| • double<br/>• integer<br/>• keyword<br/>• long | dense_vector |
 

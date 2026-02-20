@@ -4,6 +4,6 @@
 
 | string1 | string2 | delim | result |
 | --- | --- | --- | --- |
-| keyword, text | keyword, text |  | keyword |
-| keyword, text | keyword, text | keyword, text | keyword |
+| • keyword<br/>• text | • keyword<br/>• text |  | keyword |
+| • keyword<br/>• text | • keyword<br/>• text | • keyword<br/>• text | keyword |
 

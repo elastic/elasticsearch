@@ -4,5 +4,5 @@
 
 | field | result |
 | --- | --- |
-| geo_point, geo_shape, geohash, geohex, geotile, keyword, text | geo_shape |
+| • geo_point<br/>• geo_shape<br/>• geohash<br/>• geohex<br/>• geotile<br/>• keyword<br/>• text | geo_shape |
 

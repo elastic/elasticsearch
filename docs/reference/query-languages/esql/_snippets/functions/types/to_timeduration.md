@@ -4,5 +4,5 @@
 
 | field | result |
 | --- | --- |
-| keyword, text, time_duration | time_duration |
+| • keyword<br/>• text<br/>• time_duration | time_duration |
 

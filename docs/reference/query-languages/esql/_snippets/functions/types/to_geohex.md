@@ -4,5 +4,5 @@
 
 | field | result |
 | --- | --- |
-| geohex, keyword, long, text | geohex |
+| • geohex<br/>• keyword<br/>• long<br/>• text | geohex |
 

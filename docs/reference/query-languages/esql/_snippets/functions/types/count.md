@@ -4,5 +4,5 @@
 
 | field | result |
 | --- | --- |
-| aggregate_metric_double, boolean, cartesian_point, cartesian_shape, date, date_nanos, dense_vector, double, exponential_histogram, geo_point, geo_shape, geohash, geohex, geotile, integer, ip, keyword, long, tdigest, text, unsigned_long, version | long |
+| • aggregate_metric_double<br/>• boolean<br/>• cartesian_point<br/>• cartesian_shape<br/>• date<br/>• date_nanos<br/>• dense_vector<br/>• double<br/>• exponential_histogram<br/>• geo_point<br/>• geo_shape<br/>• geohash<br/>• geohex<br/>• geotile<br/>• integer<br/>• ip<br/>• keyword<br/>• long<br/>• tdigest<br/>• text<br/>• unsigned_long<br/>• version | long |
 

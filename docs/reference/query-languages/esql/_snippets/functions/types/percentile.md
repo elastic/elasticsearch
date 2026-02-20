@@ -4,5 +4,5 @@
 
 | number | percentile | result |
 | --- | --- | --- |
-| double, exponential_histogram, integer, long, tdigest | double, integer, long | double |
+| • double<br/>• exponential_histogram<br/>• integer<br/>• long<br/>• tdigest | • double<br/>• integer<br/>• long | double |
 

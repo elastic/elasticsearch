@@ -38,8 +38,6 @@
 | boolean | integer | integer | integer |
 | boolean | ip |  | ip |
 | boolean | ip | ip | ip |
-| boolean | keyword, text |  | keyword |
-| boolean | keyword, text | keyword, text | keyword |
 | boolean | long |  | long |
 | boolean | long | long | long |
 | boolean | tdigest |  | tdigest |
@@ -48,4 +46,6 @@
 | boolean | unsigned_long | unsigned_long | unsigned_long |
 | boolean | version |  | version |
 | boolean | version | version | version |
+| boolean | • keyword<br/>• text |  | keyword |
+| boolean | • keyword<br/>• text | • keyword<br/>• text | keyword |
 

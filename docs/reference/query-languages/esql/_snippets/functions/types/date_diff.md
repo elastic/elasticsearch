@@ -4,5 +4,5 @@
 
 | unit | startTimestamp | endTimestamp | result |
 | --- | --- | --- | --- |
-| keyword, text | date, date_nanos | date, date_nanos | integer |
+| • keyword<br/>• text | • date<br/>• date_nanos | • date<br/>• date_nanos | integer |
 

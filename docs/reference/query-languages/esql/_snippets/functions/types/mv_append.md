@@ -17,8 +17,8 @@
 | geotile | geotile | geotile |
 | integer | integer | integer |
 | ip | ip | ip |
-| keyword, text | keyword, text | keyword |
 | long | long | long |
 | unsigned_long | unsigned_long | unsigned_long |
 | version | version | version |
+| • keyword<br/>• text | • keyword<br/>• text | keyword |
 

@@ -4,12 +4,12 @@
 
 | field | sortField | result |
 | --- | --- | --- |
-| boolean | date, date_nanos, long | boolean |
-| date | date, date_nanos, long | date |
-| date_nanos | date, date_nanos, long | date_nanos |
-| double | date, date_nanos, long | double |
-| integer | date, date_nanos, long | integer |
-| ip | date, date_nanos, long | ip |
-| keyword, text | date, date_nanos, long | keyword |
-| long | date, date_nanos, long | long |
+| boolean | • date<br/>• date_nanos<br/>• long | boolean |
+| date | • date<br/>• date_nanos<br/>• long | date |
+| date_nanos | • date<br/>• date_nanos<br/>• long | date_nanos |
+| double | • date<br/>• date_nanos<br/>• long | double |
+| integer | • date<br/>• date_nanos<br/>• long | integer |
+| ip | • date<br/>• date_nanos<br/>• long | ip |
+| long | • date<br/>• date_nanos<br/>• long | long |
+| • keyword<br/>• text | • date<br/>• date_nanos<br/>• long | keyword |
 

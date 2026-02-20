@@ -4,5 +4,5 @@
 
 | number | result |
 | --- | --- |
-| aggregate_metric_double, double, integer, long, unsigned_long | aggregate_metric_double |
+| • aggregate_metric_double<br/>• double<br/>• integer<br/>• long<br/>• unsigned_long | aggregate_metric_double |
 

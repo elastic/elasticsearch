@@ -21,10 +21,10 @@
 | integer | integer | integer |
 | ip | ip | ip |
 | keyword | keyword | keyword |
-| keyword, text |  | keyword |
 | long |  | long |
 | long | long | long |
 | tdigest | tdigest | tdigest |
 | text | text | keyword |
 | version | version | version |
+| • keyword<br/>• text |  | keyword |
 

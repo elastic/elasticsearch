@@ -4,5 +4,5 @@
 
 | field | window | result |
 | --- | --- | --- |
-| aggregate_metric_double, boolean, cartesian_point, cartesian_shape, date, date_nanos, double, exponential_histogram, geo_point, geo_shape, geohash, geohex, geotile, histogram, integer, ip, keyword, long, tdigest, text, unsigned_long, version | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
+| • aggregate_metric_double<br/>• boolean<br/>• cartesian_point<br/>• cartesian_shape<br/>• date<br/>• date_nanos<br/>• double<br/>• exponential_histogram<br/>• geo_point<br/>• geo_shape<br/>• geohash<br/>• geohex<br/>• geotile<br/>• histogram<br/>• integer<br/>• ip<br/>• keyword<br/>• long<br/>• tdigest<br/>• text<br/>• unsigned_long<br/>• version | time_duration {applies_to}`stack: preview 9.3.0` | boolean |
 

@@ -4,5 +4,5 @@
 
 | number | result |
 | --- | --- |
-| double, integer, long | double |
+| • double<br/>• integer<br/>• long | double |
 

@@ -4,5 +4,5 @@
 
 | field | result |
 | --- | --- |
-| geohash, keyword, long, text | geohash |
+| • geohash<br/>• keyword<br/>• long<br/>• text | geohash |
 

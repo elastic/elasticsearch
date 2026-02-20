@@ -4,5 +4,5 @@
 
 | field | result |
 | --- | --- |
-| geo_point, keyword, text | geo_point |
+| • geo_point<br/>• keyword<br/>• text | geo_point |
 

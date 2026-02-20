@@ -4,10 +4,10 @@
 
 | lhs | rhs | result |
 | --- | --- | --- |
-| date, date_nanos | date, date_nanos | boolean |
-| double, integer, long | double, integer, long | boolean |
 | ip | ip | boolean |
-| keyword, text | keyword, text | boolean |
 | unsigned_long | unsigned_long | boolean |
 | version | version | boolean |
+| • date<br/>• date_nanos | • date<br/>• date_nanos | boolean |
+| • double<br/>• integer<br/>• long | • double<br/>• integer<br/>• long | boolean |
+| • keyword<br/>• text | • keyword<br/>• text | boolean |
 

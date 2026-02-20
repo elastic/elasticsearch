@@ -36,8 +36,17 @@ public class MutableAnalyzerContext extends AnalyzerContext {
         TransportVersion minimumVersion,
         UnmappedResolution unmappedResolution
     ) {
-        this(configuration, functionRegistry, indexResolution, lookupResolution, enrichResolution, inferenceResolution,
-            minimumVersion, unmappedResolution, null);
+        this(
+            configuration,
+            functionRegistry,
+            indexResolution,
+            lookupResolution,
+            enrichResolution,
+            inferenceResolution,
+            minimumVersion,
+            unmappedResolution,
+            null
+        );
     }
 
     public MutableAnalyzerContext(

@@ -67,6 +67,7 @@ public class TestCommonAnalysisPluginBuilder {
         when(pluginServices.scriptService()).thenReturn(scriptService);
         when(pluginServices.client()).thenReturn(client);
         when(pluginServices.indicesService()).thenReturn(indicesService);
+        when(pluginServices.threadPool()).thenReturn(threadPool);
 
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
         plugin.createComponents(pluginServices);

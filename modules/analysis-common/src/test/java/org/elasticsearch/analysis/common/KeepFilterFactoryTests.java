@@ -17,7 +17,10 @@ import org.elasticsearch.index.analysis.AnalysisTestsHelper;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.junit.After;
 import org.junit.Assert;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -28,11 +31,23 @@ import static org.hamcrest.Matchers.instanceOf;
 public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
     private static final String RESOURCE = "/org/elasticsearch/analysis/common/keep_analysis.json";
 
+    private TestThreadPool threadPool;
+
+    @Before
+    public void createThreadPool() {
+        threadPool = new TestThreadPool(getTestName());
+    }
+
+    @After
+    public void shutdownThreadPool() {
+        threadPool.shutdownNow();
+    }
+
     public void testLoadWithoutSettings() throws IOException {
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(
             createTempDir(),
             RESOURCE,
-            new CommonAnalysisPlugin()
+            new TestCommonAnalysisPluginBuilder(threadPool).build()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("keep");
         Assert.assertNull(tokenFilter);
@@ -46,7 +61,7 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
             .put("index.analysis.filter.broken_keep_filter.keep_words", "[\"Hello\", \"worlD\"]")
             .build();
         try {
-            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new TestCommonAnalysisPluginBuilder(threadPool).build());
             Assert.fail("path and array are configured");
         } catch (IllegalArgumentException e) {} catch (IOException e) {
             fail("expected IAE");
@@ -61,7 +76,7 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
             .build();
         try {
             // test our none existing setup is picked up
-            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new TestCommonAnalysisPluginBuilder(threadPool).build());
             fail("expected an exception due to non existent keep_words_path");
         } catch (IllegalArgumentException e) {} catch (IOException e) {
             fail("expected IAE");
@@ -70,7 +85,7 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
         settings = Settings.builder().put(settings).putList("index.analysis.filter.non_broken_keep_filter.keep_words", "test").build();
         try {
             // test our none existing setup is picked up
-            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new CommonAnalysisPlugin());
+            AnalysisTestsHelper.createTestAnalysisFromSettings(settings, new TestCommonAnalysisPluginBuilder(threadPool).build());
             fail("expected an exception indicating that you can't use [keep_words_path] with [keep_words] ");
         } catch (IllegalArgumentException e) {} catch (IOException e) {
             fail("expected IAE");
@@ -82,7 +97,7 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(
             createTempDir(),
             RESOURCE,
-            new CommonAnalysisPlugin()
+            new TestCommonAnalysisPluginBuilder(threadPool).build()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_keep_filter");
         assertThat(tokenFilter, instanceOf(KeepWordFilterFactory.class));
@@ -97,7 +112,7 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
         ESTestCase.TestAnalysis analysis = AnalysisTestsHelper.createTestAnalysisFromClassPath(
             createTempDir(),
             RESOURCE,
-            new CommonAnalysisPlugin()
+            new TestCommonAnalysisPluginBuilder(threadPool).build()
         );
         TokenFilterFactory tokenFilter = analysis.tokenFilter.get("my_case_sensitive_keep_filter");
         assertThat(tokenFilter, instanceOf(KeepWordFilterFactory.class));

@@ -46,6 +46,7 @@ import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.QuerySettings.QuerySettingDef;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.versionfield.Version;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -62,6 +63,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -695,6 +697,10 @@ public abstract class DocsV3Support {
             writeToTempSnippetsDir("functionNamedParams", rendered.toString());
         }
 
+        private static final Comparator<FunctionAppliesTo> APPLIES_TO_ORDER = Comparator.<FunctionAppliesTo>comparingInt(
+            a -> a.serverless() ? 0 : 1
+        ).thenComparing(a -> new Version(a.version()));
+
         /**
          * Build the {@code {applies_to}} annotation for the docs to tell users which version of
          * Elasticsearch first supported this function/operator/signature.
@@ -706,7 +712,7 @@ public abstract class DocsV3Support {
          *                multi-line variant (false)?
          * @return Text of the {@code {applies_to}} annotation
          */
-        private static String makeAppliesToText(List<FunctionAppliesTo> functionAppliesTos, boolean preview, boolean oneLine) {
+        private static String makeAppliesToText(Collection<FunctionAppliesTo> functionAppliesTos, boolean preview, boolean oneLine) {
             StringBuilder appliesToText = new StringBuilder();
             if (false == functionAppliesTos.isEmpty()) {
                 if (oneLine) {
@@ -718,7 +724,7 @@ public abstract class DocsV3Support {
                 }
                 StringBuilder stackEntries = new StringBuilder();
 
-                for (FunctionAppliesTo appliesTo : functionAppliesTos) {
+                for (FunctionAppliesTo appliesTo : functionAppliesTos.stream().sorted(APPLIES_TO_ORDER).toList()) {
                     if (stackEntries.isEmpty() == false) {
                         stackEntries.append(", ");
                     }
@@ -1337,19 +1343,14 @@ public abstract class DocsV3Support {
             separator.append("--- |");
         }
 
-        Map<DataType, Set<List<Set<DataType>>>> mergedSignatures = DocsV3SupportSignaturesMerger.buildMergedTypesTable(
-            args,
-            Set.copyOf(this.signatures.get())
-        );
-
-        // Collect per-position appliesTo from the original signatures (all sigs share the same annotation per position)
-        List<List<FunctionAppliesTo>> appliesToByPosition = collectAppliesToByPosition(args, this.signatures.get());
+        Map<DataType, Set<List<DocsV3SupportSignaturesMerger.ParamCell>>> mergedSignatures = DocsV3SupportSignaturesMerger
+            .buildMergedTypesTable(args, Set.copyOf(this.signatures.get()));
 
         List<String> table = new ArrayList<>();
-        for (Map.Entry<DataType, Set<List<Set<DataType>>>> entry : mergedSignatures.entrySet()) {
+        for (Map.Entry<DataType, Set<List<DocsV3SupportSignaturesMerger.ParamCell>>> entry : mergedSignatures.entrySet()) {
             DataType returnType = entry.getKey();
-            for (List<Set<DataType>> row : entry.getValue()) {
-                table.add(getMergedTypeRow(row, returnType, args, appliesToByPosition, showResultColumn));
+            for (List<DocsV3SupportSignaturesMerger.ParamCell> row : entry.getValue()) {
+                table.add(getMergedTypeRow(row, returnType, args, showResultColumn));
             }
         }
         Collections.sort(table);
@@ -1367,41 +1368,10 @@ public abstract class DocsV3Support {
         writeToTempSnippetsDir("types", rendered);
     }
 
-    /**
-     * Collects the first non-empty {@link FunctionAppliesTo} annotation found per arg position across all signatures.
-     */
-    private static List<List<FunctionAppliesTo>> collectAppliesToByPosition(
-        List<EsqlFunctionRegistry.ArgSignature> args,
-        Set<TypeSignature> signatures
-    ) {
-        List<List<FunctionAppliesTo>> result = new ArrayList<>(args.size());
-        for (int i = 0; i < args.size(); i++) {
-            result.add(List.of());
-        }
-        for (TypeSignature sig : signatures) {
-            if (sig.argTypes().size() > args.size()) {
-                // Variadic; skip
-                continue;
-            }
-            int start = getFirstParametersIndexForSignature(args, sig);
-            for (int i = 0; i < sig.argTypes().size(); i++) {
-                int pos = start + i;
-                if (result.get(pos).isEmpty()) {
-                    List<FunctionAppliesTo> appliesTo = sig.argTypes().get(i).appliesTo();
-                    if (appliesTo != null && appliesTo.isEmpty() == false) {
-                        result.set(pos, appliesTo);
-                    }
-                }
-            }
-        }
-        return result;
-    }
-
     private static String getMergedTypeRow(
-        List<Set<DataType>> row,
+        List<DocsV3SupportSignaturesMerger.ParamCell> row,
         DataType returnType,
         List<EsqlFunctionRegistry.ArgSignature> args,
-        List<List<FunctionAppliesTo>> appliesToByPosition,
         boolean showResultColumn
     ) {
         StringBuilder b = new StringBuilder("| ");
@@ -1409,11 +1379,11 @@ public abstract class DocsV3Support {
             if (args.get(i).mapArg()) {
                 b.append("named parameters");
             } else {
-                Set<DataType> cell = row.get(i);
-                if (cell.isEmpty() == false) {
-                    b.append(cell.stream().map(DataType::esNameIfPossible).sorted().collect(Collectors.joining(", ")));
-                    if (appliesToByPosition.get(i).isEmpty() == false) {
-                        b.append(FunctionDocsSupport.makeAppliesToText(appliesToByPosition.get(i), false, true));
+                DocsV3SupportSignaturesMerger.ParamCell cell = row.get(i);
+                if (cell.types().isEmpty() == false) {
+                    b.append(cell.types().stream().map(DataType::esNameIfPossible).sorted().collect(Collectors.joining(", ")));
+                    if (cell.appliesTo().isEmpty() == false) {
+                        b.append(FunctionDocsSupport.makeAppliesToText(cell.appliesTo(), false, true));
                     }
                 }
             }

@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.expression.function.DocsV3SupportSignaturesMerger.ParamCell;
 import static org.hamcrest.Matchers.equalTo;
 
 public class DocsV3SupportSignaturesMergerTests extends ESTestCase {
@@ -31,6 +32,9 @@ public class DocsV3SupportSignaturesMergerTests extends ESTestCase {
         new EsqlFunctionRegistry.ArgSignature("d", new String[] { "date_period", "time_duration" }, "", true, false)
     );
 
+    private static final FunctionAppliesTo GA_9_1 = TestCaseSupplier.appliesTo(FunctionAppliesToLifecycle.GA, "9.1.0", "", true);
+    private static final FunctionAppliesTo PREVIEW_9_3 = TestCaseSupplier.appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", true);
+
     public void testNoSignatures() {
         assertMerged(List.of(), Map.of());
     }
@@ -38,7 +42,7 @@ public class DocsV3SupportSignaturesMergerTests extends ESTestCase {
     public void testSingleSignature() {
         assertMerged(
             List.of(sig(DataType.LONG, List.of(DataType.INTEGER, DataType.KEYWORD))),
-            Map.of(DataType.LONG, Set.of(List.of(Set.of(), Set.of(DataType.INTEGER), Set.of(DataType.KEYWORD), Set.of())))
+            Map.of(DataType.LONG, Set.of(List.of(cell(), cell(DataType.INTEGER), cell(DataType.KEYWORD), cell())))
         );
     }
 
@@ -48,10 +52,7 @@ public class DocsV3SupportSignaturesMergerTests extends ESTestCase {
                 sig(DataType.LONG, List.of(DataType.INTEGER, DataType.KEYWORD)),
                 sig(DataType.LONG, List.of(DataType.INTEGER, DataType.TEXT))
             ),
-            Map.of(
-                DataType.LONG,
-                Set.of(List.of(Set.of(), Set.of(DataType.INTEGER), Set.of(DataType.KEYWORD, DataType.TEXT), Set.of()))
-            )
+            Map.of(DataType.LONG, Set.of(List.of(cell(), cell(DataType.INTEGER), cell(DataType.KEYWORD, DataType.TEXT), cell())))
         );
     }
 
@@ -64,8 +65,8 @@ public class DocsV3SupportSignaturesMergerTests extends ESTestCase {
             Map.of(
                 DataType.LONG,
                 Set.of(
-                    List.of(Set.of(DataType.DATETIME), Set.of(DataType.INTEGER), Set.of(DataType.KEYWORD), Set.of(DataType.DATE_PERIOD)),
-                    List.of(Set.of(DataType.DATETIME), Set.of(DataType.INTEGER), Set.of(DataType.TEXT), Set.of(DataType.TIME_DURATION))
+                    List.of(cell(DataType.DATETIME), cell(DataType.INTEGER), cell(DataType.KEYWORD), cell(DataType.DATE_PERIOD)),
+                    List.of(cell(DataType.DATETIME), cell(DataType.INTEGER), cell(DataType.TEXT), cell(DataType.TIME_DURATION))
                 )
             )
         );
@@ -82,10 +83,10 @@ public class DocsV3SupportSignaturesMergerTests extends ESTestCase {
                 DataType.LONG,
                 Set.of(
                     List.of(
-                        Set.of(DataType.DATETIME),
-                        Set.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE),
-                        Set.of(DataType.KEYWORD),
-                        Set.of(DataType.DATE_PERIOD)
+                        cell(DataType.DATETIME),
+                        cell(DataType.INTEGER, DataType.LONG, DataType.DOUBLE),
+                        cell(DataType.KEYWORD),
+                        cell(DataType.DATE_PERIOD)
                     )
                 )
             )
@@ -101,9 +102,9 @@ public class DocsV3SupportSignaturesMergerTests extends ESTestCase {
             ),
             Map.of(
                 DataType.LONG,
-                Set.of(List.of(Set.of(), Set.of(DataType.INTEGER), Set.of(DataType.KEYWORD), Set.of())),
+                Set.of(List.of(cell(), cell(DataType.INTEGER), cell(DataType.KEYWORD), cell())),
                 DataType.DOUBLE,
-                Set.of(List.of(Set.of(), Set.of(DataType.INTEGER, DataType.LONG), Set.of(DataType.KEYWORD), Set.of()))
+                Set.of(List.of(cell(), cell(DataType.INTEGER, DataType.LONG), cell(DataType.KEYWORD), cell()))
             )
         );
     }
@@ -118,11 +119,82 @@ public class DocsV3SupportSignaturesMergerTests extends ESTestCase {
             Map.of(
                 DataType.LONG,
                 Set.of(
-                    List.of(Set.of(DataType.DATETIME, DataType.DOUBLE), Set.of(DataType.INTEGER), Set.of(DataType.KEYWORD), Set.of()),
-                    List.of(Set.of(), Set.of(DataType.INTEGER), Set.of(DataType.KEYWORD), Set.of(DataType.DATE_PERIOD))
+                    List.of(cell(DataType.DATETIME, DataType.DOUBLE), cell(DataType.INTEGER), cell(DataType.KEYWORD), cell()),
+                    List.of(cell(), cell(DataType.INTEGER), cell(DataType.KEYWORD), cell(DataType.DATE_PERIOD))
                 )
             )
         );
+    }
+
+    public void testMergeWithSameAppliesTo() {
+        assertMerged(
+            List.of(
+                sig(DataType.LONG, param(DataType.INTEGER, GA_9_1), param(DataType.KEYWORD)),
+                sig(DataType.LONG, param(DataType.LONG, GA_9_1), param(DataType.KEYWORD))
+            ),
+            Map.of(
+                DataType.LONG,
+                Set.of(List.of(cell(), cell(Set.of(GA_9_1), DataType.INTEGER, DataType.LONG), cell(DataType.KEYWORD), cell()))
+            )
+        );
+    }
+
+    public void testDontMergeWithDifferentAppliesTo() {
+        assertMerged(
+            List.of(
+                sig(DataType.LONG, param(DataType.INTEGER, GA_9_1), param(DataType.KEYWORD)),
+                sig(DataType.LONG, param(DataType.LONG, PREVIEW_9_3), param(DataType.KEYWORD))
+            ),
+            Map.of(
+                DataType.LONG,
+                Set.of(
+                    List.of(cell(), cell(Set.of(GA_9_1), DataType.INTEGER), cell(DataType.KEYWORD), cell()),
+                    List.of(cell(), cell(Set.of(PREVIEW_9_3), DataType.LONG), cell(DataType.KEYWORD), cell())
+                )
+            )
+        );
+    }
+
+    public void testDontMergeMixedDifferences() {
+        assertMerged(
+            List.of(
+                sig(
+                    DataType.LONG,
+                    param(DataType.DATETIME),
+                    param(DataType.INTEGER, GA_9_1),
+                    param(DataType.KEYWORD),
+                    param(DataType.DATE_PERIOD)
+                ),
+                sig(
+                    DataType.LONG,
+                    param(DataType.DATETIME),
+                    param(DataType.INTEGER, PREVIEW_9_3),
+                    param(DataType.TEXT),
+                    param(DataType.DATE_PERIOD)
+                )
+            ),
+            Map.of(
+                DataType.LONG,
+                Set.of(
+                    List.of(
+                        cell(DataType.DATETIME),
+                        cell(Set.of(GA_9_1), DataType.INTEGER),
+                        cell(DataType.KEYWORD),
+                        cell(DataType.DATE_PERIOD)
+                    ),
+                    List.of(
+                        cell(DataType.DATETIME),
+                        cell(Set.of(PREVIEW_9_3), DataType.INTEGER),
+                        cell(DataType.TEXT),
+                        cell(DataType.DATE_PERIOD)
+                    )
+                )
+            )
+        );
+    }
+
+    private static DocsV3Support.Param param(DataType type, FunctionAppliesTo... appliesTo) {
+        return new DocsV3Support.Param(type, List.of(appliesTo));
     }
 
     private static DocsV3Support.TypeSignature sig(DataType returnType, List<DataType> argTypes) {
@@ -130,8 +202,23 @@ public class DocsV3SupportSignaturesMergerTests extends ESTestCase {
         return new DocsV3Support.TypeSignature(params, returnType);
     }
 
-    private static void assertMerged(List<DocsV3Support.TypeSignature> signatures, Map<DataType, Set<List<Set<DataType>>>> expected) {
-        Map<DataType, Set<List<Set<DataType>>>> actual = DocsV3SupportSignaturesMerger.buildMergedTypesTable(ARGS, Set.copyOf(signatures));
+    private static DocsV3Support.TypeSignature sig(DataType returnType, DocsV3Support.Param... params) {
+        return new DocsV3Support.TypeSignature(List.of(params), returnType);
+    }
+
+    private static ParamCell cell(DataType... types) {
+        if (types.length == 0) {
+            return ParamCell.EMPTY;
+        }
+        return new ParamCell(Set.of(types), Set.of());
+    }
+
+    private static ParamCell cell(Set<FunctionAppliesTo> appliesTo, DataType... types) {
+        return new ParamCell(Set.of(types), appliesTo);
+    }
+
+    private static void assertMerged(List<DocsV3Support.TypeSignature> signatures, Map<DataType, Set<List<ParamCell>>> expected) {
+        Map<DataType, Set<List<ParamCell>>> actual = DocsV3SupportSignaturesMerger.buildMergedTypesTable(ARGS, Set.copyOf(signatures));
         assertThat(actual, equalTo(expected));
     }
 }

@@ -432,9 +432,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     private List<String> availableIndices() throws IOException {
-        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), false, false, false, false, false)
-            .stream()
-            .filter(x -> x.requiresInferenceEndpoint() == false)
+        return availableDatasetsForEs(true, supportsSourceFieldMapping(), false, requiresTimeSeries(), cap -> false).stream()
+            .filter(x -> x.inferenceEndpoints().isEmpty())
             .map(x -> x.indexName())
             .toList();
     }

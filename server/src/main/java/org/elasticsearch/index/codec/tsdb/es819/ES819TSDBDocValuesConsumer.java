@@ -600,10 +600,28 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {
             int numOffsets = numDocsInCurrentBlock + 1;
             // delta encode
+            int maxDelta = 0;
             for (int i = numOffsets - 1; i > 0; i--) {
                 docOffsets[i] -= docOffsets[i - 1];
+                maxDelta = Math.max(maxDelta, docOffsets[i]);
             }
-            output.writeGroupVInts(docOffsets, numOffsets);
+            int bitsPerValue = maxDelta == 0 ? 0 : PackedInts.bitsRequired(maxDelta);
+            output.writeByte((byte) bitsPerValue);
+            if (bitsPerValue > 0) {
+                long accumulator = 0;
+                int bitsInAccumulator = 0;
+                for (int i = 0; i < numOffsets; i++) {
+                    accumulator = (accumulator << bitsPerValue) | docOffsets[i];
+                    bitsInAccumulator += bitsPerValue;
+                    while (bitsInAccumulator >= 8) {
+                        bitsInAccumulator -= 8;
+                        output.writeByte((byte) (accumulator >>> bitsInAccumulator));
+                    }
+                }
+                if (bitsInAccumulator > 0) {
+                    output.writeByte((byte) (accumulator << (8 - bitsInAccumulator)));
+                }
+            }
         }
 
         void compress(byte[] data, int uncompressedLength, DataOutput output) throws IOException {

@@ -40,7 +40,6 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.GroupVIntUtil;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
@@ -608,7 +607,25 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
         void decompressDocOffsets(int numDocsInBlock, DataInput input) throws IOException {
             int numOffsets = numDocsInBlock + 1;
-            GroupVIntUtil.readGroupVInts(input, uncompressedDocStarts, numOffsets);
+            int bitsPerValue = input.readByte() & 0xFF;
+            if (bitsPerValue == 0) {
+                Arrays.fill(uncompressedDocStarts, 0, numOffsets, 0);
+            } else {
+                int totalBits = numOffsets * bitsPerValue;
+                int totalBytes = (totalBits + 7) / 8;
+                long accumulator = 0;
+                int bitsInAccumulator = 0;
+                int offsetIndex = 0;
+                int mask = (1 << bitsPerValue) - 1;
+                for (int i = 0; i < totalBytes && offsetIndex < numOffsets; i++) {
+                    accumulator = (accumulator << 8) | (input.readByte() & 0xFF);
+                    bitsInAccumulator += 8;
+                    while (bitsInAccumulator >= bitsPerValue && offsetIndex < numOffsets) {
+                        bitsInAccumulator -= bitsPerValue;
+                        uncompressedDocStarts[offsetIndex++] = (int) ((accumulator >>> bitsInAccumulator) & mask);
+                    }
+                }
+            }
             deltaDecode(uncompressedDocStarts, numOffsets);
         }
 

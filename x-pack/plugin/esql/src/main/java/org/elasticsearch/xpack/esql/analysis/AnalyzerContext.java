@@ -60,6 +60,7 @@ public class AnalyzerContext {
             lookupResolution,
             enrichResolution,
             inferenceResolution,
+            externalSourceResolution,
             minimumVersion,
             unmappedResolution,
             null
@@ -74,6 +75,7 @@ public class AnalyzerContext {
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
+        ExternalSourceResolution externalSourceResolution,
         TransportVersion minimumVersion,
         UnmappedResolution unmappedResolution,
         @Nullable TimestampBounds timestampBounds

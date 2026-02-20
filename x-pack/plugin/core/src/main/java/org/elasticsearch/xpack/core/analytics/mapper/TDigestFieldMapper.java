@@ -62,7 +62,6 @@ import org.elasticsearch.xcontent.XContentSubParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 

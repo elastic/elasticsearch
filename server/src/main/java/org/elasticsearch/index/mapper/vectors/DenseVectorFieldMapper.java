@@ -490,16 +490,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
     }
 
-    public static int getEmbeddingLength(ElementType elementType, int dimensions) {
-        return switch (elementType) {
-            case FLOAT, BFLOAT16, BYTE -> dimensions;
-            case BIT -> {
-                assert dimensions % Byte.SIZE == 0;
-                yield dimensions / Byte.SIZE;
-            }
-        };
-    }
-
     public static final Element BYTE_ELEMENT = new ByteElement();
     public static final Element FLOAT_ELEMENT = new FloatElement();
     public static final Element BFLOAT16_ELEMENT = new BFloat16Element();

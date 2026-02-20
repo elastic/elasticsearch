@@ -12,6 +12,9 @@ package org.elasticsearch.search.vectors;
 import java.util.Arrays;
 import java.util.List;
 
+/**
+ * Helper to try and extract {@link VectorData} objects from generic object data, such as Lucene fields values
+ */
 public final class VectorDataUtils {
     public static VectorData extractVectorDataFromObject(Object value) {
         if (value == null) {

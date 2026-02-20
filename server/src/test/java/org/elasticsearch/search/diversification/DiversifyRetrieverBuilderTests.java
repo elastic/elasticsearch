@@ -511,7 +511,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         float score,
         List<VectorData> vectorData
     ) {
-        MockDenseVectorSupplierField supplierField = new MockDenseVectorSupplierField(vectorData);
+        MockDenseVectorTestSupplierField supplierField = new MockDenseVectorTestSupplierField(vectorData);
         Map<String, Object> inferenceFieldValues = Map.of("dense_vector_field", supplierField);
         SearchHit hit = new SearchHit(docId);
         hit.setDocumentField(new DocumentField(InferenceMetadataFieldsMapper.NAME, List.of(inferenceFieldValues)));
@@ -680,13 +680,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         return new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
     }
 
-    public class MockDenseVectorSupplierField implements DenseVectorSupplierField {
+    public record MockDenseVectorTestSupplierField(List<VectorData> vectors) implements DenseVectorSupplierField {
         public static String NAME = "mock_supplier_field";
-        private final List<VectorData> vectors;
-
-        public MockDenseVectorSupplierField(List<VectorData> vectors) {
-            this.vectors = vectors;
-        }
 
         @Override
         public List<VectorData> getDenseVectorDataForSearchHit(String fieldName, SearchHit hit) throws IOException {

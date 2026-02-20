@@ -336,8 +336,8 @@ POST test-index/_search
 ## Diversify results with `semantic_text` fields [result-diversification]
 
 ```{applies_to}
-stack: ga 9.4
-serverless: ga
+stack: preview 9.4
+serverless: preview
 ```
 
 The [diversify retriever](/reference/elasticsearch/rest-apis/retrievers/diversify-retriever.md) supports the use of `semantic_text` field types for result diversification.

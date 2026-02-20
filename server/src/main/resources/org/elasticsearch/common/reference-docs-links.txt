@@ -51,3 +51,4 @@ DEPLOY_CLOUD_DIFF_FROM_STATEFUL                                 deploy-manage/de
 DELETE_INDEX_BLOCK                                              api/doc/elasticsearch/operation/operation-indices-remove-block
 ARCHIVED_SETTINGS                                               deploy-manage/upgrade/deployment-or-cluster/archived-settings
 MACHINE_LEARNING_SETTINGS                                       reference/elasticsearch/configuration-reference/machine-learning-settings
+SEARCH_TASK_WATCHDOG                                            reference/elasticsearch/configuration-reference/search-settings#search-task-watchdog-settings

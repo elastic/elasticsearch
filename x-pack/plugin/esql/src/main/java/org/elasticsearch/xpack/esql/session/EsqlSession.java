@@ -53,14 +53,13 @@ import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
 import org.elasticsearch.xpack.esql.approximation.Approximation;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
-import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -83,6 +82,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -152,7 +152,6 @@ public class EsqlSession {
     private final IndexResolver indexResolver;
     private final EnrichPolicyResolver enrichPolicyResolver;
     private final ViewResolver viewResolver;
-    private final ExternalSourceResolver externalSourceResolver;
 
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
@@ -181,7 +180,6 @@ public class EsqlSession {
         IndexResolver indexResolver,
         EnrichPolicyResolver enrichPolicyResolver,
         ViewResolver viewResolver,
-        ExternalSourceResolver externalSourceResolver,
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
         Mapper mapper,
@@ -198,7 +196,6 @@ public class EsqlSession {
         this.indexResolver = indexResolver;
         this.enrichPolicyResolver = enrichPolicyResolver;
         this.viewResolver = viewResolver;
-        this.externalSourceResolver = externalSourceResolver;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
         this.functionRegistry = functionRegistry;
@@ -280,6 +277,16 @@ public class EsqlSession {
             explainMode = true;
             plan = explain.query();
             parsedPlanString = plan.toString();
+        } else if (plan instanceof PromqlCommand promqlCommand && promqlCommand.isRangeQuery() && promqlCommand.hasTimeRange() == false) {
+            // infer start/end from filter if not explicitly set
+            QueryDslTimestampBoundsExtractor.TimestampBounds bounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(
+                request.filter()
+            );
+            if (bounds != null) {
+                Literal startLiteral = Literal.dateTime(promqlCommand.source(), bounds.start());
+                Literal endLiteral = Literal.dateTime(promqlCommand.source(), bounds.end());
+                plan = promqlCommand.withStartEnd(startLiteral, endLiteral);
+            }
         }
 
         final EsqlStatement statementFinal = statement;
@@ -750,7 +757,6 @@ public class EsqlSession {
             return r;
         })
             .<PreAnalysisResult>andThen((l, r) -> preAnalyzeLookupIndices(preAnalysis.lookupIndices().iterator(), r, executionInfo, l))
-            .<PreAnalysisResult>andThen((l, r) -> preAnalyzeExternalSources(parsed, preAnalysis, r, l))
             .<PreAnalysisResult>andThen((l, r) -> {
                 // Do not update PreAnalysisResult.minimumTransportVersion, that's already been determined during main index resolution.
                 enrichPolicyResolver.resolvePolicies(
@@ -809,43 +815,6 @@ public class EsqlSession {
             result.minimumTransportVersion(),
             listener.map(indexResolution -> receiveLookupIndexResolution(result, localPattern, executionInfo, indexResolution))
         );
-    }
-
-    /**
-     * Resolve external sources (Iceberg tables/Parquet files) if present in the query.
-     * This runs in parallel with other resolution steps to avoid blocking.
-     */
-    private void preAnalyzeExternalSources(
-        LogicalPlan plan,
-        PreAnalyzer.PreAnalysis preAnalysis,
-        PreAnalysisResult result,
-        ActionListener<PreAnalysisResult> listener
-    ) {
-        if (preAnalysis.icebergPaths().isEmpty()) {
-            listener.onResponse(result);
-            return;
-        }
-
-        // Extract parameters from UnresolvedExternalRelation nodes
-        Map<String, Map<String, Expression>> pathParams = extractIcebergParams(plan);
-
-        externalSourceResolver.resolve(preAnalysis.icebergPaths(), pathParams, listener.map(result::withExternalSourceResolution));
-    }
-
-    /**
-     * Extract external source parameters from UnresolvedExternalRelation nodes in the plan.
-     * Returns a map from table path to parameter map.
-     */
-    private Map<String, Map<String, Expression>> extractIcebergParams(LogicalPlan plan) {
-        Map<String, Map<String, Expression>> pathParams = new HashMap<>();
-        plan.forEachUp(org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation.class, p -> {
-            if (p.tablePath() instanceof org.elasticsearch.xpack.esql.core.expression.Literal literal && literal.value() != null) {
-                // Use BytesRefs.toString() which handles both BytesRef and String
-                String path = org.elasticsearch.common.lucene.BytesRefs.toString(literal.value());
-                pathParams.put(path, p.params());
-            }
-        });
-        return pathParams;
     }
 
     private void skipClusterOrError(String clusterAlias, EsqlExecutionInfo executionInfo, String message) {
@@ -1327,7 +1296,6 @@ public class EsqlSession {
         Map<String, IndexResolution> lookupIndices,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
-        ExternalSourceResolution externalSourceResolution,
         TransportVersion minimumTransportVersion
     ) {
 
@@ -1339,7 +1307,6 @@ public class EsqlSession {
                 new HashMap<>(),
                 null,
                 InferenceResolution.EMPTY,
-                ExternalSourceResolution.EMPTY,
                 TransportVersion.current()
             );
         }
@@ -1362,7 +1329,6 @@ public class EsqlSession {
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
-                externalSourceResolution,
                 minimumTransportVersion
             );
         }
@@ -1375,20 +1341,6 @@ public class EsqlSession {
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
-                externalSourceResolution,
-                minimumTransportVersion
-            );
-        }
-
-        PreAnalysisResult withExternalSourceResolution(ExternalSourceResolution externalSourceResolution) {
-            return new PreAnalysisResult(
-                fieldNames,
-                wildcardJoinIndices,
-                indexResolution,
-                lookupIndices,
-                enrichResolution,
-                inferenceResolution,
-                externalSourceResolution,
                 minimumTransportVersion
             );
         }
@@ -1407,7 +1359,6 @@ public class EsqlSession {
                 lookupIndices,
                 enrichResolution,
                 inferenceResolution,
-                externalSourceResolution,
                 minimumTransportVersion
             );
         }

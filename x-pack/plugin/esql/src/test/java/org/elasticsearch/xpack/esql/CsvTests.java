@@ -315,6 +315,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.PROMQL_COMMAND_V0.capabilityName())
             );
             assumeFalseLogging(
+                "METRICS_INFO requires real shard contexts and _timeseries_metadata which are unavailable in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METRICS_INFO_COMMAND.capabilityName())
+            );
+            assumeFalseLogging(
                 "can't use QSTR function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.QSTR_FUNCTION.capabilityName())
             );
@@ -369,10 +373,6 @@ public class CsvTests extends ESTestCase {
             assumeFalse(
                 "CSV tests cannot currently handle views with branching",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING.capabilityName())
-            );
-            assumeFalseLogging(
-                "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
-                testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
             );
 
             if (Build.current().isSnapshot()) {
@@ -746,7 +746,6 @@ public class CsvTests extends ESTestCase {
             null,
             null,
             null,
-            new PreAnalyzer(),
             functionRegistry,
             mapper,
             TEST_VERIFIER,
@@ -887,8 +886,7 @@ public class CsvTests extends ESTestCase {
             mock(EnrichLookupService.class),
             mock(LookupFromIndexService.class),
             mock(InferenceService.class),
-            physicalOperationProviders,
-            null  // OperatorFactoryRegistry - not needed for CSV tests
+            physicalOperationProviders
         );
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());

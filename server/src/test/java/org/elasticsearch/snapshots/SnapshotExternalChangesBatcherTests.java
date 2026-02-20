@@ -398,7 +398,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             assertThat("completed snapshot should be untouched", updatedCompletedSnapshots.getFirst(), sameInstance(completedEntry));
             if (includeSameRepoDeletion) {
                 // snapshotFinalizer is skipped: the deletion completion will trigger finalization.
-                assertThat("snapshotFinalizer should not fire when a deletion exists in the same repo", finalized, empty());
+                assertThat("snapshotFinalizer should not fire", finalized, empty());
                 assertThat("deletionStarter should fire for the deletion", deleted.entrySet(), hasSize(1));
                 assertNotNull(deleted.get(deletionEntry.getEntries().getFirst()));
             } else {
@@ -462,7 +462,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             if (nodesChanged) {
                 // ABORTED snapshots are included in update.
                 // The ABORTED shard on the departed node has failed -> the snapshot becomes completed -> snapshotFinalizer fires.
-                assertThat("snapshotFinalizer should fire for the completed aborted snapshot when nodes changed", finalized, hasSize(1));
+                assertThat("snapshotFinalizer should fire for the completed aborted snapshot", finalized, hasSize(1));
                 assertTrue("completed aborted snapshot should be in a terminal state", finalized.getFirst().state().completed());
                 assertThat(
                     "shard should be FAILED",
@@ -683,11 +683,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             }
             final var updatedClonesWithShards = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repoCloneWithShards);
             assertThat("non-empty-shards clone should always be retained", updatedClonesWithShards, hasSize(1));
-            assertThat(
-                "non-empty-shards clone should be untouched when there are no known failures",
-                updatedClonesWithShards.getFirst(),
-                sameInstance(cloneWithShards)
-            );
+            assertThat("non-empty-shards clone should be untouched", updatedClonesWithShards.getFirst(), sameInstance(cloneWithShards));
             assertThat("deletionStarter should not fire when no deletion in cluster state", deleted.entrySet(), empty());
         }
     }
@@ -746,7 +742,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
 
             assertThat("clonesStarter always called with updated state", cloned.get(), equalTo(updatedSnapshotsInProgress));
             final var updatedClones = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repo);
-            assertThat("clone should be retained when a deletion is in progress in the same repo", updatedClones, hasSize(1));
+            assertThat("clone should be retained when deletion in progress in the same repo", updatedClones, hasSize(1));
             assertThat("clone should be untouched", updatedClones.getFirst(), sameInstance(cloneEntry));
             assertThat("snapshotFinalizer should not fire for clone snapshots", finalized, empty());
             assertThat("deletionStarter should fire for the deletion", deleted.entrySet(), hasSize(1));
@@ -906,9 +902,12 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var updatedEntries = updatedSnapshotsInProgress.forRepo(ProjectId.DEFAULT, repo);
             assertThat("all three entries should be retained", updatedEntries, hasSize(3));
 
-            // First clone should have been promoted
+            final var updatedFailingEntry = updatedEntries.get(0);
+            assertThat(updatedFailingEntry.snapshot().getSnapshotId().getName(), is("failing"));
+            assertThat("failing entry should be completed", updatedFailingEntry.state(), is(SnapshotsInProgress.State.SUCCESS));
+
             final var updatedFirstClone = updatedEntries.get(1);
-            assertTrue("second entry should be a clone", updatedFirstClone.isClone());
+            assertThat(updatedFirstClone.snapshot().getSnapshotId().getName(), is("clone-1"));
             final var firstCloneStatus = updatedFirstClone.shardSnapshotStatusByRepoShardId().get(new RepositoryShardId(indexId, 0));
             assertThat("first clone shard should be reassigned to local node", firstCloneStatus.nodeId(), is(MASTER_NODE.getId()));
 

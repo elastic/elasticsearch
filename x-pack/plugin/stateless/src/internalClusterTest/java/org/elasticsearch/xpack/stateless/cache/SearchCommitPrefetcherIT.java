@@ -195,7 +195,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false)
             // TODO fix this test to work with this randomized
             // TODO this does more reading & caching because it reads all referenced CCs
-            .put(SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
+            .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
             .build();
         startMasterAndIndexNode(nodeSettings);
         var indexName = randomIdentifier();
@@ -348,7 +348,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), prefetchNonUploadedCommits)
             // TODO fix this test to work with this randomized
             // TODO this does more reading & caching because it reads all referenced CCs
-            .put(SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
+            .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
             .build();
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNode = startSearchNode(nodeSettings);
@@ -428,7 +428,7 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
             .put(SearchCommitPrefetcher.PREFETCH_NON_UPLOADED_COMMITS_SETTING.getKey(), false)
             // TODO fix this test to work with this randomized
             // TODO this does more reading & caching because it reads all referenced CCs
-            .put(SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
+            .put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), false)
             .build();
         var indexNode = startMasterAndIndexNode(nodeSettings);
         var searchNode = startSearchNode(nodeSettings);

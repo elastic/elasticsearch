@@ -413,7 +413,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
                 SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
-                SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
             )
         );
         return new SearchEngine(
@@ -422,8 +422,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             sharedBlobCacheService,
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
-            new SearchCommitPrefetcherDynamicSettings(clusterSettings),
-            DIRECT_EXECUTOR_SERVICE
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
         ) {
             @Override
             public void close() throws IOException {
@@ -525,7 +524,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcher.BACKGROUND_PREFETCH_ENABLED_SETTING,
                 SearchCommitPrefetcher.PREFETCH_REQUEST_SIZE_LIMIT_INDEX_NODE_SETTING,
                 SearchCommitPrefetcher.FORCE_PREFETCH_SETTING,
-                SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
+                SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
             )
         );
         return new SearchEngine(
@@ -534,8 +533,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             sharedBlobCacheService,
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
-            new SearchCommitPrefetcherDynamicSettings(clusterSettings),
-            DIRECT_EXECUTOR_SERVICE
+            new SearchCommitPrefetcherDynamicSettings(clusterSettings)
         ) {
             @Override
             public void close() throws IOException {

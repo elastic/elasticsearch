@@ -33,7 +33,6 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -114,13 +113,6 @@ import static org.elasticsearch.xpack.stateless.commits.BlobFileRanges.computeBl
  */
 public class SearchEngine extends Engine {
 
-    public static final Setting<Boolean> STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT = Setting.boolSetting(
-        "stateless.search.use_internal_files_replicated_content",
-        // TODO enable this by default
-        false,
-        Setting.Property.NodeScope
-    );
-
     private final ClosedShardService closedShardService;
     private final Map<PrimaryTermAndGeneration, SubscribableListener<Long>> segmentGenerationListeners = ConcurrentCollections
         .newConcurrentMap();
@@ -134,7 +126,6 @@ public class SearchEngine extends Engine {
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
     // task runner used to process commit notifications and incoming PIT metadata merges sequentially
     private final ThrottledTaskRunner processCommitTaskRunner;
-    private final Executor bccHeaderReadExecutor;
 
     private volatile SegmentInfosAndCommit segmentInfosAndCommit;
     // The current primary term/generation is updated on initialization and after new commit notifications from the indexing shard.
@@ -144,7 +135,6 @@ public class SearchEngine extends Engine {
     private volatile long maxSequenceNumber = SequenceNumbers.NO_OPS_PERFORMED;
     private volatile long processedLocalCheckpoint = SequenceNumbers.NO_OPS_PERFORMED;
     private volatile long lastSearcherAcquiredTime;
-    private volatile boolean useInternalFilesReplicatedContentForSearchShards;
 
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
@@ -156,8 +146,7 @@ public class SearchEngine extends Engine {
         StatelessSharedBlobCacheService statelessSharedBlobCacheService,
         ClusterSettings clusterSettings,
         Executor prefetchExecutor,
-        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings,
-        Executor bccHeaderReadExecutor
+        SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings
     ) {
         super(config);
         assert config.isPromotableToPrimary() == false;
@@ -165,9 +154,6 @@ public class SearchEngine extends Engine {
         var refreshExecutor = config.getThreadPool().executor(ThreadPool.Names.REFRESH);
         // we limit to one task to force sequential execution of enqueued tasks
         this.processCommitTaskRunner = new ThrottledTaskRunner("engine", 1, refreshExecutor);
-        this.useInternalFilesReplicatedContentForSearchShards = clusterSettings.get(
-            SearchEngine.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
-        );
 
         ElasticsearchDirectoryReader directoryReader = null;
         ElasticsearchReaderManager readerManager = null;
@@ -263,7 +249,6 @@ public class SearchEngine extends Engine {
                 clusterSettings,
                 prefetcherDynamicSettings
             );
-            this.bccHeaderReadExecutor = bccHeaderReadExecutor;
             success = true;
         } catch (Exception e) {
             throw new EngineCreationFailureException(config.getShardId(), "Failed to create a search engine", e);
@@ -413,7 +398,7 @@ public class SearchEngine extends Engine {
                 }
 
                 ListenableFuture<Map<String, BlobFileRanges>> listenableFuture = new ListenableFuture<>();
-                if (useInternalFilesReplicatedContentForSearchShards) {
+                if (prefetcherDynamicSettings.internalFilesReplicatedContentForSearchShardsEnabled()) {
                     Map<String, BlobFileRanges> blobFileRanges = new ConcurrentHashMap<>();
                     ObjectStoreService.readReferencedCompoundCommitsUsingCache(
                         latestCommit,

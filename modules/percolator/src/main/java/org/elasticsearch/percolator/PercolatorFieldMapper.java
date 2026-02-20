@@ -573,7 +573,7 @@ public class PercolatorFieldMapper extends FieldMapper {
     // This is sane behavior for typical usage. But for percolator, the fields for the may not have any terms
     // Consequently, we may erroneously skip expanding those term fields.
     // This override allows mapped field values to expand via wildcard input, even if the field is empty in the shard.
-    static SearchExecutionContext wrapAllEmptyTextFields(SearchExecutionContext searchExecutionContext) {
+    private static SearchExecutionContext wrapAllEmptyTextFields(SearchExecutionContext searchExecutionContext) {
         return new FilteredSearchExecutionContext(searchExecutionContext) {
             @Override
             public boolean fieldExistsInIndex(String fieldname) {

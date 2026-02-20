@@ -1368,4 +1368,62 @@ public class PercolatorQuerySearchIT extends ESIntegTestCase {
         assertThat(exception.getMessage(), containsString("the [knn] query is unsupported inside a percolator"));
     }
 
+    public void testPercolatorBooleanQueriesWithConcurrency() throws Exception {
+        assertAcked(
+            indicesAdmin().prepareCreate("test")
+                .setSettings(Settings.builder().put(indexSettings()).put("index.number_of_shards", 1))
+                .setMapping("field1", "type=long", "query", "type=percolator")
+        );
+
+        prepareIndex("test").setId("1")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", boolQuery().must(rangeQuery("field1").from(10).to(12)).must(rangeQuery("field1").from(12).to(14)))
+                    .endObject()
+            )
+            .get();
+        prepareIndex("test").setId("2")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", boolQuery().must(rangeQuery("field1").from(3).to(4)).must(rangeQuery("field1").from(4).to(6)))
+                    .endObject()
+            )
+            .get();
+        prepareIndex("test").setId("3")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", boolQuery().must(rangeQuery("field1").from(10).to(12)).must(rangeQuery("field1").from(12).to(14)))
+                    .endObject()
+            )
+            .get();
+        prepareIndex("test").setId("4")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", boolQuery().must(rangeQuery("field1").from(3).to(4)).must(rangeQuery("field1").from(4).to(6)))
+                    .endObject()
+            )
+            .get();
+        prepareIndex("test").setId("5")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", boolQuery().must(rangeQuery("field1").from(10).to(12)).must(rangeQuery("field1").from(12).to(14)))
+                    .endObject()
+            )
+            .get();
+        prepareIndex("test").setId("6")
+            .setSource(
+                jsonBuilder().startObject()
+                    .field("query", boolQuery().must(rangeQuery("field1").from(3).to(4)).must(rangeQuery("field1").from(4).to(6)))
+                    .endObject()
+            )
+            .get();
+
+        indicesAdmin().prepareRefresh().get();
+
+        BytesReference source = BytesReference.bytes(jsonBuilder().startObject().field("field1", 12).endObject());
+        assertResponse(prepareSearch().setQuery(new PercolateQueryBuilder("query", source, XContentType.JSON)), response -> {
+            assertHitCount(response, 3);
+        });
+    }
+
 }

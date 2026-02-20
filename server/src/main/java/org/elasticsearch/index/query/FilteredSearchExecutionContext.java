@@ -33,6 +33,7 @@ import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.index.query.support.AutoPrefilteringScope;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
@@ -389,5 +390,10 @@ public class FilteredSearchExecutionContext extends SearchExecutionContext {
     @Override
     public boolean rewriteToNamedQuery() {
         return in.rewriteToNamedQuery();
+    }
+
+    @Override
+    public AutoPrefilteringScope autoPrefilteringScope() {
+        return in.autoPrefilteringScope();
     }
 }

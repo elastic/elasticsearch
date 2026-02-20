@@ -2861,11 +2861,14 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket()", sampleDataAnalyzer, ParsingException.class),
-            equalTo("1:42: error building [tbucket]: expects exactly one argument")
+            equalTo("1:42: error building [tbucket]: expects one, two or three arguments")
         );
         assertThat(
-            error("from test | stats max(event_duration) by tbucket(\"@tbucket\", 1 hour)", sampleDataAnalyzer, ParsingException.class),
-            equalTo("1:42: error building [tbucket]: expects exactly one argument")
+            error("from test | stats max(event_duration) by tbucket(\"@tbucket\", 1 hour)", sampleDataAnalyzer),
+            equalTo(
+                "1:42: argument of [tbucket(\"@tbucket\", 1 hour)] must be [integer, date_period or time_duration],"
+                    + " found value [\"@tbucket\"] type [keyword]"
+            )
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(1 hr)", sampleDataAnalyzer, ParsingException.class),
@@ -2873,7 +2876,17 @@ public class VerifierTests extends ESTestCase {
         );
         assertThat(
             error("from test | stats max(event_duration) by tbucket(\"1\")", sampleDataAnalyzer),
-            equalTo("1:42: argument of [tbucket(\"1\")] must be [date_period or time_duration], found value [\"1\"] type [keyword]")
+            equalTo(
+                "1:42: argument of [tbucket(\"1\")] must be [integer, date_period or time_duration], found value [\"1\"] type [keyword]"
+            )
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(3)", sampleDataAnalyzer),
+            equalTo("1:42: numeric bucket count in [tbucket(3)] requires [from] and [to] parameters")
+        );
+        assertThat(
+            error("from test | stats max(event_duration) by tbucket(3, \"2023-01-01T00:00:00Z\")", sampleDataAnalyzer),
+            equalTo("1:42: numeric bucket count in [tbucket(3, \"2023-01-01T00:00:00Z\")] requires [from] and [to] parameters")
         );
 
         /*

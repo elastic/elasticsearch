@@ -3,5 +3,11 @@
 **Parameters**
 
 `buckets`
-:   Desired bucket size.
+:   Target number of buckets, or desired bucket size. When a number, the actual bucket size is derived from `from`/`to`. When a duration or period, it is the explicit bucket size.
+
+`from`
+:   Start of the range. Required with a numeric `buckets`.
+
+`to`
+:   End of the range. Required with a numeric `buckets`.
 

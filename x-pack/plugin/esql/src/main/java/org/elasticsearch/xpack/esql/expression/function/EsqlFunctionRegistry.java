@@ -1423,6 +1423,26 @@ public class EsqlFunctionRegistry {
         return def(function, builder, names);
     }
 
+    protected static <T extends Function> FunctionDefinition defTS(
+        Class<T> function,
+        QuaternaryConfigurationAwareBuilder<T> ctorRef,
+        String... names
+    ) {
+        checkIsTimestampAware(function);
+        FunctionBuilder builder = (source, children, cfg) -> {
+            checkIsOptionalTriFunction(function, children.size());
+            return ctorRef.build(
+                source,
+                children.get(0),
+                children.size() > 1 ? children.get(1) : null,
+                children.size() > 2 ? children.get(2) : null,
+                UnresolvedTimestamp.withSource(source),
+                cfg
+            );
+        };
+        return def(function, builder, names);
+    }
+
     //
     // Utility functions to help disambiguate the method handle passed in.
     // They work by providing additional method information to help the compiler know which method to pick.

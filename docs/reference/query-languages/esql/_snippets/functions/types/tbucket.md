@@ -2,10 +2,28 @@
 
 **Supported types**
 
-| buckets | result |
-| --- | --- |
-| date_period | date |
-| date_period | date_nanos |
-| time_duration | date |
-| time_duration | date_nanos |
+| buckets | from | to | result |
+| --- | --- | --- | --- |
+| date_period | | | date |
+| date_period | | | date_nanos |
+| integer | date | date | date |
+| integer | date | date | date_nanos |
+| integer | date | keyword | date |
+| integer | date | keyword | date_nanos |
+| integer | date | text | date |
+| integer | date | text | date_nanos |
+| integer | keyword | date | date |
+| integer | keyword | date | date_nanos |
+| integer | keyword | keyword | date |
+| integer | keyword | keyword | date_nanos |
+| integer | keyword | text | date |
+| integer | keyword | text | date_nanos |
+| integer | text | date | date |
+| integer | text | date | date_nanos |
+| integer | text | keyword | date |
+| integer | text | keyword | date_nanos |
+| integer | text | text | date |
+| integer | text | text | date_nanos |
+| time_duration | | | date |
+| time_duration | | | date_nanos |
 

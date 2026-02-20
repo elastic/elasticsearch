@@ -23,13 +23,13 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
-import org.elasticsearch.compute.lucene.LuceneCountOperator;
-import org.elasticsearch.compute.lucene.LuceneOperator;
-import org.elasticsearch.compute.lucene.LuceneSliceQueue;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
-import org.elasticsearch.compute.lucene.TimeSeriesSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
+import org.elasticsearch.compute.lucene.query.LuceneOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.query.MinCompetitiveQuery;
+import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -42,7 +42,6 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.BlockLoader;
-import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -105,7 +104,7 @@ import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
-import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
+import static org.elasticsearch.compute.lucene.query.LuceneSourceOperator.NO_LIMIT;
 import static org.elasticsearch.index.get.ShardGetService.maybeExcludeVectorFields;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
@@ -147,6 +146,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
          * Convert a {@link QueryBuilder} into a real {@link Query lucene query}.
          */
         public abstract Query toQuery(QueryBuilder queryBuilder);
+
+        public abstract IndexSettings indexSettings();
+
+        public abstract MappingLookup mappingLookup();
 
         /**
          * Tuning parameter for deciding when to use the "merge" stored field loader.
@@ -451,12 +454,10 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         boolean includeMinCompetitive = setup.minCompetitive().keyConfigs().size() > 1;
         // NOCOMMIT this should only work for ASC, right? isn't this wrong?
         if (setup.minCompetitive().keyConfigs().getFirst().asc()) {
-            System.err.println("<" + DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(minCompetitive));
             return queryHelper.greaterThanMinCompetitive(
                 ft.rangeQuery(null, minCompetitive, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx.ctx)
             );
         }
-        System.err.println(">" + DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(minCompetitive));
         return queryHelper.greaterThanMinCompetitive(
             ft.rangeQuery(minCompetitive, null, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx.ctx)
         );
@@ -596,6 +597,16 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                     .build();
             }
             return query;
+        }
+
+        @Override
+        public IndexSettings indexSettings() {
+            return ctx.getIndexSettings();
+        }
+
+        @Override
+        public MappingLookup mappingLookup() {
+            return ctx.getMappingLookup();
         }
 
         @Override

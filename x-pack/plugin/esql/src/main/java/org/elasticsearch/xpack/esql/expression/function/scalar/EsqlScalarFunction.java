@@ -14,7 +14,9 @@ import org.elasticsearch.compute.ann.MvEvaluator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
-import org.elasticsearch.compute.lucene.LuceneCountOperator;
+import org.elasticsearch.compute.lucene.query.LuceneCountOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -113,17 +115,24 @@ import java.util.List;
  *     FROM index METADATA _score
  *   | WHERE title:"cat"
  *   | WHERE a < j + LENGTH(candy) // <--- anything un-pushable
- *   | SORT _score DESC
+ *   | SORT @timestamp DESC
  *   | LIMIT 10
  * }</pre>
  * <p>
- *     If ESQL's {@link TopNOperator} exposed the min-competitive information (see above), and
- *     we fed it back into the lucene query operators then we too could do better than
- *     {@code O(matching_rows)} for queries sorting on the results of a scalar. This is like
- *     the {@code LT} but without as many limitations. Lucene has a 20-year head start on us
- *     optimizing TopN, so we should continue to use them when
- *     See <a href="https://github.com/elastic/elasticsearch/issues/136267">issue</a>.
- *     NOCOMMIT link to how to build this
+ *     Once we have {@code limit} docs we feed the minimum value backwards from the
+ *     {@link TopNOperator} into the {@link LuceneSourceOperator}. It builds a
+ *     {@code @timestamp > min_competitive} comparison. This optimizes the non-pushable
+ *     scalars between the {@code FROM} and the {@code SORT} by only running them for
+ *     document that have a chance of beating the "minimum competitive" value in the
+ *     {@link TopNOperator}.
+ * </p>
+ * <p>
+ *     Lucene has a 20-year head start on us optimizing TopN, so we should continue to
+ *     use them when via {@code LT} when possible. But when not possible, this is lovely.
+ * </p>
+ * <p>
+ *     Scalars don't need to <strong>do</strong> anything to opt into this optimization.
+ *     It happens any time there's a {@link TopNOperator}.
  * </p>
  * <h3>{@code BL}: Push to {@link BlockLoader}</h3>
  * <pre>{@code

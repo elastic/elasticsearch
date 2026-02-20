@@ -217,17 +217,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     protected NodeInfo<EsQueryExec> info() {
-        return NodeInfo.create(
-            this,
-            EsQueryExec::new,
-            indexPattern,
-            indexMode,
-            attrs,
-            limit,
-            sorts,
-            estimatedRowSize,
-            queryBuilderAndTags
-        );
+        return NodeInfo.create(this, EsQueryExec::new, indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
     }
 
     public String indexPattern() {
@@ -403,7 +393,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             return null;
         }
         if (order.getFirst().child() instanceof FieldAttribute fa) {
-            System.err.println("NOCOMMIT " + fa);
             if (PlannerUtils.toElementType(fa.dataType()) != ElementType.LONG) {
                 return null;
             }

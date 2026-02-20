@@ -264,6 +264,8 @@ Work around this limitation by converting the field to single value with one of:
 * [`MV_MIN`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_min)
 * [`MV_SUM`](/reference/query-languages/esql/functions-operators/mv-functions.md#esql-mv_sum)
 
+To filter on individual values in a multivalued field (for example, to keep only rows where the field contains a given value), use the [`MV_EXPAND`](/reference/query-languages/esql/commands/mv_expand.md) command to expand the field into one row per value, then apply `WHERE` to the expanded column.
+
 ```console
 POST /_query
 {

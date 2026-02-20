@@ -606,22 +606,25 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
 
         void decompressDocOffsets(int numDocsInBlock, DataInput input) throws IOException {
-            int numOffsets = numDocsInBlock + 1;
             int bitsPerValue = input.readByte() & 0xFF;
             int gcd = input.readVInt();
+            // index 0 is always 0 (not stored)
+            uncompressedDocStarts[0] = 0;
             if (bitsPerValue == 0) {
-                Arrays.fill(uncompressedDocStarts, 0, numOffsets, 0);
+                // all deltas are 0
+                Arrays.fill(uncompressedDocStarts, 1, numDocsInBlock + 1, 0);
             } else {
-                int totalBits = numOffsets * bitsPerValue;
+                // unpack only the deltas (indices 1..numDocsInBlock)
+                int totalBits = numDocsInBlock * bitsPerValue;
                 int totalBytes = (totalBits + 7) / 8;
                 long accumulator = 0;
                 int bitsInAccumulator = 0;
-                int offsetIndex = 0;
+                int offsetIndex = 1;
                 int mask = (1 << bitsPerValue) - 1;
-                for (int i = 0; i < totalBytes && offsetIndex < numOffsets; i++) {
+                for (int i = 0; i < totalBytes && offsetIndex <= numDocsInBlock; i++) {
                     accumulator = (accumulator << 8) | (input.readByte() & 0xFF);
                     bitsInAccumulator += 8;
-                    while (bitsInAccumulator >= bitsPerValue && offsetIndex < numOffsets) {
+                    while (bitsInAccumulator >= bitsPerValue && offsetIndex <= numDocsInBlock) {
                         bitsInAccumulator -= bitsPerValue;
                         uncompressedDocStarts[offsetIndex++] = (int) ((accumulator >>> bitsInAccumulator) & mask);
                     }
@@ -629,11 +632,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             }
             // apply GCD decoding (multiply by GCD) before delta decoding
             if (gcd > 1) {
-                for (int i = 1; i < numOffsets; i++) {
+                for (int i = 1; i <= numDocsInBlock; i++) {
                     uncompressedDocStarts[i] *= gcd;
                 }
             }
-            deltaDecode(uncompressedDocStarts, numOffsets);
+            deltaDecode(uncompressedDocStarts, numDocsInBlock + 1);
         }
 
         // Borrowed from to TSDBDocValuesEncoder.decodeDelta

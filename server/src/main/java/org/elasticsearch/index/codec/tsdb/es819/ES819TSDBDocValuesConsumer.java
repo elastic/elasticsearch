@@ -599,38 +599,35 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         }
 
         void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {
-            int numOffsets = numDocsInCurrentBlock + 1;
-            // delta encode
-            for (int i = numOffsets - 1; i > 0; i--) {
+            // delta encode: after this, docOffsets[0] is always 0, docOffsets[1..n] are the deltas
+            for (int i = numDocsInCurrentBlock; i > 0; i--) {
                 docOffsets[i] -= docOffsets[i - 1];
             }
-            // compute GCD of all deltas (skip first element which is always 0)
+            // compute GCD of all deltas (skip index 0 which is always 0)
             long gcd = 0;
-            for (int i = 1; i < numOffsets; i++) {
+            int maxValue = 0;
+            for (int i = 1; i <= numDocsInCurrentBlock; i++) {
                 gcd = MathUtil.gcd(gcd, docOffsets[i]);
-                if (gcd == 1) {
-                    break;
-                }
+                maxValue = Math.max(maxValue, docOffsets[i]);
             }
-            int gcdInt = (int) gcd;
+            // gcd=0 means all deltas are 0; treat as gcd=1
+            int gcdInt = gcd <= 1 ? 1 : (int) gcd;
             // apply GCD encoding if beneficial
             if (gcdInt > 1) {
-                for (int i = 1; i < numOffsets; i++) {
+                maxValue = 0;
+                for (int i = 1; i <= numDocsInCurrentBlock; i++) {
                     docOffsets[i] /= gcdInt;
+                    maxValue = Math.max(maxValue, docOffsets[i]);
                 }
-            }
-            // find max value after GCD encoding
-            int maxValue = 0;
-            for (int i = 0; i < numOffsets; i++) {
-                maxValue = Math.max(maxValue, docOffsets[i]);
             }
             int bitsPerValue = maxValue == 0 ? 0 : PackedInts.bitsRequired(maxValue);
             output.writeByte((byte) bitsPerValue);
             output.writeVInt(gcdInt);
+            // bit-pack only the deltas (indices 1..numDocsInCurrentBlock), skipping index 0
             if (bitsPerValue > 0) {
                 long accumulator = 0;
                 int bitsInAccumulator = 0;
-                for (int i = 0; i < numOffsets; i++) {
+                for (int i = 1; i <= numDocsInCurrentBlock; i++) {
                     accumulator = (accumulator << bitsPerValue) | docOffsets[i];
                     bitsInAccumulator += bitsPerValue;
                     while (bitsInAccumulator >= 8) {

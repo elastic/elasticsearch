@@ -47,7 +47,12 @@ public class ResumeInfoTests extends ESTestCase {
     /** Constructor rejects having both a worker and a slices map. */
     public void testResumeInfoCannotHaveBothWorkerAndSlices() {
         ScrollWorkerResumeInfo worker = scrollWorkerResumeInfo("sid", 1L, taskStatus());
-        Map<Integer, SliceStatus> slices = Map.of(0, sliceStatusWithResult(0, new ElasticsearchException("e")), 1, sliceStatusWithResult(1, new ElasticsearchException("e2")));
+        Map<Integer, SliceStatus> slices = Map.of(
+            0,
+            sliceStatusWithResult(0, new ElasticsearchException("e")),
+            1,
+            sliceStatusWithResult(1, new ElasticsearchException("e2"))
+        );
         expectThrows(IllegalArgumentException.class, () -> new ResumeInfo(worker, slices));
     }
 
@@ -78,7 +83,14 @@ public class ResumeInfoTests extends ESTestCase {
 
     /** Stored slices map is a copy; later mutations to the input map do not affect the instance. */
     public void testResumeInfoSlicesMapIsCopy() {
-        Map<Integer, SliceStatus> mutable = new java.util.HashMap<>(Map.of(0, sliceStatusWithResult(0, new ElasticsearchException("a")), 1, sliceStatusWithResult(1, new ElasticsearchException("b"))));
+        Map<Integer, SliceStatus> mutable = new java.util.HashMap<>(
+            Map.of(
+                0,
+                sliceStatusWithResult(0, new ElasticsearchException("a")),
+                1,
+                sliceStatusWithResult(1, new ElasticsearchException("b"))
+            )
+        );
         ResumeInfo info = new ResumeInfo(null, mutable);
         mutable.put(2, sliceStatusWithResult(2, new ElasticsearchException("c")));
         assertThat(info.slices().keySet(), hasSize(2));

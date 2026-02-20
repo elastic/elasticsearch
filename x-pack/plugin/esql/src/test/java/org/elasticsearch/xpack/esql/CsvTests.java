@@ -432,7 +432,6 @@ public class CsvTests extends ESTestCase {
 
             var log = logResults() ? LOGGER : null;
             assertResults(expected, actualResults, testCase.ignoreOrder, log);
-            assertWarnings(actualResults.responseHeaders().getOrDefault("Warning", List.of()), actualResults);
         } finally {
             Releasables.close(() -> Iterators.map(actualResults.pages().iterator(), p -> p::releaseBlocks));
             // Give the breaker service some time to clear in case we got results before the rest of the driver had cleaned up
@@ -446,7 +445,7 @@ public class CsvTests extends ESTestCase {
         }
     }
 
-    protected void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
+    private void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
         /*
          * Enable the next two lines to see the results returned by ES.
          * This is useful when creating a new test or trying to figure out what are the actual results.
@@ -454,7 +453,15 @@ public class CsvTests extends ESTestCase {
         // CsvTestUtils.logMetaData(actual.columnNames(), actual.columnTypes(), LOGGER);
         // CsvTestUtils.logData(actual.values(), LOGGER);
 
-        CsvAssert.assertResults(expected, actual, ignoreOrder, logger);
+        CsvAssert.assertMetadata(expected, actual.columnNames(), actual.columnTypes(), actual.pages(), logger);
+        CsvAssert.assertData(expected, actual.values(), ignoreOrder, false, logger);
+        List<String> normalized = actual.responseHeaders()
+            .getOrDefault("Warning", List.of())
+            .stream()
+            .map(w -> HeaderWarning.extractWarningValueFromWarningHeader(w, false))
+            .filter(w -> w.startsWith("No limit defined, adding default limit of [") == false)
+            .toList();
+        testCase.assertWarnings(false).assertWarnings(normalized, actual);
     }
 
     public static Map<IndexPattern, IndexResolution> loadIndexResolution(
@@ -820,18 +827,6 @@ public class CsvTests extends ESTestCase {
             return;
         }
         SerializationTestUtils.assertSerialization(plan, configuration);
-    }
-
-    private void assertWarnings(List<String> warnings, Object context) {
-        List<String> normalized = new ArrayList<>(warnings.size());
-        for (String w : warnings) {
-            String normW = HeaderWarning.extractWarningValueFromWarningHeader(w, false);
-            if (normW.startsWith("No limit defined, adding default limit of [") == false) {
-                // too many tests do not have a LIMIT, we'll test this warning separately
-                normalized.add(normW);
-            }
-        }
-        testCase.assertWarnings(false).assertWarnings(normalized, context);
     }
 
     PlanRunner planRunner(BigArrays bigArrays, TestPhysicalOperationProviders physicalOperationProviders) {

@@ -588,7 +588,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 return ConstantNull.INSTANCE;
             }
             BlockLoader loader = fieldType.blockLoader(
-                new EsBlockLoaderContext(
+                new EsqlBlockLoaderContext(
                     ctx,
                     fieldExtractPreference,
                     blockLoaderFunctionConfig,

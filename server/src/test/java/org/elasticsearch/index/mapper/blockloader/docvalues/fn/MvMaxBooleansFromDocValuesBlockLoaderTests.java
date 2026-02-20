@@ -40,10 +40,10 @@ public class MvMaxBooleansFromDocValuesBlockLoaderTests extends AbstractBooleans
         ) {
             assertThat(mvMaxBooleansReader, readerMatcher());
             try (
-                TestBlock doubles = read(booleansLoader, booleansReader, ctx, docs);
-                TestBlock maxDoubles = read(mvMaxBooleansLoader, mvMaxBooleansReader, ctx, docs);
+                TestBlock booleans = read(booleansLoader, booleansReader, ctx, docs);
+                TestBlock maxBooleans = read(mvMaxBooleansLoader, mvMaxBooleansReader, ctx, docs);
             ) {
-                checkBlocks(doubles, maxDoubles);
+                checkBlocks(booleans, maxBooleans);
             }
         }
 

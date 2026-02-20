@@ -37,10 +37,10 @@ public class MvMinBooleansFromDocValuesBlockLoaderTests extends AbstractBooleans
         try (var booleansReader = booleansLoader.reader(breaker, ctx); var mvMinBooleansReader = mvMinBooleansLoader.reader(breaker, ctx)) {
             assertThat(mvMinBooleansReader, readerMatcher());
             try (
-                TestBlock doubles = read(booleansLoader, booleansReader, ctx, docs);
-                TestBlock minDoubles = read(mvMinBooleansLoader, mvMinBooleansReader, ctx, docs);
+                TestBlock booleans = read(booleansLoader, booleansReader, ctx, docs);
+                TestBlock minBooleans = read(mvMinBooleansLoader, mvMinBooleansReader, ctx, docs);
             ) {
-                checkBlocks(doubles, minDoubles);
+                checkBlocks(booleans, minBooleans);
             }
         }
 

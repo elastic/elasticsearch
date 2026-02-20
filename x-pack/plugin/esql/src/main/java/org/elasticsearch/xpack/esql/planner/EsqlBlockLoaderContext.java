@@ -19,16 +19,16 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.util.Set;
 
 /**
- * {@link MappedFieldType.BlockLoaderContext} implementation for
+ * {@link MappedFieldType.BlockLoaderContext} implementation for ESQL.
  */
-class EsBlockLoaderContext implements MappedFieldType.BlockLoaderContext {
+class EsqlBlockLoaderContext implements MappedFieldType.BlockLoaderContext {
     private final SearchExecutionContext ctx;
     private final MappedFieldType.FieldExtractPreference fieldExtractPreference;
     private final BlockLoaderFunctionConfig blockLoaderFunctionConfig;
     private final ByteSizeValue blockLoaderSizeOrdinals;
     private final ByteSizeValue blockLoaderSizeScript;
 
-    EsBlockLoaderContext(
+    EsqlBlockLoaderContext(
         SearchExecutionContext ctx,
         MappedFieldType.FieldExtractPreference fieldExtractPreference,
         BlockLoaderFunctionConfig blockLoaderFunctionConfig,

@@ -42,7 +42,6 @@ public class TextFieldWithParentBlockLoaderTests extends MapperServiceTestCase {
     public TextFieldWithParentBlockLoaderTests(BlockLoaderTestCase.Params params) {
         this.params = params;
         this.runner = new BlockLoaderTestRunner(params).breaker(newLimitedBreaker(ByteSizeValue.ofMb(1)));
-        ;
         if (randomBoolean()) {
             runner.allowDummyDocs();
         }

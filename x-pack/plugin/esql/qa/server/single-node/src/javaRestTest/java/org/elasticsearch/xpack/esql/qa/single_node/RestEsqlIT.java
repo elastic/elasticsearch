@@ -1371,12 +1371,12 @@ public class RestEsqlIT extends RestEsqlTestCase {
                     // Coordinator physical plan should contain FragmentExec (to be sent to data nodes)
                     assertThat("Coordinator physical plan should contain FragmentExec", plan, containsString("FragmentExec"));
                 }
-                if ("data".equals(role) && "localLogicalPlan".equals(type)) {
+                if ("data".equals(role) && "optimizedLocalLogicalPlan".equals(type)) {
                     hasLocalLogicalPlan = true;
-                    // Local logical plan should contain EsRelation (not LocalRelation) when using real search contexts
-                    assertThat("Local logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                    // Optimized local logical plan should contain EsRelation (not LocalRelation) when using real search contexts
+                    assertThat("Optimized local logical plan should contain EsRelation", plan, containsString("EsRelation"));
                     // Should contain Aggregate based on the query
-                    assertThat("Local logical plan should contain Aggregate", plan, containsString("Aggregate"));
+                    assertThat("Optimized local logical plan should contain Aggregate", plan, containsString("Aggregate"));
                 }
                 if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
                     hasLocalPhysicalPlan = true;
@@ -1399,7 +1399,7 @@ public class RestEsqlIT extends RestEsqlTestCase {
             assertThat("Should have optimized logical plan", hasOptimizedLogicalPlan, is(true));
             assertThat("Should have optimized physical plan", hasOptimizedPhysicalPlan, is(true));
             assertThat("Should not have error: " + errorMessage, hasError, is(false));
-            assertThat("Should have local logical plan from data node", hasLocalLogicalPlan, is(true));
+            assertThat("Should have optimized local logical plan from data node", hasLocalLogicalPlan, is(true));
             assertThat("Should have local physical plan from data node", hasLocalPhysicalPlan, is(true));
         } finally {
             // Clean up

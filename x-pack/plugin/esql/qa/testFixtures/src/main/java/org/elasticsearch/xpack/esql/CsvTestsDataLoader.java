@@ -364,7 +364,6 @@ public class CsvTestsDataLoader {
         CITY_LOCATIONS_ENRICH,
         COLORS_ENRICH
     );
-    public static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";
 
     private static final ViewConfig COUNTRY_ADDRESSES = new ViewConfig("country_addresses");
     private static final ViewConfig COUNTRY_AIRPORTS = new ViewConfig("country_airports");
@@ -1051,6 +1050,7 @@ public class CsvTestsDataLoader {
     }
 
     private static final Pattern RANGE_PATTERN = Pattern.compile("([0-9\\-.Z:]+)\\.\\.([0-9\\-.Z:]+)");
+    private  static final String NUMERIC_REGEX = "-?\\d+(\\.\\d+)?";
 
     private static String toJson(String type, String value) {
         return switch (type == null ? "" : type) {

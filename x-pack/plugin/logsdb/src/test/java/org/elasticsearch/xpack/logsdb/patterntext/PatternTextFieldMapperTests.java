@@ -476,12 +476,10 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
         MappedFieldType ft = mapperService.fieldType("field");
 
         withLuceneIndex(mapperService, iw -> {
-            // Segment 1: document with the pattern_text field
             LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "hello world"))).rootDoc();
             iw.addDocument(doc1);
             iw.commit();
 
-            // Segment 2: document without the pattern_text field
             LuceneDocument doc2 = mapperService.documentMapper().parse(source(b -> {})).rootDoc();
             iw.addDocument(doc2);
             iw.commit();
@@ -491,13 +489,11 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             SearchExecutionContext ctx = createSearchExecutionContext(mapperService, newSearcher(reader));
             ValueFetcher fetcher = ft.valueFetcher(ctx, null);
 
-            // Segment with the field should work normally
             fetcher.setNextReader(reader.leaves().get(0));
             List<Object> values = fetcher.fetchValues(null, 0, new ArrayList<>());
             assertEquals(1, values.size());
             assertEquals("hello world", values.get(0));
 
-            // Segment without the field should return empty, not throw NPE
             fetcher.setNextReader(reader.leaves().get(1));
             List<Object> emptyValues = fetcher.fetchValues(null, 0, new ArrayList<>());
             assertEquals(0, emptyValues.size());
@@ -522,10 +518,144 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
             var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
             var fieldData = ft.fielddataBuilder(fieldDataContext).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
 
-            // Segment without the field should not throw NPE
-            var leafData = fieldData.load(reader.leaves().get(1));
-            var bytesValues = leafData.getBytesValues();
-            assertFalse(bytesValues.advanceExact(0));
+            var leafData0 = fieldData.load(reader.leaves().get(0));
+            var bytesValues0 = leafData0.getBytesValues();
+            assertTrue(bytesValues0.advanceExact(0));
+            assertEquals("hello world", bytesValues0.nextValue().utf8ToString());
+
+            var leafData1 = fieldData.load(reader.leaves().get(1));
+            var bytesValues1 = leafData1.getBytesValues();
+            assertFalse(bytesValues1.advanceExact(0));
+        });
+    }
+
+    public void testValueFetcherWithDisabledTemplating() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put("index.mapping.pattern_text.disable_templating", true).build(),
+            fieldMapping(b -> b.field("type", "pattern_text"))
+        );
+        MappedFieldType ft = mapperService.fieldType("field");
+
+        withLuceneIndex(mapperService, iw -> {
+            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "hello world"))).rootDoc();
+            iw.addDocument(doc1);
+            iw.commit();
+
+            LuceneDocument doc2 = mapperService.documentMapper().parse(source(b -> b.field("field", "foo bar"))).rootDoc();
+            iw.addDocument(doc2);
+            iw.commit();
+        }, reader -> {
+            assertEquals(2, reader.leaves().size());
+
+            SearchExecutionContext ctx = createSearchExecutionContext(mapperService, newSearcher(reader));
+            ValueFetcher fetcher = ft.valueFetcher(ctx, null);
+
+            fetcher.setNextReader(reader.leaves().get(0));
+            List<Object> values0 = fetcher.fetchValues(null, 0, new ArrayList<>());
+            assertEquals(1, values0.size());
+            assertEquals("hello world", values0.get(0));
+
+            fetcher.setNextReader(reader.leaves().get(1));
+            List<Object> values1 = fetcher.fetchValues(null, 0, new ArrayList<>());
+            assertEquals(1, values1.size());
+            assertEquals("foo bar", values1.get(0));
+        });
+    }
+
+    public void testValueFetcherWithDisabledTemplatingAndMissingFieldSegment() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put("index.mapping.pattern_text.disable_templating", true).build(),
+            fieldMapping(b -> b.field("type", "pattern_text"))
+        );
+        MappedFieldType ft = mapperService.fieldType("field");
+
+        withLuceneIndex(mapperService, iw -> {
+            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "hello world"))).rootDoc();
+            iw.addDocument(doc1);
+            iw.commit();
+
+            LuceneDocument doc2 = mapperService.documentMapper().parse(source(b -> {})).rootDoc();
+            iw.addDocument(doc2);
+            iw.commit();
+        }, reader -> {
+            assertEquals(2, reader.leaves().size());
+
+            SearchExecutionContext ctx = createSearchExecutionContext(mapperService, newSearcher(reader));
+            ValueFetcher fetcher = ft.valueFetcher(ctx, null);
+
+            fetcher.setNextReader(reader.leaves().get(0));
+            List<Object> values = fetcher.fetchValues(null, 0, new ArrayList<>());
+            assertEquals(1, values.size());
+            assertEquals("hello world", values.get(0));
+
+            fetcher.setNextReader(reader.leaves().get(1));
+            List<Object> emptyValues = fetcher.fetchValues(null, 0, new ArrayList<>());
+            assertEquals(0, emptyValues.size());
+        });
+    }
+
+    public void testFieldDataWithDisabledTemplating() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put("index.mapping.pattern_text.disable_templating", true).build(),
+            fieldMapping(b -> b.field("type", "pattern_text"))
+        );
+        MappedFieldType ft = mapperService.fieldType("field");
+
+        withLuceneIndex(mapperService, iw -> {
+            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "hello world"))).rootDoc();
+            iw.addDocument(doc1);
+            iw.commit();
+
+            LuceneDocument doc2 = mapperService.documentMapper().parse(source(b -> {})).rootDoc();
+            iw.addDocument(doc2);
+            iw.commit();
+        }, reader -> {
+            assertEquals(2, reader.leaves().size());
+
+            var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+            var fieldData = ft.fielddataBuilder(fieldDataContext).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+
+            var leafData0 = fieldData.load(reader.leaves().get(0));
+            var bytesValues0 = leafData0.getBytesValues();
+            assertTrue(bytesValues0.advanceExact(0));
+            assertEquals("hello world", bytesValues0.nextValue().utf8ToString());
+
+            var leafData1 = fieldData.load(reader.leaves().get(1));
+            var bytesValues1 = leafData1.getBytesValues();
+            assertFalse(bytesValues1.advanceExact(0));
+        });
+    }
+
+    public void testFieldDataWithDisabledTemplatingAllDocsHaveField() throws IOException {
+        MapperService mapperService = createMapperService(
+            Settings.builder().put("index.mapping.pattern_text.disable_templating", true).build(),
+            fieldMapping(b -> b.field("type", "pattern_text"))
+        );
+        MappedFieldType ft = mapperService.fieldType("field");
+
+        withLuceneIndex(mapperService, iw -> {
+            LuceneDocument doc1 = mapperService.documentMapper().parse(source(b -> b.field("field", "hello world"))).rootDoc();
+            iw.addDocument(doc1);
+            iw.commit();
+
+            LuceneDocument doc2 = mapperService.documentMapper().parse(source(b -> b.field("field", "foo bar"))).rootDoc();
+            iw.addDocument(doc2);
+            iw.commit();
+        }, reader -> {
+            assertEquals(2, reader.leaves().size());
+
+            var fieldDataContext = new FieldDataContext("", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+            var fieldData = ft.fielddataBuilder(fieldDataContext).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
+
+            var leafData0 = fieldData.load(reader.leaves().get(0));
+            var bytesValues0 = leafData0.getBytesValues();
+            assertTrue(bytesValues0.advanceExact(0));
+            assertEquals("hello world", bytesValues0.nextValue().utf8ToString());
+
+            var leafData1 = fieldData.load(reader.leaves().get(1));
+            var bytesValues1 = leafData1.getBytesValues();
+            assertTrue(bytesValues1.advanceExact(0));
+            assertEquals("foo bar", bytesValues1.nextValue().utf8ToString());
         });
     }
 

@@ -62,7 +62,7 @@ import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SORTED_SET;
 
-final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
+final class ES819TSDBDocValuesConsumerVersion2 extends XDocValuesConsumer {
 
     final Directory dir;
     final IOContext context;
@@ -79,7 +79,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     final BinaryDVCompressionMode binaryDVCompressionMode;
     private final boolean enablePerBlockCompression; // only false for testing
 
-    ES819TSDBDocValuesConsumer(
+    ES819TSDBDocValuesConsumerVersion2(
         BinaryDVCompressionMode binaryDVCompressionMode,
         final boolean enablePerBlockCompression,
         SegmentWriteState state,
@@ -110,7 +110,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             CodecUtil.writeIndexHeader(
                 data,
                 dataCodec,
-                ES819TSDBDocValuesFormat.VERSION_CURRENT,
+                ES819TSDBDocValuesFormat.VERSION_NUMERIC_LARGE_BLOCKS,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -120,7 +120,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             CodecUtil.writeIndexHeader(
                 meta,
                 metaCodec,
-                ES819TSDBDocValuesFormat.VERSION_CURRENT,
+                ES819TSDBDocValuesFormat.VERSION_NUMERIC_LARGE_BLOCKS,
                 state.segmentInfo.getId(),
                 state.segmentSuffix
             );
@@ -600,28 +600,10 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {
             int numOffsets = numDocsInCurrentBlock + 1;
             // delta encode
-            int maxDelta = 0;
             for (int i = numOffsets - 1; i > 0; i--) {
                 docOffsets[i] -= docOffsets[i - 1];
-                maxDelta = Math.max(maxDelta, docOffsets[i]);
             }
-            int bitsPerValue = maxDelta == 0 ? 0 : PackedInts.bitsRequired(maxDelta);
-            output.writeByte((byte) bitsPerValue);
-            if (bitsPerValue > 0) {
-                long accumulator = 0;
-                int bitsInAccumulator = 0;
-                for (int i = 0; i < numOffsets; i++) {
-                    accumulator = (accumulator << bitsPerValue) | docOffsets[i];
-                    bitsInAccumulator += bitsPerValue;
-                    while (bitsInAccumulator >= 8) {
-                        bitsInAccumulator -= 8;
-                        output.writeByte((byte) (accumulator >>> bitsInAccumulator));
-                    }
-                }
-                if (bitsInAccumulator > 0) {
-                    output.writeByte((byte) (accumulator << (8 - bitsInAccumulator)));
-                }
-            }
+            output.writeGroupVInts(docOffsets, numOffsets);
         }
 
         void compress(byte[] data, int uncompressedLength, DataOutput output) throws IOException {

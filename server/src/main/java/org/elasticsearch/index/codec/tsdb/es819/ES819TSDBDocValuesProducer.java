@@ -60,6 +60,7 @@ import java.util.Arrays;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.VERSION_BINARY_DV_COMPRESS_OFFSETS_USING_BIT_PACKING;
 
 final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     final IntObjectHashMap<NumericEntry> numerics;
@@ -439,7 +440,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     docOffsets,
                     data.clone(),
                     entry.maxUncompressedChunkSize,
-                    entry.maxNumDocsInAnyBlock
+                    entry.maxNumDocsInAnyBlock,
+                    version
                 );
 
                 @Override
@@ -523,8 +525,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     docOffsets,
                     data.clone(),
                     entry.maxUncompressedChunkSize,
-                    entry.maxNumDocsInAnyBlock
-                );
+                    entry.maxNumDocsInAnyBlock,
+                    version);
 
                 @Override
                 public BytesRef binaryValue() throws IOException {
@@ -554,6 +556,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         private long startDocNumForBlock = -1;
         private long limitDocNumForBlock = -1;
         private final Decompressor decompressor;
+        private final int version;
 
         BinaryDecoder(
             Decompressor decompressor,
@@ -561,8 +564,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             DirectMonotonicReader docOffsets,
             IndexInput compressedData,
             int biggestUncompressedBlockSize,
-            int maxNumDocsInAnyBlock
-        ) {
+            int maxNumDocsInAnyBlock,
+            int version) {
             this.decompressor = decompressor;
             this.addresses = addresses;
             this.docOffsets = docOffsets;
@@ -572,6 +575,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             this.uncompressedBlock = new byte[biggestUncompressedBlockSize];
             uncompressedBytesRef = new BytesRef(uncompressedBlock);
             uncompressedDocStarts = new int[maxNumDocsInAnyBlock + 1];
+            this.version = version;
         }
 
         private BinaryDVCompressionMode.BlockHeader decompressOffsets(long blockId, int numDocsInBlock) throws IOException {
@@ -584,7 +588,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             if (uncompressedBlockLength == 0) {
                 Arrays.fill(uncompressedDocStarts, 0);
             } else {
-                decompressDocOffsets(numDocsInBlock, compressedData);
+                if (version >= VERSION_BINARY_DV_COMPRESS_OFFSETS_USING_BIT_PACKING) {
+                    decompressDocOffsetsUsingBitUnpacking(numDocsInBlock, compressedData);
+                } else {
+                    decompressDocOffsetsUsingGroupedVInts(numDocsInBlock, compressedData);
+                }
             }
 
             return header;
@@ -606,9 +614,33 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             }
         }
 
-        void decompressDocOffsets(int numDocsInBlock, DataInput input) throws IOException {
+        void decompressDocOffsetsUsingGroupedVInts(int numDocsInBlock, DataInput input) throws IOException {
             int numOffsets = numDocsInBlock + 1;
             GroupVIntUtil.readGroupVInts(input, uncompressedDocStarts, numOffsets);
+            deltaDecode(uncompressedDocStarts, numOffsets);
+        }
+
+        void decompressDocOffsetsUsingBitUnpacking(int numDocsInBlock, DataInput input) throws IOException {
+            int numOffsets = numDocsInBlock + 1;
+            int bitsPerValue = input.readByte() & 0xFF;
+            if (bitsPerValue == 0) {
+                Arrays.fill(uncompressedDocStarts, 0, numOffsets, 0);
+            } else {
+                int totalBits = numOffsets * bitsPerValue;
+                int totalBytes = (totalBits + 7) / 8;
+                long accumulator = 0;
+                int bitsInAccumulator = 0;
+                int offsetIndex = 0;
+                int mask = (1 << bitsPerValue) - 1;
+                for (int i = 0; i < totalBytes && offsetIndex < numOffsets; i++) {
+                    accumulator = (accumulator << 8) | (input.readByte() & 0xFF);
+                    bitsInAccumulator += 8;
+                    while (bitsInAccumulator >= bitsPerValue && offsetIndex < numOffsets) {
+                        bitsInAccumulator -= bitsPerValue;
+                        uncompressedDocStarts[offsetIndex++] = (int) ((accumulator >>> bitsInAccumulator) & mask);
+                    }
+                }
+            }
             deltaDecode(uncompressedDocStarts, numOffsets);
         }
 

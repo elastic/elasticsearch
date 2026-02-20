@@ -122,6 +122,30 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
+    public static class TestES819TSDBDocValuesFormatVersion2 extends ES819TSDBDocValuesFormat {
+
+        public TestES819TSDBDocValuesFormatVersion2() {
+            super();
+        }
+
+        @Override
+        public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
+            return new ES819TSDBDocValuesConsumerVersion2(
+                binaryDVCompressionMode,
+                enablePerBlockCompression,
+                state,
+                skipIndexIntervalSize,
+                minDocsPerOrdinalForRangeEncoding,
+                enableOptimizedMerge,
+                numericBlockShift,
+                DATA_CODEC,
+                DATA_EXTENSION,
+                META_CODEC,
+                META_EXTENSION
+            );
+        }
+    }
+
     @Override
     protected Codec getCodec() {
         return codec;

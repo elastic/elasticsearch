@@ -338,7 +338,7 @@ public class CsvIT extends ESTestCase {
     private static void loadViews() {
         // TODO We should instead load views once and never unload them
         if ("views".equals(currentGroupName)) {
-            CsvTestsDataLoader.VIEW_CONFIGS.forEach(view -> views.maybeLoad(view));
+            CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> views.maybeLoad(view));
         } else {
             views.unloadAll();
         }

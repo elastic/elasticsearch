@@ -230,14 +230,14 @@ public class CsvTestsDataLoader {
         new InferenceConfig("test_completion", TaskType.COMPLETION)
     ).collect(toMap(InferenceConfig::id, Function.identity()));
 
-    public static final List<ViewConfig> VIEW_CONFIGS = List.of(
+    public static final Map<String, ViewConfig> VIEW_CONFIGS = Stream.of(
         new ViewConfig("country_addresses"),
         new ViewConfig("country_airports"),
         new ViewConfig("country_languages"),
         new ViewConfig("airports_mp_filtered"),
         new ViewConfig("employees_rehired"),
         new ViewConfig("employees_not_rehired")
-    );
+    ).collect(toMap(ViewConfig::name, Function.identity()));;
 
     /**
      * <p>
@@ -484,7 +484,7 @@ public class CsvTestsDataLoader {
     public static void loadViewsIntoEs(RestClient client) throws IOException {
         if (clusterHasViewSupport(client)) {
             logger.info("Loading views");
-            for (var view : VIEW_CONFIGS) {
+            for (var view : VIEW_CONFIGS.values()) {
                 loadView(client, view);
             }
         } else {
@@ -495,7 +495,7 @@ public class CsvTestsDataLoader {
     public static void deleteViews(RestClient client) throws IOException {
         if (clusterHasViewSupport(client)) {
             logger.debug("Deleting views");
-            for (var view : VIEW_CONFIGS) {
+            for (var view : VIEW_CONFIGS.values()) {
                 deleteView(client, view.name);
             }
         } else {

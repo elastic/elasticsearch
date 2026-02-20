@@ -643,7 +643,7 @@ public class CsvTests extends ESTestCase {
             return parsed;
         }
         try (InMemoryViewService viewService = InMemoryViewService.makeViewService()) {
-            for (var viewConfig : VIEW_CONFIGS) {
+            for (var viewConfig : VIEW_CONFIGS.values()) {
                 loadView(viewService, viewConfig);
             }
             return viewService.getViewResolver().replaceViews(parsed, this::parseView).plan();

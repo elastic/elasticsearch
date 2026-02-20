@@ -270,7 +270,10 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     public static final Set<String> LOOKUP_ENDPOINTS = LOOKUP_INDICES.stream().map(i -> "/" + i + "/_bulk").collect(toSet());
 
-    public static final Set<String> ENRICH_ENDPOINTS = ENRICH_POLICIES.values().stream().map(p -> "/" + p.index() + "/_bulk").collect(toSet());
+    public static final Set<String> ENRICH_ENDPOINTS = ENRICH_POLICIES.values()
+        .stream()
+        .map(p -> "/" + p.index() + "/_bulk")
+        .collect(toSet());
 
     /**
      * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk, _query,

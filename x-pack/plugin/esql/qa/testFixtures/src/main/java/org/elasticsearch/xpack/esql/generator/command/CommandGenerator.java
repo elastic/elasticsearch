@@ -34,7 +34,11 @@ public interface CommandGenerator {
      */
     record CommandDescription(String commandName, CommandGenerator generator, String commandString, Map<String, Object> context) {}
 
-    record QuerySchema(List<String> baseIndices, List<LookupIdx> lookupIndices, Collection<CsvTestsDataLoader.EnrichConfig> enrichPolicies) {}
+    record QuerySchema(
+        List<String> baseIndices,
+        List<LookupIdx> lookupIndices,
+        Collection<CsvTestsDataLoader.EnrichConfig> enrichPolicies
+    ) {}
 
     record ValidationResult(boolean success, String errorMessage) {}
 

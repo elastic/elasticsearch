@@ -700,8 +700,10 @@ public class ComputeService {
 
             List<SearchExecutionContext> localContexts = new ArrayList<>();
             context.searchExecutionContexts().iterable().forEach(localContexts::add);
-            var localPlan = switch (localPhysicalOptimization) {
-                case ENABLED -> PlannerUtils.localPlan(
+            final PhysicalPlan localPlan;
+            final String logicalPlanString;
+            if (localPhysicalOptimization == LocalPhysicalOptimization.ENABLED) {
+                var localPlanResult = PlannerUtils.localPlanWithLogical(
                     plannerSettings,
                     context.flags(),
                     localContexts,
@@ -710,8 +712,12 @@ public class ComputeService {
                     plan,
                     planTimeProfile
                 );
-                case DISABLED -> plan;
-            };
+                localPlan = localPlanResult.physicalPlan();
+                logicalPlanString = localPlanResult.logicalPlanString();
+            } else {
+                localPlan = plan;
+                logicalPlanString = null;
+            }
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
             }
@@ -747,7 +753,14 @@ public class ComputeService {
             }
             LOGGER.debug("using {} drivers", drivers.size());
             // Pass the ORIGINAL plan (immutable, not transformed) for profiling
-            ActionListener<Void> driverListener = addCompletionInfo(listener, drivers, context, localPlan, planTimeProfile);
+            ActionListener<Void> driverListener = addCompletionInfo(
+                listener,
+                drivers,
+                context,
+                localPlan,
+                logicalPlanString,
+                planTimeProfile
+            );
             driverRunner.executeDrivers(
                 task,
                 drivers,
@@ -766,6 +779,7 @@ public class ComputeService {
         List<Driver> drivers,
         ComputeContext context,
         PhysicalPlan localPlan,
+        String logicalPlanString,
         PlanTimeProfile planTimeProfile
     ) {
         /*
@@ -782,6 +796,7 @@ public class ComputeService {
                     clusterService.getClusterName().value(),
                     transportService.getLocalNode().getName(),
                     planString,
+                    logicalPlanString,
                     planTimeProfile
                 );
                 LOGGER.debug("finished {}", driverCompletionInfo);

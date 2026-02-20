@@ -571,6 +571,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             boolean hasParsedPlan = false;
             boolean hasOptimizedLogicalPlan = false;
             boolean hasOptimizedPhysicalPlan = false;
+            boolean hasLocalLogicalPlan = false;
             boolean hasLocalPhysicalPlan = false;
             for (List<Object> row : values) {
                 String role = (String) row.get(2);
@@ -590,6 +591,13 @@ public class EsqlSecurityIT extends ESRestTestCase {
                     // Coordinator physical plan should contain FragmentExec (to be sent to data nodes)
                     assertThat("Coordinator physical plan should contain FragmentExec", plan, containsString("FragmentExec"));
                 }
+                if ("data".equals(role) && "optimizedLocalLogicalPlan".equals(type)) {
+                    hasLocalLogicalPlan = true;
+                    // Optimized local logical plan should contain EsRelation (not LocalRelation) when using real search contexts
+                    assertThat("Optimized local logical plan should contain EsRelation", plan, containsString("EsRelation"));
+                    // Should contain Aggregate based on the query
+                    assertThat("Optimized local logical plan should contain Aggregate", plan, containsString("Aggregate"));
+                }
                 if ("data".equals(role) && "localPhysicalPlan".equals(type)) {
                     hasLocalPhysicalPlan = true;
                     // Local physical plan should contain an Elasticsearch execution node
@@ -605,6 +613,7 @@ public class EsqlSecurityIT extends ESRestTestCase {
             assertThat("Should have parsed plan", hasParsedPlan, is(true));
             assertThat("Should have optimized logical plan", hasOptimizedLogicalPlan, is(true));
             assertThat("Should have optimized physical plan", hasOptimizedPhysicalPlan, is(true));
+            assertThat("Should have optimized local logical plan from data node", hasLocalLogicalPlan, is(true));
             assertThat("Should have local physical plan from data node", hasLocalPhysicalPlan, is(true));
         }
     }

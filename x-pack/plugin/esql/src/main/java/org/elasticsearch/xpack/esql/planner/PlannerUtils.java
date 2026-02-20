@@ -190,6 +190,97 @@ public class PlannerUtils {
         }));
     }
 
+    /**
+     * Result of local plan optimization containing both physical and logical plans.
+     */
+    public record LocalPlanResult(PhysicalPlan physicalPlan, String logicalPlanString) {}
+
+    public static LocalPlanResult localPlanWithLogical(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        List<SearchExecutionContext> searchContexts,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        PlanTimeProfile planTimeProfile
+    ) {
+        return localPlanWithLogical(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            plan,
+            SearchContextStats.from(searchContexts),
+            planTimeProfile
+        );
+    }
+
+    public static LocalPlanResult localPlanWithLogical(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        PhysicalPlan plan,
+        SearchStats searchStats,
+        PlanTimeProfile planTimeProfile
+    ) {
+        final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
+        var physicalOptimizer = new LocalPhysicalPlanOptimizer(
+            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
+        );
+
+        return localPlanWithLogical(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
+    }
+
+    public static LocalPlanResult localPlanWithLogical(
+        PhysicalPlan plan,
+        LocalLogicalPlanOptimizer logicalOptimizer,
+        LocalPhysicalPlanOptimizer physicalOptimizer,
+        PlanTimeProfile planTimeProfile
+    ) {
+        var isCoordPlan = new Holder<>(Boolean.TRUE);
+        var logicalPlanString = new Holder<String>(null);
+        Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
+            .stream()
+            .map(x -> ((LookupJoinExec) x).right())
+            .collect(Collectors.toSet());
+
+        PhysicalPlan localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
+            if (lookupJoinExecRightChildren.contains(f)) {
+                return f;
+            }
+            isCoordPlan.set(Boolean.FALSE);
+
+            boolean profilingEnabled = planTimeProfile != null;
+            long logicalStartNanos = profilingEnabled ? System.nanoTime() : 0;
+            LogicalPlan optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
+            logicalPlanString.set(optimizedFragment.toString());
+            PhysicalPlan physicalFragment = LocalMapper.INSTANCE.map(optimizedFragment);
+            if (profilingEnabled) {
+                planTimeProfile.addLogicalOptimizationPlanTime(System.nanoTime() - logicalStartNanos);
+            }
+            QueryBuilder filter = f.esFilter();
+            if (filter != null) {
+                physicalFragment = physicalFragment.transformUp(
+                    EsSourceExec.class,
+                    query -> new EsSourceExec(Source.EMPTY, query.indexPattern(), query.indexMode(), query.output(), filter)
+                );
+            }
+
+            long physicalStartNanos = profilingEnabled ? System.nanoTime() : 0;
+            var localOptimized = physicalOptimizer.localOptimize(physicalFragment);
+            if (profilingEnabled) {
+                planTimeProfile.addPhysicalOptimizationPlanTime(System.nanoTime() - physicalStartNanos);
+            }
+
+            return EstimatesRowSize.estimateRowSize(f.estimatedRowSize(), localOptimized);
+        });
+
+        PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;
+
+        return new LocalPlanResult(resultPlan, logicalPlanString.get());
+    }
+
     public static PhysicalPlan localPlan(
         PlannerSettings plannerSettings,
         EsqlFlags flags,

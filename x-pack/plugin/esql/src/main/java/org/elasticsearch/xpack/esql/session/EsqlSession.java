@@ -505,9 +505,13 @@ public class EsqlSession {
                         String cluster = planProfile.clusterName() != null ? planProfile.clusterName() : "";
                         String node = planProfile.nodeName() != null ? planProfile.nodeName() : "";
                         String planTree = planProfile.planTree() != null ? planProfile.planTree() : "";
+                        String logicalPlanTree = planProfile.logicalPlanTree() != null ? planProfile.logicalPlanTree() : "";
                         // Map description to role and type
                         String description = planProfile.description();
                         if (ComputeService.DATA_DESCRIPTION.equals(description)) {
+                            if (logicalPlanTree.isEmpty() == false) {
+                                values.add(List.of(cluster, node, "data", "optimizedLocalLogicalPlan", logicalPlanTree));
+                            }
                             values.add(List.of(cluster, node, "data", "localPhysicalPlan", planTree));
                         } else if (ComputeService.REDUCE_DESCRIPTION.equals(description)) {
                             // Reduce plans are from the coordinator, skip for now (coordinator plan is already shown above)

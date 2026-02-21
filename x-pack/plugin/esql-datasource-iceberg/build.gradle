@@ -1,0 +1,367 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.publish'
+
+versions << [
+  'hadoop'       : '3.4.2',
+  'parquet'      : '1.16.0',
+  'arrow'        : '18.3.0',
+  'caffeine'     : '2.9.3',
+  'checker_qual' : '3.42.0',
+  'jodatime'     : '2.10.14',
+]
+
+esplugin {
+  name = 'esql-datasource-iceberg'
+  description = 'Iceberg table catalog support for ESQL external data sources'
+  classname = 'org.elasticsearch.xpack.esql.datasource.iceberg.IcebergDataSourcePlugin'
+  extendedPlugins = ['x-pack-esql']
+}
+
+base {
+  archivesName = 'esql-datasource-iceberg'
+}
+
+dependencies {
+  // SPI interfaces from ESQL core
+  compileOnly project(path: xpackModule('esql'))
+  compileOnly project(path: xpackModule('esql-core'))
+  compileOnly project(path: xpackModule('core'))
+  compileOnly project(':server')
+  compileOnly project(xpackModule('esql:compute'))
+  
+  // Apache Iceberg with Parquet support - using parquet-hadoop-bundle to avoid jar hell from duplicate shaded classes
+  implementation("org.apache.iceberg:iceberg-core:${versions.iceberg}") {
+    exclude group: 'com.github.ben-manes.caffeine', module: 'caffeine'
+    // Exclude commons-codec to avoid jar hell - x-pack-core already provides commons-codec:1.15
+    exclude group: 'commons-codec', module: 'commons-codec'
+    // Exclude slf4j-api to avoid jar hell - x-pack-core already provides slf4j-api:2.0.6
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+    // Exclude checker-qual to avoid jar hell - x-pack-esql already provides a different version
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+    // Exclude Jackson to avoid jar hell - x-pack-esql already provides Jackson 2.15.0
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+  }
+  implementation("org.apache.iceberg:iceberg-aws:${versions.iceberg}") {
+    // Exclude AWS SDK bundle - we'll declare individual modules explicitly
+    exclude group: 'software.amazon.awssdk', module: 'bundle'
+    exclude group: 'commons-codec', module: 'commons-codec'
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+    // Exclude Jackson to avoid jar hell - x-pack-esql already provides Jackson 2.15.0
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+  }
+  implementation("org.apache.iceberg:iceberg-parquet:${versions.iceberg}") {
+    exclude group: 'org.apache.parquet', module: 'parquet-hadoop'
+    exclude group: 'org.apache.parquet', module: 'parquet-column'
+    exclude group: 'org.apache.parquet', module: 'parquet-avro'
+    exclude group: 'org.apache.parquet', module: 'parquet-format-structures'
+    exclude group: 'org.apache.parquet', module: 'parquet-common'
+    exclude group: 'org.apache.parquet', module: 'parquet-encoding'
+    exclude group: 'org.apache.parquet', module: 'parquet-jackson'
+    exclude group: 'commons-codec', module: 'commons-codec'
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+    // Exclude Jackson to avoid jar hell - x-pack-esql already provides Jackson 2.15.0
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+  }
+  // Iceberg Arrow integration for vectorized data reading
+  implementation("org.apache.iceberg:iceberg-arrow:${versions.iceberg}") {
+    exclude group: 'org.apache.parquet', module: 'parquet-avro'
+    exclude group: 'org.apache.parquet', module: 'parquet-hadoop'
+    exclude group: 'org.apache.parquet', module: 'parquet-column'
+    exclude group: 'org.apache.parquet', module: 'parquet-format-structures'
+    exclude group: 'org.apache.parquet', module: 'parquet-common'
+    exclude group: 'org.apache.parquet', module: 'parquet-encoding'
+    exclude group: 'org.apache.parquet', module: 'parquet-jackson'
+    exclude group: 'commons-codec', module: 'commons-codec'
+    exclude group: 'org.slf4j', module: 'slf4j-api'
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+    // Exclude Jackson to avoid jar hell - x-pack-esql already provides Jackson 2.15.0
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
+  }
+  implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
+  implementation("com.github.ben-manes.caffeine:caffeine:${versions.caffeine}") {
+    exclude group: 'org.checkerframework', module: 'checker-qual'
+  }
+  
+  // Hadoop dependencies - required at both compile time and runtime for Parquet operations.
+  // 
+  // The Hadoop Configuration class is needed because:
+  // 1. ParquetFileReader has method overloads that reference Configuration in their signatures
+  // 2. ParquetReadOptions.Builder() constructor creates HadoopParquetConfiguration internally,
+  //    which requires the Configuration class to be present even when using non-Hadoop code paths
+  // 3. parquet-hadoop-bundle includes shaded Parquet classes but not Hadoop Configuration
+  implementation('org.apache.hadoop:hadoop-client-api:3.4.2')
+  implementation('org.apache.hadoop:hadoop-client-runtime:3.4.2')
+  
+  // Arrow dependencies (needed for Iceberg Vectorized Reader integration)
+  implementation("org.apache.arrow:arrow-vector:${versions.arrow}")
+  implementation("org.apache.arrow:arrow-memory-core:${versions.arrow}")
+  implementation("org.apache.arrow:arrow-memory-unsafe:${versions.arrow}")
+  
+  // Checker-qual is needed at compile time for Arrow annotations
+  // Use compileOnly to avoid jar hell at runtime - x-pack-esql already provides it
+  compileOnly "org.checkerframework:checker-qual:${versions.checker_qual}"
+  
+  // AWS SDK for S3 access - following repository-s3 pattern
+  implementation "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:apache-client:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:url-connection-client:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:aws-core:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:aws-xml-protocol:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:aws-json-protocol:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:http-client-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:metrics-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:regions:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:retries-spi:${versions.awsv2sdk}"
+  // KMS is required by Iceberg's AwsProperties class for encryption support
+  implementation "software.amazon.awssdk:kms:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:retries:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:s3:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:sdk-core:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:sts:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:profiles:${versions.awsv2sdk}"
+  
+  // Apache HTTP client for AWS SDK (required by apache-client module)
+  implementation "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  
+  runtimeOnly "commons-codec:commons-codec:${versions.commonscodec}"
+  runtimeOnly "commons-logging:commons-logging:${versions.commonslogging}"
+  runtimeOnly "joda-time:joda-time:${versions.jodatime}"
+  runtimeOnly "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  runtimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
+  runtimeOnly "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
+  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
+  runtimeOnly "software.amazon.awssdk:arns:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:aws-query-protocol:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:checksums-spi:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:checksums:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:endpoints-spi:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:http-auth:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:http-auth-aws:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:http-auth-spi:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:json-utils:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:protocol-core:${versions.awsv2sdk}"
+  runtimeOnly "software.amazon.awssdk:third-party-jackson-core:${versions.awsv2sdk}"
+
+  testImplementation project(':test:framework')
+  testImplementation(testArtifact(project(xpackModule('core'))))
+  testImplementation project(xpackModule('esql'))
+  testImplementation project(xpackModule('esql-core'))
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /iceberg-.*/, to: 'iceberg'
+  mapping from: /parquet-.*/, to: 'parquet'
+  mapping from: /hadoop-.*/, to: 'hadoop'
+  mapping from: /arrow-.*/, to: 'arrow'
+  mapping from: /log4j-.*/, to: 'log4j'
+}
+
+tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).configureEach {
+  // AWS SDK module mappings
+  mapping from: 'annotations',              to: 'aws-sdk-2'
+  mapping from: 'apache-client',            to: 'aws-sdk-2'
+  mapping from: 'arns',                     to: 'aws-sdk-2'
+  mapping from: 'auth',                     to: 'aws-sdk-2'
+  mapping from: 'aws-core',                 to: 'aws-sdk-2'
+  mapping from: 'aws-json-protocol',        to: 'aws-sdk-2'
+  mapping from: 'aws-query-protocol',       to: 'aws-sdk-2'
+  mapping from: 'aws-xml-protocol',         to: 'aws-sdk-2'
+  mapping from: 'checksums',                to: 'aws-sdk-2'
+  mapping from: 'checksums-spi',            to: 'aws-sdk-2'
+  mapping from: 'endpoints-spi',            to: 'aws-sdk-2'
+  mapping from: 'http-auth',                to: 'aws-sdk-2'
+  mapping from: 'http-auth-aws',            to: 'aws-sdk-2'
+  mapping from: 'http-auth-spi',            to: 'aws-sdk-2'
+  mapping from: 'http-client-spi',          to: 'aws-sdk-2'
+  mapping from: 'identity-spi',             to: 'aws-sdk-2'
+  mapping from: 'json-utils',               to: 'aws-sdk-2'
+  mapping from: 'metrics-spi',              to: 'aws-sdk-2'
+  mapping from: 'profiles',                 to: 'aws-sdk-2'
+  mapping from: 'protocol-core',            to: 'aws-sdk-2'
+  mapping from: 'regions',                  to: 'aws-sdk-2'
+  mapping from: 'retries',                  to: 'aws-sdk-2'
+  mapping from: 'retries-spi',              to: 'aws-sdk-2'
+  mapping from: 'kms',                       to: 'aws-sdk-2'
+  mapping from: 's3',                       to: 'aws-sdk-2'
+  mapping from: 'sdk-core',                 to: 'aws-sdk-2'
+  mapping from: 'sts',                      to: 'aws-sdk-2'
+  mapping from: 'third-party-jackson-core', to: 'aws-sdk-2'
+  mapping from: 'url-connection-client',    to: 'aws-sdk-2'
+  mapping from: 'utils',                    to: 'aws-sdk-2'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses()
+  ignoreViolations(
+    // Caffeine cache uses sun.misc.Unsafe
+    'com.github.benmanes.caffeine.SCQHeader$HeadAndTailRef',
+    'com.github.benmanes.caffeine.SingleConsumerQueue',
+    'com.github.benmanes.caffeine.SingleConsumerQueue$Node',
+    'com.github.benmanes.caffeine.base.UnsafeAccess',
+    'com.github.benmanes.caffeine.cache.BBHeader$ReadAndWriteCounterRef',
+    'com.github.benmanes.caffeine.cache.BBHeader$ReadCounterRef',
+    'com.github.benmanes.caffeine.cache.BLCHeader$DrainStatusRef',
+    'com.github.benmanes.caffeine.cache.BaseMpscLinkedArrayQueue',
+    'com.github.benmanes.caffeine.cache.FD',
+    'com.github.benmanes.caffeine.cache.FDA',
+    'com.github.benmanes.caffeine.cache.FDAR',
+    'com.github.benmanes.caffeine.cache.FDAW',
+    'com.github.benmanes.caffeine.cache.FDAWR',
+    'com.github.benmanes.caffeine.cache.FDR',
+    'com.github.benmanes.caffeine.cache.FDW',
+    'com.github.benmanes.caffeine.cache.FDWR',
+    'com.github.benmanes.caffeine.cache.FS',
+    'com.github.benmanes.caffeine.cache.FSA',
+    'com.github.benmanes.caffeine.cache.FSAR',
+    'com.github.benmanes.caffeine.cache.FSAW',
+    'com.github.benmanes.caffeine.cache.FSAWR',
+    'com.github.benmanes.caffeine.cache.FSR',
+    'com.github.benmanes.caffeine.cache.FSW',
+    'com.github.benmanes.caffeine.cache.FSWR',
+    'com.github.benmanes.caffeine.cache.FW',
+    'com.github.benmanes.caffeine.cache.FWA',
+    'com.github.benmanes.caffeine.cache.FWAR',
+    'com.github.benmanes.caffeine.cache.FWAW',
+    'com.github.benmanes.caffeine.cache.FWAWR',
+    'com.github.benmanes.caffeine.cache.FWR',
+    'com.github.benmanes.caffeine.cache.FWW',
+    'com.github.benmanes.caffeine.cache.FWWR',
+    'com.github.benmanes.caffeine.cache.PD',
+    'com.github.benmanes.caffeine.cache.PDA',
+    'com.github.benmanes.caffeine.cache.PDAR',
+    'com.github.benmanes.caffeine.cache.PDAW',
+    'com.github.benmanes.caffeine.cache.PDAWR',
+    'com.github.benmanes.caffeine.cache.PDR',
+    'com.github.benmanes.caffeine.cache.PDW',
+    'com.github.benmanes.caffeine.cache.PDWR',
+    'com.github.benmanes.caffeine.cache.PS',
+    'com.github.benmanes.caffeine.cache.PSA',
+    'com.github.benmanes.caffeine.cache.PSAR',
+    'com.github.benmanes.caffeine.cache.PSAW',
+    'com.github.benmanes.caffeine.cache.PSAWR',
+    'com.github.benmanes.caffeine.cache.PSR',
+    'com.github.benmanes.caffeine.cache.PSW',
+    'com.github.benmanes.caffeine.cache.PSWR',
+    'com.github.benmanes.caffeine.cache.PW',
+    'com.github.benmanes.caffeine.cache.PWA',
+    'com.github.benmanes.caffeine.cache.PWAR',
+    'com.github.benmanes.caffeine.cache.PWAW',
+    'com.github.benmanes.caffeine.cache.PWAWR',
+    'com.github.benmanes.caffeine.cache.PWR',
+    'com.github.benmanes.caffeine.cache.PWW',
+    'com.github.benmanes.caffeine.cache.PWWR',
+    'com.github.benmanes.caffeine.cache.StripedBuffer',
+    'com.github.benmanes.caffeine.cache.UnsafeAccess',
+    'com.github.benmanes.caffeine.cache.UnsafeRefArrayAccess',
+    // Arrow memory uses sun.misc.Unsafe
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1',
+    // Hadoop internal uses sun.misc.Unsafe
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm',
+    'org.apache.hadoop.hdfs.shortcircuit.ShortCircuitShm$Slot',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer',
+    'org.apache.hadoop.io.FastByteComparisons$LexicographicalComparerHolder$UnsafeComparer$1',
+    'org.apache.hadoop.io.nativeio.NativeIO',
+    'org.apache.hadoop.service.launcher.InterruptEscalator',
+    'org.apache.hadoop.service.launcher.IrqHandler',
+    'org.apache.hadoop.util.SignalLogger$Handler',
+    // Hadoop shaded Guava uses sun.misc.Unsafe
+    'org.apache.hadoop.shaded.com.google.common.cache.Striped64',
+    'org.apache.hadoop.shaded.com.google.common.cache.Striped64$1',
+    'org.apache.hadoop.shaded.com.google.common.cache.Striped64$Cell',
+    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'org.apache.hadoop.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+    'org.apache.hadoop.shaded.com.google.common.hash.Striped64',
+    'org.apache.hadoop.shaded.com.google.common.hash.Striped64$1',
+    'org.apache.hadoop.shaded.com.google.common.hash.Striped64$Cell',
+    'org.apache.hadoop.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'org.apache.hadoop.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.apache.hadoop.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'org.apache.hadoop.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    // Hadoop shaded Avro uses sun.misc.Unsafe
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeBooleanField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeByteField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCachedField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCharField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeCustomEncodedField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeDoubleField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeFloatField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeIntField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeLongField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeObjectField',
+    'org.apache.hadoop.shaded.org.apache.avro.reflect.FieldAccessUnsafe$UnsafeShortField',
+    // Hadoop shaded Curator Guava uses sun.misc.Unsafe
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64$1',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.cache.Striped64$Cell',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64$1',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.hash.Striped64$Cell',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'org.apache.hadoop.shaded.org.apache.curator.shaded.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    'org.apache.hadoop.shaded.org.xbill.DNS.spi.DNSJavaNameServiceDescriptor',
+    // Hadoop thirdparty Protobuf uses sun.misc.Unsafe
+    'org.apache.hadoop.thirdparty.protobuf.MessageSchema',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$1',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$JvmMemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
+    // Hadoop thirdparty Guava uses sun.misc.Unsafe
+    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64',
+    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64$1',
+    'org.apache.hadoop.thirdparty.com.google.common.cache.Striped64$Cell',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$1',
+    'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$Cell',
+    'org.apache.hadoop.thirdparty.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
+    'org.apache.hadoop.thirdparty.com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1',
+    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
+    'org.apache.hadoop.thirdparty.com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
+    // Parquet shaded hashing uses sun.misc.Unsafe
+    'shaded.parquet.net.openhft.hashing.HotSpotPrior7u6StringHash',
+    'shaded.parquet.net.openhft.hashing.LongHashFunction',
+    'shaded.parquet.net.openhft.hashing.LongTupleHashFunction',
+    'shaded.parquet.net.openhft.hashing.ModernCompactStringHash',
+    'shaded.parquet.net.openhft.hashing.ModernHotSpotStringHash',
+    'shaded.parquet.net.openhft.hashing.UnsafeAccess',
+    'shaded.parquet.net.openhft.hashing.UnsafeAccess$OldUnsafeAccessBigEndian',
+    'shaded.parquet.net.openhft.hashing.UnsafeAccess$OldUnsafeAccessLittleEndian',
+    'shaded.parquet.net.openhft.hashing.Util',
+  )
+}

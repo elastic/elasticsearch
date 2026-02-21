@@ -21,7 +21,6 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 

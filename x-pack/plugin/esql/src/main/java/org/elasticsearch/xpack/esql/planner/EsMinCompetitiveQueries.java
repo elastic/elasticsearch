@@ -40,6 +40,7 @@ public class EsMinCompetitiveQueries {
      * @return the min competitive query comparing to {@code null}.
      */
     private Query forNull() {
+        // NOCOMMIT unit tests for these too
         if (setup.minCompetitive().keyConfigs().getFirst().nullsFirst()) {
             // Nulls are first. That's the highest possible value.
             if (setup.minCompetitive().keyConfigs().size() == 1) {

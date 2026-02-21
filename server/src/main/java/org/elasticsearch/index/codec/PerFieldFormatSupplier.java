@@ -23,6 +23,7 @@ import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
 import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -67,8 +68,6 @@ public class PerFieldFormatSupplier {
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final KnnVectorsFormat knnVectorsFormat;
-    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormat = ES819TSDBDocValuesFormat.getInstance(false);
-    private static final ES819TSDBDocValuesFormat tsdbDocValuesFormatLargeNumericBlock = ES819TSDBDocValuesFormat.getInstance(true);
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
 
@@ -197,9 +196,17 @@ public class PerFieldFormatSupplier {
         }
 
         if (useTSDBDocValuesFormat(field)) {
-            return (mapperService != null && mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize())
-                ? tsdbDocValuesFormatLargeNumericBlock
-                : tsdbDocValuesFormat;
+            if (mapperService != null) {
+                if (mapperService.getIndexSettings()
+                    .getIndexVersionCreated()
+                    .onOrAfter(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3)) {
+                    return new ES819Version3TSDBDocValuesFormat();
+                } else {
+                    return mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize()
+                        ? ES819TSDBDocValuesFormat.getInstance(true)
+                        : ES819TSDBDocValuesFormat.getInstance(false);
+                }
+            }
         }
 
         return docValuesFormat;

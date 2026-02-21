@@ -40,7 +40,6 @@ import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.GroupVIntUtil;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
@@ -60,7 +59,6 @@ import java.util.Arrays;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.VERSION_BINARY_DV_COMPRESS_OFFSETS_USING_BIT_PACKING;
 
 final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     final IntObjectHashMap<NumericEntry> numerics;
@@ -77,9 +75,16 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     private final int numericBlockShift;
     private final int numericBlockSize;
     private final int numericBlockMask;
+    private final DocOffsetsCodec.Decoder docOffsetsDecoder;
 
-    ES819TSDBDocValuesProducer(SegmentReadState state, String dataCodec, String dataExtension, String metaCodec, String metaExtension)
-        throws IOException {
+    ES819TSDBDocValuesProducer(
+        SegmentReadState state,
+        String dataCodec,
+        String dataExtension,
+        String metaCodec,
+        String metaExtension,
+        DocOffsetsCodec.Decoder docOffsetsDecoder
+    ) throws IOException {
         this.numerics = new IntObjectHashMap<>();
         this.binaries = new IntObjectHashMap<>();
         this.sorted = new IntObjectHashMap<>();
@@ -88,6 +93,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         this.skippers = new IntObjectHashMap<>();
         this.maxDoc = state.segmentInfo.maxDoc();
         this.primarySortFieldNumber = primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
+        this.docOffsetsDecoder = docOffsetsDecoder;
         this.merging = false;
 
         // read in the entries from the metadata file.
@@ -165,7 +171,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         int version,
         int primarySortFieldNumber,
         boolean merging,
-        int numericBlockShift
+        int numericBlockShift,
+        DocOffsetsCodec.Decoder docOffsetsDecoder
     ) {
         this.numerics = numerics;
         this.binaries = binaries;
@@ -181,6 +188,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         this.numericBlockShift = numericBlockShift;
         this.numericBlockSize = 1 << numericBlockShift;
         this.numericBlockMask = numericBlockSize - 1;
+        this.docOffsetsDecoder = docOffsetsDecoder;
     }
 
     @Override
@@ -197,7 +205,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             version,
             primarySortFieldNumber,
             true,
-            numericBlockShift
+            numericBlockShift,
+            docOffsetsDecoder
         );
     }
 
@@ -441,7 +450,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     data.clone(),
                     entry.maxUncompressedChunkSize,
                     entry.maxNumDocsInAnyBlock,
-                    version
+                    docOffsetsDecoder
                 );
 
                 @Override
@@ -526,7 +535,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     data.clone(),
                     entry.maxUncompressedChunkSize,
                     entry.maxNumDocsInAnyBlock,
-                    version
+                    docOffsetsDecoder
                 );
 
                 @Override
@@ -557,7 +566,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         private long startDocNumForBlock = -1;
         private long limitDocNumForBlock = -1;
         private final Decompressor decompressor;
-        private final int version;
+        private final DocOffsetsCodec.Decoder docOffsetsDecoder;
 
         BinaryDecoder(
             Decompressor decompressor,
@@ -566,7 +575,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             IndexInput compressedData,
             int biggestUncompressedBlockSize,
             int maxNumDocsInAnyBlock,
-            int version
+            DocOffsetsCodec.Decoder docOffsetsDecoder
         ) {
             this.decompressor = decompressor;
             this.addresses = addresses;
@@ -577,7 +586,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             this.uncompressedBlock = new byte[biggestUncompressedBlockSize];
             uncompressedBytesRef = new BytesRef(uncompressedBlock);
             uncompressedDocStarts = new int[maxNumDocsInAnyBlock + 1];
-            this.version = version;
+            this.docOffsetsDecoder = docOffsetsDecoder;
         }
 
         private BinaryDVCompressionMode.BlockHeader decompressOffsets(long blockId, int numDocsInBlock) throws IOException {
@@ -590,11 +599,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             if (uncompressedBlockLength == 0) {
                 Arrays.fill(uncompressedDocStarts, 0);
             } else {
-                if (version >= VERSION_BINARY_DV_COMPRESS_OFFSETS_USING_BIT_PACKING) {
-                    decompressDocOffsetsUsingBitUnpacking(numDocsInBlock, compressedData);
-                } else {
-                    decompressDocOffsetsUsingGroupedVInts(numDocsInBlock, compressedData);
-                }
+                docOffsetsDecoder.decode(uncompressedDocStarts, numDocsInBlock, compressedData);
             }
 
             return header;
@@ -613,46 +618,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 decompressor.decompress(compressedData, uncompressedBlockLength, 0, uncompressedBlockLength, uncompressedBytesRef);
             } else {
                 compressedData.readBytes(uncompressedBlock, 0, uncompressedBlockLength);
-            }
-        }
-
-        void decompressDocOffsetsUsingGroupedVInts(int numDocsInBlock, DataInput input) throws IOException {
-            int numOffsets = numDocsInBlock + 1;
-            GroupVIntUtil.readGroupVInts(input, uncompressedDocStarts, numOffsets);
-            deltaDecode(uncompressedDocStarts, numOffsets);
-        }
-
-        void decompressDocOffsetsUsingBitUnpacking(int numDocsInBlock, DataInput input) throws IOException {
-            int numOffsets = numDocsInBlock + 1;
-            int bitsPerValue = input.readByte() & 0xFF;
-            if (bitsPerValue == 0) {
-                Arrays.fill(uncompressedDocStarts, 0, numOffsets, 0);
-            } else {
-                int totalBits = numOffsets * bitsPerValue;
-                int totalBytes = (totalBits + 7) / 8;
-                long accumulator = 0;
-                int bitsInAccumulator = 0;
-                int offsetIndex = 0;
-                int mask = (1 << bitsPerValue) - 1;
-                for (int i = 0; i < totalBytes && offsetIndex < numOffsets; i++) {
-                    accumulator = (accumulator << 8) | (input.readByte() & 0xFF);
-                    bitsInAccumulator += 8;
-                    while (bitsInAccumulator >= bitsPerValue && offsetIndex < numOffsets) {
-                        bitsInAccumulator -= bitsPerValue;
-                        uncompressedDocStarts[offsetIndex++] = (int) ((accumulator >>> bitsInAccumulator) & mask);
-                    }
-                }
-            }
-            deltaDecode(uncompressedDocStarts, numOffsets);
-        }
-
-        // Borrowed from to TSDBDocValuesEncoder.decodeDelta
-        // The `sum` variable helps compiler optimize method, should not be removed.
-        void deltaDecode(int[] arr, int length) {
-            int sum = 0;
-            for (int i = 0; i < length; ++i) {
-                sum += arr[i];
-                arr[i] = sum;
             }
         }
 

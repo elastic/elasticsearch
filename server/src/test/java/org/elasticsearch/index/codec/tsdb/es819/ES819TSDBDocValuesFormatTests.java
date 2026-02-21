@@ -73,6 +73,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_BYTES_THRESHOLD;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_COUNT_THRESHOLD;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLengthBetween;
@@ -86,12 +87,13 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
     protected final Codec codec = new Elasticsearch92Lucene103Codec() {
 
-        final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
+        final DocValuesFormat docValuesFormat = new ES819Version3TSDBDocValuesFormat(
             ESTestCase.randomIntBetween(2, 4096),
             ESTestCase.randomIntBetween(1, 512),
             random().nextBoolean(),
             randomBinaryCompressionMode(),
-            true
+            true,
+            NUMERIC_LARGE_BLOCK_SHIFT
         );
 
         @Override
@@ -122,37 +124,13 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
-    public static class TestES819TSDBDocValuesFormatVersion2 extends ES819TSDBDocValuesFormat {
-
-        public TestES819TSDBDocValuesFormatVersion2() {
-            super();
-        }
-
-        @Override
-        public DocValuesConsumer fieldsConsumer(SegmentWriteState state) throws IOException {
-            return new ES819TSDBDocValuesConsumerVersion2(
-                binaryDVCompressionMode,
-                enablePerBlockCompression,
-                state,
-                skipIndexIntervalSize,
-                minDocsPerOrdinalForRangeEncoding,
-                enableOptimizedMerge,
-                numericBlockShift,
-                DATA_CODEC,
-                DATA_EXTENSION,
-                META_CODEC,
-                META_EXTENSION
-            );
-        }
-    }
-
     @Override
     protected Codec getCodec() {
         return codec;
     }
 
     public void testBinaryCompressionEnabled() {
-        ES819TSDBDocValuesFormat docValueFormat = new ES819TSDBDocValuesFormat();
+        ES819TSDBDocValuesFormat docValueFormat = new ES819Version3TSDBDocValuesFormat();
         assertThat(docValueFormat.binaryDVCompressionMode, equalTo(BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1));
     }
 
@@ -747,10 +725,11 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         String hostnameField = "host.name";
         Supplier<IndexWriterConfig> indexConfigWithRandomDVFormat = () -> {
             IndexWriterConfig config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
-            DocValuesFormat dvFormat = switch (random().nextInt(3)) {
+            DocValuesFormat dvFormat = switch (random().nextInt(4)) {
                 case 0 -> new ES87TSDBDocValuesFormatTests.TestES87TSDBDocValuesFormat(random().nextInt(4, 16));
                 case 1 -> new ES819TSDBDocValuesFormat();
-                case 2 -> new Lucene90DocValuesFormat();
+                case 2 -> new ES819Version3TSDBDocValuesFormat();
+                case 3 -> new Lucene90DocValuesFormat();
                 default -> throw new AssertionError("unknown option");
             };
             config.setCodec(new Elasticsearch900Lucene101Codec() {
@@ -2055,7 +2034,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         config.setIndexSort(new Sort(new SortField(primaryField, SortField.Type.STRING, false)));
         config.setMergePolicy(new LogByteSizeMergePolicy());
         final Codec codec = new Elasticsearch92Lucene103Codec() {
-            final ES819TSDBDocValuesFormat docValuesFormat = new ES819TSDBDocValuesFormat(
+            final ES819TSDBDocValuesFormat docValuesFormat = new ES819Version3TSDBDocValuesFormat(
                 randomIntBetween(2, 4096),
                 1, // always enable range-encode
                 random().nextBoolean(),
@@ -2405,12 +2384,13 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
         // lengthIterator is only supported on all binary doc values implementation,
         // and so randomize between compressed and uncompressed implementation to test both implementations.
-        var dvFormat = new ES819TSDBDocValuesFormat(
+        var dvFormat = new ES819Version3TSDBDocValuesFormat(
             ESTestCase.randomIntBetween(2, 4096),
             ESTestCase.randomIntBetween(1, 512),
             random().nextBoolean(),
             randomBoolean() ? BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1 : BinaryDVCompressionMode.NO_COMPRESS,
-            randomBoolean()
+            randomBoolean(),
+            NUMERIC_LARGE_BLOCK_SHIFT
         );
         var compressedCodec = TestUtil.alwaysDocValuesFormat(dvFormat);
 
@@ -2546,7 +2526,7 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
     }
 
     public static int randomNumericBlockSize() {
-        return random().nextBoolean() ? ES819TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT : ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
+        return random().nextBoolean() ? NUMERIC_LARGE_BLOCK_SHIFT : ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
     }
 
     abstract static class BytesRefBuilderStub implements BlockLoader.BytesRefBuilder {

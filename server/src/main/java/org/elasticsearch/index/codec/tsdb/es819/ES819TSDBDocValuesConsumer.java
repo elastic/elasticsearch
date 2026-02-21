@@ -78,10 +78,12 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     final SegmentWriteState state;
     final BinaryDVCompressionMode binaryDVCompressionMode;
     private final boolean enablePerBlockCompression; // only false for testing
+    private final DocOffsetsCodec.Encoder docOffsetsEncoder;
 
     ES819TSDBDocValuesConsumer(
         BinaryDVCompressionMode binaryDVCompressionMode,
         final boolean enablePerBlockCompression,
+        DocOffsetsCodec.Encoder docOffsetsEncoder,
         SegmentWriteState state,
         int skipIndexIntervalSize,
         int minDocsPerOrdinalForOrdinalRangeEncoding,
@@ -94,6 +96,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     ) throws IOException {
         this.binaryDVCompressionMode = binaryDVCompressionMode;
         this.enablePerBlockCompression = enablePerBlockCompression;
+        this.docOffsetsEncoder = docOffsetsEncoder;
         this.state = state;
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
@@ -584,7 +587,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             maxUncompressedBlockLength = Math.max(maxUncompressedBlockLength, uncompressedBlockLength);
             maxNumDocsInAnyBlock = Math.max(maxNumDocsInAnyBlock, numDocsInCurrentBlock);
 
-            compressOffsets(data, numDocsInCurrentBlock);
+            docOffsetsEncoder.encode(docOffsets, numDocsInCurrentBlock, data);
 
             if (shouldCompress) {
                 compress(block, uncompressedBlockLength, data);
@@ -595,33 +598,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             long blockLenBytes = data.getFilePointer() - thisBlockStartPointer;
             blockMetaAcc.addDoc(numDocsInCurrentBlock, blockLenBytes);
             numDocsInCurrentBlock = uncompressedBlockLength = 0;
-        }
-
-        void compressOffsets(DataOutput output, int numDocsInCurrentBlock) throws IOException {
-            int numOffsets = numDocsInCurrentBlock + 1;
-            // delta encode
-            int maxDelta = 0;
-            for (int i = numOffsets - 1; i > 0; i--) {
-                docOffsets[i] -= docOffsets[i - 1];
-                maxDelta = Math.max(maxDelta, docOffsets[i]);
-            }
-            int bitsPerValue = maxDelta == 0 ? 0 : PackedInts.bitsRequired(maxDelta);
-            output.writeByte((byte) bitsPerValue);
-            if (bitsPerValue > 0) {
-                long accumulator = 0;
-                int bitsInAccumulator = 0;
-                for (int i = 0; i < numOffsets; i++) {
-                    accumulator = (accumulator << bitsPerValue) | docOffsets[i];
-                    bitsInAccumulator += bitsPerValue;
-                    while (bitsInAccumulator >= 8) {
-                        bitsInAccumulator -= 8;
-                        output.writeByte((byte) (accumulator >>> bitsInAccumulator));
-                    }
-                }
-                if (bitsInAccumulator > 0) {
-                    output.writeByte((byte) (accumulator << (8 - bitsInAccumulator)));
-                }
-            }
         }
 
         void compress(byte[] data, int uncompressedLength, DataOutput output) throws IOException {

@@ -12,6 +12,7 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -30,6 +31,7 @@ import org.elasticsearch.compute.lucene.query.LuceneSliceQueue.PartitioningStrat
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Limiter;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -52,19 +54,12 @@ import static org.elasticsearch.compute.lucene.query.LuceneSliceQueue.Partitioni
 public class LuceneSourceOperator extends LuceneOperator {
     private static final Logger log = LogManager.getLogger(LuceneSourceOperator.class);
 
-    private int currentPagePos = 0;
-    private int remainingDocs;
-    private final Limiter limiter;
-
-    private IntVector.Builder docsBuilder;
-    private DoubleVector.Builder scoreBuilder;
-    private final LeafCollector leafCollector;
-    private final int minPageSize;
-
     public static class Factory extends LuceneOperator.Factory {
         protected final IndexedByShardId<? extends RefCounted> refCounteds;
         protected final int maxPageSize;
         protected final Limiter limiter;
+        @Nullable
+        private final MinCompetitiveQuery.Factory minCompetitive;
 
         public Factory(
             IndexedByShardId<? extends ShardContext> shardContexts,
@@ -74,7 +69,8 @@ public class LuceneSourceOperator extends LuceneOperator {
             int taskConcurrency,
             int maxPageSize,
             int limit,
-            boolean needsScore
+            boolean needsScore,
+            @Nullable MinCompetitiveQuery.Factory minCompetitive
         ) {
             super(
                 shardContexts,
@@ -92,11 +88,21 @@ public class LuceneSourceOperator extends LuceneOperator {
             this.maxPageSize = maxPageSize;
             // TODO: use a single limiter for multiple stage execution
             this.limiter = limit == NO_LIMIT ? Limiter.NO_LIMIT : new Limiter(limit);
+            this.minCompetitive = minCompetitive;
         }
 
         @Override
         public SourceOperator get(DriverContext driverContext) {
-            return new LuceneSourceOperator(refCounteds, driverContext.blockFactory(), maxPageSize, sliceQueue, limit, limiter, needsScore);
+            return new LuceneSourceOperator(
+                refCounteds,
+                driverContext.blockFactory(),
+                maxPageSize,
+                sliceQueue,
+                limit,
+                limiter,
+                needsScore,
+                minCompetitive
+            );
         }
 
         public int maxPageSize() {
@@ -221,6 +227,18 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
     }
 
+    private int currentPagePos = 0;
+    private int remainingDocs;
+    private final Limiter limiter;
+
+    private IntVector.Builder docsBuilder;
+    private DoubleVector.Builder scoreBuilder;
+    private final LeafCollector leafCollector;
+    private final int minPageSize;
+
+    @Nullable
+    private final MinCompetitiveQuery minCompetitiveQuery;
+
     @SuppressWarnings("this-escape")
     public LuceneSourceOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
@@ -229,7 +247,8 @@ public class LuceneSourceOperator extends LuceneOperator {
         LuceneSliceQueue sliceQueue,
         int limit,
         Limiter limiter,
-        boolean needsScore
+        boolean needsScore,
+        @Nullable MinCompetitiveQuery.Factory minCompetitive
     ) {
         super(refCounteds, blockFactory, maxPageSize, sliceQueue);
         this.minPageSize = Math.max(1, maxPageSize / 2);
@@ -246,6 +265,7 @@ public class LuceneSourceOperator extends LuceneOperator {
                 scoreBuilder = null;
                 this.leafCollector = new LimitingCollector();
             }
+            this.minCompetitiveQuery = minCompetitive == null ? null : minCompetitive.build(blockFactory);
             success = true;
         } finally {
             if (success == false) {
@@ -267,6 +287,11 @@ public class LuceneSourceOperator extends LuceneOperator {
             } else {
                 throw new CollectionTerminatedException();
             }
+        }
+
+        @Override
+        public DocIdSetIterator competitiveIterator() throws IOException {
+            return minCompetitiveQuery == null ? null : minCompetitiveQuery.disi();
         }
     }
 
@@ -305,6 +330,9 @@ public class LuceneSourceOperator extends LuceneOperator {
             final LuceneScorer scorer = getCurrentOrLoadNextScorer();
             if (scorer == null) {
                 return null;
+            }
+            if (minCompetitiveQuery != null) {
+                minCompetitiveQuery.update(scorer.shardContext(), scorer.leafReaderContext());
             }
             final int remainingDocsStart = remainingDocs = limiter.remaining();
             try {
@@ -362,6 +390,11 @@ public class LuceneSourceOperator extends LuceneOperator {
         }
     }
 
+    @Override
+    protected MinCompetitiveQuery.Status minCompetitiveStatus() {
+        return minCompetitiveQuery == null ? null : minCompetitiveQuery.status();
+    }
+
     private IntVector buildDocsVector(int upToPositions) {
         final IntVector docs = docsBuilder.build();
         assert docs.getPositionCount() >= upToPositions : docs.getPositionCount() + " < " + upToPositions;
@@ -407,7 +440,7 @@ public class LuceneSourceOperator extends LuceneOperator {
 
     @Override
     public void additionalClose() {
-        Releasables.close(docsBuilder, scoreBuilder);
+        Releasables.close(docsBuilder, scoreBuilder, minCompetitiveQuery);
     }
 
     @Override

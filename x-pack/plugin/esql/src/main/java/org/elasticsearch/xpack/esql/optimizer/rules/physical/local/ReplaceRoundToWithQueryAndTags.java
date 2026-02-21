@@ -354,16 +354,7 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         newAttributes.add(tagField);
 
         // create a new EsQueryExec with newAttributes/output and queryBuilderAndTags
-        EsQueryExec queryExecWithTags = new EsQueryExec(
-            queryExec.source(),
-            queryExec.indexPattern(),
-            queryExec.indexMode(),
-            newAttributes,
-            queryExec.limit(),
-            queryExec.sorts(),
-            queryExec.estimatedRowSize(),
-            queryBuilderAndTags
-        );
+        EsQueryExec queryExecWithTags = queryExec.withAttrs(newAttributes).withQueryBuilderAndTags(queryBuilderAndTags);
 
         // Replace RoundTo with new tag field in EvalExec
         List<Alias> updatedFields = evalExec.fields()

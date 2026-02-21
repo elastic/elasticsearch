@@ -178,6 +178,11 @@ final class LuceneMinMaxOperator extends LuceneOperator {
     }
 
     @Override
+    protected MinCompetitiveQuery.Status minCompetitiveStatus() {
+        return null;
+    }
+
+    @Override
     protected void describe(StringBuilder sb) {
         sb.append(", remainingDocs=").append(remainingDocs);
     }

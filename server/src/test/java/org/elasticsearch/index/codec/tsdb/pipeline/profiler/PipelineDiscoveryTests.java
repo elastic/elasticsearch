@@ -10,6 +10,7 @@
 package org.elasticsearch.index.codec.tsdb.pipeline.profiler;
 
 import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.store.IOContext;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.codec.tsdb.pipeline.NumericDataGenerators;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
@@ -43,8 +44,8 @@ public class PipelineDiscoveryTests extends ESTestCase {
                 false,
                 BLOCK_SIZE
             );
-            final PipelineConfig adaptiveConfig = adaptive.resolve(ctx, values, BLOCK_SIZE);
-            final PipelineConfig staticConfig = staticResolver.resolve(ctx, values, BLOCK_SIZE);
+            final PipelineConfig adaptiveConfig = adaptive.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
+            final PipelineConfig staticConfig = staticResolver.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
 
             final int adaptiveBytes = measureSize(adaptiveConfig, values);
             final int staticBytes = staticConfig.isDefault()
@@ -68,7 +69,7 @@ public class PipelineDiscoveryTests extends ESTestCase {
         for (final NumericDataGenerators.SeededDoubleDataSource ds : NumericDataGenerators.seededDoubleDataSources()) {
             final long[] values = NumericDataGenerators.doublesToSortableLongs(ds.generator().apply(BLOCK_SIZE, SEED));
             final PipelineResolver.FieldContext ctx = buildDoubleGaugeContext(ds.name());
-            final PipelineConfig adaptiveConfig = adaptive.resolve(ctx, values, BLOCK_SIZE);
+            final PipelineConfig adaptiveConfig = adaptive.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
 
             final int adaptiveBytes = measureSize(adaptiveConfig, values);
             logger.info("[DOUBLE] {} | adaptive={} bytes ({})", ds.name(), adaptiveBytes, adaptiveConfig);
@@ -88,7 +89,13 @@ public class PipelineDiscoveryTests extends ESTestCase {
         for (final NumericDataGenerators.SeededLongDataSource ds : NumericDataGenerators.seededLongDataSources()) {
             final long[] values = ds.generator().apply(BLOCK_SIZE, SEED);
             final BlockProfile profile = BlockProfiler.INSTANCE.profile(values, BLOCK_SIZE);
-            final PipelineConfig selectedConfig = PipelineSelector.INSTANCE.select(profile, BLOCK_SIZE, PipelineConfig.DataType.LONG, null);
+            final PipelineConfig selectedConfig = PipelineSelector.INSTANCE.select(
+                profile,
+                BLOCK_SIZE,
+                PipelineConfig.DataType.LONG,
+                null,
+                null
+            );
 
             final int selectedBytes = measureSize(selectedConfig, values);
             int bestBytes = Integer.MAX_VALUE;

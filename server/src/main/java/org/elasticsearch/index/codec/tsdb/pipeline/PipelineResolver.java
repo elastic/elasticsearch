@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline;
 
+import org.apache.lucene.store.IOContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -34,5 +35,5 @@ public interface PipelineResolver {
         int blockSize
     ) {}
 
-    PipelineConfig resolve(FieldContext context, long[] sample, int sampleSize);
+    PipelineConfig resolve(FieldContext context, long[] sample, int sampleSize, IOContext ioContext);
 }

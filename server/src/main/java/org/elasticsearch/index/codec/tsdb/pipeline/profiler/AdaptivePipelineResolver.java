@@ -11,6 +11,8 @@ package org.elasticsearch.index.codec.tsdb.pipeline.profiler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.MergeInfo;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 
@@ -27,16 +29,16 @@ public final class AdaptivePipelineResolver implements PipelineResolver {
     }
 
     @Override
-    public PipelineConfig resolve(final FieldContext context, long[] sample, int sampleSize) {
+    public PipelineConfig resolve(final FieldContext context, long[] sample, int sampleSize, IOContext ioContext) {
         if (sampleSize == 0) {
-            logger.debug("pipeline-select ({}) [{}] -> default (empty sample)", phase(), context.fieldName());
+            logger.debug("pipeline-select ({}) [{}] -> default (empty sample)", phase(ioContext), context.fieldName());
             return PipelineConfig.defaultConfig();
         }
 
         final int blockSize = context.blockSize();
         final BlockProfile profile = profiler.profile(sample, sampleSize);
         final PipelineConfig.DataType dataType = context.dataType();
-        final PipelineConfig pipeline = selector.select(profile, blockSize, dataType, context.hint());
+        final PipelineConfig pipeline = selector.select(profile, blockSize, dataType, context.hint(), context.metricType());
 
         if (logger.isDebugEnabled()) {
             final String hint = context.hint() != null ? context.hint().name().toLowerCase() : "none";
@@ -46,7 +48,7 @@ public final class AdaptivePipelineResolver implements PipelineResolver {
                     + " | profile: runs={} range={} gcd={}/{} mono={} bits=[raw={} xor={} dd={}]"
                     + " | -> {}",
                 context.fieldName(),
-                phase(),
+                phase(ioContext),
                 dataType,
                 hint,
                 profile.valueCount(),
@@ -65,16 +67,13 @@ public final class AdaptivePipelineResolver implements PipelineResolver {
         return pipeline;
     }
 
-    private static String phase() {
-        final String threadName = Thread.currentThread().getName();
-        if (threadName.contains("[merge]")) {
-            return "merge";
+    private static String phase(IOContext ioContext) {
+        final MergeInfo mergeInfo = ioContext.mergeInfo();
+        if (mergeInfo != null) {
+            return mergeInfo.mergeMaxNumSegments() == -1 ? "merge" : "force-merge";
         }
-        if (threadName.contains("[flush]")) {
+        if (ioContext.flushInfo() != null) {
             return "flush";
-        }
-        if (threadName.contains("[refresh]")) {
-            return "refresh";
         }
         return "other";
     }

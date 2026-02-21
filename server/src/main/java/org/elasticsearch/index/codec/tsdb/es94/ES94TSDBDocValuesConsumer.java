@@ -183,7 +183,7 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
         if (ctx == null) {
             return PipelineConfig.defaultConfig();
         }
-        final PipelineConfig config = pipelineResolver.resolve(ctx, sample, sampleSize);
+        final PipelineConfig config = pipelineResolver.resolve(ctx, sample, sampleSize, context);
         logger.trace("pipeline resolve [{}] config=[{}]", ctx.fieldName(), config);
         return config;
     }

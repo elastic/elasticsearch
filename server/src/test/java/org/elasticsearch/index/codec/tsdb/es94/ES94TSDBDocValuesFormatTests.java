@@ -481,7 +481,7 @@ public class ES94TSDBDocValuesFormatTests extends ESTestCase {
             final PipelineConfig config = fieldPipelines.get(fieldName);
             final int blockSize = config != null ? config.blockSize() : ES94TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
             return new PipelineResolver.FieldContext(fieldName, null, PipelineConfig.DataType.LONG, null, null, false, blockSize);
-        }, (ctx, sample, sampleSize) -> {
+        }, (ctx, sample, sampleSize, ioContext) -> {
             final PipelineConfig config = fieldPipelines.get(ctx.fieldName());
             return config != null ? config : PipelineConfig.defaultConfig();
         });

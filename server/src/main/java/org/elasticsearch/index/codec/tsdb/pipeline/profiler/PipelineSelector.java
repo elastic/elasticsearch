@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.tsdb.pipeline.profiler;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver.OptimizeFor;
+import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 
 public final class PipelineSelector {
 
@@ -19,6 +20,10 @@ public final class PipelineSelector {
     // Above this, the delta-delta transform no longer compresses well enough to justify its overhead
     // (extra metadata + patchedPFor) compared to plain delta encoding.
     private static final int DELTA_DELTA_MAX_BITS_THRESHOLD = 4;
+
+    private static final double QUANTIZE_2_DECIMALS = 1e-2;
+    private static final double QUANTIZE_4_DECIMALS = 1e-4;
+    private static final double QUANTIZE_6_DECIMALS = 1e-6;
 
     // NOTE: must match OffsetCodecStage.DEFAULT_MIN_OFFSET_RATIO_PERCENT so estimatePostOffsetBpv
     // agrees with whether the offset stage will actually fire. If these diverge, the RLE cost
@@ -44,12 +49,13 @@ public final class PipelineSelector {
         final BlockProfile profile,
         int blockSize,
         final PipelineConfig.DataType dataType,
-        @Nullable OptimizeFor hint
+        @Nullable OptimizeFor hint,
+        @Nullable MetricType metricType
     ) {
         return switch (dataType) {
             case LONG -> selectLong(profile, blockSize);
-            case DOUBLE -> selectDouble(profile, blockSize, hint);
-            case FLOAT -> selectFloat(profile, blockSize, hint);
+            case DOUBLE -> selectDouble(profile, blockSize, hint, metricType);
+            case FLOAT -> selectFloat(profile, blockSize, hint, metricType);
         };
     }
 
@@ -78,72 +84,92 @@ public final class PipelineSelector {
         return PipelineConfig.forLongs(blockSize).offset().bitPack();
     }
 
-    private PipelineConfig selectDouble(final BlockProfile profile, int blockSize, @Nullable OptimizeFor hint) {
+    private PipelineConfig selectDouble(
+        final BlockProfile profile,
+        int blockSize,
+        @Nullable OptimizeFor hint,
+        @Nullable MetricType metricType
+    ) {
         if (profile.range() == 0) {
             return PipelineConfig.forDoubles(blockSize).offset().rle().bitPack();
         }
         if (isRleProfitable(profile)) {
             return PipelineConfig.forDoubles(blockSize).offset().rle().bitPack();
         }
-        if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
-            if (hint == OptimizeFor.STORAGE) {
-                // NOTE: Gorilla's sequential XOR encoding is the most compact for monotonic doubles
-                return PipelineConfig.forDoubles(blockSize).gorilla();
-            }
-            if (hint == OptimizeFor.SPEED) {
-                // NOTE: Chimp's group-based XOR is SIMD-friendly — faster decode than Gorilla
-                return PipelineConfig.forDoubles(blockSize).chimpDoubleStage().offset().gcd().bitPack();
-            }
+        if (metricType == MetricType.COUNTER || profile.xorMaxBits() < profile.rawMaxBits()) {
+            return selectXorDouble(blockSize, hint);
         }
-        if (profile.shiftedGcd() > 1) {
-            return PipelineConfig.forDoubles(blockSize).offset().gcd().bitPack();
-        }
-        if (profile.xorMaxBits() < profile.rawMaxBits()) {
-            // NOTE: smooth double gauges — ALP exploits decimal structure; lossy 6-digit
-            // quantization when optimizing for storage, lossless otherwise.
-            // XOR + patchedPFor is faster but less compact.
-            if (hint == OptimizeFor.SPEED) {
-                return PipelineConfig.forDoubles(blockSize).xor().patchedPFor().bitPack();
-            }
-            return hint == OptimizeFor.STORAGE
-                ? PipelineConfig.forDoubles(blockSize).alpDoubleStage(1e-6).offset().gcd().bitPack()
-                : PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack();
-        }
-        // NOTE: noisy doubles — XOR provides no bit-width reduction, use offset + patchedPFor.
-        // PatchedPFor gracefully no-ops if exceptions exceed its internal limit.
-        return PipelineConfig.forDoubles(blockSize).offset().patchedPFor().bitPack();
+        // NOTE: ALP exploits decimal structure in the IEEE domain — works regardless of XOR stats.
+        // Quantization is graduated by hint: aggressive for storage, none for speed, mild by default.
+        // ALP's internal skip mechanism handles blocks where it doesn't help.
+        return selectAlpDouble(blockSize, hint);
     }
 
-    private PipelineConfig selectFloat(final BlockProfile profile, int blockSize, @Nullable OptimizeFor hint) {
+    private static PipelineConfig selectAlpDouble(int blockSize, @Nullable OptimizeFor hint) {
+        if (hint == OptimizeFor.STORAGE) {
+            return PipelineConfig.forDoubles(blockSize).alpDoubleStage(QUANTIZE_2_DECIMALS).offset().gcd().bitPack();
+        }
+        if (hint == OptimizeFor.BALANCED) {
+            return PipelineConfig.forDoubles(blockSize).alpDoubleStage(QUANTIZE_4_DECIMALS).offset().gcd().bitPack();
+        }
+        if (hint == OptimizeFor.SPEED) {
+            return PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack();
+        }
+        return PipelineConfig.forDoubles(blockSize).alpDoubleStage(QUANTIZE_6_DECIMALS).offset().gcd().bitPack();
+    }
+
+    private static PipelineConfig selectXorDouble(int blockSize, @Nullable OptimizeFor hint) {
+        if (hint == OptimizeFor.STORAGE) {
+            return PipelineConfig.forDoubles(blockSize).gorilla();
+        }
+        if (hint == OptimizeFor.SPEED) {
+            return PipelineConfig.forDoubles(blockSize).chimpDoubleStage().offset().gcd().bitPack();
+        }
+        return PipelineConfig.forDoubles(blockSize).fpcStage().offset().gcd().bitPack();
+    }
+
+    private PipelineConfig selectFloat(
+        final BlockProfile profile,
+        int blockSize,
+        @Nullable OptimizeFor hint,
+        @Nullable MetricType metricType
+    ) {
         if (profile.range() == 0) {
             return PipelineConfig.forFloats(blockSize).offset().rle().bitPack();
         }
         if (isRleProfitable(profile)) {
             return PipelineConfig.forFloats(blockSize).offset().rle().bitPack();
         }
-        if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
-            if (hint == OptimizeFor.STORAGE) {
-                // NOTE: Gorilla's sequential XOR encoding is the most compact for monotonic floats
-                return PipelineConfig.forFloats(blockSize).gorilla();
-            }
-            if (hint == OptimizeFor.SPEED) {
-                // NOTE: Chimp's group-based XOR is SIMD-friendly — faster decode than Gorilla
-                return PipelineConfig.forFloats(blockSize).chimpFloatStage().offset().gcd().bitPack();
-            }
+        if (metricType == MetricType.COUNTER || profile.xorMaxBits() < profile.rawMaxBits()) {
+            return selectXorFloat(blockSize, hint);
         }
-        if (profile.shiftedGcd() > 1) {
-            return PipelineConfig.forFloats(blockSize).offset().gcd().bitPack();
+        // NOTE: ALP exploits decimal structure in the IEEE domain — works regardless of XOR stats.
+        // Quantization is graduated by hint: aggressive for storage, none for speed, mild by default.
+        // ALP's internal skip mechanism handles blocks where it doesn't help.
+        return selectAlpFloat(blockSize, hint);
+    }
+
+    private static PipelineConfig selectAlpFloat(int blockSize, @Nullable OptimizeFor hint) {
+        if (hint == OptimizeFor.STORAGE) {
+            return PipelineConfig.forFloats(blockSize).alpFloatStage(QUANTIZE_2_DECIMALS).offset().gcd().bitPack();
         }
-        if (profile.xorMaxBits() < profile.rawMaxBits()) {
-            // NOTE: smooth floats — ALP exploits decimal structure for best compression,
-            // XOR + patchedPFor is faster but less compact
-            return hint == OptimizeFor.SPEED
-                ? PipelineConfig.forFloats(blockSize).xor().patchedPFor().bitPack()
-                : PipelineConfig.forFloats(blockSize).alpFloatStage().offset().gcd().bitPack();
+        if (hint == OptimizeFor.BALANCED) {
+            return PipelineConfig.forFloats(blockSize).alpFloatStage(QUANTIZE_4_DECIMALS).offset().gcd().bitPack();
         }
-        // NOTE: noisy floats — XOR provides no bit-width reduction, use offset + patchedPFor.
-        // PatchedPFor gracefully no-ops if exceptions exceed its internal limit.
-        return PipelineConfig.forFloats(blockSize).offset().patchedPFor().bitPack();
+        if (hint == OptimizeFor.SPEED) {
+            return PipelineConfig.forFloats(blockSize).alpFloatStage().offset().gcd().bitPack();
+        }
+        return PipelineConfig.forFloats(blockSize).alpFloatStage(QUANTIZE_6_DECIMALS).offset().gcd().bitPack();
+    }
+
+    private static PipelineConfig selectXorFloat(int blockSize, @Nullable OptimizeFor hint) {
+        if (hint == OptimizeFor.STORAGE) {
+            return PipelineConfig.forFloats(blockSize).gorilla();
+        }
+        if (hint == OptimizeFor.SPEED) {
+            return PipelineConfig.forFloats(blockSize).chimpFloatStage().offset().gcd().bitPack();
+        }
+        return PipelineConfig.forFloats(blockSize).fpcStage().offset().gcd().bitPack();
     }
 
     // NOTE: estimates whether RLE saves more bytes than its metadata costs, accounting for

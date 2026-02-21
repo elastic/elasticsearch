@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.IOContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
@@ -24,7 +25,7 @@ public final class StaticPipelineResolver implements PipelineResolver {
     public static final StaticPipelineResolver INSTANCE = new StaticPipelineResolver();
 
     @Override
-    public PipelineConfig resolve(final FieldContext context, long[] sample, int sampleSize) {
+    public PipelineConfig resolve(final FieldContext context, long[] sample, int sampleSize, IOContext ioContext) {
         if (context.indexMode() == IndexMode.STANDARD) {
             return PipelineConfig.defaultConfig();
         }

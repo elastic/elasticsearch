@@ -309,8 +309,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT7_FUNC);
     }
 
-    void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, IntFunction<byte[]> byteArraySupplier)
-        throws IOException {
+    void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, IntFunction<byte[]> byteArraySupplier) throws IOException {
         var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testRandomSliceImpl"), maxChunkSize)) {

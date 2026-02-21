@@ -108,11 +108,11 @@ public class ForceMergeStepTests extends ESTestCase {
         assertFalse(forceMergeStep.stepCompleted(index, projectState));
     }
 
-    public void testMarkForceMergeCompleteHappyCase() {
+    public void testMarkDLMForceMergeCompleteHappyCase() {
         ProjectState projectState = createProjectState();
         DlmStepContext stepContext = createStepContext(projectState);
 
-        forceMergeStep.markForceMergeComplete(stepContext, ActionListener.noop());
+        forceMergeStep.markDLMForceMergeComplete(stepContext, ActionListener.noop());
 
         assertThat(capturedRequest.get(), is(notNullValue()));
         assertThat(capturedRequest.get().indices(), is(notNullValue()));

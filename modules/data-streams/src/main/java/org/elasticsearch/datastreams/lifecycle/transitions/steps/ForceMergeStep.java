@@ -10,6 +10,7 @@
 package org.elasticsearch.datastreams.lifecycle.transitions.steps;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.common.settings.Settings;
@@ -39,7 +40,7 @@ public class ForceMergeStep implements DlmStep {
      */
     @Override
     public boolean stepCompleted(Index index, ProjectState projectState) {
-        return isForceMergeComplete(index, projectState);
+        return isDLMForceMergeComplete(index, projectState);
     }
 
     /**
@@ -61,7 +62,7 @@ public class ForceMergeStep implements DlmStep {
      * @param projectState The current project state.
      * @return True if the force merge has been completed, false otherwise.
      */
-    protected boolean isForceMergeComplete(Index index, ProjectState projectState) {
+    protected boolean isDLMForceMergeComplete(Index index, ProjectState projectState) {
         return Optional.ofNullable(projectState.metadata().index(index))
             .map(indexMetadata -> indexMetadata.getSettings().getAsBoolean(DLM_FORCE_MERGE_COMPLETE_SETTING, false))
             .orElse(false);
@@ -74,7 +75,7 @@ public class ForceMergeStep implements DlmStep {
      * @param stepContext The context containing the index and client for executing the update.
      * @param listener    The listener to notify upon completion or failure.
      */
-    protected void markForceMergeComplete(DlmStepContext stepContext, ActionListener<Void> listener) {
+    protected void markDLMForceMergeComplete(DlmStepContext stepContext, ActionListener<Void> listener) {
         String indexName = stepContext.indexName();
 
         UpdateSettingsRequest updateSettingsRequest = new UpdateSettingsRequest(
@@ -88,17 +89,28 @@ public class ForceMergeStep implements DlmStep {
         );
 
         stepContext.executeDeduplicatedRequest(
-            "update-settings",
+            TransportUpdateSettingsAction.TYPE.name(),
             updateSettingsRequest,
             failureMessage,
-            (req, reqListener) -> stepContext.client()
+            (req, unused) -> stepContext.client()
                 .projectClient(stepContext.projectId())
                 .admin()
                 .indices()
-                .updateSettings(
-                    updateSettingsRequest,
-                    ActionListener.wrap(acknowledgedResponse -> reqListener.onResponse(null), reqListener::onFailure)
-                )
+                .updateSettings(updateSettingsRequest, ActionListener.wrap(acknowledgedResponse -> {
+                    if (acknowledgedResponse.isAcknowledged()) {
+                        listener.onResponse(null);
+                    } else {
+                        listener.onFailure(
+                            new RuntimeException(
+                                Strings.format(
+                                    "Failed to mark force merge as complete for index [%s] because "
+                                        + "the update settings request was not acknowledged",
+                                    indexName
+                                )
+                            )
+                        );
+                    }
+                }, listener::onFailure))
         );
     }
 

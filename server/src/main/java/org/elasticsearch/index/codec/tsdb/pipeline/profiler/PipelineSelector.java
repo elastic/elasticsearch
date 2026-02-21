@@ -99,11 +99,15 @@ public final class PipelineSelector {
             return PipelineConfig.forDoubles(blockSize).offset().gcd().bitPack();
         }
         if (profile.xorMaxBits() < profile.rawMaxBits()) {
-            // NOTE: smooth double gauges — ALP with 6-digit quantization exploits decimal structure,
-            // XOR + patchedPFor is faster but less compact
-            return hint == OptimizeFor.SPEED
-                ? PipelineConfig.forDoubles(blockSize).xor().patchedPFor().bitPack()
-                : PipelineConfig.forDoubles(blockSize).alpDoubleStage(1e-6).offset().gcd().bitPack();
+            // NOTE: smooth double gauges — ALP exploits decimal structure; lossy 6-digit
+            // quantization when optimizing for storage, lossless otherwise.
+            // XOR + patchedPFor is faster but less compact.
+            if (hint == OptimizeFor.SPEED) {
+                return PipelineConfig.forDoubles(blockSize).xor().patchedPFor().bitPack();
+            }
+            return hint == OptimizeFor.STORAGE
+                ? PipelineConfig.forDoubles(blockSize).alpDoubleStage(1e-6).offset().gcd().bitPack()
+                : PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack();
         }
         // NOTE: noisy doubles — XOR provides no bit-width reduction, use offset + patchedPFor
         return PipelineConfig.forDoubles(blockSize).offset().patchedPFor().bitPack();
@@ -117,12 +121,9 @@ public final class PipelineSelector {
             return PipelineConfig.forFloats(blockSize).offset().rle().bitPack();
         }
         if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
-            if (profile.deltaDeltaMaxBits() <= DELTA_DELTA_MAX_BITS_THRESHOLD) {
-                // NOTE: nearly linear float counter, second-order deltas on sortable longs are very compact
-                return PipelineConfig.forFloats(blockSize).deltaDelta().offset().gcd().patchedPFor().bitPack();
-            }
-            // NOTE: monotonic but irregular steps, plain delta removes the trend
-            return PipelineConfig.forFloats(blockSize).delta().offset().gcd().bitPack();
+            // NOTE: monotonic float counters — Gorilla's XOR encoding handles non-uniform
+            // sortable-int deltas (e.g. power-of-2 boundary crossings) better than deltaDelta
+            return PipelineConfig.forFloats(blockSize).gorilla();
         }
         if (profile.shiftedGcd() > 1) {
             return PipelineConfig.forFloats(blockSize).offset().gcd().bitPack();

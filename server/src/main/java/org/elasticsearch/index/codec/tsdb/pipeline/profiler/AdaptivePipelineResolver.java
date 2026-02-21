@@ -46,17 +46,22 @@ public final class AdaptivePipelineResolver implements PipelineResolver {
         final PipelineConfig pipeline = selector.select(profile, blockSize, dataType, context.hint());
 
         if (logger.isDebugEnabled()) {
+            final String hint = context.hint() != null ? context.hint().name().toLowerCase() : "none";
+            final String mono = profile.isMonotonicallyIncreasing() ? "inc" : profile.isMonotonicallyDecreasing() ? "dec" : "no";
             logger.debug(
-                "pipeline-select ({}) [{}] {} n={} | runs={} range={} rawGcd={} shiftedGcd={} mono={} | raw={}b xor={}b dd={}b -> {}",
-                phase(),
+                "pipeline-select [{}] phase={} type={} hint={} n={}"
+                    + " | profile: runs={} range={} gcd={}/{} mono={} bits=[raw={} xor={} dd={}]"
+                    + " | -> {}",
                 context.fieldName(),
+                phase(),
                 dataType,
+                hint,
                 profile.valueCount(),
                 profile.runCount(),
                 profile.range(),
                 profile.rawGcd(),
                 profile.shiftedGcd(),
-                profile.isMonotonicallyIncreasing() ? "inc" : profile.isMonotonicallyDecreasing() ? "dec" : "no",
+                mono,
                 profile.rawMaxBits(),
                 profile.xorMaxBits(),
                 profile.deltaDeltaMaxBits(),

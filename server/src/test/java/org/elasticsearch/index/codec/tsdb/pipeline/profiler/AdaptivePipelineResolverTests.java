@@ -33,8 +33,9 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
 
     public void testSelectsPipelineForMonotonicLongs() {
         final long[] values = new long[512];
-        for (int i = 0; i < 512; i++)
+        for (int i = 0; i < 512; i++) {
             values[i] = i * 10L;
+        }
 
         final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext("test", null, null, null, PipelineConfig.DataType.LONG);
         final PipelineConfig config = resolver.resolve(ctx, values, 512);
@@ -75,8 +76,9 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
 
     public void testDeterministic() {
         final long[] values = new long[512];
-        for (int i = 0; i < 512; i++)
+        for (int i = 0; i < 512; i++) {
             values[i] = i * 10L;
+        }
 
         final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext("test", null, null, null, PipelineConfig.DataType.LONG);
         final PipelineConfig first = resolver.resolve(ctx, values, 512);
@@ -86,8 +88,9 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
 
     public void testSelectsPipelineForFloatGauge() {
         final long[] values = new long[512];
-        for (int i = 0; i < 512; i++)
+        for (int i = 0; i < 512; i++) {
             values[i] = Float.floatToRawIntBits(65.0f + (i % 100) * 0.1f);
+        }
 
         final MappedFieldType fieldType = createNumberFieldType("temperature", NumberType.FLOAT, MetricType.GAUGE);
         final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext(
@@ -104,8 +107,9 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
 
     public void testInfersLongForIntegerFieldType() {
         final long[] values = new long[512];
-        for (int i = 0; i < 512; i++)
+        for (int i = 0; i < 512; i++) {
             values[i] = i * 10L;
+        }
 
         final MappedFieldType fieldType = createNumberFieldType("count", NumberType.LONG, MetricType.GAUGE);
         final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext(
@@ -122,8 +126,9 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
 
     public void testInfersLongForNullFieldType() {
         final long[] values = new long[512];
-        for (int i = 0; i < 512; i++)
+        for (int i = 0; i < 512; i++) {
             values[i] = i * 10L;
+        }
 
         final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext("test", null, null, null, PipelineConfig.DataType.LONG);
         final PipelineConfig config = resolver.resolve(ctx, values, 512);

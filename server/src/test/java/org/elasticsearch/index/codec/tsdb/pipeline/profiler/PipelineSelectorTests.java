@@ -77,9 +77,17 @@ public class PipelineSelectorTests extends ESTestCase {
         assertEquals(PipelineConfig.DataType.LONG, config.dataType());
     }
 
-    public void testSmoothDoubleSelectsAlpWithQuantization() {
+    public void testSmoothDoubleSelectsLosslessAlp() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null);
+
+        assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
+    }
+
+    public void testSmoothDoubleWithStorageHintSelectsQuantizedAlp() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, PipelineResolver.OptimizeFor.STORAGE);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
@@ -210,7 +218,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gorilla.class)));
     }
 
-    public void testMonotonicFloatCounterPreservesDataType() {
+    public void testMonotonicFloatCounterSelectsGorilla() {
         final long[] values = new long[512];
         for (int i = 0; i < 512; i++) {
             values[i] = 1000L + i * 10L;
@@ -221,6 +229,7 @@ public class PipelineSelectorTests extends ESTestCase {
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.GorillaFloat.class)));
     }
 
     public void testGcdDoublePreservesDataType() {

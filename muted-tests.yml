@@ -440,6 +440,9 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexResumeIT
   method: testLocalResumeReindexFromScroll_slicedAuto
   issue: https://github.com/elastic/elasticsearch/issues/142749
+- class: org.elasticsearch.upgrades.TSDBSyntheticIdUpgradeIT
+  method: testRollingUpgrade {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/141734
 
 # Examples:
 #

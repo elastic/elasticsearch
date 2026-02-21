@@ -221,6 +221,16 @@ public class PerFieldFormatSupplier {
 
     @Nullable
     private PipelineResolver.FieldContext resolveFieldContext(final String fieldName) {
+        // NOTE: metadata fields like _seq_no are not in MappingLookup.getMapper() — handle by name
+        if (SeqNoFieldMapper.NAME.equals(fieldName)) {
+            return new PipelineResolver.FieldContext(
+                fieldName,
+                mapperService.getIndexSettings().getMode(),
+                null,
+                null,
+                PipelineConfig.DataType.LONG
+            );
+        }
         final Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         if (mapper instanceof NumberFieldMapper numberFieldMapper) {
             return new PipelineResolver.FieldContext(

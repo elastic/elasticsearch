@@ -38,7 +38,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
+import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -165,7 +165,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         testRandomSupplier(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE, BYTE_ARRAY_MIN_INT7_FUNC);
     }
 
-    void testRandomSupplier(long maxChunkSize, Function<Integer, byte[]> byteArraySupplier) throws IOException {
+    void testRandomSupplier(long maxChunkSize, IntFunction<byte[]> byteArraySupplier) throws IOException {
         var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testRandom"), maxChunkSize)) {
@@ -248,7 +248,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         testRandomScorerImpl(maxChunkSize, FLOAT_ARRAY_RANDOM_FUNC);
     }
 
-    void testRandomScorerImpl(long maxChunkSize, Function<Integer, float[]> floatArraySupplier) throws IOException {
+    void testRandomScorerImpl(long maxChunkSize, IntFunction<float[]> floatArraySupplier) throws IOException {
         assumeTrue("scorer only supported on JDK 22+", Runtime.version().feature() >= 22);
         assumeTrue(notSupportedMsg(), supported());
         var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
@@ -309,7 +309,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT7_FUNC);
     }
 
-    void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, Function<Integer, byte[]> byteArraySupplier)
+    void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, IntFunction<byte[]> byteArraySupplier)
         throws IOException {
         var factory = org.elasticsearch.simdvec.AbstractVectorTestCase.factory.get();
 
@@ -752,7 +752,7 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         return ba;
     }
 
-    static Function<Integer, float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
+    static IntFunction<float[]> FLOAT_ARRAY_RANDOM_FUNC = size -> {
         float[] fa = new float[size];
         for (int i = 0; i < size; i++) {
             fa[i] = randomFloat();
@@ -760,19 +760,19 @@ public class Int7uOSQVectorScorerFactoryTests extends org.elasticsearch.simdvec.
         return fa;
     };
 
-    static Function<Integer, byte[]> BYTE_ARRAY_RANDOM_INT7_FUNC = size -> {
+    static IntFunction<byte[]> BYTE_ARRAY_RANDOM_INT7_FUNC = size -> {
         byte[] ba = new byte[size];
         randomBytesBetween(ba, MIN_INT7_VALUE, MAX_INT7_VALUE);
         return ba;
     };
 
-    static Function<Integer, byte[]> BYTE_ARRAY_MAX_INT7_FUNC = size -> {
+    static IntFunction<byte[]> BYTE_ARRAY_MAX_INT7_FUNC = size -> {
         byte[] ba = new byte[size];
         Arrays.fill(ba, MAX_INT7_VALUE);
         return ba;
     };
 
-    static Function<Integer, byte[]> BYTE_ARRAY_MIN_INT7_FUNC = size -> {
+    static IntFunction<byte[]> BYTE_ARRAY_MIN_INT7_FUNC = size -> {
         byte[] ba = new byte[size];
         Arrays.fill(ba, MIN_INT7_VALUE);
         return ba;

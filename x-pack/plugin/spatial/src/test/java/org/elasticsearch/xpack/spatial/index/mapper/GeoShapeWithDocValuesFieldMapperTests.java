@@ -379,7 +379,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         IndexVersion version = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.V_8_0_0);
         MapperService m = createMapperService(version, fieldMapping(b -> b.field("type", getFieldName())));
         Exception e = expectThrows(
-            MapperParsingException.class,
+            IllegalArgumentException.class,
             () -> merge(m, fieldMapping(b -> b.field("type", getFieldName()).field("strategy", "recursive")))
         );
 
@@ -387,7 +387,7 @@ public class GeoShapeWithDocValuesFieldMapperTests extends GeoFieldMapperTests {
         assertFieldWarnings("strategy");
 
         MapperService lm = createMapperService(version, fieldMapping(b -> b.field("type", getFieldName()).field("strategy", "recursive")));
-        e = expectThrows(MapperParsingException.class, () -> merge(lm, fieldMapping(b -> b.field("type", getFieldName()))));
+        e = expectThrows(IllegalArgumentException.class, () -> merge(lm, fieldMapping(b -> b.field("type", getFieldName()))));
         assertThat(e.getMessage(), containsString("mapper [field] of type [geo_shape] cannot change strategy from [recursive] to [BKD]"));
         assertFieldWarnings("strategy");
     }

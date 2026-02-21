@@ -640,18 +640,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private Mapping mergeBuilders(MappingBuilder incomingBuilder, MergeReason reason) {
         long newFieldsBudget = getMaxFieldsToAddDuringMerge(this.mapper, indexSettings, reason);
-        try {
-            if (this.mapper == null) {
+        if (this.mapper == null) {
+            try {
                 return buildMapping(applyFieldsBudget(incomingBuilder, newFieldsBudget, reason), reason);
+            } catch (MapperParsingException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
             }
-            MappingBuilder existingBuilder = mappingParser.parseToBuilder(this.mapper.type(), reason, this.mapper.mappingSource());
-            existingBuilder.merge(incomingBuilder, reason, newFieldsBudget);
-            return buildMapping(existingBuilder, reason);
-        } catch (MapperParsingException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new MapperParsingException("Failed to parse mapping: {}", e, e.getMessage());
         }
+        MappingBuilder existingBuilder = mappingParser.parseToBuilder(this.mapper.type(), reason, this.mapper.mappingSource());
+        existingBuilder.merge(incomingBuilder, reason, newFieldsBudget);
+        return buildMapping(existingBuilder, reason);
     }
 
     private static MappingBuilder applyFieldsBudget(MappingBuilder builder, long fieldsBudget, MergeReason reason) {

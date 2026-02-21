@@ -1793,7 +1793,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "Failed to parse mapping: Object mapper [parent] was found in a context where subobjects is set to false. "
+                "Object mapper [parent] was found in a context where subobjects is set to false. "
                     + "Auto-flattening [parent] failed because the value of [dynamic] (FALSE) is not compatible "
                     + "with the value from its parent context (TRUE)"
             )
@@ -1834,7 +1834,7 @@ public class MapperServiceTests extends MapperServiceTestCase {
         assertThat(
             e.getMessage(),
             containsString(
-                "Failed to parse mapping: Object mapper [parent] was found in a context where subobjects is set to false. "
+                "Object mapper [parent] was found in a context where subobjects is set to false. "
                     + "Auto-flattening [parent] failed because the value of [dynamic] (TRUE) is not compatible "
                     + "with the value from its parent context (FALSE)"
             )

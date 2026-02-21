@@ -361,7 +361,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         protected void throwMergeTypeConflict(FieldMapper.Builder incoming, String fullName) {
             if (CONTENT_TYPE.equals(incoming.contentType())) {
                 throw new IllegalArgumentException(
-                    "mapper [" + fullName + "] of type [geo_shape] cannot change strategy from [" + strategy.get().getStrategyName()
+                    "mapper ["
+                        + fullName
+                        + "] of type [geo_shape] cannot change strategy from ["
+                        + strategy.get().getStrategyName()
                         + "] to [BKD]"
                 );
             }

@@ -1,0 +1,58 @@
+[[release-notes-8.19.12]]
+== {es} version 8.19.12
+
+coming[8.19.12]
+
+Also see <<breaking-changes-8.19,Breaking changes in 8.19>>.
+
+[[bug-8.19.12]]
+[float]
+=== Bug fixes
+
+Cluster Coordination::
+* Suppress success callback when failing master task {es-pull}142042[#142042]
+
+Downsampling::
+* Fix downsampling with disabled subobjects {es-pull}138715[#138715]
+
+ES|QL::
+* Dynamically grow hash in linear counting in HLL {es-pull}142047[#142047] (issue: {es-issue}41847[#41847])
+* ESQL fix TO_IP leading_zeros=octal parsing {es-pull}141776[#141776] (issue: {es-issue}141627[#141627])
+* Fix IP_PREFIX function leaking data in scratch {es-pull}141940[#141940] (issue: {es-issue}141628[#141628])
+* Fix bug with multiple spatial aggs filtering in ES|QL {es-pull}142332[#142332] (issue: {es-issue}142329[#142329])
+
+Inference::
+* [Inference API] Do not write "task" field in Jina embedding request if unsupported {es-pull}142181[#142181]
+* [Inference API] Fix `ChunkingSettings` field missing from `ModelConfigurations` equals method {es-pull}142238[#142238]
+* [Inference API] Prevent trailing slashes from being included in URLs {es-pull}141692[#141692]
+
+Infra/Core::
+* Reindexing older indices with percolator fields clears migration assistant errors {es-pull}141539[#141539]
+
+Machine Learning::
+* Reduce locking when persisting ML job statistics {es-pull}141519[#141519] (issue: {es-issue}140511[#140511])
+
+Mapping::
+* Allow shadowing time series metrics and dimension in non time series indexing {es-pull}141549[#141549] (issue: {es-issue}140882[#140882])
+
+Search::
+* Fix Top Hits Incompatible Field Types on Sort Across Indices {es-pull}142046[#142046] (issue: {es-issue}141906[#141906])
+* Fix handling empty collapse construct {es-pull}141973[#141973] (issue: {es-issue}139299[#139299])
+* Prevent large CancelTasksRequest descriptions by truncating nodes and actions {es-pull}141815[#141815]
+* Reduce cancellation check interval in `CancellableBulkScorer` for better responsiveness {es-pull}141747[#141747]
+
+[[enhancement-8.19.12]]
+[float]
+=== Enhancements
+
+ES|QL::
+* Fix ILM's 'skipping policy' logging level {es-pull}141890[#141890] (issue: {es-issue}141876[#141876])
+
+[[upgrade-8.19.12]]
+[float]
+=== Upgrades
+
+Packaging::
+* Updating bundled jdk version to 25.0.2+10 {es-pull}142500[#142500]
+
+

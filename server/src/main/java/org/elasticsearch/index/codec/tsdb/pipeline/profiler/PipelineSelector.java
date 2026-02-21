@@ -20,11 +20,6 @@ public final class PipelineSelector {
     // (extra metadata + patchedPFor) compared to plain delta encoding.
     private static final int DELTA_DELTA_MAX_BITS_THRESHOLD = 4;
 
-    // NOTE: at 0.95, nearly every value is unique (avg run length ~1). Combined with gcd == 1,
-    // this identifies high-cardinality long data with no exploitable structure — offset + bitPack
-    // is the only reasonable pipeline.
-    private static final double HIGH_CARDINALITY_RUN_RATIO_THRESHOLD = 0.95;
-
     // NOTE: must match OffsetCodecStage.DEFAULT_MIN_OFFSET_RATIO_PERCENT so estimatePostOffsetBpv
     // agrees with whether the offset stage will actually fire. If these diverge, the RLE cost
     // model may over- or under-estimate post-offset bit-width.
@@ -78,16 +73,12 @@ public final class PipelineSelector {
             // NOTE: monotonic but irregular steps, plain delta removes the trend
             return PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
         }
-        if (profile.gcd() > 1) {
+        if (profile.shiftedGcd() > 1) {
             return PipelineConfig.forLongs(blockSize).offset().gcd().bitPack();
         }
         if (profile.xorMaxBits() < profile.rawMaxBits()) {
             // NOTE: smooth longs — delta captures the slow drift
             return PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
-        }
-        final double runRatio = (double) profile.runCount() / profile.valueCount();
-        if (runRatio > HIGH_CARDINALITY_RUN_RATIO_THRESHOLD && profile.gcd() == 1) {
-            return PipelineConfig.forLongs(blockSize).offset().bitPack();
         }
         return PipelineConfig.forLongs(blockSize).offset().bitPack();
     }
@@ -104,7 +95,7 @@ public final class PipelineSelector {
             // sortable longs captures the steady increment pattern efficiently
             return PipelineConfig.forDoubles(blockSize).gorilla();
         }
-        if (profile.gcd() > 1) {
+        if (profile.shiftedGcd() > 1) {
             return PipelineConfig.forDoubles(blockSize).offset().gcd().bitPack();
         }
         if (profile.xorMaxBits() < profile.rawMaxBits()) {
@@ -133,7 +124,7 @@ public final class PipelineSelector {
             // NOTE: monotonic but irregular steps, plain delta removes the trend
             return PipelineConfig.forFloats(blockSize).delta().offset().gcd().bitPack();
         }
-        if (profile.gcd() > 1) {
+        if (profile.shiftedGcd() > 1) {
             return PipelineConfig.forFloats(blockSize).offset().gcd().bitPack();
         }
         if (profile.xorMaxBits() < profile.rawMaxBits()) {

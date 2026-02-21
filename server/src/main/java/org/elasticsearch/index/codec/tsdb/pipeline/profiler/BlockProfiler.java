@@ -23,7 +23,7 @@ public final class BlockProfiler {
 
     private final int minDirectionalChanges;
 
-    private static final BlockProfile EMPTY = new BlockProfile(0, 0, 0, 0, 0, false, false, 0, 0, 0, 0, 0);
+    private static final BlockProfile EMPTY = new BlockProfile(0, 0, 0, 0, 0, 0, false, false, 0, 0, 0, 0, 0);
 
     public BlockProfiler() {
         this(DEFAULT_MIN_DIRECTIONAL_CHANGES);
@@ -38,17 +38,19 @@ public final class BlockProfiler {
 
     private record MinMax(long min, long max) {}
 
+    private record GcdPair(long rawGcd, long shiftedGcd) {}
+
     public BlockProfile profile(final long[] values, int valueCount) {
         if (valueCount == 0) {
             return EMPTY;
         }
         if (valueCount == 1) {
-            return new BlockProfile(1, values[0], values[0], 0, values[0], false, false, 1, 0, 0, 0, 0);
+            return new BlockProfile(1, values[0], values[0], 0, values[0], 0, false, false, 1, 0, 0, 0, 0);
         }
 
         // NOTE: each pass is a single-reduction loop so C2 can auto-vectorize independently.
         final MinMax minMax = minMax(values, valueCount);
-        final long gcd = gcd(values, valueCount);
+        final GcdPair gcdPair = gcdPair(values, valueCount);
         final long xorOr = xorOr(values, valueCount);
         final int gts = countGreater(values, valueCount);
         final int lts = countLess(values, valueCount);
@@ -61,7 +63,8 @@ public final class BlockProfiler {
             minMax.min,
             minMax.max,
             range,
-            gcd,
+            gcdPair.rawGcd,
+            gcdPair.shiftedGcd,
             gts >= minDirectionalChanges && lts == 0,
             lts >= minDirectionalChanges && gts == 0,
             runCount,
@@ -82,16 +85,27 @@ public final class BlockProfiler {
         return new MinMax(min, max);
     }
 
-    // NOTE: GCD is inherently serial (Euclidean algorithm). Early exit when gcd==1.
-    private static long gcd(final long[] values, int valueCount) {
-        long gcd = 0;
-        for (int i = 0; i < valueCount; i++) {
-            gcd = MathUtil.gcd(gcd, values[i]);
-            if (gcd == 1) {
-                return 1;
+    // NOTE: computes both raw GCD and shifted GCD (GCD of adjacent differences) in a
+    // single pass. shiftedGcd correctly predicts what the gcd() stage will see after any
+    // subtraction-based transform (offset, delta, deltaDelta) because GCD of differences
+    // is shift-invariant. rawGcd = gcd(v[0], shiftedGcd) by the Euclidean identity.
+    private static GcdPair gcdPair(final long[] values, int valueCount) {
+        long shiftedGcd = 0;
+        for (int i = 1; i < valueCount; i++) {
+            final long diff = values[i] - values[i - 1];
+            if (diff == Long.MIN_VALUE) {
+                return new GcdPair(1, 1);
+            }
+            shiftedGcd = MathUtil.gcd(shiftedGcd, Math.abs(diff));
+            if (shiftedGcd == 1) {
+                return new GcdPair(1, 1);
             }
         }
-        return gcd;
+        if (values[0] == Long.MIN_VALUE) {
+            return new GcdPair(1, shiftedGcd);
+        }
+        final long rawGcd = shiftedGcd > 0 ? MathUtil.gcd(Math.abs(values[0]), shiftedGcd) : Math.abs(values[0]);
+        return new GcdPair(rawGcd, shiftedGcd);
     }
 
     private static long xorOr(final long[] values, int valueCount) {

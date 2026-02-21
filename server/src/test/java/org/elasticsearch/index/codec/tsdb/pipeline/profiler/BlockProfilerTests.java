@@ -27,7 +27,8 @@ public class BlockProfilerTests extends ESTestCase {
         assertEquals(42L, profile.min());
         assertEquals(42L, profile.max());
         assertEquals(0L, profile.range());
-        assertEquals(42L, profile.gcd());
+        assertEquals(42L, profile.rawGcd());
+        assertEquals(0L, profile.shiftedGcd());
         assertEquals(0, profile.rawMaxBits());
         assertEquals(0, profile.xorMaxBits());
         assertEquals(511, profile.xorZeroCount());
@@ -44,7 +45,8 @@ public class BlockProfilerTests extends ESTestCase {
         assertEquals(5110L, profile.max());
         assertTrue(profile.isMonotonicallyIncreasing());
         assertFalse(profile.isMonotonicallyDecreasing());
-        assertEquals(10L, profile.gcd());
+        assertEquals(10L, profile.rawGcd());
+        assertEquals(10L, profile.shiftedGcd());
         assertEquals(0, profile.deltaDeltaMaxBits());
     }
 
@@ -54,7 +56,8 @@ public class BlockProfilerTests extends ESTestCase {
             values[i] = (i % 100) * 50L;
         final BlockProfile profile = profiler.profile(values, values.length);
 
-        assertEquals(50L, profile.gcd());
+        assertEquals(50L, profile.rawGcd());
+        assertEquals(50L, profile.shiftedGcd());
     }
 
     public void testRunFriendlyProfile() {
@@ -73,7 +76,8 @@ public class BlockProfilerTests extends ESTestCase {
 
         assertFalse(profile.isMonotonicallyIncreasing());
         assertTrue(profile.range() > 0);
-        assertEquals(1L, profile.gcd());
+        assertEquals(1L, profile.rawGcd());
+        assertEquals(1L, profile.shiftedGcd());
         assertTrue(profile.runCount() > (int) (0.9 * profile.valueCount()));
     }
 
@@ -146,7 +150,8 @@ public class BlockProfilerTests extends ESTestCase {
 
         assertFalse(profile.isMonotonicallyIncreasing());
         assertTrue(profile.isMonotonicallyDecreasing());
-        assertEquals(10L, profile.gcd());
+        assertEquals(10L, profile.rawGcd());
+        assertEquals(10L, profile.shiftedGcd());
         assertEquals(0, profile.deltaDeltaMaxBits());
     }
 
@@ -179,7 +184,8 @@ public class BlockProfilerTests extends ESTestCase {
         assertEquals(10L, profile.min());
         assertEquals(20L, profile.max());
         assertEquals(10L, profile.range());
-        assertEquals(10L, profile.gcd());
+        assertEquals(10L, profile.rawGcd());
+        assertEquals(10L, profile.shiftedGcd());
         // NOTE: 2-value block has gts=1 which is below MIN_DIRECTIONAL_CHANGES=2,
         // so it's not classified as monotonic — aligned with DeltaCodecStage behavior
         assertFalse(profile.isMonotonicallyIncreasing());
@@ -197,6 +203,20 @@ public class BlockProfilerTests extends ESTestCase {
         values[0] = 2;
         final BlockProfile profile = profiler.profile(values, values.length);
 
-        assertEquals(1L, profile.gcd());
+        assertEquals(1L, profile.rawGcd());
+        assertEquals(1L, profile.shiftedGcd());
+    }
+
+    public void testShiftedGcdDiscovery() {
+        final long[] values = new long[512];
+        for (int i = 0; i < 512; i++) {
+            values[i] = 1001L + i * 10L;
+        }
+        final BlockProfile profile = profiler.profile(values, values.length);
+
+        // NOTE: raw GCD is 1 because 1001 is coprime with 10,
+        // but shifted GCD is 10 — the offset stage reveals the common divisor
+        assertEquals(1L, profile.rawGcd());
+        assertEquals(10L, profile.shiftedGcd());
     }
 }

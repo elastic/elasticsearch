@@ -47,14 +47,15 @@ public final class AdaptivePipelineResolver implements PipelineResolver {
 
         if (logger.isDebugEnabled()) {
             logger.debug(
-                "pipeline-select ({}) [{}] {} n={} | runs={} range={} gcd={} mono={} | raw={}b xor={}b dd={}b -> {}",
+                "pipeline-select ({}) [{}] {} n={} | runs={} range={} rawGcd={} shiftedGcd={} mono={} | raw={}b xor={}b dd={}b -> {}",
                 phase(),
                 context.fieldName(),
                 dataType,
                 profile.valueCount(),
                 profile.runCount(),
                 profile.range(),
-                profile.gcd(),
+                profile.rawGcd(),
+                profile.shiftedGcd(),
                 profile.isMonotonicallyIncreasing() ? "inc" : profile.isMonotonicallyDecreasing() ? "dec" : "no",
                 profile.rawMaxBits(),
                 profile.xorMaxBits(),

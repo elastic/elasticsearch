@@ -78,7 +78,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testSmoothDoubleSelectsAlpWithQuantization() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, false, false, 500, 30, 10, 12, 20);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
@@ -86,7 +86,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testSmoothDoubleWithSpeedHintSelectsXor() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, false, false, 500, 30, 10, 12, 20);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, PipelineResolver.OptimizeFor.SPEED);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
@@ -131,7 +131,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testSmoothFloatSelectsAlpFloat() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, false, false, 500, 30, 10, 12, 20);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
@@ -139,7 +139,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testSmoothFloatWithSpeedHintSelectsXor() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, false, false, 500, 30, 10, 12, 20);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, PipelineResolver.OptimizeFor.SPEED);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
@@ -147,7 +147,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testSmoothLongSelectsDelta() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, false, false, 500, 30, 10, 12, 20);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 10, 12, 20);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.LONG, null);
 
         assertEquals(PipelineConfig.DataType.LONG, config.dataType());
@@ -155,7 +155,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testNoisyFloatSkipsXorAndFpc() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, false, false, 500, 30, 30, 12, 20);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.FLOAT, null);
 
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
@@ -166,7 +166,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testNoisyDoubleSkipsXor() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, false, false, 500, 30, 30, 12, 20);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 500, 30, 30, 12, 20);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
@@ -176,7 +176,7 @@ public class PipelineSelectorTests extends ESTestCase {
     }
 
     public void testHighRunRatioGcdOneSelectsOffsetBitPack() {
-        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, false, false, 510, 7, 7, 2, 10);
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 510, 7, 7, 2, 10);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.LONG, null);
 
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
@@ -231,6 +231,21 @@ public class PipelineSelectorTests extends ESTestCase {
         final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.DOUBLE, null);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+    }
+
+    public void testShiftedGcdEnablesGcdStage() {
+        final long[] values = new long[512];
+        for (int i = 0; i < 512; i++) {
+            values[i] = 1001L + i * 10L;
+        }
+        final BlockProfile profile = profiler.profile(values, 512);
+
+        // NOTE: raw GCD is 1 (1001 is coprime with 10), but shifted GCD is 10
+        assertEquals(1L, profile.rawGcd());
+        assertEquals(10L, profile.shiftedGcd());
+
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.LONG, null);
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
     }
 

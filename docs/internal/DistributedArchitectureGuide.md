@@ -508,8 +508,13 @@ and proceeds to apply the new state (see [Cluster State Application](#cluster-st
 If the master cannot achieve a publish quorum (e.g. too many nodes are faulty), the [Publication] will fail the entire
 publication with
 a [FailedToCommitClusterStateException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FailedToCommitClusterStateException.java).
-The master will step down (it can no longer be master if it is not able to publish cluster states) and a new election
+The master will then step down (it can no longer be master if it is not able to publish cluster states) and a new
+election
 begins.
+
+The master will try waiting for all nodes to commit before applying its own state and moving on. But it no longer needs
+a quorum of responses after [ApplyCommitRequest]s have been sent. If the nodes timeout, the master will still move on to
+applying the new cluster state locally.
 
 #### Cluster State Application
 

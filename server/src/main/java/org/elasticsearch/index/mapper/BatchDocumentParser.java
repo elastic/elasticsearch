@@ -65,11 +65,7 @@ public final class BatchDocumentParser {
      * @param mappingLookup the current mapping lookup
      * @return a result containing parsed documents and per-document exceptions
      */
-    public BatchResult parseBatch(
-        DocumentBatch batch,
-        MappingLookup mappingLookup,
-        List<BytesReference> originalSources
-    ) {
+    public BatchResult parseBatch(DocumentBatch batch, MappingLookup mappingLookup, List<BytesReference> originalSources) {
         return parseBatchInternal(batch, mappingLookup, originalSources);
     }
 
@@ -77,11 +73,7 @@ public final class BatchDocumentParser {
         return parseBatchInternal(batch, mappingLookup, null);
     }
 
-    private BatchResult parseBatchInternal(
-        DocumentBatch batch,
-        MappingLookup mappingLookup,
-        List<BytesReference> originalSources
-    ) {
+    private BatchResult parseBatchInternal(DocumentBatch batch, MappingLookup mappingLookup, List<BytesReference> originalSources) {
         final int docCount = batch.docCount();
         final MetadataFieldMapper[] metadataFieldMappers = mappingLookup.getMapping().getSortedMetadataMappers();
 
@@ -227,11 +219,7 @@ public final class BatchDocumentParser {
         return createSourceToParse(batch, docIndex, BytesArray.EMPTY);
     }
 
-    private static SourceToParse createSourceToParse(
-        DocumentBatch batch,
-        int docIndex,
-        BytesReference source
-    ) {
+    private static SourceToParse createSourceToParse(DocumentBatch batch, int docIndex, BytesReference source) {
         String id = batch.docId(docIndex);
         String routing = batch.docRouting(docIndex);
         XContentType xContentType = batch.docXContentType(docIndex);

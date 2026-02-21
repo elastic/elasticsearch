@@ -16,7 +16,6 @@ import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.util.LenientBooleans;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
-import org.elasticsearch.index.codec.tsdb.pipeline.BlockSizeResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
@@ -138,7 +137,6 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     final BinaryDVCompressionMode binaryDVCompressionMode;
     final boolean enablePerBlockCompression;
     final FieldContextResolver fieldContextResolver;
-    final BlockSizeResolver blockSizeResolver;
     final PipelineResolver pipelineResolver;
 
     public static ES94TSDBDocValuesFormat getInstance(boolean useLargeNumericBlock) {
@@ -148,7 +146,6 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     public static ES94TSDBDocValuesFormat getInstance(
         boolean useLargeNumericBlock,
         final FieldContextResolver fieldContextResolver,
-        final BlockSizeResolver blockSizeResolver,
         final PipelineResolver pipelineResolver
     ) {
         int blockShift = useLargeNumericBlock ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT;
@@ -160,7 +157,6 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
             true,
             blockShift,
             fieldContextResolver,
-            blockSizeResolver,
             pipelineResolver
         );
     }
@@ -184,11 +180,7 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         this(NUMERIC_BLOCK_SHIFT);
     }
 
-    public ES94TSDBDocValuesFormat(
-        final FieldContextResolver fieldContextResolver,
-        final BlockSizeResolver blockSizeResolver,
-        final PipelineResolver pipelineResolver
-    ) {
+    public ES94TSDBDocValuesFormat(final FieldContextResolver fieldContextResolver, final PipelineResolver pipelineResolver) {
         this(
             DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
             ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
@@ -197,7 +189,6 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
             true,
             NUMERIC_BLOCK_SHIFT,
             fieldContextResolver,
-            blockSizeResolver,
             pipelineResolver
         );
     }
@@ -269,7 +260,6 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
             enablePerBlockCompression,
             numericBlockShift,
             null,
-            null,
             null
         );
     }
@@ -282,7 +272,6 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         final boolean enablePerBlockCompression,
         final int numericBlockShift,
         final FieldContextResolver fieldContextResolver,
-        final BlockSizeResolver blockSizeResolver,
         final PipelineResolver pipelineResolver
     ) {
         super(CODEC_NAME);
@@ -297,7 +286,6 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         this.enablePerBlockCompression = enablePerBlockCompression;
         this.numericBlockShift = numericBlockShift;
         this.fieldContextResolver = fieldContextResolver;
-        this.blockSizeResolver = blockSizeResolver;
         this.pipelineResolver = pipelineResolver;
     }
 
@@ -312,7 +300,6 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
             enableOptimizedMerge,
             numericBlockShift,
             fieldContextResolver,
-            blockSizeResolver,
             pipelineResolver,
             DATA_CODEC,
             DATA_EXTENSION,

@@ -477,17 +477,14 @@ public class ES94TSDBDocValuesFormatTests extends ESTestCase {
     }
 
     private static ES94TSDBDocValuesFormat formatFromPipelineMap(final Map<String, PipelineConfig> fieldPipelines) {
-        return new ES94TSDBDocValuesFormat(
-            fieldName -> new PipelineResolver.FieldContext(fieldName, null, null, null, PipelineConfig.DataType.LONG),
-            ctx -> {
-                final PipelineConfig config = fieldPipelines.get(ctx.fieldName());
-                return config != null ? config.blockSize() : ES94TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
-            },
-            (ctx, sample, sampleSize) -> {
-                final PipelineConfig config = fieldPipelines.get(ctx.fieldName());
-                return config != null ? config : PipelineConfig.defaultConfig();
-            }
-        );
+        return new ES94TSDBDocValuesFormat(fieldName -> {
+            final PipelineConfig config = fieldPipelines.get(fieldName);
+            final int blockSize = config != null ? config.blockSize() : ES94TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
+            return new PipelineResolver.FieldContext(fieldName, null, PipelineConfig.DataType.LONG, null, null, false, blockSize);
+        }, (ctx, sample, sampleSize) -> {
+            final PipelineConfig config = fieldPipelines.get(ctx.fieldName());
+            return config != null ? config : PipelineConfig.defaultConfig();
+        });
     }
 
 }

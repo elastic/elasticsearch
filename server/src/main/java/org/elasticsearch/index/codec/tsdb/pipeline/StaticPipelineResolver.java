@@ -13,8 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 
 public final class StaticPipelineResolver implements PipelineResolver {
@@ -23,21 +21,15 @@ public final class StaticPipelineResolver implements PipelineResolver {
 
     private static final double QUANTIZE_STORAGE = 1e-6;
 
-    private final BlockSizeResolver blockSizeResolver;
-
-    public StaticPipelineResolver(final BlockSizeResolver blockSizeResolver) {
-        this.blockSizeResolver = blockSizeResolver;
-    }
+    public static final StaticPipelineResolver INSTANCE = new StaticPipelineResolver();
 
     @Override
     public PipelineConfig resolve(final FieldContext context, long[] sample, int sampleSize) {
-        // NOTE: STANDARD mode always uses the default pipeline; no automatic selection.
         if (context.indexMode() == IndexMode.STANDARD) {
             return PipelineConfig.defaultConfig();
         }
 
-        final int blockSize = blockSizeResolver.resolve(context);
-        final PipelineConfig staticResult = resolveFromStaticRules(context, blockSize);
+        final PipelineConfig staticResult = resolveFromStaticRules(context);
         if (staticResult != null) {
             logger.debug("field [{}] mode=[{}] -> [{}]", context.fieldName(), context.indexMode(), staticResult);
             return staticResult;
@@ -48,40 +40,38 @@ public final class StaticPipelineResolver implements PipelineResolver {
     }
 
     @Nullable
-    private static PipelineConfig resolveFromStaticRules(final FieldContext context, int blockSize) {
+    private static PipelineConfig resolveFromStaticRules(final FieldContext context) {
         if (context.indexMode() == IndexMode.TIME_SERIES) {
-            return resolveForTimeSeries(context, blockSize);
+            return resolveForTimeSeries(context);
         }
-
         if (context.indexMode() == IndexMode.LOGSDB) {
-            return resolveForLogsDb(context, blockSize);
+            return resolveForLogsDb(context);
         }
-
         return null;
     }
 
     @Nullable
-    private static PipelineConfig resolveForTimeSeries(final FieldContext context, int blockSize) {
-        final MetricType metricType = extractMetricType(context.fieldType());
-        final String typeName = context.fieldType().typeName();
+    private static PipelineConfig resolveForTimeSeries(final FieldContext context) {
+        final int blockSize = context.blockSize();
+        final MetricType metricType = context.metricType();
         if (metricType == MetricType.GAUGE) {
-            return resolveGauge(typeName, context.hint(), blockSize);
+            return resolveGauge(context.dataType(), context.hint(), blockSize);
         }
         if (metricType == MetricType.COUNTER) {
-            return resolveCounter(typeName, context.hint(), blockSize);
+            return resolveCounter(context.dataType(), context.hint(), blockSize);
         }
-        if (isDateType(typeName)) {
+        if (context.isDateField()) {
             return resolveDate(blockSize);
         }
         return null;
     }
 
     @Nullable
-    private static PipelineConfig resolveGauge(final String typeName, final OptimizeFor hint, int blockSize) {
-        if ("double".equals(typeName)) {
+    private static PipelineConfig resolveGauge(final PipelineConfig.DataType dataType, final OptimizeFor hint, int blockSize) {
+        if (dataType == PipelineConfig.DataType.DOUBLE) {
             return resolveDoubleGauge(hint, blockSize);
         }
-        if ("float".equals(typeName)) {
+        if (dataType == PipelineConfig.DataType.FLOAT) {
             return resolveFloatGauge(hint, blockSize);
         }
         return null;
@@ -108,11 +98,11 @@ public final class StaticPipelineResolver implements PipelineResolver {
     }
 
     @Nullable
-    private static PipelineConfig resolveCounter(final String typeName, final OptimizeFor hint, int blockSize) {
-        if ("double".equals(typeName)) {
+    private static PipelineConfig resolveCounter(final PipelineConfig.DataType dataType, final OptimizeFor hint, int blockSize) {
+        if (dataType == PipelineConfig.DataType.DOUBLE) {
             return resolveDoubleCounter(hint, blockSize);
         }
-        if ("float".equals(typeName)) {
+        if (dataType == PipelineConfig.DataType.FLOAT) {
             return resolveFloatCounter(hint, blockSize);
         }
         return null;
@@ -133,15 +123,15 @@ public final class StaticPipelineResolver implements PipelineResolver {
     }
 
     @Nullable
-    private static PipelineConfig resolveForLogsDb(final FieldContext context, int blockSize) {
-        final String typeName = context.fieldType().typeName();
-        if ("double".equals(typeName)) {
+    private static PipelineConfig resolveForLogsDb(final FieldContext context) {
+        final int blockSize = context.blockSize();
+        if (context.dataType() == PipelineConfig.DataType.DOUBLE) {
             return PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack();
         }
-        if ("float".equals(typeName)) {
+        if (context.dataType() == PipelineConfig.DataType.FLOAT) {
             return PipelineConfig.forFloats(blockSize).alpFloatStage().offset().gcd().bitPack();
         }
-        if (isDateType(typeName)) {
+        if (context.isDateField()) {
             return resolveDate(blockSize);
         }
         return null;
@@ -150,17 +140,4 @@ public final class StaticPipelineResolver implements PipelineResolver {
     private static PipelineConfig resolveDate(int blockSize) {
         return PipelineConfig.forLongs(blockSize).deltaDelta().offset().gcd().bitPack();
     }
-
-    private static boolean isDateType(final String typeName) {
-        return "date".equals(typeName) || "date_nanos".equals(typeName);
-    }
-
-    @Nullable
-    private static MetricType extractMetricType(final MappedFieldType fieldType) {
-        if (fieldType instanceof NumberFieldType numberFieldType) {
-            return numberFieldType.getMetricType();
-        }
-        return null;
-    }
-
 }

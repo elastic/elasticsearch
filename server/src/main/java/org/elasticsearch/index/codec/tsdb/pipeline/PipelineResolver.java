@@ -11,7 +11,7 @@ package org.elasticsearch.index.codec.tsdb.pipeline;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 
 /**
  * Resolves a pipeline configuration based on field context and an optional data sample.
@@ -27,9 +27,11 @@ public interface PipelineResolver {
     record FieldContext(
         String fieldName,
         IndexMode indexMode,
-        @Nullable MappedFieldType fieldType,
+        PipelineConfig.DataType dataType,
         @Nullable OptimizeFor hint,
-        PipelineConfig.DataType dataType
+        @Nullable MetricType metricType,
+        boolean isDateField,
+        int blockSize
     ) {}
 
     PipelineConfig resolve(FieldContext context, long[] sample, int sampleSize);

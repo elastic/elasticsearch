@@ -14,19 +14,13 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.codec.tsdb.pipeline.NumericDataGenerators;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
-import org.elasticsearch.index.codec.tsdb.pipeline.StaticBlockSizeResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder;
-import org.elasticsearch.index.mapper.IndexType;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
-import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 public class PipelineDiscoveryTests extends ESTestCase {
@@ -34,12 +28,8 @@ public class PipelineDiscoveryTests extends ESTestCase {
     private static final int BLOCK_SIZE = 512;
     private static final long SEED = 0x5DEECE66DL;
 
-    private final AdaptivePipelineResolver adaptive = new AdaptivePipelineResolver(
-        StaticBlockSizeResolver.INSTANCE,
-        BlockProfiler.INSTANCE,
-        PipelineSelector.INSTANCE
-    );
-    private final StaticPipelineResolver staticResolver = new StaticPipelineResolver(StaticBlockSizeResolver.INSTANCE);
+    private final AdaptivePipelineResolver adaptive = new AdaptivePipelineResolver(BlockProfiler.INSTANCE, PipelineSelector.INSTANCE);
+    private final StaticPipelineResolver staticResolver = StaticPipelineResolver.INSTANCE;
 
     public void testCompareAdaptiveVsStaticOnAllLongGenerators() throws IOException {
         for (final NumericDataGenerators.SeededLongDataSource ds : NumericDataGenerators.seededLongDataSources()) {
@@ -47,9 +37,11 @@ public class PipelineDiscoveryTests extends ESTestCase {
             final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext(
                 ds.name(),
                 null,
+                PipelineConfig.DataType.LONG,
                 null,
                 null,
-                PipelineConfig.DataType.LONG
+                false,
+                BLOCK_SIZE
             );
             final PipelineConfig adaptiveConfig = adaptive.resolve(ctx, values, BLOCK_SIZE);
             final PipelineConfig staticConfig = staticResolver.resolve(ctx, values, BLOCK_SIZE);
@@ -133,21 +125,14 @@ public class PipelineDiscoveryTests extends ESTestCase {
     }
 
     private static PipelineResolver.FieldContext buildDoubleGaugeContext(final String fieldName) {
-        final MappedFieldType fieldType = new NumberFieldType(
+        return new PipelineResolver.FieldContext(
             fieldName,
-            NumberType.DOUBLE,
-            IndexType.points(true, true),
-            false,
-            true,
+            IndexMode.TIME_SERIES,
+            PipelineConfig.DataType.DOUBLE,
             null,
-            Collections.emptyMap(),
-            null,
-            false,
             MetricType.GAUGE,
-            null,
             false,
-            null
+            BLOCK_SIZE
         );
-        return new PipelineResolver.FieldContext(fieldName, IndexMode.TIME_SERIES, fieldType, null, PipelineConfig.DataType.DOUBLE);
     }
 }

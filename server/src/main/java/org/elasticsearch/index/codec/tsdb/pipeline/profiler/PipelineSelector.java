@@ -25,11 +25,6 @@ public final class PipelineSelector {
     // model may over- or under-estimate post-offset bit-width.
     private static final int DEFAULT_MIN_OFFSET_RATIO_PERCENT = 25;
 
-    // TODO: PatchedPForEncodeStage.maxExceptionPercent (default 10%) is not modeled here.
-    // The selector picks patchedPFor without knowing the block's exception distribution. If
-    // exceptions exceed the limit, the stage no-ops and outliers inflate bit-width — a graceful
-    // degradation but not optimal. Adding exception profiling to BlockProfiler would close this gap.
-
     public static final PipelineSelector INSTANCE = new PipelineSelector();
 
     private final int minOffsetRatioPercent;
@@ -109,7 +104,8 @@ public final class PipelineSelector {
                 ? PipelineConfig.forDoubles(blockSize).alpDoubleStage(1e-6).offset().gcd().bitPack()
                 : PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack();
         }
-        // NOTE: noisy doubles — XOR provides no bit-width reduction, use offset + patchedPFor
+        // NOTE: noisy doubles — XOR provides no bit-width reduction, use offset + patchedPFor.
+        // PatchedPFor gracefully no-ops if exceptions exceed its internal limit.
         return PipelineConfig.forDoubles(blockSize).offset().patchedPFor().bitPack();
     }
 
@@ -135,7 +131,8 @@ public final class PipelineSelector {
                 ? PipelineConfig.forFloats(blockSize).xor().patchedPFor().bitPack()
                 : PipelineConfig.forFloats(blockSize).alpFloatStage().offset().gcd().bitPack();
         }
-        // NOTE: noisy floats — XOR provides no bit-width reduction, use offset + patchedPFor
+        // NOTE: noisy floats — XOR provides no bit-width reduction, use offset + patchedPFor.
+        // PatchedPFor gracefully no-ops if exceptions exceed its internal limit.
         return PipelineConfig.forFloats(blockSize).offset().patchedPFor().bitPack();
     }
 

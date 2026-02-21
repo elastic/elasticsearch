@@ -11,7 +11,6 @@ package org.elasticsearch.index.codec.tsdb.pipeline.profiler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.index.codec.tsdb.pipeline.BlockSizeResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 
@@ -19,16 +18,10 @@ public final class AdaptivePipelineResolver implements PipelineResolver {
 
     private static final Logger logger = LogManager.getLogger(AdaptivePipelineResolver.class);
 
-    private final BlockSizeResolver blockSizeResolver;
     private final BlockProfiler profiler;
     private final PipelineSelector selector;
 
-    public AdaptivePipelineResolver(
-        final BlockSizeResolver blockSizeResolver,
-        final BlockProfiler profiler,
-        final PipelineSelector selector
-    ) {
-        this.blockSizeResolver = blockSizeResolver;
+    public AdaptivePipelineResolver(final BlockProfiler profiler, final PipelineSelector selector) {
         this.profiler = profiler;
         this.selector = selector;
     }
@@ -40,7 +33,7 @@ public final class AdaptivePipelineResolver implements PipelineResolver {
             return PipelineConfig.defaultConfig();
         }
 
-        final int blockSize = blockSizeResolver.resolve(context);
+        final int blockSize = context.blockSize();
         final BlockProfile profile = profiler.profile(sample, sampleSize);
         final PipelineConfig.DataType dataType = context.dataType();
         final PipelineConfig pipeline = selector.select(profile, blockSize, dataType, context.hint());

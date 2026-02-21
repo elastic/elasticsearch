@@ -23,9 +23,6 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
-
-import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -83,30 +80,5 @@ public class StatelessPluginSettingsTests extends ESTestCase {
             statelessNode.additionalSettings().get(BalancedShardsAllocator.DISK_USAGE_BALANCE_FACTOR_SETTING.getKey()),
             equalTo("0")
         );
-    }
-
-    public void testOfflineWarmingDisabledByDefault() {
-        var statelessNode = new TestUtils.StatelessPluginWithTrialLicense(
-            Settings.builder()
-                .put(StatelessPlugin.STATELESS_ENABLED.getKey(), true)
-                .put(
-                    NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                    randomFrom(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.INDEX_ROLE, DiscoveryNodeRole.SEARCH_ROLE).roleName()
-                )
-                .build()
-        );
-        assertThat(
-            statelessNode.additionalSettings().get(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey()),
-            equalTo("false")
-        );
-    }
-
-    private static Settings statelessSettings(Collection<DiscoveryNodeRole> roles) {
-        final Settings.Builder builder = Settings.builder();
-        builder.put(StatelessPlugin.STATELESS_ENABLED.getKey(), true);
-        if (roles != null) {
-            builder.putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), roles.stream().map(DiscoveryNodeRole::roleName).toList());
-        }
-        return builder.build();
     }
 }

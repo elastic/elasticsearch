@@ -208,7 +208,7 @@ public class SharedBlobCacheWarmingService {
     public static final String SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME = "stateless.search.offline_warming";
     public static final Setting<Boolean> SEARCH_OFFLINE_WARMING_ENABLED_SETTING = Setting.boolSetting(
         SEARCH_OFFLINE_WARMING_SETTING_PREFIX_NAME + ".enabled",
-        false,
+        true,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

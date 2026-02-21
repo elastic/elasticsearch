@@ -282,6 +282,46 @@ public abstract class DocumentParserContext {
         );
     }
 
+    /**
+     * Constructor for batch document parsing that accepts pre-built/shared collections.
+     * This avoids per-document allocation of collections that will not be modified during batch parsing
+     * (e.g., copyToFields, dynamic mapper maps). The caller is responsible for ensuring that shared
+     * collections are not concurrently modified.
+     */
+    protected DocumentParserContext(
+        MappingLookup mappingLookup,
+        MappingParserContext mappingParserContext,
+        SourceToParse source,
+        ObjectMapper parent,
+        ObjectMapper.Dynamic dynamic,
+        Set<String> copyToFields,
+        Map<String, List<Mapper>> dynamicMappers,
+        Map<String, ObjectMapper> dynamicObjectMappers,
+        Map<String, List<RuntimeField>> dynamicRuntimeFields
+    ) {
+        this(
+            mappingLookup,
+            mappingParserContext,
+            source,
+            new HashSet<>(),
+            new ArrayList<>(),
+            Scope.SINGLETON,
+            dynamicMappers,
+            dynamicObjectMappers,
+            dynamicRuntimeFields,
+            null,
+            null,
+            SeqNoFieldMapper.SequenceIDFields.emptySeqID(mappingParserContext.getIndexSettings().seqNoIndexOptions()),
+            RoutingFields.fromIndexSettings(mappingParserContext.getIndexSettings()),
+            parent,
+            dynamic,
+            new HashSet<>(),
+            copyToFields,
+            new DynamicMapperSize(),
+            false
+        );
+    }
+
     public final IndexSettings indexSettings() {
         return mappingParserContext.getIndexSettings();
     }

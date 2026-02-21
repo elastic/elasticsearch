@@ -22,8 +22,11 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Parses a {@link DocumentBatch} (binary columnar format) into a list of {@link ParsedDocument}s.
@@ -65,7 +68,7 @@ public final class BatchDocumentParser {
     public BatchResult parseBatch(
         DocumentBatch batch,
         MappingLookup mappingLookup,
-        java.util.List<org.elasticsearch.common.bytes.BytesReference> originalSources
+        List<BytesReference> originalSources
     ) {
         return parseBatchInternal(batch, mappingLookup, originalSources);
     }
@@ -77,10 +80,17 @@ public final class BatchDocumentParser {
     private BatchResult parseBatchInternal(
         DocumentBatch batch,
         MappingLookup mappingLookup,
-        java.util.List<org.elasticsearch.common.bytes.BytesReference> originalSources
+        List<BytesReference> originalSources
     ) {
         final int docCount = batch.docCount();
         final MetadataFieldMapper[] metadataFieldMappers = mappingLookup.getMapping().getSortedMetadataMappers();
+
+        // Pre-compute shared collections that are the same for all documents in the batch.
+        // Batch parsing does not do dynamic mapping during per-doc iteration, so these remain unmodified.
+        final Set<String> sharedCopyToFields = mappingLookup.fieldTypesLookup().getCopyToDestinationFields();
+        final Map<String, List<Mapper>> sharedDynamicMappers = new HashMap<>();
+        final Map<String, ObjectMapper> sharedDynamicObjectMappers = new HashMap<>();
+        final Map<String, List<RuntimeField>> sharedDynamicRuntimeFields = new HashMap<>();
 
         // Step 1: Create per-document SourceToParse and contexts
         final SourceToParse[] sources = new SourceToParse[docCount];
@@ -91,7 +101,15 @@ public final class BatchDocumentParser {
             try {
                 BytesReference src = originalSources != null ? originalSources.get(i) : BytesArray.EMPTY;
                 sources[i] = createSourceToParse(batch, i, src);
-                contexts[i] = new BatchDocumentParserContext(mappingLookup, mappingParserContext, sources[i]);
+                contexts[i] = new BatchDocumentParserContext(
+                    mappingLookup,
+                    mappingParserContext,
+                    sources[i],
+                    sharedCopyToFields,
+                    sharedDynamicMappers,
+                    sharedDynamicObjectMappers,
+                    sharedDynamicRuntimeFields
+                );
             } catch (Exception e) {
                 exceptions[i] = e;
             }
@@ -122,6 +140,9 @@ public final class BatchDocumentParser {
                 throw new IllegalArgumentException("No mapper found for field [" + fieldPath + "]");
             }
 
+            // Pre-compute parent path segments once per column to avoid per-doc string splitting
+            String[] parentSegments = computeParentSegments(fieldPath);
+
             if (mapper instanceof FieldMapper fieldMapper) {
                 // Apply this field mapper across all documents that have a value
                 for (int i = 0; i < docCount; i++) {
@@ -129,7 +150,7 @@ public final class BatchDocumentParser {
                     if (column.isNull(i)) continue;
 
                     try {
-                        parseFieldForDocument(fieldMapper, column, i, fieldPath, contexts[i]);
+                        parseFieldForDocument(fieldMapper, column, i, contexts[i], parentSegments);
                     } catch (Exception e) {
                         exceptions[i] = e;
                     }
@@ -143,7 +164,7 @@ public final class BatchDocumentParser {
                         if (column.isNull(i)) continue;
 
                         try {
-                            parseBinaryObjectForDocument(column, i, fieldPath, contexts[i], mapper);
+                            parseBinaryObjectForDocument(column, i, contexts[i], mapper, parentSegments);
                         } catch (Exception e) {
                             exceptions[i] = e;
                         }
@@ -209,7 +230,7 @@ public final class BatchDocumentParser {
     private static SourceToParse createSourceToParse(
         DocumentBatch batch,
         int docIndex,
-        org.elasticsearch.common.bytes.BytesReference source
+        BytesReference source
     ) {
         String id = batch.docId(docIndex);
         String routing = batch.docRouting(docIndex);
@@ -244,11 +265,11 @@ public final class BatchDocumentParser {
         FieldMapper fieldMapper,
         FieldColumn column,
         int docIndex,
-        String fieldPath,
-        BatchDocumentParserContext context
+        BatchDocumentParserContext context,
+        String[] parentSegments
     ) throws IOException {
-        // Set up the content path for this field
-        setPathForField(fieldPath, context.path());
+        // Set up the content path for this field using pre-computed parent segments
+        setPathForField(parentSegments, context.path());
 
         try {
             XContentParser fieldParser;
@@ -265,9 +286,11 @@ public final class BatchDocumentParser {
                 // Advance the parser to the first token (the value token)
                 fieldParser.nextToken();
 
-                // Create a sub-context with this parser
-                DocumentParserContext fieldContext = context.switchParser(fieldParser);
-                fieldMapper.parse(fieldContext);
+                // Swap the parser directly on the batch context instead of creating a Wrapper via switchParser().
+                // This avoids allocating a new Wrapper object (with 18 field copies) per field × per document.
+                // Safe because FieldMapper.parse/doParseMultiFields never calls switchParser internally.
+                context.setParser(fieldParser);
+                fieldMapper.parse(context);
             } finally {
                 fieldParser.close();
             }
@@ -276,7 +299,7 @@ public final class BatchDocumentParser {
             // To implement: check fieldMapper.copyTo().copyToFields() and call parseCopyFields.
         } finally {
             // Reset the path
-            resetPath(fieldPath, context.path());
+            resetPath(parentSegments.length, context.path());
         }
     }
 
@@ -288,11 +311,11 @@ public final class BatchDocumentParser {
     private static void parseBinaryObjectForDocument(
         FieldColumn column,
         int docIndex,
-        String fieldPath,
         BatchDocumentParserContext context,
-        Mapper mapper
+        Mapper mapper,
+        String[] parentSegments
     ) throws IOException {
-        setPathForField(fieldPath, context.path());
+        setPathForField(parentSegments, context.path());
 
         try {
             XContentParser binaryParser = ColumnValueXContentParser.forBinary(column, docIndex, context.sourceToParse().getXContentType());
@@ -300,6 +323,7 @@ public final class BatchDocumentParser {
                 // Advance to the first token
                 binaryParser.nextToken();
 
+                // Object parsing uses switchParser because parseObjectOrNested may recursively wrap contexts
                 DocumentParserContext subContext = context.switchParser(binaryParser);
                 if (mapper instanceof ObjectMapper objectMapper) {
                     DocumentParser.parseObjectOrNested(subContext.createChildContext(objectMapper));
@@ -308,36 +332,38 @@ public final class BatchDocumentParser {
                 binaryParser.close();
             }
         } finally {
-            resetPath(fieldPath, context.path());
+            resetPath(parentSegments.length, context.path());
         }
     }
 
+    private static final String[] EMPTY_SEGMENTS = new String[0];
+
     /**
-     * Sets the content path to the parent of the given field path.
-     * For example, for "foo.bar.baz", sets the path to "foo.bar" so that the field name "baz"
-     * is resolved correctly during parsing.
+     * Pre-computes the parent path segments for a dotted field path.
+     * For "foo.bar.baz", returns ["foo", "bar"]. For "name" (no dots), returns an empty array.
+     * Called once per column, not per document.
      */
-    private static void setPathForField(String fieldPath, ContentPath path) {
-        // Split the field path and add all parent segments
+    private static String[] computeParentSegments(String fieldPath) {
         int lastDot = fieldPath.lastIndexOf('.');
-        if (lastDot >= 0) {
-            String parentPath = fieldPath.substring(0, lastDot);
-            for (String segment : parentPath.split("\\.")) {
-                path.add(segment);
-            }
+        if (lastDot < 0) return EMPTY_SEGMENTS;
+        return fieldPath.substring(0, lastDot).split("\\.");
+    }
+
+    /**
+     * Sets the content path to the parent of the given field path using pre-computed segments.
+     */
+    private static void setPathForField(String[] parentSegments, ContentPath path) {
+        for (String segment : parentSegments) {
+            path.add(segment);
         }
     }
 
     /**
      * Resets the content path by removing the parent segments that were added by {@link #setPathForField}.
      */
-    private static void resetPath(String fieldPath, ContentPath path) {
-        int lastDot = fieldPath.lastIndexOf('.');
-        if (lastDot >= 0) {
-            String parentPath = fieldPath.substring(0, lastDot);
-            for (String ignored : parentPath.split("\\.")) {
-                path.remove();
-            }
+    private static void resetPath(int segmentCount, ContentPath path) {
+        for (int i = 0; i < segmentCount; i++) {
+            path.remove();
         }
     }
 
@@ -406,15 +432,27 @@ public final class BatchDocumentParser {
         private long numNestedDocs;
         private boolean docsReversed = false;
 
-        BatchDocumentParserContext(MappingLookup mappingLookup, MappingParserContext mappingParserContext, SourceToParse source) {
+        BatchDocumentParserContext(
+            MappingLookup mappingLookup,
+            MappingParserContext mappingParserContext,
+            SourceToParse source,
+            Set<String> copyToFields,
+            Map<String, List<Mapper>> dynamicMappers,
+            Map<String, ObjectMapper> dynamicObjectMappers,
+            Map<String, List<RuntimeField>> dynamicRuntimeFields
+        ) {
             super(
                 mappingLookup,
                 mappingParserContext,
                 source,
                 mappingLookup.getMapping().getRoot(),
-                ObjectMapper.Dynamic.getRootDynamic(mappingLookup)
+                ObjectMapper.Dynamic.getRootDynamic(mappingLookup),
+                copyToFields,
+                dynamicMappers,
+                dynamicObjectMappers,
+                dynamicRuntimeFields
             );
-            // Create a no-op parser as default. The real parser is set per-field via switchParser().
+            // Create a no-op parser as default. The real parser is set per-field via setParser().
             // ColumnValueXContentParser.forNullValue() provides a minimal parser that satisfies
             // the non-null requirement for metadata preParse/postParse calls.
             this.parser = ColumnValueXContentParser.forNullValue();
@@ -441,6 +479,10 @@ public final class BatchDocumentParser {
         @Override
         public XContentParser parser() {
             return this.parser;
+        }
+
+        void setParser(XContentParser parser) {
+            this.parser = parser;
         }
 
         @Override

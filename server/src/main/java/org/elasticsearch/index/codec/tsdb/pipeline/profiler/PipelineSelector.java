@@ -100,22 +100,19 @@ public final class PipelineSelector {
             return PipelineConfig.forDoubles(blockSize).offset().rle().bitPack();
         }
         if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
-            if (profile.deltaDeltaMaxBits() <= DELTA_DELTA_MAX_BITS_THRESHOLD) {
-                // NOTE: nearly linear double counter, second-order deltas on sortable longs are very compact
-                return PipelineConfig.forDoubles(blockSize).deltaDelta().offset().gcd().patchedPFor().bitPack();
-            }
-            // NOTE: monotonic but irregular steps, plain delta removes the trend
-            return PipelineConfig.forDoubles(blockSize).delta().offset().gcd().bitPack();
+            // NOTE: monotonic double counters — Gorilla's XOR encoding between consecutive
+            // sortable longs captures the steady increment pattern efficiently
+            return PipelineConfig.forDoubles(blockSize).gorilla();
         }
         if (profile.gcd() > 1) {
             return PipelineConfig.forDoubles(blockSize).offset().gcd().bitPack();
         }
         if (profile.xorMaxBits() < profile.rawMaxBits()) {
-            // NOTE: smooth doubles — ALP exploits decimal structure for best compression,
+            // NOTE: smooth double gauges — ALP with 6-digit quantization exploits decimal structure,
             // XOR + patchedPFor is faster but less compact
             return hint == OptimizeFor.SPEED
                 ? PipelineConfig.forDoubles(blockSize).xor().patchedPFor().bitPack()
-                : PipelineConfig.forDoubles(blockSize).alpDoubleStage().offset().gcd().bitPack();
+                : PipelineConfig.forDoubles(blockSize).alpDoubleStage(1e-6).offset().gcd().bitPack();
         }
         // NOTE: noisy doubles — XOR provides no bit-width reduction, use offset + patchedPFor
         return PipelineConfig.forDoubles(blockSize).offset().patchedPFor().bitPack();

@@ -77,27 +77,20 @@ public class PipelineSelectorTests extends ESTestCase {
         assertEquals(PipelineConfig.DataType.LONG, config.dataType());
     }
 
-    public void testGaugeDoublesSelectsDoublePipeline() {
-        final double[] doubles = NumericDataGenerators.gaugeDoubles(512);
-        final long[] values = NumericDataGenerators.doublesToSortableLongs(doubles);
-        final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.DOUBLE, null);
+    public void testSmoothDoubleSelectsAlpWithQuantization() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, false, false, 500, 30, 10, 12, 20);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null);
 
-        assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
     }
 
-    public void testGaugeDoublesWithSpeedHintSelectsDoublePipeline() {
-        final double[] doubles = NumericDataGenerators.gaugeDoubles(512);
-        final long[] values = NumericDataGenerators.doublesToSortableLongs(doubles);
-        final PipelineConfig config = selector.select(
-            profiler.profile(values, 512),
-            512,
-            PipelineConfig.DataType.DOUBLE,
-            PipelineResolver.OptimizeFor.SPEED
-        );
+    public void testSmoothDoubleWithSpeedHintSelectsXor() {
+        final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, false, false, 500, 30, 10, 12, 20);
+        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, PipelineResolver.OptimizeFor.SPEED);
 
-        assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Xor.class)));
     }
 
     public void testDeterministic() {
@@ -201,7 +194,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
     }
 
-    public void testMonotonicDoubleCounterSelectsDeltaDelta() {
+    public void testMonotonicDoubleCounterSelectsGorilla() {
         final long[] values = new long[512];
         final long base = NumericDataGenerators.doublesToSortableLongs(new double[] { 100.0 })[0];
         final long step = NumericDataGenerators.doublesToSortableLongs(new double[] { 100.001 })[0] - base;
@@ -214,7 +207,7 @@ public class PipelineSelectorTests extends ESTestCase {
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.DOUBLE, null);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.DeltaDelta.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gorilla.class)));
     }
 
     public void testMonotonicFloatCounterPreservesDataType() {

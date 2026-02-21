@@ -36,6 +36,12 @@ public class FieldColumn {
     // For variable-size types, per-doc layout is: [1 byte present flag][length][value bytes]
     private final int nullBitmaskSize;
 
+    // Cursor for sequential access to variable-length columns.
+    // Tracks the byte position of the entry for cursorDocIndex, so that sequential
+    // access (0, 1, 2, ...) is O(1) per doc instead of O(n).
+    private int cursorDocIndex = -1;
+    private int cursorPos;
+
     FieldColumn(String fieldPath, ColumnType columnType, byte[] data, int dataOffset, int dataLength, int docCount) {
         this.fieldPath = fieldPath;
         this.columnType = columnType;
@@ -125,12 +131,21 @@ public class FieldColumn {
     }
 
     /**
-     * For variable-size columns: check if doc is present.
-     * Layout: sequential entries, each [1 byte present][4 bytes length][value bytes] or [1 byte 0x00] if absent.
+     * Scans to the start of the entry for the given docIndex, using the cursor to skip
+     * already-visited entries. For sequential access patterns (0, 1, 2, ...) this is O(1)
+     * per call. For backward jumps, falls back to scanning from the start.
      */
-    private boolean varLenPresent(int docIndex) {
-        int pos = dataOffset;
-        for (int i = 0; i < docIndex; i++) {
+    private int scanTo(int docIndex) {
+        int pos;
+        int startDoc;
+        if (cursorDocIndex >= 0 && docIndex >= cursorDocIndex) {
+            pos = cursorPos;
+            startDoc = cursorDocIndex;
+        } else {
+            pos = dataOffset;
+            startDoc = 0;
+        }
+        for (int i = startDoc; i < docIndex; i++) {
             byte present = data[pos];
             pos++;
             if (present != 0) {
@@ -138,6 +153,17 @@ public class FieldColumn {
                 pos += 4 + len;
             }
         }
+        cursorDocIndex = docIndex;
+        cursorPos = pos;
+        return pos;
+    }
+
+    /**
+     * For variable-size columns: check if doc is present.
+     * Layout: sequential entries, each [1 byte present][4 bytes length][value bytes] or [1 byte 0x00] if absent.
+     */
+    private boolean varLenPresent(int docIndex) {
+        int pos = scanTo(docIndex);
         return data[pos] != 0;
     }
 
@@ -145,15 +171,7 @@ public class FieldColumn {
      * For variable-size columns: returns [offset, length] of the value bytes, or null if absent.
      */
     private int[] varLenValueOffsetAndLength(int docIndex) {
-        int pos = dataOffset;
-        for (int i = 0; i < docIndex; i++) {
-            byte present = data[pos];
-            pos++;
-            if (present != 0) {
-                int len = (int) INT_HANDLE.get(data, pos);
-                pos += 4 + len;
-            }
-        }
+        int pos = scanTo(docIndex);
         byte present = data[pos];
         pos++;
         if (present == 0) return null;

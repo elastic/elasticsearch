@@ -86,9 +86,14 @@ public final class PipelineSelector {
             return PipelineConfig.forDoubles(blockSize).offset().rle().bitPack();
         }
         if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
-            // NOTE: monotonic double counters — Gorilla's XOR encoding between consecutive
-            // sortable longs captures the steady increment pattern efficiently
-            return PipelineConfig.forDoubles(blockSize).gorilla();
+            if (hint == OptimizeFor.STORAGE) {
+                // NOTE: Gorilla's sequential XOR encoding is the most compact for monotonic doubles
+                return PipelineConfig.forDoubles(blockSize).gorilla();
+            }
+            if (hint == OptimizeFor.SPEED) {
+                // NOTE: Chimp's group-based XOR is SIMD-friendly — faster decode than Gorilla
+                return PipelineConfig.forDoubles(blockSize).chimpDoubleStage().offset().gcd().bitPack();
+            }
         }
         if (profile.shiftedGcd() > 1) {
             return PipelineConfig.forDoubles(blockSize).offset().gcd().bitPack();
@@ -117,9 +122,14 @@ public final class PipelineSelector {
             return PipelineConfig.forFloats(blockSize).offset().rle().bitPack();
         }
         if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
-            // NOTE: monotonic float counters — Gorilla's XOR encoding handles non-uniform
-            // sortable-int deltas (e.g. power-of-2 boundary crossings) better than deltaDelta
-            return PipelineConfig.forFloats(blockSize).gorilla();
+            if (hint == OptimizeFor.STORAGE) {
+                // NOTE: Gorilla's sequential XOR encoding is the most compact for monotonic floats
+                return PipelineConfig.forFloats(blockSize).gorilla();
+            }
+            if (hint == OptimizeFor.SPEED) {
+                // NOTE: Chimp's group-based XOR is SIMD-friendly — faster decode than Gorilla
+                return PipelineConfig.forFloats(blockSize).chimpFloatStage().offset().gcd().bitPack();
+            }
         }
         if (profile.shiftedGcd() > 1) {
             return PipelineConfig.forFloats(blockSize).offset().gcd().bitPack();

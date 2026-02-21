@@ -196,16 +196,12 @@ public class PerFieldFormatSupplier {
         }
 
         if (useTSDBDocValuesFormat(field)) {
-            if (mapperService != null) {
-                if (mapperService.getIndexSettings()
-                    .getIndexVersionCreated()
-                    .onOrAfter(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3)) {
-                    return new ES819Version3TSDBDocValuesFormat();
-                } else {
-                    return mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize()
-                        ? ES819TSDBDocValuesFormat.getInstance(true)
-                        : ES819TSDBDocValuesFormat.getInstance(false);
-                }
+            var indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
+            if (indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3)) {
+                return new ES819Version3TSDBDocValuesFormat();
+            } else {
+                boolean useLargeBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize();
+                return useLargeBlockSize ? ES819TSDBDocValuesFormat.getInstance(true) : ES819TSDBDocValuesFormat.getInstance(false);
             }
         }
 

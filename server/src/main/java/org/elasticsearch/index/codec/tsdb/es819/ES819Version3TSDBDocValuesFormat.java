@@ -15,7 +15,7 @@ import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
  * Version 3 of {@link org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat} and has the following changes:
  * <ul>
  *     <li>Changed how binary doc values encodes docOffsets from grouped vints to bitpacking</li>
- *     <li>Always encode numeric doc values and ordinals in blocks of up to 512 values. {@link #NUMERIC_LARGE_BLOCK_SHIFT}</li>
+ *     <li>Always encode numerics and ordinals in blocks of up to 512 values. {@link #NUMERIC_LARGE_BLOCK_SHIFT}</li>
  * </ul>
  *
  * Note that versions 0, 1, and 2 are implemented as a codec version in {@link ES819TSDBDocValuesFormat}.

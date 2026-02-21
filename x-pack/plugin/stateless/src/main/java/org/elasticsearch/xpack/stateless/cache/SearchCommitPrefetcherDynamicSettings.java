@@ -47,8 +47,7 @@ public class SearchCommitPrefetcherDynamicSettings {
     // (we can't have the cluster settings updater hold references to each eg {@link SearchEngine} because that's a memory leak)
     public static final Setting<Boolean> STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT = Setting.boolSetting(
         "stateless.search.use_internal_files_replicated_content",
-        // TODO enable this by default
-        false,
+        true,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

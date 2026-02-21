@@ -431,9 +431,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests
   method: testTransform {class org.elasticsearch.xpack.esql.plan.logical.MMR}
   issue: https://github.com/elastic/elasticsearch/issues/142674
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/142426
 - class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
   method: testTsIndexConflictingTypes {null}
   issue: https://github.com/elastic/elasticsearch/issues/142410
@@ -443,9 +440,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexResumeIT
   method: testLocalResumeReindexFromScroll_slicedAuto
   issue: https://github.com/elastic/elasticsearch/issues/142749
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/142426
 
 # Examples:
 #

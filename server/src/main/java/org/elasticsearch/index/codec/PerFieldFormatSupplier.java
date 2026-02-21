@@ -42,6 +42,7 @@ import java.util.concurrent.ExecutorService;
 
 import static org.apache.lucene.util.hnsw.HnswGraphBuilder.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.util.hnsw.HnswGraphBuilder.DEFAULT_MAX_CONN;
+import static org.elasticsearch.index.IndexVersions.TIME_SERIES_DOC_VALUE_FORMAT_USE_LARGE_BLOCK;
 
 /**
  * Class that encapsulates the logic of figuring out the most appropriate file format for a given field, across postings, doc values and
@@ -68,8 +69,6 @@ public class PerFieldFormatSupplier {
 
     private static final DocValuesFormat docValuesFormat = new Lucene90DocValuesFormat();
     private final KnnVectorsFormat knnVectorsFormat;
-    private static final DocValuesFormat tsdbDocValuesFormat = new ES819TSDBDocValuesFormat();
-    private static final DocValuesFormat tsdbDocValuesFormatLargeNumericBlock = new ES819TSDBLargerNumericBlocksDocValuesFormat();
     private static final ES812PostingsFormat es812PostingsFormat = new ES812PostingsFormat();
     private static final PostingsFormat completionPostingsFormat = PostingsFormat.forName("Completion101");
 
@@ -199,8 +198,9 @@ public class PerFieldFormatSupplier {
 
         if (useTSDBDocValuesFormat(field)) {
             return (mapperService != null && mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize())
-                ? tsdbDocValuesFormatLargeNumericBlock
-                : tsdbDocValuesFormat;
+                && TIME_SERIES_DOC_VALUE_FORMAT_USE_LARGE_BLOCK.onOrAfter(mapperService.getIndexSettings().getIndexVersionCreated())
+                    ? new ES819TSDBLargerNumericBlocksDocValuesFormat()
+                    : new ES819TSDBDocValuesFormat();
         }
 
         return docValuesFormat;

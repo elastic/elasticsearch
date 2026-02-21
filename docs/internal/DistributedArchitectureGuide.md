@@ -282,8 +282,8 @@ The elected master is responsible for coordinating all cluster state updates and
 nodes in the cluster.
 
 The [Metadata] part of the [ClusterState] is persisted to disk via the [PersistedClusterStateService] and will survive
-restarts. The rest of the [ClusterState] components are in-memory only, and need to be rebuilt every time the cluster
-reboots.
+restarts. The rest of the [ClusterState] components are in-memory only, and need to be rebuilt every time there is a
+full cluster restart.
 
 #### Persisted State
 
@@ -378,7 +378,7 @@ include [SnapshotsInProgress], [RestoreInProgress], [SnapshotDeletionsInProgress
 
 - `compatibilityVersions` and `minVersions` ([CompatibilityVersions])
 
-Per-node & cluster-wide min [TransportVersion] and system index mappings versions used to figure out serialization
+Per-node and cluster-wide min [TransportVersion] and system index mappings versions used to figure out serialization
 compatibility across the cluster.
 
 - `clusterFeatures` ([ClusterFeatures])
@@ -403,7 +403,7 @@ correct base state during publication.
 
 [Priority]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/common/Priority.java
 
-[SnapshotService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/SnapshotsService.java
+[SnapshotsService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/snapshots/SnapshotsService.java
 
 [ClusterStateTaskExecutor]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateTaskExecutor.java
 
@@ -415,7 +415,7 @@ The [MasterService] uses a batching framework that groups multiple cluster state
 as a single batch and publishing only one resulting ClusterState update. This avoids triggering a distinct publication
 for each individual task, which would be very costly.
 
-Producers of cluster state update tasks, such as [SnapshotService] , can
+Producers of cluster state update tasks, such as [SnapshotsService] , can
 then [define](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1516)
 their own task queues, priority and batch executors ([ClusterStateTaskExecutor]), which the [MasterService] uses to
 group and process related tasks
@@ -431,6 +431,81 @@ If the new state is identical to the previous one (by reference), no publication
 assigns a new `version` and `stateUUID` to the state and proceeds to publication.
 
 #### Cluster State Publication
+
+[Coordinator]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java
+
+[Publication]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java
+
+[PublicationTransportHandler]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java
+
+[CoordinationState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java
+
+[ClusterStatePublisher]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ClusterStatePublisher.java
+
+[ApplyCommitRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/ApplyCommitRequest.java
+
+[ClusterStateDiff]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
+
+[PublishRequest]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublishRequest.java#L19
+
+[CoordinatorPublication]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1944
+
+[PublishResponse]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublishResponse.java#L21
+
+Once the [MasterService] has computed a new [ClusterState], it passes it to the [Coordinator], which is responsible for
+broadcasting it to all nodes in the cluster.
+This [publication](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1620)
+process follows a two-steps commit protocol.
+The progress of the publication is tracked via
+the [PublicationTargetState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L226)
+enum.
+
+The [Coordinator] creates
+a [PublicationContext](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L261)
+via the [PublicationTransportHandler], which pre-serializes the cluster state into shared, reference-counted byte
+buffers. A [ClusterStateDiff] against the previous state is prepared. A full serialization is also prepared when
+the previous state's `blocks` had its disable state persistence flag set, or when a node present in the new state was
+absent from the previous one (since that node will not have a previous state to apply a diff against).
+It then builds a [PublishRequest] and creates a [CoordinatorPublication]
+to [coordinate](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1711)
+the protocol.
+
+1. **Publish**
+
+The master
+then [sends](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L374)
+the serialized cluster state to every node in the cluster via the
+`internal:cluster/coordination/publish_state` transport action. As an optimization, the diff is sent to nodes that were
+already part of the cluster, while new nodes receive the full state directly. If a node
+responds
+with [IncompatibleClusterStateVersionException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/IncompatibleClusterStateVersionException.java#L20)
+the [PublicationTransportHandler]
+then [retries](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L484)
+with the full state.
+
+The recipient
+nodes [verify](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L125)
+the received state is valid, and compare it against their local state
+via [CoordinationState.handlePublishRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L377)
+and send back a [PublishResponse] containing the new cluster state term and version. At that point, the recipient nodes
+have [persisted](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L405)
+the new state `CoordinationState::PersistedState` but have not yet applied it.
+
+2. **Commit**
+
+Once the master has collected [PublishResponse]s from the required quorum of nodes (see [Quorum](#quorum) section), it
+creates an [ApplyCommitRequest]. The master sends this commit message to all nodes that responded to
+the [PublishRequest] via the `internal:cluster/coordination/commit_state` transport action.
+
+When receiving this request, each
+node [marks this last accepted state as committed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L517)
+and proceeds to apply the new state (see [Cluster State Application](#cluster-state-application) section).
+
+If the master cannot achieve a publish quorum (e.g. too many nodes are faulty), the [Publication] will fail the entire
+publication with
+a [FailedToCommitClusterStateException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FailedToCommitClusterStateException.java).
+The master will step down (it can no longer be master if it is not able to publish cluster states) and a new election
+begins.
 
 #### Cluster State Application
 

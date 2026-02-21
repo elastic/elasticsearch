@@ -21,40 +21,36 @@ import org.elasticsearch.index.mapper.AbstractBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
+import org.elasticsearch.index.mapper.blockloader.MockWarnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
-import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.util.Comparator;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class BinaryMvMinBytesRefsTests extends AbstractBlockLoaderTestCase {
-    public BinaryMvMinBytesRefsTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
+public class BinaryByteLengthBlockLoaderTests extends AbstractBlockLoaderTestCase {
+    public BinaryByteLengthBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
         super(blockAtATime, multiValues, missingValues);
     }
 
     @Override
     protected void test(CircuitBreaker breaker, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrap) throws IOException {
+        int mvCount = 0;
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             int docCount = 10_000;
             int cardinality = between(16, 2048);
             for (int i = 0; i < docCount; i++) {
                 var field = new MultiValuedBinaryDocValuesField.SeparateCount("field", false);
-                int baseLength = (i % cardinality) + 1;
-                char c = 'z';
-                field.add(new BytesRef(("" + c).repeat(baseLength)));
+                field.add(new BytesRef("a".repeat(i % cardinality)));
                 NumericDocValuesField countField;
                 if (multiValues && i % cardinality == 0) {
-                    int numValues = randomIntBetween(2, 8);
-                    for (int j = 1; j <= numValues; j++) {
-                        c--;
-                        field.add(new BytesRef(("" + c).repeat(baseLength + j)));
-                    }
-                    countField = NumericDocValuesField.indexedField(field.countFieldName(), numValues);
+                    field.add(new BytesRef("a".repeat((i % cardinality) + 1)));
+                    mvCount++;
+                    countField = NumericDocValuesField.indexedField(field.countFieldName(), 2);
                 } else {
                     countField = NumericDocValuesField.indexedField(field.countFieldName(), 1);
                 }
@@ -66,20 +62,36 @@ public class BinaryMvMinBytesRefsTests extends AbstractBlockLoaderTestCase {
             iw.forceMerge(1);
             try (DirectoryReader dr = wrap.apply(iw.getReader())) {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
+                List<MockWarnings.MockWarning> expectedWarnings = new ArrayList<>();
+                for (int i = 0; i < mvCount; i++) {
+                    expectedWarnings.add(
+                        new MockWarnings.MockWarning(IllegalArgumentException.class, "single-value function encountered multi-value")
+                    );
+                }
 
+                var warnings = new MockWarnings();
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
-                var mvMinLoader = new MvMinBytesRefsFromBinaryBlockLoader("field");
-                try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMinReader = mvMinLoader.reader(breaker, ctx)) {
-                    assertThat(mvMinReader, readerMatcher());
+                var lengthLoader = new ByteLengthFromBytesRefDocValuesBlockLoader(warnings, "field");
+
+                try (var stringsReader = stringsLoader.reader(breaker, ctx); var lengthReader = lengthLoader.reader(breaker, ctx)) {
+                    if (multiValues) {
+                        assertThat(lengthReader, hasToString("ByteLengthFromBytesRef.MultiValuedBinaryWithSeparateCounts"));
+                    } else {
+                        assertThat(lengthReader, hasToString("ByteLengthFromBytesRef.SingleValued"));
+                    }
+
                     BlockLoader.Docs docs = TestBlock.docs(ctx);
                     try (
                         TestBlock strings = read(stringsLoader, stringsReader, docs);
-                        TestBlock mins = read(mvMinLoader, mvMinReader, docs)
+                        TestBlock codePoints = read(lengthLoader, lengthReader, docs);
                     ) {
-                        checkBlocks(strings, mins);
+                        checkBlocks(strings, codePoints);
                     }
+                    assertThat(warnings.warnings(), equalTo(expectedWarnings));
+                    warnings.warnings().clear();
                 }
-                try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMinReader = mvMinLoader.reader(breaker, ctx)) {
+
+                try (var stringsReader = stringsLoader.reader(breaker, ctx); var lengthReader = lengthLoader.reader(breaker, ctx)) {
                     for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
                         int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
                         for (int d = 0; d < docsArray.length; d++) {
@@ -88,33 +100,30 @@ public class BinaryMvMinBytesRefsTests extends AbstractBlockLoaderTestCase {
                         BlockLoader.Docs docs = TestBlock.docs(docsArray);
                         try (
                             TestBlock strings = read(stringsLoader, stringsReader, docs);
-                            TestBlock mins = read(mvMinLoader, mvMinReader, docs)
+                            TestBlock codePoints = read(lengthLoader, lengthReader, docs);
                         ) {
-                            checkBlocks(strings, mins);
+                            checkBlocks(strings, codePoints);
                         }
                     }
+                    assertThat(warnings.warnings(), equalTo(expectedWarnings));
+                    warnings.warnings().clear();
                 }
 
-                try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMinReader = mvMinLoader.reader(breaker, ctx)) {
+                // Testing fetching a single doc, which has a different code path
+                try (var stringsReader = stringsLoader.reader(breaker, ctx); var lengthReader = lengthLoader.reader(breaker, ctx)) {
                     for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
                         BlockLoader.Docs docs = TestBlock.docs(docId);
                         try (
                             TestBlock strings = read(stringsLoader, stringsReader, docs);
-                            TestBlock mins = read(mvMinLoader, mvMinReader, docs)
+                            TestBlock codePoints = read(lengthLoader, lengthReader, docs);
                         ) {
-                            checkBlocks(strings, mins);
+                            checkBlocks(strings, codePoints);
                         }
                     }
+                    assertThat(warnings.warnings(), equalTo(expectedWarnings));
                 }
             }
         }
-    }
-
-    private Matcher<Object> readerMatcher() {
-        if (multiValues) {
-            return hasToString("MvMinBytesRefsFromBinary.SeparateCount");
-        }
-        return hasToString("BlockDocValuesReader.Bytes");
     }
 
     private TestBlock read(BlockLoader loader, BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
@@ -125,17 +134,15 @@ public class BinaryMvMinBytesRefsTests extends AbstractBlockLoaderTestCase {
         return (TestBlock) toUse.read(TestBlock.factory(), docs, 0, false);
     }
 
-    private void checkBlocks(TestBlock strings, TestBlock mvMin) {
+    private void checkBlocks(TestBlock strings, TestBlock lengths) {
         for (int i = 0; i < strings.size(); i++) {
             Object str = strings.get(i);
-            if (str == null) {
-                assertThat(mvMin.get(i), nullValue());
+            if (str instanceof List<?> || str == null) {
+                assertThat(lengths.get(i), nullValue());
                 continue;
             }
-            BytesRef bytes = (BytesRef) (str instanceof List<?> list
-                ? list.stream().map(b -> (BytesRef) b).min(Comparator.naturalOrder()).get()
-                : str);
-            assertThat(mvMin.get(i), equalTo(bytes));
+            BytesRef bytes = (BytesRef) str;
+            assertThat(lengths.get(i), equalTo(bytes.length));
         }
     }
 }

@@ -62,8 +62,8 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
                 return new SingleValued(breaker, values);
             }
 
-            release += AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
             breaker.addEstimateBytesAndMaybeBreak(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE, "load blocks");
+            release += AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
             NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
             release = 0;
             return new MultiValuedBinaryWithSeparateCounts(breaker, warnings, counts, values);

@@ -33,7 +33,7 @@ public class DateRangeDocValuesLoader extends BlockDocValuesReader.DocValuesBloc
 
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addWithoutBreaking(BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
+        breaker.addEstimateBytesAndMaybeBreak(BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE, "load blocks");
         boolean release = true;
         try {
             var docValues = context.reader().getBinaryDocValues(fieldName);

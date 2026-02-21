@@ -432,6 +432,8 @@ assigns a new `version` and `stateUUID` to the state and proceeds to publication
 
 #### Cluster State Publication
 
+![Alt text](images/cluster-state-publication.png)
+
 [Coordinator]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java
 
 [Publication]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java
@@ -456,9 +458,11 @@ Once the [MasterService] has computed a new [ClusterState], it passes it to the 
 broadcasting it to all nodes in the cluster.
 This [publication](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1620)
 process follows a two-steps commit protocol.
-The progress of the publication is tracked via
-the [PublicationTargetState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L226)
-enum.
+The progress of the publication for each follower node is tracked via
+a [PublicationTarget](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L235)
+object with maintains a
+[PublicationTargetState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L226)
+state.
 
 The [Coordinator] creates
 a [PublicationContext](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L261)

@@ -284,7 +284,8 @@ public abstract class LuceneQueryEvaluatorTests<T extends Block, U extends Block
             randomIntBetween(1, 10),
             randomPageSize(),
             LuceneOperator.NO_LIMIT,
-            scoring
+            scoring,
+            null
         );
     }
 

@@ -333,7 +333,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 1,
                 10000,
                 LuceneOperator.NO_LIMIT,
-                false // no scoring
+                false, // no scoring
+                null
             );
             List<ValuesSourceReaderOperator.FieldInfo> fieldInfos = new ArrayList<>();
             for (int i = 0; i < keyTypes.size(); i++) {

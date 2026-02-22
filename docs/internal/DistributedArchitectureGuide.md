@@ -301,12 +301,12 @@ The [Metadata] of a [ClusterState] is persisted on disk and comprises informatio
 
 A few standouts are:
 
-- `clusterUUID`: the cluster unique identifier.
-- `coordinationMetadata`: the term, voting configurations ... etc. (see [Master Elections](#master-elections) section).
+- `clusterUUID`: the cluster unique id.
+- `coordinationMetadata`: the current term, voting configurations ... etc. (see [Master Elections](#master-elections)
+  section).
 - `persistentSettings`: cluster-level settings applied
   via [the cluster settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings).
 - `customs`: cluster-level custom metadata: `NodesShutdownMetadata`, `RepositoriesMetadata` .. etc.
-- `reservedStateMetadata`: state managed by the file-based settings (operator) feature.
 
 2. Project scope information (located in the [ProjectMetadata])
 
@@ -353,7 +353,7 @@ Note that some concepts are applicable to both cluster and project scopes, e.g. 
 [ClusterFeatures]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterFeatures.java
 
 The rest of the [ClusterState] is ephemeral, it is not persisted to disk and is rebuilt from scratch when the cluster
-restarts. The key components are:
+restarts. Some key components are:
 
 - `nodes` ([DiscoveryNodes])
 
@@ -364,9 +364,9 @@ across the cluster.
 - `routingTable` ([GlobalRoutingTable])
 
 Maps each project to its [RoutingTable], which itself maps each index to an [IndexRoutingTable] containing
-an [IndexShardRoutingTable] per shard. Each `IndexShardRoutingTable` lists the [ShardRouting] entries for a shard (one
-per copy), detailing which node each copy is assigned to, its state (`UNASSIGNED`,`INITIALIZING`, `STARTED` or
-`RELOCATING`), and whether it is a primary or replica.
+an [IndexShardRoutingTable] per shard. Each `IndexShardRoutingTable` lists the [ShardRouting] entries for a shard,
+detailing which node owns its, its state (`UNASSIGNED`,`INITIALIZING`, `STARTED` or `RELOCATING`), and whether
+it is a primary or replica.
 
 - `blocks` ([ClusterBlocks])
 
@@ -390,7 +390,7 @@ compatibility across the cluster.
 
 Info on what features are present throughout the cluster.
 
-- Cluster state versioning fields
+- Cluster state version fields
 
 The `version` field is
 a [monotonically increasing](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java#L162)
@@ -458,7 +458,7 @@ assigns a new `version` and `stateUUID` to the state and proceeds to publication
 [PublishResponse]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublishResponse.java#L21
 
 Once the [MasterService] has computed a new [ClusterState], it passes it to the [Coordinator], which is responsible for
-broadcasting it to all nodes in the cluster.
+then sharing with it with all nodes in the cluster.
 This [publication](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1620)
 process follows a two-step commit protocol.
 The progress of the publication for each follower node is tracked via
@@ -481,8 +481,7 @@ the protocol.
 
 The master
 then [sends](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L374)
-the serialized cluster state to every node in the cluster via the
-`internal:cluster/coordination/publish_state` transport action. As an optimization, the diff is sent to nodes that were
+the serialized cluster state to every node in the cluster. As an optimization, the diff is sent to nodes that were
 already part of the cluster, while new nodes receive the full state directly. If a node
 responds
 with [IncompatibleClusterStateVersionException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/IncompatibleClusterStateVersionException.java#L20)
@@ -492,35 +491,37 @@ with the full state.
 
 The recipient
 nodes [verify](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L125)
-the received state is valid, and compare it against their local state
+the received state is valid, compare it against their local state
 via [CoordinationState.handlePublishRequest](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L377)
 and send back a [PublishResponse] containing the new cluster state term and version. At that point, the recipient nodes
 have [persisted](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L405)
-the new state `CoordinationState::PersistedState` but have not yet applied it.
+the new state but have not yet applied it.
 
 2. **Commit**
 
-Once the master has collected `PublishResponse`s from the required quorum of nodes (see [Quorum](#quorum) section), it
-creates an [ApplyCommitRequest]. The master sends this commit message to all nodes that responded to
-the `PublishRequest` via the `internal:cluster/coordination/commit_state` transport action.
+Once the master has collected enough `PublishResponse`s from master-eligible nodes to satisfy quorum (
+see [Quorum](#quorum) section), it creates an [ApplyCommitRequest]. The master then sends this commit message to all
+nodes
+that responded to the `PublishRequest`.
 
 When receiving this request, each
 node [marks this last accepted state as committed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L517)
 and proceeds to apply the new state (see [Cluster State Application](#cluster-state-application) section).
 
-If the master cannot achieve a publish quorum (e.g. too many nodes are faulty), the [Publication] will fail the entire
+If the master cannot achieve a [PublishResponse] quorum (e.g. too many nodes are faulty), the [Publication] will fail
+the entire
 publication with
 a [FailedToCommitClusterStateException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FailedToCommitClusterStateException.java).
 The master will then step down (it can no longer be master if it is not able to publish cluster states) and a new
 election
 begins.
 
-The master will
+Once the [ApplyCommitRequest] have been sent, the master will
 try [waiting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L103)
 for all nodes to commit
 before [applying its own state](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L2056)
 and moving on. But it no longer needs
-a quorum of responses after `ApplyCommitRequest`s have been sent. If the nodes time out, the master will still move on
+a quorum of responses at that point. If the nodes time out, the master will still move on
 to applying the new cluster state locally.
 
 #### Cluster State Application
@@ -533,7 +534,7 @@ to applying the new cluster state locally.
 
 [ClusterChangedEvent]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterChangedEvent.java
 
-When a new [ClusterState] is committed, the follower nodes must apply the committed state locally.
+When a new [ClusterState] is committed, the follower nodes need to apply the committed state locally.
 This is the responsibility of the [ClusterApplierService] class, which runs on
 a [single dedicated thread](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L159).
 
@@ -546,7 +547,7 @@ to the executor. If the new state differs from the currently applied state (by r
 service [applies](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L538)
 the changes through the following sequence of steps:
 
-1. A [ClusterChangedEvent] is created, holding the new state, the previous state and their deltas.
+1. A [ClusterChangedEvent] is created, holding the new state, the previous state, and their deltas.
 
 2. The
    node [opens](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L551)
@@ -585,9 +586,9 @@ functioning master.
 
 [PersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L540
 
-Only the [Metadata] portion of the [ClusterState] is persisted to disk (see [Persisted State](#persisted-state)). The
-rest of the `ClusterState` (routing table, node membership, in-progress snapshots ... etc.) is ephemeral and rebuilt
-from scratch after each full cluster restart.
+As mentioned in previous sections, only the [Metadata] portion of the [ClusterState] is persisted to disk (
+see [Persisted State](#persisted-state)). The rest of the `ClusterState` (routing table, node membership, in-progress
+snapshots ... etc.) is ephemeral and rebuilt from scratch after each full cluster restart.
 
 The [PersistedClusterStateService] is responsible for storing the cluster metadata in a simple Lucene index in each of
 the node's data paths, under the

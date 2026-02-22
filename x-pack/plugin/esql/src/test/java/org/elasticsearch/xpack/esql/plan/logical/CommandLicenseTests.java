@@ -136,7 +136,9 @@ public class CommandLicenseTests extends ESTestCase {
             "MvExpand",
             "MV_EXPAND",
             "InlineStats",
-            "INLINE_STATS"
+            "INLINE_STATS",
+            "MetricsInfo",
+            "METRICS_INFO"
         );
         Map<String, String> commandPackageMapper = Map.of("Rerank", planPackage + ".inference", "LookupJoin", planPackage + ".join");
         Set<String> ignoredClasses = Set.of("Processing", "TimeSeries", "Completion", "Source", "From", "Row");

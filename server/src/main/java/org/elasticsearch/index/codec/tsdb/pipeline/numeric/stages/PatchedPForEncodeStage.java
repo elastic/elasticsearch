@@ -79,12 +79,22 @@ public final class PatchedPForEncodeStage implements TransformEncoder {
         }
 
         if (numExceptions > maxExceptions) {
-            // NOTE: Each exception stores position (VInt) + value (VLong).
-            // Too many exceptions negates the bit-width reduction savings.
             return valueCount;
         }
 
         if (numExceptions == 0) {
+            return valueCount;
+        }
+
+        // NOTE: Skip when patching doesn't clearly save bytes. Savings come from
+        // reducing bitpack width from maxBitsNeeded to optimalBits across all values.
+        // Cost is the PFor header (2 bytes) plus ~5 bytes per exception (VInt delta
+        // position + VLong value). We require savings >= 2x cost to account for
+        // estimation error and the decode-time penalty (each exception is a branch
+        // that breaks vectorization in the decoder).
+        final int savedBytes = (maxBitsNeeded - optimalBits) * valueCount / 8;
+        final int patchCost = 2 + numExceptions * 5;
+        if (savedBytes < patchCost * 2) {
             return valueCount;
         }
 

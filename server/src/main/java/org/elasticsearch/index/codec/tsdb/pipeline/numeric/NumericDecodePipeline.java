@@ -63,11 +63,12 @@ public final class NumericDecodePipeline {
     static NumericDecodePipeline fromDescriptor(final PipelineDescriptor descriptor) {
         final int blockSize = descriptor.blockSize();
         final int stageCount = descriptor.pipelineLength();
+        final boolean isFloat = descriptor.dataType() == PipelineDescriptor.DataType.FLOAT;
         final List<TransformDecoder> stages = new ArrayList<>();
 
         for (int i = 0; i < stageCount - 1; i++) {
             final StageSpec spec = StageFactory.specFromStageId(StageId.fromId(descriptor.stageIdAt(i)));
-            stages.add(StageFactory.newTransformDecoder(spec, blockSize));
+            stages.add(StageFactory.newTransformDecoder(spec, blockSize, isFloat));
         }
         final StageSpec payloadSpec = StageFactory.specFromStageId(StageId.fromId(descriptor.stageIdAt(stageCount - 1)));
         final PayloadDecoder payloadStage = StageFactory.newPayloadDecoder(payloadSpec, blockSize);

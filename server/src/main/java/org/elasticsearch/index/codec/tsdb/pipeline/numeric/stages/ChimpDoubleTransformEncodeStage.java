@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformEncoder;
@@ -66,7 +67,17 @@ public final class ChimpDoubleTransformEncodeStage implements TransformEncoder {
             QuantizeUtils.quantizeDoubles(values, valueCount, quantizeStep);
         }
 
+        // NOTE: convert sortable-longs to raw IEEE-754 bits so that XOR
+        // produces small residuals for consecutive similar doubles.
+        for (int i = 0; i < valueCount; i++) {
+            values[i] = NumericUtils.sortableDoubleBits(values[i]);
+        }
+
         if (shouldSkip(values, valueCount)) {
+            // NOTE: convert back — skip means no transform, downstream expects sortable longs
+            for (int i = 0; i < valueCount; i++) {
+                values[i] = NumericUtils.doubleToSortableLong(Double.longBitsToDouble(values[i]));
+            }
             return valueCount;
         }
 

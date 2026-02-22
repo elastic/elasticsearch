@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformEncoder;
@@ -19,23 +20,28 @@ import java.util.Objects;
 
 public final class FpcTransformEncodeStage implements TransformEncoder {
 
-    static final int DEFAULT_TABLE_SIZE = 1024;
+    public static final int DEFAULT_TABLE_SIZE = 1024;
 
     private final long[] fcmTable;
     private final long[] dfcmTable;
     private final int tableMask;
     private final byte[] selectors;
     private final double quantizeStep;
+    private final boolean isFloat;
 
     public FpcTransformEncodeStage(int blockSize) {
-        this(blockSize, DEFAULT_TABLE_SIZE, 0.0);
+        this(blockSize, DEFAULT_TABLE_SIZE, 0.0, false);
     }
 
     public FpcTransformEncodeStage(int blockSize, int tableSize) {
-        this(blockSize, tableSize, 0.0);
+        this(blockSize, tableSize, 0.0, false);
     }
 
     public FpcTransformEncodeStage(int blockSize, int tableSize, double maxError) {
+        this(blockSize, tableSize, maxError, false);
+    }
+
+    public FpcTransformEncodeStage(int blockSize, int tableSize, double maxError, boolean isFloat) {
         assert (tableSize & (tableSize - 1)) == 0 : "tableSize must be a power of 2: " + tableSize;
         assert maxError >= 0 : "maxError must be non-negative: " + maxError;
         this.fcmTable = new long[tableSize];
@@ -43,6 +49,7 @@ public final class FpcTransformEncodeStage implements TransformEncoder {
         this.tableMask = tableSize - 1;
         this.selectors = new byte[(blockSize + 7) >>> 3];
         this.quantizeStep = maxError > 0 ? 2.0 * maxError : 0.0;
+        this.isFloat = isFloat;
     }
 
     @Override
@@ -68,7 +75,13 @@ public final class FpcTransformEncodeStage implements TransformEncoder {
             QuantizeUtils.quantizeDoubles(values, valueCount, quantizeStep);
         }
 
+        // NOTE: convert sortable representation to raw IEEE bits so that XOR
+        // produces small residuals for consecutive similar values.
+        toRawBits(values, valueCount);
+
         if (shouldSkip(values, valueCount)) {
+            // NOTE: convert back — skip means no transform, downstream expects sortable representation
+            toSortableBits(values, valueCount);
             return valueCount;
         }
 
@@ -119,6 +132,32 @@ public final class FpcTransformEncodeStage implements TransformEncoder {
         return 64 - Long.numberOfLeadingZeros(xorOr) >= 64 - Long.numberOfLeadingZeros(rawOr);
     }
 
+    private void toRawBits(final long[] values, int valueCount) {
+        if (isFloat) {
+            // NOTE: mask to 32 bits to prevent sign-extension into the upper long bits
+            for (int i = 0; i < valueCount; i++) {
+                values[i] = NumericUtils.sortableFloatBits((int) values[i]) & 0xFFFFFFFFL;
+            }
+        } else {
+            for (int i = 0; i < valueCount; i++) {
+                values[i] = NumericUtils.sortableDoubleBits(values[i]);
+            }
+        }
+    }
+
+    private void toSortableBits(final long[] values, int valueCount) {
+        if (isFloat) {
+            // NOTE: mask to 32 bits to prevent sign-extension into the upper long bits
+            for (int i = 0; i < valueCount; i++) {
+                values[i] = NumericUtils.floatToSortableInt(Float.intBitsToFloat((int) values[i])) & 0xFFFFFFFFL;
+            }
+        } else {
+            for (int i = 0; i < valueCount; i++) {
+                values[i] = NumericUtils.doubleToSortableLong(Double.longBitsToDouble(values[i]));
+            }
+        }
+    }
+
     public static int encodeStatic(final FpcTransformEncodeStage stage, final long[] values, int valueCount, final EncodingContext context)
         throws IOException {
         return stage.encode(values, valueCount, context);
@@ -128,21 +167,26 @@ public final class FpcTransformEncodeStage implements TransformEncoder {
         return tableMask + 1;
     }
 
+    boolean isFloat() {
+        return isFloat;
+    }
+
     @Override
     public boolean equals(Object o) {
         return this == o
             || (o instanceof FpcTransformEncodeStage that
                 && tableMask == that.tableMask
-                && Double.compare(quantizeStep, that.quantizeStep) == 0);
+                && Double.compare(quantizeStep, that.quantizeStep) == 0
+                && isFloat == that.isFloat);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(tableMask, quantizeStep);
+        return Objects.hash(tableMask, quantizeStep, isFloat);
     }
 
     @Override
     public String toString() {
-        return "FpcTransformEncodeStage{tableSize=" + (tableMask + 1) + ", quantizeStep=" + quantizeStep + "}";
+        return "FpcTransformEncodeStage{tableSize=" + (tableMask + 1) + ", quantizeStep=" + quantizeStep + ", isFloat=" + isFloat + "}";
     }
 }

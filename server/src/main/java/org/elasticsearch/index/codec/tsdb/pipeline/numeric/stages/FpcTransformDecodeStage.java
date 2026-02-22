@@ -9,12 +9,14 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformDecoder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 public final class FpcTransformDecodeStage implements TransformDecoder {
 
@@ -22,17 +24,23 @@ public final class FpcTransformDecodeStage implements TransformDecoder {
     private final long[] dfcmTable;
     private final int tableMask;
     private final byte[] selectors;
+    private final boolean isFloat;
 
     public FpcTransformDecodeStage(int blockSize) {
-        this(blockSize, FpcTransformEncodeStage.DEFAULT_TABLE_SIZE);
+        this(blockSize, FpcTransformEncodeStage.DEFAULT_TABLE_SIZE, false);
     }
 
     public FpcTransformDecodeStage(int blockSize, int tableSize) {
+        this(blockSize, tableSize, false);
+    }
+
+    public FpcTransformDecodeStage(int blockSize, int tableSize, boolean isFloat) {
         assert (tableSize & (tableSize - 1)) == 0 : "tableSize must be a power of 2: " + tableSize;
         this.fcmTable = new long[tableSize];
         this.dfcmTable = new long[tableSize];
         this.tableMask = tableSize - 1;
         this.selectors = new byte[(blockSize + 7) >>> 3];
+        this.isFloat = isFloat;
     }
 
     @Override
@@ -71,6 +79,18 @@ public final class FpcTransformDecodeStage implements TransformDecoder {
             lastValue = actual;
         }
 
+        // NOTE: convert raw IEEE bits back to sortable representation
+        if (isFloat) {
+            // NOTE: mask to 32 bits to prevent sign-extension into the upper long bits
+            for (int i = 0; i < valueCount; i++) {
+                values[i] = NumericUtils.floatToSortableInt(Float.intBitsToFloat((int) values[i])) & 0xFFFFFFFFL;
+            }
+        } else {
+            for (int i = 0; i < valueCount; i++) {
+                values[i] = NumericUtils.doubleToSortableLong(Double.longBitsToDouble(values[i]));
+            }
+        }
+
         return valueCount;
     }
 
@@ -81,16 +101,16 @@ public final class FpcTransformDecodeStage implements TransformDecoder {
 
     @Override
     public boolean equals(Object o) {
-        return this == o || (o instanceof FpcTransformDecodeStage that && tableMask == that.tableMask);
+        return this == o || (o instanceof FpcTransformDecodeStage that && tableMask == that.tableMask && isFloat == that.isFloat);
     }
 
     @Override
     public int hashCode() {
-        return Integer.hashCode(tableMask);
+        return Objects.hash(tableMask, isFloat);
     }
 
     @Override
     public String toString() {
-        return "FpcTransformDecodeStage{tableSize=" + (tableMask + 1) + "}";
+        return "FpcTransformDecodeStage{tableSize=" + (tableMask + 1) + ", isFloat=" + isFloat + "}";
     }
 }

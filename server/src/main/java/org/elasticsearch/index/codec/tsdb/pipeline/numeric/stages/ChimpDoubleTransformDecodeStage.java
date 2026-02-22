@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformDecoder;
@@ -37,6 +38,11 @@ public final class ChimpDoubleTransformDecodeStage implements TransformDecoder {
             for (int i = g; i < end; i++) {
                 values[i] ^= ref;
             }
+        }
+
+        // NOTE: convert raw IEEE-754 bits back to sortable-longs
+        for (int i = 0; i < valueCount; i++) {
+            values[i] = NumericUtils.doubleToSortableLong(Double.longBitsToDouble(values[i]));
         }
 
         return valueCount;

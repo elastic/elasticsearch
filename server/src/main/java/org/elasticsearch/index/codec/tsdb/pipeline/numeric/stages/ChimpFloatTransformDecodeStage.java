@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.codec.tsdb.pipeline.DecodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformDecoder;
@@ -37,6 +38,12 @@ public final class ChimpFloatTransformDecodeStage implements TransformDecoder {
             for (int i = g; i < end; i++) {
                 values[i] ^= ref;
             }
+        }
+
+        // NOTE: convert raw IEEE-754 float bits back to sortable-ints.
+        // Mask to 32 bits to prevent sign-extension into the upper long bits.
+        for (int i = 0; i < valueCount; i++) {
+            values[i] = NumericUtils.floatToSortableInt(Float.intBitsToFloat((int) values[i])) & 0xFFFFFFFFL;
         }
 
         return valueCount;

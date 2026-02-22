@@ -24,7 +24,7 @@ public class StageEqualsHashCodeToStringTests extends ESTestCase {
     }
 
     public void testFpcTransformDecodeStageToString() {
-        assertEquals("FpcTransformDecodeStage{tableSize=1024}", new FpcTransformDecodeStage(512).toString());
+        assertEquals("FpcTransformDecodeStage{tableSize=1024, isFloat=false}", new FpcTransformDecodeStage(512).toString());
     }
 
     public void testFpcTransformDecodeStageEqualsHashCode() {
@@ -32,6 +32,8 @@ public class StageEqualsHashCodeToStringTests extends ESTestCase {
         final var b = new FpcTransformDecodeStage(512, 1024);
         final var c = new FpcTransformDecodeStage(512, 512);
         assertEqualsContract(a, b, c);
+        final var d = new FpcTransformDecodeStage(512, 1024, true);
+        assertNotEquals(a, d);
     }
 
     public void testDeltaDeltaCodecStageToString() {
@@ -147,12 +149,17 @@ public class StageEqualsHashCodeToStringTests extends ESTestCase {
         assertEqualsContract(a, b, c);
         final var d = new FpcTransformEncodeStage(BLOCK_SIZE, 1024, 1e-3);
         assertNotEquals(a, d);
+        final var e = new FpcTransformEncodeStage(BLOCK_SIZE, 1024, 0.0, true);
+        assertNotEquals(a, e);
     }
 
     public void testFpcTransformEncodeStageToString() {
-        assertEquals("FpcTransformEncodeStage{tableSize=1024, quantizeStep=0.0}", new FpcTransformEncodeStage(BLOCK_SIZE).toString());
         assertEquals(
-            "FpcTransformEncodeStage{tableSize=1024, quantizeStep=0.002}",
+            "FpcTransformEncodeStage{tableSize=1024, quantizeStep=0.0, isFloat=false}",
+            new FpcTransformEncodeStage(BLOCK_SIZE).toString()
+        );
+        assertEquals(
+            "FpcTransformEncodeStage{tableSize=1024, quantizeStep=0.002, isFloat=false}",
             new FpcTransformEncodeStage(BLOCK_SIZE, 1024, 1e-3).toString()
         );
     }

@@ -87,6 +87,9 @@ public final class NumericEncodePipeline {
         final List<TransformEncoder> stages = new ArrayList<>();
         PayloadEncoder payloadStage = null;
 
+        final PipelineConfig.DataType configDataType = config.dataType();
+        final boolean isFloat = configDataType == PipelineConfig.DataType.FLOAT;
+
         for (final StageSpec spec : specs) {
             if (payloadStage != null) {
                 throw new IllegalStateException("Payload stage must be last: " + spec);
@@ -94,11 +97,9 @@ public final class NumericEncodePipeline {
             if (isPayloadSpec(spec)) {
                 payloadStage = StageFactory.newPayloadEncoder(spec, blockSize);
             } else {
-                stages.add(StageFactory.newTransformEncoder(spec, blockSize));
+                stages.add(StageFactory.newTransformEncoder(spec, blockSize, isFloat));
             }
         }
-
-        final PipelineConfig.DataType configDataType = config.dataType();
         for (final StageSpec spec : specs) {
             if (isDoubleOnly(spec) && configDataType == PipelineConfig.DataType.FLOAT) {
                 throw new IllegalArgumentException("Double-only stage in FLOAT pipeline: " + spec);

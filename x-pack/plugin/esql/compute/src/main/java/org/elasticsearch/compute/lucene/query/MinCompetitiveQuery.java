@@ -19,7 +19,6 @@ import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -62,12 +61,8 @@ public class MinCompetitiveQuery implements Releasable {
 
     /**
      * Number of times the min competitive changed, forcing the query to rebuild.
-<<<<<<< HEAD
      * We still rebuild the query when moving to a new index but do not increment
      * the counter in that case
-=======
-     * We still rebuild the query when the index re
->>>>>>> nik9000/esql_min_competitive_2
      */
     private int changedValue;
     /**

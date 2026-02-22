@@ -8,10 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-<<<<<<< HEAD
 
-=======
->>>>>>> nik9000/esql_min_competitive_2
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;

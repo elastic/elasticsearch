@@ -98,7 +98,7 @@ public class EsMinCompetitiveQueries {
                 // Field doesn't exist so all values are null. Those come *first*.
                 return Queries.ALL_DOCS_INSTANCE;
             }
-            // Field doesn't exist and we don't want any nulls, so *nothing* matches.
+            // Field doesn't exist, and we don't want any nulls, so *nothing* matches.
             return Queries.NO_DOCS_INSTANCE;
         }
 

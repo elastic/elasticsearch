@@ -25,6 +25,7 @@ import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -173,13 +174,8 @@ final class RemoteRequestBuilders {
 
             SliceBuilder slice = searchRequest.source().slice();
             if (slice != null) {
-                entity.startObject("slice");
-                entity.field(SliceBuilder.ID_FIELD.getPreferredName(), slice.getId());
-                entity.field(SliceBuilder.MAX_FIELD.getPreferredName(), slice.getMax());
-                if (slice.getField() != null) {
-                    entity.field(SliceBuilder.FIELD_FIELD.getPreferredName(), slice.getField());
-                }
-                entity.endObject();
+                entity.field("slice");
+                slice.toXContent(entity, ToXContent.EMPTY_PARAMS);
             }
 
             entity.endObject();

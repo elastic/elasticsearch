@@ -263,6 +263,10 @@ to communicate with Elasticsearch.
 
 # Cluster Coordination
 
+### Node Roles
+
+#### Master Nodes
+
 ### Cluster State
 
 [ClusterState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
@@ -573,9 +577,67 @@ functioning master.
 
 #### Persistence
 
-### Node Roles
+[LucenePersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/GatewayMetaState.java#L533
 
-### Master Nodes
+[AsyncPersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/GatewayMetaState.java#L391
+
+[PersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L540
+
+Only the [Metadata] portion of the [ClusterState] is persisted to disk (see [Persisted State](#persisted-state)). The
+rest of the [ClusterState] (routing table, node membership, in-progress snapshots ... etc.) is ephemeral and rebuilt
+from scratch after each full cluster restart.
+
+The [PersistedClusterStateService] is responsible for storing the cluster metadata in a simple Lucene index in each of
+the node's data paths, under the
+`_state` [directory](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L172).
+The metadata is split across several documents and is written incrementally where possible.
+
+The [PersistedClusterStateService] uses 3 types of documents, each identified by a `type` string field: `global`,
+`index` and `mapping`. Each document type stores its content in the `data` field as compressed SMILE-encoded XContent.
+All documents are paged (default 1MB per page).
+
+The `global` document serializes almost all the Metadata object: coordination metadata, persistent settings, customs,
+all project-scoped data, except individual index metadata and mappings. The `index` documents (one document per index,
+keyed by `index_uuid`) store all the [IndexMetadata]: settings, aliases, number of shards, etc., except for
+the index mapping. The `mapping` documents (one document per mapping, keyed by `mapping_hash`) store index mappings.
+Storing mappings separately is a deduplication optimization: multiple indices that share the same mapping (common
+occurrence, eg in data streams) all reference the same mapping hash, so only one copy is stored.
+
+During [incremental writes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L1011), [PersistedClusterStateService]
+will add any new mappings and remove obsolete ones. It will also compare the index metadata for each index UUID between
+the old and new state. If the version changed, the old document is deleted and a fresh one is written. Unchanged indices
+are skipped entirely. The `global` document update is not incremental. If the new state's `global` fields differ
+from the old ones, the `global` document
+is [deleted and rewritten entirely](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L1080).
+
+Each Lucene commit
+also [records](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L884)
+the current term, the last accepted cluster state version, the node ID, the node version, the oldest index version (used
+for compatibility checks on node startup) and the cluster UUID in
+the [commit user data](https://lucene.apache.org/core/10_0_0/core/org/apache/lucene/index/IndexWriter.html#setLiveCommitData(java.lang.Iterable)).
+
+The coordination layer interacts with the recorded state on disk through the [PersistedState] interface, which
+the [CoordinationState] calls at three key points during the publication protocol:
+
+- [setCurrentTerm](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L195):
+  when the node joins a new term (via `handleStartJoin`).
+- [setLastAcceptedState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L405):
+  after the node receives a [PublishRequest] from the master. The new state is persisted before
+  the node sends its [PublishResponse].
+- [markLastAcceptedStateAsCommitted](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L517):
+  when the node processes an [ApplyCommitRequest] from the master.
+
+On master-eligible nodes, the [PersistedState] implementation is [LucenePersistedState], which writes synchronously on
+the cluster coordination thread. On non-master-eligible nodes, the [AsyncPersistedState] wrapper is used instead. It
+applies updates to an in-memory state immediately and queues the disk write to a background thread. This avoids blocking
+the coordination thread on disk I/O for nodes that do not participate in master elections.
+
+On
+startup, the
+node [reads](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L432)
+the Lucene index, selects the persisted state with the highest accepted term, and reconstructs the
+[Metadata] from the stored documents and commit user data. This metadata is then used to build the initial
+[ClusterState] that the node starts with.
 
 ### Master Elections
 

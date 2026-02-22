@@ -268,9 +268,6 @@ tests:
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/141200
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
-  method: testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField
-  issue: https://github.com/elastic/elasticsearch/issues/141202
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomTextFieldsInSubqueryIntermediateResultsWithSortOneField
   issue: https://github.com/elastic/elasticsearch/issues/141203
 - class: org.elasticsearch.snapshots.SnapshotStatusApisIT
@@ -458,6 +455,18 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
   method: testCrossClusterReplicationForTSDB
   issue: https://github.com/elastic/elasticsearch/issues/142797
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/142426
+- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
+  method: testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField
+  issue: https://github.com/elastic/elasticsearch/issues/141202
+- class: org.elasticsearch.xpack.core.termsenum.TermsEnumTests
+  method: testTermsEnumIPRandomized
+  issue: https://github.com/elastic/elasticsearch/issues/142811
+- class: org.elasticsearch.action.search.SearchContextInvalidationIT
+  method: testScrollReturns404WhenNodeLeavesCluster
+  issue: https://github.com/elastic/elasticsearch/issues/142810
 
 # Examples:
 #

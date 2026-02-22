@@ -7,24 +7,28 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.blockloader.script;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.script.IpFieldScript;
 
 import java.io.IOException;
 
 /**
  * {@link BlockDocValuesReader} implementation for keyword scripts.
  */
-public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
-    static class KeywordScriptBlockLoader extends DocValuesBlockLoader {
-        private final StringFieldScript.LeafFactory factory;
+public class IpScriptBlockDocValuesReader extends BlockDocValuesReader {
+    public static class IpScriptBlockLoader extends DocValuesBlockLoader {
+        private final IpFieldScript.LeafFactory factory;
+        private final long byteSize;
 
-        KeywordScriptBlockLoader(StringFieldScript.LeafFactory factory) {
+        public IpScriptBlockLoader(IpFieldScript.LeafFactory factory, ByteSizeValue byteSize) {
             this.factory = factory;
+            this.byteSize = byteSize.getBytes();
         }
 
         @Override
@@ -33,17 +37,28 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(LeafReaderContext context) throws IOException {
-            return new KeywordScriptBlockDocValuesReader(factory.newInstance(context));
+        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
+            IpFieldScript script = null;
+            try {
+                script = factory.newInstance(context);
+                return new IpScriptBlockDocValuesReader(breaker, script, byteSize);
+            } finally {
+                if (script == null) {
+                    breaker.addWithoutBreaking(-byteSize);
+                }
+            }
         }
     }
 
-    private final BytesRefBuilder bytesBuild = new BytesRefBuilder();
-    private final StringFieldScript script;
+    private final IpFieldScript script;
+    private final long byteSize;
     private int docId;
 
-    KeywordScriptBlockDocValuesReader(StringFieldScript script) {
+    IpScriptBlockDocValuesReader(CircuitBreaker breaker, IpFieldScript script, long byteSize) {
+        super(breaker);
         this.script = script;
+        this.byteSize = byteSize;
     }
 
     @Override
@@ -71,17 +86,15 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
 
     private void read(int docId, BlockLoader.BytesRefBuilder builder) {
         script.runForDoc(docId);
-        switch (script.getValues().size()) {
+        switch (script.count()) {
             case 0 -> builder.appendNull();
             case 1 -> {
-                bytesBuild.copyChars(script.getValues().get(0));
-                builder.appendBytesRef(bytesBuild.get());
+                builder.appendBytesRef(script.values()[0]);
             }
             default -> {
                 builder.beginPositionEntry();
-                for (String v : script.getValues()) {
-                    bytesBuild.copyChars(v);
-                    builder.appendBytesRef(bytesBuild.get());
+                for (int i = 0; i < script.count(); i++) {
+                    builder.appendBytesRef(script.values()[i]);
                 }
                 builder.endPositionEntry();
             }
@@ -90,6 +103,11 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
 
     @Override
     public String toString() {
-        return "ScriptKeywords";
+        return "ScriptIps";
+    }
+
+    @Override
+    public void close() {
+        breaker.addWithoutBreaking(-byteSize);
     }
 }

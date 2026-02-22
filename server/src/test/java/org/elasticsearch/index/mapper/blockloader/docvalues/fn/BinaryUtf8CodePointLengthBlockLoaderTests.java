@@ -9,20 +9,21 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.mapper.AbstractBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.MockWarnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
-import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,32 +33,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class BinaryByteLengthTests extends ESTestCase {
-
-    @ParametersFactory(argumentFormatting = "blockAtATime=%s, multiValues=%s, missingValues=%s")
-    public static List<Object[]> parameters() throws IOException {
-        List<Object[]> parameters = new ArrayList<>();
-        for (boolean blockAtATime : new boolean[] { true, false }) {
-            for (boolean multiValues : new boolean[] { true, false }) {
-                for (boolean missingValues : new boolean[] { true, false }) {
-                    parameters.add(new Object[] { blockAtATime, multiValues, missingValues });
-                }
-            }
-        }
-        return parameters;
+public class BinaryUtf8CodePointLengthBlockLoaderTests extends AbstractBlockLoaderTestCase {
+    public BinaryUtf8CodePointLengthBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
+        super(blockAtATime, multiValues, missingValues);
     }
 
-    private final boolean blockAtATime;
-    private final boolean multiValues;
-    private final boolean missingValues;
-
-    public BinaryByteLengthTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        this.blockAtATime = blockAtATime;
-        this.multiValues = multiValues;
-        this.missingValues = missingValues;
-    }
-
-    public void testBinaryDocValues() throws IOException {
+    @Override
+    protected void test(CircuitBreaker breaker, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrap) throws IOException {
         int mvCount = 0;
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             int docCount = 10_000;
@@ -79,7 +61,7 @@ public class BinaryByteLengthTests extends ESTestCase {
                 iw.addDocument(List.of());
             }
             iw.forceMerge(1);
-            try (DirectoryReader dr = iw.getReader()) {
+            try (DirectoryReader dr = wrap.apply(iw.getReader())) {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
                 List<MockWarnings.MockWarning> expectedWarnings = new ArrayList<>();
                 for (int i = 0; i < mvCount; i++) {
@@ -90,57 +72,61 @@ public class BinaryByteLengthTests extends ESTestCase {
 
                 var warnings = new MockWarnings();
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
-                var lengthLoader = new ByteLengthFromBytesRefDocValuesBlockLoader(warnings, "field");
-
-                var stringsReader = stringsLoader.reader(ctx);
-                var lengthReader = lengthLoader.reader(ctx);
-
-                if (multiValues) {
-                    assertThat(lengthReader, hasToString("ByteLengthFromBytesRef.MultiValuedBinaryWithSeparateCounts"));
-                } else {
-                    assertThat(lengthReader, hasToString("ByteLengthFromBytesRef.SingleValued"));
-                }
+                var codePointsLoader = new Utf8CodePointsFromOrdsBlockLoader(warnings, "field", ByteSizeValue.ofKb(between(1, 100)));
 
                 BlockLoader.Docs docs = TestBlock.docs(ctx);
                 try (
-                    TestBlock strings = read(stringsLoader, stringsReader, docs);
-                    TestBlock codePoints = read(lengthLoader, lengthReader, docs);
+                    var stringsReader = stringsLoader.reader(breaker, ctx);
+                    var codePointsReader = codePointsLoader.reader(breaker, ctx);
                 ) {
-                    checkBlocks(strings, codePoints);
+                    assertThat(codePointsReader, hasToString("Utf8CodePointsFromOrds.MultiValuedBinaryWithSeparateCounts"));
+                    try (
+                        TestBlock strings = read(stringsLoader, stringsReader, docs);
+                        TestBlock codePoints = read(codePointsLoader, codePointsReader, docs);
+                    ) {
+                        checkBlocks(strings, codePoints);
+                    }
+                    assertThat(warnings.warnings(), equalTo(expectedWarnings));
+                    warnings.warnings().clear();
                 }
-                assertThat(warnings.warnings(), equalTo(expectedWarnings));
-                warnings.warnings().clear();
 
-                stringsReader = stringsLoader.reader(ctx);
-                lengthReader = lengthLoader.reader(ctx);
-                for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-                    int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-                    for (int d = 0; d < docsArray.length; d++) {
-                        docsArray[d] = i + d;
+                try (
+                    var stringsReader = stringsLoader.reader(breaker, ctx);
+                    var codePointsReader = codePointsLoader.reader(breaker, ctx);
+                ) {
+                    for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                        int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                        for (int d = 0; d < docsArray.length; d++) {
+                            docsArray[d] = i + d;
+                        }
+                        docs = TestBlock.docs(docsArray);
+                        try (
+                            TestBlock strings = read(stringsLoader, stringsReader, docs);
+                            TestBlock codePoints = read(codePointsLoader, codePointsReader, docs);
+                        ) {
+                            checkBlocks(strings, codePoints);
+                        }
                     }
-                    docs = TestBlock.docs(docsArray);
-                    try (
-                        TestBlock strings = read(stringsLoader, stringsReader, docs);
-                        TestBlock codePoints = read(lengthLoader, lengthReader, docs);
-                    ) {
-                        checkBlocks(strings, codePoints);
-                    }
+                    assertThat(warnings.warnings(), equalTo(expectedWarnings));
+                    // Testing fetching a single doc, which has a different code path
+                    warnings.warnings().clear();
                 }
-                assertThat(warnings.warnings(), equalTo(expectedWarnings));
-                // Testing fetching a single doc, which has a different code path
-                warnings.warnings().clear();
-                stringsReader = stringsLoader.reader(ctx);
-                lengthReader = lengthLoader.reader(ctx);
-                for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
-                    docs = TestBlock.docs(docId);
-                    try (
-                        TestBlock strings = read(stringsLoader, stringsReader, docs);
-                        TestBlock codePoints = read(lengthLoader, lengthReader, docs);
-                    ) {
-                        checkBlocks(strings, codePoints);
+
+                try (
+                    var stringsReader = stringsLoader.reader(breaker, ctx);
+                    var codePointsReader = codePointsLoader.reader(breaker, ctx);
+                ) {
+                    for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
+                        docs = TestBlock.docs(docId);
+                        try (
+                            TestBlock strings = read(stringsLoader, stringsReader, docs);
+                            TestBlock codePoints = read(codePointsLoader, codePointsReader, docs);
+                        ) {
+                            checkBlocks(strings, codePoints);
+                        }
                     }
+                    assertThat(warnings.warnings(), equalTo(expectedWarnings));
                 }
-                assertThat(warnings.warnings(), equalTo(expectedWarnings));
             }
         }
     }
@@ -153,15 +139,15 @@ public class BinaryByteLengthTests extends ESTestCase {
         return (TestBlock) toUse.read(TestBlock.factory(), docs, 0, false);
     }
 
-    private void checkBlocks(TestBlock strings, TestBlock lengths) {
+    private void checkBlocks(TestBlock strings, TestBlock codePoints) {
         for (int i = 0; i < strings.size(); i++) {
             Object str = strings.get(i);
             if (str instanceof List<?> || str == null) {
-                assertThat(lengths.get(i), nullValue());
+                assertThat(codePoints.get(i), nullValue());
                 continue;
             }
             BytesRef bytes = (BytesRef) str;
-            assertThat(lengths.get(i), equalTo(bytes.length));
+            assertThat(codePoints.get(i), equalTo(bytes.length));
         }
     }
 }

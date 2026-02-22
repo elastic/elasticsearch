@@ -7,9 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.index.mapper;
+package org.elasticsearch.index.mapper.blockloader.script;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.script.DateFieldScript;
 
@@ -19,11 +22,13 @@ import java.io.IOException;
  * {@link BlockDocValuesReader} implementation for date scripts.
  */
 public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
-    static class DateScriptBlockLoader extends DocValuesBlockLoader {
+    public static class DateScriptBlockLoader extends DocValuesBlockLoader {
         private final DateFieldScript.LeafFactory factory;
+        private final long byteSize;
 
-        DateScriptBlockLoader(DateFieldScript.LeafFactory factory) {
+        public DateScriptBlockLoader(DateFieldScript.LeafFactory factory, ByteSizeValue byteSize) {
             this.factory = factory;
+            this.byteSize = byteSize.getBytes();
         }
 
         @Override
@@ -32,16 +37,28 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(LeafReaderContext context) throws IOException {
-            return new DateScriptBlockDocValuesReader(factory.newInstance(context));
+        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
+            DateFieldScript script = null;
+            try {
+                script = factory.newInstance(context);
+                return new DateScriptBlockDocValuesReader(breaker, script, byteSize);
+            } finally {
+                if (script == null) {
+                    breaker.addWithoutBreaking(-byteSize);
+                }
+            }
         }
     }
 
     private final DateFieldScript script;
+    private final long byteSize;
     private int docId;
 
-    DateScriptBlockDocValuesReader(DateFieldScript script) {
+    DateScriptBlockDocValuesReader(CircuitBreaker breaker, DateFieldScript script, long byteSize) {
+        super(breaker);
         this.script = script;
+        this.byteSize = byteSize;
     }
 
     @Override
@@ -85,5 +102,10 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
     @Override
     public String toString() {
         return "ScriptDates";
+    }
+
+    @Override
+    public void close() {
+        breaker.addWithoutBreaking(-byteSize);
     }
 }

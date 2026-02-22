@@ -9,23 +9,22 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
-
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.index.mapper.AbstractBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryMultiSeparateCountBlockLoader;
-import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -33,32 +32,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
-public class BinaryMvMinBytesRefsTests extends ESTestCase {
-
-    @ParametersFactory(argumentFormatting = "blockAtATime=%s, multiValues=%s, missingValues=%s")
-    public static List<Object[]> parameters() throws IOException {
-        List<Object[]> parameters = new ArrayList<>();
-        for (boolean blockAtATime : new boolean[] { true, false }) {
-            for (boolean multiValues : new boolean[] { true, false }) {
-                for (boolean missingValues : new boolean[] { true, false }) {
-                    parameters.add(new Object[] { blockAtATime, multiValues, missingValues });
-                }
-            }
-        }
-        return parameters;
+public class BinaryMvMinBytesRefsBlockLoaderTests extends AbstractBlockLoaderTestCase {
+    public BinaryMvMinBytesRefsBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
+        super(blockAtATime, multiValues, missingValues);
     }
 
-    private final boolean blockAtATime;
-    private final boolean multiValues;
-    private final boolean missingValues;
-
-    public BinaryMvMinBytesRefsTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        this.blockAtATime = blockAtATime;
-        this.multiValues = multiValues;
-        this.missingValues = missingValues;
-    }
-
-    public void testBinaryMvMinDocValues() throws IOException {
+    @Override
+    protected void test(CircuitBreaker breaker, CheckedFunction<DirectoryReader, DirectoryReader, IOException> wrap) throws IOException {
         try (Directory dir = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), dir)) {
             int docCount = 10_000;
             int cardinality = between(16, 2048);
@@ -84,27 +64,14 @@ public class BinaryMvMinBytesRefsTests extends ESTestCase {
                 iw.addDocument(List.of());
             }
             iw.forceMerge(1);
-            try (DirectoryReader dr = iw.getReader()) {
+            try (DirectoryReader dr = wrap.apply(iw.getReader())) {
                 LeafReaderContext ctx = getOnlyLeafReader(dr).getContext();
 
                 var stringsLoader = new BytesRefsFromBinaryMultiSeparateCountBlockLoader("field");
                 var mvMinLoader = new MvMinBytesRefsFromBinaryBlockLoader("field");
-                var stringsReader = stringsLoader.reader(ctx);
-                var mvMinReader = mvMinLoader.reader(ctx);
-                assertThat(mvMinReader, readerMatcher());
-                BlockLoader.Docs docs = TestBlock.docs(ctx);
-                try (TestBlock strings = read(stringsLoader, stringsReader, docs); TestBlock mins = read(mvMinLoader, mvMinReader, docs)) {
-                    checkBlocks(strings, mins);
-                }
-
-                stringsReader = stringsLoader.reader(ctx);
-                mvMinReader = mvMinLoader.reader(ctx);
-                for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-                    int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-                    for (int d = 0; d < docsArray.length; d++) {
-                        docsArray[d] = i + d;
-                    }
-                    docs = TestBlock.docs(docsArray);
+                try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMinReader = mvMinLoader.reader(breaker, ctx)) {
+                    assertThat(mvMinReader, readerMatcher());
+                    BlockLoader.Docs docs = TestBlock.docs(ctx);
                     try (
                         TestBlock strings = read(stringsLoader, stringsReader, docs);
                         TestBlock mins = read(mvMinLoader, mvMinReader, docs)
@@ -112,16 +79,31 @@ public class BinaryMvMinBytesRefsTests extends ESTestCase {
                         checkBlocks(strings, mins);
                     }
                 }
+                try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMinReader = mvMinLoader.reader(breaker, ctx)) {
+                    for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                        int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                        for (int d = 0; d < docsArray.length; d++) {
+                            docsArray[d] = i + d;
+                        }
+                        BlockLoader.Docs docs = TestBlock.docs(docsArray);
+                        try (
+                            TestBlock strings = read(stringsLoader, stringsReader, docs);
+                            TestBlock mins = read(mvMinLoader, mvMinReader, docs)
+                        ) {
+                            checkBlocks(strings, mins);
+                        }
+                    }
+                }
 
-                stringsReader = stringsLoader.reader(ctx);
-                mvMinReader = mvMinLoader.reader(ctx);
-                for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
-                    docs = TestBlock.docs(docId);
-                    try (
-                        TestBlock strings = read(stringsLoader, stringsReader, docs);
-                        TestBlock mins = read(mvMinLoader, mvMinReader, docs)
-                    ) {
-                        checkBlocks(strings, mins);
+                try (var stringsReader = stringsLoader.reader(breaker, ctx); var mvMinReader = mvMinLoader.reader(breaker, ctx)) {
+                    for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
+                        BlockLoader.Docs docs = TestBlock.docs(docId);
+                        try (
+                            TestBlock strings = read(stringsLoader, stringsReader, docs);
+                            TestBlock mins = read(mvMinLoader, mvMinReader, docs)
+                        ) {
+                            checkBlocks(strings, mins);
+                        }
                     }
                 }
             }

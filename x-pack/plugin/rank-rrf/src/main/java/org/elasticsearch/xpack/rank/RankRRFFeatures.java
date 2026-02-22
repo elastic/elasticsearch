@@ -24,6 +24,9 @@ public class RankRRFFeatures implements FeatureSpecification {
 
     public static final NodeFeature LINEAR_RETRIEVER_SUPPORTED = new NodeFeature("linear_retriever_supported");
     public static final NodeFeature LINEAR_RETRIEVER_TOP_LEVEL_NORMALIZER = new NodeFeature("linear_retriever.top_level_normalizer");
+    public static final NodeFeature STANDARD_RETRIEVER_FIX_FOR_EMPTY_QUERY_IN_COMPOUND_RETRIEVERS = new NodeFeature(
+        "standard_retriever.fix_for_empty_query_in_compound_retrievers"
+    );
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -44,7 +47,8 @@ public class RankRRFFeatures implements FeatureSpecification {
             LINEAR_RETRIEVER_TOP_LEVEL_NORMALIZER,
             LinearRetrieverBuilder.MULTI_INDEX_SIMPLIFIED_FORMAT_SUPPORT,
             RRFRetrieverBuilder.MULTI_INDEX_SIMPLIFIED_FORMAT_SUPPORT,
-            NESTED_RETRIEVER_MIN_SCORE_TOTAL_HITS_FIX
+            NESTED_RETRIEVER_MIN_SCORE_TOTAL_HITS_FIX,
+            STANDARD_RETRIEVER_FIX_FOR_EMPTY_QUERY_IN_COMPOUND_RETRIEVERS
         );
     }
 }

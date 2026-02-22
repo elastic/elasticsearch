@@ -276,13 +276,13 @@ to communicate with Elasticsearch.
 [PersistedClusterStateService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java
 
 
-The [ClusterState] is the in memory data structure that represents the current state of the cluster. It is
-(conceptually) immutable: every update produces a new instance of the [ClusterState] class.
+The [ClusterState] is the in-memory data structure that represents the current state of the cluster. It is
+(conceptually) immutable: every update produces a new instance of the `ClusterState` class.
 The elected master is responsible for coordinating all cluster state updates and publishing the latest to the other
 nodes in the cluster.
 
-The [Metadata] part of the [ClusterState] is persisted to disk via the [PersistedClusterStateService] and will survive
-restarts. The rest of the [ClusterState] components are in-memory only, and need to be rebuilt every time there is a
+The [Metadata] part of the `ClusterState` is persisted to disk via the [PersistedClusterStateService] and will survive
+restarts. The rest of the `ClusterState` components are in-memory only, and need to be rebuilt every time there is a
 full cluster restart.
 
 #### Persisted State
@@ -308,7 +308,7 @@ A few standouts are:
 
 2. Project scope information (located in the [ProjectMetadata])
 
-Notable components of the [ProjectMetadata] include:
+Notable components of the `ProjectMetadata` include:
 
 - `id`: the project unique id.
 - `indices`: map of index name to `IndexMetadata` (settings, mappings, aliases, number of shards/replicas, etc.).
@@ -362,7 +362,7 @@ across the cluster.
 - `routingTable` ([GlobalRoutingTable])
 
 Maps each project to its [RoutingTable], which itself maps each index to an [IndexRoutingTable] containing
-an [IndexShardRoutingTable] per shard. Each [IndexShardRoutingTable] lists the [ShardRouting] entries for a shard (one
+an [IndexShardRoutingTable] per shard. Each `IndexShardRoutingTable` lists the [ShardRouting] entries for a shard (one
 per copy), detailing which node each copy is assigned to, its state (`UNASSIGNED`,`INITIALIZING`, `STARTED` or
 `RELOCATING`), and whether it is a primary or replica.
 
@@ -412,20 +412,20 @@ The [MasterService] is the single-threaded coordinator for all cluster state upd
 pending cluster state update tasks into [Priority]-based queues: `IMMEDIATE`, `URGENT`, `HIGH`, `NORMAL`, `LOW`, and
 `LANGUID`. It processes them in that order, highest priority first.
 
-The [MasterService] uses a batching framework that groups multiple cluster state update tasks together, processing them
-as a single batch and publishing only one resulting ClusterState update. This avoids triggering a distinct publication
+The `MasterService` uses a batching framework that groups multiple cluster state update tasks together, processing them
+as a single batch and publishing only one resulting `ClusterState` update. This avoids triggering a distinct publication
 for each individual task, which would be very costly.
 
 Producers of cluster state update tasks, such as [SnapshotsService], can
 then [define](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1516)
-their own task queues, priority and batch executors ([ClusterStateTaskExecutor]), which the [MasterService] uses to
+their own task queues, priority and batch executors ([ClusterStateTaskExecutor]), which the `MasterService` uses to
 group and process related tasks
 together.
 
 A [queue processor](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1313),
 backed by a single-threaded `java.util.concurrent.ExecutorService`, processes batches one at a time.
 The [executeAndPublishBatch](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L336)
-method takes the next batch, invokes the batch's [ClusterStateTaskExecutor] to compute a new [ClusterState], and
+method takes the next batch, invokes the batch's `ClusterStateTaskExecutor` to compute a new [ClusterState], and
 publishes the result.
 
 If the new state is identical to the previous one (by reference), no publication takes place. Otherwise, the master
@@ -465,7 +465,7 @@ object which maintains a
 [PublicationTargetState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L226)
 state.
 
-The [Coordinator] creates
+The `Coordinator` creates
 a [PublicationContext](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L261)
 via the [PublicationTransportHandler], which pre-serializes the cluster state into shared, reference-counted byte
 buffers. A [ClusterStateDiff] against the previous state is prepared. A full serialization is also prepared when
@@ -484,7 +484,7 @@ the serialized cluster state to every node in the cluster via the
 already part of the cluster, while new nodes receive the full state directly. If a node
 responds
 with [IncompatibleClusterStateVersionException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/IncompatibleClusterStateVersionException.java#L20)
-the [PublicationTransportHandler]
+the `PublicationTransportHandler`
 then [retries](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/PublicationTransportHandler.java#L484)
 with the full state.
 
@@ -498,9 +498,9 @@ the new state `CoordinationState::PersistedState` but have not yet applied it.
 
 2. **Commit**
 
-Once the master has collected [PublishResponse]s from the required quorum of nodes (see [Quorum](#quorum) section), it
+Once the master has collected `PublishResponse`s from the required quorum of nodes (see [Quorum](#quorum) section), it
 creates an [ApplyCommitRequest]. The master sends this commit message to all nodes that responded to
-the [PublishRequest] via the `internal:cluster/coordination/commit_state` transport action.
+the `PublishRequest` via the `internal:cluster/coordination/commit_state` transport action.
 
 When receiving this request, each
 node [marks this last accepted state as committed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L517)
@@ -518,7 +518,7 @@ try [waiting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/ma
 for all nodes to commit
 before [applying its own state](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L2056)
 and moving on. But it no longer needs
-a quorum of responses after [ApplyCommitRequest]s have been sent. If the nodes time out, the master will still move on
+a quorum of responses after `ApplyCommitRequest`s have been sent. If the nodes time out, the master will still move on
 to applying the new cluster state locally.
 
 #### Cluster State Application
@@ -537,7 +537,7 @@ a [single dedicated thread](https://github.com/elastic/elasticsearch/blob/v9.3.0
 
 When [receiving](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L412)
 an [ApplyCommitRequest] from the master, the [Coordinator] will hand over the committed state to
-the [ClusterApplierService], which
+the `ClusterApplierService`, which
 will [submit](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L374)
 an [UpdateTask](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L399)
 to the executor. If the new state differs from the currently applied state (by reference), the
@@ -570,7 +570,7 @@ the changes through the following sequence of steps:
    reacts to changes in persistent tasks, and the [SnapshotShardsService] which watches for snapshot-related shard
    assignments.
 
-Once application completes, the [Coordinator]'s
+Once application completes, the `Coordinator`'s
 callback [onClusterStateApplied](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L463)
 closes the election scheduler (if active) and stops peer finding, since the node is now part of a cluster with a
 functioning master.
@@ -584,7 +584,7 @@ functioning master.
 [PersistedState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L540
 
 Only the [Metadata] portion of the [ClusterState] is persisted to disk (see [Persisted State](#persisted-state)). The
-rest of the [ClusterState] (routing table, node membership, in-progress snapshots ... etc.) is ephemeral and rebuilt
+rest of the `ClusterState` (routing table, node membership, in-progress snapshots ... etc.) is ephemeral and rebuilt
 from scratch after each full cluster restart.
 
 The [PersistedClusterStateService] is responsible for storing the cluster metadata in a simple Lucene index in each of
@@ -592,7 +592,7 @@ the node's data paths, under the
 `_state` [directory](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L172).
 The metadata is split across several documents and is written incrementally where possible.
 
-The [PersistedClusterStateService] uses 3 types of documents, each identified by a `type` string field: `global`,
+The `PersistedClusterStateService` uses 3 types of documents, each identified by a `type` string field: `global`,
 `index` and `mapping`. Each document type stores its content in the `data` field as compressed SMILE-encoded XContent.
 All documents are paged (default 1MB per page).
 
@@ -603,7 +603,7 @@ the index mapping. The `mapping` documents (one document per mapping, keyed by `
 Storing mappings separately is a deduplication optimization: multiple indices that share the same mapping (common
 occurrence, eg in data streams) all reference the same mapping hash, so only one copy is stored.
 
-During [incremental writes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L1011), [PersistedClusterStateService]
+During [incremental writes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L1011), `PersistedClusterStateService`
 will add any new mappings and remove obsolete ones. It will also compare the index metadata for each index UUID between
 the old and new state. If the version changed, the old document is deleted and a fresh one is written. Unchanged indices
 are skipped entirely. The `global` document update is not incremental. If the new state's `global` fields differ
@@ -627,7 +627,7 @@ the [CoordinationState] calls at three key points during the publication protoco
 - [markLastAcceptedStateAsCommitted](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L517):
   when the node processes an [ApplyCommitRequest] from the master.
 
-On master-eligible nodes, the [PersistedState] implementation is [LucenePersistedState], which writes synchronously on
+On master-eligible nodes, the `PersistedState` implementation is [LucenePersistedState], which writes synchronously on
 the cluster coordination thread. On non-master-eligible nodes, the [AsyncPersistedState] wrapper is used instead. It
 applies updates to an in-memory state immediately and queues the disk write to a background thread. This avoids blocking
 the coordination thread on disk I/O for nodes that do not participate in master elections.
@@ -636,8 +636,8 @@ On
 startup, the
 node [reads](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L432)
 the Lucene index, selects the persisted state with the highest accepted term, and reconstructs the
-[Metadata] from the stored documents and commit user data. This metadata is then used to build the initial
-[ClusterState] that the node starts with.
+`Metadata` from the stored documents and commit user data. This metadata is then used to build the initial
+`ClusterState` that the node starts with.
 
 ### Master Elections
 

@@ -9,14 +9,19 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.profiler;
 
+import org.apache.lucene.store.ByteArrayDataOutput;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.codec.tsdb.pipeline.NumericDataGenerators;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageSpec;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Random;
 
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
@@ -385,6 +390,254 @@ public class PipelineSelectorTests extends ESTestCase {
         );
 
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpFloatStage.class)));
+    }
+
+    // -- Encoding size tests: validate compression for each pipeline path in PipelineSelector --
+
+    private static final int BS = 512;
+    private static final int RAW_LONG_BYTES = BS * Long.BYTES;
+
+    public void testEncodedSizeConstantLong() throws IOException {
+        final long[] values = new long[BS];
+        Arrays.fill(values, 42L);
+        final PipelineConfig config = PipelineConfig.forLongs(BS).offset().rle().bitPack();
+        final int bytes = measureAndLog("constant-long", config, values);
+        assertTrue("constant block should encode to less than 32 bytes, got " + bytes, bytes < 32);
+    }
+
+    public void testEncodedSizeRleFriendlyLong() throws IOException {
+        final long[] values = new long[BS];
+        for (int i = 0; i < BS; i++) {
+            values[i] = 1000L + (i / 128);
+        }
+        final PipelineConfig config = PipelineConfig.forLongs(BS).offset().rle().bitPack();
+        final int bytes = measureAndLog("rle-friendly-long", config, values);
+        assertTrue("RLE-friendly block should be much smaller than raw, got " + bytes, bytes < RAW_LONG_BYTES / 10);
+    }
+
+    public void testEncodedSizeDeltaDeltaTimestamp() throws IOException {
+        final long[] values = new long[BS];
+        final long base = 1700000000000L;
+        for (int i = 0; i < BS; i++) {
+            values[i] = base + i * 1000L;
+        }
+        final PipelineConfig config = PipelineConfig.forLongs(BS).deltaDelta().offset().gcd().patchedPFor().bitPack();
+        final int bytes = measureAndLog("deltadelta-timestamp", config, values);
+        assertTrue("steady-rate timestamps should compress well, got " + bytes, bytes < RAW_LONG_BYTES / 10);
+    }
+
+    public void testEncodedSizeDeltaMonotonic() throws IOException {
+        final long[] values = new long[BS];
+        final Random rng = new Random(0x5DEECE66DL);
+        long v = 1000L;
+        for (int i = 0; i < BS; i++) {
+            v += 10 + rng.nextInt(100);
+            values[i] = v;
+        }
+        final PipelineConfig config = PipelineConfig.forLongs(BS).delta().offset().gcd().bitPack();
+        final int bytes = measureAndLog("delta-monotonic", config, values);
+        assertTrue("monotonic with irregular steps should compress via delta, got " + bytes, bytes < RAW_LONG_BYTES / 4);
+    }
+
+    public void testEncodedSizeGcdLong() throws IOException {
+        final long[] values = new long[BS];
+        final Random rng = new Random(0x5DEECE66DL);
+        for (int i = 0; i < BS; i++) {
+            values[i] = rng.nextInt(1000) * 50L;
+        }
+        final PipelineConfig config = PipelineConfig.forLongs(BS).offset().gcd().bitPack();
+        final int bytes = measureAndLog("gcd-long", config, values);
+        assertTrue("GCD-friendly block should compress, got " + bytes, bytes < RAW_LONG_BYTES / 4);
+    }
+
+    public void testEncodedSizeSmoothLong() throws IOException {
+        final long[] values = new long[BS];
+        final Random rng = new Random(0x5DEECE66DL);
+        long v = 50000L;
+        for (int i = 0; i < BS; i++) {
+            v += rng.nextInt(3) - 1;
+            values[i] = v;
+        }
+        final PipelineConfig config = PipelineConfig.forLongs(BS).delta().offset().gcd().bitPack();
+        final int bytes = measureAndLog("smooth-long-delta", config, values);
+        assertTrue("slowly drifting longs should compress via delta, got " + bytes, bytes < RAW_LONG_BYTES / 10);
+    }
+
+    public void testEncodedSizeRandomLong() throws IOException {
+        final long[] values = NumericDataGenerators.randomLongs(BS, 0x5DEECE66DL);
+        final PipelineConfig config = PipelineConfig.forLongs(BS).offset().bitPack();
+        final int bytes = measureAndLog("random-long", config, values);
+        assertTrue("random longs should still fit in raw bits, got " + bytes, bytes <= RAW_LONG_BYTES);
+    }
+
+    public void testEncodedSizeXorDoublesOnRandomWalk() throws IOException {
+        final long[] values = smoothDoubles(BS, 100.0, 0.1);
+
+        final int gorillaBytes = measureAndLog("gorilla-randomwalk-double", PipelineConfig.forDoubles(BS).gorilla(), values);
+        final int chimpBytes = measureAndLog(
+            "chimp-randomwalk-double",
+            PipelineConfig.forDoubles(BS).chimpDoubleStage().offset().gcd().bitPack(),
+            values
+        );
+        final int fpcBytes = measureAndLog(
+            "fpc-randomwalk-double",
+            PipelineConfig.forDoubles(BS).fpcStage().offset().gcd().bitPack(),
+            values
+        );
+
+        assertTrue("gorilla should produce output, got " + gorillaBytes, gorillaBytes > 0);
+        assertTrue("chimp should produce output, got " + chimpBytes, chimpBytes > 0);
+        assertTrue("fpc should produce output, got " + fpcBytes, fpcBytes > 0);
+    }
+
+    public void testEncodedSizeXorDoublesOnMonotonicCounter() throws IOException {
+        final long[] values = monotonicDoubles(BS, 1000.0, 0.5);
+
+        final int gorillaBytes = measureAndLog("gorilla-monotonic-double", PipelineConfig.forDoubles(BS).gorilla(), values);
+        final int chimpBytes = measureAndLog(
+            "chimp-monotonic-double",
+            PipelineConfig.forDoubles(BS).chimpDoubleStage().offset().gcd().bitPack(),
+            values
+        );
+        final int fpcBytes = measureAndLog(
+            "fpc-monotonic-double",
+            PipelineConfig.forDoubles(BS).fpcStage().offset().gcd().bitPack(),
+            values
+        );
+
+        assertTrue("gorilla on monotonic counter should compress, got " + gorillaBytes, gorillaBytes < RAW_LONG_BYTES);
+        assertTrue("chimp should produce output, got " + chimpBytes, chimpBytes > 0);
+        assertTrue("fpc should produce output, got " + fpcBytes, fpcBytes > 0);
+    }
+
+    public void testEncodedSizeAlpDoubleAllHints() throws IOException {
+        final long[] values = decimalDoubles(BS, 20.0, 5.0);
+        final PipelineConfig storage = PipelineConfig.forDoubles(BS).alpDoubleStage(1e-2).offset().gcd().bitPack();
+        final PipelineConfig balanced = PipelineConfig.forDoubles(BS).alpDoubleStage(1e-4).offset().gcd().bitPack();
+        final PipelineConfig deflt = PipelineConfig.forDoubles(BS).alpDoubleStage(1e-6).offset().gcd().bitPack();
+        final PipelineConfig speed = PipelineConfig.forDoubles(BS).alpDoubleStage().offset().gcd().bitPack();
+
+        final int storageBytes = measureAndLog("alp-double-storage(1e-2)", storage, values);
+        final int balancedBytes = measureAndLog("alp-double-balanced(1e-4)", balanced, values);
+        final int defaultBytes = measureAndLog("alp-double-default(1e-6)", deflt, values);
+        final int speedBytes = measureAndLog("alp-double-speed(lossless)", speed, values);
+
+        assertTrue("storage should compress, got " + storageBytes, storageBytes < RAW_LONG_BYTES);
+        assertTrue("more quantization should produce smaller output", storageBytes <= balancedBytes);
+        assertTrue("more quantization should produce smaller output", balancedBytes <= defaultBytes);
+        assertTrue("more quantization should produce smaller output", defaultBytes <= speedBytes);
+    }
+
+    public void testEncodedSizeAlpFloatAllHints() throws IOException {
+        final long[] values = decimalFloats(BS, 20.0f, 5.0f);
+        final PipelineConfig storage = PipelineConfig.forFloats(BS).alpFloatStage(1e-2).offset().gcd().bitPack();
+        final PipelineConfig balanced = PipelineConfig.forFloats(BS).alpFloatStage(1e-4).offset().gcd().bitPack();
+        final PipelineConfig deflt = PipelineConfig.forFloats(BS).alpFloatStage(1e-6).offset().gcd().bitPack();
+        final PipelineConfig speed = PipelineConfig.forFloats(BS).alpFloatStage().offset().gcd().bitPack();
+
+        final int storageBytes = measureAndLog("alp-float-storage(1e-2)", storage, values);
+        final int balancedBytes = measureAndLog("alp-float-balanced(1e-4)", balanced, values);
+        final int defaultBytes = measureAndLog("alp-float-default(1e-6)", deflt, values);
+        final int speedBytes = measureAndLog("alp-float-speed(lossless)", speed, values);
+
+        assertTrue("storage should compress, got " + storageBytes, storageBytes < RAW_LONG_BYTES);
+        assertTrue("more quantization should produce smaller output", storageBytes <= balancedBytes);
+        assertTrue("more quantization should produce smaller output", balancedBytes <= defaultBytes);
+        assertTrue("more quantization should produce smaller output", defaultBytes <= speedBytes);
+    }
+
+    public void testEncodedSizeXorVsAlpComparison() throws IOException {
+        final long[] randomWalk = smoothDoubles(BS, 100.0, 0.1);
+        final long[] monotonic = monotonicDoubles(BS, 1000.0, 0.5);
+        final long[] decimal = decimalDoubles(BS, 20.0, 5.0);
+
+        final PipelineConfig gorilla = PipelineConfig.forDoubles(BS).gorilla();
+        final PipelineConfig chimp = PipelineConfig.forDoubles(BS).chimpDoubleStage().offset().gcd().bitPack();
+        final PipelineConfig fpc = PipelineConfig.forDoubles(BS).fpcStage().offset().gcd().bitPack();
+        final PipelineConfig alp = PipelineConfig.forDoubles(BS).alpDoubleStage(1e-6).offset().gcd().bitPack();
+
+        System.out.println("--- Random walk doubles ---");
+        measureAndLog("  gorilla", gorilla, randomWalk);
+        measureAndLog("  chimp", chimp, randomWalk);
+        measureAndLog("  fpc", fpc, randomWalk);
+        measureAndLog("  alp(1e-6)", alp, randomWalk);
+
+        System.out.println("--- Monotonic counter doubles ---");
+        measureAndLog("  gorilla", gorilla, monotonic);
+        measureAndLog("  chimp", chimp, monotonic);
+        measureAndLog("  fpc", fpc, monotonic);
+        measureAndLog("  alp(1e-6)", alp, monotonic);
+
+        System.out.println("--- Decimal gauge doubles ---");
+        measureAndLog("  gorilla", gorilla, decimal);
+        measureAndLog("  chimp", chimp, decimal);
+        measureAndLog("  fpc", fpc, decimal);
+        measureAndLog("  alp(1e-6)", alp, decimal);
+    }
+
+    private static int measureSize(final PipelineConfig config, final long[] values) throws IOException {
+        final int blockSize = config.blockSize();
+        final long[] block = Arrays.copyOf(values, blockSize);
+        final byte[] buffer = new byte[blockSize * Long.BYTES * 8];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+        final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+        encoder.newBlockEncoder().encode(block, Math.min(values.length, blockSize), out);
+        return out.getPosition();
+    }
+
+    private static int measureAndLog(final String label, final PipelineConfig config, final long[] values) throws IOException {
+        final int bytes = measureSize(config, values);
+        final double bpv = (double) bytes / values.length;
+        System.out.printf(
+            "[SIZE] %-35s %6d bytes  (%.3f bytes/value, %.1f%% of raw)%n",
+            label,
+            bytes,
+            bpv,
+            (double) bytes / RAW_LONG_BYTES * 100
+        );
+        return bytes;
+    }
+
+    private static long[] smoothDoubles(int count, double center, double drift) {
+        final long[] values = new long[count];
+        final Random rng = new Random(0x5DEECE66DL);
+        double v = center;
+        for (int i = 0; i < count; i++) {
+            v += (rng.nextDouble() - 0.5) * drift;
+            values[i] = NumericUtils.doubleToSortableLong(v);
+        }
+        return values;
+    }
+
+    private static long[] monotonicDoubles(int count, double start, double avgStep) {
+        final long[] values = new long[count];
+        final Random rng = new Random(0x5DEECE66DL);
+        double v = start;
+        for (int i = 0; i < count; i++) {
+            v += avgStep + (rng.nextDouble() - 0.5) * avgStep * 0.1;
+            values[i] = NumericUtils.doubleToSortableLong(v);
+        }
+        return values;
+    }
+
+    private static long[] decimalDoubles(int count, double center, double spread) {
+        final long[] values = new long[count];
+        final Random rng = new Random(0x5DEECE66DL);
+        for (int i = 0; i < count; i++) {
+            final double v = center + (rng.nextDouble() - 0.5) * spread;
+            values[i] = NumericUtils.doubleToSortableLong(Math.round(v * 100.0) / 100.0);
+        }
+        return values;
+    }
+
+    private static long[] decimalFloats(int count, float center, float spread) {
+        final long[] values = new long[count];
+        final Random rng = new Random(0x5DEECE66DL);
+        for (int i = 0; i < count; i++) {
+            final float v = center + (rng.nextFloat() - 0.5f) * spread;
+            values[i] = NumericUtils.floatToSortableInt(Math.round(v * 100.0f) / 100.0f);
+        }
+        return values;
     }
 
     private static void assertAlpMaxError(final PipelineConfig config, double expectedMaxError) {

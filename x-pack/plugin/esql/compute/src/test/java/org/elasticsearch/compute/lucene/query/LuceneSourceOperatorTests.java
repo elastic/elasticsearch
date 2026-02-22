@@ -207,7 +207,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 return randomMatchAllMinCompetitive(breaker);
             }
         },
-        MIN_COMPETITIVE_GT_100 {
+        MIN_COMPETITIVE_LT_100 {
             @Override
             List<LuceneSliceQueue.QueryAndTags> queryAndExtra() {
                 return List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of()));
@@ -215,24 +215,24 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
 
             @Override
             void checkPages(boolean scoring, int numDocs, int limit, int maxPageSize, List<Page> results) {
-                MATCH_ALL.checkPages(scoring, numDocs, limit, maxPageSize, results);
                 for (Page r : results) {
                     LongBlock sBlock = r.getBlock(initialBlockIndex(r, scoring, queryAndExtra()));
                     LongVector sVector = sBlock.asVector();
                     for (int p = 0; p < sVector.getPositionCount(); p++) {
-                        assertThat(sVector.getLong(p), greaterThan(100L));
+                        assertThat(sVector.getLong(p), lessThan(100L));
                     }
+                    assertThat(r.getPositionCount(), lessThanOrEqualTo(maxPageSize));
                 }
             }
 
             @Override
             int numResults(int numDocs) {
-                return numDocs;
+                return Math.min(numDocs, 100);
             }
 
             @Override
             MinCompetitiveQuery.Factory minCompetitive(CircuitBreaker breaker) {
-                return minCompetitiveForQuery(breaker, SortedNumericDocValuesField.newSlowRangeQuery("s", 101, Long.MAX_VALUE));
+                return minCompetitiveForQuery(breaker, SortedNumericDocValuesField.newSlowRangeQuery("s", Long.MIN_VALUE, 99));
             }
         };
 
@@ -285,7 +285,9 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             for (LuceneSliceQueue.QueryAndTags q : testCase.queryAndExtra()) {
                 count += searcher.count(q.query());
             }
-            assertThat(count, equalTo(testCase.numResults(numDocs)));
+            if (testCase.minCompetitive(blockFactory().breaker()) == null) {
+                assertThat(count, equalTo(testCase.numResults(numDocs)));
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

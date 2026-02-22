@@ -57,19 +57,15 @@ public class ES93GenericFlatVectorScorer implements FlatVectorsScorer {
             }
             return DefaultFlatVectorScorer.INSTANCE.getRandomVectorScorerSupplier(similarityFunction, vectorValues);
         }
-
-        if (FACTORY != null && vectorValues instanceof HasIndexSlice sl) {
+        if (FACTORY != null) {
+            final var similarityType = VectorSimilarityType.of(similarityFunction);
             Optional<RandomVectorScorerSupplier> scorer = switch (vectorValues.getEncoding()) {
-                case BYTE -> FACTORY.getByteVectorScorerSupplier(
-                    VectorSimilarityType.of(similarityFunction),
-                    sl.getSlice(),
-                    (ByteVectorValues) vectorValues
-                );
-                case FLOAT32 -> FACTORY.getFloatVectorScorerSupplier(
-                    VectorSimilarityType.of(similarityFunction),
-                    sl.getSlice(),
-                    (FloatVectorValues) vectorValues
-                );
+                case BYTE -> vectorValues instanceof HasIndexSlice sl
+                    ? FACTORY.getByteVectorScorerSupplier(similarityType, sl.getSlice(), (ByteVectorValues) vectorValues)
+                    : FACTORY.getByteVectorScorerSupplier(similarityType, (ByteVectorValues) vectorValues);
+                case FLOAT32 -> vectorValues instanceof HasIndexSlice sl
+                    ? FACTORY.getFloatVectorScorerSupplier(similarityType, sl.getSlice(), (FloatVectorValues) vectorValues)
+                    : FACTORY.getFloatVectorScorerSupplier(similarityType, (FloatVectorValues) vectorValues);
             };
             if (scorer.isPresent()) {
                 return scorer.get();

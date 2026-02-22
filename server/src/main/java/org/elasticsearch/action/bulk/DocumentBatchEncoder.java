@@ -366,10 +366,6 @@ public class DocumentBatchEncoder {
             present[docIdx] = true;
         }
 
-        void setString(int docIdx, String value) {
-            setOptimizedString(docIdx, new org.elasticsearch.xcontent.Text(value));
-        }
-
         void setOptimizedString(int docIdx, XContentString value) {
             if (type == null) {
                 type = ColumnType.STRING;

@@ -1,6 +1,6 @@
 ```yaml {applies_to}
 serverless: preview
-stack: preview
+stack: preview 9.4
 ```
 
 The `REGISTERED_DOMAIN` processing command parses a fully qualified domain name (FQDN) string and extracts its parts (domain, registered domain, top-level domain, subdomain) into new columns using the public suffix list.

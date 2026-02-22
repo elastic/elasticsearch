@@ -67,6 +67,8 @@ ROW fqdn = "$"
 | REGISTERED_DOMAIN rd = fqdn
 | KEEP rd.domain, rd.registered_domain
 ;
+warningregex: Line 2:3: java.lang.IllegalArgumentException: Invalid domain \[\$\]
+warningregex: Line 2:3: evaluation of \[REGISTERED_DOMAIN rd = fqdn\] failed, treating result as null
 
 rd.domain:keyword | rd.registered_domain:keyword
 null              | null
@@ -80,6 +82,8 @@ ROW fqdn = "  "
 | REGISTERED_DOMAIN rd = fqdn
 | KEEP rd.domain, rd.registered_domain
 ;
+warningregex: Line 2:3: java.lang.IllegalArgumentException: Invalid domain \[  \]
+warningregex: Line 2:3: evaluation of \[REGISTERED_DOMAIN rd = fqdn\] failed, treating result as null
 
 rd.domain:keyword | rd.registered_domain:keyword
 null              | null
@@ -146,6 +150,8 @@ ROW fqdn = "a.b.example.com/path"
 | REGISTERED_DOMAIN rd = fqdn
 | KEEP rd.domain, rd.registered_domain
 ;
+warningregex: Line 2:3: java.lang.IllegalArgumentException: Invalid domain \[a.b.example.com/path\]
+warningregex: Line 2:3: evaluation of \[REGISTERED_DOMAIN rd = fqdn\] failed, treating result as null
 
 rd.domain:keyword | rd.registered_domain:keyword
 null              | null

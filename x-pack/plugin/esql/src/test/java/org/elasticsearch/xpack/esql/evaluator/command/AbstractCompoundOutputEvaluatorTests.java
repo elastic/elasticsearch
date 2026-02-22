@@ -242,23 +242,19 @@ public abstract class AbstractCompoundOutputEvaluatorTests extends OperatorTestC
                             actualValueCount,
                             is(expectedValueCount)
                         );
+                        if (expectedValueCount == 0) {
+                            continue;
+                        }
                         for (int k = 0; k < expectedValues.length; k++) {
                             int valueIndex = firstValueIndex + k;
                             Object value = expectedValues[k];
                             switch (value) {
-                                case null -> assertThat(
-                                    "Expected null for field [" + requestedFields.get(j) + "]",
-                                    builtBlock.isNull(valueIndex),
-                                    is(true)
-                                );
                                 case String s -> {
                                     BytesRefBlock fieldBlock = (BytesRefBlock) builtBlock;
-                                    assertThat(fieldBlock.isNull(valueIndex), is(false));
                                     assertThat(fieldBlock.getBytesRef(valueIndex, new BytesRef()).utf8ToString(), is(s));
                                 }
                                 case Integer v -> {
                                     IntBlock fieldBlock = (IntBlock) builtBlock;
-                                    assertThat(fieldBlock.isNull(valueIndex), is(false));
                                     assertThat(fieldBlock.getInt(valueIndex), is(v));
                                 }
                                 default -> throw new IllegalArgumentException("Unsupported expected output type: " + value.getClass());

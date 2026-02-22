@@ -95,7 +95,9 @@ public final class RegisteredDomainFunctionBridge {
 
         @Override
         public void evaluate(String input) {
-            RegisteredDomain.parseRegisteredDomainInfo(input, this);
+            if (RegisteredDomain.parseRegisteredDomainInfo(input, this) == false) {
+                throw new IllegalArgumentException("Invalid domain [" + input + "]");
+            }
         }
     }
 }

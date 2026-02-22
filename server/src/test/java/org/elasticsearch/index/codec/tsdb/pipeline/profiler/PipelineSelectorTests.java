@@ -32,15 +32,17 @@ public class PipelineSelectorTests extends ESTestCase {
     private final BlockProfiler profiler = new BlockProfiler();
     private final PipelineSelector selector = new PipelineSelector();
 
-    public void testConstantSelectsOffsetBitPack() {
+    public void testConstantSelectsWideDefault() {
         final long[] values = new long[512];
         Arrays.fill(values, 42L);
         final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.LONG, null, null);
 
         assertFalse(config.isDefault());
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
-        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Rle.class))));
     }
 
     public void testTimestampSelectsDeltaDelta() {
@@ -277,14 +279,15 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
     }
 
-    public void testHighRunRatioGcdOneSelectsOffsetBitPack() {
+    public void testHighRunRatioGcdOneSelectsWideDefault() {
         final BlockProfile profile = new BlockProfile(512, 0L, 100L, 100L, 1L, 1L, false, false, 510, 7, 7, 2, 10);
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.LONG, null, null);
 
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
-        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Delta.class))));
-        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Gcd.class))));
     }
 
     public void testConstantDoublePreservesDataType() {
@@ -294,8 +297,9 @@ public class PipelineSelectorTests extends ESTestCase {
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
-        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Rle.class))));
     }
 
     public void testShiftedGcdEnablesGcdStage() {
@@ -404,7 +408,7 @@ public class PipelineSelectorTests extends ESTestCase {
     public void testEncodedSizeConstantLong() throws IOException {
         final long[] values = new long[BS];
         Arrays.fill(values, 42L);
-        final PipelineConfig config = PipelineConfig.forLongs(BS).offset().bitPack();
+        final PipelineConfig config = PipelineConfig.forLongs(BS).delta().offset().gcd().rle().bitPack();
         final int bytes = measureAndLog("constant-long", config, values);
         assertTrue("constant block should encode to less than 32 bytes, got " + bytes, bytes < 32);
     }
@@ -414,7 +418,7 @@ public class PipelineSelectorTests extends ESTestCase {
         for (int i = 0; i < BS; i++) {
             values[i] = 1000L + (i / 128);
         }
-        final PipelineConfig config = PipelineConfig.forLongs(BS).offset().rle().bitPack();
+        final PipelineConfig config = PipelineConfig.forLongs(BS).delta().offset().gcd().rle().bitPack();
         final int bytes = measureAndLog("rle-friendly-long", config, values);
         assertTrue("RLE-friendly block should be much smaller than raw, got " + bytes, bytes < RAW_LONG_BYTES / 10);
     }

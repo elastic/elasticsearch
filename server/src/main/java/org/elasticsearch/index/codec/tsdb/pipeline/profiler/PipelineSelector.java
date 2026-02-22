@@ -60,13 +60,8 @@ public final class PipelineSelector {
     }
 
     private PipelineConfig selectLong(final BlockProfile profile, int blockSize) {
-        // NOTE: constant block — offset subtracts the single value, bitPack writes bpv=0
-        // with no payload. RLE would add ~5 bytes of run metadata for no benefit.
-        if (profile.range() == 0) {
-            return PipelineConfig.forLongs(blockSize).offset().bitPack();
-        }
         if (isRleProfitable(profile)) {
-            return PipelineConfig.forLongs(blockSize).offset().rle().bitPack();
+            return PipelineConfig.forLongs(blockSize).delta().offset().gcd().rle().bitPack();
         }
         if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
             if (profile.deltaDeltaMaxBits() <= DELTA_DELTA_MAX_BITS_THRESHOLD) {
@@ -76,14 +71,11 @@ public final class PipelineSelector {
             // NOTE: monotonic but irregular steps, plain delta removes the trend
             return PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
         }
-        if (profile.shiftedGcd() > 1) {
-            return PipelineConfig.forLongs(blockSize).offset().gcd().bitPack();
-        }
-        if (profile.xorMaxBits() < profile.rawMaxBits()) {
-            // NOTE: smooth longs — delta captures the slow drift
-            return PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
-        }
-        return PipelineConfig.forLongs(blockSize).offset().bitPack();
+        // NOTE: wide general-purpose pipeline — each stage has skip logic so the
+        // overhead for unused stages is just 1 bitmap bit. This is safe even when
+        // the sample block is uninformative (e.g. constant or low-cardinality)
+        // because later blocks may have different data shapes.
+        return PipelineConfig.forLongs(blockSize).delta().offset().gcd().rle().bitPack();
     }
 
     private PipelineConfig selectDouble(
@@ -92,11 +84,8 @@ public final class PipelineSelector {
         @Nullable OptimizeFor hint,
         @Nullable MetricType metricType
     ) {
-        if (profile.range() == 0) {
-            return PipelineConfig.forDoubles(blockSize).offset().bitPack();
-        }
-        if (isRleProfitable(profile)) {
-            return PipelineConfig.forDoubles(blockSize).offset().rle().bitPack();
+        if (profile.range() == 0 || isRleProfitable(profile)) {
+            return PipelineConfig.forDoubles(blockSize).offset().gcd().rle().bitPack();
         }
         if (metricType == MetricType.COUNTER || profile.xorMaxBits() < profile.rawMaxBits()) {
             return selectXorDouble(blockSize, hint);
@@ -136,11 +125,8 @@ public final class PipelineSelector {
         @Nullable OptimizeFor hint,
         @Nullable MetricType metricType
     ) {
-        if (profile.range() == 0) {
-            return PipelineConfig.forFloats(blockSize).offset().bitPack();
-        }
-        if (isRleProfitable(profile)) {
-            return PipelineConfig.forFloats(blockSize).offset().rle().bitPack();
+        if (profile.range() == 0 || isRleProfitable(profile)) {
+            return PipelineConfig.forFloats(blockSize).offset().gcd().rle().bitPack();
         }
         if (metricType == MetricType.COUNTER || profile.xorMaxBits() < profile.rawMaxBits()) {
             return selectXorFloat(blockSize, hint);

@@ -41,6 +41,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
@@ -286,6 +287,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
@@ -408,7 +410,7 @@ public class PipelineSelectorTests extends ESTestCase {
     public void testEncodedSizeConstantLong() throws IOException {
         final long[] values = new long[BS];
         Arrays.fill(values, 42L);
-        final PipelineConfig config = PipelineConfig.forLongs(BS).delta().offset().gcd().rle().bitPack();
+        final PipelineConfig config = PipelineConfig.forLongs(BS).delta().offset().gcd().patchedPFor().rle().bitPack();
         final int bytes = measureAndLog("constant-long", config, values);
         assertTrue("constant block should encode to less than 32 bytes, got " + bytes, bytes < 32);
     }
@@ -418,7 +420,7 @@ public class PipelineSelectorTests extends ESTestCase {
         for (int i = 0; i < BS; i++) {
             values[i] = 1000L + (i / 128);
         }
-        final PipelineConfig config = PipelineConfig.forLongs(BS).delta().offset().gcd().rle().bitPack();
+        final PipelineConfig config = PipelineConfig.forLongs(BS).delta().offset().gcd().patchedPFor().rle().bitPack();
         final int bytes = measureAndLog("rle-friendly-long", config, values);
         assertTrue("RLE-friendly block should be much smaller than raw, got " + bytes, bytes < RAW_LONG_BYTES / 10);
     }

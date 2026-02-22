@@ -60,22 +60,19 @@ public final class PipelineSelector {
     }
 
     private PipelineConfig selectLong(final BlockProfile profile, int blockSize) {
-        if (isRleProfitable(profile)) {
-            return PipelineConfig.forLongs(blockSize).delta().offset().gcd().rle().bitPack();
-        }
         if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
             if (profile.deltaDeltaMaxBits() <= DELTA_DELTA_MAX_BITS_THRESHOLD) {
                 // NOTE: nearly linear (e.g. steady-rate timestamps), second-order deltas are very compact
                 return PipelineConfig.forLongs(blockSize).deltaDelta().offset().gcd().patchedPFor().bitPack();
             }
-            // NOTE: monotonic but irregular steps, plain delta removes the trend
-            return PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
         }
         // NOTE: wide general-purpose pipeline — each stage has skip logic so the
         // overhead for unused stages is just 1 bitmap bit. This is safe even when
         // the sample block is uninformative (e.g. constant or low-cardinality)
-        // because later blocks may have different data shapes.
-        return PipelineConfig.forLongs(blockSize).delta().offset().gcd().rle().bitPack();
+        // because later blocks may have different data shapes. PFor patches out
+        // outliers (replacing them with the previous value), which can also create
+        // runs for RLE to exploit.
+        return PipelineConfig.forLongs(blockSize).delta().offset().gcd().patchedPFor().rle().bitPack();
     }
 
     private PipelineConfig selectDouble(

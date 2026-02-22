@@ -512,11 +512,67 @@ The master will then step down (it can no longer be master if it is not able to 
 election
 begins.
 
-The master will try waiting for all nodes to commit before applying its own state and moving on. But it no longer needs
-a quorum of responses after [ApplyCommitRequest]s have been sent. If the nodes timeout, the master will still move on to
-applying the new cluster state locally.
+The master will
+try [waiting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L103)
+for all nodes to commit
+before [applying its own state](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L2056)
+and moving on. But it no longer needs
+a quorum of responses after [ApplyCommitRequest]s have been sent. If the nodes time out, the master will still move on
+to applying the new cluster state locally.
 
 #### Cluster State Application
+
+[ClusterApplierService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java
+
+[ClusterStateApplier]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateApplier.java
+
+[ClusterStateListener]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterStateListener.java
+
+[ClusterChangedEvent]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterChangedEvent.java
+
+When a new [ClusterState] is committed, the follower nodes must apply the committed state locally.
+This is the responsibility of the [ClusterApplierService] class, which runs on
+a [single dedicated thread](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L159).
+
+When [receiving](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L412)
+an [ApplyCommitRequest] from the master, the [Coordinator] will hand over the committed state to
+the [ClusterApplierService], which
+will [submit](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L374)
+an [UpdateTask](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L399)
+to the executor. If the new state differs from the currently applied state (by reference), the
+service [applies](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L538)
+the changes through the following sequence of steps:
+
+1. A [ClusterChangedEvent] is created, holding the new state, the previous state and their deltas.
+
+2. The
+   node [opens](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L551)
+   network connections to newly added nodes (blocking call).
+
+3. If needed, the updated cluster settings
+   are [applied](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L559).
+
+4. [ClusterStateApplier]s (which update the node's internal state) are
+   invoked [in priority order](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L590).
+   Example high-priority appliers are [IndicesClusterStateService], which creates, deletes and updates local shard
+   copies, and [RepositoriesService], which manages snapshot repository lifecycle.
+
+5. Transport connections to nodes that are no longer in the cluster are closed (non-blocking call).
+
+6. `ClusterApplierService::state`
+   is [updated](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L569)
+   to the new state, making it visible to the rest of the classes on the node.
+
+7. [ClusterStateListener]s
+   are [notified](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/ClusterApplierService.java#L571).
+   Unlike appliers, listeners run _after_ the state is visible. Examples include the [PersistentTasksNodeService] which
+   reacts to changes in persistent tasks, and the [SnapshotShardsService] which watches for snapshot-related shard
+   assignments.
+
+Once application completes, the [Coordinator]'s
+callback [onClusterStateApplied](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L463)
+closes the election scheduler (if active) and stops peer finding, since the node is now part of a cluster with a
+functioning master.
 
 #### Persistence
 

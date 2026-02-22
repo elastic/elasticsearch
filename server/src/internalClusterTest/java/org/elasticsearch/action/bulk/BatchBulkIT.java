@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -375,5 +376,245 @@ public class BatchBulkIT extends ESIntegTestCase {
         assertTrue("Document should exist via realtime GET", getResponse.isExists());
         assertThat(getResponse.getSourceAsMap().get("name"), equalTo("realtime-2"));
         assertThat(getResponse.getSourceAsMap().get("value"), equalTo(2));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDynamicMappingsViaBatchMode() throws IOException {
+        String index = "test-batch-dynamic";
+        // Create index with dynamic:true (default), synthetic source, and column_batch_index enabled.
+        // Only map @timestamp — everything else needs dynamic mapping.
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("_source");
+                mapping.field("mode", "synthetic");
+                mapping.endObject();
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("@timestamp").field("type", "date").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put("index.mapping.source.mode", "synthetic")
+                        .put(IndexSettings.COLUMN_BATCH_INDEX.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = 5;
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            XContentBuilder doc = JsonXContent.contentBuilder();
+            doc.startObject();
+            {
+                doc.field("@timestamp", "2021-04-28T19:45:28.222Z");
+                doc.startObject("kubernetes");
+                {
+                    doc.field("namespace", "namespace" + i);
+                    doc.startObject("node");
+                    doc.field("name", "gke-apps-node-name-" + i);
+                    doc.endObject();
+                    doc.startObject("pod");
+                    doc.field("name", "pod-name-pod-name-" + i);
+                    doc.endObject();
+                    doc.startObject("volume");
+                    {
+                        doc.field("name", "volume-" + i);
+                        doc.startObject("fs");
+                        {
+                            doc.startObject("capacity");
+                            doc.field("bytes", 7883960320L);
+                            doc.endObject();
+                            doc.startObject("used");
+                            doc.field("bytes", 12288 + i);
+                            doc.endObject();
+                            doc.startObject("inodes");
+                            doc.field("used", 9 + i);
+                            doc.field("free", 1924786);
+                            doc.field("count", 1924795);
+                            doc.endObject();
+                            doc.startObject("available");
+                            doc.field("bytes", 7883948032L);
+                            doc.endObject();
+                        }
+                        doc.endObject();
+                    }
+                    doc.endObject();
+                }
+                doc.endObject();
+                doc.startObject("metricset");
+                doc.field("name", "volume");
+                doc.field("period", 10000);
+                doc.endObject();
+                doc.startObject("fields");
+                doc.field("cluster", "elastic-apps");
+                doc.endObject();
+                doc.startObject("host");
+                doc.field("name", "gke-apps-host-name" + i);
+                doc.endObject();
+                doc.startObject("agent");
+                {
+                    doc.field("id", "agent-id-" + i);
+                    doc.field("version", "7.6.2");
+                    doc.field("type", "metricbeat");
+                    doc.field("ephemeral_id", "ephemeral-id-" + i);
+                    // Omit hostname from doc 0 to exercise "first present value" inference via serial fallback
+                    if (i > 0) {
+                        doc.field("hostname", "gke-apps-host-name-" + i);
+                    }
+                }
+                doc.endObject();
+                doc.startObject("ecs");
+                doc.field("version", "1.4.0");
+                doc.endObject();
+                doc.startObject("service");
+                doc.field("address", "service-address-" + i);
+                doc.field("type", "kubernetes");
+                doc.endObject();
+                doc.startObject("event");
+                doc.field("dataset", "kubernetes.volume");
+                doc.field("module", "kubernetes");
+                doc.field("duration", 132588484 + i);
+                doc.endObject();
+            }
+            doc.endObject();
+            bulkRequest.add(new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(doc));
+        }
+
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+        refresh(index);
+
+        // Verify correct count
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+
+        // Verify key mappings exist
+        var mappingsResponse = client().admin().indices().prepareGetMappings(TimeValue.MAX_VALUE, index).get();
+        Map<String, Object> mappingMap = mappingsResponse.getMappings().get(index).sourceAsMap();
+        Map<String, Object> properties = (Map<String, Object>) mappingMap.get("properties");
+        assertNotNull("kubernetes should be mapped", properties.get("kubernetes"));
+        assertNotNull("event should be mapped", properties.get("event"));
+        assertNotNull("@timestamp should be mapped", properties.get("@timestamp"));
+
+        // Verify source reconstruction
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
+                .setSize(numDocs)
+                .addSort("kubernetes.namespace.keyword", SortOrder.ASC)
+                .setTrackTotalHits(true),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                SearchHit[] hits = searchResponse.getHits().getHits();
+                for (int i = 0; i < numDocs; i++) {
+                    Map<String, Object> source = hits[i].getSourceAsMap();
+                    Map<String, Object> kubernetes = (Map<String, Object>) source.get("kubernetes");
+                    assertThat("namespace mismatch at doc " + i, kubernetes.get("namespace"), equalTo("namespace" + i));
+                    Map<String, Object> event = (Map<String, Object>) source.get("event");
+                    assertThat("event.dataset mismatch at doc " + i, event.get("dataset"), equalTo("kubernetes.volume"));
+                }
+            }
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDynamicMappingsWithArrayField() throws IOException {
+        String index = "test-batch-dynamic-array";
+        // Create index with dynamic:true, stored source, and column_batch_index enabled.
+        // Only map @timestamp — array fields need dynamic mapping.
+        // Note: we use stored source (not synthetic) because synthetic source has limitations
+        // with dynamically mapped text/long arrays.
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("@timestamp").field("type", "date").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.COLUMN_BATCH_INDEX.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = 5;
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            XContentBuilder doc = JsonXContent.contentBuilder();
+            doc.startObject();
+            doc.field("@timestamp", "2021-04-28T19:45:28.222Z");
+            doc.array("tags", "tag-a-" + i, "tag-b-" + i);
+            doc.array("metrics", 10 + i, 20 + i, 30 + i);
+            doc.endObject();
+            bulkRequest.add(new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE).source(doc));
+        }
+
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+        refresh(index);
+
+        // Verify correct count
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+
+        // Verify mappings created for tags and metrics
+        var mappingsResponse = client().admin().indices().prepareGetMappings(TimeValue.MAX_VALUE, index).get();
+        Map<String, Object> mappingMap = mappingsResponse.getMappings().get(index).sourceAsMap();
+        Map<String, Object> properties = (Map<String, Object>) mappingMap.get("properties");
+        assertNotNull("tags should be mapped", properties.get("tags"));
+        assertNotNull("metrics should be mapped", properties.get("metrics"));
+
+        // Verify source reconstruction
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(numDocs).setTrackTotalHits(true),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                SearchHit[] hits = searchResponse.getHits().getHits();
+                for (SearchHit hit : hits) {
+                    Map<String, Object> source = hit.getSourceAsMap();
+                    assertNotNull("tags should be present in source", source.get("tags"));
+                    assertNotNull("metrics should be present in source", source.get("metrics"));
+                    List<String> tags = (List<String>) source.get("tags");
+                    assertThat("each doc should have 2 tags", tags.size(), equalTo(2));
+                }
+            }
+        );
     }
 }

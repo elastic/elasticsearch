@@ -129,8 +129,13 @@ public class BatchDocumentParserTests extends MapperServiceTestCase {
         DocumentBatch batch = DocumentBatchEncoder.encode(requests);
         BatchDocumentParser parser = mapperService.createBatchDocumentParser();
 
-        // Should throw because dynamic mapping is not supported in batch mode
-        expectThrows(IllegalArgumentException.class, () -> parser.parseBatch(batch, mapperService.mappingLookup()));
+        // Unmapped fields are now silently skipped (the pre-check in performBatchOnPrimary
+        // handles the fallback to serial path for dynamic mapping creation)
+        BatchDocumentParser.BatchResult result = parser.parseBatch(batch, mapperService.mappingLookup());
+        assertEquals(1, result.size());
+        assertTrue("Doc should succeed with unmapped field skipped", result.isSuccess(0));
+        ParsedDocument doc = result.getDocument(0);
+        assertNotNull(doc);
 
         batch.close();
     }

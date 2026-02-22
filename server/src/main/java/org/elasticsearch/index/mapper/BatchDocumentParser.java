@@ -127,9 +127,9 @@ public final class BatchDocumentParser {
             // Resolve the mapper once for this column
             Mapper mapper = resolveMapper(fieldPath, mappingLookup);
             if (mapper == null) {
-                // No mapper found for this field - skip (unmapped field in batch)
-                // Dynamic mapping from batches is not supported in this initial implementation
-                throw new IllegalArgumentException("No mapper found for field [" + fieldPath + "]");
+                continue; // Unmapped column — skip. The pre-check in performBatchOnPrimary
+                // ensures we only reach here if dynamic=false (field ignored) or
+                // the mapping was just updated and the field is now mapped.
             }
 
             // Pre-compute parent path segments once per column to avoid per-doc string splitting
@@ -231,7 +231,7 @@ public final class BatchDocumentParser {
      * Resolves a mapper for the given field path. Handles dot-notation paths by looking up
      * the full path directly in the mapping lookup (which stores leaf mappers by full path).
      */
-    private static Mapper resolveMapper(String fieldPath, MappingLookup mappingLookup) {
+    public static Mapper resolveMapper(String fieldPath, MappingLookup mappingLookup) {
         // First try direct lookup - MappingLookup stores field mappers by full dotted path
         Mapper mapper = mappingLookup.getMapper(fieldPath);
         if (mapper != null) {

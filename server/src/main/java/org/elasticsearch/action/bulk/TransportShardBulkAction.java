@@ -49,6 +49,7 @@ import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.mapper.BatchDocumentParser;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -409,6 +410,14 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
         if (batchDocCount == 0) {
             return null;
+        }
+
+        // Check if all columns have mappers — if not, fall back to serial path
+        // which handles dynamic mapping creation via the standard mapping update flow.
+        for (FieldColumn column : batch.columnList()) {
+            if (BatchDocumentParser.resolveMapper(column.fieldPath(), mappingLookup) == null) {
+                return null;
+            }
         }
 
         // Phase 2: Parse batch using BatchDocumentParser (no source needed — batch mode uses synthetic source)

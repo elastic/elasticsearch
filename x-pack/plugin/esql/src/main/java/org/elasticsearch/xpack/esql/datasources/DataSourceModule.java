@@ -183,9 +183,7 @@ public final class DataSourceModule implements Closeable {
                 for (Map.Entry<String, SourceOperatorFactoryProvider> entry : newOperatorFactories.entrySet()) {
                     String sourceType = entry.getKey();
                     if (operatorFactoryProviders.put(sourceType, entry.getValue()) != null) {
-                        throw new IllegalArgumentException(
-                            "Operator factory for source type [" + sourceType + "] is already registered"
-                        );
+                        throw new IllegalArgumentException("Operator factory for source type [" + sourceType + "] is already registered");
                     }
                 }
             }

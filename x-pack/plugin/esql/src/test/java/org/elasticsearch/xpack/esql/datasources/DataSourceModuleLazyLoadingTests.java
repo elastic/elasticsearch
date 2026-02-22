@@ -176,7 +176,8 @@ public class DataSourceModuleLazyLoadingTests extends ESTestCase {
         // Storage-only plugin should NOT produce a LazyConnectorFactory entry
         for (Map.Entry<String, ExternalSourceFactory> entry : module.sourceFactories().entrySet()) {
             assertFalse(
-                "sourceFactories should not contain LazyConnectorFactory for storage-only plugin, but found one at key [" + entry.getKey()
+                "sourceFactories should not contain LazyConnectorFactory for storage-only plugin, but found one at key ["
+                    + entry.getKey()
                     + "]",
                 entry.getValue() instanceof DataSourceModule.LazyConnectorFactory
             );

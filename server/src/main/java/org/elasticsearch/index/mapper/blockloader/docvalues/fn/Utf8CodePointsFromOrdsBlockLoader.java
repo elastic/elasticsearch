@@ -125,7 +125,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             int cacheSize = Math.toIntExact(ordinals.docValues().getValueCount());
             boolean success = false;
             try {
-                breaker.addEstimateBytesAndMaybeBreak(sizeOfArray(cacheSize), "load blocks");
+                ordinals.breaker().addEstimateBytesAndMaybeBreak(sizeOfArray(cacheSize), "load blocks");
                 success = true;
             } finally {
                 if (success == false) {
@@ -264,7 +264,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         @Override
         public void close() {
-            Releasables.close(ordinals, () -> breaker.addWithoutBreaking(-sizeOfArray(cache.length)));
+            Releasables.close(ordinals, () -> ordinals.breaker().addWithoutBreaking(-sizeOfArray(cache.length)));
         }
     }
 
@@ -287,7 +287,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
             int cacheSize = Math.toIntExact(ordinals.docValues().getValueCount());
             boolean success = false;
             try {
-                breaker.addEstimateBytesAndMaybeBreak(sizeOfArray(cacheSize), "load blocks");
+                ordinals.breaker().addEstimateBytesAndMaybeBreak(sizeOfArray(cacheSize), "load blocks");
                 success = true;
             } finally {
                 if (success == false) {
@@ -414,7 +414,7 @@ public class Utf8CodePointsFromOrdsBlockLoader extends BlockDocValuesReader.DocV
 
         @Override
         public void close() {
-            Releasables.close(ordinals, () -> breaker.addWithoutBreaking(-sizeOfArray(cache.length)));
+            Releasables.close(ordinals, () -> ordinals.breaker().addWithoutBreaking(-sizeOfArray(cache.length)));
         }
     }
 

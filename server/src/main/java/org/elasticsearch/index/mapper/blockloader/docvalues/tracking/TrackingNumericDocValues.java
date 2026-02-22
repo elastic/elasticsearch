@@ -14,7 +14,6 @@ import org.apache.lucene.index.NumericDocValues;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 
 import java.io.IOException;
 
@@ -34,10 +33,10 @@ public class TrackingNumericDocValues implements Releasable {
                 return null;
             }
             result = new TrackingNumericDocValues(breaker, docValues);
-            return null;
+            return result;
         } finally {
             if (result == null) {
-                breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
+                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
             }
         }
     }
@@ -52,6 +51,10 @@ public class TrackingNumericDocValues implements Releasable {
 
     public NumericDocValues docValues() {
         return docValues;
+    }
+
+    CircuitBreaker breaker() {
+        return breaker;
     }
 
     @Override

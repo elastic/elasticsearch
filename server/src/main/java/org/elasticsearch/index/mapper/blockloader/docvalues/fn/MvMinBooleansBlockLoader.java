@@ -9,10 +9,8 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBooleansBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
@@ -41,11 +39,11 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
         return "BooleansFromDocValues[" + fieldName + "]";
     }
 
-    private static class MvMinSorted extends BooleansBlockDocValuesReader {
+    private static class MvMinSorted extends BlockDocValuesReader {
         private final TrackingSortedNumericDocValues numericDocValues;
 
-        MvMinSorted(CircuitBreaker breaker, TrackingSortedNumericDocValues numericDocValues) {
-            super(breaker);
+        MvMinSorted(TrackingSortedNumericDocValues numericDocValues) {
+            super(null);
             this.numericDocValues = numericDocValues;
         }
 
@@ -81,6 +79,11 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
         @Override
         public String toString() {
             return "MvMinBooleansFromDocValues.Sorted";
+        }
+
+        @Override
+        public void close() {
+            numericDocValues.close();
         }
     }
 }

@@ -29,6 +29,10 @@ public class TrackingSortedSetDocValues implements Releasable {
         return docValues;
     }
 
+    public CircuitBreaker breaker() {
+        return breaker;
+    }
+
     @Override
     public void close() {
         breaker.addWithoutBreaking(-size.getBytes());

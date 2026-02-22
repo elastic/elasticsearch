@@ -29,7 +29,7 @@ public class TrackingSortedDocValues implements Releasable {
         return docValues;
     }
 
-    CircuitBreaker breaker() {
+    public CircuitBreaker breaker() {
         return breaker;
     }
 

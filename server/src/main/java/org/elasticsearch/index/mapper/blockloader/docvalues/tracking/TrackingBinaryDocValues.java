@@ -10,11 +10,12 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues.tracking;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 
 import java.io.IOException;
 
@@ -26,18 +27,26 @@ public class TrackingBinaryDocValues implements Releasable {
     private static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(3).getBytes();
 
     public static TrackingBinaryDocValues get(CircuitBreaker breaker, LeafReaderContext context, String fieldName) throws IOException {
+        return get(breaker, context, leafReader -> leafReader.getBinaryDocValues(fieldName));
+    }
+
+    public static TrackingBinaryDocValues get(
+        CircuitBreaker breaker,
+        LeafReaderContext context,
+        IOFunction<LeafReader, BinaryDocValues> supplier
+    ) throws IOException {
         breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
         TrackingBinaryDocValues result = null;
         try {
-            BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
+            BinaryDocValues docValues = supplier.apply(context.reader());
             if (docValues == null) {
                 return null;
             }
             result = new TrackingBinaryDocValues(breaker, docValues);
-            return null;
+            return result;
         } finally {
             if (result == null) {
-                breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
+                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
             }
         }
     }

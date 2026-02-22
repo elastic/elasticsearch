@@ -9,16 +9,9 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.tracking;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
-
-import java.io.IOException;
 
 import static org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues.ESTIMATED_SIZE;
 

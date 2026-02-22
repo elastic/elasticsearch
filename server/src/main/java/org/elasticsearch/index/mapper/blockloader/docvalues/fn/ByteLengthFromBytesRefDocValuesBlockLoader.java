@@ -13,9 +13,9 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
@@ -42,6 +42,9 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
+        if (bc == null) {
+            return ConstantNull.READER;
+        }
         if (bc.counts() == null) {
             return new SingleValued(bc.binary());
         }
@@ -95,7 +98,7 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
+            docValues.close();
         }
 
         @Override

@@ -21,7 +21,7 @@ import java.io.IOException;
 import static org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues.ESTIMATED_SIZE;
 
 /**
- * {@link TrackingSortedDocValues Singleton} or {@link TrackingSortedSetDocValues sorted} doc values.
+ * {@link TrackingNumericDocValues Singleton} or {@link TrackingSortedNumericDocValues sorted} doc values.
  * One of the two will always be {@code null}.
  */
 public record NumericDvSingletonOrSorted(@Nullable TrackingNumericDocValues singleton, @Nullable TrackingSortedNumericDocValues sorted) {
@@ -50,8 +50,18 @@ public record NumericDvSingletonOrSorted(@Nullable TrackingNumericDocValues sing
             return null;
         } finally {
             if (result == null) {
-                breaker.addWithoutBreaking(ESTIMATED_SIZE);
+                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
             }
         }
+    }
+
+    /**
+     * Get the sorted variant, wrapping singleton back to sorted if needed.
+     */
+    public TrackingSortedNumericDocValues forceSorted() {
+        if (sorted != null) {
+            return sorted;
+        }
+        return new TrackingSortedNumericDocValues(singleton.breaker(), DocValues.singleton(singleton.docValues()));
     }
 }

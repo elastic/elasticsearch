@@ -45,7 +45,7 @@ public record BinaryAndCounts(TrackingBinaryDocValues binary, @Nullable Tracking
                 assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
                 if (countsSkipper.maxValue() == 1) {
                     result = new BinaryAndCounts(binary, null);
-                    return null;
+                    return result;
                 }
             }
 

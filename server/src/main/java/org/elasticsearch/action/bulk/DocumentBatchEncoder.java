@@ -14,6 +14,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
@@ -110,7 +111,7 @@ public class DocumentBatchEncoder {
                 }
                 case VALUE_STRING -> {
                     ColumnBuilder col = columns.computeIfAbsent(fieldPath, k -> new ColumnBuilder(docCount));
-                    col.setString(docIdx, parser.text());
+                    col.setOptimizedString(docIdx, parser.optimizedText());
                 }
                 case VALUE_NUMBER -> {
                     ColumnBuilder col = columns.computeIfAbsent(fieldPath, k -> new ColumnBuilder(docCount));
@@ -122,7 +123,7 @@ public class DocumentBatchEncoder {
                         case DOUBLE -> col.setDouble(docIdx, parser.doubleValue());
                         default ->
                             // BIG_INTEGER, BIG_DECIMAL -> store as string
-                            col.setString(docIdx, parser.text());
+                            col.setOptimizedString(docIdx, parser.optimizedText());
                     }
                 }
                 case VALUE_BOOLEAN -> {
@@ -254,7 +255,7 @@ public class DocumentBatchEncoder {
         // Storage for values by type. Only one is active at a time (may change on widening).
         private int[] intValues;
         private long[] longValues;
-        private String[] stringValues;
+        private XContentString[] stringValues;
         private boolean[] booleanValues;
         private BytesReference[] binaryValues;
 
@@ -277,7 +278,7 @@ public class DocumentBatchEncoder {
                 present[docIdx] = true;
                 return;
             } else if (type == ColumnType.STRING) {
-                stringValues[docIdx] = Integer.toString(value);
+                stringValues[docIdx] = new org.elasticsearch.xcontent.Text(Integer.toString(value));
                 present[docIdx] = true;
                 return;
             } else if (type == ColumnType.BINARY) {
@@ -301,7 +302,7 @@ public class DocumentBatchEncoder {
                 // Widen INT -> LONG
                 widenIntToLong();
             } else if (type == ColumnType.STRING) {
-                stringValues[docIdx] = Long.toString(value);
+                stringValues[docIdx] = new org.elasticsearch.xcontent.Text(Long.toString(value));
                 present[docIdx] = true;
                 return;
             } else if (type == ColumnType.BINARY) {
@@ -325,7 +326,7 @@ public class DocumentBatchEncoder {
                 present[docIdx] = true;
                 return;
             } else if (type == ColumnType.STRING) {
-                stringValues[docIdx] = Float.toString(value);
+                stringValues[docIdx] = new org.elasticsearch.xcontent.Text(Float.toString(value));
                 present[docIdx] = true;
                 return;
             } else if (type == ColumnType.BINARY) {
@@ -349,7 +350,7 @@ public class DocumentBatchEncoder {
             } else if (type == ColumnType.INT) {
                 widenIntToLong();
             } else if (type == ColumnType.STRING) {
-                stringValues[docIdx] = Double.toString(value);
+                stringValues[docIdx] = new org.elasticsearch.xcontent.Text(Double.toString(value));
                 present[docIdx] = true;
                 return;
             } else if (type == ColumnType.BINARY) {
@@ -366,15 +367,20 @@ public class DocumentBatchEncoder {
         }
 
         void setString(int docIdx, String value) {
+            setOptimizedString(docIdx, new org.elasticsearch.xcontent.Text(value));
+        }
+
+        void setOptimizedString(int docIdx, XContentString value) {
             if (type == null) {
                 type = ColumnType.STRING;
-                stringValues = new String[present.length];
+                stringValues = new XContentString[present.length];
             } else if (type != ColumnType.STRING && type != ColumnType.BINARY) {
                 widenToString();
             }
             if (type == ColumnType.BINARY) {
                 // Already widened to BINARY, store as binary
-                binaryValues[docIdx] = new org.elasticsearch.common.bytes.BytesArray(value.getBytes(StandardCharsets.UTF_8));
+                XContentString.UTF8Bytes utf8 = value.bytes();
+                binaryValues[docIdx] = new org.elasticsearch.common.bytes.BytesArray(utf8.bytes(), utf8.offset(), utf8.length());
                 present[docIdx] = true;
                 return;
             }
@@ -394,7 +400,7 @@ public class DocumentBatchEncoder {
                 return;
             } else if (type != ColumnType.BOOLEAN) {
                 widenToString();
-                stringValues[docIdx] = Boolean.toString(value);
+                stringValues[docIdx] = new org.elasticsearch.xcontent.Text(Boolean.toString(value));
                 present[docIdx] = true;
                 return;
             }
@@ -461,11 +467,11 @@ public class DocumentBatchEncoder {
                     for (int i = 0; i < docCount; i++) {
                         if (present[i] && stringValues[i] != null) {
                             out.write(1);
-                            byte[] strBytes = stringValues[i].getBytes(StandardCharsets.UTF_8);
+                            XContentString.UTF8Bytes utf8 = stringValues[i].bytes();
                             byte[] lenBuf = new byte[4];
-                            INT_H.set(lenBuf, 0, strBytes.length);
+                            INT_H.set(lenBuf, 0, utf8.length());
                             out.write(lenBuf, 0, 4);
-                            out.write(strBytes, 0, strBytes.length);
+                            out.write(utf8.bytes(), utf8.offset(), utf8.length());
                         } else {
                             out.write(0);
                         }
@@ -519,25 +525,25 @@ public class DocumentBatchEncoder {
         }
 
         private void widenToString() {
-            stringValues = new String[present.length];
+            stringValues = new XContentString[present.length];
             if (intValues != null) {
                 for (int i = 0; i < present.length; i++) {
                     if (present[i]) {
-                        stringValues[i] = Integer.toString(intValues[i]);
+                        stringValues[i] = new org.elasticsearch.xcontent.Text(Integer.toString(intValues[i]));
                     }
                 }
                 intValues = null;
             } else if (longValues != null) {
                 for (int i = 0; i < present.length; i++) {
                     if (present[i]) {
-                        stringValues[i] = Long.toString(longValues[i]);
+                        stringValues[i] = new org.elasticsearch.xcontent.Text(Long.toString(longValues[i]));
                     }
                 }
                 longValues = null;
             } else if (booleanValues != null) {
                 for (int i = 0; i < present.length; i++) {
                     if (present[i]) {
-                        stringValues[i] = Boolean.toString(booleanValues[i]);
+                        stringValues[i] = new org.elasticsearch.xcontent.Text(Boolean.toString(booleanValues[i]));
                     }
                 }
                 booleanValues = null;
@@ -550,7 +556,8 @@ public class DocumentBatchEncoder {
             if (stringValues != null) {
                 for (int i = 0; i < present.length; i++) {
                     if (present[i] && stringValues[i] != null) {
-                        binaryValues[i] = new org.elasticsearch.common.bytes.BytesArray(stringValues[i].getBytes(StandardCharsets.UTF_8));
+                        XContentString.UTF8Bytes utf8 = stringValues[i].bytes();
+                        binaryValues[i] = new org.elasticsearch.common.bytes.BytesArray(utf8.bytes(), utf8.offset(), utf8.length());
                     }
                 }
                 stringValues = null;

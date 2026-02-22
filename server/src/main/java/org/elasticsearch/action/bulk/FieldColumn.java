@@ -11,6 +11,7 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -111,6 +112,17 @@ public class FieldColumn {
         int[] offsetAndLen = varLenValueOffsetAndLength(docIndex);
         if (offsetAndLen == null) return null;
         return new String(data, offsetAndLen[0], offsetAndLen[1], StandardCharsets.UTF_8);
+    }
+
+    /**
+     * Returns a zero-copy {@link XContentString.UTF8Bytes} view of the string value for the given document,
+     * slicing directly into the backing byte array without materializing a {@link String}.
+     */
+    public XContentString.UTF8Bytes stringBytes(int docIndex) {
+        assert columnType == ColumnType.STRING;
+        int[] offsetAndLen = varLenValueOffsetAndLength(docIndex);
+        if (offsetAndLen == null) return null;
+        return new XContentString.UTF8Bytes(data, offsetAndLen[0], offsetAndLen[1]);
     }
 
     public BytesReference binaryValue(int docIndex) {

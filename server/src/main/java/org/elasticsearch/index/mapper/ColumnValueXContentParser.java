@@ -15,8 +15,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
@@ -251,6 +253,18 @@ public class ColumnValueXContentParser extends AbstractXContentParser {
             case BOOLEAN -> Boolean.toString(childCol.booleanValue(docIndex));
             default -> null;
         };
+    }
+
+    @Override
+    public XContentString optimizedText() throws IOException {
+        FieldColumn col = currentValueColumn();
+        if (col != null && col.columnType() == ColumnType.STRING && col.isNull(docIndex) == false) {
+            XContentString.UTF8Bytes bytes = col.stringBytes(docIndex);
+            if (bytes != null) {
+                return new Text(bytes);
+            }
+        }
+        return super.optimizedText();
     }
 
     private FieldColumn currentValueColumn() {

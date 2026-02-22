@@ -657,12 +657,23 @@ public final class IndexSettings {
         Property.Final
     );
 
-    public static final Setting<Boolean> COLUMN_BATCH_INDEX = Setting.boolSetting(
-        "index.column_batch_index",
-        false,
-        Property.IndexScope,
-        Property.Final
-    );
+    public static final Setting<Boolean> COLUMN_BATCH_INDEX = Setting.boolSetting("index.column_batch_index", settings -> {
+        String sourceMode = settings.get("index.mapping.source.mode");
+        if (sourceMode != null) {
+            return String.valueOf(SourceFieldMapper.Mode.SYNTHETIC.name().equalsIgnoreCase(sourceMode));
+        }
+        // If source mode is not explicitly set, check the index mode's default
+        String indexModeStr = settings.get("index.mode");
+        if (indexModeStr != null) {
+            try {
+                IndexMode indexMode = IndexMode.valueOf(indexModeStr.toUpperCase(Locale.ROOT));
+                return String.valueOf(indexMode.defaultSourceMode() == SourceFieldMapper.Mode.SYNTHETIC);
+            } catch (IllegalArgumentException e) {
+                // Fall through to default
+            }
+        }
+        return "false";
+    }, Property.IndexScope, Property.Final);
 
     public static final Setting<Boolean> LOGSDB_ADD_HOST_NAME_FIELD = Setting.boolSetting(
         "index.logsdb.add_host_name_field",

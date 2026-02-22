@@ -235,12 +235,15 @@ public class DataSourceModuleTests extends ESTestCase {
         // Registries should be empty but not null
         assertNotNull(module.storageProviderRegistry());
         assertNotNull(module.formatReaderRegistry());
-        assertNotNull(module.operatorFactories());
+        assertNotNull(module.sourceFactories());
         assertNotNull(module.filterPushdownRegistry());
 
         // No providers should be registered
         assertFalse("No file provider should be registered", module.storageProviderRegistry().hasProvider("file"));
         assertFalse("No CSV reader should be registered", module.formatReaderRegistry().hasFormat("csv"));
+
+        // The "file" fallback factory should always be present
+        assertTrue("File fallback factory should be registered", module.sourceFactories().containsKey("file"));
     }
 
     /**
@@ -256,6 +259,39 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     /**
+     * Test that the "file" fallback factory is always present in sourceFactories.
+     */
+    public void testFileSourceFactoryFallbackPresent() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        assertTrue("File fallback factory should be in sourceFactories", module.sourceFactories().containsKey("file"));
+        assertEquals("file", module.sourceFactories().get("file").type());
+    }
+
+    /**
+     * Test that the "file" fallback factory can handle paths with known scheme + extension.
+     */
+    public void testFileSourceFactoryCanHandle() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+
+        var fileFactory = module.sourceFactories().get("file");
+        assertNotNull(fileFactory);
+
+        // file scheme + .csv extension should be handled
+        assertTrue("Should handle file:///tmp/data.csv", fileFactory.canHandle("file:///tmp/data.csv"));
+        // file scheme + .tsv extension should be handled (registered by MockCsvFormatReader)
+        assertTrue("Should handle file:///tmp/data.tsv", fileFactory.canHandle("file:///tmp/data.tsv"));
+        // Unknown extension should not be handled
+        assertFalse("Should not handle file:///tmp/data.xyz", fileFactory.canHandle("file:///tmp/data.xyz"));
+        // No extension should not be handled
+        assertFalse("Should not handle file:///tmp/data", fileFactory.canHandle("file:///tmp/data"));
+        // Unknown scheme should not be handled
+        assertFalse("Should not handle s3://bucket/data.csv", fileFactory.canHandle("s3://bucket/data.csv"));
+    }
+
+    /**
      * Test that DataSourceModule correctly reports table catalog availability.
      */
     public void testTableCatalogAvailability() {
@@ -263,15 +299,8 @@ public class DataSourceModuleTests extends ESTestCase {
         DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
         // TestDataSourcePlugin doesn't provide table catalogs
-        assertFalse("Test plugin should not have iceberg catalog", module.hasTableCatalog("iceberg"));
-        assertFalse("Test plugin should not have delta catalog", module.hasTableCatalog("delta"));
-
-        // Requesting non-existent catalog should throw
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> module.createTableCatalog("iceberg", Settings.EMPTY)
-        );
-        assertTrue(e.getMessage().contains("No table catalog registered"));
+        assertFalse("Test plugin should not have iceberg catalog", module.sourceFactories().containsKey("iceberg"));
+        assertFalse("Test plugin should not have delta catalog", module.sourceFactories().containsKey("delta"));
     }
 
     /**

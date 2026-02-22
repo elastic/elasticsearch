@@ -16,11 +16,6 @@ import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 
 public final class PipelineSelector {
 
-    // NOTE: at 4 bits, second-order deltas for a 512-value block cost ~256 bytes (0.5 bytes/value).
-    // Above this, the delta-delta transform no longer compresses well enough to justify its overhead
-    // (extra metadata + patchedPFor) compared to plain delta encoding.
-    private static final int DELTA_DELTA_MAX_BITS_THRESHOLD = 4;
-
     private static final double QUANTIZE_2_DECIMALS = 1e-2;
     private static final double QUANTIZE_4_DECIMALS = 1e-4;
     private static final double QUANTIZE_6_DECIMALS = 1e-6;
@@ -59,20 +54,16 @@ public final class PipelineSelector {
         };
     }
 
-    private PipelineConfig selectLong(final BlockProfile profile, int blockSize) {
-        if (profile.isMonotonicallyIncreasing() || profile.isMonotonicallyDecreasing()) {
-            if (profile.deltaDeltaMaxBits() <= DELTA_DELTA_MAX_BITS_THRESHOLD) {
-                // NOTE: nearly linear (e.g. steady-rate timestamps), second-order deltas are very compact
-                return PipelineConfig.forLongs(blockSize).deltaDelta().offset().gcd().patchedPFor().bitPack();
-            }
-        }
+    private static PipelineConfig selectLong(final BlockProfile profile, int blockSize) {
         // NOTE: wide general-purpose pipeline — each stage has skip logic so the
         // overhead for unused stages is just 1 bitmap bit. This is safe even when
         // the sample block is uninformative (e.g. constant or low-cardinality)
-        // because later blocks may have different data shapes. PFor patches out
-        // outliers (replacing them with the previous value), which can also create
-        // runs for RLE to exploit.
-        return PipelineConfig.forLongs(blockSize).delta().offset().gcd().patchedPFor().rle().bitPack();
+        // because later blocks may have different data shapes. Two chained deltas
+        // replace the fused deltaDelta stage: the first delta fires on monotonic
+        // data, and the second fires only if the resulting deltas are themselves
+        // monotonic (e.g. accelerating sequences). For constant-rate timestamps,
+        // the second delta skips and offset handles the constant residuals.
+        return PipelineConfig.forLongs(blockSize).delta().delta().offset().gcd().patchedPFor().rle().bitPack();
     }
 
     private PipelineConfig selectDouble(

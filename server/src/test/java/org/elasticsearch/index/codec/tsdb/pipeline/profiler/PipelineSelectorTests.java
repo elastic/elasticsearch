@@ -9,12 +9,14 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.profiler;
 
+import org.apache.lucene.store.ByteArrayDataInput;
 import org.apache.lucene.store.ByteArrayDataOutput;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.codec.tsdb.pipeline.NumericDataGenerators;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageSpec;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericEncoder;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 import org.elasticsearch.test.ESTestCase;
@@ -46,7 +48,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
 
-    public void testTimestampSelectsDeltaDelta() {
+    public void testTimestampSelectsDoubleDelta() {
         final long[] values = new long[512];
         final long base = 1700000000000L;
         for (int i = 0; i < 512; i++)
@@ -54,7 +56,9 @@ public class PipelineSelectorTests extends ESTestCase {
         final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.LONG, null, null);
 
         assertFalse(config.isDefault());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.DeltaDelta.class)));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.DeltaDelta.class))));
+        // NOTE: two Delta specs at positions 0 and 1
+        assertEquals(2, config.specs().stream().filter(s -> s instanceof StageSpec.Delta).count());
     }
 
     public void testMonotonicWithVaryingStrideSelectsDelta() {
@@ -64,7 +68,6 @@ public class PipelineSelectorTests extends ESTestCase {
         final BlockProfile profile = profiler.profile(values, 512);
 
         assertTrue(profile.isMonotonicallyIncreasing());
-        assertEquals(0, profile.deltaDeltaMaxBits());
 
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.LONG, null, null);
         assertFalse(config.isDefault());
@@ -258,18 +261,35 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
     }
 
-    public void testMonotonicLargeDeltaDeltaSelectsDelta() {
-        final long[] values = new long[512];
+    public void testAllLongPathsUseDoubleDelta() {
+        final long[] monotonic = new long[512];
         for (int i = 0; i < 512; i++) {
-            values[i] = (long) i * i * i;
+            monotonic[i] = (long) i * i * i;
         }
-        final BlockProfile profile = profiler.profile(values, 512);
-        assertTrue(profile.isMonotonicallyIncreasing());
-        assertTrue(profile.deltaDeltaMaxBits() > 4);
+        final PipelineConfig monotonicConfig = selector.select(
+            profiler.profile(monotonic, 512),
+            512,
+            PipelineConfig.DataType.LONG,
+            null,
+            null
+        );
+        assertEquals(2, monotonicConfig.specs().stream().filter(s -> s instanceof StageSpec.Delta).count());
+        assertThat(monotonicConfig.specs(), not(hasItem(instanceOf(StageSpec.DeltaDelta.class))));
 
-        final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.LONG, null, null);
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
-        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.DeltaDelta.class))));
+        final long[] constant = new long[512];
+        Arrays.fill(constant, 42L);
+        final PipelineConfig constantConfig = selector.select(
+            profiler.profile(constant, 512),
+            512,
+            PipelineConfig.DataType.LONG,
+            null,
+            null
+        );
+        assertEquals(2, constantConfig.specs().stream().filter(s -> s instanceof StageSpec.Delta).count());
+
+        final long[] random = NumericDataGenerators.randomLongs(512, 0x5DEECE66DL);
+        final PipelineConfig randomConfig = selector.select(profiler.profile(random, 512), 512, PipelineConfig.DataType.LONG, null, null);
+        assertEquals(2, randomConfig.specs().stream().filter(s -> s instanceof StageSpec.Delta).count());
     }
 
     public void testSmoothLongSelectsDelta() {
@@ -402,6 +422,81 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.ChimpFloatStage.class)));
     }
 
+    // -- Round-trip tests: verify which delta stages fire and that encode→decode is lossless --
+
+    public void testDoubleDeltaBothFireOnAcceleratingData() throws IOException {
+        final long[] original = new long[BS];
+        for (int i = 0; i < BS; i++) {
+            original[i] = (long) i * i;
+        }
+
+        final PipelineConfig config = PipelineConfig.forLongs(BS).delta().delta().offset().gcd().patchedPFor().rle().bitPack();
+        final long[] block = Arrays.copyOf(original, BS);
+        final byte[] buffer = new byte[BS * Long.BYTES * 8];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+        final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+        encoder.newBlockEncoder().encode(block, BS, out);
+
+        final int bitmap = buffer[0] & 0xFF;
+        assertTrue("first delta (position 0) should fire on monotonic i²", (bitmap & (1 << 0)) != 0);
+        assertTrue("second delta (position 1) should fire on monotonic deltas", (bitmap & (1 << 1)) != 0);
+
+        final long[] decoded = new long[BS];
+        final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
+        final int decodedCount = NumericDecoder.fromDescriptor(encoder.descriptor()).newBlockDecoder().decode(decoded, in);
+
+        assertEquals(BS, decodedCount);
+        assertArrayEquals(original, decoded);
+    }
+
+    public void testDoubleDeltaOnlyFirstFiresOnConstantRate() throws IOException {
+        final long[] original = new long[BS];
+        final long base = 1700000000000L;
+        for (int i = 0; i < BS; i++) {
+            original[i] = base + i * 1000L;
+        }
+
+        final PipelineConfig config = PipelineConfig.forLongs(BS).delta().delta().offset().gcd().patchedPFor().rle().bitPack();
+        final long[] block = Arrays.copyOf(original, BS);
+        final byte[] buffer = new byte[BS * Long.BYTES * 8];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+        final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+        encoder.newBlockEncoder().encode(block, BS, out);
+
+        final int bitmap = buffer[0] & 0xFF;
+        assertTrue("first delta (position 0) should fire on monotonic timestamps", (bitmap & (1 << 0)) != 0);
+        assertEquals("second delta (position 1) should skip on constant deltas", 0, bitmap & (1 << 1));
+
+        final long[] decoded = new long[BS];
+        final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
+        final int decodedCount = NumericDecoder.fromDescriptor(encoder.descriptor()).newBlockDecoder().decode(decoded, in);
+
+        assertEquals(BS, decodedCount);
+        assertArrayEquals(original, decoded);
+    }
+
+    public void testDoubleDeltaNeitherFiresOnRandomData() throws IOException {
+        final long[] original = NumericDataGenerators.randomLongs(BS, 0x5DEECE66DL);
+
+        final PipelineConfig config = PipelineConfig.forLongs(BS).delta().delta().offset().gcd().patchedPFor().rle().bitPack();
+        final long[] block = Arrays.copyOf(original, BS);
+        final byte[] buffer = new byte[BS * Long.BYTES * 8];
+        final ByteArrayDataOutput out = new ByteArrayDataOutput(buffer);
+        final NumericEncoder encoder = NumericEncoder.fromConfig(config);
+        encoder.newBlockEncoder().encode(block, BS, out);
+
+        final int bitmap = buffer[0] & 0xFF;
+        assertEquals("first delta (position 0) should skip on random data", 0, bitmap & (1 << 0));
+        assertEquals("second delta (position 1) should skip on random data", 0, bitmap & (1 << 1));
+
+        final long[] decoded = new long[BS];
+        final ByteArrayDataInput in = new ByteArrayDataInput(buffer, 0, out.getPosition());
+        final int decodedCount = NumericDecoder.fromDescriptor(encoder.descriptor()).newBlockDecoder().decode(decoded, in);
+
+        assertEquals(BS, decodedCount);
+        assertArrayEquals(original, decoded);
+    }
+
     // -- Encoding size tests: validate compression for each pipeline path in PipelineSelector --
 
     private static final int BS = 512;
@@ -425,14 +520,14 @@ public class PipelineSelectorTests extends ESTestCase {
         assertTrue("RLE-friendly block should be much smaller than raw, got " + bytes, bytes < RAW_LONG_BYTES / 10);
     }
 
-    public void testEncodedSizeDeltaDeltaTimestamp() throws IOException {
+    public void testEncodedSizeDoubleDeltaTimestamp() throws IOException {
         final long[] values = new long[BS];
         final long base = 1700000000000L;
         for (int i = 0; i < BS; i++) {
             values[i] = base + i * 1000L;
         }
-        final PipelineConfig config = PipelineConfig.forLongs(BS).deltaDelta().offset().gcd().patchedPFor().bitPack();
-        final int bytes = measureAndLog("deltadelta-timestamp", config, values);
+        final PipelineConfig config = PipelineConfig.forLongs(BS).delta().delta().offset().gcd().patchedPFor().rle().bitPack();
+        final int bytes = measureAndLog("double-delta-timestamp", config, values);
         assertTrue("steady-rate timestamps should compress well, got " + bytes, bytes < RAW_LONG_BYTES / 10);
     }
 

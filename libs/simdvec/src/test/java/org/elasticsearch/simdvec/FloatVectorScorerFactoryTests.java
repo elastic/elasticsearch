@@ -72,6 +72,33 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         testRandomSupplierBulk(maxChunkSize, FloatVectorScorerFactoryTests::randomVector);
+    public void testArrayBackedRandomSupplier() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("Not supported on current JDK", supportsHeapSegments());
+        var factory = AbstractVectorTestCase.factory.get();
+
+        final int dims = randomIntBetween(1, 1024);
+        final int size = randomIntBetween(2, 100);
+        final float[][] vectors = new float[size][];
+        for (int i = 0; i < size; i++) {
+            vectors[i] = randomVector(dims);
+        }
+        final FloatVectorValues values = arrayBackedVectorValues(vectors);
+
+        for (int times = 0; times < TIMES; times++) {
+            int idx0 = randomIntBetween(0, size - 1);
+            int idx1 = randomIntBetween(0, size - 1);
+            for (var sim : List.of(DOT_PRODUCT, EUCLIDEAN, MAXIMUM_INNER_PRODUCT)) {
+                float expected = luceneScore(sim, vectors[idx0], vectors[idx1]);
+                var scorerSupplier = factory.getFloatVectorScorerSupplier(sim, values);
+                assertTrue(scorerSupplier.isPresent());
+                var scorer = scorerSupplier.get().scorer();
+                scorer.setScoringOrdinal(idx0);
+
+                double expectedDelta = expected * DELTA;
+                assertThat(sim.toString(), (double) scorer.score(idx1), closeTo(expected, expectedDelta));
+            }
+        }
     }
 
     void testRandomSupplier(long maxChunkSize, IntFunction<float[]> floatsSupplier) throws IOException {
@@ -247,5 +274,29 @@ public class FloatVectorScorerFactoryTests extends AbstractVectorTestCase {
                 vectors[i] = vec;
             }
         }
+    static final int TIMES = 100; // a loop iteration times
+
+    static FloatVectorValues arrayBackedVectorValues(float[][] vectors) {
+        return new FloatVectorValues() {
+            @Override
+            public int dimension() {
+                return vectors[0].length;
+            }
+
+            @Override
+            public int size() {
+                return vectors.length;
+            }
+
+            @Override
+            public float[] vectorValue(int targetOrd) {
+                return vectors[targetOrd];
+            }
+
+            @Override
+            public FloatVectorValues copy() {
+                return this;
+            }
+        };
     }
 }

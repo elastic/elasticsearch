@@ -56,6 +56,35 @@ public class ByteVectorScorerFactoryTests extends AbstractVectorTestCase {
         testRandomSupplier(maxChunkSize, ESTestCase::randomByteArrayOfLength, VectorSimilarityType.values());
     }
 
+    public void testArrayBackedRandomSupplier() throws IOException {
+        assumeTrue(notSupportedMsg(), supported());
+        assumeTrue("Not supported on current JDK", supportsHeapSegments());
+        var factory = AbstractVectorTestCase.factory.get();
+
+        final int dims = randomIntBetween(1, 1024);
+        final int size = randomIntBetween(2, 100);
+        final byte[][] vectors = new byte[size][];
+        for (int i = 0; i < size; i++) {
+            vectors[i] = randomByteArrayOfLength(dims);
+        }
+        final ByteVectorValues values = arrayBackedVectorValues(vectors);
+
+        for (int times = 0; times < TIMES; times++) {
+            int idx0 = randomIntBetween(0, size - 1);
+            int idx1 = randomIntBetween(0, size - 1);
+            for (var sim : VectorSimilarityType.values()) {
+                float expected = luceneScore(sim, vectors[idx0], vectors[idx1]);
+                var scorerSupplier = factory.getByteVectorScorerSupplier(sim, values);
+                assertTrue(scorerSupplier.isPresent());
+                var scorer = scorerSupplier.get().scorer();
+                scorer.setScoringOrdinal(idx0);
+
+                double expectedDelta = expected * DELTA;
+                assertThat(sim.toString(), (double) scorer.score(idx1), closeTo(expected, expectedDelta));
+            }
+        }
+    }
+
     void testRandomSupplier(long maxChunkSize, IntFunction<byte[]> bytesSupplier, VectorSimilarityType... types) throws IOException {
         var factory = AbstractVectorTestCase.factory.get();
 
@@ -150,4 +179,28 @@ public class ByteVectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     static final int TIMES = 100; // a loop iteration times
+
+    static ByteVectorValues arrayBackedVectorValues(byte[][] vectors) {
+        return new ByteVectorValues() {
+            @Override
+            public int dimension() {
+                return vectors[0].length;
+            }
+
+            @Override
+            public int size() {
+                return vectors.length;
+            }
+
+            @Override
+            public byte[] vectorValue(int targetOrd) {
+                return vectors[targetOrd];
+            }
+
+            @Override
+            public ByteVectorValues copy() {
+                return this;
+            }
+        };
+    }
 }

@@ -32,13 +32,15 @@ public class PipelineSelectorTests extends ESTestCase {
     private final BlockProfiler profiler = new BlockProfiler();
     private final PipelineSelector selector = new PipelineSelector();
 
-    public void testConstantSelectsRle() {
+    public void testConstantSelectsOffsetBitPack() {
         final long[] values = new long[512];
         Arrays.fill(values, 42L);
         final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.LONG, null, null);
 
         assertFalse(config.isDefault());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Rle.class))));
     }
 
     public void testTimestampSelectsDeltaDelta() {
@@ -291,7 +293,9 @@ public class PipelineSelectorTests extends ESTestCase {
         final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.DOUBLE, null, null);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
+        assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Rle.class))));
     }
 
     public void testShiftedGcdEnablesGcdStage() {
@@ -400,7 +404,7 @@ public class PipelineSelectorTests extends ESTestCase {
     public void testEncodedSizeConstantLong() throws IOException {
         final long[] values = new long[BS];
         Arrays.fill(values, 42L);
-        final PipelineConfig config = PipelineConfig.forLongs(BS).offset().rle().bitPack();
+        final PipelineConfig config = PipelineConfig.forLongs(BS).offset().bitPack();
         final int bytes = measureAndLog("constant-long", config, values);
         assertTrue("constant block should encode to less than 32 bytes, got " + bytes, bytes < 32);
     }

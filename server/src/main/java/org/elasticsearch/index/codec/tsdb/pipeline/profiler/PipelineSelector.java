@@ -60,8 +60,10 @@ public final class PipelineSelector {
     }
 
     private PipelineConfig selectLong(final BlockProfile profile, int blockSize) {
+        // NOTE: constant block — offset subtracts the single value, bitPack writes bpv=0
+        // with no payload. RLE would add ~5 bytes of run metadata for no benefit.
         if (profile.range() == 0) {
-            return PipelineConfig.forLongs(blockSize).offset().rle().bitPack();
+            return PipelineConfig.forLongs(blockSize).offset().bitPack();
         }
         if (isRleProfitable(profile)) {
             return PipelineConfig.forLongs(blockSize).offset().rle().bitPack();
@@ -91,7 +93,7 @@ public final class PipelineSelector {
         @Nullable MetricType metricType
     ) {
         if (profile.range() == 0) {
-            return PipelineConfig.forDoubles(blockSize).offset().rle().bitPack();
+            return PipelineConfig.forDoubles(blockSize).offset().bitPack();
         }
         if (isRleProfitable(profile)) {
             return PipelineConfig.forDoubles(blockSize).offset().rle().bitPack();
@@ -135,7 +137,7 @@ public final class PipelineSelector {
         @Nullable MetricType metricType
     ) {
         if (profile.range() == 0) {
-            return PipelineConfig.forFloats(blockSize).offset().rle().bitPack();
+            return PipelineConfig.forFloats(blockSize).offset().bitPack();
         }
         if (isRleProfitable(profile)) {
             return PipelineConfig.forFloats(blockSize).offset().rle().bitPack();

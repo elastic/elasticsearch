@@ -61,7 +61,8 @@ public class MinCompetitiveQuery implements Releasable {
 
     /**
      * Number of times the min competitive changed, forcing the query to rebuild.
-     * We still rebuild the query when the index re
+     * We still rebuild the query when moving to a new index but do not increment
+     * the counter in that case
      */
     private int changedValue;
     /**
@@ -130,10 +131,10 @@ public class MinCompetitiveQuery implements Releasable {
 
     @Override
     public void close() {
-        minCompetitive.decRef();
+        Releasables.close(minCompetitive, perIndex);
     }
 
-    private class PerIndex {
+    private class PerIndex implements Releasable {
         private final ShardContext ctx;
         private PerMinValue perMinValue;
 
@@ -147,6 +148,7 @@ public class MinCompetitiveQuery implements Releasable {
             } else if (Objects.equals(perMinValue.value, value) == false) {
                 perMinValue.close();
                 perMinValue = newPerMinValue(value);
+                changedValue++;
             }
             return perMinValue;
         }
@@ -155,7 +157,6 @@ public class MinCompetitiveQuery implements Releasable {
             try {
                 Query query = buildMinCompetitiveQuery(value);
                 log.debug("updating min competitive to {} using {}", query, value);
-                changedValue++;
                 Weight weight = query.createWeight(ctx.searcher(), ScoreMode.COMPLETE_NO_SCORES, 0.0F);
                 PerMinValue result = new PerMinValue(value, weight);
                 value = null;
@@ -177,6 +178,11 @@ public class MinCompetitiveQuery implements Releasable {
             greaterThanMinCompetitive++;
             return q;
         }
+
+        @Override
+        public void close() {
+            Releasables.close(perMinValue);
+        }
     }
 
     private class PerMinValue implements Releasable {
@@ -195,7 +201,9 @@ public class MinCompetitiveQuery implements Releasable {
         }
 
         public PerLeaf perLeaf(LeafReaderContext leaf) throws IOException {
-            if (perLeaf == null || perLeaf.createdThread != Thread.currentThread() || perLeaf.leaf != leaf) {
+            if (perLeaf == null
+                || perLeaf.createdThread != Thread.currentThread() // Scorers tend to fail if they shift to other threads. Rebuild.
+                || perLeaf.leaf != leaf) {
                 Scorer scorer = weight.scorer(leaf);
                 DocIdSetIterator disi = scorer == null ? DocIdSetIterator.empty() : scorer.iterator();
                 perLeaf = new PerLeaf(Thread.currentThread(), leaf, disi);

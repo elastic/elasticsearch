@@ -106,7 +106,7 @@ public class EsMinCompetitiveQueriesTests extends ESTestCase {
     }
 
     public void testNonNullValue() throws IOException {
-        long v = 9; // randomLongBetween(0, NON_NULL_DOCS);
+        long v = randomLongBetween(0, NON_NULL_DOCS);
         Page page = new Page(TestBlockFactory.getNonBreakingInstance().newConstantLongBlockWith(v, 1));
         assertThat(searcher.count(minCompetitiveQuery(page)), equalTo(expectedForKey(v)));
     }

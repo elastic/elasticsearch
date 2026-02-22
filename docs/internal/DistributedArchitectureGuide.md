@@ -263,10 +263,6 @@ to communicate with Elasticsearch.
 
 # Cluster Coordination
 
-(Sketch of important classes? Might inform more sections to add for details.)
-
-(A node can coordinate a search across several other nodes, when the node itself does not have the data, and then return a result to the caller. Explain this coordinating role)
-
 ### Cluster State
 
 [ClusterState]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterState.java
@@ -303,7 +299,7 @@ A few standouts are:
 - `coordinationMetadata`: the term, voting configurations ... etc. (see [Master Elections](#master-elections) section).
 - `persistentSettings`: cluster-level settings applied
   via [the cluster settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings).
-- `customs`: cluster-level custom metadata: `NodesShutdownMetadata`,`RepositoriesMetadata` .. etc.
+- `customs`: cluster-level custom metadata: `NodesShutdownMetadata`, `RepositoriesMetadata` .. etc.
 - `reservedStateMetadata`: state managed by the file-based settings (operator) feature.
 
 2. Project scope information (located in the [ProjectMetadata])
@@ -313,7 +309,8 @@ Notable components of the [ProjectMetadata] include:
 - `id`: the project unique id.
 - `indices`: map of index name to `IndexMetadata` (settings, mappings, aliases, number of shards/replicas, etc.).
   Contains all indices in this project.
-- `aliasedIndices` and `templates`, also mapped by index name
+- `aliasedIndices` and `templates`. See [aliases](https://www.elastic.co/docs/manage-data/data-store/aliases)
+  and [templates](https://www.elastic.co/docs/manage-data/data-store/templates) for more details.
 - `customs`: project-level custom metadata. Includes data stream definitions (via `DataStreamMetadata` project custom),
   index lifecycle metadata (`IndexLifecycleMetadata`) and others.
 
@@ -369,7 +366,9 @@ per copy), detailing which node each copy is assigned to, its state (`UNASSIGNED
 
 Cluster-level, project-level and index-level blocks that restrict certain operations for the relevant scope. For
 example, an index can be blocked for writes during a close operation, or the entire cluster can be set to read-only.
-Blocks operate at four levels: `READ`, `WRITE`, `METADATA_READ`, `METADATA_WRITE`.
+Blocks operate at
+five [levels](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/block/ClusterBlockLevel.java):
+`READ`, `WRITE`, `METADATA_READ`, `METADATA_WRITE`, and `REFRESH`.
 
 - `customs`
 
@@ -393,9 +392,7 @@ a [monotonically increasing](https://github.com/elastic/elasticsearch/blob/v9.3.
 which stores it as `last_accepted_version` in the Lucene commit user data alongside the cluster metadata. On node
 startup, this version is loaded back and used to initialize the in-memory cluster state, so the monotonically-increasing
 property is preserved across restarts.
-The `stateUUID` field uniquely identifies every state, including uncommitted ones. It is not persisted. It gets
-regenerated every time a [ClusterState] is built and is used to verify that cluster state diffs are applied against the
-correct base state during publication.
+The `stateUUID` field uniquely identifies every state, including uncommitted ones. It is not persisted.
 
 #### Master Service
 
@@ -415,7 +412,7 @@ The [MasterService] uses a batching framework that groups multiple cluster state
 as a single batch and publishing only one resulting ClusterState update. This avoids triggering a distinct publication
 for each individual task, which would be very costly.
 
-Producers of cluster state update tasks, such as [SnapshotsService] , can
+Producers of cluster state update tasks, such as [SnapshotsService], can
 then [define](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1516)
 their own task queues, priority and batch executors ([ClusterStateTaskExecutor]), which the [MasterService] uses to
 group and process related tasks
@@ -457,10 +454,10 @@ assigns a new `version` and `stateUUID` to the state and proceeds to publication
 Once the [MasterService] has computed a new [ClusterState], it passes it to the [Coordinator], which is responsible for
 broadcasting it to all nodes in the cluster.
 This [publication](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L1620)
-process follows a two-steps commit protocol.
+process follows a two-step commit protocol.
 The progress of the publication for each follower node is tracked via
 a [PublicationTarget](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L235)
-object with maintains a
+object which maintains a
 [PublicationTargetState](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L226)
 state.
 

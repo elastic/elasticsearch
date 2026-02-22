@@ -275,6 +275,8 @@ to communicate with Elasticsearch.
 
 [PersistedClusterStateService]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java
 
+[IndexMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java
+
 
 The [ClusterState] is the in-memory data structure that represents the current state of the cluster. It is
 (conceptually) immutable: every update produces a new instance of the `ClusterState` class.
@@ -311,7 +313,7 @@ A few standouts are:
 Notable components of the `ProjectMetadata` include:
 
 - `id`: the project unique id.
-- `indices`: map of index name to `IndexMetadata` (settings, mappings, aliases, number of shards/replicas, etc.).
+- `indices`: map of index name to [IndexMetadata] (settings, mappings, aliases, number of shards/replicas, etc.).
   Contains all indices in this project.
 - `aliasedIndices` and `templates`. See [aliases](https://www.elastic.co/docs/manage-data/data-store/aliases)
   and [templates](https://www.elastic.co/docs/manage-data/data-store/templates) for more details.
@@ -603,11 +605,11 @@ the index mapping. The `mapping` documents (one document per mapping, keyed by `
 Storing mappings separately is a deduplication optimization: multiple indices that share the same mapping (common
 occurrence, eg in data streams) all reference the same mapping hash, so only one copy is stored.
 
-During [incremental writes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L1011), `PersistedClusterStateService`
-will add any new mappings and remove obsolete ones. It will also compare the index metadata for each index UUID between
-the old and new state. If the version changed, the old document is deleted and a fresh one is written. Unchanged indices
-are skipped entirely. The `global` document update is not incremental. If the new state's `global` fields differ
-from the old ones, the `global` document
+During [incremental writes](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L1011),
+the `PersistedClusterStateService` will first add new mappings and delete obsolete ones. It will then compare the index
+metadata for each index UUID between the old and new state. If the version changed, the old document is deleted and a
+fresh one is written. Unchanged indices are skipped entirely. The `global` document update is not incremental. If the
+new state's `global` fields differ from the old ones, the `global` document
 is [deleted and rewritten entirely](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/gateway/PersistedClusterStateService.java#L1080).
 
 Each Lucene commit

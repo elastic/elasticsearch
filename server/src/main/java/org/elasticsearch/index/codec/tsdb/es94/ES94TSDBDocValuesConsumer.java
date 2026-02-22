@@ -332,6 +332,15 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
                 }
 
                 final long valuesDataLength = data.getFilePointer() - valuesDataOffset;
+                final long rawBytes = numValues * Long.BYTES;
+                logger.debug(
+                    "field-encoded [{}] values={} raw={} encoded={} ratio={}",
+                    field.name,
+                    numValues,
+                    rawBytes,
+                    valuesDataLength,
+                    rawBytes > 0 ? String.format("%.2f%%", (double) valuesDataLength / rawBytes * 100) : "N/A"
+                );
                 if (indexWriter != null) {
                     indexWriter.finish();
                 }

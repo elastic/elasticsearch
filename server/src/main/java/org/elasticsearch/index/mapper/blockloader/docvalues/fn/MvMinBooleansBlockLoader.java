@@ -13,6 +13,8 @@ import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBooleansBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
 
@@ -25,13 +27,13 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
     }
 
     @Override
-    protected AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues) {
-        return new Singleton(breaker, docValues);
+    protected AllReader singletonReader(TrackingNumericDocValues docValues) {
+        return new Singleton(docValues);
     }
 
     @Override
-    protected AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues) {
-        return new MvMinSorted(breaker, docValues);
+    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues) {
+        return new MvMinSorted(docValues);
     }
 
     @Override
@@ -40,9 +42,9 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
     }
 
     private static class MvMinSorted extends BooleansBlockDocValuesReader {
-        private final SortedNumericDocValues numericDocValues;
+        private final TrackingSortedNumericDocValues numericDocValues;
 
-        MvMinSorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues) {
+        MvMinSorted(CircuitBreaker breaker, TrackingSortedNumericDocValues numericDocValues) {
             super(breaker);
             this.numericDocValues = numericDocValues;
         }
@@ -64,16 +66,16 @@ public class MvMinBooleansBlockLoader extends AbstractBooleansBlockLoader {
         }
 
         private void read(int doc, BooleanBuilder builder) throws IOException {
-            if (false == numericDocValues.advanceExact(doc)) {
+            if (false == numericDocValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            builder.appendBoolean(numericDocValues.nextValue() != 0);
+            builder.appendBoolean(numericDocValues.docValues().nextValue() != 0);
         }
 
         @Override
         public int docId() {
-            return numericDocValues.docID();
+            return numericDocValues.docValues().docID();
         }
 
         @Override

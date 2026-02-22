@@ -19,8 +19,7 @@ import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.diversification.DenseVectorSupplierField;
+import org.elasticsearch.search.diversification.DenseVectorSupplier;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -64,7 +63,7 @@ public record SemanticTextField(
     @Nullable List<String> originalValues,
     InferenceResult inference,
     XContentType contentType
-) implements ToXContentObject, DenseVectorSupplierField {
+) implements ToXContentObject, DenseVectorSupplier {
 
     static final String TEXT_FIELD = "text";
     static final String INFERENCE_FIELD = "inference";
@@ -344,12 +343,12 @@ public record SemanticTextField(
     }
 
     @Override
-    public String getSupplierFieldName() {
+    public String getSupplierContentType() {
         return SemanticTextFieldMapper.CONTENT_TYPE;
     }
 
     @Override
-    public List<VectorData> getDenseVectorDataForSearchHit(String fieldName, SearchHit hit) throws IOException {
+    public List<VectorData> getDenseVectorData() throws IOException {
         if (this.inference == null || this.inference.chunks() == null) {
             return null;
         }
@@ -363,14 +362,14 @@ public record SemanticTextField(
             return null;
         }
 
-        List<Chunk> chunks = this.inference.chunks().getOrDefault(fieldName, Collections.emptyList());
-        if (chunks.isEmpty()) {
-            return null;
-        }
-
         List<VectorData> chunkVectors = new ArrayList<>();
-        for (Chunk chunk : chunks) {
-            chunkVectors.add(getTextEmbeddingVectorFromChunk(chunk, contentType, elementType));
+        for (List<Chunk> fieldChunks : this.inference.chunks.values()) {
+            for (Chunk chunk : fieldChunks) {
+                VectorData thisChunkVectorData = getTextEmbeddingVectorFromChunk(chunk, contentType, elementType);
+                if (thisChunkVectorData != null) {
+                    chunkVectors.add(thisChunkVectorData);
+                }
+            }
         }
 
         return chunkVectors;

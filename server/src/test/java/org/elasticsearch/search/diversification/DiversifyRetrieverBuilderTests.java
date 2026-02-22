@@ -415,13 +415,12 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         docs.add(hits);
 
         try {
-            ElasticsearchStatusException docsWithNoValuesEx = assertThrows(
-                ElasticsearchStatusException.class,
+            IllegalArgumentException docsWithNoValuesEx = assertThrows(
+                IllegalArgumentException.class,
                 () -> retriever.combineInnerRetrieverResults(docs, false)
             );
             assertEquals(
-                "[query_vector] or [query_vector_builder] must be supplied when "
-                    + "retrieving search hit document vectors for a [mock_supplier_field] field.",
+                "[query_vector] or [query_vector_builder] must be supplied when diversifying on a [mock_supplier_field] field.",
                 docsWithNoValuesEx.getMessage()
             );
         } finally {
@@ -450,12 +449,12 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         docs.add(hits);
 
         try {
-            ElasticsearchStatusException docsWithNoValuesEx = assertThrows(
-                ElasticsearchStatusException.class,
+            IllegalArgumentException docsWithNoValuesEx = assertThrows(
+                IllegalArgumentException.class,
                 () -> retriever.combineInnerRetrieverResults(docs, false)
             );
             assertEquals(
-                "supplied query vector is incompatible with search hit document vectors for the [mock_supplier_field] field.",
+                "supplied query vector is incompatible with document vectors for the [mock_supplier_field] field.",
                 docsWithNoValuesEx.getMessage()
             );
         } finally {
@@ -511,7 +510,7 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         float score,
         List<VectorData> vectorData
     ) {
-        MockDenseVectorTestSupplierField supplierField = new MockDenseVectorTestSupplierField(vectorData);
+        MockDenseVectorTestSupplier supplierField = new MockDenseVectorTestSupplier(vectorData);
         Map<String, Object> inferenceFieldValues = Map.of("dense_vector_field", supplierField);
         SearchHit hit = new SearchHit(docId);
         hit.setDocumentField(new DocumentField(InferenceMetadataFieldsMapper.NAME, List.of(inferenceFieldValues)));
@@ -680,16 +679,16 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         return new Mapping(root, new MetadataFieldMapper[] { sourceMapper }, Map.of());
     }
 
-    public record MockDenseVectorTestSupplierField(List<VectorData> vectors) implements DenseVectorSupplierField {
+    public record MockDenseVectorTestSupplier(List<VectorData> vectors) implements DenseVectorSupplier {
         public static String NAME = "mock_supplier_field";
 
         @Override
-        public List<VectorData> getDenseVectorDataForSearchHit(String fieldName, SearchHit hit) throws IOException {
+        public List<VectorData> getDenseVectorData() throws IOException {
             return vectors;
         }
 
         @Override
-        public String getSupplierFieldName() {
+        public String getSupplierContentType() {
             return NAME;
         }
     }

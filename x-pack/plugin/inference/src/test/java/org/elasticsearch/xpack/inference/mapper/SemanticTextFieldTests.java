@@ -20,7 +20,6 @@ import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -190,7 +189,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
         assertThat(ex.getMessage(), containsString("required [element_type] field is missing"));
     }
 
-    public void testGetDenseVectorsFromSearchHit() throws IOException {
+    public void testGetDenseVectorsAsSupplier() throws IOException {
         for (int i = 0; i < 10; i++) {
             Model model = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
 
@@ -217,13 +216,8 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
                 randomFrom(XContentType.values())
             );
 
-            var searchHit = new SearchHit(1);
-            try {
-                var vectors = field.getDenseVectorDataForSearchHit("testfield", searchHit);
-                assertEquals(chunkVectors, vectors);
-            } finally {
-                searchHit.decRef();
-            }
+            var vectors = field.getDenseVectorData();
+            assertEquals(chunkVectors, vectors);
         }
     }
 

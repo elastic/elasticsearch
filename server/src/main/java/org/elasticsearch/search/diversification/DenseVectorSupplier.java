@@ -9,14 +9,13 @@
 
 package org.elasticsearch.search.diversification;
 
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.vectors.VectorData;
 
 import java.io.IOException;
 import java.util.List;
 
-public interface DenseVectorSupplierField {
-    List<VectorData> getDenseVectorDataForSearchHit(String fieldName, SearchHit hit) throws IOException;
+public interface DenseVectorSupplier {
+    List<VectorData> getDenseVectorData() throws IOException;
 
-    String getSupplierFieldName();
+    String getSupplierContentType();
 }

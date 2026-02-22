@@ -380,8 +380,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 if (vector != null) {
                     fieldVectors.put(asRankDoc.rank, vector);
                 }
-            } catch (IllegalArgumentException e) {
-                throw new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e);
+//            } catch (IllegalArgumentException e) {
+//                throw new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e);
             } catch (IOException ioEx) {
                 throw new UncheckedIOException(ioEx);
             }
@@ -500,19 +500,19 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
 
         if (fieldValues.getFirst() instanceof Map<?, ?> mappedValues) {
             var fieldValue = mappedValues.getOrDefault(diversificationField, null);
-            if (fieldValue instanceof DenseVectorSupplierField vectorSupplier) {
+            if (fieldValue instanceof DenseVectorSupplier vectorSupplier) {
                 if (queryVectorData == null) {
                     throw new IllegalArgumentException(
                         Strings.format(
-                            "[%s] or [%s] must be supplied when retrieving search hit document vectors for a [%s] field.",
+                            "[%s] or [%s] must be supplied when diversifying on a [%s] field.",
                             QUERY_VECTOR_FIELD.getPreferredName(),
                             QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
-                            vectorSupplier.getSupplierFieldName()
+                            vectorSupplier.getSupplierContentType()
                         )
                     );
                 }
 
-                List<VectorData> fieldVectors = vectorSupplier.getDenseVectorDataForSearchHit(diversificationField, hit);
+                List<VectorData> fieldVectors = vectorSupplier.getDenseVectorData();
                 if (fieldVectors == null || fieldVectors.isEmpty()) {
                     return null;
                 }
@@ -520,8 +520,8 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 if (fieldVectors.getFirst().isFloat() != queryVectorData.isFloat()) {
                     throw new IllegalArgumentException(
                         Strings.format(
-                            "supplied query vector is incompatible with search hit document vectors for the [%s] field.",
-                            vectorSupplier.getSupplierFieldName()
+                            "supplied query vector is incompatible with document vectors for the [%s] field.",
+                            vectorSupplier.getSupplierContentType()
                         )
                     );
                 }

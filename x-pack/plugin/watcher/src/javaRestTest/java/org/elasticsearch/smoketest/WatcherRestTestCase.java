@@ -41,6 +41,7 @@ public abstract class WatcherRestTestCase extends ESRestTestCase {
             .module("x-pack-ilm")
             .module("ingest-common")
             .module("analysis-common")
+            .module("codecs-common")
             .module("lang-mustache")
             .setting("xpack.ml.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")

@@ -29,6 +29,7 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('ccr')), 'javaRestTest'))
 
   clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:codecs-common')
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('slm'))
   clusterModules project(xpackModule('ccr'))

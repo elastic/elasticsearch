@@ -27,6 +27,7 @@ public class RestartIT extends AbstractCCRRestTestCase {
 
     public static LocalClusterConfigProvider commonConfig = c -> c.module("x-pack-ccr")
         .module("analysis-common")
+        .module("codecs-common")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
         .user("admin", "admin-password", "superuser", false);

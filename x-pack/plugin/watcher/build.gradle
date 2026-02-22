@@ -63,6 +63,7 @@ dependencies {
   yamlRestTestImplementation project(':x-pack:qa')
 
   clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:codecs-common')
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:lang-mustache')
   clusterModules project(':modules:lang-painless')

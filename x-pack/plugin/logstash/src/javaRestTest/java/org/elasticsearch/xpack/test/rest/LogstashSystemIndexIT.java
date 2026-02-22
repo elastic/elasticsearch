@@ -38,6 +38,7 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("x-pack-logstash")
         .module("analysis-common")
+        .module("codecs-common")
         .setting("xpack.security.enabled", "true")
         .user("x_pack_rest_user", "x-pack-test-password")
         .build();

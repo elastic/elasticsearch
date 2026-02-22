@@ -30,6 +30,7 @@ dependencies {
   javaRestTestImplementation(testImplementation(testArtifact(project(xpackModule('core')))))
 
   clusterModules project(":modules:analysis-common")
+  clusterModules project(":modules:codecs-common")
   clusterModules project(":modules:mapper-extras")
   clusterModules project(":modules:data-streams")
   clusterModules project(":modules:ingest-common")

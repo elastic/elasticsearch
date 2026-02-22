@@ -31,6 +31,7 @@ public class CommonAnalysisClientYamlTestSuiteIT extends ESClientYamlSuiteTestCa
         .module("reindex")
         .module("mapper-extras")
         .module("analysis-common")
+        .module("codecs-common")
         .build();
 
     @Override

@@ -32,6 +32,7 @@ public class ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("rest-root")
         .module("reindex")
         .module("analysis-common")
+        .module("codecs-common")
         .module("health-shards-availability")
         .module("data-streams")
         .feature(FeatureFlag.TIME_SERIES_MODE)

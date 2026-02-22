@@ -24,6 +24,7 @@ public class ChainIT extends AbstractCCRRestTestCase {
 
     public static LocalClusterConfigProvider commonConfig = c -> c.module("x-pack-ccr")
         .module("analysis-common")
+        .module("codecs-common")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
         .feature(FeatureFlag.TIME_SERIES_MODE)

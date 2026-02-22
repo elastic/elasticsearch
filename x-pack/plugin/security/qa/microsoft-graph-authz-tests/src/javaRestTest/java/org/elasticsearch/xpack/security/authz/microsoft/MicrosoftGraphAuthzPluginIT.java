@@ -101,6 +101,7 @@ public class MicrosoftGraphAuthzPluginIT extends ESRestTestCase {
     private static ElasticsearchCluster initTestCluster() {
         final var clusterBuilder = ElasticsearchCluster.local()
             .module("analysis-common")
+            .module("codecs-common")
             .setting("xpack.security.enabled", "true")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.authc.token.enabled", "true")

@@ -85,6 +85,7 @@ public class SamlRestTestCase extends ESRestTestCase {
         return ElasticsearchCluster.local()
             .nodes(1)
             .module("analysis-common")
+            .module("codecs-common")
             .setting("xpack.license.self_generated.type", "trial")
             .setting("xpack.security.enabled", "true")
             .setting("xpack.security.authc.token.enabled", "true")

@@ -24,6 +24,7 @@ dependencies {
   clusterModules project(':modules:mapper-extras')
   clusterModules project(':modules:aggregations')
   clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:codecs-common')
   clusterModules project(':x-pack:plugin:analytics')
   clusterModules project(':x-pack:plugin:vector-tile')
   clusterModules project(':modules:legacy-geo')

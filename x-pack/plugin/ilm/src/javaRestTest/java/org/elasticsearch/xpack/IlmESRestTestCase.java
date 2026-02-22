@@ -29,6 +29,7 @@ public abstract class IlmESRestTestCase extends ESRestTestCase {
         .module("x-pack-slm")
         .module("x-pack-ccr")
         .module("x-pack-downsample")
+        .module("codecs-common")
         .module("searchable-snapshots")
         .module("data-streams")
         .nodes(4)

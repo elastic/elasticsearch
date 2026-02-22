@@ -50,6 +50,7 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
         .name("fulfilling-cluster")
         .nodes(3)
         .module("analysis-common")
+        .module("codecs-common")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
         .build();
@@ -58,6 +59,7 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
         .distribution(DistributionType.DEFAULT)
         .name("query-cluster")
         .module("analysis-common")
+        .module("codecs-common")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
         .build();

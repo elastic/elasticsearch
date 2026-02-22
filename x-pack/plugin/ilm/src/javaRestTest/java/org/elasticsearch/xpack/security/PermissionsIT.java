@@ -55,6 +55,7 @@ public class PermissionsIT extends ESRestTestCase {
         .module("x-pack-ilm")
         .module("x-pack-ccr")
         .module("analysis-common")
+        .module("codecs-common")
         .setting("xpack.license.self_generated.type", "trial")
         .rolesFile(Resource.fromClasspath("roles.yml"))
         .setting("xpack.security.enabled", "true")

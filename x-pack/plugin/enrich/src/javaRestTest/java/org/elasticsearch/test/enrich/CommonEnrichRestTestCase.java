@@ -41,6 +41,7 @@ public abstract class CommonEnrichRestTestCase extends ESRestTestCase {
     static LocalClusterSpecBuilder<ElasticsearchCluster> enrichCluster(String license, boolean isSecurityEnabled) {
         return ElasticsearchCluster.local()
             .module("analysis-common")
+            .module("codecs-common")
             .module("ingest-common")
             .module("mapper-extras")
             .module("x-pack-enrich")

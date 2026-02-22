@@ -93,6 +93,7 @@ public class RemoteClusterSecurityFcActionAuthorizationIT extends ESRestTestCase
     public static ElasticsearchCluster testCluster = ElasticsearchCluster.local()
         .name("test-cluster")
         .module("analysis-common")
+        .module("analysis-codecs")
         .module("x-pack-ccr")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")

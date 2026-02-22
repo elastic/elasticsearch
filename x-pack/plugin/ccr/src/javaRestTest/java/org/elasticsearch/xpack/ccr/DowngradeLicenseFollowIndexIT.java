@@ -45,6 +45,7 @@ public class DowngradeLicenseFollowIndexIT extends AbstractCCRRestTestCase {
 
     public static LocalClusterConfigProvider commonConfig = c -> c.module("x-pack-ccr")
         .module("analysis-common")
+        .module("codecs-common")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .user("admin", "admin-password", "superuser", false);

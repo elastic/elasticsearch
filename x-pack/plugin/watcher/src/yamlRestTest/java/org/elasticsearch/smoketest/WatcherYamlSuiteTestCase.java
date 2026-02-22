@@ -49,6 +49,7 @@ public abstract class WatcherYamlSuiteTestCase extends ESClientYamlSuiteTestCase
             .module("x-pack-ilm")
             .module("ingest-common")
             .module("analysis-common")
+            .module("codecs-common")
             .module("lang-mustache")
             .module("lang-painless")
             .setting("xpack.ml.enabled", "false")

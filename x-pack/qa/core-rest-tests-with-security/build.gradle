@@ -14,6 +14,7 @@ dependencies {
   clusterModules project(':modules:ingest-common')
   clusterModules project(':modules:reindex')
   clusterModules project(':modules:analysis-common')
+  clusterModules project(':modules:codecs-common')
   clusterModules project(':modules:health-shards-availability')
   clusterModules project(':modules:data-streams')
   clusterModules project(xpackModule('stack'))

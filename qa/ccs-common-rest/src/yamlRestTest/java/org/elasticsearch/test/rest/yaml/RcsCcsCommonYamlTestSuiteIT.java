@@ -89,6 +89,7 @@ public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("aggregations")
         .module("mapper-extras")
         .module("analysis-common")
+        .module("codecs-common")
         .module("vector-tile")
         .module("x-pack-analytics")
         .module("x-pack-eql")

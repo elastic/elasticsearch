@@ -50,6 +50,7 @@ import static org.hamcrest.Matchers.is;
 public class FollowIndexSecurityIT extends AbstractCCRRestTestCase {
     public static LocalClusterConfigProvider commonConfig = c -> c.module("x-pack-ccr")
         .module("analysis-common")
+        .module("codecs-common")
         .module("mapper-extras")
         .module("data-streams")
         .module("ingest-common")

@@ -197,10 +197,10 @@ public class PerFieldFormatSupplier {
 
         if (useTSDBDocValuesFormat(field)) {
             var indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
+            boolean useLargeBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize();
             if (indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3)) {
-                return new ES819Version3TSDBDocValuesFormat();
+                return new ES819Version3TSDBDocValuesFormat(useLargeBlockSize);
             } else {
-                boolean useLargeBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize();
                 return useLargeBlockSize ? ES819TSDBDocValuesFormat.getInstance(true) : ES819TSDBDocValuesFormat.getInstance(false);
             }
         }

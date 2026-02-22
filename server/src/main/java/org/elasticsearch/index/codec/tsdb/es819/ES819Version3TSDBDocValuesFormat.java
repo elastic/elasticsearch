@@ -12,10 +12,9 @@ package org.elasticsearch.index.codec.tsdb.es819;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 
 /**
- * Version 3 of {@link org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat} and has the following changes:
+ * Version 3 of {@link org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat} and has the following change:
  * <ul>
  *     <li>Changed how binary doc values encodes docOffsets from grouped vints to bitpacking</li>
- *     <li>Always encode numerics and ordinals in blocks of up to 512 values. {@link #NUMERIC_LARGE_BLOCK_SHIFT}</li>
  * </ul>
  *
  * Note that versions 0, 1, and 2 are implemented as a codec version in {@link ES819TSDBDocValuesFormat}.
@@ -35,7 +34,20 @@ public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
             OPTIMIZED_MERGE_ENABLE_DEFAULT,
             BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
             true,
-            NUMERIC_LARGE_BLOCK_SHIFT,
+            NUMERIC_BLOCK_SHIFT,
+            DocOffsetsCodec.BITPACKING
+        );
+    }
+
+    public ES819Version3TSDBDocValuesFormat(boolean useLargeNumericBlock) {
+        super(
+            CODEC_NAME,
+            DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+            ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+            OPTIMIZED_MERGE_ENABLE_DEFAULT,
+            BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+            true,
+            useLargeNumericBlock ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
             DocOffsetsCodec.BITPACKING
         );
     }

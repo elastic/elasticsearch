@@ -464,6 +464,9 @@ tests:
 - class: org.elasticsearch.xpack.core.termsenum.TermsEnumTests
   method: testTermsEnumIPRandomized
   issue: https://github.com/elastic/elasticsearch/issues/142811
+- class: org.elasticsearch.action.search.SearchContextInvalidationIT
+  method: testScrollReturns404WhenNodeLeavesCluster
+  issue: https://github.com/elastic/elasticsearch/issues/142810
 
 # Examples:
 #

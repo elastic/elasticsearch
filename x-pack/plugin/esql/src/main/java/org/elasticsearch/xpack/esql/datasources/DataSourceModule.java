@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.Connector;
 import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
@@ -321,7 +322,7 @@ public final class DataSourceModule implements Closeable {
     /**
      * Lazy connector wrapper whose canHandle() checks declared schemes without loading the plugin.
      */
-    static class LazyConnectorFactory implements ExternalSourceFactory {
+    static class LazyConnectorFactory implements ConnectorFactory {
         private final LazyPluginState state;
         private final Set<String> declaredSchemes;
         private final String pluginName;
@@ -354,6 +355,11 @@ public final class DataSourceModule implements Closeable {
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
             return resolveDelegate().resolveMetadata(location, config);
+        }
+
+        @Override
+        public Connector open(Map<String, Object> config) {
+            return resolveDelegate().open(config);
         }
 
         @Override

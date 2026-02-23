@@ -34,13 +34,14 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.reindex.remote.RemoteResponseParsers.MAIN_ACTION_PARSER;
 
 public class RemoteReindexingUtils {
 
     public static void lookupRemoteVersion(RejectAwareActionListener<Version> listener, ThreadPool threadPool, RestClient client) {
-        execute(new Request("GET", ""), MAIN_ACTION_PARSER, listener, threadPool, client);
+        execute(new Request("GET", "/"), MAIN_ACTION_PARSER, listener, threadPool, client);
     }
 
     static <T> void execute(
@@ -51,7 +52,7 @@ public class RemoteReindexingUtils {
         RestClient client
     ) {
         // Preserve the thread context so headers survive after the call
-        java.util.function.Supplier<ThreadContext.StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(true);
+        Supplier<ThreadContext.StoredContext> contextSupplier = threadPool.getThreadContext().newRestorableContext(true);
         try {
             client.performRequestAsync(request, new ResponseListener() {
                 @Override

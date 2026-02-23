@@ -1,0 +1,6 @@
+area: Transform
+issues:
+ - 106363
+pr: 142853
+summary: Fix latest transform skipping documents at checkpoint boundaries
+type: bug

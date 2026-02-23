@@ -497,7 +497,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 return new SourceValueFetcherMultiGeoPointIndexFieldData.Builder(
                     name(),
                     valuesSourceType,
-                    valueFetcher(sourcePaths, null, null),
+                    valueFetcher(sourcePaths, null, null, fieldDataContext.indexSettings()),
                     searchLookup,
                     GeoPointDocValuesField::new
                 );

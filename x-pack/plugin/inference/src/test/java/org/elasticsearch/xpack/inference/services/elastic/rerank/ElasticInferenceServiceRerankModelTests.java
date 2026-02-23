@@ -13,7 +13,21 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 
+import static org.hamcrest.Matchers.is;
+
 public class ElasticInferenceServiceRerankModelTests extends ESTestCase {
+
+    public void testUriCreation() {
+        var model = createModel("http://eis-gateway.com", "my-model-id");
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/rerank/text/text-similarity"));
+    }
+
+    public void testUriCreation_WithTrailingSlash() {
+        var model = createModel("http://eis-gateway.com/", "my-model-id");
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/rerank/text/text-similarity"));
+    }
 
     public static ElasticInferenceServiceRerankModel createModel(String url, String modelId) {
         return new ElasticInferenceServiceRerankModel(

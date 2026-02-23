@@ -14,7 +14,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -136,12 +135,7 @@ public class MetadataCreateIndexService {
 
     @FunctionalInterface
     interface ClusterBlocksTransformer {
-        void apply(
-            ClusterBlocks.Builder clusterBlocks,
-            ProjectId projectId,
-            IndexMetadata indexMetadata,
-            TransportVersion minClusterTransportVersion
-        );
+        void apply(ClusterBlocks.Builder clusterBlocks, ProjectId projectId, IndexMetadata indexMetadata);
     }
 
     private final Settings settings;
@@ -156,7 +150,7 @@ public class MetadataCreateIndexService {
     private final boolean forbidPrivateIndexSettings;
     private final Set<IndexSettingProvider> indexSettingProviders;
     private final ThreadPool threadPool;
-    private final ClusterBlocksTransformer blocksTransformerUponIndexCreation;
+    private final org.elasticsearch.cluster.metadata.MetadataCreateIndexService.ClusterBlocksTransformer blocksTransformerUponIndexCreation;
 
     public MetadataCreateIndexService(
         final Settings settings,
@@ -566,7 +560,8 @@ public class MetadataCreateIndexService {
                     temporaryIndexMeta.getRoutingNumShards(),
                     sourceMetadata,
                     temporaryIndexMeta.isSystem(),
-                    temporaryIndexMeta.getCustomData()
+                    temporaryIndexMeta.getCustomData(),
+                    currentState.getMinTransportVersion()
                 );
             } catch (Exception e) {
                 logger.info("failed to build index metadata [{}]", request.index());
@@ -594,7 +589,7 @@ public class MetadataCreateIndexService {
                 blocksTransformerUponIndexCreation,
                 allocationService.getShardRoutingRoleStrategy()
             );
-            assert assertHasRefreshBlock(indexMetadata, updated.projectState(request.projectId()), updated.getMinTransportVersion());
+            assert assertHasRefreshBlock(indexMetadata, updated.projectState(request.projectId()));
             if (request.performReroute()) {
                 updated = allocationService.reroute(
                     updated,
@@ -627,7 +622,6 @@ public class MetadataCreateIndexService {
         final IndexMetadata.Builder tmpImdBuilder = IndexMetadata.builder(request.index());
         tmpImdBuilder.setRoutingNumShards(routingNumShards);
         tmpImdBuilder.settings(indexSettings);
-        tmpImdBuilder.transportVersion(TransportVersion.current());
         tmpImdBuilder.system(isSystem);
 
         // Set up everything, now locally create the index to see that things are ok, and apply
@@ -1455,7 +1449,7 @@ public class MetadataCreateIndexService {
         ProjectId projectId,
         IndexMetadata indexMetadata,
         BiConsumer<ProjectMetadata.Builder, IndexMetadata> projectMetadataTransformer,
-        ClusterBlocksTransformer blocksTransformer,
+        org.elasticsearch.cluster.metadata.MetadataCreateIndexService.ClusterBlocksTransformer blocksTransformer,
         ShardRoutingRoleStrategy shardRoutingRoleStrategy
     ) {
         ProjectMetadata currentProjectMetadata = currentState.metadata().getProject(projectId);
@@ -1472,7 +1466,7 @@ public class MetadataCreateIndexService {
         var blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
         blocksBuilder.updateBlocks(projectId, indexMetadata);
         if (blocksTransformer != null) {
-            blocksTransformer.apply(blocksBuilder, projectId, indexMetadata, currentState.getMinTransportVersion());
+            blocksTransformer.apply(blocksBuilder, projectId, indexMetadata);
         }
 
         var routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, currentState.routingTable(projectId))
@@ -1493,10 +1487,12 @@ public class MetadataCreateIndexService {
         int routingNumShards,
         @Nullable IndexMetadata sourceMetadata,
         boolean isSystem,
-        Map<String, DiffableStringMap> customData
+        Map<String, DiffableStringMap> customData,
+        TransportVersion minClusterTransportVersion
     ) {
         IndexMetadata.Builder indexMetadataBuilder = createIndexMetadataBuilder(indexName, sourceMetadata, indexSettings, routingNumShards);
         indexMetadataBuilder.system(isSystem);
+        indexMetadataBuilder.transportVersion(minClusterTransportVersion);
         // now, update the mappings with the actual source
         Map<String, MappingMetadata> mappingsMetadata = new HashMap<>();
         DocumentMapper docMapper = documentMapperSupplier.get();
@@ -1932,13 +1928,15 @@ public class MetadataCreateIndexService {
         return DiscoveryNode.isStateless(settings) && settings.getAsBoolean(USE_INDEX_REFRESH_BLOCK_SETTING_NAME, false);
     }
 
-    static ClusterBlocksTransformer createClusterBlocksTransformerForIndexCreation(Settings settings) {
+    static
+        org.elasticsearch.cluster.metadata.MetadataCreateIndexService.ClusterBlocksTransformer
+        createClusterBlocksTransformerForIndexCreation(Settings settings) {
         if (useRefreshBlock(settings) == false) {
-            return (clusterBlocks, projectId, indexMetadata, minClusterTransportVersion) -> {};
+            return (clusterBlocks, projectId, indexMetadata) -> {};
         }
         logger.debug("applying refresh block on index creation");
-        return (clusterBlocks, projectId, indexMetadata, minClusterTransportVersion) -> {
-            if (applyRefreshBlock(indexMetadata, minClusterTransportVersion)) {
+        return (clusterBlocks, projectId, indexMetadata) -> {
+            if (applyRefreshBlock(indexMetadata)) {
                 // Applies the INDEX_REFRESH_BLOCK to the index. This block will remain in cluster state until an unpromotable shard is
                 // started or a configurable delay is elapsed.
                 clusterBlocks.addIndexBlock(projectId, indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
@@ -1946,17 +1944,16 @@ public class MetadataCreateIndexService {
         };
     }
 
-    private static boolean applyRefreshBlock(IndexMetadata indexMetadata, TransportVersion minClusterTransportVersion) {
+    private static boolean applyRefreshBlock(IndexMetadata indexMetadata) {
         return 0 < indexMetadata.getNumberOfReplicas() // index has replicas
             && indexMetadata.getResizeSourceIndex() == null // index is not a split/shrink index
-            && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty) // index is a new index
-            && minClusterTransportVersion.supports(TransportVersions.V_8_18_0);
+            && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty); // index is a new index
     }
 
-    private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ProjectState state, TransportVersion minTransportVersion) {
+    private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ProjectState state) {
         var hasRefreshBlock = state.blocks()
             .hasIndexBlock(state.projectId(), indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
-        if (useRefreshBlock(settings) == false || applyRefreshBlock(indexMetadata, minTransportVersion) == false) {
+        if (useRefreshBlock(settings) == false || applyRefreshBlock(indexMetadata) == false) {
             assert hasRefreshBlock == false : indexMetadata.getIndex();
         } else {
             assert hasRefreshBlock : indexMetadata.getIndex();

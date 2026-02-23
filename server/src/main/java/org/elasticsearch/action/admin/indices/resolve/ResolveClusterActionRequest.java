@@ -84,14 +84,9 @@ public class ResolveClusterActionRequest extends LegacyActionRequest implements 
         this.names = in.readStringArray();
         this.indicesOptions = IndicesOptions.readIndicesOptions(in);
         this.localIndicesRequested = localIndicesPresent(names);
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            this.clusterInfoOnly = in.readBoolean();
-            this.isQueryingCluster = in.readBoolean();
-            this.timeout = in.readOptionalTimeValue();
-        } else {
-            this.clusterInfoOnly = false;
-            this.isQueryingCluster = false;
-        }
+        this.clusterInfoOnly = in.readBoolean();
+        this.isQueryingCluster = in.readBoolean();
+        this.timeout = in.readOptionalTimeValue();
     }
 
     @Override
@@ -102,11 +97,9 @@ public class ResolveClusterActionRequest extends LegacyActionRequest implements 
         }
         out.writeStringArray(names);
         indicesOptions.writeIndicesOptions(out);
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            out.writeBoolean(clusterInfoOnly);
-            out.writeBoolean(isQueryingCluster);
-            out.writeOptionalTimeValue(timeout);
-        }
+        out.writeBoolean(clusterInfoOnly);
+        out.writeBoolean(isQueryingCluster);
+        out.writeOptionalTimeValue(timeout);
     }
 
     static String createVersionErrorMessage(TransportVersion versionFound) {

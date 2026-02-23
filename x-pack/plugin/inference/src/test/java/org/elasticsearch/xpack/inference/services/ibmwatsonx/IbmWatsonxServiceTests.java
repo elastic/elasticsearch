@@ -29,6 +29,7 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
+import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
@@ -82,6 +83,7 @@ import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.SenderServiceTests.createMockSender;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettingsTests.getTaskSettingsMapEmpty;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxService.RERANK_WINDOW_SIZE;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
@@ -943,7 +945,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 {
                        "service": "watsonxai",
                        "name": "IBM watsonx",
-                       "task_types": ["text_embedding", "completion", "chat_completion"],
+                       "task_types": ["text_embedding", "rerank", "completion", "chat_completion"],
                        "configurations": {
                            "project_id": {
                                "description": "",
@@ -952,7 +954,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                            },
                            "model_id": {
                                "description": "The name of the model to use for the inference task.",
@@ -961,7 +963,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                            },
                            "api_version": {
                                "description": "The IBM watsonx API version ID to use.",
@@ -970,7 +972,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                            },
                            "max_input_tokens": {
                                "description": "Allows you to specify the maximum number of tokens per input.",
@@ -988,7 +990,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                                "sensitive": false,
                                "updatable": false,
                                "type": "str",
-                               "supported_task_types": ["text_embedding", "completion", "chat_completion"]
+                               "supported_task_types": ["text_embedding", "rerank", "completion", "chat_completion"]
                            }
                        }
                    }
@@ -1048,6 +1050,11 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     @Override
     public InferenceService createInferenceService() {
         return createIbmWatsonxService();
+    }
+
+    @Override
+    protected void assertRerankerWindowSize(RerankingInferenceService rerankingInferenceService) {
+        assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(RERANK_WINDOW_SIZE));
     }
 
     private static class IbmWatsonxServiceWithoutAuth extends IbmWatsonxService {

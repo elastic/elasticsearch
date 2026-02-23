@@ -368,7 +368,7 @@ public class ValuesSourceReaderBenchmark {
             blockFactory,
             ByteSizeValue.ofMb(1).getBytes(),
             fields(name),
-            List.of(new ValuesSourceReaderOperator.ShardContext(reader, () -> {
+            List.of(new ValuesSourceReaderOperator.ShardContext(reader, (sourcePaths) -> {
                 throw new UnsupportedOperationException("can't load _source here");
             }, EsqlPlugin.STORED_FIELDS_SEQUENTIAL_PROPORTION.getDefault(Settings.EMPTY))),
             0

@@ -97,7 +97,7 @@ public class InetAddresses {
                 if (i == offset + length - 1) {
                     return null;  // Filter out strings that end in % and have an empty scope ID.
                 }
-                length = i;
+                length = i - offset;
                 break; // Everything after a '%' is ignored (it's a Scope ID)
             }
         }
@@ -206,14 +206,14 @@ public class InetAddresses {
         // Find position of :: abbreviation if present
         int compressedHextetIndex = -1;
         int hextetIndex = 0;
-        int currentHextetStart = 0;
+        int currentHextetStart = offset;
         int currentHextet = 0;
         for (int i = offset; i < offset + length; i++) {
             byte c = ipUtf8[i];
             if (c == ':') {
                 if (currentHextetStart == i) {
                     // Two colons in a row, indicating a compressed section
-                    if (compressedHextetIndex >= 0 && i != 1) {
+                    if (compressedHextetIndex >= 0 && i != offset + 1) {
                         // We've already seen a ::, can't have another
                         return null;
                     }

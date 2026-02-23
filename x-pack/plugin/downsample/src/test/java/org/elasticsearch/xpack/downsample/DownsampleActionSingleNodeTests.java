@@ -709,6 +709,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
 
@@ -759,6 +760,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
 
@@ -827,6 +829,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
         );
         /*
@@ -880,6 +883,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
                 new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
                 new String[] {},
                 new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+                Map.of(),
                 new DownsampleShardPersistentTaskState(DownsampleShardIndexerStatus.INITIALIZED, null)
             );
 
@@ -938,6 +942,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1, FIELD_DIMENSION_2 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(
                 DownsampleShardIndexerStatus.STARTED,
                 new BytesRef(
@@ -1014,6 +1019,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             new String[] { FIELD_NUMERIC_1, FIELD_NUMERIC_2 },
             new String[] {},
             new String[] { FIELD_DIMENSION_1 },
+            Map.of(),
             new DownsampleShardPersistentTaskState(
                 DownsampleShardIndexerStatus.STARTED,
                 // NOTE: there is just one dimension with two possible values, this needs to be one of the two possible tsid values.
@@ -1207,14 +1213,12 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         final MapperService mapperService = indicesService.createIndexMapperServiceForValidation(indexMetadata);
         final CompressedXContent sourceIndexCompressedXContent = new CompressedXContent(sourceIndexMappings);
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, sourceIndexCompressedXContent, MapperService.MergeReason.INDEX_TEMPLATE);
-        TimeseriesFieldTypeHelper helper = new TimeseriesFieldTypeHelper.Builder(mapperService).build(config.getTimestampField());
-
         Map<String, TimeSeriesParams.MetricType> metricFields = new HashMap<>();
         Map<String, String> labelFields = new HashMap<>();
         MappingVisitor.visitMapping(sourceIndexMappings, (field, fieldMapping) -> {
-            if (helper.isTimeSeriesMetric(field, fieldMapping)) {
+            if (TimeSeriesFields.isTimeSeriesMetric(fieldMapping)) {
                 metricFields.put(field, TimeSeriesParams.MetricType.fromString(fieldMapping.get(TIME_SERIES_METRIC_PARAM).toString()));
-            } else if (helper.isTimeSeriesLabel(field, fieldMapping)) {
+            } else if (TimeSeriesFields.isTimeSeriesLabel(field, mapperService, config.getTimestampField())) {
                 labelFields.put(field, fieldMapping.get("type").toString());
             }
         });

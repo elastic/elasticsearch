@@ -83,7 +83,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for aggregate_metric_double"
   - do:
       indices.downsample:
@@ -125,7 +125,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_rendering, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
       indices.downsample:
@@ -155,7 +155,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_convert_to, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for to_aggregate_metric_double function"
 
   - do:
@@ -260,7 +260,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [metrics_capability, aggregate_metric_double_implicit_casting_in_aggs, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for casting aggregate metric double implicitly when present in aggregations"
 
   - do:
@@ -367,7 +367,7 @@ setup:
   - length: {values.0: 1}
   - match: {columns.0.name: "max"}
   - match: {columns.0.type: "double"}
-  - match: {values.0.0: 803685.0}
+  - match: {values.0.0: 800479.0}
 
 ---
 "Over time functions from downsampled and non-downsampled indices simultaneously, no grouping":
@@ -377,7 +377,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [metrics_command, aggregate_metric_double_implicit_casting_in_aggs, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for casting aggregate metric double implicitly when present in aggregations"
 
   - do:
@@ -499,7 +499,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [metrics_command, aggregate_metric_double_implicit_casting_in_aggs]
+          capabilities: [aggregate_metric_double_v0]
       reason: "Support for casting aggregate metric double implicitly when present in aggregations"
 
   - do:
@@ -638,7 +638,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_sorting_fixed]
+          capabilities: [aggregate_metric_double_v0]
       reason: "Fix sorting for rows comprised of docs from multiple indices where agg metric is missing from some"
 
   - do:
@@ -705,7 +705,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [aggregate_metric_double_mv_expand, dense_vector_agg_metric_double_if_version]
+          capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Have MV_EXPAND not error out when applied to aggregate_metric_doubles (is a no-op)"
 
   - do:

@@ -1813,6 +1813,14 @@ public final class IndexSettings {
         return indexMappingSourceMode;
     }
 
+    public IgnoredSourceFieldMapper.IgnoredSourceFormat getIgnoredSourceFormat() {
+        if (getIndexMappingSourceMode() == SourceFieldMapper.Mode.SYNTHETIC) {
+            return IgnoredSourceFieldMapper.ignoredSourceFormat(getIndexVersionCreated());
+        } else {
+            return IgnoredSourceFieldMapper.IgnoredSourceFormat.NO_IGNORED_SOURCE;
+        }
+    }
+
     /**
      * @return Whether recovery source should be enabled if needed.
      *         Note that this is a node setting, and this setting is not sourced from index settings.

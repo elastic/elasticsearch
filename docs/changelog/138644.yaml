@@ -1,5 +1,0 @@
-pr: 138644
-summary: "Fix: add missing `vector_similarity_support` in InferenceFeatures"
-area: Search
-type: bug
-issues: []

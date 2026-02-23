@@ -300,7 +300,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         var replicated = in.readBoolean();
         var system = in.readBoolean();
         var allowCustomRouting = in.readBoolean();
-        var indexMode = in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0) ? in.readOptionalEnum(IndexMode.class) : null;
+        var indexMode = in.readOptionalEnum(IndexMode.class);
         var lifecycle = in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)
             ? in.readOptionalWriteable(DataStreamLifecycle::new)
             : null;
@@ -1482,9 +1482,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         out.writeBoolean(replicated);
         out.writeBoolean(system);
         out.writeBoolean(allowCustomRouting);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
-            out.writeOptionalEnum(indexMode);
-        }
+        out.writeOptionalEnum(indexMode);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeOptionalWriteable(lifecycle);
         }

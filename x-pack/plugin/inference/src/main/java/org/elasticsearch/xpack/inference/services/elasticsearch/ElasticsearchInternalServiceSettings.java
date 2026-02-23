@@ -242,6 +242,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         return TransportVersions.V_8_13_0;
     }
 
+    @Override
     public ElasticsearchInternalServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         var validationException = new ValidationException();
         var mutableServiceSettings = new HashMap<>(serviceSettings);

@@ -21,7 +21,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 
-class MacNativeAccess extends PosixNativeAccess {
+public class MacNativeAccess extends PosixNativeAccess {
 
     private static final int F_PREALLOCATE = 42;
     private static final int F_ALLOCATECONTIG = 0x2; // allocate contiguous space

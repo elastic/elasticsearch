@@ -19,12 +19,12 @@ import java.nio.file.Path;
 import java.util.Optional;
 import java.util.OptionalLong;
 
-abstract class PosixNativeAccess extends AbstractNativeAccess {
+public abstract class PosixNativeAccess extends AbstractNativeAccess {
 
-    public static final int MCL_CURRENT = 1;
-    public static final int ENOMEM = 12;
-    public static final int O_RDONLY = 0;
-    public static final int O_WRONLY = 1;
+    private static final int MCL_CURRENT = 1;
+    private static final int ENOMEM = 12;
+    private static final int O_RDONLY = 0;
+    private static final int O_WRONLY = 1;
 
     protected final PosixCLibrary libc;
     protected final VectorSimilarityFunctions vectorDistance;

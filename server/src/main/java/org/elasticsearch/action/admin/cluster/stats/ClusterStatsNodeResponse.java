@@ -52,11 +52,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
             repositoryUsageStats = RepositoryUsageStats.EMPTY;
             searchCcsMetrics = new CCSTelemetrySnapshot();
         }
-        if (in.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            esqlCcsMetrics = new CCSTelemetrySnapshot(in);
-        } else {
-            esqlCcsMetrics = new CCSTelemetrySnapshot();
-        }
+        esqlCcsMetrics = new CCSTelemetrySnapshot(in);
     }
 
     public ClusterStatsNodeResponse(
@@ -131,9 +127,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
             repositoryUsageStats.writeTo(out);
             searchCcsMetrics.writeTo(out);
         } // else just drop these stats, ok for bwc
-        if (out.getTransportVersion().supports(TransportVersions.V_8_18_0)) {
-            esqlCcsMetrics.writeTo(out);
-        }
+        esqlCcsMetrics.writeTo(out);
     }
 
 }

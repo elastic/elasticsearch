@@ -344,9 +344,6 @@ tests:
 - class: org.elasticsearch.xpack.analytics.cumulativecardinality.CumulativeCardinalityAggregatorTests
   method: testSimple
   issue: https://github.com/elastic/elasticsearch/issues/142408
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testBulkScalarVsVectorized {p0=768 p1=1 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/142413
 - class: org.elasticsearch.indices.stats.IndexStatsIT
   method: testFieldDataStats
   issue: https://github.com/elastic/elasticsearch/issues/142424
@@ -371,15 +368,6 @@ tests:
 - class: org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorTests
   method: testOrderByCardinality
   issue: https://github.com/elastic/elasticsearch/issues/142484
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testBulkScalarVsVectorized {p0=768 p1=2 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/142490
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testBulkScalarVsVectorized {p0=384 p1=4 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/142491
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testBulkScalarVsVectorized {p0=384 p1=1 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/142492
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeForkIT
   method: test {csv-spec:match-function.TestMatchWithReplace}
   issue: https://github.com/elastic/elasticsearch/issues/142501
@@ -407,15 +395,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasources.GlobDiscoveryLocalTests
   method: testRecursiveDoubleStarAllFiles
   issue: https://github.com/elastic/elasticsearch/issues/142576
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testBulkScalarVsVectorized {p0=768 p1=4 p2=MMAP p3=COSINE}
-  issue: https://github.com/elastic/elasticsearch/issues/142587
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testBulkScalarVsVectorized {p0=768 p1=4 p2=MMAP p3=MAXIMUM_INNER_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/142588
-- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
-  method: testBulkScalarVsVectorized {p0=768 p1=4 p2=MMAP p3=DOT_PRODUCT}
-  issue: https://github.com/elastic/elasticsearch/issues/142589
 - class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
   method: testFatalFailureDuringFetch
   issue: https://github.com/elastic/elasticsearch/issues/142626

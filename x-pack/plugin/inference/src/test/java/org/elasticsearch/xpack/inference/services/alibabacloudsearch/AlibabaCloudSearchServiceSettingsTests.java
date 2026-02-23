@@ -49,14 +49,15 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractBWCWireSeria
         return new AlibabaCloudSearchServiceSettings(model, host, workspaceName, httpSchema, RateLimitSettingsTests.createRandom());
     }
 
-    public void testUpdateServiceSettings_AllFields_Success() {
-        var serviceSettings = new AlibabaCloudSearchServiceSettings(
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var originalServiceSettings = new AlibabaCloudSearchServiceSettings(
             INITIAL_TEST_SERVICE_ID,
             INITIAL_TEST_HOST,
             INITIAL_TEST_WORKSPACE_NAME,
             INITIAL_TEST_HTTP_SCHEMA,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
             new HashMap<>(
                 Map.of(
                     AlibabaCloudSearchServiceSettings.SERVICE_ID,
@@ -75,7 +76,7 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractBWCWireSeria
         );
 
         assertThat(
-            serviceSettings,
+            updatedServiceSettings,
             is(
                 new AlibabaCloudSearchServiceSettings(
                     INITIAL_TEST_SERVICE_ID,
@@ -88,27 +89,17 @@ public class AlibabaCloudSearchServiceSettingsTests extends AbstractBWCWireSeria
         );
     }
 
-    public void testUpdateServiceSettings_EmptyMap_Success() {
-        var serviceSettings = new AlibabaCloudSearchServiceSettings(
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new AlibabaCloudSearchServiceSettings(
             INITIAL_TEST_SERVICE_ID,
             INITIAL_TEST_HOST,
             INITIAL_TEST_WORKSPACE_NAME,
             INITIAL_TEST_HTTP_SCHEMA,
             new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-        ).updateServiceSettings(new HashMap<>(), new ValidationException());
-
-        assertThat(
-            serviceSettings,
-            is(
-                new AlibabaCloudSearchServiceSettings(
-                    INITIAL_TEST_SERVICE_ID,
-                    INITIAL_TEST_HOST,
-                    INITIAL_TEST_WORKSPACE_NAME,
-                    INITIAL_TEST_HTTP_SCHEMA,
-                    new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-                )
-            )
         );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>(), new ValidationException());
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     public void testFromMap_Success() {

@@ -39,8 +39,8 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBW
         return new AlibabaCloudSearchCompletionServiceSettings(commonSettings);
     }
 
-    public void testUpdateServiceSettings_AllFields_Success() {
-        var serviceSettings = new AlibabaCloudSearchCompletionServiceSettings(
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var originalServiceSettings = new AlibabaCloudSearchCompletionServiceSettings(
             new AlibabaCloudSearchServiceSettings(
                 INITIAL_TEST_SERVICE_ID,
                 INITIAL_TEST_HOST,
@@ -48,7 +48,8 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBW
                 INITIAL_TEST_HTTP_SCHEMA,
                 new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
             )
-        ).updateServiceSettings(
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
             new HashMap<>(
                 Map.of(
                     AlibabaCloudSearchServiceSettings.HOST,
@@ -66,7 +67,7 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBW
         );
 
         assertThat(
-            serviceSettings,
+            updatedServiceSettings,
             is(
                 new AlibabaCloudSearchCompletionServiceSettings(
                     new AlibabaCloudSearchServiceSettings(
@@ -81,8 +82,8 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBW
         );
     }
 
-    public void testUpdateServiceSettings_EmptyMap_Success() {
-        var serviceSettings = new AlibabaCloudSearchCompletionServiceSettings(
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new AlibabaCloudSearchCompletionServiceSettings(
             new AlibabaCloudSearchServiceSettings(
                 INITIAL_TEST_SERVICE_ID,
                 INITIAL_TEST_HOST,
@@ -90,22 +91,10 @@ public class AlibabaCloudSearchCompletionServiceSettingsTests extends AbstractBW
                 INITIAL_TEST_HTTP_SCHEMA,
                 new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
             )
-        ).updateServiceSettings(new HashMap<>());
-
-        assertThat(
-            serviceSettings,
-            is(
-                new AlibabaCloudSearchCompletionServiceSettings(
-                    new AlibabaCloudSearchServiceSettings(
-                        INITIAL_TEST_SERVICE_ID,
-                        INITIAL_TEST_HOST,
-                        INITIAL_TEST_WORKSPACE_NAME,
-                        INITIAL_TEST_HTTP_SCHEMA,
-                        new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-                    )
-                )
-            )
         );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     public void testFromMap_Success() {

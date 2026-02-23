@@ -53,8 +53,8 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractBW
         );
     }
 
-    public void testUpdateServiceSettings_AllFields_Success() {
-        var serviceSettings = new AlibabaCloudSearchEmbeddingsServiceSettings(
+    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+        var originalServiceSettings = new AlibabaCloudSearchEmbeddingsServiceSettings(
             new AlibabaCloudSearchServiceSettings(
                 INITIAL_TEST_SERVICE_ID,
                 INITIAL_TEST_HOST,
@@ -65,7 +65,8 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractBW
             INITIAL_TEST_SIMILARITY_MEASURE,
             INITIAL_TEST_DIMENSIONS,
             INITIAL_TEST_MAX_INPUT_TOKENS
-        ).updateServiceSettings(
+        );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
             new HashMap<>(
                 Map.of(
                     ServiceFields.SIMILARITY,
@@ -89,7 +90,7 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractBW
         );
 
         assertThat(
-            serviceSettings,
+            updatedServiceSettings,
             is(
                 new AlibabaCloudSearchEmbeddingsServiceSettings(
                     new AlibabaCloudSearchServiceSettings(
@@ -107,8 +108,8 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractBW
         );
     }
 
-    public void testUpdateServiceSettings_EmptyMap_Success() {
-        var serviceSettings = new AlibabaCloudSearchEmbeddingsServiceSettings(
+    public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
+        var originalServiceSettings = new AlibabaCloudSearchEmbeddingsServiceSettings(
             new AlibabaCloudSearchServiceSettings(
                 INITIAL_TEST_SERVICE_ID,
                 INITIAL_TEST_HOST,
@@ -119,25 +120,10 @@ public class AlibabaCloudSearchEmbeddingsServiceSettingsTests extends AbstractBW
             INITIAL_TEST_SIMILARITY_MEASURE,
             INITIAL_TEST_DIMENSIONS,
             INITIAL_TEST_MAX_INPUT_TOKENS
-        ).updateServiceSettings(new HashMap<>());
-
-        assertThat(
-            serviceSettings,
-            is(
-                new AlibabaCloudSearchEmbeddingsServiceSettings(
-                    new AlibabaCloudSearchServiceSettings(
-                        INITIAL_TEST_SERVICE_ID,
-                        INITIAL_TEST_HOST,
-                        INITIAL_TEST_WORKSPACE_NAME,
-                        INITIAL_TEST_HTTP_SCHEMA,
-                        new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
-                    ),
-                    INITIAL_TEST_SIMILARITY_MEASURE,
-                    INITIAL_TEST_DIMENSIONS,
-                    INITIAL_TEST_MAX_INPUT_TOKENS
-                )
-            )
         );
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
+
+        assertThat(updatedServiceSettings, is(originalServiceSettings));
     }
 
     public void testFromMap_Success() {

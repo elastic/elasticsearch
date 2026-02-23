@@ -239,11 +239,6 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
-        if (Assertions.ENABLED) {
-            // The data node plan can be changed significantly due to late materialization on the data node; the exchange sink exec
-            // can end up being inconsistent with the actual plan. Let's check this early.
-            PhysicalVerifier.LOCAL_INSTANCE.verify(plan, plan.output());
-        }
         var isCoordPlan = new Holder<>(Boolean.TRUE);
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()

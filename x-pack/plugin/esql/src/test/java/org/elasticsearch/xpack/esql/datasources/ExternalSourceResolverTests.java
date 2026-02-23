@@ -39,6 +39,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Set;
 
 /**
  * Tests for ExternalSourceResolver schema resolution behavior.
@@ -372,6 +373,21 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         DataSourcePlugin plugin = new DataSourcePlugin() {
             @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("s3");
+            }
+
+            @Override
+            public Set<String> supportedFormats() {
+                return Set.of("parquet");
+            }
+
+            @Override
+            public Set<String> supportedExtensions() {
+                return Set.of(".parquet");
+            }
+
+            @Override
             public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
                 return Map.of("s3", s -> storageProvider);
             }
@@ -382,7 +398,15 @@ public class ExternalSourceResolverTests extends ESTestCase {
             }
         };
 
-        DataSourceModule module = new DataSourceModule(List.of(plugin), Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        List<DataSourcePlugin> plugins = List.of(plugin);
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        DataSourceModule module = new DataSourceModule(
+            plugins,
+            capabilities,
+            Settings.EMPTY,
+            blockFactory,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE
+        );
 
         return new ExternalSourceResolver(EsExecutors.DIRECT_EXECUTOR_SERVICE, module);
     }

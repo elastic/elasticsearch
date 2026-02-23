@@ -364,9 +364,10 @@ teardown:
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.update_transform:
         transform_id: "simple-remote-transform-2"
+        defer_validation: true
         body: >
           {
-            "source": { "index": "my_remote_cluster:remote_test_index" },
+            "description": "Updated by bob",
             "dest": { "index": "simple-remote-transform-2" }
           }
 

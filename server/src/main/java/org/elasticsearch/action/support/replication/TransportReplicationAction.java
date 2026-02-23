@@ -339,10 +339,14 @@ public abstract class TransportReplicationAction<
     /**
      * During Resharding, we might need to split the primary request.
      * We are here because there was mismatch between the SplitShardCountSummary in the request
-     * and that on the primary shard node. We assume that the request is exactly 1 reshard split behind
-     * the current state.
+     * and that on the primary shard node. In other words, the primary shard has moved ahead due to a split reshard
+     * operation after the request was created by the coordinator.
+     * We can assume that the request is exactly 1 reshard split behind the current state of the primary shard.
+     * This is because requests that are more than 1 reshard operation behind are rejected in
+     * {@link org.elasticsearch.action.support.replication.ReplicationSplitHelper
+     * #needsSplitCoordination(org.apache.logging.log4j.Logger, ReplicationRequest, IndexMetadata)}
      */
-    protected Map<ShardId, Request> splitRequestOnPrimary(Request request) {
+    protected Map<ShardId, Request> splitRequestOnPrimary(Request request, ProjectMetadata project) {
         return Map.of(request.shardId(), request);
     }
 
@@ -533,7 +537,7 @@ public abstract class TransportReplicationAction<
                             TransportResponseHandler.TRANSPORT_WORKER
                         )
                     );
-                } else if (ReplicationSplitHelper.needsSplitCoordination(primaryRequest.getRequest(), indexMetadata)) {
+                } else if (ReplicationSplitHelper.needsSplitCoordination(logger, primaryRequest.getRequest(), indexMetadata)) {
                     ReplicationSplitHelper<Request, ReplicaRequest, Response>.SplitCoordinator splitCoordinator = splitHelper
                         .newSplitRequest(
                             TransportReplicationAction.this,

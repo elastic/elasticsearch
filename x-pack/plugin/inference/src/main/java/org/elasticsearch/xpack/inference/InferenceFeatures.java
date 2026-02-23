@@ -69,10 +69,15 @@ public class InferenceFeatures implements FeatureSpecification {
     public static final NodeFeature TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING = new NodeFeature(
         "text_similarity_reranker_inference_id_chunking"
     );
+    public static final NodeFeature TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING = new NodeFeature(
+        "text_similarity_reranker.comprehensive_top_n_handling"
+    );
     public static final NodeFeature INFERENCE_AUTH_POLLER_PERSISTENT_TASK = new NodeFeature("inference.auth_poller.persistent_task");
     public static final NodeFeature INFERENCE_CCM_ENABLEMENT_SERVICE = new NodeFeature("inference.ccm.enablement_service");
 
     public static final NodeFeature EMBEDDING_TASK_TYPE = new NodeFeature("inference.embedding_task_type");
+
+    public static final NodeFeature ENDPOINT_METADATA_FIELD = new NodeFeature("inference.metadata_field");
 
     @Override
     public Set<NodeFeature> getFeatures() {
@@ -81,7 +86,8 @@ public class InferenceFeatures implements FeatureSpecification {
             INFERENCE_CCM_CACHE,
             INFERENCE_AUTH_POLLER_PERSISTENT_TASK,
             INFERENCE_CCM_ENABLEMENT_SERVICE,
-            EMBEDDING_TASK_TYPE
+            EMBEDDING_TASK_TYPE,
+            ENDPOINT_METADATA_FIELD
         );
     }
 
@@ -133,7 +139,8 @@ public class InferenceFeatures implements FeatureSpecification {
                 SEARCH_USAGE_EXTENDED_DATA,
                 TEXT_SIMILARITY_RANK_DOC_EXPLAIN_CHUNKS,
                 RETRIEVER_RESULT_DIVERSIFICATION_USES_QUERY_VECTOR_BUILDER,
-                TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING
+                TEXT_SIMILARITY_RERANKER_INFERENCE_ID_CHUNKING,
+                TEXT_SIMILARITY_RERANKER_COMPREHENSIVE_TOP_N_HANDLING
             )
         );
         testFeatures.addAll(getFeatures());

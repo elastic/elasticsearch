@@ -224,7 +224,13 @@ public final class FirstDocIdGroupingAggregatorFunction implements GroupingAggre
             try {
                 segmentVector = segmentBuilder.build();
                 docVector = docBuilder.build();
-                blocks[offset] = new DocVector(new MappedShardRefs<>(contextRefs), shardVector, segmentVector, docVector, null).asBlock();
+                blocks[offset] = new DocVector(
+                    new MappedShardRefs<>(contextRefs),
+                    shardVector,
+                    segmentVector,
+                    docVector,
+                    DocVector.config().mayContainDuplicates()
+                ).asBlock();
             } finally {
                 if (blocks[offset] == null) {
                     Releasables.closeExpectNoException(shardVector, segmentVector, docVector);

@@ -137,6 +137,10 @@ public class NumberFieldMapper extends FieldMapper {
         private final ScriptCompiler scriptCompiler;
         private final NumberType type;
 
+        public NumberType type() {
+            return type;
+        }
+
         private boolean allowMultipleValues = true;
         private final IndexSettings indexSettings;
 
@@ -280,6 +284,11 @@ public class NumberFieldMapper extends FieldMapper {
                 meta,
                 dimension,
                 metric };
+        }
+
+        @Override
+        public String contentType() {
+            return type.typeName();
         }
 
         @Override
@@ -2152,7 +2161,9 @@ public class NumberFieldMapper extends FieldMapper {
                     default -> throw new UnsupportedOperationException("unknown fusion config [" + cfg.function() + "]");
                 };
             }
-
+            if (blContext.blockLoaderFunctionConfig() != null) {
+                throw new UnsupportedOperationException("function fusing only supported for doc values");
+            }
             // Multi fields don't have fallback synthetic source.
             if (isSyntheticSource && blContext.parentField(name()) == null) {
                 return type.blockLoaderFromFallbackSyntheticSource(name(), nullValue, coerce, blContext);

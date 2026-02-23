@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -37,6 +38,8 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunctio
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -86,11 +89,19 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
     )
     public TopSnippets(
         Source source,
-        @Param(name = "field", type = { "keyword", "text" }, description = "The input to chunk.") Expression field,
-        @Param(name = "query", type = { "keyword" }, description = """
-            The input text containing only query terms for snippet extraction.
-            Lucene query syntax, operators, and wildcards are not allowed.
-            """) Expression query,
+        @Param(
+            name = "field",
+            type = { "keyword", "text" },
+            description = "The field to extract snippets from. The input can be a single-valued"
+                + " or multi-valued field. In the case of a multi-valued argument,"
+                + " snippets are extracted from each value separately."
+        ) Expression field,
+        @Param(
+            name = "query",
+            type = { "keyword" },
+            description = "The input text containing only query terms for snippet extraction."
+                + " Lucene query syntax, operators, and wildcards are not allowed."
+        ) Expression query,
         @MapParam(
             name = "options",
             description = "(Optional) `TOP_SNIPPETS` additional options as "
@@ -209,21 +220,60 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         return value != null ? ((Number) value).intValue() : defaultValue;
     }
 
-    @Evaluator(extraName = "BytesRef")
+    @Evaluator(warnExceptions = { IllegalArgumentException.class })
     static void process(
         BytesRefBlock.Builder builder,
-        BytesRef str,
-        BytesRef query,
+        @Position int position,
+        BytesRefBlock field,
+        BytesRefBlock query,
         @Fixed ChunkingSettings chunkingSettings,
         @Fixed MemoryIndexChunkScorer scorer,
         @Fixed int numSnippets
     ) {
-        String content = str.utf8ToString();
-        String queryString = query.utf8ToString();
+        int valueCount = field.getValueCount(position);
+        if (valueCount == 0) {
+            builder.appendNull();
+            return;
+        }
 
-        List<String> chunks = chunkText(content, chunkingSettings);
-        List<ScoredChunk> scoredChunks = scorer.scoreChunks(chunks, queryString, numSnippets, false);
-        List<String> snippets = scoredChunks.stream().map(ScoredChunk::content).limit(numSnippets).toList();
+        // Get query value (should be single-valued)
+        int queryValueCount = query.getValueCount(position);
+        if (queryValueCount == 0) {
+            builder.appendNull();
+            return;
+        }
+        if (queryValueCount > 1) {
+            throw new IllegalArgumentException("single-value function encountered multi-value");
+        }
+
+        BytesRef scratch = new BytesRef();
+        BytesRef queryValue = query.getBytesRef(query.getFirstValueIndex(position), scratch);
+        String queryString = queryValue.utf8ToString();
+
+        int firstValueIndex = field.getFirstValueIndex(position);
+
+        // Collect scored chunks from all values and return the top N overall
+        ArrayList<ScoredChunk> allScoredChunks = new ArrayList<>();
+
+        for (int i = 0; i < valueCount; i++) {
+            BytesRef value = field.getBytesRef(firstValueIndex + i, scratch);
+            String content = value.utf8ToString();
+
+            List<String> chunks = chunkText(content, chunkingSettings);
+            allScoredChunks.addAll(scorer.scoreChunks(chunks, queryString, numSnippets, false));
+        }
+
+        List<String> snippets = allScoredChunks.stream()
+            .sorted(Comparator.comparing(ScoredChunk::score).reversed())
+            .map(ScoredChunk::content)
+            .limit(numSnippets)
+            .toList();
+
+        if (snippets.isEmpty()) {
+            builder.appendNull();
+            return;
+        }
+
         emitChunks(builder, snippets);
     }
 
@@ -244,7 +294,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(numWords, 0);
         MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
 
-        return new TopSnippetsBytesRefEvaluator.Factory(
+        return new TopSnippetsEvaluator.Factory(
             source(),
             toEvaluator.apply(field),
             toEvaluator.apply(query),

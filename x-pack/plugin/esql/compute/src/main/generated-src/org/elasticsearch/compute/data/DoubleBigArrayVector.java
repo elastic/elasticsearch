@@ -79,7 +79,7 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     }
 
     @Override
-    public DoubleVector filter(int... positions) {
+    public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
         var blockFactory = blockFactory();
         final DoubleArray filtered = blockFactory.bigArrays().newDoubleArray(positions.length);
         for (int i = 0; i < positions.length; i++) {

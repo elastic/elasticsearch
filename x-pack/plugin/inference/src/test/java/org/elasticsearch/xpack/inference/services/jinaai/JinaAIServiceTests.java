@@ -1072,7 +1072,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var responseJson = """
                 {
-                    "model": "jina-clip-v2",
+                    "model": "jina-embeddings-v3",
                     "object": "list",
                     "usage": {
                         "total_tokens": 5,
@@ -1093,7 +1093,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            String modelName = "jina-clip-v2";
+            String modelName = "jina-embeddings-v3";
             int dimensions = 1024;
             String apiKey = API_KEY_VALUE;
             var model = JinaAIEmbeddingsModelTests.createModel(
@@ -1483,7 +1483,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     public void test_TextEmbeddingModel_ChunkedInfer_BatchesCallsChunkingSettingsSet() throws IOException {
         var model = JinaAIEmbeddingsModelTests.createModel(
             getUrl(webServer),
-            "jina-clip-v2",
+            "jina-embeddings-v3",
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
             createRandomChunkingSettings(),
             "secret",
@@ -1496,7 +1496,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     public void test_TextEmbeddingModel_ChunkedInfer_ChunkingSettingsNotSet() throws IOException {
         var model = JinaAIEmbeddingsModelTests.createModel(
             getUrl(webServer),
-            "jina-clip-v2",
+            "jina-embeddings-v3",
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST),
             "secret",
             TEXT_EMBEDDING
@@ -1508,7 +1508,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     public void test_TextEmbeddingModel_ChunkedInfer_LateChunkingEnabled() throws IOException {
         var model = JinaAIEmbeddingsModelTests.createModel(
             getUrl(webServer),
-            "jina-clip-v2",
+            "jina-embeddings-v3",
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true),
             "secret",
             TEXT_EMBEDDING
@@ -1520,7 +1520,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     public void test_TextEmbeddingModel_ChunkedInfer_LateChunkingDisabled() throws IOException {
         var model = JinaAIEmbeddingsModelTests.createModel(
             getUrl(webServer),
-            "jina-clip-v2",
+            "jina-embeddings-v3",
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST, false),
             "secret",
             TEXT_EMBEDDING
@@ -1532,7 +1532,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     public void test_embeddingModel_chunkedInfer_batchesCallsWhenLateChunkingEnabled() throws IOException {
         var model = JinaAIEmbeddingsModelTests.createModel(
             getUrl(webServer),
-            "jina-clip-v2",
+            "jina-embeddings-v3",
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true),
             "secret",
             TaskType.EMBEDDING
@@ -1544,7 +1544,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     public void test_embeddingModel_chunkedInfer_batchesCallsWhenLateChunkingEnabled_inputContainsNonTextInput() throws IOException {
         var model = JinaAIEmbeddingsModelTests.createModel(
             getUrl(webServer),
-            "jina-clip-v2",
+            "jina-embeddings-v3",
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST, true),
             "secret",
             TaskType.EMBEDDING
@@ -1556,7 +1556,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     public void test_embeddingModel_chunkedInfer_batchesCallsWhenLateChunkingDisabled_inputContainsNonTextInput() throws IOException {
         var model = JinaAIEmbeddingsModelTests.createModel(
             getUrl(webServer),
-            "jina-clip-v2",
+            "jina-embeddings-v3",
             new JinaAIEmbeddingsTaskSettings(InputType.INGEST, false),
             "secret",
             TaskType.EMBEDDING
@@ -1637,7 +1637,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
                     if (r.getBody().contains(inputAndEmbedding.v1())) {
                         return Strings.format("""
                             {
-                                "model": "jina-clip-v2",
+                                "model": "jina-embeddings-v3",
                                 "object": "list",
                                 "usage": {
                                     "total_tokens": 5,
@@ -1675,7 +1675,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
             }
             var responseJson = Strings.format("""
                 {
-                    "model": "jina-clip-v2",
+                    "model": "jina-embeddings-v3",
                     "object": "list",
                     "usage": {
                         "total_tokens": 5,
@@ -1691,7 +1691,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
     public void test_ChunkedInfer_noInputs() throws IOException {
         var model = JinaAIEmbeddingsModelTests.createModel(
             getUrl(webServer),
-            "jina-clip-v2",
+            "jina-embeddings-v3",
             JinaAIEmbeddingsTaskSettings.EMPTY_SETTINGS,
             "secret",
             randomFrom(TEXT_EMBEDDING, TaskType.EMBEDDING)
@@ -1903,7 +1903,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             var responseJson = """
                 {
-                    "model": "jina-clip-v2",
+                    "model": "jina-embeddings-v3",
                     "object": "list",
                     "usage": {
                         "total_tokens": 5,
@@ -1924,7 +1924,7 @@ public class JinaAIServiceTests extends InferenceServiceTestCase {
 
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            String modelName = "jina-clip-v2";
+            String modelName = "jina-embeddings-v3";
             int dimensions = 1024;
             String apiKey = API_KEY_VALUE;
             var model = JinaAIEmbeddingsModelTests.createModel(

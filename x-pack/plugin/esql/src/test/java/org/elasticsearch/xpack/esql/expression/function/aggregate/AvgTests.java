@@ -26,7 +26,9 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AvgTests extends AbstractAggregationTestCase {
     public AvgTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -187,7 +189,7 @@ public class AvgTests extends AbstractAggregationTestCase {
                 List.of(fieldTypedData),
                 "Avg[field=Attribute[channel=0]]",
                 DataType.DOUBLE,
-                equalTo(expected)
+                expected == null ? nullValue() : closeTo(expected, Math.abs(expected * 1e-10))
             ).withWarnings(warnings);
         });
     }

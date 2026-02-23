@@ -21,6 +21,8 @@ Search:
 * Disable cross-cluster functionality for `_fleet/_fleet_msearch` [#136703](https://github.com/elastic/elasticsearch/pull/136703)
 * Disable cross-cluster functionality for `_fleet/_fleet_search` [#136039](https://github.com/elastic/elasticsearch/pull/136039)
 
+
+
 ## 9.2.5 [elasticsearch-9.2.5-breaking-changes]
 
 There are no breaking changes associated with this release.

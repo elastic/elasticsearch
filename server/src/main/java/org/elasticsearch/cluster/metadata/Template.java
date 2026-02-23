@@ -42,6 +42,33 @@ import java.util.Objects;
  */
 public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
+    /**
+     * A template decorator allows modification of template during parsing.
+     */
+    public interface TemplateDecorator {
+        TemplateDecorator DEFAULT = new TemplateDecorator() {};
+
+        default Settings decorate(String template, @Nullable Settings settings) {
+            return settings;
+        };
+
+        default DataStreamLifecycle.Template decorate(String template, @Nullable DataStreamLifecycle.Template lifecycle) {
+            return lifecycle;
+        };
+    }
+
+    record NamedTemplateDecorator(String name, TemplateDecorator decorator) {
+        static NamedTemplateDecorator DEFAULT = new NamedTemplateDecorator(null, TemplateDecorator.DEFAULT);
+
+        public Settings decorate(Settings settings) {
+            return decorator.decorate(name, settings);
+        }
+
+        public DataStreamLifecycle.Template decorate(DataStreamLifecycle.Template lifecycle) {
+            return decorator.decorate(name, lifecycle);
+        }
+    }
+
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
     private static final ParseField ALIASES = new ParseField("aliases");
@@ -49,14 +76,14 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     private static final ParseField DATA_STREAM_OPTIONS = new ParseField("data_stream_options");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<Template, NamedTemplateDecorator> PARSER = new ConstructingObjectParser<>(
         "template",
         false,
-        a -> new Template(
-            (Settings) a[0],
+        (a, d) -> new Template(
+            d.decorate((Settings) a[0]),
             (CompressedXContent) a[1],
             (Map<String, AliasMetadata>) a[2],
-            (DataStreamLifecycle.Template) a[3],
+            d.decorate((DataStreamLifecycle.Template) a[3]),
             a[4] == null ? ResettableValue.undefined() : (ResettableValue<DataStreamOptions.Template>) a[4]
         )
     );
@@ -95,6 +122,10 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             ResettableValue.reset(),
             DATA_STREAM_OPTIONS
         );
+    }
+
+    public static Template parse(XContentParser parser, String templateName, TemplateDecorator decorator) {
+        return PARSER.apply(parser, new NamedTemplateDecorator(templateName, decorator));
     }
 
     public static CompressedXContent parseMappings(XContentParser parser) throws IOException {

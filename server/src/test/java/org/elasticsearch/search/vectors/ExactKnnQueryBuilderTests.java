@@ -22,7 +22,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
-import java.util.Arrays;
+
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQueryBuilder> {
 
@@ -91,21 +92,21 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
     @Override
     protected void doAssertLuceneQuery(ExactKnnQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         if (queryBuilder.vectorSimilarity() != null) {
-            assertTrue(query instanceof VectorSimilarityQuery);
+            assertThat(query, instanceOf(VectorSimilarityQuery.class));
             VectorSimilarityQuery vectorSimilarityQuery = (VectorSimilarityQuery) query;
             query = vectorSimilarityQuery.getInnerKnnQuery();
         }
-        assertTrue(query instanceof DenseVectorQuery.Floats);
+        assertThat(query, instanceOf(DenseVectorQuery.Floats.class));
         DenseVectorQuery.Floats denseVectorQuery = (DenseVectorQuery.Floats) query;
         assertEquals(VECTOR_FIELD, denseVectorQuery.field);
-        float[] expected = Arrays.copyOf(queryBuilder.getQuery().asFloatVector(), queryBuilder.getQuery().asFloatVector().length);
+        float[] expected = queryBuilder.getQuery().asFloatVector().clone();
         float magnitude = VectorUtil.dotProduct(expected, expected);
         if (context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.NORMALIZED_VECTOR_COSINE)
             && DenseVectorFieldMapper.FLOAT_ELEMENT.isUnitVector(magnitude) == false) {
             VectorUtil.l2normalize(expected);
-            assertArrayEquals(expected, denseVectorQuery.getQuery(), 0.0f);
+            assertArrayEquals(expected, denseVectorQuery.getQuery(), DEFAULT_DELTA);
         } else {
-            assertArrayEquals(expected, denseVectorQuery.getQuery(), 0.0f);
+            assertArrayEquals(expected, denseVectorQuery.getQuery(), DEFAULT_DELTA);
         }
     }
 

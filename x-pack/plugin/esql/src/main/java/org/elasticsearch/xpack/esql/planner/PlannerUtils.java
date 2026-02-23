@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
@@ -154,6 +155,16 @@ public class PlannerUtils {
         return switch (LocalMapper.INSTANCE.map(pipelineBreaker)) {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
             case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
+            case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
+                estimatedRowSize,
+                new MetricsInfoExec(
+                    metricsInfoExec.source(),
+                    metricsInfoExec.child(),
+                    metricsInfoExec.outputAttrs(),
+                    plan.output(),
+                    MetricsInfoExec.Mode.INTERMEDIATE
+                )
+            );
             case PhysicalPlan p -> getPhysicalPlanReduction(estimatedRowSize, p);
         };
     }
@@ -226,6 +237,8 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
+        // TODO add a test assertion for the consistency checker (after https://github.com/elastic/elasticsearch/issues/141654, see
+        // https://github.com/elastic/elasticsearch/pull/141082/changes#r2745334028);
         var isCoordPlan = new Holder<>(Boolean.TRUE);
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()

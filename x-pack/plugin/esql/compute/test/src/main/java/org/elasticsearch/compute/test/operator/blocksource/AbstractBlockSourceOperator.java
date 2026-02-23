@@ -63,4 +63,13 @@ public abstract class AbstractBlockSourceOperator extends SourceOperator {
     public final void finish() {
         finished = true;
     }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        // AbstractBlockSourceOperator doesn't buffer data internally - it creates pages on demand.
+        // There's no internal buffer that needs draining, so return false.
+        // The default SourceOperator implementation returns !isFinished() which would cause busy-spin
+        // when downstream async operators are blocked.
+        return false;
+    }
 }

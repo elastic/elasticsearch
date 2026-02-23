@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
-import org.elasticsearch.compute.operator.Operator;
 
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -126,9 +125,8 @@ public final class PartitionedExchangeSourceHandler {
             fetchExecutor.execute(new ActionRunnable<>(listener) {
                 @Override
                 protected void doRun() {
-                    new SinkFetcher(ActionListener.assertAtLeastOnce(ActionListener.running(() -> {
-                        outstandingSinks.finishInstance();
-                    }))).fetchPage();
+                    new SinkFetcher(ActionListener.assertAtLeastOnce(ActionListener.running(() -> { outstandingSinks.finishInstance(); })))
+                        .fetchPage();
                 }
 
                 @Override

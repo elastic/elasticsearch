@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -25,9 +26,8 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
-import org.elasticsearch.compute.operator.PlanTimeProfile;
-import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
@@ -70,7 +70,6 @@ import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
-
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -928,19 +927,10 @@ public class ComputeService {
             }
             finalChild = topN.replaceChild(finalChild);
 
-            PhysicalPlan finalPlan = new ExchangeSinkExec(
-                topN.source(),
-                finalChild.output(),
-                false,
-                finalChild
-            );
+            PhysicalPlan finalPlan = new ExchangeSinkExec(topN.source(), finalChild.output(), false, finalChild);
 
             // Build output plan: [nodes above TopN] → TopN (global merge) → ExchangeSourceExec
-            PhysicalPlan outputChild = new ExchangeSourceExec(
-                topN.source(),
-                finalChild.output(),
-                false
-            );
+            PhysicalPlan outputChild = new ExchangeSourceExec(topN.source(), finalChild.output(), false);
             // Add a duplicate TopN for the global merge (now on K * numPartitions rows)
             outputChild = topN.replaceChild(outputChild);
             // Rebuild nodes above TopN from bottom to top
@@ -952,18 +942,9 @@ public class ComputeService {
         }
 
         // No TopN found: fall back to putting only the AggregateExec in the final plan.
-        PhysicalPlan finalPlan = new ExchangeSinkExec(
-            aggExec.source(),
-            aggExec.output(),
-            false,
-            aggExec
-        );
+        PhysicalPlan finalPlan = new ExchangeSinkExec(aggExec.source(), aggExec.output(), false, aggExec);
 
-        PhysicalPlan outputChild = new ExchangeSourceExec(
-            aggExec.source(),
-            aggExec.output(),
-            false
-        );
+        PhysicalPlan outputChild = new ExchangeSourceExec(aggExec.source(), aggExec.output(), false);
         // Rebuild from bottom (closest to agg) to top
         for (int i = aboveAgg.size() - 1; i >= 0; i--) {
             outputChild = aboveAgg.get(i).replaceChild(outputChild);
@@ -1047,7 +1028,11 @@ public class ComputeService {
         );
 
         // Stage 2 output: shared ExchangeSinkHandler collects FINAL results from all FINAL drivers
-        var sharedOutputSinkHandler = new ExchangeSinkHandler(blockFactory, pragmas.exchangeBufferSize(), transportService.getThreadPool()::relativeTimeInMillis);
+        var sharedOutputSinkHandler = new ExchangeSinkHandler(
+            blockFactory,
+            pragmas.exchangeBufferSize(),
+            transportService.getThreadPool()::relativeTimeInMillis
+        );
 
         // Stage 3: ExchangeSourceHandler reads from the shared output sink
         var outputExchangeSource = new ExchangeSourceHandler(pragmas.exchangeBufferSize(), searchExecutor);
@@ -1088,13 +1073,7 @@ public class ComputeService {
 
         LOGGER.debug("Running partitioned coordinator compute with {} FINAL drivers", numFinalDrivers);
 
-        try (
-            var computeListener = new ComputeListener(
-                transportService.getThreadPool(),
-                cancelQueryOnFailure(rootTask),
-                listener
-            )
-        ) {
+        try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure(rootTask), listener)) {
             // Stage 1: Router - reads from data node exchange, writes to partitioned sink
             runCompute(
                 rootTask,

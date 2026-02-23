@@ -33,8 +33,8 @@ import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverRunner;
-import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.HashAggregationOperator;
+import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
 import org.elasticsearch.compute.operator.exchange.PartitionedExchangeSinkHandler;
@@ -97,11 +97,11 @@ import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
-import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.ConstantShardContextIndexedByShardId;
@@ -929,7 +929,9 @@ public class CsvTests extends ESTestCase {
                 true,
                 () -> {},
                 1,
-                ActionListener.<Void>noop().delegateResponse((l, e) -> { throw new AssertionError("expected no failure", e); })
+                ActionListener.<Void>noop().delegateResponse((l, e) -> {
+                    throw new AssertionError("expected no failure", e);
+                })
             );
 
             // Stage 1: Router plan - reads from data node exchange, writes to partitioned sink
@@ -957,19 +959,16 @@ public class CsvTests extends ESTestCase {
                 mock(InferenceService.class),
                 physicalOperationProviders
             );
-            drivers.addAll(routerPlanner.plan("router", foldCtx, TEST_PLANNER_SETTINGS, routerPlan, EmptyIndexedByShardId.instance())
-                .createDrivers(getTestName()));
+            drivers.addAll(
+                routerPlanner.plan("router", foldCtx, TEST_PLANNER_SETTINGS, routerPlan, EmptyIndexedByShardId.instance())
+                    .createDrivers(getTestName())
+            );
 
             // Stage 2: N FINAL drivers - each reads from its partition, writes to shared output
             var split = ComputeService.splitCoordinatorPlanForPartitioning(new OutputExec(coordinatorPlan, collectedPages::add));
             PhysicalPlan finalPlan = split.v1();
             for (int d = 0; d < numFinalDrivers; d++) {
-                var partitionedSourceHandler = new PartitionedExchangeSourceHandler(
-                    partitionedSinkHandler,
-                    d,
-                    between(1, 64),
-                    executor
-                );
+                var partitionedSourceHandler = new PartitionedExchangeSourceHandler(partitionedSinkHandler, d, between(1, 64), executor);
                 partitionedSourceHandler.startFetching(1, ActionListener.noop());
 
                 LocalExecutionPlanner finalPlanner = new LocalExecutionPlanner(
@@ -987,8 +986,10 @@ public class CsvTests extends ESTestCase {
                     mock(InferenceService.class),
                     physicalOperationProviders
                 );
-                drivers.addAll(finalPlanner.plan("final-" + d, foldCtx, TEST_PLANNER_SETTINGS, finalPlan, EmptyIndexedByShardId.instance())
-                    .createDrivers(getTestName()));
+                drivers.addAll(
+                    finalPlanner.plan("final-" + d, foldCtx, TEST_PLANNER_SETTINGS, finalPlan, EmptyIndexedByShardId.instance())
+                        .createDrivers(getTestName())
+                );
             }
 
             // Stage 3: Output plan - reads from shared exchange, delivers to output
@@ -1008,8 +1009,10 @@ public class CsvTests extends ESTestCase {
                 mock(InferenceService.class),
                 physicalOperationProviders
             );
-            drivers.addAll(outputPlanner.plan("output", foldCtx, TEST_PLANNER_SETTINGS, outputPlan, EmptyIndexedByShardId.instance())
-                .createDrivers(getTestName()));
+            drivers.addAll(
+                outputPlanner.plan("output", foldCtx, TEST_PLANNER_SETTINGS, outputPlan, EmptyIndexedByShardId.instance())
+                    .createDrivers(getTestName())
+            );
         } else {
             LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(
                 "final",

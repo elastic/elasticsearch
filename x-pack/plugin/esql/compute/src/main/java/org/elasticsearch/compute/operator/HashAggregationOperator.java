@@ -87,8 +87,16 @@ public class HashAggregationOperator implements Operator {
             double partialEmitUniquenessThreshold,
             AnalysisRegistry analysisRegistry
         ) {
-            this(groups, aggregatorMode, aggregators, maxPageSize, partialEmitKeysThreshold, partialEmitUniquenessThreshold,
-                analysisRegistry, DEFAULT_NUM_PARTITIONS);
+            this(
+                groups,
+                aggregatorMode,
+                aggregators,
+                maxPageSize,
+                partialEmitKeysThreshold,
+                partialEmitUniquenessThreshold,
+                analysisRegistry,
+                DEFAULT_NUM_PARTITIONS
+            );
         }
 
         @Override
@@ -194,8 +202,15 @@ public class HashAggregationOperator implements Operator {
         double partialEmitUniquenessThreshold,
         DriverContext driverContext
     ) {
-        this(aggregatorMode, aggregatorFactories, blockHashSupplier, partialEmitKeysThreshold, partialEmitUniquenessThreshold, 1,
-            driverContext);
+        this(
+            aggregatorMode,
+            aggregatorFactories,
+            blockHashSupplier,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            1,
+            driverContext
+        );
     }
 
     @SuppressWarnings("this-escape")

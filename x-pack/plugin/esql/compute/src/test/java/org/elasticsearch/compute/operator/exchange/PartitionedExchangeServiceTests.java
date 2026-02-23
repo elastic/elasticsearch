@@ -302,10 +302,7 @@ public class PartitionedExchangeServiceTests extends ESTestCase {
                     if (seqNo < maxSeqNo) {
                         // Assign a partition based on seqNo hash
                         int partitionId = seqNo % numPartitions;
-                        return Page.withPartitionId(
-                            partitionId,
-                            dc.blockFactory().newConstantIntBlockWith(seqNo, 1)
-                        );
+                        return Page.withPartitionId(partitionId, dc.blockFactory().newConstantIntBlockWith(seqNo, 1));
                     }
                     return null;
                 }
@@ -313,9 +310,15 @@ public class PartitionedExchangeServiceTests extends ESTestCase {
                 @Override
                 public void close() {}
             };
-            drivers.add(createDriver("test-session:1", "producer-" + i, dc, source, new ExchangeSinkOperator(
-                sinkHandler.createExchangeSink(() -> {})
-            )));
+            drivers.add(
+                createDriver(
+                    "test-session:1",
+                    "producer-" + i,
+                    dc,
+                    source,
+                    new ExchangeSinkOperator(sinkHandler.createExchangeSink(() -> {}))
+                )
+            );
         }
 
         // Build consumer drivers with PartitionedExchangeSourceHandler
@@ -371,26 +374,14 @@ public class PartitionedExchangeServiceTests extends ESTestCase {
                 public void close() {}
             };
 
-            drivers.add(createDriver(
-                "test-session:2",
-                "consumer-" + d,
-                dc,
-                new ExchangeSourceOperator(exchangeSource),
-                sink
-            ));
+            drivers.add(createDriver("test-session:2", "consumer-" + d, dc, new ExchangeSourceOperator(exchangeSource), sink));
         }
 
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         new DriverRunner(threadPool.getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> listener) {
-                Driver.start(
-                    threadPool.getThreadContext(),
-                    threadPool.executor(ESQL_TEST_EXECUTOR),
-                    driver,
-                    between(1, 10000),
-                    listener
-                );
+                Driver.start(threadPool.getThreadContext(), threadPool.executor(ESQL_TEST_EXECUTOR), driver, between(1, 10000), listener);
             }
         }.runToCompletion(drivers, future);
         future.actionGet(TimeValue.timeValueMinutes(1));

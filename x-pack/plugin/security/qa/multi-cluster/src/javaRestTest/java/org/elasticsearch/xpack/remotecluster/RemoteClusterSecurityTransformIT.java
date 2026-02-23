@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -201,7 +202,7 @@ public class RemoteClusterSecurityTransformIT extends AbstractRemoteClusterSecur
             // Delete the transform
             assertOK(performRequestWithRemoteTransformUser(new Request("DELETE", "/_transform/simple-remote-transform")));
 
-            // Create a transform targeting an index without permission
+            // Attempt to create a transform targeting an index without permission - should fail validation
             final var putTransformRequest2 = new Request("PUT", "/_transform/invalid");
             putTransformRequest2.setJsonEntity("""
                 {
@@ -213,14 +214,14 @@ public class RemoteClusterSecurityTransformIT extends AbstractRemoteClusterSecur
                   }
                 }
                 """);
-            assertOK(performRequestWithRemoteTransformUser(putTransformRequest2));
-            // It errors when trying to preview it
-            final ResponseException e = expectThrows(
+            final ResponseException putException = expectThrows(
                 ResponseException.class,
-                () -> performRequestWithRemoteTransformUser(new Request("GET", "/_transform/invalid/_preview"))
+                () -> performRequestWithRemoteTransformUser(putTransformRequest2)
             );
-            assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            assertThat(e.getMessage(), containsString("Source indices have been deleted or closed"));
+            assertThat(putException.getResponse().getStatusLine().getStatusCode(), equalTo(400));
+            // Assert on response body so the test is robust across locales and exception message formatting
+            final String putReason = (String) extractValue("error.reason", entityAsMap(putException.getResponse()));
+            assertThat(putReason, containsString("lacks the required permissions"));
         }
     }
 

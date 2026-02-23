@@ -164,5 +164,3 @@ FROM logs METADATA _source
 - **Serialization tests** (`JsonExtractSerializationTests.java`)
 - **Error tests** (`JsonExtractErrorTests.java`)
 - **CSV spec integration tests** (`json_extract.csv-spec`) — includes duplicate keys, null-in-array
-- **YAML REST test configuration** (`60_usage.yml`)
-- **Changelog entry** (`docs/changelog/142375.yaml`)

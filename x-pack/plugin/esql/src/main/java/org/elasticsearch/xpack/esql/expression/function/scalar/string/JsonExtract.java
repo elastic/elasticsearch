@@ -127,12 +127,10 @@ public class JsonExtract extends EsqlScalarFunction {
             specification — a JSON key that literally contains a dot
             (e.g., `"user.name"`) must be accessed via bracket notation.
             The JSONPath `$` root selector is supported for compatibility
-            but is always optional — `$.name` and `name` are equivalent.
-            It is only necessary when indexing into a top-level array
-            (`$[0]`), since there is no key name to start the path with.
-            Optional whitespace is allowed inside brackets (`[ 0 ]` is
-            equivalent to `[0]`). Path matching is case-sensitive per the
-            JSON specification.
+            but is always optional — `$.name` and `name` are equivalent,
+            and `$[0]` and `[0]` are equivalent. Optional whitespace is
+            allowed inside brackets (`[ 0 ]` is equivalent to `[0]`).
+            Path matching is case-sensitive per the JSON specification.
 
             The extracted value is returned as a `keyword` string: string
             values without surrounding quotes, numbers and booleans as their

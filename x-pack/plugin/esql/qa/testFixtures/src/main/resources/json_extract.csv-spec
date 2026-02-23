@@ -284,6 +284,17 @@ b
 // end::json_extract_top_level_array-result[]
 ;
 
+jsonExtractTopLevelArrayIndexNoDollar
+required_capability: fn_json_extract
+ROW json = "[\"a\",\"b\",\"c\"]"
+| EVAL val = JSON_EXTRACT(json, "[1]")
+| KEEP val
+;
+
+val:keyword
+b
+;
+
 jsonExtractTopLevelArrayNestedObject
 required_capability: fn_json_extract
 ROW json = "[{\"name\":\"Alice\"},{\"name\":\"Bob\"}]"

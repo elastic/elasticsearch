@@ -13,7 +13,7 @@ esplugin {
   classname ='org.elasticsearch.telemetry.apm.APM'
 }
 
-def otelVersion = '1.31.0'
+def otelVersion = '1.57.0'
 def otelSemconvVersion = '1.21.0-alpha'
 
 dependencies {
@@ -24,6 +24,12 @@ dependencies {
 
   javaRestTestImplementation project(':modules:apm')
   javaRestTestImplementation project(':test:framework')
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'io.opentelemetry.common.ComponentLoader'
+  )
 }
 
 tasks.named("dependencyLicenses").configure {

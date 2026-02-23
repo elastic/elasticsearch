@@ -4,5 +4,5 @@
 
 | source_ip | destination_ip | internal_networks | result |
 | --- | --- | --- | --- |
-| ip | ip | • keyword<br/>• text | keyword |
+| ip | ip | • keyword<br>• text | keyword |
 

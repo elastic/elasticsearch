@@ -20,5 +20,5 @@
 | long | integer | long |
 | unsigned_long | integer | unsigned_long |
 | version | integer | version |
-| • keyword<br/>• text | integer | keyword |
+| • keyword<br>• text | integer | keyword |
 

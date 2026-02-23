@@ -4,5 +4,5 @@
 
 | field | query | options | result |
 | --- | --- | --- | --- |
-| • keyword<br/>• text | keyword | named parameters | boolean |
+| • keyword<br>• text | keyword | named parameters | boolean |
 

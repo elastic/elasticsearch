@@ -8,7 +8,7 @@
 | date | date | time_duration | named parameters | double |
 | date_nanos | date_nanos | time_duration | named parameters | double |
 | double | double | double | named parameters | double |
-| geo_point | geo_point | • keyword<br/>• text | named parameters | double |
+| geo_point | geo_point | • keyword<br>• text | named parameters | double |
 | integer | integer | integer | named parameters | double |
 | long | long | long | named parameters | double |
 

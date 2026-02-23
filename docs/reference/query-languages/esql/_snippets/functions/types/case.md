@@ -46,6 +46,6 @@
 | boolean | unsigned_long | unsigned_long | unsigned_long |
 | boolean | version |  | version |
 | boolean | version | version | version |
-| boolean | • keyword<br/>• text |  | keyword |
-| boolean | • keyword<br/>• text | • keyword<br/>• text | keyword |
+| boolean | • keyword<br>• text |  | keyword |
+| boolean | • keyword<br>• text | • keyword<br>• text | keyword |
 

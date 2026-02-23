@@ -4,5 +4,5 @@
 
 | field | query | options | result |
 | --- | --- | --- | --- |
-| • dense_vector<br/>• text | dense_vector | named parameters | boolean |
+| • dense_vector<br>• text | dense_vector | named parameters | boolean |
 

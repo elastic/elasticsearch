@@ -16,10 +16,10 @@
 | ip | integer | keyword |  | ip |
 | long | integer |  |  | long |
 | long | integer | keyword |  | long |
-| • date<br/>• double<br/>• integer<br/>• long | integer | keyword | date | date |
-| • date<br/>• double<br/>• integer<br/>• long | integer | keyword | double | double |
-| • date<br/>• double<br/>• integer<br/>• long | integer | keyword | integer | integer |
-| • date<br/>• double<br/>• integer<br/>• long | integer | keyword | long | long |
-| • keyword<br/>• text | integer |  |  | keyword |
-| • keyword<br/>• text | integer | keyword |  | keyword |
+| • date<br>• double<br>• integer<br>• long | integer | keyword | date | date |
+| • date<br>• double<br>• integer<br>• long | integer | keyword | double | double |
+| • date<br>• double<br>• integer<br>• long | integer | keyword | integer | integer |
+| • date<br>• double<br>• integer<br>• long | integer | keyword | long | long |
+| • keyword<br>• text | integer |  |  | keyword |
+| • keyword<br>• text | integer | keyword |  | keyword |
 

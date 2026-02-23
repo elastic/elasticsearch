@@ -4,5 +4,5 @@
 
 | field | result |
 | --- | --- |
-| • boolean<br/>• double<br/>• integer<br/>• keyword<br/>• long<br/>• text<br/>• unsigned_long | boolean |
+| • boolean<br>• double<br>• integer<br>• keyword<br>• long<br>• text<br>• unsigned_long | boolean |
 

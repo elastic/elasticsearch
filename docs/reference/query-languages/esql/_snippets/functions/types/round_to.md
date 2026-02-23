@@ -6,9 +6,9 @@
 | --- | --- | --- |
 | date | date | date |
 | date_nanos | date_nanos | date_nanos |
-| double | • double<br/>• integer<br/>• long | double |
+| double | • double<br>• integer<br>• long | double |
 | integer | integer | integer |
 | long | integer | long |
-| • integer<br/>• long | double | double |
-| • integer<br/>• long | long | long |
+| • integer<br>• long | double | double |
+| • integer<br>• long | long | long |
 

@@ -4,6 +4,6 @@
 
 | buckets | result |
 | --- | --- |
-| • date_period<br/>• time_duration | date |
-| • date_period<br/>• time_duration | date_nanos |
+| • date_period<br>• time_duration | date |
+| • date_period<br>• time_duration | date_nanos |
 

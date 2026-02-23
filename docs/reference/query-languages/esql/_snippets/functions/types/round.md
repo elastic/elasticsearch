@@ -5,11 +5,11 @@
 | number | decimals | result |
 | --- | --- | --- |
 | double |  | double |
-| double | • integer<br/>• long | double |
+| double | • integer<br>• long | double |
 | integer |  | integer |
-| integer | • integer<br/>• long | integer |
+| integer | • integer<br>• long | integer |
 | long |  | long |
-| long | • integer<br/>• long | long |
+| long | • integer<br>• long | long |
 | unsigned_long |  | unsigned_long |
-| unsigned_long | • integer<br/>• long | unsigned_long |
+| unsigned_long | • integer<br>• long | unsigned_long |
 

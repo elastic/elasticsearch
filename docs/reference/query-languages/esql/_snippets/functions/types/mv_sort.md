@@ -12,5 +12,5 @@
 | ip | keyword | ip |
 | long | keyword | long |
 | version | keyword | version |
-| • keyword<br/>• text | keyword | keyword |
+| • keyword<br>• text | keyword | keyword |
 

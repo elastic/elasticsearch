@@ -4,5 +4,5 @@
 
 | string1 | string2 | result |
 | --- | --- | --- |
-| • keyword<br/>• text | • keyword<br/>• text | keyword |
+| • keyword<br>• text | • keyword<br>• text | keyword |
 

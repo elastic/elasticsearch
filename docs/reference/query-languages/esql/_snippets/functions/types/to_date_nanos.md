@@ -4,5 +4,5 @@
 
 | field | result |
 | --- | --- |
-| • date<br/>• date_nanos<br/>• double<br/>• keyword<br/>• long<br/>• text<br/>• unsigned_long | date_nanos |
+| • date<br>• date_nanos<br>• double<br>• keyword<br>• long<br>• text<br>• unsigned_long | date_nanos |
 

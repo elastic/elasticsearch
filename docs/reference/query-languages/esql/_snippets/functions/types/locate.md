@@ -4,6 +4,6 @@
 
 | string | substring | start | result |
 | --- | --- | --- | --- |
-| • keyword<br/>• text | • keyword<br/>• text |  | integer |
-| • keyword<br/>• text | • keyword<br/>• text | integer | integer |
+| • keyword<br>• text | • keyword<br>• text |  | integer |
+| • keyword<br>• text | • keyword<br>• text | integer | integer |
 

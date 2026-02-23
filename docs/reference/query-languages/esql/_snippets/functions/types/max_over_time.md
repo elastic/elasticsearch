@@ -12,6 +12,6 @@
 | long | time_duration {applies_to}`stack: preview 9.3.0` | long |
 | unsigned_long {applies_to}`stack: ga 9.2.0` | time_duration {applies_to}`stack: preview 9.3.0` | unsigned_long |
 | version | time_duration {applies_to}`stack: preview 9.3.0` | version |
-| • aggregate_metric_double<br/>• double<br/>• exponential_histogram<br/>• tdigest | time_duration {applies_to}`stack: preview 9.3.0` | double |
-| • keyword<br/>• text | time_duration {applies_to}`stack: preview 9.3.0` | keyword |
+| • aggregate_metric_double<br>• double<br>• exponential_histogram<br>• tdigest | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| • keyword<br>• text | time_duration {applies_to}`stack: preview 9.3.0` | keyword |
 

@@ -14,5 +14,5 @@
 | ip | ip | boolean |
 | long | long | boolean |
 | version | version | boolean |
-| • keyword<br/>• text | • keyword<br/>• text | boolean |
+| • keyword<br>• text | • keyword<br>• text | boolean |
 

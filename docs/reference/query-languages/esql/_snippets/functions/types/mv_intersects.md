@@ -20,5 +20,5 @@
 | long | long | boolean |
 | unsigned_long | unsigned_long | boolean |
 | version | version | boolean |
-| • keyword<br/>• text | • keyword<br/>• text | boolean |
+| • keyword<br>• text | • keyword<br>• text | boolean |
 

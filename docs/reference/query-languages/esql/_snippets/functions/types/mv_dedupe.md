@@ -20,5 +20,5 @@
 | long | long |
 | unsigned_long | unsigned_long |
 | version | version |
-| • keyword<br/>• text | keyword |
+| • keyword<br>• text | keyword |
 

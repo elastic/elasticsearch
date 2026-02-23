@@ -1383,7 +1383,7 @@ public abstract class DocsV3Support {
                 if (cell.types().isEmpty() == false) {
                     List<String> types = cell.types().stream().map(DataType::esNameIfPossible).sorted().toList();
                     b.append(
-                        types.size() == 1 ? types.getFirst() : types.stream().map(type -> "• " + type).collect(Collectors.joining("<br/>"))
+                        types.size() == 1 ? types.getFirst() : types.stream().map(type -> "• " + type).collect(Collectors.joining("<br>"))
                     );
                     if (cell.appliesTo().isEmpty() == false) {
                         b.append(FunctionDocsSupport.makeAppliesToText(cell.appliesTo(), false, true));

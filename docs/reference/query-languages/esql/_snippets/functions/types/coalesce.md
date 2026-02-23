@@ -26,5 +26,5 @@
 | tdigest | tdigest | tdigest |
 | text | text | keyword |
 | version | version | version |
-| • keyword<br/>• text |  | keyword |
+| • keyword<br>• text |  | keyword |
 

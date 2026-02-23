@@ -8,5 +8,5 @@
 | date_nanos | date_nanos | boolean |
 | keyword | keyword | boolean |
 | long | long | boolean |
-| • date_period<br/>• time_duration |  | boolean |
+| • date_period<br>• time_duration |  | boolean |
 

@@ -4,5 +4,5 @@
 
 | field | window | result |
 | --- | --- | --- |
-| • counter_double<br/>• counter_integer<br/>• counter_long | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| • counter_double<br>• counter_integer<br>• counter_long | time_duration {applies_to}`stack: preview 9.3.0` | double |
 

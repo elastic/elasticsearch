@@ -5,7 +5,7 @@
 | field | window | result |
 | --- | --- | --- |
 | exponential_histogram | time_duration {applies_to}`stack: preview 9.3.0` | exponential_histogram |
-| • counter_double<br/>• double | time_duration {applies_to}`stack: preview 9.3.0` | double |
-| • counter_integer<br/>• integer | time_duration {applies_to}`stack: preview 9.3.0` | integer |
-| • counter_long<br/>• long | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| • counter_double<br>• double | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| • counter_integer<br>• integer | time_duration {applies_to}`stack: preview 9.3.0` | integer |
+| • counter_long<br>• long | time_duration {applies_to}`stack: preview 9.3.0` | long |
 

@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
+import org.junit.Assert;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -32,7 +33,6 @@ import static org.hamcrest.Matchers.is;
 public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> {
 
     private enum HeadersDefinition {
-        NULL(null),
         EMPTY(Map.of()),
         DEFINED(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15)));
 
@@ -60,16 +60,11 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
 
     @Override
     protected Headers mutateInstance(Headers instance) throws IOException {
-        var currentHeaders = instance.headers();
-        if (currentHeaders == null) {
-            return new Headers(Map.of(randomAlphaOfLength(15), randomAlphaOfLength(15)));
-        } else if (randomBoolean()) {
-            return new Headers((Map<String, String>) null);
-        } else {
-            var newHeaders = new HashMap<>(currentHeaders);
-            newHeaders.put(randomAlphaOfLength(15), randomAlphaOfLength(15));
-            return new Headers(newHeaders);
-        }
+        var currentHeaders = instance.headersMap();
+        var newHeaders = new HashMap<>(currentHeaders);
+
+        newHeaders.put(randomAlphaOfLength(15), randomAlphaOfLength(15));
+        return new Headers(newHeaders);
     }
 
     @Override
@@ -85,9 +80,8 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
         return Strings.toString(builder);
     }
 
-    public void testToXContent_WhenNull_OmitsField() throws IOException {
-        var headers = new Headers((Map<String, String>) null);
-        assertThat(toXContentString(headers), is("{}"));
+    public void testToXContent_WhenNull_OmitsField() {
+        expectThrows(NullPointerException.class, () -> new Headers((Map<String, String>) null));
     }
 
     public void testToXContent_WhenEmptyMap() throws IOException {
@@ -119,7 +113,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
               }
             }
             """;
-        parseJson(json, parsed -> assertThat(parsed.headers(), is(Map.of("key", "value"))));
+        parseJson(json, parsed -> assertThat(parsed.headersMap(), is(Map.of("key", "value"))));
     }
 
     public void testParse_WhenHeadersMissing_ReturnsNullHeaders() throws IOException {
@@ -127,7 +121,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
             {
             }
             """;
-        parseJson(json, parsed -> assertNull(parsed.headers()));
+        parseJson(json, Assert::assertNull);
     }
 
     public void testParse_WhenHeadersEmptyMap() throws IOException {
@@ -136,7 +130,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
               "headers": {}
             }
             """;
-        parseJson(json, parsed -> assertThat(parsed.headers(), anEmptyMap()));
+        parseJson(json, parsed -> assertThat(parsed.headersMap(), anEmptyMap()));
     }
 
     public void testParse_ThrowsWhenValueNotString() {
@@ -148,8 +142,8 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
             }
             """;
         var exception = expectThrows(XContentParseException.class, () -> parseJson(json, parsed -> {}));
-        assertThat(exception.getMessage(), containsString("[Headers] failed to parse field [headers]"));
-        assertThat(exception.getCause().getMessage(), containsString("Failed to build [Headers] after last required field arrived"));
+        assertThat(exception.getMessage(), containsString("[headers_parser] failed to parse field [headers]"));
+        assertThat(exception.getCause().getMessage(), containsString("Failed to build [headers_parser] after last required field arrived"));
         assertThat(
             exception.getCause().getCause().getMessage(),
             containsString("Map field [headers] has an entry that is not valid, [key => 1]. Value type of [1] is not one of [String].;")
@@ -163,8 +157,16 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
     }
 
     private static void parseJson(String jsonInput, Consumer<Headers> assertCallback) throws IOException {
-        ConstructingObjectParser<Headers, Void> constructingObjectParser = new ConstructingObjectParser<>("headers_parser", false, args -> Headers.create(args[0]));
-        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, jsonInput)) {
+        ConstructingObjectParser<Headers, Void> constructingObjectParser = new ConstructingObjectParser<>(
+            "headers_parser",
+            false,
+            args -> Headers.create(args[0])
+        );
+        Headers.initParser(constructingObjectParser);
+
+        try (
+            XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, jsonInput)
+        ) {
             parser.nextToken();
             var parsed = constructingObjectParser.parse(parser, null);
             assertCallback.accept(parsed);

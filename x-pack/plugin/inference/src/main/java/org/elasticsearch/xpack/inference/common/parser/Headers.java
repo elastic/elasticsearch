@@ -11,63 +11,78 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeNullValues;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMapStringValues;
 
-public record Headers(@Nullable Map<String, String> headers) implements ToXContentFragment, Writeable {
+public record Headers(Map<String, String> headersMap) implements ToXContentFragment, Writeable {
 
     private static final ParseField HEADERS = new ParseField("headers");
 
+    public static final Headers EMPTY_INSTANCE = new Headers(Map.of());
+
     public static <Value, Context> void initParser(ConstructingObjectParser<Value, Context> parser) {
-        parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), HEADERS);
+        parser.declareObjectOrNull(optionalConstructorArg(), (p, c) -> p.mapOrdered(), null, HEADERS);
     }
 
     @SuppressWarnings("unchecked")
     public static Headers create(Object arg) {
+        if (arg == null) {
+            return null;
+        }
+
         var validationException = new ValidationException();
+
+        removeNullValues((Map<String, Object>) arg);
+
         var stringHeaders = validateMapStringValues(
             (Map<String, String>) arg,
             HEADERS.getPreferredName(),
             validationException,
             false,
-            null
+            Map.of()
         );
 
         if (validationException.validationErrors().isEmpty() == false) {
             throw validationException;
         }
 
+        if (stringHeaders.isEmpty()) {
+            return EMPTY_INSTANCE;
+        }
+
         return new Headers(stringHeaders);
     }
 
+    public Headers {
+        Objects.requireNonNull(headersMap, "headers map is required");
+    }
+
     public Headers(StreamInput in) throws IOException {
-        this(in.readOptionalImmutableMap(StreamInput::readString, StreamInput::readString));
+        this(in.readImmutableMap(StreamInput::readString, StreamInput::readString));
     }
 
     public boolean isEmpty() {
-        return headers == null || headers.isEmpty();
+        return headersMap.isEmpty();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        if (headers != null) {
-            builder.field(HEADERS.getPreferredName(), headers);
-        }
+        builder.field(HEADERS.getPreferredName(), headersMap);
         return builder;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalMap(headers, StreamOutput::writeString, StreamOutput::writeString);
+        out.writeMap(headersMap, StreamOutput::writeString, StreamOutput::writeString);
     }
 }

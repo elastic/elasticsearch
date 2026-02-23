@@ -9,15 +9,18 @@ package org.elasticsearch.xpack.inference.services.azureopenai;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.inference.InferenceUtils;
 import org.elasticsearch.xpack.inference.common.parser.Headers;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
@@ -58,7 +61,7 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
         return constructingObjectParser;
     }
 
-    private static Settings createSettings(String user, Headers headers) {
+    private static Settings createSettings(@Nullable String user, @Nullable Headers headers) {
         if (user == null && headers == null) {
             return EMPTY_SETTINGS;
         }
@@ -66,15 +69,20 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
     }
 
     protected abstract static class Factory<T> {
-        private final T emptyInstance;
-
-        public Factory(T emptyInstance) {
-            this.emptyInstance = emptyInstance;
-        }
+        private T emptyInstance;
 
         protected abstract T create(@Nullable String user, @Nullable Headers headers);
 
+        protected abstract T createEmptyInstance();
+
         public T emptySettings() {
+            // Ideally we'd be able to pass the empty instance in via the Factory constructor, but since the empty instance relies on the
+            // factory to be created, we have to lazily create it here. The empty instance will call the AzureOpenAiTaskSettings
+            // constructor with the factory. If we don't do it this way we end up getting an NPE in the constructor because the factory
+            // hasn't finished initialization yet.
+            if (emptyInstance == null) {
+                emptyInstance = createEmptyInstance();
+            }
             return emptyInstance;
         }
     }
@@ -97,6 +105,7 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
 
                 if (configurationParseContext == ConfigurationParseContext.REQUEST) {
                     createdSettings = REQUEST_PARSER.parse(parser, null);
+                    validateSettings(createdSettings);
                 } else {
                     createdSettings = STORAGE_PARSER.parse(parser, null);
                 }
@@ -108,11 +117,20 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
         }
     }
 
+    private static void validateSettings(Settings settings) {
+        var validationException = new ValidationException();
+
+        if (settings.user() != null && settings.user().isEmpty()) {
+            validationException.addValidationError(InferenceUtils.mustBeNonEmptyString(AzureOpenAiServiceFields.USER, ModelConfigurations.TASK_SETTINGS));
+            throw validationException;
+        }
+    }
+
     private final Settings taskSettings;
     private final Factory<T> factory;
 
     protected AzureOpenAiTaskSettings(@Nullable String user, @Nullable Headers headers, Factory<T> factory) {
-         this(createSettings(user, headers), factory);
+        this(createSettings(user, headers), factory);
     }
 
     protected AzureOpenAiTaskSettings(Settings taskSettings, Factory<T> factory) {

@@ -18,20 +18,25 @@ import java.util.Map;
 
 public class AzureOpenAiCompletionTaskSettings extends AzureOpenAiTaskSettings<AzureOpenAiCompletionTaskSettings> {
 
-    private static final String NAME = "azure_openai_completion_task_settings";
+    public static final String NAME = "azure_openai_completion_task_settings";
 
-    public static final AzureOpenAiCompletionTaskSettings EMPTY = new AzureOpenAiCompletionTaskSettings(null, null);
-
-    private static final AzureOpenAiTaskSettings.Factory<AzureOpenAiCompletionTaskSettings> FACTORY = new Factory<>(EMPTY) {
+    private static final AzureOpenAiTaskSettings.Factory<AzureOpenAiCompletionTaskSettings> FACTORY = new Factory<>() {
         @Override
         public AzureOpenAiCompletionTaskSettings create(@Nullable String user, @Nullable Headers headers) {
             if (user == null && headers == null) {
-                return EMPTY;
+                return emptySettings();
             }
 
             return new AzureOpenAiCompletionTaskSettings(user, headers);
         }
+
+        @Override
+        protected AzureOpenAiCompletionTaskSettings createEmptyInstance() {
+            return new AzureOpenAiCompletionTaskSettings(null, null);
+        }
     };
+
+    public static final AzureOpenAiCompletionTaskSettings EMPTY = FACTORY.emptySettings();
 
     public static AzureOpenAiCompletionTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         return AzureOpenAiTaskSettings.parseSettingsFromMap(map, context, FACTORY);

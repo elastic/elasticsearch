@@ -47,8 +47,8 @@ public class AzureOpenAiCompletionRequest implements AzureOpenAiRequest {
         AzureOpenAiRequest.decorateWithAuthHeader(httpPost, model.getSecretSettings());
 
         var headers = model.getTaskSettings().headers();
-        if (headers != null && headers.headers() != null) {
-            for (var entry : headers.headers().entrySet()) {
+        if (headers != null && headers.headersMap() != null) {
+            for (var entry : headers.headersMap().entrySet()) {
                 httpPost.setHeader(entry.getKey(), entry.getValue());
             }
         }

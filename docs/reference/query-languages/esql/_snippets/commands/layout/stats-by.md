@@ -180,9 +180,10 @@ for an even more in depth explanation.
 
 ### Multivalue functions
 
-Aggregation and grouping expressions accept nested functions, which is useful
-for operating on multivalue columns. Use `MV_AVG` nested inside `AVG` to first
-average each employee's multiple salary values, then aggregate across employees:
+Both aggregation and grouping expressions accept other functions, which is
+useful for using `STATS` on multivalue columns. For example, to calculate the
+average salary change, use `MV_AVG` to first average the multiple values per
+employee, then pass the result to `AVG`:
 
 :::{include} ../examples/stats.csv-spec/docsStatsAvgNestedExpression.md
 :::

@@ -217,6 +217,16 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             );
 
             var vectors = field.getDenseVectorData();
+            assertNotNull(vectors);
+            assertEquals(chunkVectors.size(), vectors.size());
+            if (vectors.getFirst().isFloat() && chunkVectors.getFirst().isFloat() == false) {
+                var newList = new ArrayList<VectorData>();
+                for (VectorData vector : vectors) {
+                    newList.add(new VectorData(vector.asByteVector()));
+                }
+                vectors = newList;
+            }
+            assertEquals(chunkVectors.getFirst().isFloat(), vectors.getFirst().isFloat());
             assertEquals(chunkVectors, vectors);
         }
     }

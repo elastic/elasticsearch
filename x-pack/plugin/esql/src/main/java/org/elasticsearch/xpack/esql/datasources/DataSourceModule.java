@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 import org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory;
@@ -48,8 +49,7 @@ public final class DataSourceModule implements Closeable {
     private final StorageProviderRegistry storageProviderRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
     private final Map<String, ExternalSourceFactory> sourceFactories;
-    // FIXME: pluginFactories is a backward-compat bridge for DataSourcePlugin.operatorFactories().
-    // Once plugins migrate to ExternalSourceFactory.operatorFactory(), remove this field.
+    // TODO(#142815): backward-compat bridge — remove once table functions land.
     private final Map<String, SourceOperatorFactoryProvider> pluginFactories;
     private final FilterPushdownRegistry filterPushdownRegistry;
     private final List<Closeable> managedCloseables;
@@ -84,7 +84,7 @@ public final class DataSourceModule implements Closeable {
                 }
                 StorageProviderFactory delegating = new StorageProviderFactory() {
                     @Override
-                    public org.elasticsearch.xpack.esql.datasources.spi.StorageProvider create(Settings s) {
+                    public StorageProvider create(Settings s) {
                         Map<String, StorageProviderFactory> factories = state.storageFactories();
                         StorageProviderFactory real = factories.get(scheme);
                         if (real == null) {
@@ -100,7 +100,7 @@ public final class DataSourceModule implements Closeable {
                     }
 
                     @Override
-                    public org.elasticsearch.xpack.esql.datasources.spi.StorageProvider create(Settings s, Map<String, Object> config) {
+                    public StorageProvider create(Settings s, Map<String, Object> config) {
                         Map<String, StorageProviderFactory> factories = state.storageFactories();
                         StorageProviderFactory real = factories.get(scheme);
                         if (real == null) {
@@ -175,10 +175,8 @@ public final class DataSourceModule implements Closeable {
                 }
             }
 
-            // FIXME: operatorFactories() is a backward-compat bridge for plugins that haven't migrated
-            // to ExternalSourceFactory.operatorFactory(). Currently no production plugin overrides it,
-            // so this call is effectively a no-op. It remains eager intentionally — once migration
-            // is complete, remove this block and the pluginFactories field.
+            // TODO(#142815): operatorFactories() is a backward-compat bridge for plugins that haven't
+            // migrated to ExternalSourceFactory.operatorFactory(). Remove once table functions land.
             Map<String, SourceOperatorFactoryProvider> newOperatorFactories = plugin.operatorFactories(settings);
             if (newOperatorFactories.isEmpty() == false) {
                 for (Map.Entry<String, SourceOperatorFactoryProvider> entry : newOperatorFactories.entrySet()) {

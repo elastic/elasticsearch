@@ -26,8 +26,6 @@ import java.io.IOException;
 $if(BytesRef)$
 public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, BytesRefVectorBlock, ConstantNullBlock,
     OrdinalBytesRefBlock {
-$elseif(boolean)$
-public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock, $Type$BigArrayBlock {
 $else$
 public sealed interface $Type$Block extends Block permits $Type$ArrayBlock, $Type$VectorBlock, ConstantNullBlock, $Type$BigArrayBlock,
     org.elasticsearch.compute.data.arrow.$Type$ArrowBufBlock {

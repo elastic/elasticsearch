@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.data.arrow;
 
+// begin generated imports
 import org.apache.arrow.memory.ArrowBuf;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -15,6 +16,7 @@ import org.elasticsearch.compute.data.$Type$Block;
 import org.elasticsearch.compute.data.$Type$Vector;
 
 import java.io.IOException;
+// end generated imports
 
 /**
  * Arrow buffer backed $Type$Vector.
@@ -22,6 +24,11 @@ import java.io.IOException;
  */
 public final class $Type$ArrowBufVector extends AbstractArrowBufVector<$Type$Vector, $Type$Block> implements $Type$Vector {
 
+    /**
+     *  Create an ArrowBuf block based on the constituents of an Arrow ValueVector. It does not take ownership of buffers but rather
+     *  increases their reference count. This means that callers must release the buffers (and decrease their reference counters)
+     *  if they don't need them anymore.
+     */
     public $Type$ArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
         super(valueBuffer, positionCount, blockFactory);
     }

@@ -13,7 +13,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.Nullable;
 
 /**
- * Constructor for a block backed by Arrow buffers
+ * Constructor for a block backed by Arrow buffers. It should not take ownership of buffers but rather
+ * increase their reference count. This means that callers must release the buffers (and decrease their reference counters)
+ * if they don't need them anymore.
  */
 @FunctionalInterface
 public interface ArrowBufBlockConstructor<B extends Block> {

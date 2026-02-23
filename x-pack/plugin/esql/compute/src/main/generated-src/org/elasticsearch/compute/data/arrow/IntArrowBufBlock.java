@@ -7,12 +7,14 @@
 
 package org.elasticsearch.compute.data.arrow;
 
+// begin generated imports
 import org.apache.arrow.memory.ArrowBuf;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.core.Nullable;
+// end generated imports
 
 /**
  * Arrow buffer backed IntBlock.
@@ -20,6 +22,11 @@ import org.elasticsearch.core.Nullable;
  */
 public final class IntArrowBufBlock extends AbstractArrowBufBlock<IntVector, IntBlock> implements IntBlock {
 
+    /**
+     *  Create an ArrowBuf block based on the constituents of an Arrow ValueVector. It does not take ownership of buffers but rather
+     *  increases their reference count. This means that callers must release the buffers (and decrease their reference counters)
+     *  if they don't need them anymore.
+     */
     public IntArrowBufBlock(
         ArrowBuf valueBuffer,
         @Nullable ArrowBuf validityBuffer,

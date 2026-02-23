@@ -7,12 +7,14 @@
 
 package org.elasticsearch.compute.data.arrow;
 
+// begin generated imports
 import org.apache.arrow.memory.ArrowBuf;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.core.Nullable;
+// end generated imports
 
 /**
  * Arrow buffer backed DoubleBlock.
@@ -20,6 +22,11 @@ import org.elasticsearch.core.Nullable;
  */
 public final class DoubleArrowBufBlock extends AbstractArrowBufBlock<DoubleVector, DoubleBlock> implements DoubleBlock {
 
+    /**
+     *  Create an ArrowBuf block based on the constituents of an Arrow ValueVector. It does not take ownership of buffers but rather
+     *  increases their reference count. This means that callers must release the buffers (and decrease their reference counters)
+     *  if they don't need them anymore.
+     */
     public DoubleArrowBufBlock(
         ArrowBuf valueBuffer,
         @Nullable ArrowBuf validityBuffer,

@@ -28,7 +28,7 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
     OrdinalBytesRefVector {
 $elseif(boolean)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
-    ConstantNullVector {
+    ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {
 $elseif(int)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, $Type$RangeVector,
     ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {

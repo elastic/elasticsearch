@@ -23,6 +23,11 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
     protected final int positionCount;
     protected final BlockFactory blockFactory;
 
+    /**
+     *  Create an ArrowBuf block based on the constituents of an Arrow ValueVector. It does not take ownership of buffers but rather
+     *  increases their reference count. This means that callers must release the buffers (and decrease their reference counters)
+     *  if they don't need them anymore.
+     */
     protected AbstractArrowBufVector(ArrowBuf valueBuffer, int positionCount, BlockFactory blockFactory) {
         valueBuffer.getReferenceManager().retain();
         this.valueBuffer = valueBuffer;
@@ -91,7 +96,11 @@ public abstract class AbstractArrowBufVector<V extends Vector, B extends Block> 
         for (int pos : positions) {
             buffer.setBytes((long) pos * size, valueBuffer, (long) pos * size, size);
         }
-        return vectorConstructor().create(buffer, positions.length, blockFactory);
+        try {
+            return vectorConstructor().create(buffer, positions.length, blockFactory);
+        } finally {
+            buffer.getReferenceManager().release();
+        }
     }
 
     // TODO

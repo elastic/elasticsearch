@@ -803,10 +803,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             } else {
                 int backwardLcp = computeLCP(prevTerm.get(), cur);
                 boolean matchesCurrent = (backwardLcp == currentPrefixLen)
-                    && Arrays.equals(
-                        cur.bytes, cur.offset, cur.offset + currentPrefixLen,
-                        currentPrefixBytes, 0, currentPrefixLen
-                    );
+                    && Arrays.equals(cur.bytes, cur.offset, cur.offset + currentPrefixLen, currentPrefixBytes, 0, currentPrefixLen);
 
                 if (matchesCurrent) {
                     prefixId = numPrefixes - 1;
@@ -843,8 +840,15 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             int suffixLen = cur.length - prefixLen;
             if (batchCount > 0 && batchPos + suffixLen > FSST_BULK_BUFFER_SIZE) {
                 suffixCompressedPos = flushSuffixBatch(
-                    symbolTable, batchBytes, batchInOffsets, batchCount, batchPos,
-                    fsstOutBuf, batchOutOffsets, suffixOffsetsWriter, suffixBatchBase
+                    symbolTable,
+                    batchBytes,
+                    batchInOffsets,
+                    batchCount,
+                    batchPos,
+                    fsstOutBuf,
+                    batchOutOffsets,
+                    suffixOffsetsWriter,
+                    suffixBatchBase
                 );
                 batchPos = 0;
                 batchCount = 0;
@@ -869,8 +873,15 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         // Flush remaining suffix batch
         if (batchCount > 0) {
             suffixCompressedPos = flushSuffixBatch(
-                symbolTable, batchBytes, batchInOffsets, batchCount, batchPos,
-                fsstOutBuf, batchOutOffsets, suffixOffsetsWriter, suffixBatchBase
+                symbolTable,
+                batchBytes,
+                batchInOffsets,
+                batchCount,
+                batchPos,
+                fsstOutBuf,
+                batchOutOffsets,
+                suffixOffsetsWriter,
+                suffixBatchBase
             );
         }
         suffixOffsetsWriter.add(suffixCompressedPos);

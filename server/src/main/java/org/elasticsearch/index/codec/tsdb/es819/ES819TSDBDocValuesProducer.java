@@ -1334,19 +1334,13 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             symInput.readBytes(symbolTableBytes, 0, symbolTableLen);
             fsstDecoder = FSST.Decoder.readFrom(symbolTableBytes);
 
-            RandomAccessInput prefixOffsetsSlice = data.randomAccessSlice(
-                entry.prefixOffsetsDataOffset,
-                entry.prefixOffsetsDataLength
-            );
+            RandomAccessInput prefixOffsetsSlice = data.randomAccessSlice(entry.prefixOffsetsDataOffset, entry.prefixOffsetsDataLength);
             prefixOffsets = DirectMonotonicReader.getInstance(entry.prefixOffsetsMeta, prefixOffsetsSlice, merging);
 
             RandomAccessInput prefixIdsSlice = data.randomAccessSlice(entry.prefixIdsDataOffset, entry.prefixIdsDataLength);
             prefixIds = DirectMonotonicReader.getInstance(entry.prefixIdsMeta, prefixIdsSlice, merging);
 
-            RandomAccessInput suffixOffsetsSlice = data.randomAccessSlice(
-                entry.suffixOffsetsDataOffset,
-                entry.suffixOffsetsDataLength
-            );
+            RandomAccessInput suffixOffsetsSlice = data.randomAccessSlice(entry.suffixOffsetsDataOffset, entry.suffixOffsetsDataLength);
             suffixOffsets = DirectMonotonicReader.getInstance(entry.suffixOffsetsMeta, suffixOffsetsSlice, merging);
 
             prefixData = data.randomAccessSlice(entry.prefixDataOffset, entry.prefixDataLength);

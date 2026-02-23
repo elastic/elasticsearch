@@ -154,7 +154,6 @@ public abstract class RetryingInputStream<V> extends InputStream {
 
     private void onRetryStarted(StreamAction action) {
         repositoriesMetrics.inputStreamRetryStartedCounter().incrementBy(1, blobStoreServices.getMetricsAttributes(action));
-        blobStoreServices.onRetryStarted(action);
     }
 
     private void onRetrySucceeded(StreamAction action, long numberOfRetries) {
@@ -163,7 +162,6 @@ public abstract class RetryingInputStream<V> extends InputStream {
             : "Missing required attributes expected " + REQUIRED_METRIC_ATTRIBUTES + ", got " + metricsAttributes.keySet();
         repositoriesMetrics.inputStreamRetryCompletedCounter().incrementBy(1, metricsAttributes);
         repositoriesMetrics.inputStreamRetryHistogram().record(numberOfRetries, metricsAttributes);
-        blobStoreServices.onRetrySucceeded(action, numberOfRetries);
     }
 
     @Override
@@ -393,10 +391,6 @@ public abstract class RetryingInputStream<V> extends InputStream {
          * @throws RequestedRangeNotSatisfiedException if the requested range is not valid, this is not retry-able
          */
         SingleAttemptInputStream<V> getInputStream(@Nullable V version, long start, long end) throws IOException;
-
-        default void onRetryStarted(StreamAction action) {};
-
-        default void onRetrySucceeded(StreamAction action, long numberOfRetries) {};
 
         long getMeaningfulProgressSize();
 

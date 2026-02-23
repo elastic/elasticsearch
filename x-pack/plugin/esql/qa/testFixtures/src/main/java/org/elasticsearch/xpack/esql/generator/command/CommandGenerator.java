@@ -158,7 +158,6 @@ public interface CommandGenerator {
         previousColumns = previousColumns.stream().filter(x -> x.name().contains("<all-fields-projected>") == false).toList();
         columns = columns.stream().filter(x -> x.name().contains("<all-fields-projected>") == false).toList();
 
-
         if (previousColumns.size() > columns.size()) {
             return new ValidationResult(false, "Expecting at least [" + previousColumns.size() + "] columns, got [" + columns.size() + "]");
         }

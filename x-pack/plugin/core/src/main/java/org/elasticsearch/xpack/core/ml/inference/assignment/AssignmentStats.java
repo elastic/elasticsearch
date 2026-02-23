@@ -68,6 +68,47 @@ public class AssignmentStats implements ToXContentObject, Writeable {
             long peakThroughput,
             long throughputLastPeriod,
             Double avgInferenceTimeLastPeriod,
+            long cacheHitCountLastPeriod
+        ) {
+            return new AssignmentStats.NodeStats(
+                node,
+                inferenceCount,
+                avgInferenceTime,
+                avgInferenceTimeExcludingCacheHit,
+                lastAccess,
+                pendingCount,
+                errorCount,
+                cacheHitCount,
+                rejectedExecutionCount,
+                timeoutCount,
+                new RoutingStateAndReason(RoutingState.STARTED, null),
+                Objects.requireNonNull(startTime),
+                threadsPerAllocation,
+                numberOfAllocations,
+                peakThroughput,
+                throughputLastPeriod,
+                avgInferenceTimeLastPeriod,
+                cacheHitCountLastPeriod
+            );
+        }
+
+        public static AssignmentStats.NodeStats forStartedState(
+            DiscoveryNode node,
+            long inferenceCount,
+            Double avgInferenceTime,
+            Double avgInferenceTimeExcludingCacheHit,
+            int pendingCount,
+            int errorCount,
+            long cacheHitCount,
+            int rejectedExecutionCount,
+            int timeoutCount,
+            Instant lastAccess,
+            Instant startTime,
+            Integer threadsPerAllocation,
+            Integer numberOfAllocations,
+            long peakThroughput,
+            long throughputLastPeriod,
+            Double avgInferenceTimeLastPeriod,
             long cacheHitCountLastPeriod,
             Long avgInferenceProcessMemoryRssBytes
         ) {
@@ -161,6 +202,49 @@ public class AssignmentStats implements ToXContentObject, Writeable {
 
             // if lastAccess time is null there have been no inferences
             assert this.lastAccess != null || (inferenceCount == null || inferenceCount == 0);
+        }
+
+        public NodeStats(
+            DiscoveryNode node,
+            Long inferenceCount,
+            Double avgInferenceTime,
+            Double avgInferenceTimeExcludingCacheHit,
+            @Nullable Instant lastAccess,
+            Integer pendingCount,
+            int errorCount,
+            Long cacheHitCount,
+            int rejectedExecutionCount,
+            int timeoutCount,
+            RoutingStateAndReason routingState,
+            @Nullable Instant startTime,
+            @Nullable Integer threadsPerAllocation,
+            @Nullable Integer numberOfAllocations,
+            long peakThroughput,
+            long throughputLastPeriod,
+            Double avgInferenceTimeLastPeriod,
+            Long cacheHitCountLastPeriod
+        ) {
+            this(
+                node,
+                inferenceCount,
+                avgInferenceTime,
+                avgInferenceTimeExcludingCacheHit,
+                lastAccess,
+                pendingCount,
+                errorCount,
+                cacheHitCount,
+                rejectedExecutionCount,
+                timeoutCount,
+                routingState,
+                startTime,
+                threadsPerAllocation,
+                numberOfAllocations,
+                peakThroughput,
+                throughputLastPeriod,
+                avgInferenceTimeLastPeriod,
+                cacheHitCountLastPeriod,
+                null
+            );
         }
 
         public NodeStats(StreamInput in) throws IOException {

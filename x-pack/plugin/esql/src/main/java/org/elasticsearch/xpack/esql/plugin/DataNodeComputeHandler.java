@@ -589,6 +589,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                 plan,
                 request.runNodeLevelReduction(),
                 request.reductionLateMaterialization(),
+                computeService.globalBreaker(),
                 planTimeProfile
             );
         } else {

@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 
+import static org.elasticsearch.compute.lucene.query.MinCompetitiveQueryStatusTests.randomMinCompetitiveQueryStatus;
 import static org.hamcrest.Matchers.equalTo;
 
 public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTestCase<LuceneSourceOperator.Status> {
@@ -34,7 +35,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             99990,
             8000,
             222,
-            Map.of("b:0", LuceneSliceQueue.PartitioningStrategy.SHARD, "a:1", LuceneSliceQueue.PartitioningStrategy.DOC)
+            Map.of("b:0", LuceneSliceQueue.PartitioningStrategy.SHARD, "a:1", LuceneSliceQueue.PartitioningStrategy.DOC),
+            MinCompetitiveQueryStatusTests.simple()
         );
     }
 
@@ -61,8 +63,7 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
               "partitioning_strategies" : {
                 "a:1" : "DOC",
                 "b:0" : "SHARD"
-              }
-            }""";
+              },""" + MinCompetitiveQueryStatusTests.simpleToJson().replace("\n", "\n  ") + "\n}";
     }
 
     public void testToXContent() {
@@ -88,7 +89,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             randomNonNegativeInt(),
             randomNonNegativeInt(),
             randomNonNegativeLong(),
-            randomPartitioningStrategies()
+            randomPartitioningStrategies(),
+            randomBoolean() ? randomMinCompetitiveQueryStatus() : null
         );
     }
 
@@ -136,7 +138,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
         int current = instance.current();
         long rowsEmitted = instance.rowsEmitted();
         Map<String, LuceneSliceQueue.PartitioningStrategy> partitioningStrategies = instance.partitioningStrategies();
-        switch (between(0, 11)) {
+        MinCompetitiveQuery.Status minCompetitive = instance.minCompetitive();
+        switch (between(0, 12)) {
             case 0 -> processedSlices = randomValueOtherThan(processedSlices, ESTestCase::randomNonNegativeInt);
             case 1 -> processedQueries = randomValueOtherThan(processedQueries, LuceneSourceOperatorStatusTests::randomProcessedQueries);
             case 2 -> processedShards = randomValueOtherThan(processedShards, LuceneSourceOperatorStatusTests::randomProcessedShards);
@@ -152,6 +155,10 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
                 partitioningStrategies,
                 LuceneSourceOperatorStatusTests::randomPartitioningStrategies
             );
+            case 12 -> minCompetitive = randomValueOtherThan(
+                minCompetitive,
+                MinCompetitiveQueryStatusTests::randomMinCompetitiveQueryStatus
+            );
             default -> throw new UnsupportedOperationException();
         }
         return new LuceneSourceOperator.Status(
@@ -166,7 +173,8 @@ public class LuceneSourceOperatorStatusTests extends AbstractWireSerializingTest
             sliceMax,
             current,
             rowsEmitted,
-            partitioningStrategies
+            partitioningStrategies,
+            minCompetitive
         );
     }
 }

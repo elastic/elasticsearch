@@ -271,6 +271,7 @@ final class ClusterComputeHandler implements TransportRequestHandler<ClusterComp
             plan,
             true,
             false,
+            computeService.globalBreaker(),
             configuration.profile() ? new PlanTimeProfile() : null
         );
         PhysicalPlan coordinatorPlan = reductionPlan.nodeReducePlan();

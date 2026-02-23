@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
@@ -912,7 +913,15 @@ public class CsvTests extends ESTestCase {
             var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
             var flags = new EsqlFlags(true);
             var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(
-                new LocalPhysicalOptimizerContext(PlannerSettings.DEFAULTS, flags, configuration, foldCtx, searchStats)
+                new LocalPhysicalOptimizerContext(
+                    PlannerSettings.DEFAULTS,
+                    flags,
+                    configuration,
+                    foldCtx,
+                    newLimitedBreaker(ByteSizeValue.ofMb(1)),
+                    searchStats,
+                    FilterPushdownRegistry.empty()
+                )
             );
 
             var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer, null);

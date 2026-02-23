@@ -43,7 +43,8 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
                 taskConcurrency,
                 maxPageSize,
                 limit,
-                false
+                false,
+                null
             );
         }
 
@@ -66,7 +67,7 @@ public final class TimeSeriesSourceOperator extends LuceneSourceOperator {
         int limit,
         Limiter limiter
     ) {
-        super(shardContextCounters, blockFactory, maxPageSize, sliceQueue, limit, limiter, false);
+        super(shardContextCounters, blockFactory, maxPageSize, sliceQueue, limit, limiter, false, null);
     }
 
     @Override

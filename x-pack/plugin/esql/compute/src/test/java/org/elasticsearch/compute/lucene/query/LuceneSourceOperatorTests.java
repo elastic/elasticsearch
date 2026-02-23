@@ -36,6 +36,8 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -240,6 +242,16 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> testCase.queryAndExtra();
         int maxPageSize = between(10, Math.max(10, numDocs));
         int taskConcurrency = randomIntBetween(1, 4);
+        MinCompetitiveQuery.Factory minCompetitive;
+        if (randomBoolean()) {
+            minCompetitive = null;
+        } else {
+            SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(
+                blockFactory().breaker(),
+                List.of(new SharedMinCompetitive.KeyConfig(ElementType.LONG, TopNEncoder.DEFAULT_SORTABLE, false, false))
+            );
+            minCompetitive = new MinCompetitiveQuery.Factory(supplier, (context, min, helper) -> helper.matchAll());
+        }
         return new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
@@ -248,7 +260,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             taskConcurrency,
             maxPageSize,
             limit,
-            scoring
+            scoring,
+            minCompetitive
         );
     }
 
@@ -555,4 +568,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             }
         }
     }
+
+    // NOCOMMIT test using MinCompetitiveQuery
+    // NOCOMMIT unit tests for MinCompetitiveQuery
 }

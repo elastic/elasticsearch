@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
@@ -197,9 +199,19 @@ public class PlannerUtils {
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan,
+        CircuitBreaker globalBreaker,
         PlanTimeProfile planTimeProfile
     ) {
-        return localPlan(plannerSettings, flags, configuration, foldCtx, plan, SearchContextStats.from(searchContexts), planTimeProfile);
+        return localPlan(
+            plannerSettings,
+            flags,
+            configuration,
+            foldCtx,
+            plan,
+            globalBreaker,
+            SearchContextStats.from(searchContexts),
+            planTimeProfile
+        );
     }
 
     public static PhysicalPlan localPlan(
@@ -208,12 +220,21 @@ public class PlannerUtils {
         Configuration configuration,
         FoldContext foldCtx,
         PhysicalPlan plan,
+        CircuitBreaker globalBreaker,
         SearchStats searchStats,
         PlanTimeProfile planTimeProfile
     ) {
         final var logicalOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
-            new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
+            new LocalPhysicalOptimizerContext(
+                plannerSettings,
+                flags,
+                configuration,
+                foldCtx,
+                globalBreaker,
+                searchStats,
+                FilterPushdownRegistry.empty()
+            )
         );
 
         return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);

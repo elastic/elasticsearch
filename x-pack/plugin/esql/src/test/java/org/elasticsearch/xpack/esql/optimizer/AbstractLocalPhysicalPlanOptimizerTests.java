@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -96,7 +97,11 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
                 )
             )
         );
-        plannerOptimizer = new TestPlannerOptimizer(config, makeAnalyzer("mapping-basic.json", enrichResolution));
+        plannerOptimizer = new TestPlannerOptimizer(
+            config,
+            makeAnalyzer("mapping-basic.json", enrichResolution),
+            newLimitedBreaker(ByteSizeValue.ofMb(1))
+        );
         var timeSeriesMapping = loadMapping("k8s-mappings.json");
         var timeSeriesIndex = IndexResolution.valid(
             EsIndexGenerator.esIndex("k8s", timeSeriesMapping, Map.of("k8s", IndexMode.TIME_SERIES))
@@ -114,7 +119,8 @@ public class AbstractLocalPhysicalPlanOptimizerTests extends MapperServiceTestCa
         plannerOptimizerTimeSeries = new TestPlannerOptimizer(
             config,
             timeSeriesAnalyzer,
-            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current()))
+            new LogicalPlanOptimizer(new LogicalOptimizerContext(config, FoldContext.small(), TransportVersion.current())),
+            newLimitedBreaker(ByteSizeValue.ofMb(1))
         );
     }
 

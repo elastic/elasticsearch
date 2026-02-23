@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
@@ -624,7 +625,8 @@ public class SubstituteRoundToTests extends AbstractLocalPhysicalPlanOptimizerTe
                         ),
                         query
                     ),
-                    makeAnalyzer("mapping-all-types.json")
+                    makeAnalyzer("mapping-all-types.json"),
+                    newLimitedBreaker(ByteSizeValue.ofMb(1))
                 );
                 EsqlFlags esqlFlags = new EsqlFlags(clusterLevelThreshold);
                 assertEquals(clusterLevelThreshold, esqlFlags.roundToPushdownThreshold());

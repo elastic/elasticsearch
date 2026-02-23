@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.Listeners;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
@@ -255,6 +256,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                         sink,
                         true,
                         true,
+                        newLimitedBreaker(ByteSizeValue.ofMb(1)),
                         new PlanTimeProfile()
 
                     );
@@ -374,6 +376,7 @@ public abstract class GoldenTestCase extends ESTestCase {
                 conf,
                 conf.newFoldContext(),
                 plan,
+                newLimitedBreaker(ByteSizeValue.ofMb(1)),
                 searchStats,
                 new PlanTimeProfile()
             );

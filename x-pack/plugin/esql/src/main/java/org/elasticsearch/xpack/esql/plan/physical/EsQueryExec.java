@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.operator.SideChannel;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -25,11 +28,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Order;
+import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     public static final EsField DOC_ID_FIELD = new EsField(
@@ -66,6 +71,12 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
      * {@code LuceneSliceQueue.QueryAndTags}
      */
     private final List<QueryBuilderAndTags> queryBuilderAndTags;
+
+    /**
+     * Optional {@link SideChannel} for reading information about the minimum competitive
+     * match from whatever is executing a {@link TopNExec}.
+     */
+    private final transient MinCompetitiveSetup minCompetitive;
 
     public interface Sort {
         SortBuilder<?> sortBuilder();
@@ -154,6 +165,30 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         this.estimatedRowSize = estimatedRowSize;
         // cannot keep the ctor with QueryBuilder as it has the same number of arguments as this ctor, EsqlNodeSubclassTests will fail
         this.queryBuilderAndTags = queryBuilderAndTags;
+        this.minCompetitive = null;
+    }
+
+    private EsQueryExec(
+        Source source,
+        String indexPattern,
+        IndexMode indexMode,
+        List<Attribute> attrs,
+        Expression limit,
+        List<Sort> sorts,
+        Integer estimatedRowSize,
+        List<QueryBuilderAndTags> queryBuilderAndTags,
+        MinCompetitiveSetup minCompetitive
+    ) {
+        super(source);
+        this.indexPattern = indexPattern;
+        this.indexMode = indexMode;
+        this.attrs = attrs;
+        this.limit = limit;
+        this.sorts = sorts;
+        this.estimatedRowSize = estimatedRowSize;
+        // cannot keep the ctor with QueryBuilder as it has the same number of arguments as this ctor, EsqlNodeSubclassTests will fail
+        this.queryBuilderAndTags = queryBuilderAndTags;
+        this.minCompetitive = minCompetitive;
     }
 
     @Override
@@ -219,6 +254,20 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         return attrs;
     }
 
+    public EsQueryExec withAttrs(List<Attribute> attrs) {
+        return new EsQueryExec(
+            source(),
+            indexPattern,
+            indexMode,
+            attrs,
+            limit,
+            sorts,
+            estimatedRowSize,
+            queryBuilderAndTags,
+            minCompetitive
+        );
+    }
+
     /**
      * Estimate of the number of bytes that'll be loaded per position before
      * the stream of pages is consumed.
@@ -241,13 +290,23 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.estimatedRowSize, size)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, size, queryBuilderAndTags);
+            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, size, queryBuilderAndTags, minCompetitive);
     }
 
     public EsQueryExec withLimit(Expression limit) {
         return Objects.equals(this.limit, limit)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
+            : new EsQueryExec(
+                source(),
+                indexPattern,
+                indexMode,
+                attrs,
+                limit,
+                sorts,
+                estimatedRowSize,
+                queryBuilderAndTags,
+                minCompetitive
+            );
     }
 
     public boolean canPushSorts() {
@@ -261,7 +320,17 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
         return Objects.equals(this.sorts, sorts)
             ? this
-            : new EsQueryExec(source(), indexPattern, indexMode, attrs, limit, sorts, estimatedRowSize, queryBuilderAndTags);
+            : new EsQueryExec(
+                source(),
+                indexPattern,
+                indexMode,
+                attrs,
+                limit,
+                sorts,
+                estimatedRowSize,
+                queryBuilderAndTags,
+                minCompetitive
+            );
     }
 
     /**
@@ -281,12 +350,60 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
                 limit,
                 sorts,
                 estimatedRowSize,
-                List.of(new QueryBuilderAndTags(query, List.of()))
+                List.of(new QueryBuilderAndTags(query, List.of())),
+                minCompetitive
             );
     }
 
     public List<QueryBuilderAndTags> queryBuilderAndTags() {
         return queryBuilderAndTags;
+    }
+
+    public EsQueryExec withQueryBuilderAndTags(List<EsQueryExec.QueryBuilderAndTags> queryBuilderAndTags) {
+        return new EsQueryExec(
+            source(),
+            indexPattern,
+            indexMode,
+            attrs,
+            limit,
+            sorts,
+            estimatedRowSize,
+            queryBuilderAndTags,
+            minCompetitive
+        );
+    }
+
+    public EsQueryExec withMinCompetitive(MinCompetitiveSetup minCompetitive) {
+        return new EsQueryExec(
+            source(),
+            indexPattern,
+            indexMode,
+            attrs,
+            limit,
+            sorts,
+            estimatedRowSize,
+            queryBuilderAndTags,
+            minCompetitive
+        );
+    }
+
+    public Function<EsQueryExec, EsQueryExec> offerMinCompetitive(SharedMinCompetitive.Supplier minCompetitive, List<Order> order) {
+        if (queryBuilderAndTags.size() > 1) {
+            // TODO figure out how to handle many queries
+            return null;
+        }
+        if (order.getFirst().child() instanceof FieldAttribute fa) {
+            if (PlannerUtils.toElementType(fa.dataType()) != ElementType.LONG) {
+                return null;
+            }
+            return exec -> exec.withMinCompetitive(new MinCompetitiveSetup(minCompetitive, fa.qualifiedName()));
+        }
+        // NOCOMMIT what happens if the topn offers attributes from a join or something?
+        return null;
+    }
+
+    public MinCompetitiveSetup minCompetitive() {
+        return minCompetitive;
     }
 
     public boolean canSubstituteRoundToWithQueryBuilderAndTags() {
@@ -323,7 +440,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public int hashCode() {
-        return Objects.hash(indexPattern, indexMode, attrs, limit, sorts, queryBuilderAndTags);
+        return Objects.hash(indexPattern, indexMode, attrs, limit, sorts, queryBuilderAndTags, minCompetitive);
     }
 
     @Override
@@ -343,7 +460,8 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             && Objects.equals(limit, other.limit)
             && Objects.equals(sorts, other.sorts)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
-            && Objects.equals(queryBuilderAndTags, other.queryBuilderAndTags);
+            && Objects.equals(queryBuilderAndTags, other.queryBuilderAndTags)
+            && Objects.equals(minCompetitive, other.minCompetitive);
     }
 
     @Override
@@ -409,4 +527,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             return searchOrder;
         }
     }
+
+    public record MinCompetitiveSetup(SharedMinCompetitive.Supplier minCompetitive, String firstFieldName) {}
 }

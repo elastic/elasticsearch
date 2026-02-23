@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.FilterPushdownRegistry;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistance;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -424,7 +426,9 @@ public class PushTopNToSourceTests extends ESTestCase {
             new EsqlFlags(true),
             configuration,
             FoldContext.small(),
-            SearchStats.EMPTY
+            newLimitedBreaker(ByteSizeValue.ofMb(1)),
+            SearchStats.EMPTY,
+            FilterPushdownRegistry.empty()
         );
         var pushTopNToSource = new PushTopNToSource();
         return pushTopNToSource.rule(topNExec, ctx);

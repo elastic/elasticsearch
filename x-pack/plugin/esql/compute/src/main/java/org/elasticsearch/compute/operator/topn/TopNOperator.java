@@ -300,6 +300,7 @@ public class TopNOperator implements Operator, Accountable {
      */
     @Nullable
     private final SharedMinCompetitive minCompetitive;
+
     /**
      * How many times {@link #minCompetitive} was updated.
      */

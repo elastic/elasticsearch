@@ -363,6 +363,11 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     }
 
     @Override
+    protected MinCompetitiveQuery.Status minCompetitiveStatus() {
+        return null;
+    }
+
+    @Override
     protected void additionalClose() {
         Releasables.close(() -> driverContext.breaker().addWithoutBreaking(-reserveSize()));
     }

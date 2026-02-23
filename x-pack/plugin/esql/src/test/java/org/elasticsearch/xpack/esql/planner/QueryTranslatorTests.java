@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.planner;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -78,8 +79,16 @@ public class QueryTranslatorTests extends ESTestCase {
 
     @BeforeClass
     public static void init() {
-        plannerOptimizer = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer("test", "mapping-all-types.json"));
-        plannerOptimizerIPs = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer("hosts", "mapping-hosts.json"));
+        plannerOptimizer = new TestPlannerOptimizer(
+            EsqlTestUtils.TEST_CFG,
+            makeAnalyzer("test", "mapping-all-types.json"),
+            newLimitedBreaker(ByteSizeValue.ofMb(1))
+        );
+        plannerOptimizerIPs = new TestPlannerOptimizer(
+            EsqlTestUtils.TEST_CFG,
+            makeAnalyzer("hosts", "mapping-hosts.json"),
+            newLimitedBreaker(ByteSizeValue.ofMb(1))
+        );
     }
 
     @Override
@@ -327,7 +336,11 @@ public class QueryTranslatorTests extends ESTestCase {
 
     public void testToDateNanos() {
         IndexResolution indexWithUnionTypedFields = indexWithDateDateNanosUnionType();
-        plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(EsqlTestUtils.TEST_CFG, makeAnalyzer(indexWithUnionTypedFields));
+        plannerOptimizerDateDateNanosUnionTypes = new TestPlannerOptimizer(
+            EsqlTestUtils.TEST_CFG,
+            makeAnalyzer(indexWithUnionTypedFields),
+            newLimitedBreaker(ByteSizeValue.ofMb(1))
+        );
         var stats = EsqlTestUtils.statsForExistingField("date_and_date_nanos", "date_and_date_nanos_and_long");
 
         // == term

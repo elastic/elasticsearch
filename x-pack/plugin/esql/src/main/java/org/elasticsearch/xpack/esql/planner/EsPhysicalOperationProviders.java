@@ -27,6 +27,7 @@ import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.query.LuceneSliceQueue;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.lucene.query.MinCompetitiveQuery;
 import org.elasticsearch.compute.lucene.query.TimeSeriesSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.Operator;
@@ -328,10 +329,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
     ) {
         return ctx -> queryAndTagsFromEsQueryExec.stream().map(queryBuilderAndTags -> {
             QueryBuilder qb = queryBuilderAndTags.query();
-            return new LuceneSliceQueue.QueryAndTags(
-                shardContexts.get(ctx.index()).toQuery(qb == null ? QueryBuilders.matchAllQuery().boost(0.0f) : qb),
-                queryBuilderAndTags.tags()
-            );
+            Query query = shardContexts.get(ctx.index()).toQuery(qb == null ? QueryBuilders.matchAllQuery().boost(0.0f) : qb);
+            return new LuceneSliceQueue.QueryAndTags(query, queryBuilderAndTags.tags());
         }).toList();
     }
 
@@ -346,6 +345,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold(context.foldCtx()) : NO_LIMIT;
         boolean scoring = esQueryExec.hasScoring();
         if (sorts != null && sorts.isEmpty() == false) {
+            if (esQueryExec.minCompetitive() != null) {
+                throw new IllegalStateException("minCompetitive not supported");
+            }
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
             long estimatedPerRowSortSize = 0;
             for (Sort sort : sorts) {
@@ -372,6 +374,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 scoring
             );
         } else if (esQueryExec.indexMode() == IndexMode.TIME_SERIES) {
+            if (esQueryExec.minCompetitive() != null) {
+                throw new IllegalStateException("minCompetitive not supported");
+            }
             luceneFactory = new TimeSeriesSourceOperator.Factory(
                 shardContexts,
                 querySupplier(esQueryExec.queryBuilderAndTags()),
@@ -388,7 +393,8 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
                 context.queryPragmas().taskConcurrency(),
                 context.pageSize(esQueryExec, rowEstimatedSize),
                 limit,
-                scoring
+                scoring,
+                planMinCompetitive(esQueryExec.minCompetitive())
             );
         }
         Layout.Builder layout = new Layout.Builder();
@@ -422,6 +428,19 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
             fieldInfos.add(new ValuesSourceReaderOperator.FieldInfo(fieldName, elementType, nullsFiltered, loaderAndConverter));
         }
         return fieldInfos;
+    }
+
+    private MinCompetitiveQuery.Factory planMinCompetitive(EsQueryExec.MinCompetitiveSetup minCompetitive) {
+        if (minCompetitive == null) {
+            return null;
+        }
+        MinCompetitiveQuery.BuildMinCompetitiveQuery buildMinCompetitiveQuery = (ctx, page) -> {
+            SearchExecutionContext executionContext = ((DefaultShardContext) ctx).ctx;
+            EsMinCompetitiveQueries minCompetitiveQueries = new EsMinCompetitiveQueries(minCompetitive, executionContext);
+            Query q = minCompetitiveQueries.buildMinCompetitiveQuery(page);
+            return q.rewrite(executionContext.searcher());
+        };
+        return new MinCompetitiveQuery.Factory(minCompetitive.minCompetitive(), buildMinCompetitiveQuery);
     }
 
     /**

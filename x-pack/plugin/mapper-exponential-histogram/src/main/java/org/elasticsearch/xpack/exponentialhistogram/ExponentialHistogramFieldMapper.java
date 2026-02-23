@@ -181,6 +181,11 @@ public class ExponentialHistogramFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public ExponentialHistogramFieldMapper build(MapperBuilderContext context) {
             return new ExponentialHistogramFieldMapper(
                 leafName(),

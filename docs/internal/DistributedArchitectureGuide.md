@@ -278,10 +278,16 @@ to communicate with Elasticsearch.
 [IndexMetadata]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/metadata/IndexMetadata.java
 
 
-The [ClusterState] is the in-memory data structure that represents the current state of the cluster. It is
-(conceptually) immutable: every update produces a new instance of the `ClusterState` class.
-The elected master is responsible for coordinating all cluster state updates and publishing the latest to the other
-nodes in the cluster.
+The [ClusterState] is the portion of the cluster state which is held in-memory by every node. To ensure
+correctness, updates to the `ClusterState` require strong
+consistency ([linearizable](https://en.wikipedia.org/wiki/Linearizability)). Without strong consistency, nodes could
+observe conflicting cluster states (eg two nodes could believe they both hold the primary for the same shard, or apply
+different mappings to the same index) leading to data loss or corruption.
+
+The `ClusterState` is (conceptually) immutable: every update produces a new instance of the `ClusterState` class. The
+elected master is responsible for coordinating all cluster state updates and publishing the latest to the other nodes in
+the cluster. Note that `ClusterState` updates are expensive, often taking hundreds of milliseconds or more, so they
+should only be executed when absolutely necessary.
 
 The [Metadata] part of the `ClusterState` is persisted to disk via the [PersistedClusterStateService] and will survive
 restarts. The rest of the `ClusterState` components are in-memory only, and need to be rebuilt every time there is a
@@ -297,7 +303,7 @@ full cluster restart.
 
 The [Metadata] of a [ClusterState] is persisted on disk and comprises information from two categories:
 
-1. Cluster scope information
+1. Cluster-scoped information
 
 A few standouts are:
 
@@ -308,7 +314,7 @@ A few standouts are:
   via [the cluster settings API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings).
 - `customs`: cluster-level custom metadata: `NodesShutdownMetadata`, `RepositoriesMetadata` .. etc.
 
-2. Project scope information (located in the [ProjectMetadata])
+2. Project-scoped information (located in the [ProjectMetadata])
 
 Notable components of the `ProjectMetadata` include:
 
@@ -352,7 +358,7 @@ Note that some concepts are applicable to both cluster and project scopes, e.g. 
 
 [ClusterFeatures]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/ClusterFeatures.java
 
-The rest of the [ClusterState] is ephemeral, it is not persisted to disk and is rebuilt from scratch when the cluster
+The rest of the [ClusterState] is ephemeral, it is not persisted to disk and is rebuilt from scratch if the cluster
 restarts. Some key components are:
 
 - `nodes` ([DiscoveryNodes])
@@ -435,7 +441,35 @@ assigns a new `version` and `stateUUID` to the state and proceeds to publication
 
 #### Cluster State Publication
 
-![Alt text](images/cluster-state-publication.png)
+```mermaid
+sequenceDiagram
+    participant M as Master Node
+    participant F as Follower Node
+
+    rect rgb(255, 248, 240)
+    Note over M,F: Phase 1 — Publish
+    M->>F: PublishRequest (diff or full state)
+    Note right of F: PublicationTransportHandler<br/>::handleIncomingPublishRequest<br/>Deserializes state
+    Note right of F: CoordinationState<br/>::handlePublishRequest<br/>Validates term/version,<br/>persists as lastAcceptedState
+    F->>M: PublishResponse (term, version)
+    Note left of M: CoordinationState<br/>::handlePublishResponse<br/>Collects responses until quorum
+    end
+
+    rect rgb(255, 220, 220)
+    alt Quorum not reached
+        Note over M: FailedToCommitClusterStateException<br/>Master steps down, new election begins
+    end
+    end
+
+    rect rgb(255, 248, 240)
+    Note over M,F: Phase 2 — Commit
+    M->>F: ApplyCommitRequest
+    Note right of F: Coordinator::handleApplyCommit<br/>Marks last accepted state as committed
+    Note right of F: ClusterApplierService<br/>::onNewClusterState<br/>Applies new ClusterState
+    F->>M: ACK (after application completes)
+    Note left of M: ClusterApplierService<br/>::onNewClusterState<br/>Master applies its own state
+    end
+```
 
 [Coordinator]:https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java
 
@@ -506,23 +540,22 @@ that responded to the `PublishRequest`.
 
 When receiving this request, each
 node [marks this last accepted state as committed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L517)
-and proceeds to apply the new state (see [Cluster State Application](#cluster-state-application) section).
+and proceeds to apply the new state (see [Cluster State Application](#cluster-state-application) section). The node
+only ACKs the `ApplyCommitRequest` back to the master after application completes (i.e. after
+`ClusterApplierService.onNewClusterState` finishes).
 
 If the master cannot achieve a [PublishResponse] quorum (e.g. too many nodes are faulty), the [Publication] will fail
-the entire
-publication with
+the entire publication with
 a [FailedToCommitClusterStateException](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/FailedToCommitClusterStateException.java).
 The master will then step down (it can no longer be master if it is not able to publish cluster states) and a new
-election
-begins.
+election begins.
 
-Once the [ApplyCommitRequest] have been sent, the master will
+Once the `ApplyCommitRequest`s have been sent, the master will
 try [waiting](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Publication.java#L103)
-for all nodes to commit
+for all nodes to apply the new state
 before [applying its own state](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/Coordinator.java#L2056)
-and moving on. But it no longer needs
-a quorum of responses at that point. If the nodes time out, the master will still move on
-to applying the new cluster state locally.
+and moving on. No quorum of responses is needed at that point. If follower nodes time out, the master will still
+move on to applying the new cluster state locally.
 
 #### Cluster State Application
 

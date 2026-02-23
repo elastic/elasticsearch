@@ -87,9 +87,15 @@ public class VectorScorerInt7uBulkBenchmark {
     public int numVectors;
     public int numVectorsToScore;
 
-    @Param({ "32" })
+    // Bulk sizes to test.
+    // DiskBBQ has two bulk sizes, 16 and 32
+    // HNSW params will have the distributed ordinal bulk sizes depending on the number of connections in the graph
+    // The default is 16, maximum is 512, and the bottom layer is 2x that the configured setting, so 1024 is a maximum
+    // the MOST common case here is 32
+    @Param({ "16", "32", "64", "256", "1024" })
     public int bulkSize;
 
+    @Param({ "SCALAR", "LUCENE", "NATIVE" })
     public VectorImplementation implementation;
 
     @Param({ "DOT_PRODUCT", "EUCLIDEAN" })

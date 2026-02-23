@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.codec.vectors.BaseHnswVectorsFormatTestCase;
 import org.elasticsearch.index.codec.vectors.es93.ES93GenericFlatVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.junit.AssumptionViolatedException;
 import org.junit.Before;
@@ -101,7 +102,7 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
                 is(
                     "ES94HnswScalarQuantizedVectorsFormat(name=ES94HnswScalarQuantizedVectorsFormat, maxConn=10, beamWidth=20, "
                         + "hnswGraphThreshold="
-                        + ES94HnswScalarQuantizedVectorsFormat.HNSW_GRAPH_THRESHOLD
+                        + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD
                         + ", flatVectorFormat=ES94ScalarQuantizedVectorsFormat("
                         + "name=ES94ScalarQuantizedVectorsFormat, encoding=DIBIT_QUERY_NIBBLE, "
                         + "flatVectorScorer="
@@ -135,7 +136,7 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
 
     public void testDefaultHnswGraphThreshold() {
         KnnVectorsFormat format = createFormat(16, 100);
-        assertThat(format.toString().contains("hnswGraphThreshold=" + ES94HnswScalarQuantizedVectorsFormat.HNSW_GRAPH_THRESHOLD), is(true));
+        assertThat(format.toString().contains("hnswGraphThreshold=" + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD), is(true));
     }
 
     public void testHnswGraphThresholdWithCustomValue() {
@@ -152,6 +153,6 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
 
     public void testHnswGraphThresholdWithNegativeValueFallsBackToDefault() {
         KnnVectorsFormat format = createFormat(16, 100, 1, null, -1);
-        assertThat(format.toString().contains("hnswGraphThreshold=" + ES94HnswScalarQuantizedVectorsFormat.HNSW_GRAPH_THRESHOLD), is(true));
+        assertThat(format.toString().contains("hnswGraphThreshold=" + ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD), is(true));
     }
 }

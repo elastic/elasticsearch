@@ -1491,19 +1491,19 @@ public class DenseVectorFieldMapper extends FieldMapper {
             public DenseVectorIndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap, IndexVersion indexVersion) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
-                Object graphBuildThresholdNode = indexOptionsMap.remove("graph_build_threshold");
+                Object flatIndexThresholdNode = indexOptionsMap.remove("flat_index_threshold");
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
 
                 int m = XContentMapValues.nodeIntegerValue(mNode, Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode, Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH);
-                int graphBuildThreshold = XContentMapValues.nodeIntegerValue(graphBuildThresholdNode, -1);
+                int flatIndexThreshold = XContentMapValues.nodeIntegerValue(flatIndexThresholdNode, -1);
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
                 if (onDiskRescore) {
                     throw new IllegalArgumentException("on_disk_rescore is only supported for indexed and quantized vector types");
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
 
-                return new HnswIndexOptions(m, efConstruction, graphBuildThreshold);
+                return new HnswIndexOptions(m, efConstruction, flatIndexThreshold);
             }
 
             @Override
@@ -1523,12 +1523,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
-                Object graphBuildThresholdNode = indexOptionsMap.remove("graph_build_threshold");
+                Object flatIndexThresholdNode = indexOptionsMap.remove("flat_index_threshold");
 
                 int m = XContentMapValues.nodeIntegerValue(mNode, Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode, Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH);
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
-                int graphBuildThreshold = XContentMapValues.nodeIntegerValue(graphBuildThresholdNode, -1);
+                int flatIndexThreshold = XContentMapValues.nodeIntegerValue(flatIndexThresholdNode, -1);
 
                 Float confidenceInterval = null;
                 if (confidenceIntervalNode != null) {
@@ -1539,7 +1539,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     rescoreVector = RescoreVector.fromIndexOptions(indexOptionsMap, indexVersion);
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new Int8HnswIndexOptions(m, efConstruction, confidenceInterval, onDiskRescore, rescoreVector, graphBuildThreshold);
+                return new Int8HnswIndexOptions(m, efConstruction, confidenceInterval, onDiskRescore, rescoreVector, flatIndexThreshold);
             }
 
             @Override
@@ -1558,12 +1558,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
-                Object graphBuildThresholdNode = indexOptionsMap.remove("graph_build_threshold");
+                Object flatIndexThresholdNode = indexOptionsMap.remove("flat_index_threshold");
 
                 int m = XContentMapValues.nodeIntegerValue(mNode, Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode, Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH);
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
-                int graphBuildThreshold = XContentMapValues.nodeIntegerValue(graphBuildThresholdNode, -1);
+                int flatIndexThreshold = XContentMapValues.nodeIntegerValue(flatIndexThresholdNode, -1);
 
                 Float confidenceInterval = null;
                 if (confidenceIntervalNode != null) {
@@ -1575,7 +1575,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
 
-                return new Int4HnswIndexOptions(m, efConstruction, confidenceInterval, onDiskRescore, rescoreVector, graphBuildThreshold);
+                return new Int4HnswIndexOptions(m, efConstruction, confidenceInterval, onDiskRescore, rescoreVector, flatIndexThreshold);
             }
 
             @Override
@@ -1678,12 +1678,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
                 Object onDiskRescoreNode = indexOptionsMap.remove("on_disk_rescore");
-                Object graphBuildThresholdNode = indexOptionsMap.remove("graph_build_threshold");
+                Object flatIndexThresholdNode = indexOptionsMap.remove("flat_index_threshold");
 
                 int m = XContentMapValues.nodeIntegerValue(mNode, Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN);
                 int efConstruction = XContentMapValues.nodeIntegerValue(efConstructionNode, Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH);
                 boolean onDiskRescore = XContentMapValues.nodeBooleanValue(onDiskRescoreNode, false);
-                int graphBuildThreshold = XContentMapValues.nodeIntegerValue(graphBuildThresholdNode, -1);
+                int flatIndexThreshold = XContentMapValues.nodeIntegerValue(flatIndexThresholdNode, -1);
 
                 RescoreVector rescoreVector = null;
                 if (hasRescoreIndexVersion(indexVersion)) {
@@ -1694,7 +1694,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
 
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
-                return new BBQHnswIndexOptions(m, efConstruction, onDiskRescore, rescoreVector, graphBuildThreshold);
+                return new BBQHnswIndexOptions(m, efConstruction, onDiskRescore, rescoreVector, flatIndexThreshold);
             }
 
             @Override
@@ -1962,7 +1962,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int efConstruction;
         private final float confidenceInterval;
         private final boolean onDiskRescore;
-        private final int graphBuildThreshold;
+        private final int flatIndexThreshold;
 
         public Int4HnswIndexOptions(
             int m,
@@ -1970,7 +1970,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float confidenceInterval,
             boolean onDiskRescore,
             RescoreVector rescoreVector,
-            int graphBuildThreshold
+            int flatIndexThreshold
         ) {
             super(VectorIndexType.INT4_HNSW, rescoreVector);
             this.m = m;
@@ -1979,7 +1979,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
             // effectively required for int4 to behave well across a wide range of data.
             this.confidenceInterval = confidenceInterval == null ? 0f : confidenceInterval;
             this.onDiskRescore = onDiskRescore;
-            this.graphBuildThreshold = graphBuildThreshold;
+            this.flatIndexThreshold = flatIndexThreshold;
         }
 
         @Override
@@ -1995,7 +1995,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 onDiskRescore,
                 numMergeWorkers,
                 mergingExecutorService,
-                graphBuildThreshold
+                flatIndexThreshold
             );
         }
 
@@ -2012,8 +2012,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
-            if (graphBuildThreshold >= 0) {
-                builder.field("graph_build_threshold", graphBuildThreshold);
+            if (flatIndexThreshold >= 0) {
+                builder.field("flat_index_threshold", flatIndexThreshold);
             }
             builder.endObject();
             return builder;
@@ -2027,12 +2027,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && Objects.equals(confidenceInterval, that.confidenceInterval)
                 && onDiskRescore == that.onDiskRescore
                 && Objects.equals(rescoreVector, that.rescoreVector)
-                && graphBuildThreshold == that.graphBuildThreshold;
+                && flatIndexThreshold == that.flatIndexThreshold;
         }
 
         @Override
         public int doHashCode() {
-            return Objects.hash(m, efConstruction, confidenceInterval, onDiskRescore, rescoreVector, graphBuildThreshold);
+            return Objects.hash(m, efConstruction, confidenceInterval, onDiskRescore, rescoreVector, flatIndexThreshold);
         }
 
         @Override
@@ -2040,8 +2040,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return false;
         }
 
-        public int graphBuildThreshold() {
-            return graphBuildThreshold;
+        public int flatIndexThreshold() {
+            return flatIndexThreshold;
         }
 
         @Override
@@ -2058,8 +2058,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 + onDiskRescore
                 + ", rescore_vector="
                 + (rescoreVector == null ? "none" : rescoreVector)
-                + ", graph_build_threshold="
-                + graphBuildThreshold
+                + ", flat_index_threshold="
+                + flatIndexThreshold
                 + "}";
         }
 
@@ -2146,7 +2146,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int efConstruction;
         private final Float confidenceInterval;
         private final boolean onDiskRescore;
-        private final int graphBuildThreshold;
+        private final int flatIndexThreshold;
 
         public Int8HnswIndexOptions(
             int m,
@@ -2154,14 +2154,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
             Float confidenceInterval,
             boolean onDiskRescore,
             RescoreVector rescoreVector,
-            int graphBuildThreshold
+            int flatIndexThreshold
         ) {
             super(VectorIndexType.INT8_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
             this.confidenceInterval = confidenceInterval;
             this.onDiskRescore = onDiskRescore;
-            this.graphBuildThreshold = graphBuildThreshold;
+            this.flatIndexThreshold = flatIndexThreshold;
         }
 
         @Override
@@ -2177,7 +2177,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 onDiskRescore,
                 numMergeWorkers,
                 mergingExecutorService,
-                graphBuildThreshold
+                flatIndexThreshold
             );
         }
 
@@ -2196,8 +2196,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
-            if (graphBuildThreshold >= 0) {
-                builder.field("graph_build_threshold", graphBuildThreshold);
+            if (flatIndexThreshold >= 0) {
+                builder.field("flat_index_threshold", flatIndexThreshold);
             }
             builder.endObject();
             return builder;
@@ -2213,12 +2213,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && Objects.equals(confidenceInterval, that.confidenceInterval)
                 && onDiskRescore == that.onDiskRescore
                 && Objects.equals(rescoreVector, that.rescoreVector)
-                && graphBuildThreshold == that.graphBuildThreshold;
+                && flatIndexThreshold == that.flatIndexThreshold;
         }
 
         @Override
         public int doHashCode() {
-            return Objects.hash(m, efConstruction, confidenceInterval, onDiskRescore, rescoreVector, graphBuildThreshold);
+            return Objects.hash(m, efConstruction, confidenceInterval, onDiskRescore, rescoreVector, flatIndexThreshold);
         }
 
         @Override
@@ -2238,8 +2238,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return confidenceInterval;
         }
 
-        public int graphBuildThreshold() {
-            return graphBuildThreshold;
+        public int flatIndexThreshold() {
+            return flatIndexThreshold;
         }
 
         @Override
@@ -2256,8 +2256,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 + onDiskRescore
                 + ", rescore_vector="
                 + (rescoreVector == null ? "none" : rescoreVector)
-                + ", graph_build_threshold="
-                + graphBuildThreshold
+                + ", flat_index_threshold="
+                + flatIndexThreshold
                 + "}";
         }
 
@@ -2283,18 +2283,18 @@ public class DenseVectorFieldMapper extends FieldMapper {
     public static class HnswIndexOptions extends DenseVectorIndexOptions {
         private final int m;
         private final int efConstruction;
-        private final int graphBuildThreshold;
+        private final int flatIndexThreshold;
 
-        HnswIndexOptions(int m, int efConstruction, int graphBuildThreshold) {
+        HnswIndexOptions(int m, int efConstruction, int flatIndexThreshold) {
             super(VectorIndexType.HNSW);
             this.m = m;
             this.efConstruction = efConstruction;
-            this.graphBuildThreshold = graphBuildThreshold;
+            this.flatIndexThreshold = flatIndexThreshold;
         }
 
         @Override
         public KnnVectorsFormat getVectorsFormat(ElementType elementType, ExecutorService mergingExecutorService, int numMergeWorkers) {
-            return new ES93HnswVectorsFormat(m, efConstruction, elementType, numMergeWorkers, mergingExecutorService, graphBuildThreshold);
+            return new ES93HnswVectorsFormat(m, efConstruction, elementType, numMergeWorkers, mergingExecutorService, flatIndexThreshold);
         }
 
         @Override
@@ -2317,8 +2317,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             builder.field("type", type);
             builder.field("m", m);
             builder.field("ef_construction", efConstruction);
-            if (graphBuildThreshold >= 0) {
-                builder.field("graph_build_threshold", graphBuildThreshold);
+            if (flatIndexThreshold >= 0) {
+                builder.field("flat_index_threshold", flatIndexThreshold);
             }
             builder.endObject();
             return builder;
@@ -2329,12 +2329,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             HnswIndexOptions that = (HnswIndexOptions) o;
-            return m == that.m && efConstruction == that.efConstruction && graphBuildThreshold == that.graphBuildThreshold;
+            return m == that.m && efConstruction == that.efConstruction && flatIndexThreshold == that.flatIndexThreshold;
         }
 
         @Override
         public int doHashCode() {
-            return Objects.hash(m, efConstruction, graphBuildThreshold);
+            return Objects.hash(m, efConstruction, flatIndexThreshold);
         }
 
         @Override
@@ -2350,8 +2350,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return efConstruction;
         }
 
-        public int graphBuildThreshold() {
-            return graphBuildThreshold;
+        public int flatIndexThreshold() {
+            return flatIndexThreshold;
         }
 
         @Override
@@ -2362,8 +2362,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 + m
                 + ", ef_construction="
                 + efConstruction
-                + ", graph_build_threshold="
-                + graphBuildThreshold
+                + ", flat_index_threshold="
+                + flatIndexThreshold
                 + "}";
         }
     }
@@ -2372,14 +2372,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
         private final int m;
         private final int efConstruction;
         private final boolean onDiskRescore;
-        private final int graphBuildThreshold;
+        private final int flatIndexThreshold;
 
-        public BBQHnswIndexOptions(int m, int efConstruction, boolean onDiskRescore, RescoreVector rescoreVector, int graphBuildThreshold) {
+        public BBQHnswIndexOptions(int m, int efConstruction, boolean onDiskRescore, RescoreVector rescoreVector, int flatIndexThreshold) {
             super(VectorIndexType.BBQ_HNSW, rescoreVector);
             this.m = m;
             this.efConstruction = efConstruction;
             this.onDiskRescore = onDiskRescore;
-            this.graphBuildThreshold = graphBuildThreshold;
+            this.flatIndexThreshold = flatIndexThreshold;
         }
 
         @Override
@@ -2392,7 +2392,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 onDiskRescore,
                 numMergeWorkers,
                 mergingExecutorService,
-                graphBuildThreshold
+                flatIndexThreshold
             );
         }
 
@@ -2408,12 +2408,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 && efConstruction == that.efConstruction
                 && onDiskRescore == that.onDiskRescore
                 && Objects.equals(rescoreVector, that.rescoreVector)
-                && graphBuildThreshold == that.graphBuildThreshold;
+                && flatIndexThreshold == that.flatIndexThreshold;
         }
 
         @Override
         int doHashCode() {
-            return Objects.hash(m, efConstruction, onDiskRescore, rescoreVector, graphBuildThreshold);
+            return Objects.hash(m, efConstruction, onDiskRescore, rescoreVector, flatIndexThreshold);
         }
 
         @Override
@@ -2421,8 +2421,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             return false;
         }
 
-        public int graphBuildThreshold() {
-            return graphBuildThreshold;
+        public int flatIndexThreshold() {
+            return flatIndexThreshold;
         }
 
         @Override
@@ -2437,8 +2437,8 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (rescoreVector != null) {
                 rescoreVector.toXContent(builder, params);
             }
-            if (graphBuildThreshold >= 0) {
-                builder.field("graph_build_threshold", graphBuildThreshold);
+            if (flatIndexThreshold >= 0) {
+                builder.field("flat_index_threshold", flatIndexThreshold);
             }
             builder.endObject();
             return builder;

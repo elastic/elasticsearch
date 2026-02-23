@@ -17,6 +17,7 @@ import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.elasticsearch.index.codec.vectors.AbstractHnswVectorsFormat;
+import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
 import java.io.IOException;
@@ -25,16 +26,11 @@ import java.util.concurrent.ExecutorService;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
 import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
+import static org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat.HNSW_GRAPH_THRESHOLD;
 
 public class ES94HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFormat {
 
     static final String NAME = "ES94HnswScalarQuantizedVectorsFormat";
-    /**
-     * For k=100, we ask by default to search a graph of 100*1.5=150 results.
-     * So the threshold is set to 150 to match this expected search cost.
-     */
-    public static final int HNSW_GRAPH_THRESHOLD = 150;
-
     private final FlatVectorsFormat flatVectorFormat;
 
     public ES94HnswScalarQuantizedVectorsFormat() {

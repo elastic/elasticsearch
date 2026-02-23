@@ -206,7 +206,8 @@ public class KnnIndexTester {
                     quantizeBits,
                     false,
                     mergeWorkers,
-                    exec
+                    exec,
+                    args.flatIndexThreshold()
                 );
             };
             case FLAT -> switch (quantizeBits) {

@@ -302,7 +302,7 @@ record TestConfiguration(
         private List<SearchParameters.Builder> searchParams = null;
         private int numMergeWorkers = 1;
         private int secondaryClusterSize = -1;
-        private int flatIndexThreshold = 0;
+        private int flatIndexThreshold = -1; // use format's default threshold
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is

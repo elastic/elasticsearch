@@ -100,13 +100,13 @@ public class HnswGraphThresholdIT extends ESIntegTestCase {
     }
 
     /**
-     * Tests that setting graph_build_threshold=0 forces graph to always be built, even with few vectors.
+     * Tests that setting flat_index_threshold=0 forces graph to always be built, even with few vectors.
      */
     public void testGraphAlwaysBuiltWithThresholdZero() throws Exception {
         IndexTypeConfig config = randomIndexTypeConfig();
-        logger.info("Testing graph_build_threshold=0 with index type: {}, element type: {}", config.indexType, config.elementType);
+        logger.info("Testing flat_index_threshold=0 with index type: {}, element type: {}", config.indexType, config.elementType);
 
-        // Create index with graph_build_threshold=0 in mapping (always build graph)
+        // Create index with flat_index_threshold=0 in mapping (always build graph)
         assertAcked(
             prepareCreate(INDEX_NAME).setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -119,22 +119,22 @@ public class HnswGraphThresholdIT extends ESIntegTestCase {
         indexVectors(smallDocCount, 0, config.elementType);
         flushAndRefresh(INDEX_NAME);
 
-        // Verify: with graph_build_threshold=0, graph SHOULD be built even with few vectors
+        // Verify: with flat_index_threshold=0, graph SHOULD be built even with few vectors
         DenseVectorStats stats = getDenseVectorStats();
         assertThat("Should have indexed vectors", stats.getValueCount(), equalTo((long) smallDocCount));
         Long vexSize = getVexSize(stats);
-        assertThat("Graph SHOULD be built with graph_build_threshold=0", vexSize, notNullValue());
+        assertThat("Graph SHOULD be built with flat_index_threshold=0", vexSize, notNullValue());
         assertThat("Graph size should be positive", vexSize, greaterThan(0L));
     }
 
     /**
-     * Tests that updating graph_build_threshold from default to 0 causes graph to be built on new segments.
+     * Tests that updating flat_index_threshold from default to 0 causes graph to be built on new segments.
      */
     public void testMappingUpdateToThresholdZero() throws Exception {
         IndexTypeConfig config = randomIndexTypeConfig();
         logger.info("Testing mapping update with index type: {}, element type: {}", config.indexType, config.elementType);
 
-        // Create index with default threshold (no graph_build_threshold specified)
+        // Create index with default threshold (no flat_index_threshold specified)
         assertAcked(
             prepareCreate(INDEX_NAME).setSettings(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -155,7 +155,7 @@ public class HnswGraphThresholdIT extends ESIntegTestCase {
             vexSizeBeforeUpdate == null || vexSizeBeforeUpdate == 0L
         );
 
-        // Update mapping to set graph_build_threshold=0 (always build graph)
+        // Update mapping to set flat_index_threshold=0 (always build graph)
         assertAcked(
             indicesAdmin().preparePutMapping(INDEX_NAME).setSource(createMappingWithThreshold(config.indexType, config.elementType, 0))
         );
@@ -170,12 +170,12 @@ public class HnswGraphThresholdIT extends ESIntegTestCase {
         int totalDocs = initialDocCount + additionalDocCount;
         assertThat("Should have indexed all vectors", statsAfterUpdate.getValueCount(), equalTo((long) totalDocs));
         Long vexSizeAfterUpdate = getVexSize(statsAfterUpdate);
-        assertThat("Graph SHOULD be built after updating graph_build_threshold to 0", vexSizeAfterUpdate, notNullValue());
+        assertThat("Graph SHOULD be built after updating flat_index_threshold to 0", vexSizeAfterUpdate, notNullValue());
         assertThat("Graph size should be positive", vexSizeAfterUpdate, greaterThan(0L));
     }
 
     /**
-     * Tests that multiple fields can have different graph_build_threshold values.
+     * Tests that multiple fields can have different flat_index_threshold values.
      * One field with threshold=0 should have graph built, another with default threshold should not.
      */
     public void testMultipleFields() throws Exception {
@@ -197,7 +197,7 @@ public class HnswGraphThresholdIT extends ESIntegTestCase {
             .field("element_type", config.elementType)
             .startObject("index_options")
             .field("type", config.indexType)
-            .field("graph_build_threshold", 0)
+            .field("flat_index_threshold", 0)
             .endObject()
             .endObject()
             .startObject(fieldWithDefaultThreshold)
@@ -235,7 +235,7 @@ public class HnswGraphThresholdIT extends ESIntegTestCase {
         DenseVectorStats stats = getDenseVectorStats();
 
         Long vexSizeWithThresholdZero = getVexSize(stats, fieldWithThresholdZero);
-        assertThat("Graph SHOULD be built for field with graph_build_threshold=0", vexSizeWithThresholdZero, notNullValue());
+        assertThat("Graph SHOULD be built for field with flat_index_threshold=0", vexSizeWithThresholdZero, notNullValue());
         assertThat("Graph size should be positive", vexSizeWithThresholdZero, greaterThan(0L));
 
         Long vexSizeWithDefault = getVexSize(stats, fieldWithDefaultThreshold);
@@ -290,7 +290,7 @@ public class HnswGraphThresholdIT extends ESIntegTestCase {
             .startObject("index_options")
             .field("type", indexType);
         if (graphThreshold != null) {
-            builder.field("graph_build_threshold", graphThreshold);
+            builder.field("flat_index_threshold", graphThreshold);
         }
         builder.endObject().endObject().endObject().endObject();
         return builder;

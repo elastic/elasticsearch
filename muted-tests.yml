@@ -452,6 +452,9 @@ tests:
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
   method: testSingleScalarVsVectorized {p0=1024 p1=1 p2=NIO p3=DOT_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/142881
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testSingleScalarVsVectorized {p0=384 p1=4 p2=NIO p3=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/142883
 
 # Examples:
 #

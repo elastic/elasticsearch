@@ -52,7 +52,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -166,11 +165,10 @@ public class LookupExecutionPlanner {
      */
     public PhysicalOperation buildOperatorFactories(
         PlannerSettings plannerSettings,
-        AbstractLookupService.TransportRequest request,
         PhysicalPlan physicalPlan,
         BlockOptimization blockOptimization,
         SourceOperatorFactory sourceFactory
-    ) throws IOException {
+    ) {
         return planLookupNode(plannerSettings, physicalPlan, blockOptimization, sourceFactory);
     }
 
@@ -228,10 +226,15 @@ public class LookupExecutionPlanner {
     /**
      * Recursively plans a PhysicalPlan node into a PhysicalOperation, processing children first.
      */
-    private PhysicalOperation planLookupNode(PlannerSettings plannerSettings, PhysicalPlan node, BlockOptimization optimizationState, SourceOperatorFactory sourceFactory){
+    private PhysicalOperation planLookupNode(
+        PlannerSettings plannerSettings,
+        PhysicalPlan node,
+        BlockOptimization optimizationState,
+        SourceOperatorFactory sourceFactory
+    ) {
         PhysicalOperation source;
         if (node instanceof UnaryExec unaryExec) {
-            source = planLookupNode(plannerSettings, unaryExec.child(), optimizationState, optimizationState);
+            source = planLookupNode(plannerSettings, unaryExec.child(), optimizationState, sourceFactory);
         } else {
             // there could be a leaf node such as ParameterizedQueryExec
             source = null;

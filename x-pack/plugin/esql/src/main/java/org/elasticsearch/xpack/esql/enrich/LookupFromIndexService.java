@@ -585,7 +585,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
 
             // Build operators using the planning system with the actual source factory
             LocalExecutionPlanner.PhysicalOperation physicalOperation = executionPlanner.buildOperatorFactories(
-                request,
+                plannerSettings,
                 physicalPlan,
                 BlockOptimization.NONE,
                 sourceFactory

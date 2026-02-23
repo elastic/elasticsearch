@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Esq
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.hamcrest.Matcher;
@@ -303,6 +304,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
         // Build cluster state with server nodes having shards, client node does NOT have shard
         var builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         builtInClusterSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
+        builtInClusterSettings.addAll(PlannerSettings.settings());
         ClusterService clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
             clientTransport.getLocalNode(),
@@ -363,6 +365,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
                 bigArrays,
                 blockFactory,
                 TestProjectResolvers.singleProject(projectId),
+                new PlannerSettings.Holder(serverClusterService),
                 serverExchangeService
             );
         }
@@ -381,6 +384,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             bigArrays,
             blockFactory,
             TestProjectResolvers.singleProject(projectId),
+            new PlannerSettings.Holder(clusterService),
             clientExchangeService
         );
     }
@@ -399,6 +403,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
         // Build cluster state with local node having the shard
         var builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         builtInClusterSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
+        builtInClusterSettings.addAll(PlannerSettings.settings());
         ClusterService clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
             localTransport.getLocalNode(),
@@ -436,6 +441,7 @@ public class StreamingLookupFromIndexOperatorTests extends OperatorTestCase {
             bigArrays,
             blockFactory,
             TestProjectResolvers.singleProject(projectId),
+            new PlannerSettings.Holder(clusterService),
             exchangeService
         );
     }

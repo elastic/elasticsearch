@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.IntsBlockLoader;
@@ -29,34 +30,34 @@ public class MvMaxIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocV
     }
 
     @Override
-    protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
+    protected void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException {
         var intsLoader = new IntsBlockLoader("field");
         var mvMaxIntsLoader = new MvMaxIntsFromDocValuesBlockLoader("field");
-
-        var intsReader = intsLoader.reader(ctx);
-        var mvMaxIntsReader = mvMaxIntsLoader.reader(ctx);
-        assertThat(mvMaxIntsReader, readerMatcher());
         BlockLoader.Docs docs = TestBlock.docs(ctx);
-        try (
-            TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-            TestBlock minInts = read(mvMaxIntsLoader, mvMaxIntsReader, ctx, docs);
-        ) {
-            checkBlocks(ints, minInts);
-        }
 
-        intsReader = intsLoader.reader(ctx);
-        mvMaxIntsReader = mvMaxIntsLoader.reader(ctx);
-        for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-            int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-            for (int d = 0; d < docsArray.length; d++) {
-                docsArray[d] = i + d;
-            }
-            docs = TestBlock.docs(docsArray);
+        try (var intsReader = intsLoader.reader(breaker, ctx); var mvMaxIntsReader = mvMaxIntsLoader.reader(breaker, ctx);) {
+            assertThat(mvMaxIntsReader, readerMatcher());
             try (
                 TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-                TestBlock maxInts = read(mvMaxIntsLoader, mvMaxIntsReader, ctx, docs);
+                TestBlock minInts = read(mvMaxIntsLoader, mvMaxIntsReader, ctx, docs);
             ) {
-                checkBlocks(ints, maxInts);
+                checkBlocks(ints, minInts);
+            }
+        }
+
+        try (var intsReader = intsLoader.reader(breaker, ctx); var mvMaxIntsReader = mvMaxIntsLoader.reader(breaker, ctx);) {
+            for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                for (int d = 0; d < docsArray.length; d++) {
+                    docsArray[d] = i + d;
+                }
+                docs = TestBlock.docs(docsArray);
+                try (
+                    TestBlock ints = read(intsLoader, intsReader, ctx, docs);
+                    TestBlock maxInts = read(mvMaxIntsLoader, mvMaxIntsReader, ctx, docs);
+                ) {
+                    checkBlocks(ints, maxInts);
+                }
             }
         }
     }

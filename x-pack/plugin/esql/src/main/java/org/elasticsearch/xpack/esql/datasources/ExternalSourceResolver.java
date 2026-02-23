@@ -146,6 +146,21 @@ public class ExternalSourceResolver {
     }
 
     private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {
+        // Early scheme validation: reject unsupported schemes without loading any plugin factories
+        try {
+            StoragePath parsed = StoragePath.of(path);
+            DataSourceCapabilities capabilities = dataSourceModule.capabilities();
+            if (capabilities != null && capabilities.supportsScheme(parsed.scheme()) == false) {
+                throw new UnsupportedSchemeException(
+                    "Unsupported storage scheme [" + parsed.scheme() + "]. Supported: " + capabilities.supportedSchemesString()
+                );
+            }
+        } catch (UnsupportedSchemeException e) {
+            throw e;
+        } catch (IllegalArgumentException e) {
+            // Path parsing failed -- let the factory iteration handle it
+        }
+
         Exception lastFailure = null;
         for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
             if (factory.canHandle(path)) {

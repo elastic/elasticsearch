@@ -6,7 +6,7 @@
  */
 
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 description = 'Test plugin demonstrating ES|QL function registration from external module'
 
@@ -34,17 +34,18 @@ dependencies {
     testImplementation project(':x-pack:plugin:esql:compute:runtime')
     testImplementation project(':x-pack:plugin:esql-core')
     
-    // Integration test dependencies
-    internalClusterTestImplementation project(':x-pack:plugin:esql')
+    // REST test dependencies
+    javaRestTestImplementation project(':test:framework')
+    
+    // Include this plugin in the test cluster
+    clusterPlugins project(':x-pack:plugin:esql:qa:test-function-plugin')
 }
 
 tasks.named("javadoc").configure {
     enabled = false
 }
 
-// Configure test task to recognize IT tests
-tasks.named('test').configure {
-    include '**/*IT.class'
-    include '**/*Tests.class'
+// Configure the REST test cluster to include this plugin
+tasks.named('javaRestTest').configure {
+    usesDefaultDistribution("test-function-plugin requires ES|QL plugin which is part of default distribution")
 }
-

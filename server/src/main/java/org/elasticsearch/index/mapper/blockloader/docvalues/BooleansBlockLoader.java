@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 
 public class BooleansBlockLoader extends AbstractBooleansBlockLoader {
     public BooleansBlockLoader(String fieldName) {
@@ -18,13 +19,13 @@ public class BooleansBlockLoader extends AbstractBooleansBlockLoader {
     }
 
     @Override
-    protected AllReader singletonReader(NumericDocValues docValues) {
-        return new Singleton(docValues);
+    protected AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues) {
+        return new Singleton(breaker, docValues);
     }
 
     @Override
-    protected AllReader sortedReader(SortedNumericDocValues docValues) {
-        return new Sorted(docValues);
+    protected AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues) {
+        return new Sorted(breaker, docValues);
     }
 
     @Override

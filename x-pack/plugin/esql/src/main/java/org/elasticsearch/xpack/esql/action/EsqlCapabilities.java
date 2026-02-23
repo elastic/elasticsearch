@@ -2023,7 +2023,7 @@ public class EsqlCapabilities {
         /**
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
          */
-        ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
+        ENABLE_REDUCE_NODE_LATE_MATERIALIZATION,
 
         /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} now replaces an

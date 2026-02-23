@@ -193,3 +193,94 @@ warning:Line 2:17: java.lang.IllegalArgumentException: path [name.nested] does n
 json:keyword              | result:keyword
 "{""name"":""Alice""}"    | null
 ;
+
+// Top-level arrays
+
+jsonExtractTopLevelArrayIndex
+required_capability: fn_json_extract
+ROW json = "[\"a\",\"b\",\"c\"]"
+| EVAL val = JSON_EXTRACT(json, "$[1]")
+| KEEP val
+;
+
+val:keyword
+b
+;
+
+jsonExtractTopLevelArrayNestedObject
+required_capability: fn_json_extract
+ROW json = "[{\"name\":\"Alice\"},{\"name\":\"Bob\"}]"
+| EVAL val = JSON_EXTRACT(json, "$[1].name")
+| KEEP val
+;
+
+val:keyword
+Bob
+;
+
+jsonExtractTopLevelArrayOutOfBounds
+required_capability: fn_json_extract
+ROW json = "[1,2,3]"
+| EVAL val = JSON_EXTRACT(json, "$[5]")
+| KEEP val
+;
+warning:Line 2:14: evaluation of [JSON_EXTRACT(json, \"$[5]\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:14: java.lang.IllegalArgumentException: array index out of bounds
+
+val:keyword
+null
+;
+
+jsonExtractTopLevelArrayExtractObject
+required_capability: fn_json_extract
+ROW json = "[{\"id\":1,\"item\":\"book\"},{\"id\":2,\"item\":\"pen\"}]"
+| EVAL val = JSON_EXTRACT(json, "$[0]")
+| KEEP val
+;
+
+val:keyword
+"{""id"":1,""item"":""book""}"
+;
+
+// Top-level scalars
+
+jsonExtractTopLevelString
+required_capability: fn_json_extract
+ROW json = "\"hello\""
+| EVAL val = JSON_EXTRACT(json, "$")
+;
+
+json:keyword      | val:keyword
+"""hello"""       | hello
+;
+
+jsonExtractTopLevelNumber
+required_capability: fn_json_extract
+ROW json = "42"
+| EVAL val = JSON_EXTRACT(json, "$")
+;
+
+json:keyword | val:keyword
+42           | 42
+;
+
+jsonExtractTopLevelBoolean
+required_capability: fn_json_extract
+ROW json = "true"
+| EVAL val = JSON_EXTRACT(json, "$")
+;
+
+json:keyword | val:keyword
+true         | true
+;
+
+jsonExtractTopLevelNull
+required_capability: fn_json_extract
+ROW json = "null"
+| EVAL val = JSON_EXTRACT(json, "$")
+| KEEP val
+;
+
+val:keyword
+null
+;

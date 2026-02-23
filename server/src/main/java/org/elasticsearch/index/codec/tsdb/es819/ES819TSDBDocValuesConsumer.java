@@ -720,88 +720,90 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         FSST.SymbolTable symbolTable = FSST.SymbolTable.buildSymbolTable(sampler.getSample());
         byte[] symbolTableBytes = symbolTable.exportToBytes();
 
+        final int blockSize = ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_SIZE;
+        long numBlocks = (size + blockSize - 1) / blockSize;
+
         meta.writeInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
 
-        // Per-string compressed offsets (size+1 entries)
         ByteBuffersDataOutput offsetBuffer = new ByteBuffersDataOutput();
         ByteBuffersIndexOutput offsetOutput = new ByteBuffersIndexOutput(offsetBuffer, "temp", "temp");
-        DirectMonotonicWriter offsetWriter = DirectMonotonicWriter.getInstance(meta, offsetOutput, size + 1, DIRECT_MONOTONIC_BLOCK_SHIFT);
+        DirectMonotonicWriter blockOffsetWriter = DirectMonotonicWriter.getInstance(
+            meta,
+            offsetOutput,
+            numBlocks + 1,
+            DIRECT_MONOTONIC_BLOCK_SHIFT
+        );
 
-        long start = data.getFilePointer();
+        long termsDataStart = data.getFilePointer();
 
         // Write FSST symbol table at the start of terms data
         data.writeVInt(symbolTableBytes.length);
         data.writeBytes(symbolTableBytes, 0, symbolTableBytes.length);
 
-        // Second pass: compress terms in batches of ~128KB uncompressed
+        // Second pass: iterate terms, buffer and write blocks
         TermsEnum iterator = values.termsEnum();
-        long globalCompressedPos = 0;
+        byte[] blockBuf = new byte[FSST_BULK_BUFFER_SIZE];
+        int[] blockTermStarts = new int[blockSize + 1];
+        int[] prefixIds = new int[blockSize];
+        int[] splitPoints = new int[blockSize];
 
-        byte[] batchBytes = new byte[FSST_BULK_BUFFER_SIZE + maxLength];
-        int batchPos = 0;
-        int batchCount = 0;
-        int[] batchInOffsets = new int[1024 + 1];
+        byte[] inputBuf = new byte[FSST_BULK_BUFFER_SIZE];
+        int[] inputOffsets = new int[blockSize + 1];
+        byte[] fsstOutBuf = new byte[FSST_BULK_BUFFER_SIZE * 2 + 8 * blockSize];
+        int[] fsstOutOffsets = new int[blockSize + 1];
+        int[] relativeOffsets = new int[blockSize + 1];
 
-        byte[] fsstOutBuf = new byte[batchBytes.length * 2 + 8];
-        int[] batchOutOffsets = new int[batchInOffsets.length];
+        BytesRef term = iterator.next();
+        while (term != null) {
+            int blockCount = 0;
+            int blockBufPos = 0;
+            while (blockCount < blockSize && term != null) {
+                if (blockBufPos + term.length > blockBuf.length) {
+                    blockBuf = ArrayUtil.grow(blockBuf, blockBufPos + term.length);
+                }
+                blockTermStarts[blockCount] = blockBufPos;
+                System.arraycopy(term.bytes, term.offset, blockBuf, blockBufPos, term.length);
+                blockBufPos += term.length;
+                blockCount++;
+                term = iterator.next();
+            }
+            blockTermStarts[blockCount] = blockBufPos;
 
-        // Track pending offset writes for the current batch
-        long batchBaseCompressedPos = globalCompressedPos;
-
-        for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
-            // Flush batch if adding this term would exceed the buffer
-            if (batchCount > 0 && batchPos + term.length > FSST_BULK_BUFFER_SIZE) {
-                globalCompressedPos = flushBatch(
-                    symbolTable,
-                    batchBytes,
-                    batchInOffsets,
-                    batchCount,
-                    batchPos,
-                    fsstOutBuf,
-                    batchOutOffsets,
-                    offsetWriter,
-                    batchBaseCompressedPos
-                );
-                batchPos = 0;
-                batchCount = 0;
-                batchBaseCompressedPos = globalCompressedPos;
+            if (inputBuf.length < blockBufPos) {
+                inputBuf = new byte[ArrayUtil.oversize(blockBufPos, 1)];
+            }
+            int fsstWorstCase = 2 * blockBufPos + 8 * blockSize;
+            if (fsstOutBuf.length < fsstWorstCase) {
+                fsstOutBuf = new byte[ArrayUtil.oversize(fsstWorstCase, 1)];
             }
 
-            // Grow batch offset array if needed
-            if (batchCount + 1 >= batchInOffsets.length) {
-                batchInOffsets = ArrayUtil.grow(batchInOffsets, batchCount + 2);
-                batchOutOffsets = new int[batchInOffsets.length];
-            }
+            blockOffsetWriter.add(data.getFilePointer() - termsDataStart);
 
-            batchInOffsets[batchCount] = batchPos;
-            System.arraycopy(term.bytes, term.offset, batchBytes, batchPos, term.length);
-            batchPos += term.length;
-            batchCount++;
-        }
+            int numPrefixes = computePrefixSuffixSplits(blockBuf, blockTermStarts, blockCount, prefixIds, splitPoints);
 
-        // Flush remaining terms
-        if (batchCount > 0) {
-            globalCompressedPos = flushBatch(
+            writeTermsBlock(
                 symbolTable,
-                batchBytes,
-                batchInOffsets,
-                batchCount,
-                batchPos,
+                blockBuf,
+                blockTermStarts,
+                blockCount,
+                prefixIds,
+                splitPoints,
+                numPrefixes,
+                inputBuf,
+                inputOffsets,
                 fsstOutBuf,
-                batchOutOffsets,
-                offsetWriter,
-                batchBaseCompressedPos
+                fsstOutOffsets,
+                relativeOffsets
             );
         }
 
-        // Final offset entry
-        offsetWriter.add(globalCompressedPos);
-        offsetWriter.finish();
+        blockOffsetWriter.add(data.getFilePointer() - termsDataStart);
+        blockOffsetWriter.finish();
 
         meta.writeInt(maxLength);
-        meta.writeLong(start);
-        meta.writeLong(data.getFilePointer() - start);
-        start = data.getFilePointer();
+        meta.writeLong(termsDataStart);
+        meta.writeLong(data.getFilePointer() - termsDataStart);
+        long start = data.getFilePointer();
         offsetBuffer.copyTo(data);
         meta.writeLong(start);
         meta.writeLong(data.getFilePointer() - start);
@@ -809,40 +811,181 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         writeTermsIndex(values);
     }
 
-    private long flushBatch(
+    private void writeTermsBlock(
         FSST.SymbolTable symbolTable,
-        byte[] batchBytes,
-        int[] batchInOffsets,
-        int batchCount,
-        int batchPos,
+        byte[] blockBuf,
+        int[] termStarts,
+        int blockCount,
+        int[] prefixIds,
+        int[] splitPoints,
+        int numPrefixes,
+        byte[] inputBuf,
+        int[] inputOffsets,
         byte[] fsstOutBuf,
-        int[] batchOutOffsets,
-        DirectMonotonicWriter offsetWriter,
-        long batchBaseCompressedPos
+        int[] fsstOutOffsets,
+        int[] relativeOffsets
     ) throws IOException {
-        batchInOffsets[batchCount] = batchPos;
+        data.writeVInt(blockCount);
+        data.writeVInt(numPrefixes);
 
-        int worstCase = 2 * batchPos + 8 * batchCount;
-        if (fsstOutBuf.length < worstCase) {
-            fsstOutBuf = new byte[worstCase];
+        // --- Compress and write prefixes ---
+        int inputPos = 0;
+        int prefixIdx = 0;
+        int lastPrefixId = -1;
+        for (int i = 0; i < blockCount; i++) {
+            if (prefixIds[i] != lastPrefixId) {
+                inputOffsets[prefixIdx] = inputPos;
+                int prefixLen = splitPoints[i];
+                System.arraycopy(blockBuf, termStarts[i], inputBuf, inputPos, prefixLen);
+                inputPos += prefixLen;
+                prefixIdx++;
+                lastPrefixId = prefixIds[i];
+            }
         }
-        if (batchOutOffsets.length < batchCount + 1) {
-            batchOutOffsets = new int[batchCount + 1];
+        inputOffsets[numPrefixes] = inputPos;
+
+        int compressedStart = 0;
+        int compressedSize = 0;
+        if (inputPos > 0) {
+            symbolTable.compressBulk(numPrefixes, inputBuf, inputOffsets, fsstOutBuf, fsstOutOffsets);
+            compressedStart = fsstOutOffsets[0];
+            compressedSize = fsstOutOffsets[numPrefixes] - compressedStart;
+            for (int i = 0; i <= numPrefixes; i++) {
+                relativeOffsets[i] = fsstOutOffsets[i] - compressedStart;
+            }
+        } else {
+            Arrays.fill(relativeOffsets, 0, numPrefixes + 1, 0);
         }
 
-        symbolTable.compressBulk(batchCount, batchBytes, batchInOffsets, fsstOutBuf, batchOutOffsets);
+        int maxOffset = relativeOffsets[numPrefixes];
+        int bitsPerValue = maxOffset > 0 ? PackedInts.bitsRequired(maxOffset) : 0;
+        data.writeByte((byte) bitsPerValue);
+        writePackedInts(data, relativeOffsets, numPrefixes + 1, bitsPerValue);
 
-        int compressedStart = batchOutOffsets[0];
-        int compressedTotal = batchOutOffsets[batchCount] - compressedStart;
-        if (compressedTotal > 0) {
-            data.writeBytes(fsstOutBuf, compressedStart, compressedTotal);
+        if (compressedSize > 0) {
+            data.writeBytes(fsstOutBuf, compressedStart, compressedSize);
         }
 
-        for (int i = 0; i < batchCount; i++) {
-            offsetWriter.add(batchBaseCompressedPos + (batchOutOffsets[i] - compressedStart));
+        for (int i = 0; i < blockCount; i++) {
+            data.writeByte((byte) prefixIds[i]);
         }
 
-        return batchBaseCompressedPos + compressedTotal;
+        // --- Compress and write suffixes ---
+        inputPos = 0;
+        for (int i = 0; i < blockCount; i++) {
+            inputOffsets[i] = inputPos;
+            int suffixStart = termStarts[i] + splitPoints[i];
+            int suffixLen = (termStarts[i + 1] - termStarts[i]) - splitPoints[i];
+            System.arraycopy(blockBuf, suffixStart, inputBuf, inputPos, suffixLen);
+            inputPos += suffixLen;
+        }
+        inputOffsets[blockCount] = inputPos;
+
+        compressedStart = 0;
+        compressedSize = 0;
+        if (inputPos > 0) {
+            symbolTable.compressBulk(blockCount, inputBuf, inputOffsets, fsstOutBuf, fsstOutOffsets);
+            compressedStart = fsstOutOffsets[0];
+            compressedSize = fsstOutOffsets[blockCount] - compressedStart;
+            for (int i = 0; i <= blockCount; i++) {
+                relativeOffsets[i] = fsstOutOffsets[i] - compressedStart;
+            }
+        } else {
+            Arrays.fill(relativeOffsets, 0, blockCount + 1, 0);
+        }
+
+        maxOffset = relativeOffsets[blockCount];
+        bitsPerValue = maxOffset > 0 ? PackedInts.bitsRequired(maxOffset) : 0;
+        data.writeByte((byte) bitsPerValue);
+        writePackedInts(data, relativeOffsets, blockCount + 1, bitsPerValue);
+
+        if (compressedSize > 0) {
+            data.writeBytes(fsstOutBuf, compressedStart, compressedSize);
+        }
+    }
+
+    static int computePrefixSuffixSplits(byte[] buf, int[] termStarts, int count, int[] prefixIds, int[] splitPoints) {
+        if (count == 0) return 0;
+
+        if (count == 1) {
+            prefixIds[0] = 0;
+            splitPoints[0] = termStarts[1] - termStarts[0];
+            return 1;
+        }
+
+        int numPrefixes = 0;
+        int currentPrefixStart = 0;
+        int currentPrefixLen = 0;
+
+        // String 0: prefix = LCP(s0, s1)
+        int len0 = termStarts[1] - termStarts[0];
+        int len1 = termStarts[2] - termStarts[1];
+        int lcp01 = computeLCP(buf, termStarts[0], len0, termStarts[1], len1);
+        splitPoints[0] = lcp01;
+        prefixIds[0] = 0;
+        numPrefixes = 1;
+        currentPrefixStart = termStarts[0];
+        currentPrefixLen = lcp01;
+
+        for (int i = 1; i < count; i++) {
+            int termStart = termStarts[i];
+            int termLen = termStarts[i + 1] - termStart;
+            int prevStart = termStarts[i - 1];
+            int prevLen = termStart - prevStart;
+
+            int backwardLcp = computeLCP(buf, prevStart, prevLen, termStart, termLen);
+
+            boolean matchesCurrent = (backwardLcp == currentPrefixLen)
+                && Arrays.equals(buf, termStart, termStart + currentPrefixLen, buf, currentPrefixStart, currentPrefixStart + currentPrefixLen);
+
+            if (matchesCurrent) {
+                prefixIds[i] = numPrefixes - 1;
+                splitPoints[i] = currentPrefixLen;
+            } else {
+                int chosenLen = backwardLcp;
+                if (i < count - 1) {
+                    int nextStart = termStarts[i + 1];
+                    int nextLen = termStarts[i + 2] - nextStart;
+                    int forwardLcp = computeLCP(buf, termStart, termLen, nextStart, nextLen);
+                    chosenLen = Math.max(backwardLcp, forwardLcp);
+                }
+                splitPoints[i] = chosenLen;
+                prefixIds[i] = numPrefixes;
+                numPrefixes++;
+                currentPrefixStart = termStart;
+                currentPrefixLen = chosenLen;
+            }
+        }
+
+        return numPrefixes;
+    }
+
+    private static int computeLCP(byte[] buf, int aStart, int aLen, int bStart, int bLen) {
+        int len = Math.min(aLen, bLen);
+        for (int i = 0; i < len; i++) {
+            if (buf[aStart + i] != buf[bStart + i]) {
+                return i;
+            }
+        }
+        return len;
+    }
+
+    private static void writePackedInts(DataOutput out, int[] values, int count, int bitsPerValue) throws IOException {
+        if (bitsPerValue == 0) return;
+        long buffer = 0;
+        int bufferedBits = 0;
+        for (int i = 0; i < count; i++) {
+            buffer |= ((long) values[i]) << bufferedBits;
+            bufferedBits += bitsPerValue;
+            while (bufferedBits >= 8) {
+                out.writeByte((byte) buffer);
+                buffer >>>= 8;
+                bufferedBits -= 8;
+            }
+        }
+        if (bufferedBits > 0) {
+            out.writeByte((byte) buffer);
+        }
     }
 
     private void writeTermsIndex(SortedSetDocValues values) throws IOException {

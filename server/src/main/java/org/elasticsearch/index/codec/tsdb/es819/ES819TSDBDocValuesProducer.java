@@ -1311,23 +1311,30 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     private static class TermsDict extends BaseTermsEnum {
 
         final TermsDictEntry entry;
-        final LongValues compressedOffsets;
-        final RandomAccessInput compressedData;
-        final long compressedDataStart;
+        final LongValues blockOffsets;
+        final IndexInput termsData;
         final LongValues indexAddresses;
         final RandomAccessInput indexBytes;
         final BytesRef term;
         final FSST.Decoder fsstDecoder;
         long ord = -1;
 
-        byte[] compressedBuf;
         byte[] decompressBuf;
+
+        // Cached block state
+        int cachedBlockIndex = -1;
+        int cachedBlockCount;
+        int[] cachedPrefixOffsets;
+        byte[] cachedPrefixData;
+        byte[] cachedPrefixIds;
+        int[] cachedSuffixOffsets;
+        byte[] cachedSuffixData;
 
         TermsDict(TermsDictEntry entry, IndexInput data, boolean merging) throws IOException {
             this.entry = entry;
             RandomAccessInput offsetsSlice = data.randomAccessSlice(entry.termsOffsetsOffset, entry.termsOffsetsLength);
-            compressedOffsets = DirectMonotonicReader.getInstance(entry.termsOffsetsMeta, offsetsSlice, merging);
-            IndexInput bytes = data.slice("terms", entry.termsDataOffset, entry.termsDataLength);
+            blockOffsets = DirectMonotonicReader.getInstance(entry.termsOffsetsMeta, offsetsSlice, merging);
+            termsData = data.slice("terms", entry.termsDataOffset, entry.termsDataLength);
             RandomAccessInput indexAddressesSlice = data.randomAccessSlice(
                 entry.termsIndexAddressesOffset,
                 entry.termsIndexAddressesLength
@@ -1336,36 +1343,96 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             indexBytes = data.randomAccessSlice(entry.termsIndexOffset, entry.termsIndexLength);
             term = new BytesRef(entry.maxTermLength);
 
-            int symbolTableLen = bytes.readVInt();
+            int symbolTableLen = termsData.readVInt();
             byte[] symbolTableBytes = new byte[symbolTableLen];
-            bytes.readBytes(symbolTableBytes, 0, symbolTableLen);
+            termsData.readBytes(symbolTableBytes, 0, symbolTableLen);
             fsstDecoder = FSST.Decoder.readFrom(symbolTableBytes);
 
-            compressedDataStart = bytes.getFilePointer();
-            compressedData = data.randomAccessSlice(
-                entry.termsDataOffset + compressedDataStart,
-                entry.termsDataLength - compressedDataStart
-            );
-
-            compressedBuf = new byte[256];
             // +7 for FSST decompressor padding
             decompressBuf = new byte[entry.maxTermLength + 7];
         }
 
+        private void loadBlock(int blockIndex) throws IOException {
+            if (blockIndex == cachedBlockIndex) return;
+
+            termsData.seek(blockOffsets.get(blockIndex));
+
+            cachedBlockCount = termsData.readVInt();
+            int numPrefixes = termsData.readVInt();
+
+            // Read prefix offsets (bit-packed)
+            int prefixBits = termsData.readByte() & 0xFF;
+            int prefixPackedBytes = packedByteSize(numPrefixes + 1, prefixBits);
+            byte[] prefixOffsetsPacked = new byte[prefixPackedBytes];
+            if (prefixPackedBytes > 0) {
+                termsData.readBytes(prefixOffsetsPacked, 0, prefixPackedBytes);
+            }
+            cachedPrefixOffsets = new int[numPrefixes + 1];
+            unpackInts(prefixOffsetsPacked, cachedPrefixOffsets, numPrefixes + 1, prefixBits);
+
+            // Read compressed prefix data
+            int prefixDataSize = cachedPrefixOffsets[numPrefixes];
+            cachedPrefixData = new byte[prefixDataSize];
+            if (prefixDataSize > 0) {
+                termsData.readBytes(cachedPrefixData, 0, prefixDataSize);
+            }
+
+            // Read prefix ids
+            cachedPrefixIds = new byte[cachedBlockCount];
+            termsData.readBytes(cachedPrefixIds, 0, cachedBlockCount);
+
+            // Read suffix offsets (bit-packed)
+            int suffixBits = termsData.readByte() & 0xFF;
+            int suffixPackedBytes = packedByteSize(cachedBlockCount + 1, suffixBits);
+            byte[] suffixOffsetsPacked = new byte[suffixPackedBytes];
+            if (suffixPackedBytes > 0) {
+                termsData.readBytes(suffixOffsetsPacked, 0, suffixPackedBytes);
+            }
+            cachedSuffixOffsets = new int[cachedBlockCount + 1];
+            unpackInts(suffixOffsetsPacked, cachedSuffixOffsets, cachedBlockCount + 1, suffixBits);
+
+            // Read compressed suffix data
+            int suffixDataSize = cachedSuffixOffsets[cachedBlockCount];
+            cachedSuffixData = new byte[suffixDataSize];
+            if (suffixDataSize > 0) {
+                termsData.readBytes(cachedSuffixData, 0, suffixDataSize);
+            }
+
+            cachedBlockIndex = blockIndex;
+        }
+
         private void decompressTerm(long targetOrd) throws IOException {
-            long compStart = compressedOffsets.get(targetOrd);
-            long compEnd = compressedOffsets.get(targetOrd + 1);
-            int compLen = (int) (compEnd - compStart);
-            if (compLen == 0) {
-                term.length = 0;
-                return;
+            int blockIndex = (int) (targetOrd >>> ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_SHIFT);
+            int indexInBlock = (int) (targetOrd & ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_MASK);
+
+            loadBlock(blockIndex);
+
+            int prefixId = cachedPrefixIds[indexInBlock] & 0xFF;
+            int prefixCompStart = cachedPrefixOffsets[prefixId];
+            int prefixCompLen = cachedPrefixOffsets[prefixId + 1] - prefixCompStart;
+
+            int termLen = 0;
+            if (prefixCompLen > 0) {
+                termLen = FSST.decompress(cachedPrefixData, prefixCompStart, prefixCompLen, fsstDecoder, decompressBuf);
+                System.arraycopy(decompressBuf, 0, term.bytes, 0, termLen);
             }
-            if (compressedBuf.length < compLen) {
-                compressedBuf = new byte[ArrayUtil.oversize(compLen, 1)];
+
+            int suffixCompStart = cachedSuffixOffsets[indexInBlock];
+            int suffixCompLen = cachedSuffixOffsets[indexInBlock + 1] - suffixCompStart;
+
+            if (suffixCompLen > 0) {
+                int suffixLen = FSST.decompress(
+                    cachedSuffixData,
+                    suffixCompStart,
+                    suffixCompLen,
+                    fsstDecoder,
+                    decompressBuf
+                );
+                System.arraycopy(decompressBuf, 0, term.bytes, termLen, suffixLen);
+                termLen += suffixLen;
             }
-            compressedData.readBytes(compStart, compressedBuf, 0, compLen);
-            term.length = FSST.decompress(compressedBuf, 0, compLen, fsstDecoder, decompressBuf);
-            System.arraycopy(decompressBuf, 0, term.bytes, 0, term.length);
+
+            term.length = termLen;
         }
 
         @Override
@@ -1414,7 +1481,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return hi;
         }
 
-        // Binary search for the largest ord whose term is <= text, within [lo, hi].
         private long binarySearchTerms(BytesRef text, long lo, long hi) throws IOException {
             long result = lo - 1;
             while (lo <= hi) {
@@ -1495,6 +1561,28 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public int docFreq() throws IOException {
             throw new UnsupportedOperationException();
+        }
+
+        private static int packedByteSize(int count, int bitsPerValue) {
+            return (count * bitsPerValue + 7) / 8;
+        }
+
+        private static void unpackInts(byte[] packed, int[] out, int count, int bitsPerValue) {
+            if (bitsPerValue == 0) {
+                Arrays.fill(out, 0, count, 0);
+                return;
+            }
+            for (int i = 0; i < count; i++) {
+                long bitOffset = (long) i * bitsPerValue;
+                int byteOffset = (int) (bitOffset >>> 3);
+                int bitShift = (int) (bitOffset & 7);
+                int bytesNeeded = (bitShift + bitsPerValue + 7) >>> 3;
+                long raw = 0;
+                for (int b = 0; b < bytesNeeded; b++) {
+                    raw |= (packed[byteOffset + b] & 0xFFL) << (b * 8);
+                }
+                out[i] = (int) ((raw >>> bitShift) & ((1L << bitsPerValue) - 1));
+            }
         }
     }
 
@@ -1879,7 +1967,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     private static void readTermDict(IndexInput meta, TermsDictEntry entry) throws IOException {
         entry.termsDictSize = meta.readVLong();
         final int blockShift = meta.readInt();
-        entry.termsOffsetsMeta = DirectMonotonicReader.loadMeta(meta, entry.termsDictSize + 1, blockShift);
+        long numBlocks = (entry.termsDictSize + ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_SIZE - 1)
+            / ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_SIZE;
+        entry.termsOffsetsMeta = DirectMonotonicReader.loadMeta(meta, numBlocks + 1, blockShift);
         entry.maxTermLength = meta.readInt();
         entry.termsDataOffset = meta.readLong();
         entry.termsDataLength = meta.readLong();

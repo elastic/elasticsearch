@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -77,7 +78,18 @@ public class DocumentBatchEncoder {
         }
 
         // Phase 2: Serialize to binary format
-        return serialize(requests, columns, docCount);
+        DocumentBatch batch = serialize(requests, columns, docCount);
+
+        // Phase 3: Extract tsids if present (all-or-nothing)
+        if (requests.getFirst().tsid() != null) {
+            BytesRef[] tsids = new BytesRef[docCount];
+            for (int i = 0; i < docCount; i++) {
+                tsids[i] = requests.get(i).tsid();
+            }
+            batch.setTsids(tsids);
+        }
+
+        return batch;
     }
 
     private static void flattenObject(

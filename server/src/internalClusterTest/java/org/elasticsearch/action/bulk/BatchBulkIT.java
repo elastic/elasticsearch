@@ -11,8 +11,11 @@ package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortOrder;
@@ -22,6 +25,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
@@ -622,6 +626,107 @@ public class BatchBulkIT extends ESIntegTestCase {
                     assertNotNull("metrics should be present in source", source.get("metrics"));
                     List<String> tags = (List<String>) source.get("tags");
                     assertThat("each doc should have 2 tags", tags.size(), equalTo(2));
+                }
+            }
+        );
+    }
+
+    public void testTimeSeriesIndexViaBatchMode() throws IOException {
+        String index = "test-batch-tsdb";
+
+        // Create a time series index with batch mode enabled
+        XContentBuilder mapping = JsonXContent.contentBuilder();
+        mapping.startObject();
+        {
+            mapping.startObject("_doc");
+            {
+                mapping.startObject("_source");
+                mapping.field("mode", "synthetic");
+                mapping.endObject();
+                mapping.field("dynamic", "strict");
+                mapping.startObject("properties");
+                {
+                    mapping.startObject("@timestamp").field("type", "date").endObject();
+                    mapping.startObject("metricset").field("type", "keyword").field("time_series_dimension", true).endObject();
+                    mapping.startObject("pod_name").field("type", "keyword").field("time_series_dimension", true).endObject();
+                    mapping.startObject("tx").field("type", "long").field("time_series_metric", "gauge").endObject();
+                    mapping.startObject("rx").field("type", "long").field("time_series_metric", "gauge").endObject();
+                }
+                mapping.endObject();
+            }
+            mapping.endObject();
+        }
+        mapping.endObject();
+
+        assertAcked(
+            indicesAdmin().prepareCreate(index)
+                .setSettings(
+                    Settings.builder()
+                        .put("index.number_of_shards", 1)
+                        .put("index.number_of_replicas", 0)
+                        .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+                        .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of("metricset"))
+                        .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
+                        .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2100-01-01T00:00:00.000Z")
+                        .put(IndexSettings.COLUMN_BATCH_INDEX.getKey(), true)
+                )
+                .setMapping(mapping)
+        );
+        ensureGreen(index);
+
+        String coordinatingNode = findCoordinatingNode();
+        int numDocs = randomIntBetween(10, 50);
+        Instant baseTime = Instant.parse("2025-01-15T10:00:00.000Z");
+
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numDocs; i++) {
+            bulkRequest.add(
+                new IndexRequest(index).opType(DocWriteRequest.OpType.CREATE)
+                    .source(
+                        Map.of(
+                            "@timestamp",
+                            baseTime.plusSeconds(i).toEpochMilli(),
+                            "metricset",
+                            "pod",
+                            "pod_name",
+                            "pod-" + (i % 5),
+                            "tx",
+                            1000L + i,
+                            "rx",
+                            2000L + i
+                        )
+                    )
+            );
+        }
+
+        BulkResponse bulkResponse = client(coordinatingNode).bulk(bulkRequest).actionGet();
+        assertNoFailures(bulkResponse);
+        assertThat(bulkResponse.getItems().length, equalTo(numDocs));
+
+        refresh(index);
+
+        // Verify all docs are indexed
+        assertResponse(prepareSearch(index).setQuery(QueryBuilders.matchAllQuery()).setSize(0).setTrackTotalHits(true), searchResponse -> {
+            assertNoFailures(searchResponse);
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+        });
+
+        // Verify source reconstruction and field values
+        assertResponse(
+            prepareSearch(index).setQuery(QueryBuilders.matchAllQuery())
+                .setSize(numDocs)
+                .addSort("tx", SortOrder.ASC)
+                .setTrackTotalHits(true),
+            searchResponse -> {
+                assertNoFailures(searchResponse);
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numDocs));
+                SearchHit[] hits = searchResponse.getHits().getHits();
+                for (int i = 0; i < numDocs; i++) {
+                    Map<String, Object> source = hits[i].getSourceAsMap();
+                    assertThat("metricset mismatch at doc " + i, source.get("metricset"), equalTo("pod"));
+                    assertThat("pod_name mismatch at doc " + i, source.get("pod_name"), equalTo("pod-" + (i % 5)));
+                    assertThat("tx mismatch at doc " + i, source.get("tx"), equalTo(1000 + i));
+                    assertThat("rx mismatch at doc " + i, source.get("rx"), equalTo(2000 + i));
                 }
             }
         );

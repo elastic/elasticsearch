@@ -10,6 +10,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.DocWriteRequest;
@@ -55,6 +56,15 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             boolean hasBatch = in.readBoolean();
             if (hasBatch) {
                 this.documentBatch = new DocumentBatch(in.readByteArray());
+                boolean hasTsids = in.readBoolean();
+                if (hasTsids) {
+                    int docCount = this.documentBatch.docCount();
+                    BytesRef[] tsids = new BytesRef[docCount];
+                    for (int i = 0; i < docCount; i++) {
+                        tsids[i] = in.readBytesRef();
+                    }
+                    this.documentBatch.setTsids(tsids);
+                }
             }
         }
     }
@@ -179,6 +189,14 @@ public final class BulkShardRequest extends ReplicatedWriteRequest<BulkShardRequ
             if (documentBatch != null) {
                 out.writeBoolean(true);
                 out.writeByteArray(documentBatch.getRawData());
+                if (documentBatch.hasTsids()) {
+                    out.writeBoolean(true);
+                    for (int i = 0; i < documentBatch.docCount(); i++) {
+                        out.writeBytesRef(documentBatch.docTsid(i));
+                    }
+                } else {
+                    out.writeBoolean(false);
+                }
             } else {
                 out.writeBoolean(false);
             }

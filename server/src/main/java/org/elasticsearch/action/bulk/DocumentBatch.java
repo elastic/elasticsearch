@@ -10,6 +10,8 @@
 package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -69,6 +71,10 @@ public class DocumentBatch implements Releasable, Accountable {
     private final int[] docMetadataOffsets;  // offset to each doc's metadata block
     private final int columnDirectoryOffset;
     private final int columnDataOffset;
+
+    // Optional per-document tsid. Null when the index is not a time series index.
+    // When present, every document in the batch has a tsid (all-or-nothing).
+    private @Nullable BytesRef[] tsids;
 
     public DocumentBatch(byte[] data) {
         this.data = data;
@@ -132,6 +138,7 @@ public class DocumentBatch implements Releasable, Accountable {
     public String docId(int docIndex) {
         int pos = docMetadataOffsets[docIndex];
         int idLen = (int) INT_HANDLE.get(data, pos);
+        if (idLen == 0) return null;
         return new String(data, pos + 4, idLen, StandardCharsets.UTF_8);
     }
 
@@ -185,6 +192,31 @@ public class DocumentBatch implements Releasable, Accountable {
     }
 
     /**
+     * Sets the per-document tsids for this batch. When non-null, every element must be non-null
+     * and the array length must equal {@link #docCount()}.
+     */
+    public void setTsids(@Nullable BytesRef[] tsids) {
+        if (tsids != null && tsids.length != docCount) {
+            throw new IllegalArgumentException("tsids array length [" + tsids.length + "] must match docCount [" + docCount + "]");
+        }
+        this.tsids = tsids;
+    }
+
+    /**
+     * Returns the tsid for the given document index, or null if tsids are not present.
+     */
+    public @Nullable BytesRef docTsid(int docIndex) {
+        return tsids != null ? tsids[docIndex] : null;
+    }
+
+    /**
+     * Returns true if this batch contains per-document tsids.
+     */
+    public boolean hasTsids() {
+        return tsids != null;
+    }
+
+    /**
      * Returns an iterator over the columns in this batch.
      */
     public Iterator<FieldColumn> columns() {
@@ -234,6 +266,12 @@ public class DocumentBatch implements Releasable, Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return data.length + (long) docMetadataOffsets.length * Integer.BYTES + 64; // estimate overhead
+        long size = data.length + (long) docMetadataOffsets.length * Integer.BYTES + 64; // estimate overhead
+        if (tsids != null) {
+            for (BytesRef tsid : tsids) {
+                size += tsid.length + 16; // bytes + BytesRef object overhead
+            }
+        }
+        return size;
     }
 }

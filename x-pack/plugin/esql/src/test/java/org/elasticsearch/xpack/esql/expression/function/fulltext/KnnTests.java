@@ -16,12 +16,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
 import java.util.ArrayList;
@@ -29,18 +26,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
-import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-import static org.elasticsearch.xpack.esql.expression.function.fulltext.AbstractMatchFullTextFunctionTests.addNullFieldTestCases;
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
-public class KnnTests extends AbstractFunctionTestCase {
+public class KnnTests extends AbstractFullTextFunctionTestCase {
 
     public KnnTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -48,7 +41,7 @@ public class KnnTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(addFunctionNamedParams(testCaseSuppliers()));
+        return parameterSuppliersFromTypedData(addNullFieldTestCases(addFunctionNamedParams(testCaseSuppliers(), mapExpressionSupplier())));
     }
 
     private static List<TestCaseSupplier> testCaseSuppliers() {
@@ -98,22 +91,8 @@ public class KnnTests extends AbstractFunctionTestCase {
                 )
             )
         );
-        suppliers.add(
-            new TestCaseSupplier(
-                List.of(NULL, DENSE_VECTOR),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(
-                        new TestCaseSupplier.TypedData(Literal.NULL, NULL, "text field"),
-                        new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query")
-                    ),
-                    equalTo("KnnEvaluator" + KnnTests.class.getSimpleName()),
-                    NULL,
-                    equalTo(true)
-                )
-            )
-        );
 
-        return addNullFieldTestCases(suppliers);
+        return suppliers;
     }
 
     private static List<Float> randomDenseVector() {
@@ -125,29 +104,8 @@ public class KnnTests extends AbstractFunctionTestCase {
         return vector;
     }
 
-    /**
-     * Adds function named parameters to all the test case suppliers provided
-     */
-    private static List<TestCaseSupplier> addFunctionNamedParams(List<TestCaseSupplier> suppliers) {
-        // TODO get to a common class with MatchTests
-        List<TestCaseSupplier> result = new ArrayList<>();
-        for (TestCaseSupplier supplier : suppliers) {
-            List<DataType> dataTypes = new ArrayList<>(supplier.types());
-            dataTypes.add(UNSUPPORTED);
-            result.add(new TestCaseSupplier(supplier.name() + ", options", dataTypes, () -> {
-                List<TestCaseSupplier.TypedData> values = new ArrayList<>(supplier.get().getData());
-                values.add(
-                    new TestCaseSupplier.TypedData(
-                        new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))),
-                        UNSUPPORTED,
-                        "options"
-                    ).forceLiteral()
-                );
-
-                return new TestCaseSupplier.TestCase(values, equalTo("KnnEvaluator"), BOOLEAN, equalTo(true));
-            }));
-        }
-        return result;
+    private static Supplier<MapExpression> mapExpressionSupplier() {
+        return () -> new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, randomAlphaOfLength(10))));
     }
 
     @Override
@@ -162,30 +120,17 @@ public class KnnTests extends AbstractFunctionTestCase {
         return knn;
     }
 
-    /**
-     * Copy of the overridden method that doesn't check for children size, as the {@code options} child isn't serialized in Match.
-     */
-    @Override
-    protected Expression serializeDeserializeExpression(Expression expression) {
-        Expression newExpression = serializeDeserialize(
-            expression,
-            PlanStreamOutput::writeNamedWriteable,
-            in -> in.readNamedWriteable(Expression.class),
-            testCase.getConfiguration() // The configuration query should be == to the source text of the function for this to work
-        );
-        // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
-        return newExpression.replaceChildren(expression.children());
-    }
-
     public void testSerializationOfSimple() {
         // do nothing
         assumeTrue("can't serialize function", canSerialize());
         Expression expression = buildFieldExpression(testCase);
         if (expression instanceof Knn knn) {
-            // The K parameter is not serialized, so we need to remove it from the children
-            // before we compare the serialization results
             List<Expression> newChildren = knn.children();
-            newChildren.set(2, null); // remove the k parameter
+            if (newChildren.size() > 2) {
+                // The K parameter is not serialized, so we need to remove it from the children
+                // before we compare the serialization results
+                newChildren.set(2, null);
+            }
             Expression knnWithoutK = knn.replaceChildren(newChildren);
             assertSerialization(knnWithoutK, testCase.getConfiguration());
         } else {

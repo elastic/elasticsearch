@@ -10,25 +10,21 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.hamcrest.Matcher;
 
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunctionTestCase {
+public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFullTextFunctionTestCase {
 
     public NoneFieldFullTextFunctionTestCase(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
-    }
-
-    public void testFold() {
-        Expression expression = buildLiteralExpression(testCase);
-        assertFalse("expected resolved", expression.typeResolved().unresolved());
     }
 
     protected static List<TestCaseSupplier> getStringTestSupplier() {
@@ -45,10 +41,6 @@ public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunction
         return suppliers;
     }
 
-    protected static Iterable<Object[]> generateParameters() {
-        return parameterSuppliersFromTypedData(getStringTestSupplier());
-    }
-
     private static TestCaseSupplier.TestCase testCase(DataType strType, String str, Matcher<Boolean> matcher) {
         return new TestCaseSupplier.TestCase(
             List.of(new TestCaseSupplier.TypedData(new BytesRef(str), strType, "query")),
@@ -56,5 +48,20 @@ public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFunction
             DataType.BOOLEAN,
             matcher
         );
+    }
+
+    /**
+     * Copy of the overridden method that doesn't check for children size, as the {@code options} child isn't serialized in Kql.
+     */
+    @Override
+    protected Expression serializeDeserializeExpression(Expression expression) {
+        Expression newExpression = serializeDeserialize(
+            expression,
+            PlanStreamOutput::writeNamedWriteable,
+            in -> in.readNamedWriteable(Expression.class),
+            testCase.getConfiguration() // The configuration query should be == to the source text of the function for this to work
+        );
+        // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
+        return newExpression.replaceChildren(expression.children());
     }
 }

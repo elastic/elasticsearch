@@ -16,28 +16,19 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
-import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
-import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
-import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.stringCases;
-import static org.elasticsearch.xpack.esql.expression.function.fulltext.AbstractMatchFullTextFunctionTests.addNullFieldTestCases;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
-import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("match_phrase")
-public class MatchPhraseTests extends AbstractFunctionTestCase {
+public class MatchPhraseTests extends AbstractFullTextFunctionTestCase {
 
     public MatchPhraseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
@@ -45,7 +36,7 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(addFunctionNamedParams(testCaseSuppliers()));
+        return parameterSuppliersFromTypedData(addFunctionNamedParams(addNullFieldTestCases(testCaseSuppliers()), mapExpressionSupplier()));
     }
 
     private static List<TestCaseSupplier> testCaseSuppliers() {
@@ -54,69 +45,11 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
         return addNullFieldTestCases(suppliers);
     }
 
-    private static void addStringTestCases(List<TestCaseSupplier> suppliers) {
-        for (DataType fieldType : DataType.stringTypes()) {
-            if (DataType.UNDER_CONSTRUCTION.contains(fieldType)) {
-                continue;
-            }
-            for (TestCaseSupplier.TypedDataSupplier queryDataSupplier : stringCases(fieldType)) {
-                TestCaseSupplier.TypedDataSupplier querySupplier = new TestCaseSupplier.TypedDataSupplier(
-                    fieldType.typeName(),
-                    () -> randomAlphaOfLength(10),
-                    DataType.KEYWORD
-                );
-                suppliers.add(
-                    TestCaseSupplier.testCaseSupplier(
-                        queryDataSupplier,
-                        querySupplier,
-                        (d1, d2) -> equalTo("string"),
-                        DataType.BOOLEAN,
-                        (o1, o2) -> true
-                    )
-                );
-                suppliers.add(
-                    TestCaseSupplier.testCaseSupplier(
-                        new TestCaseSupplier.TypedDataSupplier("fieldName", () -> Literal.NULL, DataType.NULL),
-                        querySupplier,
-                        (d1, d2) -> equalTo("string"),
-                        DataType.BOOLEAN,
-                        (o1, o2) -> true
-                    )
-                );
-            }
-        }
-    }
-
-    /**
-     * Adds function named parameters to all the test case suppliers provided
-     */
-    private static List<TestCaseSupplier> addFunctionNamedParams(List<TestCaseSupplier> suppliers) {
-        List<TestCaseSupplier> result = new ArrayList<>();
-        for (TestCaseSupplier supplier : suppliers) {
-            List<DataType> dataTypes = new ArrayList<>(supplier.types());
-            dataTypes.add(UNSUPPORTED);
-            result.add(new TestCaseSupplier(supplier.name() + ", options", dataTypes, () -> {
-                List<TestCaseSupplier.TypedData> values = new ArrayList<>(supplier.get().getData());
-                values.add(
-                    new TestCaseSupplier.TypedData(
-                        new MapExpression(
-                            Source.EMPTY,
-                            List.of(new Literal(Source.EMPTY, "slop", INTEGER), Literal.integer(Source.EMPTY, randomNonNegativeInt()))
-                        ),
-                        UNSUPPORTED,
-                        "options"
-                    ).forceLiteral()
-                );
-
-                return new TestCaseSupplier.TestCase(values, equalTo("MatchPhraseEvaluator"), BOOLEAN, equalTo(true));
-            }));
-        }
-        return result;
-    }
-
-    public final void testLiteralExpressions() {
-        Expression expression = buildLiteralExpression(testCase);
-        assertFalse("expected resolved", expression.typeResolved().unresolved());
+    private static Supplier<MapExpression> mapExpressionSupplier() {
+        return () -> new MapExpression(
+            Source.EMPTY,
+            List.of(new Literal(Source.EMPTY, "slop", INTEGER), Literal.integer(Source.EMPTY, randomNonNegativeInt()))
+        );
     }
 
     @Override
@@ -129,20 +62,5 @@ public class MatchPhraseTests extends AbstractFunctionTestCase {
             matchPhrase.replaceQueryBuilder(queryBuilder);
         }
         return matchPhrase;
-    }
-
-    /**
-     * Copy of the overridden method that doesn't check for children size, as the {@code options} child isn't serialized in MatchPhrase.
-     */
-    @Override
-    protected Expression serializeDeserializeExpression(Expression expression) {
-        Expression newExpression = serializeDeserialize(
-            expression,
-            PlanStreamOutput::writeNamedWriteable,
-            in -> in.readNamedWriteable(Expression.class),
-            testCase.getConfiguration() // The configuration query should be == to the source text of the function for this to work
-        );
-        // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
-        return newExpression.replaceChildren(expression.children());
     }
 }

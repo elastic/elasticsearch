@@ -327,12 +327,6 @@ public class EsqlSession {
                     );
 
                     SubscribableListener.<LogicalPlan>newForked(l -> preOptimizedPlan(plan, logicalPlanPreOptimizer, planTimeProfile, l))
-                        .<LogicalPlan>andThen((l, p) -> {
-                            if (configuration.approximationSettings() != null) {
-                                Approximation.verifyPlan(p);
-                            }
-                            l.onResponse(p);
-                        })
                         .<LogicalPlan>andThen(
                             (l, p) -> preMapper.preMapper(
                                 new Versioned<>(optimizedPlan(p, logicalPlanOptimizer, planTimeProfile), minimumVersion),
@@ -347,6 +341,7 @@ public class EsqlSession {
                                 p,
                                 configuration,
                                 foldContext,
+                                configuration.approximationSettings() != null ? new Approximation(p, configuration.approximationSettings()) : null,
                                 minimumVersion,
                                 planTimeProfile,
                                 l
@@ -382,6 +377,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
+        Approximation approximation,
         TransportVersion minimumVersion,
         PlanTimeProfile planTimeProfile,
         ActionListener<Result> listener
@@ -416,6 +412,7 @@ public class EsqlSession {
                 optimizedPlan,
                 configuration,
                 foldContext,
+                approximation,
                 planRunner,
                 executionInfo,
                 request,
@@ -430,6 +427,7 @@ public class EsqlSession {
         LogicalPlan optimizedPlan,
         Configuration configuration,
         FoldContext foldContext,
+        Approximation approximation,
         PlanRunner runner,
         EsqlExecutionInfo executionInfo,
         EsqlQueryRequest request,
@@ -438,7 +436,7 @@ public class EsqlSession {
         ActionListener<Result> listener
     ) {
         var subPlansResults = new HashSet<LocalRelation>();
-        var subPlan = firstSubPlan(optimizedPlan, configuration, subPlansResults);
+        var subPlan = firstSubPlan(optimizedPlan, approximation, subPlansResults);
 
         // TODO: merge into one method
         if (subPlan != null) {
@@ -449,6 +447,7 @@ public class EsqlSession {
                 subPlan,
                 configuration,
                 foldContext,
+                approximation,
                 executionInfo,
                 runner,
                 request,
@@ -469,17 +468,11 @@ public class EsqlSession {
 
     record SubPlanAndCallback(LogicalPlan subPlan, Function<Result, LogicalPlan> newMainPlan, Runnable cleanup) {};
 
-    private SubPlanAndCallback firstSubPlan(LogicalPlan optimizedPlan, Configuration configuration, Set<LocalRelation> subPlansResults) {
-        if (configuration.approximationSettings() != null) {
-            LogicalPlan subPlan = Approximation.firstSubPlan(optimizedPlan, configuration, subPlansResults);
+    private SubPlanAndCallback firstSubPlan(LogicalPlan optimizedPlan, Approximation approximation, Set<LocalRelation> subPlansResults) {
+        if (approximation != null) {
+            LogicalPlan subPlan = approximation.firstSubPlan();
             if (subPlan != null) {
-                AtomicReference<Page> localRelationPage = new AtomicReference<>();
-                return new SubPlanAndCallback(subPlan, result -> {
-                    LocalRelation resultWrapper = resultToPlan(EMPTY, result);
-                    localRelationPage.set(resultWrapper.supplier().get());
-                    subPlansResults.add(resultWrapper);
-                    return Approximation.newMainPlan(optimizedPlan, configuration, subPlansResults);
-                }, () -> releaseLocalRelationBlocks(localRelationPage));
+                return new SubPlanAndCallback(subPlan, approximation::newMainPlan, () -> {});
             }
         }
 
@@ -503,6 +496,7 @@ public class EsqlSession {
         SubPlanAndCallback subPlan,
         Configuration configuration,
         FoldContext foldContext,
+        Approximation approximation,
         EsqlExecutionInfo executionInfo,
         PlanRunner runner,
         EsqlQueryRequest request,
@@ -525,7 +519,7 @@ public class EsqlSession {
                 LogicalPlan newMainPlan = subPlan.newMainPlan.apply(result);
 
                 // look for the next inlinejoin plan
-                var newSubPlan = firstSubPlan(newMainPlan, configuration, subPlansResults);
+                var newSubPlan = firstSubPlan(newMainPlan, approximation, subPlansResults);
 
                 if (newSubPlan == null) {// run the final "main" plan
                     executionInfo.finishSubPlans();
@@ -556,6 +550,7 @@ public class EsqlSession {
                         newSubPlan,
                         configuration,
                         foldContext,
+                        approximation,
                         executionInfo,
                         runner,
                         request,

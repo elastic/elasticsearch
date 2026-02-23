@@ -464,11 +464,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             );
 
             var res = sourceOperator.shardLoadDelta(System.nanoTime());
-            assertThat(res.size(), equalTo(2));
-            for (var s : res) {
-                assertThat(s.rowsEmitted(), equalTo(0L));
-                assertThat(s.processTimeNanos(), equalTo(0L));
-            }
+            assertThat(res.size(), equalTo(0));
 
             long totalPositions = results.stream().mapToInt(Page::getPositionCount).sum();
             assertThat(totalPositions, greaterThan(0L));

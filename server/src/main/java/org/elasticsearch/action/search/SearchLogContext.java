@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Optional;
 import java.util.function.Predicate;
 
 public class SearchLogContext extends ActivityLoggerContext {

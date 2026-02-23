@@ -9,14 +9,11 @@ package org.elasticsearch.xpack.eql.logging;
 
 import joptsimple.internal.Strings;
 
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
-import java.util.Arrays;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 public class EqlLogContext extends ActivityLoggerContext {
@@ -55,6 +52,5 @@ public class EqlLogContext extends ActivityLoggerContext {
         }
         return response.hits().totalHits().value();
     }
-
 
 }

@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexFeatures;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
@@ -117,16 +118,22 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
             """, timestamp, randomByte()));
     }
 
-    private static void assertNoWriteIndex(String indexName) {
-        ResponseException e = assertThrows(ResponseException.class, () -> createSyntheticIdIndex(indexName));
-        assertThat(e.getMessage(), Matchers.containsString("illegal_argument_exception"));
-        // Old cluster rejects the setting (e.g. unknown setting or version too low)
+    private static void assertNoWriteIndex(String indexName) throws IOException {
         String setting = IndexSettings.SYNTHETIC_ID.getKey();
-        assertThat(
-            e.getMessage(),
-            Matchers.either(Matchers.containsString("unknown setting [" + setting + "]"))
-                .or(Matchers.containsString("is only permitted for indexVersion"))
+        String unknownSetting = "unknown setting [" + setting + "]";
+        String versionTooLow = String.format(
+            Locale.ROOT,
+            "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion:",
+            setting,
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94
         );
+
+        ResponseException e = assertThrows(ResponseException.class, () -> createSyntheticIdIndex(indexName));
+        assertThat(e.getMessage(), Matchers.either(Matchers.containsString(unknownSetting)).or(Matchers.containsString(versionTooLow)));
+        String reason = ObjectPath.createFromResponse(e.getResponse()).evaluate("error.reason");
+
+        assertThat(reason, Matchers.either(Matchers.containsString(unknownSetting)).or(Matchers.containsString(versionTooLow)));
+        assertThat(e.getMessage(), Matchers.containsString("illegal_argument_exception"));
     }
 
     private static CreateIndexResponse createSyntheticIdIndex(String indexName) throws IOException {

@@ -356,9 +356,7 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
 
     public void testNonConstantPathProducesGenericEvaluator() {
         Source source = Source.synthetic("json_extract");
-        var evaluatorFactory = evaluator(
-            new JsonExtract(source, field("str", DataType.KEYWORD), field("path", DataType.KEYWORD))
-        );
+        var evaluatorFactory = evaluator(new JsonExtract(source, field("str", DataType.KEYWORD), field("path", DataType.KEYWORD)));
         assertThat(evaluatorFactory, instanceOf(JsonExtractEvaluator.Factory.class));
     }
 
@@ -632,9 +630,9 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
 
     private String extractFromBytes(BytesRef bytes, String path) {
         try (
-            var eval = evaluator(
-                new JsonExtract(Source.EMPTY, field("str", DataType.KEYWORD), field("path", DataType.KEYWORD))
-            ).get(driverContext());
+            var eval = evaluator(new JsonExtract(Source.EMPTY, field("str", DataType.KEYWORD), field("path", DataType.KEYWORD))).get(
+                driverContext()
+            );
             Block block = eval.eval(row(List.of(bytes, new BytesRef(path))))
         ) {
             return block.isNull(0) ? null : ((BytesRef) BlockUtils.toJavaObject(block, 0)).utf8ToString();

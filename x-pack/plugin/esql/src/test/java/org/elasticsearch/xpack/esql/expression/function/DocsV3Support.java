@@ -1382,9 +1382,7 @@ public abstract class DocsV3Support {
                 DocsV3SupportSignaturesMerger.ParamCell cell = row.get(i);
                 if (cell.types().isEmpty() == false) {
                     List<String> types = cell.types().stream().map(DataType::esNameIfPossible).sorted().toList();
-                    b.append(
-                        types.size() == 1 ? types.getFirst() : types.stream().collect(Collectors.joining("<br>"))
-                    );
+                    b.append(types.size() == 1 ? types.getFirst() : types.stream().collect(Collectors.joining("<br>")));
                     if (cell.appliesTo().isEmpty() == false) {
                         b.append(FunctionDocsSupport.makeAppliesToText(cell.appliesTo(), false, true));
                     }

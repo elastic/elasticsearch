@@ -45,9 +45,12 @@ class LatestChangeCollector implements Function.ChangeCollector {
     public QueryBuilder buildFilterQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint) {
         // We are only interested in documents that were created in the timeline of the current checkpoint.
         // Older documents cannot influence the transform results as we require the sort field values to change monotonically over time.
+        if (lastCheckpoint.getTimeUpperBound() == 0L) {
+            return QueryBuilders.rangeQuery(synchronizationField).lte(nextCheckpoint.getTimeUpperBound()).format("epoch_millis");
+        }
         return QueryBuilders.rangeQuery(synchronizationField)
-            .gte(lastCheckpoint.getTimeUpperBound())
-            .lt(nextCheckpoint.getTimeUpperBound())
+            .gt(lastCheckpoint.getTimeUpperBound())
+            .lte(nextCheckpoint.getTimeUpperBound())
             .format("epoch_millis");
     }
 

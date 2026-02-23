@@ -131,13 +131,13 @@ public class TimeSyncConfig implements SyncConfig {
 
     @Override
     public QueryBuilder getRangeQuery(TransformCheckpoint newCheckpoint) {
-        return new RangeQueryBuilder(field).lt(newCheckpoint.getTimeUpperBound()).format("epoch_millis");
+        return new RangeQueryBuilder(field).lte(newCheckpoint.getTimeUpperBound()).format("epoch_millis");
     }
 
     @Override
     public QueryBuilder getRangeQuery(TransformCheckpoint oldCheckpoint, TransformCheckpoint newCheckpoint) {
-        return new RangeQueryBuilder(field).gte(oldCheckpoint.getTimeUpperBound())
-            .lt(newCheckpoint.getTimeUpperBound())
+        return new RangeQueryBuilder(field).gt(oldCheckpoint.getTimeUpperBound())
+            .lte(newCheckpoint.getTimeUpperBound())
             .format("epoch_millis");
     }
 }

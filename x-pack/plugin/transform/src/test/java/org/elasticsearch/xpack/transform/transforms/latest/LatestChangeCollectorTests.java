@@ -28,7 +28,7 @@ public class LatestChangeCollectorTests extends ESTestCase {
                 new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 0L),
                 new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 123456789L)
             ),
-            is(equalTo(QueryBuilders.rangeQuery("timestamp").gte(0L).lt(123456789L).format("epoch_millis")))
+            is(equalTo(QueryBuilders.rangeQuery("timestamp").lte(123456789L).format("epoch_millis")))
         );
 
         assertThat(
@@ -36,7 +36,31 @@ public class LatestChangeCollectorTests extends ESTestCase {
                 new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 123456789L),
                 new TransformCheckpoint("t_id", 42L, 42L, Collections.emptyMap(), 234567890L)
             ),
-            is(equalTo(QueryBuilders.rangeQuery("timestamp").gte(123456789L).lt(234567890L).format("epoch_millis")))
+            is(equalTo(QueryBuilders.rangeQuery("timestamp").gt(123456789L).lte(234567890L).format("epoch_millis")))
+        );
+    }
+
+    public void testBuildFilterQueryWithEmptyLastCheckpoint() {
+        LatestChangeCollector changeCollector = new LatestChangeCollector("timestamp");
+
+        assertThat(
+            changeCollector.buildFilterQuery(
+                TransformCheckpoint.EMPTY,
+                new TransformCheckpoint("t_id", 42L, 1L, Collections.emptyMap(), 1000L)
+            ),
+            is(equalTo(QueryBuilders.rangeQuery("timestamp").lte(1000L).format("epoch_millis")))
+        );
+    }
+
+    public void testBuildFilterQueryWithSameTimestampBoundary() {
+        LatestChangeCollector changeCollector = new LatestChangeCollector("timestamp");
+
+        assertThat(
+            changeCollector.buildFilterQuery(
+                new TransformCheckpoint("t_id", 100L, 1L, Collections.emptyMap(), 1000L),
+                new TransformCheckpoint("t_id", 200L, 2L, Collections.emptyMap(), 1000L)
+            ),
+            is(equalTo(QueryBuilders.rangeQuery("timestamp").gt(1000L).lte(1000L).format("epoch_millis")))
         );
     }
 

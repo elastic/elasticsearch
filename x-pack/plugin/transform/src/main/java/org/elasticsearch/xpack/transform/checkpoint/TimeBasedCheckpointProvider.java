@@ -64,8 +64,8 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
 
         BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(transformConfig.getSource().getQueryConfig().getQuery())
             .filter(
-                new RangeQueryBuilder(timeSyncConfig.getField()).gte(lastCheckpoint.getTimeUpperBound())
-                    .lt(timeUpperBound)
+                new RangeQueryBuilder(timeSyncConfig.getField()).gt(lastCheckpoint.getTimeUpperBound())
+                    .lte(timeUpperBound)
                     .format("epoch_millis")
             );
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder().size(0)

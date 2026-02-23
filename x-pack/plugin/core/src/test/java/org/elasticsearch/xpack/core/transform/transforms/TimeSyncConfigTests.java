@@ -9,12 +9,15 @@ package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 public class TimeSyncConfigTests extends AbstractXContentSerializingTestCase<TimeSyncConfig> {
 
@@ -45,5 +48,37 @@ public class TimeSyncConfigTests extends AbstractXContentSerializingTestCase<Tim
     public void testDefaultDelay() {
         TimeSyncConfig config = new TimeSyncConfig(randomAlphaOfLength(10), null);
         assertThat(config.getDelay(), equalTo(TimeSyncConfig.DEFAULT_DELAY));
+    }
+
+    public void testGetRangeQueryWithSingleCheckpoint() {
+        TimeSyncConfig config = new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(60));
+        TransformCheckpoint checkpoint = new TransformCheckpoint("t_id", 123456789L, 1L, Collections.emptyMap(), 100000L);
+
+        assertThat(
+            config.getRangeQuery(checkpoint),
+            is(equalTo(QueryBuilders.rangeQuery("timestamp").lte(100000L).format("epoch_millis")))
+        );
+    }
+
+    public void testGetRangeQueryWithTwoCheckpoints() {
+        TimeSyncConfig config = new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(60));
+        TransformCheckpoint oldCheckpoint = new TransformCheckpoint("t_id", 100000000L, 1L, Collections.emptyMap(), 100000L);
+        TransformCheckpoint newCheckpoint = new TransformCheckpoint("t_id", 123456789L, 2L, Collections.emptyMap(), 200000L);
+
+        assertThat(
+            config.getRangeQuery(oldCheckpoint, newCheckpoint),
+            is(equalTo(QueryBuilders.rangeQuery("timestamp").gt(100000L).lte(200000L).format("epoch_millis")))
+        );
+    }
+
+    public void testGetRangeQueryWithIdenticalCheckpointBounds() {
+        TimeSyncConfig config = new TimeSyncConfig("timestamp", TimeValue.timeValueSeconds(60));
+        TransformCheckpoint oldCheckpoint = new TransformCheckpoint("t_id", 100000000L, 1L, Collections.emptyMap(), 100000L);
+        TransformCheckpoint newCheckpoint = new TransformCheckpoint("t_id", 100000001L, 2L, Collections.emptyMap(), 100000L);
+
+        assertThat(
+            config.getRangeQuery(oldCheckpoint, newCheckpoint),
+            is(equalTo(QueryBuilders.rangeQuery("timestamp").gt(100000L).lte(100000L).format("epoch_millis")))
+        );
     }
 }

@@ -168,6 +168,21 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         );
     }
 
+    public void testSourceHasChanged_UsesExclusiveLowerBound() throws InterruptedException {
+        testSourceHasChangedWithExclusivity(
+            0,
+            false,
+            new TransformCheckpoint("", 100000000L, 7, emptyMap(), 120000000L),
+            TransformConfigVersion.CURRENT,
+            TIMESTAMP_FIELD,
+            TimeValue.timeValueMinutes(10),
+            TimeValue.ZERO,
+            tuple(120000000L, 123000000L),
+            false,
+            true
+        );
+    }
+
     private void testSourceHasChanged(
         long totalHits,
         boolean expectedHasChangedValue,
@@ -177,6 +192,32 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
         TimeValue dateHistogramInterval,
         TimeValue delay,
         Tuple<Long, Long> expectedRangeQueryBounds
+    ) throws InterruptedException {
+        testSourceHasChangedWithExclusivity(
+            totalHits,
+            expectedHasChangedValue,
+            lastCheckpoint,
+            transformVersion,
+            dateHistogramField,
+            dateHistogramInterval,
+            delay,
+            expectedRangeQueryBounds,
+            false,
+            true
+        );
+    }
+
+    private void testSourceHasChangedWithExclusivity(
+        long totalHits,
+        boolean expectedHasChangedValue,
+        TransformCheckpoint lastCheckpoint,
+        TransformConfigVersion transformVersion,
+        String dateHistogramField,
+        TimeValue dateHistogramInterval,
+        TimeValue delay,
+        Tuple<Long, Long> expectedRangeQueryBounds,
+        boolean expectInclusiveLower,
+        boolean expectInclusiveUpper
     ) throws InterruptedException {
         final SearchResponse searchResponse = newSearchResponse(totalHits);
         try {
@@ -207,6 +248,8 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             RangeQueryBuilder rangeQuery = (RangeQueryBuilder) boolQuery.filter().get(1);
             assertThat(rangeQuery.from(), is(equalTo(expectedRangeQueryBounds.v1())));
             assertThat(rangeQuery.to(), is(equalTo(expectedRangeQueryBounds.v2())));
+            assertThat(rangeQuery.includeLower(), is(equalTo(expectInclusiveLower)));
+            assertThat(rangeQuery.includeUpper(), is(equalTo(expectInclusiveUpper)));
 
             assertThat(hasChangedHolder.get(), is(equalTo(expectedHasChangedValue)));
             assertThat(exceptionHolder.get(), is(nullValue()));

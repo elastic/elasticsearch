@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -40,13 +39,6 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         "reindex.remote.whitelist",
         Property.NodeScope
     );
-
-    /**
-     * A feature flag to guard the work to make use point-in-time searching during reindexing rather than scroll
-     * while it is under development.
-     */
-    // TODO - DELETE. Only needed for local development
-    static boolean REINDEX_PIT_SEARCH_ENABLED = new FeatureFlag("reindex_pit_search_enabled").isEnabled();
 
     protected final ReindexValidator reindexValidator;
     private final Reindexer reindexer;

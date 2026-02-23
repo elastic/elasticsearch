@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reindex;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -102,7 +103,7 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
             sslConfig,
             request,
             listener(),
-            null
+            randomBoolean() ? null : Version.CURRENT
         );
     }
 }

@@ -82,7 +82,7 @@ import java.util.function.LongSupplier;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.synchronizedList;
 import static org.elasticsearch.index.VersionType.INTERNAL;
-import static org.elasticsearch.reindex.TransportReindexAction.REINDEX_PIT_SEARCH_ENABLED;
+import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED;
 
 public class Reindexer {
 

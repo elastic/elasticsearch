@@ -10,7 +10,6 @@
 package org.elasticsearch.reindex.remote;
 
 import org.apache.http.ContentTooLongException;
-import org.apache.http.HttpEntity;
 import org.apache.http.HttpEntityEnclosingRequest;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpResponse;
@@ -20,14 +19,12 @@ import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.http.concurrent.FutureCallback;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.InputStreamEntity;
-import org.apache.http.entity.StringEntity;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
 import org.apache.http.nio.protocol.HttpAsyncRequestProducer;
 import org.apache.http.nio.protocol.HttpAsyncResponseConsumer;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
@@ -56,7 +53,6 @@ import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -510,7 +506,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
             .build();
 
         RemoteInfo remoteInfo = remoteInfo();
-        TestRemoteScrollablePaginatedHitSource hitSource = new TestRemoteScrollablePaginatedHitSource(restClient, remoteInfo) {
+        TestRemoteScrollablePaginatedHitSource paginatedHitSource = new TestRemoteScrollablePaginatedHitSource(restClient, remoteInfo) {
             @Override
             protected void doStart(RejectAwareActionListener<Response> searchListener) {
                 // Short‑circuit version lookup by setting it to current
@@ -538,13 +534,17 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
      * Creates a RemoteScrollablePaginatedHitSource with a pre-resolved initial remote version so that doStart skips the version lookup.
      * The mock client serves only the given response paths (one request = one path when using initial version).
      */
-    private RemoteScrollablePaginatedHitSource sourceWithInitialRemoteVersion(Version initialRemoteVersion, String... paths) throws Exception {
+    private RemoteScrollablePaginatedHitSource sourceWithInitialRemoteVersion(Version initialRemoteVersion, String... paths)
+        throws Exception {
         return sourceWithInitialRemoteVersion(initialRemoteVersion, ContentType.APPLICATION_JSON, paths);
     }
 
     @SuppressWarnings("unchecked")
-    private RemoteScrollablePaginatedHitSource sourceWithInitialRemoteVersion(Version initialRemoteVersion, ContentType contentType, String... paths)
-        throws Exception {
+    private RemoteScrollablePaginatedHitSource sourceWithInitialRemoteVersion(
+        Version initialRemoteVersion,
+        ContentType contentType,
+        String... paths
+    ) throws Exception {
         URL[] resources = new URL[paths.length];
         for (int i = 0; i < paths.length; i++) {
             resources[i] = Thread.currentThread().getContextClassLoader().getResource("responses/" + paths[i].replace("fail:", ""));
@@ -635,7 +635,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
     }
 
     private class TestRemoteScrollablePaginatedHitSource extends RemoteScrollablePaginatedHitSource {
-        TestRemoteScrollablePaginatedHitSource(RestClient client) {
+        TestRemoteScrollablePaginatedHitSource(RestClient client, RemoteInfo remoteInfo) {
             super(
                 RemoteScrollablePaginatedHitSourceTests.this.logger,
                 backoff(),
@@ -644,18 +644,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
                 responseQueue::add,
                 failureQueue::add,
                 client,
-                new RemoteInfo(
-                    "http",
-                    randomAlphaOfLength(8),
-                    randomIntBetween(4000, 9000),
-                    null,
-                    new BytesArray("{}"),
-                    null,
-                    null,
-                    Map.of(),
-                    TimeValue.timeValueSeconds(randomIntBetween(5, 30)),
-                    TimeValue.timeValueSeconds(randomIntBetween(5, 30))
-                ),
+                remoteInfo,
                 RemoteScrollablePaginatedHitSourceTests.this.searchRequest
             );
         }

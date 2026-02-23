@@ -157,11 +157,11 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
                 GoogleCloudStorageRepository.TYPE,
                 "es_repo_name",
                 blobStore.getRepositoryName(),
-                "es_operation",
+                "es_retry_operation",
                 StorageOperation.GET.key(),
-                "es_purpose",
+                "es_retry_purpose",
                 purpose.getKey(),
-                "es_action",
+                "es_retry_action",
                 action.getPastTense()
             );
         }

@@ -48,9 +48,9 @@ public abstract class RetryingInputStream<V> extends InputStream {
     private static final Set<String> REQUIRED_METRIC_ATTRIBUTES = Set.of(
         "es_repo_type",
         "es_repo_name",
-        "es_operation",
-        "es_purpose",
-        "es_action"
+        "es_retry_operation",
+        "es_retry_purpose",
+        "es_retry_action"
     );
 
     private static final Logger logger = LogManager.getLogger(RetryingInputStream.class);

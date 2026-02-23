@@ -95,11 +95,11 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
                 AzureRepository.TYPE,
                 "es_repo_name",
                 blobStore.getRepositoryMetadata().name(),
-                "es_operation",
+                "es_retry_operation",
                 AzureBlobStore.Operation.GET_BLOB.getKey(),
-                "es_purpose",
+                "es_retry_purpose",
                 purpose.getKey(),
-                "es_action",
+                "es_retry_action",
                 action.getPastTense()
             );
         }

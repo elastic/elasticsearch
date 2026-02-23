@@ -441,6 +441,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         safeAwait(deleteStartedListener);
 
         safeAwait(updateSnapshotStatusBarrier); // process pause notification now that the snapshot is ABORTED
+        masterTransportService.clearAllRules(); // allow any further update_snapshot_status requests to complete so assertRequestsFinished passes
 
         assertEquals(SnapshotState.FAILED, snapshotFuture.get(10, TimeUnit.SECONDS).getSnapshotInfo().state());
         assertTrue(deleteSnapshotFuture.get(10, TimeUnit.SECONDS).isAcknowledged());

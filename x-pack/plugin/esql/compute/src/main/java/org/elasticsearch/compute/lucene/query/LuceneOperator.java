@@ -217,9 +217,9 @@ public abstract class LuceneOperator extends SourceOperator {
      * Wraps a {@link BulkScorer} with shard information
      */
     static final class LuceneScorer {
-        private final static BulkScorer NOT_INITIALIZED_BULK_SCORER = new BulkScorer() {
+        private static final BulkScorer NOT_INITIALIZED_BULK_SCORER = new BulkScorer() {
             @Override
-            public int score(LeafCollector collector, Bits acceptDocs, int min, int max) throws IOException {
+            public int score(LeafCollector collector, Bits acceptDocs, int min, int max) {
                 throw new UnsupportedOperationException();
             }
 

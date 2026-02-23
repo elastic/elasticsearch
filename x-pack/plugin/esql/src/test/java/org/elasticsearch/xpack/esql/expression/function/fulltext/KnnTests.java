@@ -10,15 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -27,7 +24,6 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
 public class KnnTests extends AbstractFullTextFunctionTestCase {
@@ -49,11 +45,7 @@ public class KnnTests extends AbstractFullTextFunctionTestCase {
                 List.of(DENSE_VECTOR, DENSE_VECTOR),
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
-                        new TestCaseSupplier.TypedData(
-                            randomDenseVector(),
-                            DENSE_VECTOR,
-                            "dense_vector field"
-                        ),
+                        new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "dense_vector field"),
                         new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query")
                     ),
                     equalTo("KnnEvaluator" + KnnTests.class.getSimpleName()),
@@ -68,11 +60,7 @@ public class KnnTests extends AbstractFullTextFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(
-                            new TestCaseSupplier.TypedData(
-                                randomAlphaOfLength(10),
-                                TEXT,
-                                "text field"
-                            ),
+                            new TestCaseSupplier.TypedData(randomAlphaOfLength(10), TEXT, "text field"),
                             TEXT,
                             "text field"
                         ),
@@ -112,13 +100,6 @@ public class KnnTests extends AbstractFullTextFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        Knn knn = new Knn(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
-        // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and
-        // thus test the serialization methods. But we can only do this if the parameters make sense .
-        if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {
-            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, knn).toQueryBuilder();
-            knn = (Knn) knn.replaceQueryBuilder(queryBuilder);
-        }
-        return knn;
+        return build(new Knn(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null), args);
     }
 }

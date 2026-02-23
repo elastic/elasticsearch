@@ -7,12 +7,15 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -24,6 +27,7 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeser
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.stringCases;
+import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractFullTextFunctionTestCase extends AbstractFunctionTestCase {
@@ -67,6 +71,18 @@ public abstract class AbstractFullTextFunctionTestCase extends AbstractFunctionT
         return suppliers;
     }
 
+    protected <T extends FullTextFunction> T build(T function, List<Expression> args) {
+        // We need to add the QueryBuilder to the function expression, as it is used to implement equals() and hashCode() and
+        // thus test the serialization methods. But we can only do this if the parameters make sense .
+        if (args.get(0) instanceof FieldAttribute && args.get(1).foldable()) {
+            QueryBuilder queryBuilder = TRANSLATOR_HANDLER.asQuery(LucenePushdownPredicates.DEFAULT, function).toQueryBuilder();
+            @SuppressWarnings("unchecked")
+            T result = (T) function.replaceQueryBuilder(queryBuilder);
+            return result;
+        }
+        return function;
+    }
+
     protected static List<TestCaseSupplier> addStringTestCases(List<TestCaseSupplier> suppliers) {
         for (DataType fieldType : DataType.stringTypes()) {
             if (DataType.UNDER_CONSTRUCTION.contains(fieldType)) {
@@ -101,13 +117,7 @@ public abstract class AbstractFullTextFunctionTestCase extends AbstractFunctionT
             dataTypes.add(UNSUPPORTED);
             result.add(new TestCaseSupplier(supplier.name() + ", options", dataTypes, () -> {
                 List<TestCaseSupplier.TypedData> values = new ArrayList<>(supplier.get().getData());
-                values.add(
-                    new TestCaseSupplier.TypedData(
-                        mapExpressionSupplier.get(),
-                        UNSUPPORTED,
-                        "options"
-                    ).forceLiteral()
-                );
+                values.add(new TestCaseSupplier.TypedData(mapExpressionSupplier.get(), UNSUPPORTED, "options").forceLiteral());
 
                 return new TestCaseSupplier.TestCase(values, equalTo("MatchEvaluator"), BOOLEAN, equalTo(true));
             }));

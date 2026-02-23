@@ -31,16 +31,21 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.DateScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.blockloader.script.DateScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
@@ -60,6 +65,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -489,6 +495,42 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     }
 
     public void testBlockLoader() throws IOException {
+        testBlockLoader(newLimitedBreaker(ByteSizeValue.ofMb(1)), f -> f);
+    }
+
+    public void testWithCrankyBreaker() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky, r -> r);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    public void testWithCrankyFactory() throws IOException {
+        try {
+            testBlockLoader(newLimitedBreaker(ByteSizeValue.ofMb(1)), CrankyLeafFactory::new);
+            logger.info("Cranky factory didn't break.");
+        } catch (IllegalStateException e) {
+            logger.info("Cranky factory broke", e);
+        }
+    }
+
+    public void testWithCrankyBreakerAndFactory() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky, CrankyLeafFactory::new);
+            logger.info("Cranky breaker nor reader didn't break. This should be rare, but possible randomly.");
+        } catch (IllegalStateException | CircuitBreakingException e) {
+            logger.info("Cranky breaker or reader broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    private void testBlockLoader(CircuitBreaker breaker, Function<DateFieldScript.LeafFactory, DateFieldScript.LeafFactory> factoryWrapper)
+        throws IOException {
         try (
             Directory directory = newDirectory();
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
@@ -500,13 +542,16 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 )
             );
             try (DirectoryReader reader = iw.getReader()) {
-                DateScriptFieldType fieldType = build("add_days", Map.of("days", 1), OnScriptError.FAIL);
+                DateScriptFieldType fieldType = buildWrapped("add_days", Map.of("days", 1), factoryWrapper);
                 assertThat(
-                    blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0),
+                    blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0),
                     equalTo(List.of(1595518581354L, 1595518581355L))
                 );
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(List.of(1595518581355L)));
-                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(List.of(1595518581354L, 1595518581355L)));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 1), equalTo(List.of(1595518581355L)));
+                assertThat(
+                    blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType),
+                    equalTo(List.of(1595518581354L, 1595518581355L))
+                );
             }
         }
     }
@@ -544,16 +589,18 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 // assert loader is of expected instance type
                 assertThat(loader, instanceOf(DateScriptBlockDocValuesReader.DateScriptBlockLoader.class));
 
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).get();
-                assertThat(columnAtATimeLoader, instanceOf(DateScriptBlockDocValuesReader.class));
-
-                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
-                assertThat(rowStrideReader, instanceOf(DateScriptBlockDocValuesReader.class));
+                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
+                    assertThat(columnAtATimeLoader, instanceOf(DateScriptBlockDocValuesReader.class));
+                }
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(rowStrideReader, instanceOf(DateScriptBlockDocValuesReader.class));
+                }
 
                 // assert values
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(expected));
-                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(expected));
             }
         }
     }
@@ -591,18 +638,18 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 // assert loader is of expected instance type
                 assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
 
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
-                assertThat(columnAtATimeLoader, nullValue());
-
-                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
-                assertThat(
-                    rowStrideReader.getClass().getName(),
-                    equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
-                );
+                assertThat(loader.columnAtATimeReader(reader.leaves().getFirst()), nullValue());
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(
+                        rowStrideReader.getClass().getName(),
+                        equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                    );
+                }
 
                 // assert values
-                assertThat(blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, settings, reader, fieldType, true), equalTo(expected));
             }
         }
     }
@@ -696,6 +743,26 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
         return build(new Script(ScriptType.INLINE, "test", code, params), DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER, onScriptError);
     }
 
+    protected DateScriptFieldType buildWrapped(
+        String code,
+        Map<String, Object> params,
+        Function<DateFieldScript.LeafFactory, DateFieldScript.LeafFactory> leafFactoryWrapper
+    ) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        DateFieldScript.Factory factory = factory(script);
+        DateFieldScript.Factory wrapped = (fieldName, params1, searchLookup, formatter, onScriptError) -> leafFactoryWrapper.apply(
+            factory.newFactory(fieldName, params1, searchLookup, formatter, onScriptError)
+        );
+        return new DateScriptFieldType(
+            "test",
+            wrapped,
+            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
+            script,
+            emptyMap(),
+            OnScriptError.FAIL
+        );
+    }
+
     private static DateFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
             case "read_timestamp" -> (fieldName, params, lookup, formatter, onScriptError) -> ctx -> new DateFieldScript(
@@ -769,5 +836,21 @@ public class DateScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
     private void checkBadDate(ThrowingRunnable queryBuilder) {
         Exception e = expectThrows(ElasticsearchParseException.class, queryBuilder);
         assertThat(e.getMessage(), containsString("failed to parse date field"));
+    }
+
+    private static class CrankyLeafFactory implements DateFieldScript.LeafFactory {
+        private final DateFieldScript.LeafFactory next;
+
+        private CrankyLeafFactory(DateFieldScript.LeafFactory next) {
+            this.next = next;
+        }
+
+        @Override
+        public DateFieldScript newInstance(LeafReaderContext ctx) {
+            if (between(0, 20) == 0) {
+                throw new IllegalStateException("cranky");
+            }
+            return next.newInstance(ctx);
+        }
     }
 }

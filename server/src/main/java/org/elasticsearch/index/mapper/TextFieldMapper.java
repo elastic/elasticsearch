@@ -1277,7 +1277,7 @@ public final class TextFieldMapper extends FieldMapper {
                 if (usesBinaryDocValues()) {
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
                 } else {
-                    return new BytesRefsFromOrdsBlockLoader(name());
+                    return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                 }
             }
 

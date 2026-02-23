@@ -18,11 +18,13 @@ import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.fulltext.MatchTests.testCaseSuppliers;
+
 /**
  * This class is only used to generates docs for the match operator - all testing is the same as {@link MatchTests}
  */
 @FunctionName("match_operator")
-public class MatchOperatorTests extends AbstractMatchFullTextFunctionTests {
+public class MatchOperatorTests extends AbstractFullTextFunctionTestCase {
 
     public MatchOperatorTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

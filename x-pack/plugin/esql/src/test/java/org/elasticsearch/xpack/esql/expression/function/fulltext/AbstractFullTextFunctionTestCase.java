@@ -116,16 +116,8 @@ public abstract class AbstractFullTextFunctionTestCase extends AbstractFunctionT
     }
 
     /**
-     * Checks that a literal full text functions built from the test case is resolved, which means that any type resolution logic
-     * has been applied
-     */
-    public final void testLiteralExpressions() {
-        Expression expression = buildLiteralExpression(testCase);
-        assertFalse("expected resolved", expression.typeResolved().unresolved());
-    }
-
-    /**
-     * Copy of the overridden method that doesn't check for children size, as the {@code options} child isn't serialized in Match.
+     * Copy of the overridden method that doesn't check for children size, as the {@code options} child aren't serialized in
+     * full text functions, but passed to the QueryBuilder instead
      */
     @Override
     protected Expression serializeDeserializeExpression(Expression expression) {
@@ -137,5 +129,14 @@ public abstract class AbstractFullTextFunctionTestCase extends AbstractFunctionT
         );
         // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
         return newExpression.replaceChildren(expression.children());
+    }
+
+    /**
+     * Checks that a literal full text functions built from the test case is resolved, which means that any type resolution logic
+     * has been applied
+     */
+    public final void testLiteralExpressions() {
+        Expression expression = buildLiteralExpression(testCase);
+        assertFalse("expected resolved", expression.typeResolved().unresolved());
     }
 }

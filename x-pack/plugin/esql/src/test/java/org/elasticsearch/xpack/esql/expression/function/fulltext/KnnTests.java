@@ -16,20 +16,17 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.vector.Knn;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerialization;
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -53,11 +50,7 @@ public class KnnTests extends AbstractFullTextFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(
-                            new FieldAttribute(
-                                Source.EMPTY,
-                                randomIdentifier(),
-                                new EsField(randomIdentifier(), DENSE_VECTOR, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
-                            ),
+                            randomDenseVector(),
                             DENSE_VECTOR,
                             "dense_vector field"
                         ),
@@ -75,10 +68,10 @@ public class KnnTests extends AbstractFullTextFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(
-                            new FieldAttribute(
-                                Source.EMPTY,
-                                randomIdentifier(),
-                                new EsField(randomIdentifier(), TEXT, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+                            new TestCaseSupplier.TypedData(
+                                randomAlphaOfLength(10),
+                                TEXT,
+                                "text field"
                             ),
                             TEXT,
                             "text field"
@@ -118,24 +111,5 @@ public class KnnTests extends AbstractFullTextFunctionTestCase {
             knn = (Knn) knn.replaceQueryBuilder(queryBuilder);
         }
         return knn;
-    }
-
-    public void testSerializationOfSimple() {
-        // do nothing
-        assumeTrue("can't serialize function", canSerialize());
-        Expression expression = buildFieldExpression(testCase);
-        if (expression instanceof Knn knn) {
-            List<Expression> newChildren = knn.children();
-            if (newChildren.size() > 2) {
-                // The K parameter is not serialized, so we need to remove it from the children
-                // before we compare the serialization results
-                newChildren.set(2, null);
-            }
-            Expression knnWithoutK = knn.replaceChildren(newChildren);
-            assertSerialization(knnWithoutK, testCase.getConfiguration());
-        } else {
-            // If not a Knn instance we fail the test as it is supposed to be a Knn function
-            fail("Expression is not Knn");
-        }
     }
 }

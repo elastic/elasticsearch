@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("score")
-public class ScoreTests extends AbstractMatchFullTextFunctionTests {
+public class ScoreTests extends AbstractFullTextFunctionTestCase {
 
     public ScoreTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

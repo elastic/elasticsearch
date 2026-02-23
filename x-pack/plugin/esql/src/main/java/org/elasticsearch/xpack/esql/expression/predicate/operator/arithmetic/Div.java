@@ -125,7 +125,10 @@ public class Div extends DenseVectorArithmeticOperation implements BinaryCompari
     static double processDoubles(double lhs, double rhs) {
         double value = lhs / rhs;
         if (Double.isNaN(value) || Double.isInfinite(value)) {
-            throw new ArithmeticException("/ by zero");
+            if (rhs == 0.0) {
+                throw new ArithmeticException("/ by zero");
+            }
+            throw new ArithmeticException("result overflow");
         }
         return value;
     }

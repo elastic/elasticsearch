@@ -65,13 +65,16 @@ public class DivTests extends AbstractScalarFunctionTestCase {
                     if (lhs.type() != DataType.DOUBLE || rhs.type() != DataType.DOUBLE) {
                         return List.of();
                     }
-                    double v = ((Double) lhs.getValue()) / ((Double) rhs.getValue());
+                    double lhsVal = (Double) lhs.getValue();
+                    double rhsVal = (Double) rhs.getValue();
+                    double v = lhsVal / rhsVal;
                     if (Double.isFinite(v)) {
                         return List.of();
                     }
+                    String reason = rhsVal == 0.0 ? "/ by zero" : "result overflow";
                     return List.of(
                         "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.",
-                        "Line 1:1: java.lang.ArithmeticException: / by zero"
+                        "Line 1:1: java.lang.ArithmeticException: " + reason
                     );
                 },
                 false

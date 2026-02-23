@@ -401,7 +401,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
             Map.of("type", "double", "script", Map.of("source", "emit(1.0)"))
         );
         TransformConfig config = newPitEnabledConfigWithSource(
-            new SourceConfig(new String[] { "source_index" }, QueryConfig.matchAll(), runtimeMappings, null)
+            new SourceConfig(new String[] { "source_index" }, QueryConfig.matchAll(), runtimeMappings)
         );
 
         try (var threadPool = createThreadPool()) {
@@ -429,7 +429,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
     public void testPitIndexFilterSetWhenNoRuntimeMappings() throws InterruptedException {
         // Arrange: create a config WITHOUT runtime_mappings and PIT enabled
         TransformConfig config = newPitEnabledConfigWithSource(
-            new SourceConfig(new String[] { "source_index" }, QueryConfig.matchAll(), Collections.emptyMap(), null)
+            new SourceConfig(new String[] { "source_index" }, QueryConfig.matchAll(), Collections.emptyMap())
         );
 
         try (var threadPool = createThreadPool()) {
@@ -554,8 +554,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 mock(TransformCheckpointService.class),
                 mock(TransformAuditor.class),
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
-                mock(TransformNode.class),
-                mock(CrossProjectModeDecider.class)
+                mock(TransformNode.class)
             ),
             mock(CheckpointProvider.class),
             new AtomicReference<>(IndexerState.STOPPED),

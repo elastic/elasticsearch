@@ -292,12 +292,7 @@ public class TimeBasedCheckpointProviderTests extends ESTestCase {
             "total_price_with_tax",
             Map.of("type", "double", "script", Map.of("source", "emit(1.0)"))
         );
-        SourceConfig sourceWithRuntimeMappings = new SourceConfig(
-            new String[] { "source_index" },
-            QueryConfig.matchAll(),
-            runtimeMappings,
-            null
-        );
+        SourceConfig sourceWithRuntimeMappings = new SourceConfig(new String[] { "source_index" }, QueryConfig.matchAll(), runtimeMappings);
         TransformConfig transformConfig = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setSource(
             sourceWithRuntimeMappings
         ).setSyncConfig(new TimeSyncConfig(TIMESTAMP_FIELD, TimeValue.ZERO)).build();

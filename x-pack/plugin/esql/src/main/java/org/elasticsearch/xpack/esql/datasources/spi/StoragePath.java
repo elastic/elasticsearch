@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.datasources.spi;
 
+import java.nio.file.Path;
+
 /**
  * Represents a location in a storage system.
  * Uses URI-like format: scheme://[userInfo@]host[:port][/path]
@@ -40,6 +42,18 @@ public final class StoragePath {
         this.host = host;
         this.port = port;
         this.path = path;
+    }
+
+    /**
+     * Converts a local filesystem {@link Path} to a properly formatted {@code file://} URI string.
+     * Normalizes Windows backslashes and ensures the URI has three slashes ({@code file:///}).
+     */
+    public static String fileUri(Path path) {
+        String absPath = path.toAbsolutePath().toString().replace('\\', '/');
+        if (absPath.startsWith("/") == false) {
+            absPath = "/" + absPath;
+        }
+        return "file://" + absPath;
     }
 
     public static StoragePath of(String location) {

@@ -97,8 +97,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
             builtInAnalyzers.add(randomStats("french"));
         }
         Map<String, SynonymsStats> synonymsStats = randomSynonymsStats();
-        int analyzersWithMultipleSynonymSetGraphFilters = randomIntBetween(0, 10);
-        int indicesWithMultipleSynonymSetGraphFilters = randomIntBetween(0, analyzersWithMultipleSynonymSetGraphFilters);
+        int analyzersWithMultipleSynonymGraphFilters = randomIntBetween(0, 10);
+        int indicesWithMultipleSynonymGraphFilters = randomIntBetween(0, analyzersWithMultipleSynonymGraphFilters);
 
         return new AnalysisStats(
             charFilters,
@@ -110,8 +110,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
             builtInTokenFilters,
             builtInAnalyzers,
             synonymsStats,
-            analyzersWithMultipleSynonymSetGraphFilters,
-            indicesWithMultipleSynonymSetGraphFilters
+            analyzersWithMultipleSynonymGraphFilters,
+            indicesWithMultipleSynonymGraphFilters
         );
     }
 
@@ -126,8 +126,8 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         Set<IndexFeatureStats> builtInTokenFilters = instance.getUsedBuiltInTokenFilters();
         Set<IndexFeatureStats> builtInAnalyzers = instance.getUsedBuiltInAnalyzers();
         Map<String, SynonymsStats> synonyms = instance.getUsedSynonyms();
-        int analyzerCount = instance.getAnalyzersWithMultipleSynonymSetGraphFilters();
-        int indexCount = instance.getIndicesWithMultipleSynonymSetGraphFilters();
+        int analyzerCount = instance.getAnalyzersWithMultipleSynonymGraphFilters();
+        int indexCount = instance.getIndicesWithMultipleSynonymGraphFilters();
 
         switch (randomInt(9)) {
             case 0 -> {
@@ -380,7 +380,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         assertEquals(expectedSynonymStats, analysisStats.getUsedSynonyms());
     }
 
-    public void testMultipleSynonymSetGraphFiltersStats() {
+    public void testMultipleSynonymGraphFiltersStats() {
         // Index with an analyzer that has two synonym_graph filters backed by synonyms_set
         final String settingsWithMultiple = """
             {
@@ -483,15 +483,15 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         Metadata metadata = new Metadata.Builder().build().withAddedIndex(index1).withAddedIndex(index2).withAddedIndex(index3);
         AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
 
-        // 3 analyzers total with multiple synonym_graph (synonyms_set) filters: my_analyzer, analyzer_one, analyzer_two
-        assertEquals(3, analysisStats.getAnalyzersWithMultipleSynonymSetGraphFilters());
+        // 3 analyzers total with multiple synonym_graph filters: my_analyzer, analyzer_one, analyzer_two
+        assertEquals(3, analysisStats.getAnalyzersWithMultipleSynonymGraphFilters());
         // 2 indices have at least one such analyzer: idx_multiple and idx_two_analyzers
-        assertEquals(2, analysisStats.getIndicesWithMultipleSynonymSetGraphFilters());
+        assertEquals(2, analysisStats.getIndicesWithMultipleSynonymGraphFilters());
     }
 
-    public void testMultipleSynonymSetGraphFiltersOnlyCountsSynonymsSet() {
-        // An analyzer with two synonym_graph filters, but only one uses synonyms_set, the other uses inline synonyms.
-        // Should NOT be counted since only one filter is backed by synonyms_set.
+    public void testMultipleSynonymGraphFiltersCountsMixedSources() {
+        // An analyzer with two synonym_graph filters: one using synonyms_set, the other using inline synonyms.
+        // SHOULD be counted since both filters are synonym_graph type.
         final String settingsSource = """
             {
               "index": {
@@ -524,11 +524,11 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         Metadata metadata = new Metadata.Builder().build().withAddedIndex(indexMetadata);
         AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
 
-        assertEquals(0, analysisStats.getAnalyzersWithMultipleSynonymSetGraphFilters());
-        assertEquals(0, analysisStats.getIndicesWithMultipleSynonymSetGraphFilters());
+        assertEquals(1, analysisStats.getAnalyzersWithMultipleSynonymGraphFilters());
+        assertEquals(1, analysisStats.getIndicesWithMultipleSynonymGraphFilters());
     }
 
-    public void testNoMultipleSynonymSetGraphFilters() {
+    public void testNoMultipleSynonymGraphFilters() {
         // Index with no synonym filters at all
         final String settingsSource = """
             {
@@ -551,12 +551,12 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         Metadata metadata = new Metadata.Builder().build().withAddedIndex(indexMetadata);
         AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
 
-        assertEquals(0, analysisStats.getAnalyzersWithMultipleSynonymSetGraphFilters());
-        assertEquals(0, analysisStats.getIndicesWithMultipleSynonymSetGraphFilters());
+        assertEquals(0, analysisStats.getAnalyzersWithMultipleSynonymGraphFilters());
+        assertEquals(0, analysisStats.getIndicesWithMultipleSynonymGraphFilters());
     }
 
-    public void testMultipleInlineSynonymGraphNotCounted() {
-        // An analyzer with two synonym_graph filters using inline synonyms should NOT be counted
+    public void testMultipleInlineSynonymGraphCounted() {
+        // An analyzer with two synonym_graph filters using inline synonyms SHOULD be counted
         final String settingsSource = """
             {
               "index": {
@@ -588,11 +588,48 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         Metadata metadata = new Metadata.Builder().build().withAddedIndex(indexMetadata);
         AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
 
-        assertEquals(0, analysisStats.getAnalyzersWithMultipleSynonymSetGraphFilters());
-        assertEquals(0, analysisStats.getIndicesWithMultipleSynonymSetGraphFilters());
+        assertEquals(1, analysisStats.getAnalyzersWithMultipleSynonymGraphFilters());
+        assertEquals(1, analysisStats.getIndicesWithMultipleSynonymGraphFilters());
     }
 
-    public void testSynonymTypeNotCountedAsMultipleSynonymSetGraph() {
+    public void testMultiplePathSynonymGraphCounted() {
+        // An analyzer with two synonym_graph filters using synonyms_path (file-based) SHOULD be counted
+        final String settingsSource = """
+            {
+              "index": {
+                "analysis": {
+                  "filter": {
+                    "sg_path_1": {
+                      "type": "synonym_graph",
+                      "synonyms_path": "synonyms1.txt"
+                    },
+                    "sg_path_2": {
+                      "type": "synonym_graph",
+                      "synonyms_path": "synonyms2.txt"
+                    }
+                  },
+                  "analyzer": {
+                    "double_path_analyzer": {
+                      "type": "custom",
+                      "tokenizer": "standard",
+                      "filter": ["sg_path_1", "sg_path_2"]
+                    }
+                  }
+                }
+              }
+            }
+            """;
+        Settings settings = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsSource, XContentType.JSON).build();
+        IndexMetadata indexMetadata = new IndexMetadata.Builder("idx_path_only").settings(settings).build();
+
+        Metadata metadata = new Metadata.Builder().build().withAddedIndex(indexMetadata);
+        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
+
+        assertEquals(1, analysisStats.getAnalyzersWithMultipleSynonymGraphFilters());
+        assertEquals(1, analysisStats.getIndicesWithMultipleSynonymGraphFilters());
+    }
+
+    public void testSynonymTypeNotCountedAsMultipleSynonymGraph() {
         // An analyzer with two plain "synonym" (not synonym_graph) filters with synonyms_set should NOT be counted
         final String settingsSource = """
             {
@@ -627,7 +664,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         Metadata metadata = new Metadata.Builder().build().withAddedIndex(indexMetadata);
         AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
 
-        assertEquals(0, analysisStats.getAnalyzersWithMultipleSynonymSetGraphFilters());
-        assertEquals(0, analysisStats.getIndicesWithMultipleSynonymSetGraphFilters());
+        assertEquals(0, analysisStats.getAnalyzersWithMultipleSynonymGraphFilters());
+        assertEquals(0, analysisStats.getIndicesWithMultipleSynonymGraphFilters());
     }
 }

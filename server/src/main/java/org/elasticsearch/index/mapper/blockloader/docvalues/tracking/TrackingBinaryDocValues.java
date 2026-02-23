@@ -19,6 +19,10 @@ import org.elasticsearch.core.Releasable;
 
 import java.io.IOException;
 
+/**
+ * Wraps a {@link BinaryDocValues}, reserving some space in a {@link CircuitBreaker}
+ * while it is live.
+ */
 public class TrackingBinaryDocValues implements Releasable {
     /**
      * Circuit breaker space reserved for each reader. Measured in heap dumps

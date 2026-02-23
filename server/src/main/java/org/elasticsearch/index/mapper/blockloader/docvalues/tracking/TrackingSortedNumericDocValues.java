@@ -15,6 +15,10 @@ import org.elasticsearch.core.Releasable;
 
 import static org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues.ESTIMATED_SIZE;
 
+/**
+ * Wraps a {@link SortedNumericDocValues}, reserving some space in a {@link CircuitBreaker}
+ * while it is live.
+ */
 public class TrackingSortedNumericDocValues implements Releasable {
     private final CircuitBreaker breaker;
     private final SortedNumericDocValues docValues;

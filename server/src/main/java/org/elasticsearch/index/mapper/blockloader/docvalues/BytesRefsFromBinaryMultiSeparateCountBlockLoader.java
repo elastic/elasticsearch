@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.blockloader.docvalues;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
 import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
@@ -79,11 +80,7 @@ public class BytesRefsFromBinaryMultiSeparateCountBlockLoader extends BlockDocVa
 
         @Override
         public void close() {
-            try {
-                super.close();
-            } finally {
-                counts.close();
-            }
+            Releasables.close(super::close, counts);
         }
     }
 }

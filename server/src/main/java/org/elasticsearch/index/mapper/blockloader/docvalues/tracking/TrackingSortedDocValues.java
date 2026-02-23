@@ -14,6 +14,10 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Releasable;
 
+/**
+ * Wraps a {@link SortedDocValues}, reserving some space in a {@link CircuitBreaker}
+ * while it is live.
+ */
 public class TrackingSortedDocValues implements Releasable {
     private final CircuitBreaker breaker;
     private final ByteSizeValue size;

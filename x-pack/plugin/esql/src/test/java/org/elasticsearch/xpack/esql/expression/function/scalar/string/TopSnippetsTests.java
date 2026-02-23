@@ -99,9 +99,9 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(text), fieldDataType, "field"),
-                    new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query")
+                    new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query").forceLiteral()
                 ),
-                "TopSnippetsEvaluator[field=Attribute[channel=0], query=Attribute[channel=1], "
+                "TopSnippetsEvaluator[field=Attribute[channel=0], query=LiteralsEvaluator[lit=" + query + "], "
                     + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":300,\"sentence_overlap\":0}, "
                     + "scorer=MemoryIndexChunkScorer, numSnippets=5]",
                 DataType.KEYWORD,
@@ -143,13 +143,13 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
                 List<TestCaseSupplier.TypedData> values = List.of(
                     new TestCaseSupplier.TypedData(new BytesRef(text), supplier.types().get(0), "field"),
-                    new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query"),
+                    new TestCaseSupplier.TypedData(new BytesRef(query), DataType.KEYWORD, "query").forceLiteral(),
                     new TestCaseSupplier.TypedData(createOptions(numSnippets, numWords), UNSUPPORTED, "options").forceLiteral()
                 );
 
                 return new TestCaseSupplier.TestCase(
                     values,
-                    "TopSnippetsEvaluator[field=Attribute[channel=0], query=Attribute[channel=1], "
+                    "TopSnippetsEvaluator[field=Attribute[channel=0], query=LiteralsEvaluator[lit=" + query + "], "
                         + "chunkingSettings={\"strategy\":\"sentence\",\"max_chunk_size\":25,\"sentence_overlap\":0}, "
                         + "scorer=MemoryIndexChunkScorer, numSnippets=3]",
                     DataType.KEYWORD,
@@ -274,9 +274,9 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
         try (
             EvalOperator.ExpressionEvaluator eval = evaluator(
-                new TopSnippets(Source.EMPTY, field("field", DataType.KEYWORD), field("query", DataType.KEYWORD), optionsMap)
+                new TopSnippets(Source.EMPTY, field("field", DataType.KEYWORD), new Literal(Source.EMPTY, new BytesRef(query), DataType.KEYWORD), optionsMap)
             ).get(driverContext());
-            Block block = eval.eval(row(List.of(new BytesRef(str), new BytesRef(query))))
+            Block block = eval.eval(row(List.of(new BytesRef(str))))
         ) {
             if (block.isNull(0)) {
                 return null;

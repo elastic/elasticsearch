@@ -48,9 +48,8 @@ import static java.util.Map.entry;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
-import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 import static org.elasticsearch.xpack.esql.expression.function.Options.resolve;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.emitChunks;
@@ -179,15 +178,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
      * @return type resolution for the query parameter
      */
     protected TypeResolution resolveQuery() {
-        TypeResolution result = isString(query(), sourceText(), SECOND);
-        if (result.unresolved()) {
-            return result;
-        }
-        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
-        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
-            return result;
-        }
-        return TypeResolution.TYPE_RESOLVED;
+        return isString(query(), sourceText(), SECOND).and(() -> isFoldable(query(), sourceText(), SECOND));
     }
 
     private static void validateOptions(Map<String, Object> options) {

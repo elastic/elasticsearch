@@ -15,7 +15,7 @@ Extract a nested value using dot-notation:
 
 ```esql
 ROW json = "{\\"user\\":{\\"address\\":{\\"city\\":\\"London\\"}}}"
-| EVAL city = JSON_EXTRACT(json, "user.address.city")
+| EVAL city = JSON_EXTRACT(json, "$.user.address.city")
 ```
 
 | json:keyword | city:keyword |
@@ -26,7 +26,7 @@ Extract a value from a nested array using bracket notation:
 
 ```esql
 ROW json = "{\\"orders\\":[{\\"id\\":1,\\"item\\":\\"book\\"},{\\"id\\":2,\\"item\\":\\"pen\\"}]}"
-| EVAL second_item = JSON_EXTRACT(json, "orders[1].item")
+| EVAL second_item = JSON_EXTRACT(json, "$.orders[1].item")
 ```
 
 | json:keyword | second_item:keyword |

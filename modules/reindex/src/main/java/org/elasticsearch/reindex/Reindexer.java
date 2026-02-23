@@ -144,6 +144,8 @@ public class Reindexer {
             .map(ResumeInfo.WorkerResumeInfo::startTime)
             .orElseGet(System::nanoTime);
 
+        // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having in Reindexer, makes it generic
+        // for update-by-query and delete-by-query
         final ActionListener<BulkByScrollResponse> listenerWithRelocations = listenerWithRelocations(task, request, listener);
 
         BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(

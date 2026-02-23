@@ -27,7 +27,7 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.SortedSetSelector;
-import org.apache.lucene.store.ByteArrayDataOutput;
+
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
@@ -69,7 +69,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     final IOContext context;
     IndexOutput data, meta;
     final int maxDoc;
-    private byte[] termsDictBuffer;
     private final int skipIndexIntervalSize;
     private final int minDocsPerOrdinalForOrdinalRangeEncoding;
     final boolean enableOptimizedMerge;
@@ -96,7 +95,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         this.binaryDVCompressionMode = binaryDVCompressionMode;
         this.enablePerBlockCompression = enablePerBlockCompression;
         this.state = state;
-        this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
         this.minDocsPerOrdinalForOrdinalRangeEncoding = minDocsPerOrdinalForOrdinalRangeEncoding;
         this.primarySortFieldNumber = ES819TSDBDocValuesProducer.primarySortFieldNumber(state.segmentInfo, state.fieldInfos);
@@ -703,142 +701,154 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         addTermsDict(DocValues.singleton(valuesProducer.getSorted(field)));
     }
 
+    private static final int FSST_BULK_BUFFER_SIZE = 128 * 1024;
+
     private void addTermsDict(SortedSetDocValues values) throws IOException {
         final long size = values.getValueCount();
         meta.writeVLong(size);
 
-        int blockMask = ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_MASK;
-        int shift = ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
-
         // First pass: sample terms for FSST training
-        ReservoirSampler sampler = new ReservoirSampler();
-        TermsEnum sampleIterator = values.termsEnum();
-        for (BytesRef term = sampleIterator.next(); term != null; term = sampleIterator.next()) {
-            sampler.processLine(term.bytes, term.offset, term.length);
+        ReservoirSampler sampler = new ReservoirSampler(FSST_BULK_BUFFER_SIZE);
+        int maxLength = 0;
+        {
+            TermsEnum sampleIterator = values.termsEnum();
+            for (BytesRef term = sampleIterator.next(); term != null; term = sampleIterator.next()) {
+                sampler.processLine(term.bytes, term.offset, term.length);
+                maxLength = Math.max(maxLength, term.length);
+            }
         }
 
         FSST.SymbolTable symbolTable = FSST.SymbolTable.buildSymbolTable(sampler.getSample());
         byte[] symbolTableBytes = symbolTable.exportToBytes();
 
         meta.writeInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
-        ByteBuffersDataOutput addressBuffer = new ByteBuffersDataOutput();
-        ByteBuffersIndexOutput addressOutput = new ByteBuffersIndexOutput(addressBuffer, "temp", "temp");
-        long numBlocks = (size + blockMask) >>> shift;
-        DirectMonotonicWriter writer = DirectMonotonicWriter.getInstance(meta, addressOutput, numBlocks, DIRECT_MONOTONIC_BLOCK_SHIFT);
 
-        BytesRefBuilder previous = new BytesRefBuilder();
-        long ord = 0;
+        // Per-string compressed offsets (size+1 entries)
+        ByteBuffersDataOutput offsetBuffer = new ByteBuffersDataOutput();
+        ByteBuffersIndexOutput offsetOutput = new ByteBuffersIndexOutput(offsetBuffer, "temp", "temp");
+        DirectMonotonicWriter offsetWriter = DirectMonotonicWriter.getInstance(
+            meta,
+            offsetOutput,
+            size + 1,
+            DIRECT_MONOTONIC_BLOCK_SHIFT
+        );
+
         long start = data.getFilePointer();
-        int maxLength = 0, maxBlockLength = 0;
 
         // Write FSST symbol table at the start of terms data
         data.writeVInt(symbolTableBytes.length);
         data.writeBytes(symbolTableBytes, 0, symbolTableBytes.length);
 
-        byte[] fsstOutBuf = new byte[1 << 14];
-        int[] fsstInOffsets = new int[2];
-        int[] fsstOutOffsets = new int[2];
-
-        // Second pass: write blocks
+        // Second pass: compress terms in batches of ~128KB uncompressed
         TermsEnum iterator = values.termsEnum();
-        ByteArrayDataOutput bufferedOutput = new ByteArrayDataOutput(termsDictBuffer);
-        int dictLength = 0;
+        long globalCompressedPos = 0;
+
+        byte[] batchBytes = new byte[FSST_BULK_BUFFER_SIZE + maxLength];
+        int batchPos = 0;
+        int batchCount = 0;
+        int[] batchInOffsets = new int[1024 + 1];
+
+        byte[] fsstOutBuf = new byte[batchBytes.length * 2 + 8];
+        int[] batchOutOffsets = new int[batchInOffsets.length];
+
+        // Track pending offset writes for the current batch
+        long batchBaseCompressedPos = globalCompressedPos;
 
         for (BytesRef term = iterator.next(); term != null; term = iterator.next()) {
-            if ((ord & blockMask) == 0) {
-                if (ord != 0) {
-                    final int uncompressedLength = fsstCompressAndWriteBlock(
-                        bufferedOutput,
-                        dictLength,
-                        symbolTable,
-                        fsstOutBuf,
-                        fsstInOffsets,
-                        fsstOutOffsets
-                    );
-                    maxBlockLength = Math.max(maxBlockLength, uncompressedLength);
-                    bufferedOutput.reset(termsDictBuffer);
-                }
-
-                writer.add(data.getFilePointer() - start);
-                data.writeVInt(term.length);
-                data.writeBytes(term.bytes, term.offset, term.length);
-                bufferedOutput = maybeGrowBuffer(bufferedOutput, term.length);
-                bufferedOutput.writeBytes(term.bytes, term.offset, term.length);
-                dictLength = term.length;
-            } else {
-                final int prefixLength = StringHelper.bytesDifference(previous.get(), term);
-                final int suffixLength = term.length - prefixLength;
-                assert suffixLength > 0; // terms are unique
-                bufferedOutput = maybeGrowBuffer(bufferedOutput, suffixLength + 11);
-                bufferedOutput.writeByte((byte) (Math.min(prefixLength, 15) | (Math.min(15, suffixLength - 1) << 4)));
-                if (prefixLength >= 15) {
-                    bufferedOutput.writeVInt(prefixLength - 15);
-                }
-                if (suffixLength >= 16) {
-                    bufferedOutput.writeVInt(suffixLength - 16);
-                }
-                bufferedOutput.writeBytes(term.bytes, term.offset + prefixLength, suffixLength);
+            // Flush batch if adding this term would exceed the buffer
+            if (batchCount > 0 && batchPos + term.length > FSST_BULK_BUFFER_SIZE) {
+                globalCompressedPos = flushBatch(
+                    symbolTable,
+                    batchBytes,
+                    batchInOffsets,
+                    batchCount,
+                    batchPos,
+                    fsstOutBuf,
+                    batchOutOffsets,
+                    offsetWriter,
+                    batchBaseCompressedPos
+                );
+                batchPos = 0;
+                batchCount = 0;
+                batchBaseCompressedPos = globalCompressedPos;
             }
-            maxLength = Math.max(maxLength, term.length);
-            previous.copyBytes(term);
-            ++ord;
-        }
-        // Compress and write out the last block
-        if (bufferedOutput.getPosition() > dictLength) {
-            final int uncompressedLength = fsstCompressAndWriteBlock(
-                bufferedOutput,
-                dictLength,
-                symbolTable,
-                fsstOutBuf,
-                fsstInOffsets,
-                fsstOutOffsets
-            );
-            maxBlockLength = Math.max(maxBlockLength, uncompressedLength);
+
+            // Grow batch offset array if needed
+            if (batchCount + 1 >= batchInOffsets.length) {
+                batchInOffsets = ArrayUtil.grow(batchInOffsets, batchCount + 2);
+                batchOutOffsets = new int[batchInOffsets.length];
+            }
+
+            batchInOffsets[batchCount] = batchPos;
+            System.arraycopy(term.bytes, term.offset, batchBytes, batchPos, term.length);
+            batchPos += term.length;
+            batchCount++;
         }
 
-        writer.finish();
+        // Flush remaining terms
+        if (batchCount > 0) {
+            globalCompressedPos = flushBatch(
+                symbolTable,
+                batchBytes,
+                batchInOffsets,
+                batchCount,
+                batchPos,
+                fsstOutBuf,
+                batchOutOffsets,
+                offsetWriter,
+                batchBaseCompressedPos
+            );
+        }
+
+        // Final offset entry
+        offsetWriter.add(globalCompressedPos);
+        offsetWriter.finish();
+
         meta.writeInt(maxLength);
-        meta.writeInt(maxBlockLength);
         meta.writeLong(start);
         meta.writeLong(data.getFilePointer() - start);
         start = data.getFilePointer();
-        addressBuffer.copyTo(data);
+        offsetBuffer.copyTo(data);
         meta.writeLong(start);
         meta.writeLong(data.getFilePointer() - start);
 
         writeTermsIndex(values);
     }
 
-    private int fsstCompressAndWriteBlock(
-        ByteArrayDataOutput bufferedOutput,
-        int dictLength,
+    private long flushBatch(
         FSST.SymbolTable symbolTable,
+        byte[] batchBytes,
+        int[] batchInOffsets,
+        int batchCount,
+        int batchPos,
         byte[] fsstOutBuf,
-        int[] fsstInOffsets,
-        int[] fsstOutOffsets
+        int[] batchOutOffsets,
+        DirectMonotonicWriter offsetWriter,
+        long batchBaseCompressedPos
     ) throws IOException {
-        int uncompressedLength = bufferedOutput.getPosition() - dictLength;
-        fsstInOffsets[0] = dictLength;
-        fsstInOffsets[1] = dictLength + uncompressedLength;
-        // Ensure output buffer is large enough (worst case: 2x expansion for all escape codes)
-        if (fsstOutBuf.length < 2 * uncompressedLength + 8) {
-            fsstOutBuf = new byte[2 * uncompressedLength + 8];
-        }
-        symbolTable.compressBulk(1, termsDictBuffer, fsstInOffsets, fsstOutBuf, fsstOutOffsets);
-        int compressedLength = fsstOutOffsets[1] - fsstOutOffsets[0];
-        data.writeVInt(uncompressedLength);
-        data.writeVInt(compressedLength);
-        data.writeBytes(fsstOutBuf, fsstOutOffsets[0], compressedLength);
-        return uncompressedLength;
-    }
+        batchInOffsets[batchCount] = batchPos;
 
-    private ByteArrayDataOutput maybeGrowBuffer(ByteArrayDataOutput bufferedOutput, int termLength) {
-        int pos = bufferedOutput.getPosition(), originalLength = termsDictBuffer.length;
-        if (pos + termLength >= originalLength - 1) {
-            termsDictBuffer = ArrayUtil.grow(termsDictBuffer, originalLength + termLength);
-            bufferedOutput = new ByteArrayDataOutput(termsDictBuffer, pos, termsDictBuffer.length - pos);
+        int worstCase = 2 * batchPos + 8 * batchCount;
+        if (fsstOutBuf.length < worstCase) {
+            fsstOutBuf = new byte[worstCase];
         }
-        return bufferedOutput;
+        if (batchOutOffsets.length < batchCount + 1) {
+            batchOutOffsets = new int[batchCount + 1];
+        }
+
+        symbolTable.compressBulk(batchCount, batchBytes, batchInOffsets, fsstOutBuf, batchOutOffsets);
+
+        int compressedStart = batchOutOffsets[0];
+        int compressedTotal = batchOutOffsets[batchCount] - compressedStart;
+        if (compressedTotal > 0) {
+            data.writeBytes(fsstOutBuf, compressedStart, compressedTotal);
+        }
+
+        for (int i = 0; i < batchCount; i++) {
+            offsetWriter.add(batchBaseCompressedPos + (batchOutOffsets[i] - compressedStart));
+        }
+
+        return batchBaseCompressedPos + compressedTotal;
     }
 
     private void writeTermsIndex(SortedSetDocValues values) throws IOException {

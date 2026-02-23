@@ -38,13 +38,14 @@ import org.apache.lucene.store.ChecksumIndexInput;
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.RandomAccessInput;
+import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.GroupVIntUtil;
 import org.apache.lucene.util.LongValues;
 import org.apache.lucene.util.packed.DirectMonotonicReader;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.common.compress.fsst.FSST;
-import org.elasticsearch.common.util.ByteUtils;
+
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
@@ -59,7 +60,7 @@ import java.util.Arrays;
 
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_JUMP_LENGTH_PER_LEVEL;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
+
 
 final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     final IntObjectHashMap<NumericEntry> numerics;
@@ -1309,104 +1310,26 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         }
     }
 
-    /**
-     * A DataInput that lazily decompresses FSST-encoded data one symbol at a time.
-     * Each readByte() decodes just enough from the compressed stream. This avoids
-     * decompressing an entire block when only a few terms are needed (e.g. seekExact
-     * to an early ordinal within a 64-term block).
-     */
-    static final class FsstDataInput extends DataInput {
-        private static final int ESCAPE_BYTE = 255;
-
-        private final byte[] compressed;
-        private int compPos;
-        private final int compLimit;
-        private final byte[] lens;
-        private final long[] symbols;
-
-        private final byte[] symbolBuf = new byte[8];
-        private int symbolPos;
-        private int symbolLen;
-
-        FsstDataInput(byte[] compressed, int offset, int length, FSST.Decoder decoder) {
-            this.compressed = compressed;
-            this.compPos = offset;
-            this.compLimit = offset + length;
-            this.lens = decoder.getLens();
-            this.symbols = decoder.getSymbols();
-        }
-
-        @Override
-        public byte readByte() {
-            if (symbolPos < symbolLen) {
-                return symbolBuf[symbolPos++];
-            }
-            decodeNext();
-            return symbolBuf[symbolPos++];
-        }
-
-        @Override
-        public void readBytes(byte[] b, int offset, int len) {
-            int remaining = len;
-            int dst = offset;
-            while (remaining > 0) {
-                int buffered = symbolLen - symbolPos;
-                if (buffered <= 0) {
-                    decodeNext();
-                    buffered = symbolLen - symbolPos;
-                }
-                int toCopy = Math.min(buffered, remaining);
-                System.arraycopy(symbolBuf, symbolPos, b, dst, toCopy);
-                symbolPos += toCopy;
-                dst += toCopy;
-                remaining -= toCopy;
-            }
-        }
-
-        @Override
-        public void skipBytes(long numBytes) {
-            for (long i = 0; i < numBytes; i++) {
-                readByte();
-            }
-        }
-
-        private void decodeNext() {
-            int code = compressed[compPos++] & 0xFF;
-            if (code == ESCAPE_BYTE) {
-                symbolBuf[0] = compressed[compPos++];
-                symbolLen = 1;
-            } else {
-                ByteUtils.writeLongLE(symbols[code], symbolBuf, 0);
-                symbolLen = lens[code];
-            }
-            symbolPos = 0;
-        }
-    }
-
     private static class TermsDict extends BaseTermsEnum {
 
         final TermsDictEntry entry;
-        final LongValues blockAddresses;
-        final IndexInput bytes;
-        final long blockMask;
+        final LongValues compressedOffsets;
+        final RandomAccessInput compressedData;
+        final long compressedDataStart;
         final LongValues indexAddresses;
         final RandomAccessInput indexBytes;
         final BytesRef term;
         final FSST.Decoder fsstDecoder;
         long ord = -1;
 
-        DataInput blockInput = null;
-        long currentCompressedBlockStart = -1;
-        long currentCompressedBlockEnd = -1;
-        int currentCompressedLength = 0;
         byte[] compressedBuf;
+        byte[] decompressBuf;
 
         TermsDict(TermsDictEntry entry, IndexInput data, boolean merging) throws IOException {
             this.entry = entry;
-            RandomAccessInput addressesSlice = data.randomAccessSlice(entry.termsAddressesOffset, entry.termsAddressesLength);
-            blockAddresses = DirectMonotonicReader.getInstance(entry.termsAddressesMeta, addressesSlice, merging);
-            bytes = data.slice("terms", entry.termsDataOffset, entry.termsDataLength);
-            blockMask = (1L << TERMS_DICT_BLOCK_LZ4_SHIFT) - 1;
+            RandomAccessInput offsetsSlice = data.randomAccessSlice(entry.termsOffsetsOffset, entry.termsOffsetsLength);
+            compressedOffsets = DirectMonotonicReader.getInstance(entry.termsOffsetsMeta, offsetsSlice, merging);
+            IndexInput bytes = data.slice("terms", entry.termsDataOffset, entry.termsDataLength);
             RandomAccessInput indexAddressesSlice = data.randomAccessSlice(
                 entry.termsIndexAddressesOffset,
                 entry.termsIndexAddressesLength
@@ -1415,13 +1338,36 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             indexBytes = data.randomAccessSlice(entry.termsIndexOffset, entry.termsIndexLength);
             term = new BytesRef(entry.maxTermLength);
 
-            // Read the FSST symbol table from the start of terms data
             int symbolTableLen = bytes.readVInt();
             byte[] symbolTableBytes = new byte[symbolTableLen];
             bytes.readBytes(symbolTableBytes, 0, symbolTableLen);
             fsstDecoder = FSST.Decoder.readFrom(symbolTableBytes);
 
-            compressedBuf = new byte[entry.maxBlockLength * 2 + 8];
+            compressedDataStart = bytes.getFilePointer();
+            compressedData = data.randomAccessSlice(
+                entry.termsDataOffset + compressedDataStart,
+                entry.termsDataLength - compressedDataStart
+            );
+
+            compressedBuf = new byte[256];
+            // +7 for FSST decompressor padding
+            decompressBuf = new byte[entry.maxTermLength + 7];
+        }
+
+        private void decompressTerm(long targetOrd) throws IOException {
+            long compStart = compressedOffsets.get(targetOrd);
+            long compEnd = compressedOffsets.get(targetOrd + 1);
+            int compLen = (int) (compEnd - compStart);
+            if (compLen == 0) {
+                term.length = 0;
+                return;
+            }
+            if (compressedBuf.length < compLen) {
+                compressedBuf = new byte[ArrayUtil.oversize(compLen, 1)];
+            }
+            compressedData.readBytes(compStart, compressedBuf, 0, compLen);
+            term.length = FSST.decompress(compressedBuf, 0, compLen, fsstDecoder, decompressBuf);
+            System.arraycopy(decompressBuf, 0, term.bytes, 0, term.length);
         }
 
         @Override
@@ -1429,23 +1375,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             if (++ord >= entry.termsDictSize) {
                 return null;
             }
-
-            if ((ord & blockMask) == 0L) {
-                decompressBlock();
-            } else {
-                DataInput input = blockInput;
-                final int token = Byte.toUnsignedInt(input.readByte());
-                int prefixLength = token & 0x0F;
-                int suffixLength = 1 + (token >>> 4);
-                if (prefixLength == 15) {
-                    prefixLength += input.readVInt();
-                }
-                if (suffixLength == 16) {
-                    suffixLength += input.readVInt();
-                }
-                term.length = prefixLength + suffixLength;
-                input.readBytes(term.bytes, prefixLength, suffixLength);
-            }
+            decompressTerm(ord);
             return term;
         }
 
@@ -1454,19 +1384,8 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             if (ord < 0 || ord >= entry.termsDictSize) {
                 throw new IndexOutOfBoundsException();
             }
-            // Signed shift since ord is -1 when the terms enum is not positioned
-            final long currentBlockIndex = this.ord >> TERMS_DICT_BLOCK_LZ4_SHIFT;
-            final long blockIndex = ord >> TERMS_DICT_BLOCK_LZ4_SHIFT;
-            if (ord < this.ord || blockIndex != currentBlockIndex) {
-                // The looked up ord is before the current ord or belongs to a different block, seek again
-                final long blockAddress = blockAddresses.get(blockIndex);
-                bytes.seek(blockAddress);
-                this.ord = (blockIndex << TERMS_DICT_BLOCK_LZ4_SHIFT) - 1;
-            }
-            // Scan to the looked up ord
-            while (this.ord < ord) {
-                next();
-            }
+            this.ord = ord;
+            decompressTerm(ord);
         }
 
         private BytesRef getTermFromIndex(long index) throws IOException {
@@ -1497,97 +1416,57 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
             return hi;
         }
 
-        private BytesRef getFirstTermFromBlock(long block) throws IOException {
-            assert block >= 0 && block <= (entry.termsDictSize - 1) >>> TERMS_DICT_BLOCK_LZ4_SHIFT;
-            final long blockAddress = blockAddresses.get(block);
-            bytes.seek(blockAddress);
-            term.length = bytes.readVInt();
-            bytes.readBytes(term.bytes, 0, term.length);
-            return term;
-        }
-
-        private long seekBlock(BytesRef text) throws IOException {
-            long index = seekTermsIndex(text);
-            if (index == -1L) {
-                return -1L;
-            }
-
-            long ordLo = index << entry.termsDictIndexShift;
-            long ordHi = Math.min(entry.termsDictSize, ordLo + (1L << entry.termsDictIndexShift)) - 1L;
-
-            long blockLo = ordLo >>> TERMS_DICT_BLOCK_LZ4_SHIFT;
-            long blockHi = ordHi >>> TERMS_DICT_BLOCK_LZ4_SHIFT;
-
-            while (blockLo <= blockHi) {
-                final long blockMid = (blockLo + blockHi) >>> 1;
-                getFirstTermFromBlock(blockMid);
+        // Binary search for the largest ord whose term is <= text, within [lo, hi].
+        private long binarySearchTerms(BytesRef text, long lo, long hi) throws IOException {
+            long result = lo - 1;
+            while (lo <= hi) {
+                final long mid = (lo + hi) >>> 1;
+                decompressTerm(mid);
                 final int cmp = term.compareTo(text);
                 if (cmp <= 0) {
-                    blockLo = blockMid + 1;
+                    result = mid;
+                    lo = mid + 1;
                 } else {
-                    blockHi = blockMid - 1;
+                    hi = mid - 1;
                 }
             }
-
-            assert blockHi < 0 || getFirstTermFromBlock(blockHi).compareTo(text) <= 0;
-            assert blockHi == ((entry.termsDictSize - 1) >>> TERMS_DICT_BLOCK_LZ4_SHIFT)
-                || getFirstTermFromBlock(blockHi + 1).compareTo(text) > 0;
-
-            return blockHi;
+            return result;
         }
 
         @Override
         public SeekStatus seekCeil(BytesRef text) throws IOException {
-            final long block = seekBlock(text);
-            if (block == -1) {
-                // before the first term, or empty terms dict
-                if (entry.termsDictSize == 0) {
-                    ord = 0;
-                    return SeekStatus.END;
-                } else {
-                    seekExact(0L);
-                    return SeekStatus.NOT_FOUND;
-                }
+            if (entry.termsDictSize == 0) {
+                ord = 0;
+                return SeekStatus.END;
             }
-            final long blockAddress = blockAddresses.get(block);
-            this.ord = block << TERMS_DICT_BLOCK_LZ4_SHIFT;
-            bytes.seek(blockAddress);
-            decompressBlock();
 
-            while (true) {
-                int cmp = term.compareTo(text);
-                if (cmp == 0) {
+            long index = seekTermsIndex(text);
+            long lo, hi;
+            if (index == -1L) {
+                lo = 0;
+            } else {
+                lo = index << entry.termsDictIndexShift;
+            }
+            long nextIndex = index + 1;
+            hi = Math.min(entry.termsDictSize, nextIndex << entry.termsDictIndexShift) - 1;
+
+            long found = binarySearchTerms(text, lo, hi);
+            if (found >= 0 && found < entry.termsDictSize) {
+                decompressTerm(found);
+                if (term.compareTo(text) == 0) {
+                    this.ord = found;
                     return SeekStatus.FOUND;
-                } else if (cmp > 0) {
-                    return SeekStatus.NOT_FOUND;
-                }
-                if (next() == null) {
-                    return SeekStatus.END;
                 }
             }
-        }
 
-        private void decompressBlock() throws IOException {
-            term.length = bytes.readVInt();
-            bytes.readBytes(term.bytes, 0, term.length);
-            long offset = bytes.getFilePointer();
-            if (offset < entry.termsDataLength - 1) {
-                if (currentCompressedBlockStart != offset) {
-                    int uncompressedLength = bytes.readVInt();
-                    int compressedLength = bytes.readVInt();
-                    if (compressedBuf.length < compressedLength) {
-                        compressedBuf = new byte[compressedLength];
-                    }
-                    bytes.readBytes(compressedBuf, 0, compressedLength);
-                    currentCompressedBlockStart = offset;
-                    currentCompressedBlockEnd = bytes.getFilePointer();
-                    currentCompressedLength = compressedLength;
-                } else {
-                    bytes.seek(currentCompressedBlockEnd);
-                }
-
-                blockInput = new FsstDataInput(compressedBuf, 0, currentCompressedLength, fsstDecoder);
+            long ceil = found + 1;
+            if (ceil >= entry.termsDictSize) {
+                this.ord = entry.termsDictSize;
+                return SeekStatus.END;
             }
+            this.ord = ceil;
+            decompressTerm(ceil);
+            return SeekStatus.NOT_FOUND;
         }
 
         @Override
@@ -2002,14 +1881,12 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
     private static void readTermDict(IndexInput meta, TermsDictEntry entry) throws IOException {
         entry.termsDictSize = meta.readVLong();
         final int blockShift = meta.readInt();
-        final long addressesSize = (entry.termsDictSize + (1L << TERMS_DICT_BLOCK_LZ4_SHIFT) - 1) >>> TERMS_DICT_BLOCK_LZ4_SHIFT;
-        entry.termsAddressesMeta = DirectMonotonicReader.loadMeta(meta, addressesSize, blockShift);
+        entry.termsOffsetsMeta = DirectMonotonicReader.loadMeta(meta, entry.termsDictSize + 1, blockShift);
         entry.maxTermLength = meta.readInt();
-        entry.maxBlockLength = meta.readInt();
         entry.termsDataOffset = meta.readLong();
         entry.termsDataLength = meta.readLong();
-        entry.termsAddressesOffset = meta.readLong();
-        entry.termsAddressesLength = meta.readLong();
+        entry.termsOffsetsOffset = meta.readLong();
+        entry.termsOffsetsLength = meta.readLong();
         entry.termsDictIndexShift = meta.readInt();
         final long indexSize = (entry.termsDictSize + (1L << entry.termsDictIndexShift) - 1) >>> entry.termsDictIndexShift;
         entry.termsIndexAddressesMeta = DirectMonotonicReader.loadMeta(meta, 1 + indexSize, blockShift);
@@ -2679,20 +2556,18 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
 
     private static class TermsDictEntry {
         long termsDictSize;
-        DirectMonotonicReader.Meta termsAddressesMeta;
+        DirectMonotonicReader.Meta termsOffsetsMeta;
         int maxTermLength;
         long termsDataOffset;
         long termsDataLength;
-        long termsAddressesOffset;
-        long termsAddressesLength;
+        long termsOffsetsOffset;
+        long termsOffsetsLength;
         int termsDictIndexShift;
         DirectMonotonicReader.Meta termsIndexAddressesMeta;
         long termsIndexOffset;
         long termsIndexLength;
         long termsIndexAddressesOffset;
         long termsIndexAddressesLength;
-
-        int maxBlockLength;
     }
 
     static final class SingletonLongToSingletonOrdinalDelegate implements BlockLoader.SingletonLongBuilder {

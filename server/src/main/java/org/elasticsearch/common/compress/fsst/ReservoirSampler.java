@@ -15,17 +15,25 @@ import java.util.List;
 import java.util.Random;
 
 import static org.elasticsearch.common.compress.fsst.FSST.FSST_SAMPLELINE;
-import static org.elasticsearch.common.compress.fsst.FSST.FSST_SAMPLEMAXSZ;
 import static org.elasticsearch.common.compress.fsst.FSST.FSST_SAMPLETARGET;
 
 public class ReservoirSampler {
-    private static final int SAMPLE_TARGET = FSST_SAMPLETARGET;
-    private static final int SAMPLE_MAX = FSST_SAMPLEMAXSZ;
+    private final int sampleTarget;
+    private final int sampleMax;
     private static final int SAMPLE_LINE = FSST_SAMPLELINE;
     private int numBytesInSample = 0;
     private int numChunksSeen = 0;
     private final Random random = new Random(1234);
     private List<byte[]> sample = new ArrayList<>();
+
+    public ReservoirSampler() {
+        this(FSST_SAMPLETARGET);
+    }
+
+    public ReservoirSampler(int sampleTarget) {
+        this.sampleTarget = sampleTarget;
+        this.sampleMax = 2 * sampleTarget;
+    }
 
     public List<byte[]> getSample() {
         return sample;
@@ -50,7 +58,7 @@ public class ReservoirSampler {
             int chunkOffset = c * SAMPLE_LINE;
             int chunkLen = c == numChunks - 1 ? length - chunkOffset : SAMPLE_LINE;
 
-            if (numBytesInSample < SAMPLE_TARGET + SAMPLE_LINE) {
+            if (numBytesInSample < sampleTarget + SAMPLE_LINE) {
                 // If the reservoir isn't full, just add to it.
                 // This will occur on startup, but also if a recent swap caused us to go below the target.
                 // Add a buffer of an additional sample line, so that one swap doesn't cause us to fall below target.
@@ -72,7 +80,7 @@ public class ReservoirSampler {
 
                     // But if the sample is too large (from swapping big samples for small samples),
                     // we need to discard some
-                    while (numBytesInSample > SAMPLE_MAX) {
+                    while (numBytesInSample > sampleMax) {
                         numBytesInSample -= sample.removeLast().length;
                     }
                 }

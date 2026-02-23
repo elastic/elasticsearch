@@ -2414,6 +2414,344 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         return random().nextBoolean() ? ES819TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT : ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
     }
 
+    public void testFsstTermsDictLookupOrdRandomAccess() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        String tagField = "tag";
+        long baseTimestamp = 1704067200000L;
+
+        int numUniqueTerms = 200;
+        String[] terms = new String[numUniqueTerms];
+        for (int i = 0; i < numUniqueTerms; i++) {
+            terms[i] = String.format(Locale.ROOT, "service-%05d.example.com", i);
+        }
+        Arrays.sort(terms);
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numUniqueTerms * 3; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(timestampField, baseTimestamp + (1000L * i)));
+                d.add(new SortedDocValuesField(tagField, new BytesRef(terms[i % numUniqueTerms])));
+                iw.addDocument(d);
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leaf = reader.leaves().get(0).reader();
+                var tagDV = leaf.getSortedDocValues(tagField);
+                assertNotNull(tagDV);
+
+                // Verify all ords can be looked up in random order
+                int[] ordOrder = new int[numUniqueTerms];
+                for (int i = 0; i < numUniqueTerms; i++) {
+                    ordOrder[i] = i;
+                }
+                Randomness.shuffle(Arrays.asList(ordOrder));
+
+                for (int ord : ordOrder) {
+                    BytesRef actual = tagDV.lookupOrd(ord);
+                    assertEquals(terms[ord], actual.utf8ToString());
+                }
+            }
+        }
+    }
+
+    public void testFsstTermsDictSeekCeil() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        String tagField = "tag";
+        long baseTimestamp = 1704067200000L;
+
+        int numUniqueTerms = 150;
+        String[] terms = new String[numUniqueTerms];
+        for (int i = 0; i < numUniqueTerms; i++) {
+            terms[i] = String.format(Locale.ROOT, "metric-%04d", i * 2);
+        }
+        Arrays.sort(terms);
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numUniqueTerms; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(timestampField, baseTimestamp + (1000L * i)));
+                d.add(new SortedDocValuesField(tagField, new BytesRef(terms[i])));
+                iw.addDocument(d);
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().get(0).reader();
+                var tagDV = leaf.getSortedDocValues(tagField);
+
+                // Exact match
+                int foundOrd = tagDV.lookupTerm(new BytesRef(terms[50]));
+                assertTrue(foundOrd >= 0);
+                assertEquals(terms[50], tagDV.lookupOrd(foundOrd).utf8ToString());
+
+                // Term that doesn't exist (odd numbers are gaps)
+                BytesRef missingTerm = new BytesRef(String.format(Locale.ROOT, "metric-%04d", 51));
+                int insertionPoint = tagDV.lookupTerm(missingTerm);
+                assertTrue(insertionPoint < 0);
+
+                // Before all terms
+                BytesRef beforeAll = new BytesRef("aaa");
+                insertionPoint = tagDV.lookupTerm(beforeAll);
+                assertTrue(insertionPoint < 0);
+                assertEquals(0, -1 - insertionPoint);
+
+                // After all terms
+                BytesRef afterAll = new BytesRef("zzz");
+                insertionPoint = tagDV.lookupTerm(afterAll);
+                assertTrue(insertionPoint < 0);
+                assertEquals(numUniqueTerms, -1 - insertionPoint);
+            }
+        }
+    }
+
+    public void testFsstTermsDictWithSharedPrefixes() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        String tagField = "tag";
+        long baseTimestamp = 1704067200000L;
+
+        String[] terms = new String[] {
+            "com.example.service.alpha.handler",
+            "com.example.service.alpha.processor",
+            "com.example.service.beta.handler",
+            "com.example.service.beta.processor",
+            "com.example.service.gamma.handler",
+            "com.example.service.gamma.processor",
+            "org.apache.logging.internal.handler",
+            "org.apache.logging.internal.processor" };
+        Arrays.sort(terms);
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < terms.length * 10; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(timestampField, baseTimestamp + (1000L * i)));
+                d.add(new SortedDocValuesField(tagField, new BytesRef(terms[i % terms.length])));
+                iw.addDocument(d);
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().get(0).reader();
+                var tagDV = leaf.getSortedDocValues(tagField);
+                assertEquals(terms.length, tagDV.getValueCount());
+                for (int i = 0; i < terms.length; i++) {
+                    assertEquals(terms[i], tagDV.lookupOrd(i).utf8ToString());
+                }
+            }
+        }
+    }
+
+    public void testFsstTermsDictSingleTerm() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        String tagField = "tag";
+        long baseTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < 10; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(timestampField, baseTimestamp + (1000L * i)));
+                d.add(new SortedDocValuesField(tagField, new BytesRef("only-term")));
+                iw.addDocument(d);
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().get(0).reader();
+                var tagDV = leaf.getSortedDocValues(tagField);
+                assertEquals(1, tagDV.getValueCount());
+                assertEquals("only-term", tagDV.lookupOrd(0).utf8ToString());
+                assertEquals(0, tagDV.lookupTerm(new BytesRef("only-term")));
+            }
+        }
+    }
+
+    public void testFsstTermsDictEmptyString() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        String tagField = "tag";
+        long baseTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < 10; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(timestampField, baseTimestamp + (1000L * i)));
+                String val = (i % 2 == 0) ? "" : "nonempty";
+                d.add(new SortedDocValuesField(tagField, new BytesRef(val)));
+                iw.addDocument(d);
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().get(0).reader();
+                var tagDV = leaf.getSortedDocValues(tagField);
+                assertEquals(2, tagDV.getValueCount());
+                assertEquals("", tagDV.lookupOrd(0).utf8ToString());
+                assertEquals("nonempty", tagDV.lookupOrd(1).utf8ToString());
+            }
+        }
+    }
+
+    public void testFsstTermsDictManyTermsSpanningIndex() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        String tagField = "tag";
+        long baseTimestamp = 1704067200000L;
+
+        int numUniqueTerms = 2048;
+        String[] terms = new String[numUniqueTerms];
+        for (int i = 0; i < numUniqueTerms; i++) {
+            terms[i] = String.format(Locale.ROOT, "key-%06d", i);
+        }
+        Arrays.sort(terms);
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numUniqueTerms; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(timestampField, baseTimestamp + (1000L * i)));
+                d.add(new SortedDocValuesField(tagField, new BytesRef(terms[i])));
+                iw.addDocument(d);
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().get(0).reader();
+                var tagDV = leaf.getSortedDocValues(tagField);
+                assertEquals(numUniqueTerms, tagDV.getValueCount());
+
+                // Verify sequential iteration
+                for (int i = 0; i < numUniqueTerms; i++) {
+                    assertEquals(terms[i], tagDV.lookupOrd(i).utf8ToString());
+                }
+
+                // Verify random lookups
+                for (int trial = 0; trial < 100; trial++) {
+                    int idx = random().nextInt(numUniqueTerms);
+                    assertEquals(idx, tagDV.lookupTerm(new BytesRef(terms[idx])));
+                }
+            }
+        }
+    }
+
+    public void testFsstTermsDictSortedSet() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        String tagsField = "tags";
+        long baseTimestamp = 1704067200000L;
+
+        String[] allTags = new String[100];
+        for (int i = 0; i < allTags.length; i++) {
+            allTags[i] = String.format(Locale.ROOT, "tag-%04d", i);
+        }
+        Arrays.sort(allTags);
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < 200; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(timestampField, baseTimestamp + (1000L * i)));
+                int numTags = 1 + random().nextInt(5);
+                Set<String> docTags = new HashSet<>();
+                for (int j = 0; j < numTags; j++) {
+                    docTags.add(allTags[random().nextInt(allTags.length)]);
+                }
+                for (String tag : docTags) {
+                    d.add(new SortedSetDocValuesField(tagsField, new BytesRef(tag)));
+                }
+                iw.addDocument(d);
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().get(0).reader();
+                var tagsDV = leaf.getSortedSetDocValues(tagsField);
+                long numTerms = tagsDV.getValueCount();
+                assertTrue(numTerms > 0 && numTerms <= allTags.length);
+
+                for (long ord = 0; ord < numTerms; ord++) {
+                    BytesRef termBytes = tagsDV.lookupOrd(ord);
+                    String termStr = termBytes.utf8ToString();
+                    assertTrue(Arrays.binarySearch(allTags, termStr) >= 0);
+                }
+
+                // Verify lookupTerm
+                for (String tag : allTags) {
+                    long result = tagsDV.lookupTerm(new BytesRef(tag));
+                    if (result >= 0) {
+                        assertEquals(tag, tagsDV.lookupOrd(result).utf8ToString());
+                    }
+                }
+            }
+        }
+    }
+
+    public void testFsstTermsDictLongTerms() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        String tagField = "tag";
+        long baseTimestamp = 1704067200000L;
+
+        int numTerms = 50;
+        String[] terms = new String[numTerms];
+        for (int i = 0; i < numTerms; i++) {
+            StringBuilder sb = new StringBuilder();
+            sb.append("long-prefix-shared-across-all-terms-for-testing-");
+            for (int j = 0; j < 10 + random().nextInt(20); j++) {
+                sb.append((char) ('a' + random().nextInt(26)));
+            }
+            terms[i] = sb.toString();
+        }
+        Arrays.sort(terms);
+        // Deduplicate
+        var deduped = Arrays.stream(terms).distinct().toArray(String[]::new);
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < deduped.length; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(timestampField, baseTimestamp + (1000L * i)));
+                d.add(new SortedDocValuesField(tagField, new BytesRef(deduped[i])));
+                iw.addDocument(d);
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                var leaf = reader.leaves().get(0).reader();
+                var tagDV = leaf.getSortedDocValues(tagField);
+                assertEquals(deduped.length, tagDV.getValueCount());
+                for (int i = 0; i < deduped.length; i++) {
+                    assertEquals(deduped[i], tagDV.lookupOrd(i).utf8ToString());
+                }
+            }
+        }
+    }
+
     abstract static class BytesRefBuilderStub implements BlockLoader.BytesRefBuilder {
 
         @Override

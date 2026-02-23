@@ -448,6 +448,7 @@ sequenceDiagram
     rect rgb(255, 248, 240)
     Note over M,F: Phase 1 — Publish
     M->>F: PublishRequest (diff or full state)
+    M->>M: Local PublishRequest/Response
     Note right of F: PublicationTransportHandler<br/>::handleIncomingPublishRequest<br/>Deserializes state
     Note right of F: CoordinationState<br/>::handlePublishRequest<br/>Validates term/version,<br/>persists as lastAcceptedState
     F->>M: PublishResponse (term, version)
@@ -463,6 +464,7 @@ sequenceDiagram
     rect rgb(255, 248, 240)
     Note over M,F: Phase 2 — Commit
     M->>F: ApplyCommitRequest
+    M->>M: Local ApplyCommitRequest/Response
     Note right of F: Coordinator::handleApplyCommit<br/>Marks last accepted state as committed
     Note right of F: ClusterApplierService<br/>::onNewClusterState<br/>Applies new ClusterState
     F->>M: ACK (after application completes)

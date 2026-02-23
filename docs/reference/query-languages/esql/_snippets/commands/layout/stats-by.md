@@ -6,7 +6,7 @@ stack: ga
 The `STATS` processing command groups rows according to a common value
 and calculates one or more aggregated values over the grouped rows.
 
-**Syntax**
+## Syntax
 
 ```esql
 STATS [column1 =] expression1 [WHERE boolean_expression1][,
@@ -15,7 +15,7 @@ STATS [column1 =] expression1 [WHERE boolean_expression1][,
       [BY grouping_expression1[, ..., grouping_expressionN]]
 ```
 
-**Parameters**
+## Parameters
 
 `columnX`
 :   The name by which the aggregated value is returned. If omitted, the name is
@@ -32,15 +32,23 @@ STATS [column1 =] expression1 [WHERE boolean_expression1][,
 
 `boolean_expressionX`
 :   The condition that must be met for a row to be included in the evaluation of
-    `expressionX`. Does not have any effect on the values produced by
-    `grouping_expressionX` or the other `expressionX`. Consequently, `... | STATS ... WHERE <condition> ...` is not equivalent to `... | WHERE <condition> | STATS ...`.
+    `expressionX`. Has no effect on `grouping_expressionX` or other aggregation
+    expressions. Consequently, the following are _not_ equivalent:
+
+    ```esql
+    ... | STATS ... WHERE <condition> ...
+    ```
+
+    ```esql
+    ... | WHERE <condition> | STATS ...
+    ```
 
 ::::{note}
 Individual `null` values are skipped when computing aggregations.
 ::::
 
 
-**Description**
+## Description
 
 The `STATS` processing command groups rows according to a common value
 and calculates one or more aggregated values over the grouped rows. For the
@@ -77,12 +85,16 @@ and then grouping - that is not going to be faster.
 ::::
 
 
-### Examples
+## Examples
 
-Calculating a statistic and grouping by the values of another column:
+### Group by column
+
+Combine an aggregation with `BY` to compute a value for each group:
 
 :::{include} ../examples/stats.csv-spec/stats.md
 :::
+
+### Aggregate without grouping
 
 Omitting `BY` returns one row with the aggregations applied over the entire
 dataset:
@@ -90,21 +102,30 @@ dataset:
 :::{include} ../examples/stats.csv-spec/statsWithoutBy.md
 :::
 
-It’s possible to calculate multiple values:
+### Calculate multiple values
+
+Separate multiple aggregations with commas to compute them in a single pass:
 
 :::{include} ../examples/stats.csv-spec/statsCalcMultipleValues.md
 :::
 
-To filter the rows that go into an aggregation, use the `WHERE` clause:
+### Filter aggregations with WHERE
+
+Use per-aggregation `WHERE` to compute conditional metrics from the same
+dataset in a single pass:
 
 :::{include} ../examples/stats.csv-spec/aggFiltering.md
 :::
 
-The aggregations can be mixed, with and without a filter and grouping is
-optional as well:
+### Mix filtered and unfiltered aggregations
+
+Filtered and unfiltered aggregations can be freely mixed. Grouping is also
+optional:
 
 :::{include} ../examples/stats.csv-spec/aggFilteringNoGroup.md
 :::
+
+### Filter on the grouping key
 
 The `WHERE` clause can also filter on the grouping key. Note that this is
 different from filtering with `WHERE` before `STATS`, because the group
@@ -114,19 +135,23 @@ the aggregation:
 :::{include} ../examples/stats.csv-spec/aggFilteringOnGroup.md
 :::
 
-Compare this to filtering with `WHERE` before `STATS`, which excludes
-non-matching groups entirely:
+### WHERE before STATS excludes non-matching groups
+
+When `WHERE` appears before `STATS`, rows are excluded before grouping, so
+non-matching groups don't appear in the output at all:
 
 :::{include} ../examples/stats.csv-spec/aggFilteringBefore.md
 :::
 
-It’s also possible to group by multiple values:
+### Group by multiple values
+
+Separate multiple grouping expressions with a comma:
 
 :::{include} ../examples/stats.csv-spec/statsGroupByMultipleValues.md
 :::
 
 $$$esql-stats-mv-group$$$
-#### Multivalued inputs
+### Multivalued inputs
 
 If the grouping key is multivalued then the input row is in all groups:
 
@@ -153,24 +178,22 @@ key. If you want to send the group key to the function then `MV_EXPAND` first:
 Refer to [elasticsearch/issues/134792](https://github.com/elastic/elasticsearch/issues/134792#issuecomment-3361168090)
 for an even more in depth explanation.
 
-#### Multivalue functions
+### Multivalue functions
 
-Both the aggregating functions and the grouping expressions accept other
-functions. This is useful for using `STATS` on multivalue columns.
-For example, to calculate the average salary change, you can use `MV_AVG` to
-first average the multiple values per employee, and use the result with the
-`AVG` function:
+Aggregation and grouping expressions accept nested functions, which is useful
+for operating on multivalue columns. Use `MV_AVG` nested inside `AVG` to first
+average each employee's multiple salary values, then aggregate across employees:
 
 :::{include} ../examples/stats.csv-spec/docsStatsAvgNestedExpression.md
 :::
 
-An example of grouping by an expression is grouping employees on the first
-letter of their last name:
+Grouping expressions aren't limited to column references — any expression
+works. For example, group by a derived value using `LEFT`:
 
 :::{include} ../examples/stats.csv-spec/docsStatsByExpression.md
 :::
 
-#### Naming
+### Omitting column names
 
 Specifying the output column name is optional. If not specified, the new column
 name is equal to the expression. The following query returns a column named

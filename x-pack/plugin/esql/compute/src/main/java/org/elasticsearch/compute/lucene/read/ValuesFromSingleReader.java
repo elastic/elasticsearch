@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.lucene.read;
 
-import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocVector;

@@ -123,19 +123,28 @@ final class SnapshotExternalChangesBatcher {
      */
     void processExternalChanges(boolean changedNodes, boolean changedShards) {
         if (changedNodes == false && changedShards == false) {
+            // Tested: testProcessExternalChangesWithNoChanges
             return;
+        } else {
+            // Tested: testExternalChangesSubmissionAndExecution (+ others)
         }
         final boolean enqueueTask;
         synchronized (this) {
             enqueueTask = state == State.IDLE;
             if (changedNodes || state == State.NODE_CHANGES) {
+                // Tested: testExternalChangesSubmissionAndExecution (+ others)
                 state = State.NODE_CHANGES;
             } else {
+                // Tested: testExternalChangesTaskResubmissionOnCompletion (+ others)
                 state = State.SHARD_ONLY_CHANGES;
             }
         }
         if (enqueueTask) {
+            // Tested: all tests on first processExternalChanges call when state==IDLE
             taskQueue.submitTask("update snapshot after external changes", new Task(), null);
+        } else {
+            // Tested: testExternalChangesSubmissionAndExecution (+ others)
+            logger.debug("not enqueueing task, one already pending");
         }
     }
 
@@ -157,8 +166,12 @@ final class SnapshotExternalChangesBatcher {
     void onTaskCompletion() {
         synchronized (this) {
             if (state == State.NO_CHANGES) {
+                // Tested: testExternalChangesSubmissionAndExecution (+ others)
                 state = State.IDLE;
                 return;
+            } else {
+                // Tested: testExternalChangesTaskResubmissionOnCompletion
+                logger.debug("pending changes remain after task completion, will resubmit");
             }
             assert state.hasPendingChanges() : "unexpected state found on task completion: " + state;
         }
@@ -167,8 +180,12 @@ final class SnapshotExternalChangesBatcher {
 
     private void onTaskFailure(Exception e) {
         if (e instanceof NotMasterException == false && e instanceof FailedToCommitClusterStateException == false) {
+            // Guarded by assert false
             assert false;
             logger.error("Failed to update snapshot state after shards or node configuration changed", e);
+        } else {
+            // Tested: testExternalChangesTaskResubmissionOnCompletion
+            logger.debug("expected master-failover exception [{}], delegating to onTaskCompletion", e.getMessage());
         }
         onTaskCompletion();
     }
@@ -201,9 +218,11 @@ final class SnapshotExternalChangesBatcher {
             if (nodesChanged) {
                 // If we are reacting to a change in the cluster node configuration we have to update the shard states of both started
                 // and aborted snapshots to potentially fail shards running on the removed nodes
+                // Tested: testAbortedSnapshotClusterStateUpdateBasedOnNodeChanges (+ others)
                 statesToUpdate = EnumSet.of(SnapshotsInProgress.State.STARTED, SnapshotsInProgress.State.ABORTED);
             } else {
                 // We are reacting to shards that started only, which only affects the individual shard states of started snapshots
+                // Tested: testStartedWaitingSnapshotClusterStateUpdate (+ others)
                 statesToUpdate = EnumSet.of(SnapshotsInProgress.State.STARTED);
             }
 
@@ -225,21 +244,31 @@ final class SnapshotExternalChangesBatcher {
                 final String repositoryName = snapshotsInRepo.get(0).repository();
                 for (SnapshotsInProgress.Entry snapshotEntry : snapshotsInRepo) {
                     if (statesToUpdate.contains(snapshotEntry.state())) {
+                        // Tested: testStartedWaitingSnapshotClusterStateUpdate (+ others)
                         if (snapshotEntry.isClone()) {
+                            // Tested: testCloneSnapshotWithOrWithoutShardSnapshotStatus (+ others)
                             if (snapshotEntry.shardSnapshotStatusByRepoShardId().isEmpty()) {
+                                // Tested: testCloneSnapshotWithOrWithoutShardSnapshotStatus (emptyClone)
                                 if (isInitializingClone.test(snapshotEntry.snapshot())) {
+                                    // Tested: testCloneSnapshotWithOrWithoutShardSnapshotStatus (isInitializingClone=true)
                                     updatedEntriesForRepo.add(snapshotEntry);
                                 } else {
+                                    // Tested: testCloneSnapshotWithOrWithoutShardSnapshotStatus (isInitializingClone=false)
                                     logger.debug("removing not yet started clone operation [{}]", snapshotEntry);
                                     changed = true;
                                 }
                             } else {
                                 // See if any clones may have had a shard become available for execution because of failures
+                                // Tested: testCloneSnapshotWithOrWithoutShardSnapshotStatus (+ others)
                                 if (deletesInProgress.hasExecutingDeletion(projectId, repositoryName)) {
                                     // Currently executing a delete for this repo, no need to try and update any clone operations.
                                     // The logic for finishing the delete will update running clones with the latest changes.
+                                    // Tested: testCloneSnapshotWhenExecutingDeletion
                                     updatedEntriesForRepo.add(snapshotEntry);
                                     continue;
+                                } else {
+                                    // Tested: testCloneShardsReassignedFromKnownFailures (+ others)
+                                    logger.debug("no executing deletion for repo [{}], checking clone shards", repositoryName);
                                 }
                                 ImmutableOpenMap.Builder<RepositoryShardId, ShardSnapshotStatus> clones = null;
                                 InFlightShardSnapshotStates inFlightShardSnapshotStates = null;
@@ -248,18 +277,34 @@ final class SnapshotExternalChangesBatcher {
                                     final ShardSnapshotStatus existingStatus = snapshotEntry.shardSnapshotStatusByRepoShardId()
                                         .get(repositoryShardId);
                                     if (ShardSnapshotStatus.UNASSIGNED_QUEUED.equals(existingStatus)) {
+                                        // Tested: testCloneShardsReassignedFromKnownFailures (+ others)
                                         if (inFlightShardSnapshotStates == null) {
+                                            // Tested: testCloneShardsReassignedFromKnownFailures (+ others)
                                             inFlightShardSnapshotStates = InFlightShardSnapshotStates.forEntries(updatedEntriesForRepo);
+                                        } else {
+                                            // Tested: testCloneMultipleShardsReassignedFromKnownFailures
+                                            logger.debug("inFlightShardSnapshotStates already initialized");
                                         }
                                         if (inFlightShardSnapshotStates.isActive(
                                             repositoryShardId.indexName(),
                                             repositoryShardId.shardId()
                                         )) {
                                             // we already have this shard assigned to another task
+                                            // Tested: testCloneShardSkippedWhenAlreadyActiveInAnotherEntry
                                             continue;
+                                        } else {
+                                            // Tested: testCloneShardsReassignedFromKnownFailures (+ others)
+                                            logger.debug(
+                                                "shard [{}] not active in another entry, proceeding with reassignment",
+                                                repositoryShardId
+                                            );
                                         }
                                         if (clones == null) {
+                                            // Tested: testCloneShardsReassignedFromKnownFailures (+ others)
                                             clones = ImmutableOpenMap.builder(snapshotEntry.shardSnapshotStatusByRepoShardId());
+                                        } else {
+                                            // Tested: testCloneMultipleShardsReassignedFromKnownFailures
+                                            logger.debug("clones builder already initialized");
                                         }
                                         // We can use the generation from the shard failure to start the clone operation here
                                         // because #processWaitingShardsAndRemovedNodes adds generations to failure statuses that
@@ -271,17 +316,27 @@ final class SnapshotExternalChangesBatcher {
                                             repositoryShardId,
                                             new ShardSnapshotStatus(nodes.getLocalNodeId(), failureEntry.getValue().generation())
                                         );
+                                    } else {
+                                        // Tested: testCloneMultipleShardsReassignedFromKnownFailures
+                                        logger.debug(
+                                            "shard [{}] has status [{}], not UNASSIGNED_QUEUED, skipping",
+                                            repositoryShardId,
+                                            existingStatus
+                                        );
                                     }
                                 }
                                 if (clones != null) {
+                                    // Tested: testCloneShardsReassignedFromKnownFailures (+ others)
                                     changed = true;
                                     updatedEntriesForRepo.add(snapshotEntry.withClones(clones.build()));
                                 } else {
+                                    // Tested: testCloneSnapshotWithOrWithoutShardSnapshotStatus (+ others)
                                     updatedEntriesForRepo.add(snapshotEntry);
                                 }
                             }
                         } else {
                             // Not a clone, and the snapshot is in STARTED or ABORTED state.
+                            // Tested: testStartedWaitingSnapshotClusterStateUpdate (+ others)
                             ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = SnapshotsServiceUtils
                                 .processWaitingShardsAndRemovedNodes(
                                     snapshotEntry,
@@ -291,13 +346,23 @@ final class SnapshotExternalChangesBatcher {
                                     knownFailures
                                 );
                             if (shards != null) {
+                                // Tested: testAbortedSnapshotClusterStateUpdateBasedOnNodeChanges (+ others)
                                 final SnapshotsInProgress.Entry updatedSnapshot = snapshotEntry.withShardStates(shards);
                                 changed = true;
                                 if (updatedSnapshot.state().completed()) {
+                                    // Tested: testAbortedSnapshotClusterStateUpdateBasedOnNodeChanges (+ others)
                                     finishedSnapshots.add(updatedSnapshot);
+                                } else {
+                                    // Tested: testStartedWaitingSnapshotClusterStateUpdate
+                                    logger.debug(
+                                        "updated snapshot [{}] not yet completed, stays in state [{}]",
+                                        updatedSnapshot.snapshot(),
+                                        updatedSnapshot.state()
+                                    );
                                 }
                                 updatedEntriesForRepo.add(updatedSnapshot);
                             } else {
+                                // Tested: testNonCloneEntryRetainedUnchangedWhenNoShardChanges
                                 updatedEntriesForRepo.add(snapshotEntry);
                             }
                         }
@@ -305,22 +370,36 @@ final class SnapshotExternalChangesBatcher {
                         // BwC path, older versions could create entries with unknown repo GEN in INIT or ABORTED state that did not
                         // yet write anything to the repository physically. This means we can simply remove these from the cluster
                         // state without having to do any additional cleanup.
+                        // Tested: testBwcUnknownRepoGenEntryCleanup
                         changed = true;
                         logger.debug("[{}] was found in dangling INIT or ABORTED state", snapshotEntry);
                     } else {
                         // Now we're down to completed or un-modified snapshots
+                        // Tested: testWaitingDeletionDoesNotSuppressFinalization (+ others)
                         if (snapshotEntry.state().completed() || completed(snapshotEntry.shardSnapshotStatusByRepoShardId().values())) {
+                            // Tested: testWaitingDeletionDoesNotSuppressFinalization (+ others)
                             finishedSnapshots.add(snapshotEntry);
+                        } else {
+                            // Tested: testAbortedSnapshotClusterStateUpdateBasedOnNodeChanges (+ others)
+                            logger.debug(
+                                "snapshot [{}] in state [{}] not completed, retaining unchanged",
+                                snapshotEntry.snapshot(),
+                                snapshotEntry.state()
+                            );
                         }
                         updatedEntriesForRepo.add(snapshotEntry);
                     }
                 }
                 if (changed) {
+                    // Tested: testStartedWaitingSnapshotClusterStateUpdate (+ others)
                     updatedSnapshots = updatedSnapshots.createCopyWithUpdatedEntriesForRepo(
                         projectId,
                         repositoryName,
                         updatedEntriesForRepo
                     );
+                } else {
+                    // Tested: testCompletedSnapshotClusterStateUpdate (+ others)
+                    logger.debug("No changes at that point");
                 }
             }
             final ClusterState res = SnapshotsServiceUtils.readyDeletions(
@@ -342,6 +421,7 @@ final class SnapshotExternalChangesBatcher {
             if (finishedSnapshots.isEmpty() == false) {
                 // Skip finalization for repos with an active delete, because it will trigger finalization
                 // for any completed snapshots when it removes itself from the cluster state.
+                // Tested: testCompletedSnapshotClusterStateUpdate (+ others)
                 final Set<String> reposWithRunningDeletes = snapshotDeletionsInProgress.getEntries()
                     .stream()
                     .filter(entry -> entry.state() == SnapshotDeletionsInProgress.State.STARTED)
@@ -349,16 +429,28 @@ final class SnapshotExternalChangesBatcher {
                     .collect(Collectors.toSet());
                 for (SnapshotsInProgress.Entry entry : finishedSnapshots) {
                     if (reposWithRunningDeletes.contains(entry.repository()) == false) {
+                        // Tested: testWaitingDeletionDoesNotSuppressFinalization (+ others)
                         snapshotFinalizer.finalizeSnapshot(entry, newState.metadata());
+                    } else {
+                        // Tested: testCompletedSnapshotClusterStateUpdate
+                        logger.debug("skipping finalization for snapshot [{}] in repo with running delete", entry.snapshot());
                     }
                 }
                 finishedSnapshots.clear();
+            } else {
+                // Tested: testBwcUnknownRepoGenEntryCleanup (+ others)
+                logger.debug("no finished snapshots to process");
             }
+            // Tested: all tests (clonesStarter is always called)
             clonesStarter.startClones(SnapshotsInProgress.get(newState));
             // Run newly ready deletes
             for (SnapshotDeletionsInProgress.Entry entry : snapshotDeletionsInProgress.getEntries()) {
                 if (entry.state() == SnapshotDeletionsInProgress.State.STARTED) {
+                    // Tested: testCloneSnapshotWhenExecutingDeletion
                     deletionStarter.startDeletion(entry, newState.nodes().getMaxDataNodeCompatibleIndexVersion());
+                } else {
+                    // Tested: testWaitingDeletionDoesNotSuppressFinalization
+                    logger.debug("skipping deletion [{}] not in STARTED state", entry);
                 }
             }
         }

@@ -99,7 +99,7 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
         testRunJobInTwoPartsAndRevertSnapshotAndRunToCompletion("revert-model-snapshot-it-job-delete-intervening-results", true);
 
         // Check snapshot Id and buckets have not changed
-        assertThat(getJob(jobId).getFirst().getModelSnapshotId(), is(snapShotId));
+        assertThat(getJob(jobId).get(0).getModelSnapshotId(), is(snapShotId));
         List<Bucket> bucketsAfterRevert = getBuckets(jobId);
         assertThat(bucketsAfterRevert.size(), is(buckets.size()));
         assertThat(bucketsAfterRevert, is(buckets));
@@ -110,7 +110,6 @@ public class RevertModelSnapshotIT extends MlNativeAutodetectIntegTestCase {
 
         TimeValue bucketSpan = TimeValue.timeValueHours(1);
         long startTime = 1491004800000L;
-
         String data = generateData(
             startTime,
             bucketSpan,

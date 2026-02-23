@@ -48,11 +48,23 @@ public interface DataSourcePlugin {
         return Map.of();
     }
 
+    // Complete external source factories
+    default Map<String, ExternalSourceFactory> sourceFactories(Settings settings) {
+        return Map.of();
+    }
+
+    // FIXME: the methods below are superseded by sourceFactories() and ExternalSourceFactory capabilities.
+    // Migrate plugins from connectors()/tableCatalogs() to sourceFactories(),
+    // and from operatorFactories()/filterPushdownSupport() to ExternalSourceFactory methods.
     default Map<String, TableCatalogFactory> tableCatalogs(Settings settings) {
         return Map.of();
     }
 
     default Map<String, SourceOperatorFactoryProvider> operatorFactories(Settings settings) {
+        return Map.of();
+    }
+
+    default Map<String, ConnectorFactory> connectors(Settings settings) {
         return Map.of();
     }
 

@@ -317,7 +317,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         return meterRegistry.getRecorder()
             .getMeasurements(instrumentType, metricName)
             .stream()
-            .filter(measurement -> Objects.equals(measurement.attributes().get("action"), action.getPastTense()))
+            .filter(measurement -> Objects.equals(measurement.attributes().get("es_retry_action"), action.getPastTense()))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Measurement not found for action " + action));
     }

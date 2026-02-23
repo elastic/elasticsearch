@@ -198,11 +198,11 @@ public final class ConstantNullBlock extends AbstractNonThreadSafeRefCounted
         blockFactory().adjustBreaker(-ramBytesUsed());
     }
 
-    public static class Builder implements Block.Builder {
+    static class Builder implements Block.Builder {
 
         final BlockFactory blockFactory;
 
-        public Builder(BlockFactory blockFactory) {
+        Builder(BlockFactory blockFactory) {
             this.blockFactory = blockFactory;
         }
 

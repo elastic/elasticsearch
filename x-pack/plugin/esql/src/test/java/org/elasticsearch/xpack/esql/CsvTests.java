@@ -762,6 +762,7 @@ public class CsvTests extends ESTestCase {
             functionRegistry,
             mapper,
             TEST_VERIFIER,
+            null,
             new PlanTelemetry(functionRegistry),
             null,
             null,

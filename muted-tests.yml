@@ -416,12 +416,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexResumeIT
   method: testLocalResumeReindexFromScroll_slicedAuto
   issue: https://github.com/elastic/elasticsearch/issues/142749
-- class: org.elasticsearch.upgrades.TSDBSyntheticIdUpgradeIT
-  method: testRollingUpgrade {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/141734
-- class: org.elasticsearch.upgrades.TSDBSyntheticIdUpgradeIT
-  method: testRollingUpgrade {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/141749
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
   method: testResolveExternalRelationPassesFileSet
   issue: https://github.com/elastic/elasticsearch/issues/142795
@@ -455,6 +449,9 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
   method: testWithFailure
   issue: https://github.com/elastic/elasticsearch/issues/142821
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:spatial.ConvertFromStringParseError}
+  issue: https://github.com/elastic/elasticsearch/issues/142843
 
 # Examples:
 #

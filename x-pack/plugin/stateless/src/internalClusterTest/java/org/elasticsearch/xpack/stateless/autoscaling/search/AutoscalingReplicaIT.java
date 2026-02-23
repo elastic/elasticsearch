@@ -65,7 +65,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
@@ -223,7 +222,6 @@ public class AutoscalingReplicaIT extends AbstractStatelessPluginIntegTestCase {
         // Need to start a second search node for index2 before a relocation because needs 2 replicas
         startSearchNode(settings);
 
-        var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
         var searchMetricsService = internalCluster().getCurrentMasterNodeInstance(SearchMetricsService.class);
 
         // create two indices, where size index1 is roughly 2/3 and index2 is roughly 1/3 of interactive size
@@ -262,17 +260,28 @@ public class AutoscalingReplicaIT extends AbstractStatelessPluginIntegTestCase {
         }
 
         // we need to wait until we have received shard size updates in the search metrics service
+        // and verify that index1 has roughly 2x the interactive size of index2 (200 docs vs 100 docs)
         waitUntil(() -> {
-            ConcurrentMap<Index, SearchMetricsService.IndexProperties> indices = searchMetricsService.getIndices();
-            boolean bothInteractiveSizePresent = true;
-            for (Index i : indices.keySet()) {
-                SearchMetricsService.ShardMetrics shardMetric = searchMetricsService.getShardMetrics().get(new ShardId(i, 0));
-                if (shardMetric.shardSize.interactiveSizeInBytes() == 0) {
-                    bothInteractiveSizePresent = false;
-                }
+            var shardMetrics = searchMetricsService.getShardMetrics();
+            // find the Index objects for our index names
+            var indices = searchMetricsService.getIndices();
+            Index idx1 = indices.keySet().stream().filter(i -> i.getName().equals(index1)).findFirst().orElse(null);
+            Index idx2 = indices.keySet().stream().filter(i -> i.getName().equals(index2)).findFirst().orElse(null);
+            if (idx1 == null || idx2 == null) {
+                return false;
             }
-            return bothInteractiveSizePresent;
-        }, 2, TimeUnit.SECONDS);
+            // we only have one primary shard, shard 0, which will contain the documents
+            SearchMetricsService.ShardMetrics index1Metric = shardMetrics.get(new ShardId(idx1, 0));
+            SearchMetricsService.ShardMetrics index2Metric = shardMetrics.get(new ShardId(idx2, 0));
+            if (index1Metric == null || index2Metric == null) {
+                return false;
+            }
+            long size1 = index1Metric.shardSize.interactiveSizeInBytes();
+            long size2 = index2Metric.shardSize.interactiveSizeInBytes();
+            // Both sizes must be non-zero and index1 should be larger than index2
+            // (index1 has 200 docs, index2 has 100 docs, so index1 should be ~2x)
+            return size2 > 0 && size1 > size2;
+        }, 5, TimeUnit.SECONDS);
 
         assertEquals(1, getNumberOfReplicas(index1));
         assertEquals(1, getNumberOfReplicas(index2));

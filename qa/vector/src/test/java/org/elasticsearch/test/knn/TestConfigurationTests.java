@@ -66,7 +66,7 @@ public class TestConfigurationTests extends ESTestCase {
     }
 
     public void testHelp() throws Exception {
-        KnnIndexTester.main(new String[] {"--help"});
+        KnnIndexTester.main(new String[] { "--help" });
     }
 
 }

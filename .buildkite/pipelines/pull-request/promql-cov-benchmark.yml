@@ -4,7 +4,7 @@ config:
   allow-labels: ":StorageEngine/PromQL"
   trigger-phrase: '.*run\W+elasticsearch-ci/promql-cov-bench.*'
 steps:
-  - label: ":gear: promql-cov setup"
+  - label: "promql-cov setup"
     key: promql-cov-setup
     command: .buildkite/scripts/promql-cov.sh setup
     timeout_in_minutes: 10

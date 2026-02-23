@@ -21,7 +21,7 @@ import java.io.IOException;
  * Wraps a {@link NumericDocValues}, reserving some space in a {@link CircuitBreaker}
  * while it is live.
  */
-public class TrackingNumericDocValues implements Releasable {
+public record TrackingNumericDocValues(CircuitBreaker breaker, NumericDocValues docValues) implements Releasable {
     /**
      * Circuit breaker space reserved for each reader. Measured in heap dumps
      * around 500 bytes and this is an intention overestimate.
@@ -43,22 +43,6 @@ public class TrackingNumericDocValues implements Releasable {
                 breaker.addWithoutBreaking(-ESTIMATED_SIZE);
             }
         }
-    }
-
-    private final CircuitBreaker breaker;
-    private final NumericDocValues docValues;
-
-    TrackingNumericDocValues(CircuitBreaker breaker, NumericDocValues docValues) {
-        this.breaker = breaker;
-        this.docValues = docValues;
-    }
-
-    public NumericDocValues docValues() {
-        return docValues;
-    }
-
-    CircuitBreaker breaker() {
-        return breaker;
     }
 
     @Override

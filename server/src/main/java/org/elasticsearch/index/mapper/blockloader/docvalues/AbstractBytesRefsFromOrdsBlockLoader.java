@@ -76,7 +76,7 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
             if (docs.count() - offset == 1) {
                 return readSingleDoc(factory, docs.get(offset));
             }
-            if (ordinals instanceof OptionalColumnAtATimeReader direct) {
+            if (ordinals.docValues() instanceof OptionalColumnAtATimeReader direct) {
                 Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
                 if (block != null) {
                     return block;

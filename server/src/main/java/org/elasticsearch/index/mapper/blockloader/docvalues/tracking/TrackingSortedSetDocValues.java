@@ -18,25 +18,7 @@ import org.elasticsearch.core.Releasable;
  * Wraps a {@link SortedSetDocValues}, reserving some space in a {@link CircuitBreaker}
  * while it is live.
  */
-public class TrackingSortedSetDocValues implements Releasable {
-    private final CircuitBreaker breaker;
-    private final ByteSizeValue size;
-    private final SortedSetDocValues docValues;
-
-    TrackingSortedSetDocValues(CircuitBreaker breaker, ByteSizeValue size, SortedSetDocValues docValues) {
-        this.breaker = breaker;
-        this.size = size;
-        this.docValues = docValues;
-    }
-
-    public SortedSetDocValues docValues() {
-        return docValues;
-    }
-
-    public CircuitBreaker breaker() {
-        return breaker;
-    }
-
+public record TrackingSortedSetDocValues(CircuitBreaker breaker, ByteSizeValue size, SortedSetDocValues docValues) implements Releasable {
     @Override
     public void close() {
         breaker.addWithoutBreaking(-size.getBytes());

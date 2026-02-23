@@ -23,7 +23,7 @@ import java.io.IOException;
  * Wraps a {@link BinaryDocValues}, reserving some space in a {@link CircuitBreaker}
  * while it is live.
  */
-public class TrackingBinaryDocValues implements Releasable {
+public record TrackingBinaryDocValues(CircuitBreaker breaker, BinaryDocValues docValues) implements Releasable {
     /**
      * Circuit breaker space reserved for each reader. Measured in heap dumps
      * around from 1.5kb. This is an intentional overestimate.
@@ -53,18 +53,6 @@ public class TrackingBinaryDocValues implements Releasable {
                 breaker.addWithoutBreaking(-ESTIMATED_SIZE);
             }
         }
-    }
-
-    private final CircuitBreaker breaker;
-    private final BinaryDocValues docValues;
-
-    TrackingBinaryDocValues(CircuitBreaker breaker, BinaryDocValues docValues) {
-        this.breaker = breaker;
-        this.docValues = docValues;
-    }
-
-    public BinaryDocValues docValues() {
-        return docValues;
     }
 
     @Override

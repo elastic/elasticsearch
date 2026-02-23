@@ -19,19 +19,7 @@ import static org.elasticsearch.index.mapper.blockloader.docvalues.tracking.Trac
  * Wraps a {@link SortedNumericDocValues}, reserving some space in a {@link CircuitBreaker}
  * while it is live.
  */
-public class TrackingSortedNumericDocValues implements Releasable {
-    private final CircuitBreaker breaker;
-    private final SortedNumericDocValues docValues;
-
-    TrackingSortedNumericDocValues(CircuitBreaker breaker, SortedNumericDocValues docValues) {
-        this.breaker = breaker;
-        this.docValues = docValues;
-    }
-
-    public SortedNumericDocValues docValues() {
-        return docValues;
-    }
-
+public record TrackingSortedNumericDocValues(CircuitBreaker breaker, SortedNumericDocValues docValues) implements Releasable {
     @Override
     public void close() {
         breaker.addWithoutBreaking(-ESTIMATED_SIZE);

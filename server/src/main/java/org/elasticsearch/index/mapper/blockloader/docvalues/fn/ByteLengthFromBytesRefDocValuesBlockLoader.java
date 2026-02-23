@@ -71,13 +71,12 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            if (docValues instanceof BlockLoader.OptionalLengthReader direct) {
+            if (docValues.docValues() instanceof BlockLoader.OptionalLengthReader direct) {
                 BlockLoader.Block block = direct.tryReadLength(factory, docs, offset, nullsFiltered);
                 if (block != null) {
                     return block;
                 }
             }
-
             try (BlockLoader.IntBuilder builder = factory.ints(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);

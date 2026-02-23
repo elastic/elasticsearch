@@ -687,8 +687,8 @@ public final class CsvTestUtils {
         List<Page> pages,
         Map<String, List<String>> responseHeaders
     ) {
-        Iterator<Iterator<Object>> values() {
-            return ResponseValueUtils.pagesToValues(dataTypes(), pages, configuration.zoneId());
+        List<List<Object>> values() {
+            return EsqlTestUtils.getValuesList(ResponseValueUtils.pagesToValues(dataTypes(), pages, configuration.zoneId()));
         }
     }
 

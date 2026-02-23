@@ -234,7 +234,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private Function<MapperBuilderContext, ObjectMapper> inferenceFieldBuilder;
+        private Function<MapperBuilderContext, ObjectMapper.Builder> inferenceFieldBuilder;
         private final List<VectorsFormatProvider> vectorsFormatProviders;
 
         public static Builder from(SemanticTextFieldMapper mapper) {
@@ -307,8 +307,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             this.inferenceFieldBuilder = c -> {
                 // Resolve the model setting from the registry if it has not been set yet.
                 var resolvedModelSettings = modelSettings.get() != null ? modelSettings.get() : getResolvedModelSettings(c, false);
-                return createInferenceField(
-                    c,
+                return createInferenceFieldBuilder(
                     useLegacyFormat,
                     resolvedModelSettings,
                     indexOptions.get(),
@@ -340,30 +339,31 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         @Override
-        protected void merge(FieldMapper mergeWith, Conflicts conflicts, MapperMergeContext mapperMergeContext) {
-            SemanticTextFieldMapper semanticMergeWith = (SemanticTextFieldMapper) mergeWith;
+        protected void mergeFromBuilder(FieldMapper.Builder incoming, Conflicts conflicts, MapperMergeContext mergeContext) {
+            Builder semanticIncoming = (Builder) incoming;
 
-            final boolean isInferenceIdUpdate = semanticMergeWith.fieldType().inferenceId.equals(inferenceId.get()) == false;
+            final boolean isInferenceIdUpdate = semanticIncoming.inferenceId.get().equals(inferenceId.get()) == false;
             final boolean hasExplicitModelSettings = modelSettings.get() != null;
 
-            MinimalServiceSettings updatedModelSettings = modelSettings.get();
             if (isInferenceIdUpdate && hasExplicitModelSettings) {
-                validateModelsAreCompatibleWhenInferenceIdIsUpdated(semanticMergeWith.fieldType().inferenceId, conflicts);
+                validateModelsAreCompatibleWhenInferenceIdIsUpdated(semanticIncoming.inferenceId.get(), conflicts);
                 // As the mapper previously had explicit model settings, we need to apply to the new merged mapper
                 // the resolved model settings if not explicitly set.
-                updatedModelSettings = modelRegistry.getMinimalServiceSettings(semanticMergeWith.fieldType().inferenceId);
+                if (semanticIncoming.modelSettings.get() == null) {
+                    semanticIncoming.setModelSettings(modelRegistry.getMinimalServiceSettings(semanticIncoming.inferenceId.get()));
+                }
+            } else if (semanticIncoming.modelSettings.get() == null && modelSettings.get() != null) {
+                semanticIncoming.setModelSettings(modelSettings.get());
             }
-
-            semanticMergeWith = copyWithNewModelSettingsIfNotSet(semanticMergeWith, updatedModelSettings, mapperMergeContext);
 
             // We make sure to merge the inference field first to catch any model conflicts.
             // If inference_id is updated and there are no explicit model settings, we should be
             // able to switch to the new inference field without the need to check for conflicts.
             if (isInferenceIdUpdate == false || hasExplicitModelSettings) {
-                mergeInferenceField(mapperMergeContext, semanticMergeWith);
+                mergeInferenceFieldFromBuilder(mergeContext, semanticIncoming);
             }
 
-            super.merge(semanticMergeWith, conflicts, mapperMergeContext);
+            super.mergeFromBuilder(incoming, conflicts, mergeContext);
             conflicts.check();
         }
 
@@ -400,14 +400,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
         }
 
-        private void mergeInferenceField(MapperMergeContext mapperMergeContext, SemanticTextFieldMapper semanticMergeWith) {
+        private void mergeInferenceFieldFromBuilder(MapperMergeContext mapperMergeContext, Builder semanticIncoming) {
             try {
-                var context = mapperMergeContext.createChildContext(semanticMergeWith.leafName(), ObjectMapper.Dynamic.FALSE);
-                var inferenceField = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
-                var mergedInferenceField = inferenceField.merge(semanticMergeWith.fieldType().getInferenceField(), context);
-                inferenceFieldBuilder = c -> mergedInferenceField;
+                var context = mapperMergeContext.createChildContext(semanticIncoming.leafName(), ObjectMapper.Dynamic.FALSE);
+                var existingObjBuilder = inferenceFieldBuilder.apply(context.getMapperBuilderContext());
+                var incomingObjBuilder = semanticIncoming.inferenceFieldBuilder.apply(context.getMapperBuilderContext());
+                var mergedBuilder = (ObjectMapper.Builder) existingObjBuilder.mergeWith(incomingObjBuilder, context);
+                inferenceFieldBuilder = c -> mergedBuilder;
             } catch (Exception e) {
-                // Wrap errors in nicer messages that hide inference field internals
                 String errorMessage = e.getMessage() != null
                     ? e.getMessage().replaceAll(SemanticTextField.getEmbeddingsFieldName(""), "")
                     : "";
@@ -452,6 +452,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public SemanticTextFieldMapper build(MapperBuilderContext context) {
             if (useLegacyFormat && copyTo.copyToFields().isEmpty() == false) {
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + leafName() + "] does not support [copy_to]");
@@ -482,7 +487,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 throw new IllegalArgumentException(CONTENT_TYPE + " field [" + fullName + "] cannot be nested");
             }
             var childContext = context.createChildContext(leafName(), ObjectMapper.Dynamic.FALSE);
-            final ObjectMapper inferenceField = inferenceFieldBuilder.apply(childContext);
+            final ObjectMapper inferenceField = inferenceFieldBuilder.apply(childContext).build(childContext);
 
             return new SemanticTextFieldMapper(
                 leafName(),
@@ -568,29 +573,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             }
         }
 
-        /**
-         * Creates a new mapper with the new model settings if model settings are not set on the mapper.
-         * If the mapper already has model settings or the new model settings are null, the mapper is
-         * returned unchanged.
-         *
-         * @param mapper        The mapper
-         * @param modelSettings the new model settings. If null the mapper will be returned unchanged.
-         * @return A mapper with the copied settings applied
-         */
-        private SemanticTextFieldMapper copyWithNewModelSettingsIfNotSet(
-            SemanticTextFieldMapper mapper,
-            @Nullable MinimalServiceSettings modelSettings,
-            MapperMergeContext mapperMergeContext
-        ) {
-            SemanticTextFieldMapper returnedMapper = mapper;
-            if (mapper.fieldType().getModelSettings() == null) {
-                Builder builder = from(mapper);
-                builder.setModelSettings(modelSettings);
-                returnedMapper = builder.build(mapperMergeContext.getMapperBuilderContext());
-            }
-
-            return returnedMapper;
-        }
     }
 
     private final ModelRegistry modelRegistry;
@@ -804,15 +786,15 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 try {
                     var parentMapper = ((FieldMapper) context.mappingLookup().getMapper(context.mappingLookup().parentField(fullPath())))
                         .getMergeBuilder();
-                    context.addDynamicMapper(parentMapper.addMultiField(builder).build(context.createDynamicMapperBuilderContext()));
+                    String parentFullPath = context.mappingLookup().parentField(fullPath());
+                    context.addDynamicMapper(parentMapper.addMultiField(builder), parentFullPath);
                     return builder.build(context.createDynamicMapperBuilderContext());
                 } finally {
                     context.path().add(fieldName);
                 }
             } else {
-                var mapper = builder.build(context.createDynamicMapperBuilderContext());
-                context.addDynamicMapper(mapper);
-                return mapper;
+                context.addDynamicMapper(builder, fullPath());
+                return builder.build(context.createDynamicMapperBuilderContext());
             }
         } finally {
             context.path().add(leafName());
@@ -1298,8 +1280,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
     }
 
-    private static ObjectMapper createInferenceField(
-        MapperBuilderContext context,
+    private static ObjectMapper.Builder createInferenceFieldBuilder(
         boolean useLegacyFormat,
         @Nullable MinimalServiceSettings modelSettings,
         @Nullable SemanticTextIndexOptions indexOptions,
@@ -1308,8 +1289,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         return new ObjectMapper.Builder(INFERENCE_FIELD, Explicit.of(ObjectMapper.Subobjects.ENABLED)).dynamic(ObjectMapper.Dynamic.FALSE)
-            .add(createChunksField(useLegacyFormat, modelSettings, indexOptions, bitSetProducer, indexSettings, vectorsFormatProviders))
-            .build(context);
+            .add(createChunksField(useLegacyFormat, modelSettings, indexOptions, bitSetProducer, indexSettings, vectorsFormatProviders));
     }
 
     private static NestedObjectMapper.Builder createChunksField(

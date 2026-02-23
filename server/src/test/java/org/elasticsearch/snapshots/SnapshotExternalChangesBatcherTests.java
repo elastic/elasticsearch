@@ -135,68 +135,24 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
     public void testExternalChangesTaskResubmissionOnCompletion() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var threadPool = deterministicTaskQueue.getThreadPool();
-        final var pendingChanges = new AtomicBoolean(false);
+        final var concurrentChange = new AtomicBoolean(false);
 
         final AtomicReference<SnapshotExternalChangesBatcher> batcher = new AtomicReference<>();
         final ClusterStateTaskExecutor<SnapshotExternalChangesBatcher.Task> executor = batchContext -> {
-            pendingChanges.set(false);
             assertThat("at most one task in the queue at any time", batchContext.taskContexts().size(), is(1));
+            concurrentChange.set(false);
             final var taskContext = batchContext.taskContexts().getFirst();
             batcher.get().acquireChangesToExecute();
             if (randomBoolean()) {
-                boolean nodes = randomBoolean();
-                boolean shards = randomBoolean();
-                batcher.get().processExternalChanges(nodes, shards);
-                pendingChanges.set(nodes || shards);
+                concurrentChange.set(true);
+                batcher.get().processExternalChanges(randomBoolean(), true);
             }
-            taskContext.success(batcher.get()::onTaskCompletion);
-            return batchContext.initialState();
-        };
-
-        try (var masterService = createMasterService(threadPool)) {
-            final var queue = masterService.createTaskQueue("snapshots-service-external-change", Priority.NORMAL, executor);
-            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, (e, m) -> {}, s -> {}, (e, v) -> {}));
-
-            batcher.get().processExternalChanges(true, true);
-            for (int i = 0; i < 30; i++) {
-                deterministicTaskQueue.runRandomTask();
-                if (pendingChanges.get()) {
-                    assertThat(masterService.numberOfPendingTasks(), is(1));
-                } else {
-                    assertThat(masterService.numberOfPendingTasks(), is(0));
-                }
-                batcher.get().processExternalChanges(true, false);
-            }
-        }
-    }
-
-    public void testExternalChangesTaskAbortsOnMasterFailure() {
-        final var deterministicTaskQueue = new DeterministicTaskQueue();
-        final var threadPool = deterministicTaskQueue.getThreadPool();
-        final var hasFailed = new AtomicBoolean(false);
-        final var lastSuccessfulExecutedChange = new AtomicBoolean(false);
-
-        final AtomicReference<SnapshotExternalChangesBatcher> batcher = new AtomicReference<>();
-        final ClusterStateTaskExecutor<SnapshotExternalChangesBatcher.Task> executor = batchContext -> {
-            hasFailed.set(false);
-            assertThat("at most one task in the queue at any time", batchContext.taskContexts().size(), is(1));
-            final var taskContext = batchContext.taskContexts().getFirst();
             if (randomBoolean()) {
-                hasFailed.set(true);
-                if (randomBoolean()) {
-                    // Can fail before or after acquiring changes. Both cases should result in the same end state
-                    batcher.get().acquireChangesToExecute();
-                }
-                if (randomBoolean()) {
-                    // This change should get dropped because of the failure.
-                    batcher.get().processExternalChanges(randomBoolean(), randomBoolean());
-                }
                 throw randomFrom(
                     new NotMasterException("simulated no longer master"),
                     new FailedToCommitClusterStateException("simulated failed to commit failure")
                 );
             } else {
-                lastSuccessfulExecutedChange.set(batcher.get().acquireChangesToExecute());
                 taskContext.success(batcher.get()::onTaskCompletion);
                 return batchContext.initialState();
             }
@@ -206,18 +162,10 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
             final var queue = masterService.createTaskQueue("snapshots-service-external-change", Priority.NORMAL, executor);
             batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, (e, m) -> {}, s -> {}, (e, v) -> {}));
 
-            boolean nodesChanged = randomBoolean();
-            boolean shardChanged = true;
-            batcher.get().processExternalChanges(nodesChanged, shardChanged);
-            for (int i = 0; i < 10; i++) {
+            for (int i = 0; i < 30; i++) {
+                batcher.get().processExternalChanges(randomBoolean(), true);
                 deterministicTaskQueue.runRandomTask();
-                assertThat(masterService.numberOfPendingTasks(), is(0));
-                if (!hasFailed.get()) {
-                    // Verify the last failure wiped historical changes
-                    assertThat(lastSuccessfulExecutedChange.get(), is(nodesChanged));
-                }
-                nodesChanged = randomBoolean();
-                batcher.get().processExternalChanges(nodesChanged, shardChanged);
+                assertThat(masterService.numberOfPendingTasks(), is(concurrentChange.get() ? 1 : 0));
             }
         }
     }

@@ -9,29 +9,19 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
-
 public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
-    /**
-     * Circuit breaker space reserved for each reader. Most of the data is held off heap and
-     * the reader itself is quite small. We've measured it at 600 bytes in heap dumps. 1kb is
-     * an overestimate.
-     */
-    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(1).getBytes();
-
     private final String fieldName;
     private final int dims;
     private final IndexVersion indexVersion;
@@ -56,36 +46,26 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
 
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-        boolean release = true;
-        try {
-            BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
-            if (docValues == null) {
-                return ConstantNull.READER;
-            }
-            release = false;
-            return switch (elementType) {
-                case FLOAT -> new FloatDenseVectorFromBinary(breaker, docValues, dims, indexVersion);
-                case BFLOAT16 -> new BFloat16DenseVectorFromBinary(breaker, docValues, dims, indexVersion);
-                case BYTE -> new ByteDenseVectorFromBinary(breaker, docValues, dims, indexVersion);
-                case BIT -> new BitDenseVectorFromBinary(breaker, docValues, dims, indexVersion);
-            };
-        } finally {
-            if (release) {
-                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-            }
+        TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, fieldName);
+        if (dv == null) {
+            return ConstantNull.READER;
         }
+        return switch (elementType) {
+            case FLOAT -> new FloatDenseVectorFromBinary(dv, dims, indexVersion);
+            case BFLOAT16 -> new BFloat16DenseVectorFromBinary(dv, dims, indexVersion);
+            case BYTE -> new ByteDenseVectorFromBinary(dv, dims, indexVersion);
+            case BIT -> new BitDenseVectorFromBinary(dv, dims, indexVersion);
+        };
     }
 
-    // Abstract base for dense vector readers
     private abstract static class AbstractDenseVectorFromBinary<T> extends BlockDocValuesReader {
-        protected final BinaryDocValues docValues;
+        protected final TrackingBinaryDocValues docValues;
         protected final IndexVersion indexVersion;
         protected final int dimensions;
         protected final T scratch;
 
-        AbstractDenseVectorFromBinary(CircuitBreaker breaker, BinaryDocValues docValues, int dims, IndexVersion indexVersion, T scratch) {
-            super(breaker);
+        AbstractDenseVectorFromBinary(TrackingBinaryDocValues docValues, int dims, IndexVersion indexVersion, T scratch) {
+            super(null);
             this.docValues = docValues;
             this.indexVersion = indexVersion;
             this.dimensions = dims;
@@ -94,7 +74,7 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
 
         @Override
         public int docId() {
-            return docValues.docID();
+            return docValues.docValues().docID();
         }
 
         @Override
@@ -114,11 +94,11 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
         }
 
         private void read(int doc, BlockLoader.FloatBuilder builder) throws IOException {
-            if (docValues.advanceExact(doc) == false) {
+            if (docValues.docValues().advanceExact(doc) == false) {
                 builder.appendNull();
                 return;
             }
-            BytesRef bytesRef = docValues.binaryValue();
+            BytesRef bytesRef = docValues.docValues().binaryValue();
             assert bytesRef.length > 0;
             decodeDenseVector(bytesRef, scratch);
 
@@ -129,7 +109,7 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
 
         @Override
         public final void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+            docValues.close();
         }
 
         protected abstract void decodeDenseVector(BytesRef bytesRef, T scratch);
@@ -138,8 +118,8 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
     }
 
     private static class FloatDenseVectorFromBinary extends AbstractDenseVectorFromBinary<float[]> {
-        FloatDenseVectorFromBinary(CircuitBreaker breaker, BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
-            super(breaker, docValues, dims, indexVersion, new float[dims]);
+        FloatDenseVectorFromBinary(TrackingBinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+            super(docValues, dims, indexVersion, new float[dims]);
         }
 
         @Override
@@ -161,8 +141,8 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
     }
 
     private static class BFloat16DenseVectorFromBinary extends AbstractDenseVectorFromBinary<float[]> {
-        BFloat16DenseVectorFromBinary(CircuitBreaker breaker, BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
-            super(breaker, docValues, dims, indexVersion, new float[dims]);
+        BFloat16DenseVectorFromBinary(TrackingBinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+            super(docValues, dims, indexVersion, new float[dims]);
         }
 
         @Override
@@ -184,18 +164,12 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
     }
 
     private static class ByteDenseVectorFromBinary extends AbstractDenseVectorFromBinary<byte[]> {
-        ByteDenseVectorFromBinary(CircuitBreaker breaker, BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
-            this(breaker, docValues, dims, indexVersion, dims);
+        ByteDenseVectorFromBinary(TrackingBinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+            this(docValues, dims, indexVersion, dims);
         }
 
-        protected ByteDenseVectorFromBinary(
-            CircuitBreaker breaker,
-            BinaryDocValues docValues,
-            int dims,
-            IndexVersion indexVersion,
-            int readScratchSize
-        ) {
-            super(breaker, docValues, dims, indexVersion, new byte[readScratchSize]);
+        protected ByteDenseVectorFromBinary(TrackingBinaryDocValues docValues, int dims, IndexVersion indexVersion, int readScratchSize) {
+            super(docValues, dims, indexVersion, new byte[readScratchSize]);
         }
 
         @Override
@@ -215,8 +189,8 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
     }
 
     private static class BitDenseVectorFromBinary extends ByteDenseVectorFromBinary {
-        BitDenseVectorFromBinary(CircuitBreaker breaker, BinaryDocValues docValues, int dims, IndexVersion indexVersion) {
-            super(breaker, docValues, dims, indexVersion, dims / Byte.SIZE);
+        BitDenseVectorFromBinary(TrackingBinaryDocValues docValues, int dims, IndexVersion indexVersion) {
+            super(docValues, dims, indexVersion, dims / Byte.SIZE);
         }
 
         @Override

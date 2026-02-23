@@ -18,38 +18,35 @@ import java.util.Map;
 
 public class AzureOpenAiCompletionTaskSettings extends AzureOpenAiTaskSettings<AzureOpenAiCompletionTaskSettings> {
 
-    public static final String NAME = "azure_openai_completion_task_settings";
+    private static final String NAME = "azure_openai_completion_task_settings";
 
-    public static final AzureOpenAiCompletionTaskSettings EMPTY = new AzureOpenAiCompletionTaskSettings((String) null, null);
+    public static final AzureOpenAiCompletionTaskSettings EMPTY = new AzureOpenAiCompletionTaskSettings(null, null);
 
-    public static AzureOpenAiCompletionTaskSettings of(
-        AzureOpenAiCompletionTaskSettings originalSettings,
-        AzureOpenAiCompletionTaskSettings requestSettings
-    ) {
-        var userToUse = requestSettings.user() == null ? originalSettings.user() : requestSettings.user();
-        var headersToUse = requestSettings.headers() == null ? originalSettings.headers() : requestSettings.headers();
-        return new AzureOpenAiCompletionTaskSettings(userToUse, headersToUse);
+    private static final AzureOpenAiTaskSettings.Factory<AzureOpenAiCompletionTaskSettings> FACTORY = new Factory<>(EMPTY) {
+        @Override
+        public AzureOpenAiCompletionTaskSettings create(@Nullable String user, @Nullable Headers headers) {
+            if (user == null && headers == null) {
+                return EMPTY;
+            }
+
+            return new AzureOpenAiCompletionTaskSettings(user, headers);
+        }
+    };
+
+    public static AzureOpenAiCompletionTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return AzureOpenAiTaskSettings.parseSettingsFromMap(map, context, FACTORY);
     }
 
     public AzureOpenAiCompletionTaskSettings(@Nullable String user, @Nullable Headers headers) {
-        super(user, headers);
+        super(user, headers, FACTORY);
     }
 
     public AzureOpenAiCompletionTaskSettings(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    public AzureOpenAiCompletionTaskSettings(Map<String, Object> map, ConfigurationParseContext context) {
-        super(map, context);
+        super(in, FACTORY);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    @Override
-    protected AzureOpenAiCompletionTaskSettings create(@Nullable String user, @Nullable Headers headers) {
-        return new AzureOpenAiCompletionTaskSettings(user, headers);
     }
 }

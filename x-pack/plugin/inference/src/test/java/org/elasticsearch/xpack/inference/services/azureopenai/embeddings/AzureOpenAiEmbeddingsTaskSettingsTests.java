@@ -22,6 +22,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields.USER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializingTestCase<AzureOpenAiEmbeddingsTaskSettings> {
 
@@ -59,14 +60,14 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
     public void testFromMap_WithUser() {
         assertEquals(
             new AzureOpenAiEmbeddingsTaskSettings("user", null),
-            new AzureOpenAiEmbeddingsTaskSettings(new HashMap<>(Map.of(USER, "user")), ConfigurationParseContext.PERSISTENT)
+            AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(USER, "user")), ConfigurationParseContext.PERSISTENT)
         );
     }
 
     public void testFromMap_UserIsEmptyString() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> new AzureOpenAiEmbeddingsTaskSettings(new HashMap<>(Map.of(USER, "")), ConfigurationParseContext.PERSISTENT)
+            () -> AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(USER, "")), ConfigurationParseContext.PERSISTENT)
         );
 
         MatcherAssert.assertThat(
@@ -76,12 +77,12 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = new AzureOpenAiEmbeddingsTaskSettings(new HashMap<>(Map.of()), ConfigurationParseContext.PERSISTENT);
+        var taskSettings = AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.PERSISTENT);
         assertNull(taskSettings.user());
     }
 
     public void testFromMap_WithRequestContext_ReturnsEmptySettings_WhenMapIsEmpty() {
-        var settings = new AzureOpenAiEmbeddingsTaskSettings(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST);
+        var settings = AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST);
         assertTrue(settings.isEmpty());
         assertNull(settings.user());
         assertNull(settings.headers());
@@ -89,7 +90,7 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
     }
 
     public void testFromMap_WithRequestContext_ReturnsEmptySettings_WhenMapDoesNotContainKnownFields() {
-        var settings = new AzureOpenAiEmbeddingsTaskSettings(
+        var settings = AzureOpenAiEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of("key", "model")),
             ConfigurationParseContext.REQUEST
         );
@@ -100,7 +101,7 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
     }
 
     public void testFromMap_WithRequestContext_ReturnsUser() {
-        var settings = new AzureOpenAiEmbeddingsTaskSettings(
+        var settings = AzureOpenAiEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of(USER, "user")),
             ConfigurationParseContext.REQUEST
         );
@@ -110,7 +111,7 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
     public void testFromMap_WithRequestContext_WhenUserIsEmpty_ThrowsValidationException() {
         var exception = expectThrows(
             ValidationException.class,
-            () -> new AzureOpenAiEmbeddingsTaskSettings(
+            () -> AzureOpenAiEmbeddingsTaskSettings.fromMap(
                 new HashMap<>(Map.of(USER, "")),
                 ConfigurationParseContext.REQUEST
             )
@@ -118,29 +119,27 @@ public class AzureOpenAiEmbeddingsTaskSettingsTests extends AbstractWireSerializ
         MatcherAssert.assertThat(exception.getMessage(), containsString("[user] must be a non-empty string"));
     }
 
-    public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
-        var taskSettings = new AzureOpenAiEmbeddingsTaskSettings(
+    public void testUpdatedTaskSettings_KeepsOriginalValues_WhenOverridesAreEmpty() {
+        var taskSettings = AzureOpenAiEmbeddingsTaskSettings.fromMap(
             new HashMap<>(Map.of(USER, "user")),
             ConfigurationParseContext.PERSISTENT
         );
 
-        var overriddenTaskSettings = AzureOpenAiEmbeddingsTaskSettings.of(taskSettings, AzureOpenAiEmbeddingsTaskSettings.EMPTY);
-        MatcherAssert.assertThat(overriddenTaskSettings, is(taskSettings));
+        var overriddenTaskSettings = taskSettings.updatedTaskSettings(Map.of());
+        assertThat(overriddenTaskSettings, sameInstance(taskSettings));
     }
 
-    public void testOverrideWith_UsesOverriddenSettings() {
-        var taskSettings = new AzureOpenAiEmbeddingsTaskSettings(
-            new HashMap<>(Map.of(USER, "user")),
+    public void testUpdatedTaskSettings_UsesOverriddenSettings() {
+        var user = "user";
+        var userOverride = "user override";
+
+        var taskSettings = AzureOpenAiEmbeddingsTaskSettings.fromMap(
+            new HashMap<>(Map.of(USER, user)),
             ConfigurationParseContext.PERSISTENT
         );
 
-        var requestTaskSettings = new AzureOpenAiEmbeddingsTaskSettings(
-            new HashMap<>(Map.of(USER, "user2")),
-            ConfigurationParseContext.REQUEST
-        );
-
-        var overriddenTaskSettings = AzureOpenAiEmbeddingsTaskSettings.of(taskSettings, requestTaskSettings);
-        MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureOpenAiEmbeddingsTaskSettings("user2", null)));
+        var overriddenTaskSettings = taskSettings.updatedTaskSettings(Map.of(USER, userOverride));
+        MatcherAssert.assertThat(overriddenTaskSettings, is(new AzureOpenAiEmbeddingsTaskSettings(userOverride, null)));
     }
 
     @Override

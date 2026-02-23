@@ -29,8 +29,7 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
             return model;
         }
 
-        var requestTaskSettings = new AzureOpenAiCompletionTaskSettings(taskSettings, ConfigurationParseContext.REQUEST);
-        return new AzureOpenAiCompletionModel(model, AzureOpenAiCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        return new AzureOpenAiCompletionModel(model, model.getTaskSettings().updatedTaskSettings(taskSettings));
     }
 
     public AzureOpenAiCompletionModel(
@@ -47,7 +46,7 @@ public class AzureOpenAiCompletionModel extends AzureOpenAiModel {
             taskType,
             service,
             AzureOpenAiCompletionServiceSettings.fromMap(serviceSettings, context),
-            new AzureOpenAiCompletionTaskSettings(taskSettings, context),
+            AzureOpenAiCompletionTaskSettings.fromMap(taskSettings, context),
             AzureOpenAiSecretSettings.fromMap(secrets)
         );
     }

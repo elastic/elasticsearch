@@ -15,15 +15,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.inference.common.parser.Headers;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.inference.common.parser.Headers;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -36,84 +34,99 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<T>> implements TaskSettings {
 
+    private static final Settings EMPTY_SETTINGS = new Settings(null, null);
+
     protected static final TransportVersion INFERENCE_AZURE_OPENAI_TASK_SETTINGS_HEADERS = TransportVersion.fromName(
         "inference_azure_openai_task_settings_headers"
     );
 
-    private static final Settings EMPTY_SETTINGS = new Settings(null, null);
+    protected record Settings(@Nullable String user, @Nullable Headers headers) {}
 
-    public record Settings(@Nullable String user, @Nullable Headers headers) {}
+    private static final ConstructingObjectParser<Settings, Void> STORAGE_PARSER = createParser(true);
+    private static final ConstructingObjectParser<Settings, Void> REQUEST_PARSER = createParser(false);
 
-    public static Settings createSettings(String user, Headers headers) {
+    private static ConstructingObjectParser<Settings, Void> createParser(boolean ignoreUnknownFields) {
+        ConstructingObjectParser<Settings, Void> constructingObjectParser = new ConstructingObjectParser<>(
+            "azure_openai_task_settings_parser",
+            ignoreUnknownFields,
+            args -> createSettings((String) args[0], Headers.create(args[1]))
+        );
+
+        constructingObjectParser.declareString(optionalConstructorArg(), new ParseField(AzureOpenAiServiceFields.USER));
+        Headers.initParser(constructingObjectParser);
+
+        return constructingObjectParser;
+    }
+
+    private static Settings createSettings(String user, Headers headers) {
         if (user == null && headers == null) {
             return EMPTY_SETTINGS;
         }
         return new Settings(user, headers);
     }
 
-    private static final ConstructingObjectParser<Settings, Void> STORAGE_PARSER = createParser(true);
+    protected abstract static class Factory<T> {
+        private final T emptyInstance;
 
-    private static final ConstructingObjectParser<Settings, Void> REQUEST_PARSER = createParser(false);
-
-    private static ConstructingObjectParser<Settings, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<Settings, Void> a = new ConstructingObjectParser<>(
-            "azure_openai_task_settings_parser",
-            ignoreUnknownFields,
-            args -> createSettings((String) args[0], Headers.create(args[1]))
-        );
-
-        a.declareString(optionalConstructorArg(), new ParseField(AzureOpenAiServiceFields.USER));
-        Headers.initParser(a);
-
-        return a;
-    }
-
-    private static Settings parseSettingsFromMap(Map<String, Object> map, ConfigurationParseContext configurationParseContext) {
-        if (map.isEmpty()) {
-            return EMPTY_SETTINGS;
+        public Factory(T emptyInstance) {
+            this.emptyInstance = emptyInstance;
         }
 
+        protected abstract T create(@Nullable String user, @Nullable Headers headers);
+
+        public T emptySettings() {
+            return emptyInstance;
+        }
+    }
+
+    protected static <T extends AzureOpenAiTaskSettings<T>> T parseSettingsFromMap(
+        Map<String, Object> map,
+        ConfigurationParseContext configurationParseContext,
+        Factory<T> factory
+    ) {
+        if (map.isEmpty()) {
+            return factory.emptySettings();
+        }
 
         try {
             try (
-                XContentBuilder xContent = XContentBuilder.builder(JsonXContent.jsonXContent).map(map);
-                XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    XContentParserConfiguration.EMPTY,
-                    Strings.toString(xContent)
-                )
+                var xContent = XContentBuilder.builder(JsonXContent.jsonXContent).map(map);
+                var parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, Strings.toString(xContent))
             ) {
+                Settings createdSettings;
+
                 if (configurationParseContext == ConfigurationParseContext.REQUEST) {
-                    return REQUEST_PARSER.parse(parser, null);
+                    createdSettings = REQUEST_PARSER.parse(parser, null);
                 } else {
-                    return STORAGE_PARSER.parse(parser, null);
+                    createdSettings = STORAGE_PARSER.parse(parser, null);
                 }
+
+                return factory.create(createdSettings.user(), createdSettings.headers());
             }
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new IllegalArgumentException("Failed to parse Azure OpenAI task settings", e);
         }
     }
 
     private final Settings taskSettings;
+    private final Factory<T> factory;
 
-    public AzureOpenAiTaskSettings(Map<String, Object> map, ConfigurationParseContext configurationParseContext) {
-        this(parseSettingsFromMap(map, configurationParseContext));
+    protected AzureOpenAiTaskSettings(@Nullable String user, @Nullable Headers headers, Factory<T> factory) {
+         this(createSettings(user, headers), factory);
     }
 
-    public AzureOpenAiTaskSettings(@Nullable String user, @Nullable Headers headers) {
-        this(createSettings(user, headers));
-    }
-
-    protected AzureOpenAiTaskSettings(Settings taskSettings) {
+    protected AzureOpenAiTaskSettings(Settings taskSettings, Factory<T> factory) {
         this.taskSettings = Objects.requireNonNull(taskSettings);
+        this.factory = Objects.requireNonNull(factory);
     }
 
-    public AzureOpenAiTaskSettings(StreamInput in) throws IOException {
-        this(readTaskSettingsFromStream(in));
+    protected AzureOpenAiTaskSettings(StreamInput in, Factory<T> factory) throws IOException {
+        this(readTaskSettingsFromStream(in), factory);
     }
 
     private static Settings readTaskSettingsFromStream(StreamInput in) throws IOException {
-        String user = in.readOptionalString();
-        Headers headers = in.getTransportVersion().supports(INFERENCE_AZURE_OPENAI_TASK_SETTINGS_HEADERS)
+        var user = in.readOptionalString();
+        var headers = in.getTransportVersion().supports(INFERENCE_AZURE_OPENAI_TASK_SETTINGS_HEADERS)
             ? in.readOptionalWriteable(Headers::new)
             : null;
         return createSettings(user, headers);
@@ -123,9 +136,6 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
         return taskSettings.user();
     }
 
-    /**
-     * Optional custom HTTP headers to send with the request. May be null or have null/empty map inside.
-     */
     public Headers headers() {
         return taskSettings.headers();
     }
@@ -165,10 +175,10 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
 
     @Override
     public T updatedTaskSettings(Map<String, Object> newSettings) {
-        Settings updated = parseSettingsFromMap(new HashMap<>(newSettings), ConfigurationParseContext.REQUEST);
+        var updated = parseSettingsFromMap(new HashMap<>(newSettings), ConfigurationParseContext.REQUEST, factory);
         var userToUse = updated.user() == null ? taskSettings.user() : updated.user();
         var headersToUse = updated.headers() == null ? taskSettings.headers() : updated.headers();
-        return create(userToUse, headersToUse);
+        return factory.create(userToUse, headersToUse);
     }
 
     @Override
@@ -189,6 +199,4 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
             out.writeOptionalWriteable(headers());
         }
     }
-
-    protected abstract T create(@Nullable String user, @Nullable Headers headers);
 }

@@ -7,20 +7,14 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xpack.inference.common.parser.Headers;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettings;
 
 import java.io.IOException;
 import java.util.Map;
-
-import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettings.createSettings;
 
 /**
  * Defines the task settings for the Azure OpenAI embeddings service.
@@ -32,41 +26,33 @@ public class AzureOpenAiEmbeddingsTaskSettings extends AzureOpenAiTaskSettings<A
 
     public static final String NAME = "azure_openai_embeddings_task_settings";
 
-    /** Canonical empty instance for request overrides (e.g. when no overrides are supplied). */
-    public static final AzureOpenAiEmbeddingsTaskSettings EMPTY = new AzureOpenAiEmbeddingsTaskSettings((String) null, null);
+    public static final AzureOpenAiEmbeddingsTaskSettings EMPTY = new AzureOpenAiEmbeddingsTaskSettings(null, null);
 
-    /**
-     * Creates a new {@link AzureOpenAiEmbeddingsTaskSettings} by overriding the values in originalSettings with the ones
-     * passed in via requestSettings when the request fields are not null.
-     */
-    public static AzureOpenAiEmbeddingsTaskSettings of(
-        AzureOpenAiEmbeddingsTaskSettings originalSettings,
-        AzureOpenAiEmbeddingsTaskSettings requestSettings
-    ) {
-        var userToUse = requestSettings.user() == null ? originalSettings.user() : requestSettings.user();
-        var headersToUse = requestSettings.headers() == null ? originalSettings.headers() : requestSettings.headers();
-        return new AzureOpenAiEmbeddingsTaskSettings(userToUse, headersToUse);
+    private static final AzureOpenAiTaskSettings.Factory<AzureOpenAiEmbeddingsTaskSettings> FACTORY = new Factory<>(EMPTY) {
+        @Override
+        public AzureOpenAiEmbeddingsTaskSettings create(@Nullable String user, @Nullable Headers headers) {
+            if (user == null && headers == null) {
+                return EMPTY;
+            }
+
+            return new AzureOpenAiEmbeddingsTaskSettings(user, headers);
+        }
+    };
+
+    public static AzureOpenAiEmbeddingsTaskSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
+        return AzureOpenAiTaskSettings.parseSettingsFromMap(map, context, FACTORY);
     }
 
     public AzureOpenAiEmbeddingsTaskSettings(@Nullable String user, @Nullable Headers headers) {
-        super(user, headers);
+        super(user, headers, FACTORY);
     }
 
     public AzureOpenAiEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        super(in);
-    }
-
-    public AzureOpenAiEmbeddingsTaskSettings(Map<String, Object> map, ConfigurationParseContext context) {
-        super(map, context);
+        super(in, FACTORY);
     }
 
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    @Override
-    protected AzureOpenAiEmbeddingsTaskSettings create(@Nullable String user, @Nullable Headers headers) {
-        return new AzureOpenAiEmbeddingsTaskSettings(user, headers);
     }
 }

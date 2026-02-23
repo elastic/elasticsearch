@@ -30,7 +30,7 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
     private final Predicate<String> systemChecker;
 
     public static final Setting<Boolean> SEARCH_LOGGER_LOG_SYSTEM = Setting.boolSetting(
-        ACTIVITY_LOGGER_SETTINGS_PREFIX + "search.include_system_indices",
+        ACTIVITY_LOGGER_SETTINGS_PREFIX + "search.include.system_indices",
         false,
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
@@ -58,6 +58,9 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
         msg.field(ES_FIELDS_PREFIX + "hits", context.getHits());
         if (context.isSystemSearch(systemChecker)) {
             msg.field(ES_FIELDS_PREFIX + "is_system", true);
+        }
+        if (context.hasAggregations()) {
+            msg.field(ES_FIELDS_PREFIX + "search.has_aggregations", true);
         }
         return Optional.of(msg);
     }

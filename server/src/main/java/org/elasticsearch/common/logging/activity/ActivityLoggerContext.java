@@ -12,6 +12,8 @@ package org.elasticsearch.common.logging.activity;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 
+import java.util.Optional;
+
 /**
  * Context for {@link ActivityLogger}.
  * This class contains the information needed to log the query and is extended by specific logging contexts for each action.
@@ -40,6 +42,10 @@ public abstract class ActivityLoggerContext {
 
     public boolean isSuccess() {
         return error == null;
+    }
+
+    public boolean isTimedOut() {
+        return false;
     }
 
     public String getType() {

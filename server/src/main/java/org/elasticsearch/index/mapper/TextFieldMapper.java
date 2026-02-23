@@ -81,6 +81,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromCustomB
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.script.field.DelegateDocValuesField;
 import org.elasticsearch.script.field.TextDocValuesField;
@@ -566,6 +567,11 @@ public final class TextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public TextFieldMapper build(MapperBuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(
                 index,
@@ -958,7 +964,9 @@ public final class TextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.termQuery(value, context);
             }
+
             failIfNotIndexedNorDocValuesFallback(context);
+
             if (usesBinaryDocValues) {
                 return new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value));
             } else {
@@ -971,15 +979,13 @@ public final class TextFieldMapper extends FieldMapper {
             if (indexType().hasTerms()) {
                 return super.termsQuery(values, context);
             }
+
             failIfNotIndexedNorDocValuesFallback(context);
+
+            List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
             if (usesBinaryDocValues) {
-                BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
-                for (Object value : values) {
-                    bqBuilder.add(new SlowCustomBinaryDocValuesTermQuery(name(), indexedValueForSearch(value)), BooleanClause.Occur.SHOULD);
-                }
-                return new ConstantScoreQuery(bqBuilder.build());
+                return new SlowCustomBinaryDocValuesTermInSetQuery(name(), bytesRefs);
             } else {
-                Collection<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
                 return SortedSetDocValuesField.newSlowSetQuery(name(), bytesRefs);
             }
         }
@@ -1276,7 +1282,7 @@ public final class TextFieldMapper extends FieldMapper {
                 if (usesBinaryDocValues()) {
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
                 } else {
-                    return new BytesRefsFromOrdsBlockLoader(name());
+                    return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                 }
             }
 

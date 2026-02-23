@@ -15,7 +15,9 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
+import org.elasticsearch.action.search.SearchContextMissingNodesException;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
+import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.RemoteException;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -78,6 +80,8 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static java.util.Collections.unmodifiableMap;
+import static org.elasticsearch.action.search.SearchContextMissingNodesException.SEARCH_CONTEXT_MISSING_NODES_EXCEPTION_VERSION;
+import static org.elasticsearch.action.support.replication.ReplicationSplitHelper.STALE_REQUEST_EXCEPTION_VERSION;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_UUID_NA_VALUE;
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
@@ -2049,6 +2053,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             IndexLimitExceededException::new,
             186,
             INDEX_LIMIT_EXCEEDED_EXCEPTION_VERSION
+        ),
+        STALE_REQUEST_EXCEPTION(StaleRequestException.class, StaleRequestException::new, 187, STALE_REQUEST_EXCEPTION_VERSION),
+        SEARCH_CONTEXT_MISSING_NODES_EXCEPTION(
+            SearchContextMissingNodesException.class,
+            SearchContextMissingNodesException::new,
+            188,
+            SEARCH_CONTEXT_MISSING_NODES_EXCEPTION_VERSION
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

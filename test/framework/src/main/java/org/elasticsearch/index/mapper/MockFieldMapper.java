@@ -91,6 +91,11 @@ public class MockFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return null;
+        }
+
+        @Override
         public MockFieldMapper build(MapperBuilderContext context) {
             return new MockFieldMapper(leafName(), fieldType, builderParams(this, context));
         }

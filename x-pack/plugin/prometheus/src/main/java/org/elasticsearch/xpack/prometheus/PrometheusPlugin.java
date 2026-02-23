@@ -8,17 +8,31 @@
 package org.elasticsearch.xpack.prometheus;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.FeatureFlag;
+import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteRestAction;
+import org.elasticsearch.xpack.prometheus.rest.PrometheusRemoteWriteTransportAction;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
 
-public class PrometheusPlugin extends Plugin {
+public class PrometheusPlugin extends Plugin implements ActionPlugin {
 
     public static final FeatureFlag PROMETHEUS_FEATURE_FLAG = new FeatureFlag("prometheus");
 
@@ -69,5 +83,31 @@ public class PrometheusPlugin extends Plugin {
     @Override
     public List<Setting<?>> getSettings() {
         return List.of(PROMETHEUS_REGISTRY_ENABLED);
+    }
+
+    @Override
+    public Collection<RestHandler> getRestHandlers(
+        Settings settings,
+        NamedWriteableRegistry namedWriteableRegistry,
+        RestController restController,
+        ClusterSettings clusterSettings,
+        IndexScopedSettings indexScopedSettings,
+        SettingsFilter settingsFilter,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
+    ) {
+        if (enabled) {
+            return List.of(new PrometheusRemoteWriteRestAction());
+        }
+        return List.of();
+    }
+
+    @Override
+    public Collection<ActionHandler> getActions() {
+        if (enabled) {
+            return List.of(new ActionHandler(PrometheusRemoteWriteTransportAction.TYPE, PrometheusRemoteWriteTransportAction.class));
+        }
+        return List.of();
     }
 }

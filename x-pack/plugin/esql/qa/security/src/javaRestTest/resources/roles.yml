@@ -15,22 +15,26 @@ user1:
     - cluster:monitor/main
     - manage_enrich
   indices:
-    - names: ['index-user1', 'index', "test-enrich" ]
+    - names: ['index-user1', 'view-user1', "view", 'other-view-user1', 'index', "test-enrich" ]
       privileges:
         - read
         - write
         - create_index
         - indices:admin/refresh
+        - manage_view
 
 user2:
   cluster: []
   indices:
-    - names: [ 'index-user2', 'index' ]
+    - names: [ 'index-user2', 'view-user2', 'other-view-user2', 'index' ]
       privileges:
         - read
         - write
         - create_index
         - indices:admin/refresh
+        - create_view
+        - read_view_metadata
+        - delete_view
 
 metadata1_read2:
   cluster: []

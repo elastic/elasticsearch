@@ -16,10 +16,10 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.operator.blocksource.BytesRefBlockSourceOperator;
 import org.hamcrest.Matcher;
 
 import java.util.List;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.LongStream;
 
@@ -50,7 +50,17 @@ public class ColumnExtractOperatorTests extends OperatorTestCase {
 
     @Override
     protected Operator.OperatorFactory simple(SimpleOptions options) {
-        Supplier<ColumnExtractOperator.Evaluator> expEval = () -> new FirstWord(0);
+        ColumnExtractOperator.Evaluator.Factory expEval = new ColumnExtractOperator.Evaluator.Factory() {
+            @Override
+            public ColumnExtractOperator.Evaluator create(DriverContext driverContext) {
+                return new FirstWord(0);
+            }
+
+            @Override
+            public String describe() {
+                return "FirstWord";
+            }
+        };
         return new ColumnExtractOperator.Factory(
             new ElementType[] { ElementType.BYTES_REF },
             dvrCtx -> new EvalOperator.ExpressionEvaluator() {

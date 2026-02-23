@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.aggregation.blockhash;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -17,15 +18,23 @@ import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupe;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeBytesRef;
 import org.elasticsearch.compute.operator.mvdedupe.MultivalueDedupeInt;
 import org.elasticsearch.core.ReleasableIterator;
+import java.util.BitSet;
+// end generated imports
 
 /**
  * Maps a {@link BytesRefBlock} column to group ids.
@@ -219,12 +228,10 @@ final class BytesRefBlockHash extends BlockHash {
                 return new BytesRefBlock[] { builder.build() };
             }
         }
-        try (var builder = blockFactory.newBytesRefBlockBuilder(Math.toIntExact(hash.size()))) {
-            for (long i = 0; i < hash.size(); i++) {
-                builder.appendBytesRef(hash.get(i, spare));
-            }
-            return new BytesRefBlock[] { builder.build() };
-        }
+        var bytes = hash.getBytesRefs();
+        var bytesVector = blockFactory.newBytesRefArrayVector(bytes, Math.toIntExact(hash.size()));
+        bytes.incRef(); // increase the reference for bytesVector
+        return new BytesRefBlock[] { bytesVector.asBlock() };
     }
 
     @Override

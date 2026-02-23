@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -15,6 +16,7 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -53,7 +55,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  *   <li>Numbers → their string representation ({@code "42"}, {@code "3.14"})</li>
  *   <li>Booleans → {@code "true"} or {@code "false"}</li>
  *   <li>JSON {@code null} → ES|QL {@code null} (no warning)</li>
- *   <li>Objects/arrays → serialized back to a JSON string ({@code {"name":"Alice"}})</li>
+ *   <li>Objects/arrays → serialized back to a JSON string via {@link XContentBuilder#copyCurrentStructure}</li>
  * </ul>
  * <p>
  * Path syntax is handled by {@link JsonPath}, which parses paths like {@code "user.address.city"}
@@ -400,8 +402,10 @@ public class JsonExtract extends EsqlScalarFunction {
      * This is the "leaf" of the extraction — called when all path segments have been consumed.
      * <p>
      * Scalars (strings, numbers, booleans) are read directly. JSON {@code null} becomes
-     * ES|QL {@code null} (no warning). Objects and arrays are serialized back to a compact
-     * JSON string via {@link #copyCurrentStructure}.
+     * ES|QL {@code null} (no warning). Objects and arrays are serialized to a compact JSON
+     * string via {@link XContentBuilder#copyCurrentStructure}, which handles all XContent
+     * encodings (JSON, SMILE, CBOR, YAML) and produces correct JSON output regardless of
+     * input format.
      */
     private static void extractCurrentValue(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
@@ -412,105 +416,15 @@ public class JsonExtract extends EsqlScalarFunction {
             case VALUE_BOOLEAN -> builder.appendBytesRef(new BytesRef(Boolean.toString(parser.booleanValue())));
             case VALUE_NULL -> builder.appendNull();
             case START_OBJECT, START_ARRAY -> {
-                // Serialize the entire object or array back to a compact JSON string.
-                StringBuilder sb = new StringBuilder();
-                copyCurrentStructure(sb, parser);
-                builder.appendBytesRef(new BytesRef(sb.toString()));
+                // TODO: Replace with zero-copy byte slicing once XContentParser exposes byte offsets.
+                // See https://github.com/elastic/elasticsearch/issues/142873
+                try (XContentBuilder jsonBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
+                    jsonBuilder.copyCurrentStructure(parser);
+                    builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());
+                }
             }
             default -> throw new IllegalArgumentException("unexpected token: " + token);
         }
-    }
-
-    /**
-     * Serializes the current JSON object or array to a {@link StringBuilder} as compact JSON.
-     * The parser must be positioned at {@code START_OBJECT} or {@code START_ARRAY}.
-     * <p>
-     * Walks the structure recursively, delegating individual values to {@link #copyValue}.
-     * The output uses no whitespace (compact form): {@code {"a":1,"b":[2,3]}}.
-     */
-    private static void copyCurrentStructure(StringBuilder sb, XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-
-        if (token == XContentParser.Token.START_OBJECT) {
-            sb.append('{');
-            boolean first = true;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    if (first == false) {
-                        sb.append(',');
-                    }
-                    first = false;
-                    sb.append('"').append(escapeJson(parser.currentName())).append("\":");
-                    parser.nextToken();
-                    copyValue(sb, parser);
-                }
-            }
-            sb.append('}');
-        } else if (token == XContentParser.Token.START_ARRAY) {
-            sb.append('[');
-            boolean first = true;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-                if (first == false) {
-                    sb.append(',');
-                }
-                first = false;
-                copyValue(sb, parser);
-            }
-            sb.append(']');
-        }
-    }
-
-    /**
-     * Serializes a single JSON value to a {@link StringBuilder}. Handles all value types:
-     * strings (with escaping), numbers, booleans, nulls, and nested structures (via
-     * {@link #copyCurrentStructure}).
-     */
-    private static void copyValue(StringBuilder sb, XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-
-        switch (token) {
-            case VALUE_STRING -> sb.append('"').append(escapeJson(parser.text())).append('"');
-            case VALUE_NUMBER -> sb.append(parser.text());
-            case VALUE_BOOLEAN -> sb.append(parser.booleanValue());
-            case VALUE_NULL -> sb.append("null");
-            case START_OBJECT, START_ARRAY -> copyCurrentStructure(sb, parser);
-            default -> throw new IllegalArgumentException("unexpected token: " + token);
-        }
-    }
-
-    /**
-     * Escapes special characters in a JSON string value per RFC 8259 Section 7.
-     * <p>
-     * Uses lazy StringBuilder allocation: if no characters need escaping (the common case),
-     * the original string is returned without any allocation. The StringBuilder is only
-     * created when the first escapable character is encountered, at which point the
-     * preceding characters are bulk-copied via {@code sb.append(s, 0, i)}.
-     */
-    private static String escapeJson(String s) {
-        StringBuilder sb = null;
-        for (int i = 0; i < s.length(); i++) {
-            char c = s.charAt(i);
-            String escape = switch (c) {
-                case '"' -> "\\\"";
-                case '\\' -> "\\\\";
-                case '\b' -> "\\b";
-                case '\f' -> "\\f";
-                case '\n' -> "\\n";
-                case '\r' -> "\\r";
-                case '\t' -> "\\t";
-                default -> null;
-            };
-            if (escape != null) {
-                if (sb == null) {
-                    sb = new StringBuilder(s.length() + 16);
-                    sb.append(s, 0, i); // bulk-copy everything before the first escape
-                }
-                sb.append(escape);
-            } else if (sb != null) {
-                sb.append(c);
-            }
-        }
-        return sb == null ? s : sb.toString();
     }
 
     @Override

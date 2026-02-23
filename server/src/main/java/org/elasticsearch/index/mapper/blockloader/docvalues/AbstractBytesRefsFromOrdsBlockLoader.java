@@ -14,6 +14,8 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 
 import java.io.IOException;
@@ -23,9 +25,11 @@ import java.io.IOException;
  */
 public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     protected final String fieldName;
+    private final long byteSize;
 
-    public AbstractBytesRefsFromOrdsBlockLoader(String fieldName) {
+    public AbstractBytesRefsFromOrdsBlockLoader(String fieldName, ByteSizeValue size) {
         this.fieldName = fieldName;
+        this.byteSize = size.getBytes();
     }
 
     @Override
@@ -34,30 +38,52 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
     }
 
     @Override
-    public final AllReader reader(LeafReaderContext context) throws IOException {
-        SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
-        if (docValues != null) {
-            SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
-            if (singleton != null) {
-                return singletonReader(singleton);
+    public final AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
+        boolean release = true;
+        try {
+            SortedSetDocValues docValues = context.reader().getSortedSetDocValues(fieldName);
+            if (docValues != null) {
+                release = false;
+                SortedDocValues singleton = DocValues.unwrapSingleton(docValues);
+                if (singleton != null) {
+                    return singletonReader(breaker, singleton);
+                }
+                return sortedSetReader(breaker, docValues);
             }
-            return sortedSetReader(docValues);
+            SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
+            if (singleton != null) {
+                release = false;
+                return singletonReader(breaker, singleton);
+            }
+            return ConstantNull.READER;
+        } finally {
+            if (release) {
+                breaker.addWithoutBreaking(-byteSize);
+            }
         }
-        SortedDocValues singleton = context.reader().getSortedDocValues(fieldName);
-        if (singleton != null) {
-            return singletonReader(singleton);
-        }
-        return ConstantNull.READER;
     }
 
-    protected abstract AllReader singletonReader(SortedDocValues docValues);
+    protected abstract AllReader singletonReader(CircuitBreaker breaker, SortedDocValues docValues);
 
-    protected abstract AllReader sortedSetReader(SortedSetDocValues docValues);
+    protected abstract AllReader sortedSetReader(CircuitBreaker breaker, SortedSetDocValues docValues);
 
-    protected static class Singleton extends BlockDocValuesReader {
+    protected abstract class BytesRefsBlockDocValuesReader extends BlockDocValuesReader {
+        public BytesRefsBlockDocValuesReader(CircuitBreaker breaker) {
+            super(breaker);
+        }
+
+        @Override
+        public final void close() {
+            breaker.addWithoutBreaking(-byteSize);
+        }
+    }
+
+    protected class Singleton extends BytesRefsBlockDocValuesReader {
         private final SortedDocValues ordinals;
 
-        public Singleton(SortedDocValues ordinals) {
+        public Singleton(CircuitBreaker breaker, SortedDocValues ordinals) {
+            super(breaker);
             this.ordinals = ordinals;
         }
 
@@ -115,10 +141,11 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
         }
     }
 
-    protected static class SortedSet extends BlockDocValuesReader {
+    protected class SortedSet extends BytesRefsBlockDocValuesReader {
         private final SortedSetDocValues ordinals;
 
-        SortedSet(SortedSetDocValues ordinals) {
+        SortedSet(CircuitBreaker breaker, SortedSetDocValues ordinals) {
+            super(breaker);
             this.ordinals = ordinals;
         }
 

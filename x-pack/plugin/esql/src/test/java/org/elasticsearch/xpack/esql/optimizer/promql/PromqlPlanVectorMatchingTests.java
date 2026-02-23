@@ -114,12 +114,9 @@ public class PromqlPlanVectorMatchingTests extends AbstractPromqlPlanOptimizerTe
     }
 
     public void testBlocked_ignoringClauseArithmeticDifferentGroupings() {
-        var e = expectThrows(
-            QlIllegalArgumentException.class,
-            () -> planPromql(
-                "PROMQL index=k8s step=1m ratio=(sum by (cluster, pod)(network.bytes_in) / ignoring(pod) sum by (cluster)(network.bytes_in))"
-            )
-        );
+        var query = "PROMQL index=k8s step=1m "
+            + "ratio=(sum by (cluster, pod)(network.bytes_in) / ignoring(pod) sum by (cluster)(network.bytes_in))";
+        var e = expectThrows(QlIllegalArgumentException.class, () -> planPromql(query));
         assertThat(e.getMessage(), containsString("different grouping keys"));
     }
 
@@ -129,6 +126,18 @@ public class PromqlPlanVectorMatchingTests extends AbstractPromqlPlanOptimizerTe
             () -> planPromql(
                 "PROMQL index=k8s step=1m r=(sum by (cluster, pod, region)(network.bytes_in)"
                     + " / ignoring(pod, region) sum by (cluster)(network.bytes_in))"
+            )
+        );
+        assertThat(e.getMessage(), containsString("different grouping keys"));
+    }
+
+    // right side has more dimensions (one-to-many, would need group_right in PromQL)
+    public void testBlocked_ignoringRightHasMoreDims() {
+        var e = expectThrows(
+            QlIllegalArgumentException.class,
+            () -> planPromql(
+                "PROMQL index=k8s step=1m r=(sum by (cluster)(network.bytes_in)"
+                    + " / ignoring(pod) sum by (cluster, pod)(network.bytes_in))"
             )
         );
         assertThat(e.getMessage(), containsString("different grouping keys"));

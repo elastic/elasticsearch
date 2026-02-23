@@ -61,7 +61,7 @@ When `$` is used, it must be followed by `.` or `[` — bare `$name` is not vali
 
 ### Not supported (JSONPath features out of scope)
 
-These JSONPath (RFC 9535) features are not supported and will not be added to this function. They require multi-value return semantics, which would need a separate function (e.g., `JSON_QUERY`).
+These JSONPath (RFC 9535) features are not currently supported.
 
 | Feature | Syntax |
 |---------|--------|

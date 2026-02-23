@@ -54,4 +54,13 @@ public interface DlmAction {
         return false;
     }
 
+    /**
+     * Determines whether this action can run on the given project. This allows actions to be skipped entirely
+     * if the cluster is not in a compatible state, for example if a required default snapshot repository is not
+     * configured or available.
+     *
+     * @param dlmActionContext The context providing access to the project state and resources.
+     * @return true if the action can proceed, false if it should be skipped for this project.
+     */
+    boolean canRunOnProject(DlmActionContext dlmActionContext);
 }

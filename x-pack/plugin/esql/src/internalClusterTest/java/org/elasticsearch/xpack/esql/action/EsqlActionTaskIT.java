@@ -23,7 +23,7 @@ import org.elasticsearch.common.logging.MockAppender;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverStatus;
@@ -556,7 +556,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
         var dataNodeProjectString = nodeLevelReduction ? "0, 1" : "1";
         var nodeReduceString = nodeLevelReduction
             ? """
-                \\_TopNOperator[count=1000, elementTypes=[DOC, LONG], encoders=[DocVectorEncoder, DefaultSortable], \
+                \\_TopNOperator[count=1000, elementTypes=[DOC, LONG], encoders=[Doc, DefaultAsc], \
                 sortOrders=[SortOrder[channel=1, asc=true, nullsFirst=false]], inputOrdering=SORTED]
                 \\_ProjectOperator[projection = [1]]
                 """
@@ -587,7 +587,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             );
             assertThat(coordinatorTasks(tasks).getFirst().description(), equalTo("""
                 \\_ExchangeSourceOperator[]
-                \\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultSortable], \
+                \\_TopNOperator[count=1000, elementTypes=[LONG], encoders=[DefaultAsc], \
                 sortOrders=[SortOrder[channel=0, asc=true, nullsFirst=false]], inputOrdering=SORTED]
                 \\_ProjectOperator[projection = [0]]
                 \\_OutputOperator[columns = [pause_me]]"""));

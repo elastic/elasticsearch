@@ -39,8 +39,8 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.AsyncOperatorTestCase;
 import org.elasticsearch.compute.test.NoOpReleasable;
-import org.elasticsearch.compute.test.SequenceLongBlockSourceOperator;
-import org.elasticsearch.compute.test.TupleLongLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceLongBlockSourceOperator;
+import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.hamcrest.Matcher;
@@ -379,8 +380,9 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
     private LookupFromIndexService lookupService(DriverContext mainContext) {
         boolean beCranky = mainContext.bigArrays().breakerService() instanceof CrankyCircuitBreakerService;
         DiscoveryNode localNode = DiscoveryNodeUtils.create("node", "node");
-        var builtInClusterSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-        builtInClusterSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
+        var registeredSettings = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        registeredSettings.addAll(EsqlFlags.ALL_ESQL_FLAGS_SETTINGS);
+        registeredSettings.addAll(PlannerSettings.settings());
         ClusterService clusterService = ClusterServiceUtils.createClusterService(
             threadPool,
             localNode,
@@ -389,7 +391,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_SIZE_SETTING, ByteSizeValue.ofKb(0))
                 .put(BlockFactory.LOCAL_BREAKER_OVER_RESERVED_MAX_SIZE_SETTING, ByteSizeValue.ofKb(0))
                 .build(),
-            new ClusterSettings(Settings.EMPTY, builtInClusterSettings)
+            new ClusterSettings(Settings.EMPTY, registeredSettings)
         );
         IndicesService indicesService = mock(IndicesService.class);
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
@@ -402,6 +404,7 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
         DriverContext ctx = beCranky ? crankyDriverContext() : driverContext();
         BigArrays bigArrays = ctx.bigArrays();
         BlockFactory blockFactory = ctx.blockFactory();
+        PlannerSettings.Holder plannerSettings = new PlannerSettings.Holder(clusterService);
         return new LookupFromIndexService(
             clusterService,
             indicesService,
@@ -410,7 +413,8 @@ public class LookupFromIndexOperatorTests extends AsyncOperatorTestCase {
             indexNameExpressionResolver,
             bigArrays,
             blockFactory,
-            TestProjectResolvers.singleProject(projectId)
+            TestProjectResolvers.singleProject(projectId),
+            plannerSettings
         );
     }
 

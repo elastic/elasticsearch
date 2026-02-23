@@ -98,7 +98,7 @@ final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
-    public IntVector filter(int... positions) {
+    public IntVector filter(boolean mayContainDuplicates, int... positions) {
         try (IntVector.Builder builder = blockFactory().newIntVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendInt(values[pos]);

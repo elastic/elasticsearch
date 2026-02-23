@@ -21,6 +21,7 @@ import com.google.cloud.storage.StorageException;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.BackoffPolicy;
@@ -116,6 +117,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final int bufferSize;
     private final BigArrays bigArrays;
     private final BackoffPolicy casBackoffPolicy;
+    private volatile boolean closed = false;
 
     GoogleCloudStorageBlobStore(
         ProjectId projectId,
@@ -139,7 +141,13 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.casBackoffPolicy = casBackoffPolicy;
     }
 
+    /**
+     * @throws org.apache.lucene.store.AlreadyClosedException if the blob store is closed
+     */
     MeteredStorage client() throws IOException {
+        if (closed) {
+            throw new AlreadyClosedException("blob store for repository " + repositoryName + "is closed");
+        }
         return storageService.client(projectId, clientName, repositoryName, statsCollector);
     }
 
@@ -162,6 +170,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     @Override
     public void close() {
+        closed = true;
         storageService.closeRepositoryClients(projectId, repositoryName);
     }
 

@@ -22,7 +22,6 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.operator.TimeSeriesAggregationOperator;
-import org.elasticsearch.compute.test.AbstractBlockSourceOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.OperatorTestCase;
@@ -30,6 +29,7 @@ import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.compute.test.TestDriverFactory;
 import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
+import org.elasticsearch.compute.test.operator.blocksource.AbstractBlockSourceOperator;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -274,7 +274,7 @@ public class TimeSeriesFirstDocIdDeduplicationTests extends OperatorTestCase {
 
     @Override
     protected final Matcher<String> expectedToStringOfSimple() {
-        String hash = "blockHash=BytesRefLongBlockHash{keys=[BytesRefKey[channel=0], LongKey[channel=1]], entries=0, size=%size%}".replace(
+        String hash = "blockHash=BytesRefLongBlockHash{keys=[tsid[channel=0], timestamp[channel=1]], entries=0, size=%size%}".replace(
             "%size%",
             byteRefBlockHashSize()
         );

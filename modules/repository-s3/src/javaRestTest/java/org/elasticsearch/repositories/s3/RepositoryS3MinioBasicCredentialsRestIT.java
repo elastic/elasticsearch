@@ -10,7 +10,6 @@
 package org.elasticsearch.repositories.s3;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.minio.MinioTestContainer;
@@ -22,7 +21,6 @@ import org.junit.rules.TestRule;
 import java.util.Locale;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3MinioBasicCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3MinioBasicCredentialsRestIT").toLowerCase(Locale.ROOT);

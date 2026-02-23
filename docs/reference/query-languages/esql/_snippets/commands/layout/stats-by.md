@@ -129,18 +129,14 @@ optional:
 
 ### Filter on the grouping key
 
-The `WHERE` clause can also filter on the grouping key. Note that this is
-different from filtering with `WHERE` before `STATS`, because the group
-itself will still appear in the output, but with a default value for
-the aggregation:
+The `WHERE` clause can also filter on the grouping key. The group itself will
+still appear in the output, but with a default value for the aggregation:
 
 :::{include} ../examples/stats.csv-spec/aggFilteringOnGroup.md
 :::
 
-### WHERE before STATS excludes non-matching groups
-
-When `WHERE` appears before `STATS`, rows are excluded before grouping, so
-non-matching groups don't appear in the output at all:
+Compare this to filtering with `WHERE` before `STATS`, where rows are excluded
+before grouping, so non-matching groups don't appear in the output at all:
 
 :::{include} ../examples/stats.csv-spec/aggFilteringBefore.md
 :::

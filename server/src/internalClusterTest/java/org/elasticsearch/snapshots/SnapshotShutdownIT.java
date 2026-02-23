@@ -618,7 +618,6 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
         // Wait for the snapshot to fully pause.
         safeAwait(snapshotPausedListener);
-        masterTransportService.clearAllRules();
 
         mockLog.awaitAllExpectationsMatched();
         resetMockLog();

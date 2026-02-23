@@ -63,14 +63,14 @@ json:keyword                                             | city:keyword
 jsonExtractNestedBracketNotation
 required_capability: fn_json_extract
 // tag::json_extract_bracket[]
-ROW json = "{\"user\":{\"address\":{\"city\":\"London\"}}}"
-| EVAL city = JSON_EXTRACT(json, "['user']['address']['city']")
+ROW json = "{\"user.name\":{\"first\":\"Alice\"}}"
+| EVAL val = JSON_EXTRACT(json, "['user.name'].first")
 // end::json_extract_bracket[]
 ;
 
 // tag::json_extract_bracket-result[]
-json:keyword                                             | city:keyword
-"{""user"":{""address"":{""city"":""London""}}}"         | London
+json:keyword                                  | val:keyword
+"{""user.name"":{""first"":""Alice""}}"       | Alice
 // end::json_extract_bracket-result[]
 ;
 

@@ -33,16 +33,16 @@ ROW json = "{\\"user\\":{\\"address\\":{\\"city\\":\\"London\\"}}}"
 | --- | --- |
 | "{""user"":{""address"":{""city"":""London""}}}" | London |
 
-Quoted bracket notation is equivalent to dot-notation for simple keys, and is required for keys that contain dots or special characters:
+When a key contains dots or special characters, use quoted bracket notation. Here `user.name` is a single key, not a nested path:
 
 ```esql
-ROW json = "{\\"user\\":{\\"address\\":{\\"city\\":\\"London\\"}}}"
-| EVAL city = JSON_EXTRACT(json, "['user']['address']['city']")
+ROW json = "{\\"user.name\\":{\\"first\\":\\"Alice\\"}}"
+| EVAL val = JSON_EXTRACT(json, "['user.name'].first")
 ```
 
-| json:keyword | city:keyword |
+| json:keyword | val:keyword |
 | --- | --- |
-| "{""user"":{""address"":{""city"":""London""}}}" | London |
+| "{""user.name"":{""first"":""Alice""}}" | Alice |
 
 This example extracts the second item from an array of objects using bracket notation:
 

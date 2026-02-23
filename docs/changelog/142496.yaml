@@ -1,5 +1,5 @@
 area: Search
 issues: []
 pr: 142496
-summary: Add telemetry for synonym sets with multiple synonym graphs in a single analyzer
+summary: Add telemetry for analyzers with multiple synonym_graph filters
 type: enhancement

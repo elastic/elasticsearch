@@ -2179,6 +2179,11 @@ public class EsqlCapabilities {
         METRICS_INFO_COMMAND,
 
         /**
+         * Supports the REGISTERED_DOMAIN command.
+         */
+        REGISTERED_DOMAIN_COMMAND,
+
+        /**
          * Runtime/external functions from plugins. These are not available in CSV unit tests
          * because the functions aren't registered in the non-server test context.
          * Tests requiring this capability will be skipped in CsvTests but can run in

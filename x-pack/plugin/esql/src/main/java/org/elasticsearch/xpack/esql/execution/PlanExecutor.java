@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -62,6 +63,7 @@ public class PlanExecutor {
         XPackLicenseState licenseState,
         EsqlQueryLog queryLog,
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
+        Settings settings,
         DataSourceModule dataSourceModule,
         List<org.elasticsearch.xpack.esql.plugin.EsqlFunctionProvider> functionProviders
     ) {
@@ -82,7 +84,7 @@ public class PlanExecutor {
         logger.info("PlanExecutor: Function registry has {} functions", functionRegistry.listFunctions().size());
 
         this.mapper = new Mapper();
-        this.metrics = new Metrics(functionRegistry);
+        this.metrics = new Metrics(functionRegistry, settings);
         this.verifier = new Verifier(metrics, licenseState, extraCheckers);
         this.planTelemetryManager = new PlanTelemetryManager(meterRegistry);
         this.queryLog = queryLog;
@@ -121,6 +123,7 @@ public class PlanExecutor {
             functionRegistry,
             mapper,
             verifier,
+            metrics,
             planTelemetry,
             indicesExpressionGrouper,
             services.projectResolver().getProjectMetadata(services.clusterService().state()),

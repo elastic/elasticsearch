@@ -384,7 +384,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                             );
                         }
                     });
-                    if (binaryOperator.match() != VectorMatch.NONE && binaryOperator.match().grouping() != VectorMatch.Joining.NONE) {
+                    if (binaryOperator.match() != VectorMatch.NONE) {
                         failures.add(
                             fail(
                                 lp,

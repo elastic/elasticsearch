@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.LastOverTime;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -204,5 +205,53 @@ public class PromqlPlanSelectorTests extends AbstractPromqlPlanOptimizerTests {
             .flatMap(f -> f.condition().collect(type).stream())
             .findFirst()
             .orElseThrow(() -> new AssertionError("No " + type.getSimpleName() + " in source filters"));
+    }
+
+    public void testBinaryOpConflictingSelectors() {
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in{pod=\"p2\"}))");
+        var lots = collectInnerLastOverTimes(plan);
+        assertThat(lots, hasSize(2));
+        assertThat(lots.stream().filter(AggregateFunction::hasFilter).count(), equalTo(2L));
+        assertNoGlobalSelectorFilter(plan);
+    }
+
+    public void testBinaryOpDifferentLabelKeys() {
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{cluster=\"c1\"}) / sum(network.bytes_in{pod=\"p1\"}))");
+        var lots = collectInnerLastOverTimes(plan);
+        assertThat(lots, hasSize(2));
+        assertThat(lots.stream().filter(AggregateFunction::hasFilter).count(), equalTo(2L));
+        assertNoGlobalSelectorFilter(plan);
+    }
+
+    public void testBinaryOpSelectorOnOneSideOnly() {
+        var plan = planPromql("PROMQL index=k8s step=1m ratio=(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in))");
+        var lots = collectInnerLastOverTimes(plan);
+        assertThat(lots.stream().filter(AggregateFunction::hasFilter).count(), equalTo(1L));
+        assertThat(lots.stream().filter(s -> s.hasFilter() == false).count(), equalTo(1L));
+        assertNoGlobalSelectorFilter(plan);
+    }
+
+    public void testBinaryOpConflictingSelectorsInFunction() {
+        var plan = planPromql("PROMQL index=k8s step=1m r=(ceil(sum(network.bytes_in{pod=\"p1\"}) / sum(network.bytes_in{pod=\"p2\"})))");
+        var lots = collectInnerLastOverTimes(plan);
+        assertThat(lots, hasSize(2));
+        assertThat(lots.stream().filter(AggregateFunction::hasFilter).count(), equalTo(2L));
+        assertNoGlobalSelectorFilter(plan);
+    }
+
+    private static List<LastOverTime> collectInnerLastOverTimes(org.elasticsearch.xpack.esql.plan.logical.LogicalPlan plan) {
+        return plan.collect(TimeSeriesAggregate.class)
+            .stream()
+            .flatMap(tsa -> tsa.aggregates().stream())
+            .flatMap(ne -> ne.collect(LastOverTime.class).stream())
+            .toList();
+    }
+
+    private static void assertNoGlobalSelectorFilter(org.elasticsearch.xpack.esql.plan.logical.LogicalPlan plan) {
+        plan.forEachDown(Filter.class, filter -> {
+            if (filter.child() instanceof EsRelation) {
+                filter.condition().forEachDown(In.class, in -> fail("selector filter leaked to EsRelation: " + in));
+            }
+        });
     }
 }

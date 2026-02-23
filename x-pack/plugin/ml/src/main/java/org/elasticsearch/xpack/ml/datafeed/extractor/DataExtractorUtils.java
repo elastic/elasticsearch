@@ -8,12 +8,11 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.ml.datafeed.LinkedProjectState;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -22,6 +21,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.ml.datafeed.LinkedProjectState;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -101,10 +101,16 @@ public final class DataExtractorUtils {
             if (cluster == null) {
                 continue;
             }
+            String aliasForState = alias.isBlank()
+                && cluster.getOriginClusterLabel() != null
+                && cluster.getOriginClusterLabel().isBlank() == false ? cluster.getOriginClusterLabel() : alias;
+            if (aliasForState.isBlank()) {
+                continue;
+            }
             LinkedProjectState.Status status = mapStatus(cluster.getStatus());
             String errorReason = errorReasonFromFailures(cluster.getFailures());
             long searchLatencyMs = cluster.getTook() != null ? cluster.getTook().millis() : 0L;
-            result.add(new LinkedProjectState(alias, status, errorReason, searchLatencyMs));
+            result.add(new LinkedProjectState(aliasForState, status, errorReason, searchLatencyMs));
         }
         return result;
     }

@@ -44,4 +44,28 @@ ROW json = "{\\"user\\":{\\"name\\":\\"Alice\\",\\"age\\":30}}"
 | --- | --- |
 | "{""user"":{""name"":""Alice"",""age"":30}}" | "{""name"":""Alice"",""age"":30}" |
 
+Extract a value from a top-level array using the `$` root selector:
+
+```esql
+ROW json = "[\\"a\\",\\"b\\",\\"c\\"]"
+| EVAL val = JSON_EXTRACT(json, "$[1]")
+| KEEP val
+```
+
+| val:keyword |
+| --- |
+| b |
+
+Navigate through nested objects and arrays:
+
+```esql
+ROW json = "{\\"company\\":{\\"departments\\":[{\\"name\\":\\"eng\\",\\"leads\\":[{\\"name\\":\\"Alice\\"},{\\"name\\":\\"Bob\\"}]},{\\"name\\":\\"sales\\",\\"leads\\":[{\\"name\\":\\"Carol\\"}]}]}}"
+| EVAL lead = JSON_EXTRACT(json, "company.departments[0].leads[1].name")
+| KEEP lead
+```
+
+| lead:keyword |
+| --- |
+| Bob |
+
 

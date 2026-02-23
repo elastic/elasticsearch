@@ -117,7 +117,9 @@
     "ROW json = \"{\\\\\"name\\\\\":\\\\\"Alice\\\\\",\\\\\"age\\\\\":30}\"\n| EVAL name = JSON_EXTRACT(json, \"name\")",
     "ROW json = \"{\\\\\"user\\\\\":{\\\\\"address\\\\\":{\\\\\"city\\\\\":\\\\\"London\\\\\"}}}\"\n| EVAL city = JSON_EXTRACT(json, \"user.address.city\")",
     "ROW json = \"{\\\\\"orders\\\\\":[{\\\\\"id\\\\\":1,\\\\\"item\\\\\":\\\\\"book\\\\\"},{\\\\\"id\\\\\":2,\\\\\"item\\\\\":\\\\\"pen\\\\\"}]}\"\n| EVAL second_item = JSON_EXTRACT(json, \"orders[1].item\")",
-    "ROW json = \"{\\\\\"user\\\\\":{\\\\\"name\\\\\":\\\\\"Alice\\\\\",\\\\\"age\\\\\":30}}\"\n| EVAL user = JSON_EXTRACT(json, \"user\")"
+    "ROW json = \"{\\\\\"user\\\\\":{\\\\\"name\\\\\":\\\\\"Alice\\\\\",\\\\\"age\\\\\":30}}\"\n| EVAL user = JSON_EXTRACT(json, \"user\")",
+    "ROW json = \"[\\\\\"a\\\\\",\\\\\"b\\\\\",\\\\\"c\\\\\"]\"\n| EVAL val = JSON_EXTRACT(json, \"$[1]\")\n| KEEP val",
+    "ROW json = \"{\\\\\"company\\\\\":{\\\\\"departments\\\\\":[{\\\\\"name\\\\\":\\\\\"eng\\\\\",\\\\\"leads\\\\\":[{\\\\\"name\\\\\":\\\\\"Alice\\\\\"},{\\\\\"name\\\\\":\\\\\"Bob\\\\\"}]},{\\\\\"name\\\\\":\\\\\"sales\\\\\",\\\\\"leads\\\\\":[{\\\\\"name\\\\\":\\\\\"Carol\\\\\"}]}]}}\"\n| EVAL lead = JSON_EXTRACT(json, \"company.departments[0].leads[1].name\")\n| KEEP lead"
   ],
   "preview" : true,
   "snapshot_only" : true

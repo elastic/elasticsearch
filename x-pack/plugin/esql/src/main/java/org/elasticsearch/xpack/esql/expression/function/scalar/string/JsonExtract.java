@@ -150,6 +150,16 @@ public class JsonExtract extends EsqlScalarFunction {
                 file = "json_extract",
                 tag = "json_extract_object",
                 description = "Extract a nested object, returned as a JSON string:"
+            ),
+            @Example(
+                file = "json_extract",
+                tag = "json_extract_top_level_array",
+                description = "Extract a value from a top-level array using the `$` root selector:"
+            ),
+            @Example(
+                file = "json_extract",
+                tag = "json_extract_deep_nesting",
+                description = "Navigate through nested objects and arrays:"
             ) }
     )
     public JsonExtract(

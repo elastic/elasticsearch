@@ -72,13 +72,17 @@ json:keyword                                                                    
 
 jsonExtractDeepMixedNesting
 required_capability: fn_json_extract
+// tag::json_extract_deep_nesting[]
 ROW json = "{\"company\":{\"departments\":[{\"name\":\"eng\",\"leads\":[{\"name\":\"Alice\"},{\"name\":\"Bob\"}]},{\"name\":\"sales\",\"leads\":[{\"name\":\"Carol\"}]}]}}"
 | EVAL lead = JSON_EXTRACT(json, "company.departments[0].leads[1].name")
 | KEEP lead
+// end::json_extract_deep_nesting[]
 ;
 
+// tag::json_extract_deep_nesting-result[]
 lead:keyword
 Bob
+// end::json_extract_deep_nesting-result[]
 ;
 
 jsonExtractObject
@@ -209,13 +213,17 @@ json:keyword              | result:keyword
 
 jsonExtractTopLevelArrayIndex
 required_capability: fn_json_extract
+// tag::json_extract_top_level_array[]
 ROW json = "[\"a\",\"b\",\"c\"]"
 | EVAL val = JSON_EXTRACT(json, "$[1]")
 | KEEP val
+// end::json_extract_top_level_array[]
 ;
 
+// tag::json_extract_top_level_array-result[]
 val:keyword
 b
+// end::json_extract_top_level_array-result[]
 ;
 
 jsonExtractTopLevelArrayNestedObject

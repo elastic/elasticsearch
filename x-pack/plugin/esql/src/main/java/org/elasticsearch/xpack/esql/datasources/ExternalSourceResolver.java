@@ -15,14 +15,11 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
-import org.elasticsearch.xpack.esql.datasources.spi.TableCatalog;
 
-import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -41,12 +38,10 @@ import java.util.concurrent.Executor;
  *   <li>Runs asynchronously to avoid blocking</li>
  * </ul>
  * <p>
- * <b>Registry-based resolution:</b> This resolver uses the registries from {@link DataSourceModule}
- * to find appropriate handlers for different source types:
- * <ul>
- *   <li>{@link TableCatalog} for table-based sources (Iceberg, Delta Lake)</li>
- *   <li>{@link FormatReader} for file-based sources (Parquet, CSV)</li>
- * </ul>
+ * <b>Registry-based resolution:</b> This resolver iterates the {@link ExternalSourceFactory}
+ * instances collected by {@link DataSourceModule} to find the first factory that can handle
+ * a given path. File-based sources (Parquet, CSV) are handled by the framework-internal
+ * {@code FileSourceFactory} registered as a catch-all fallback.
  * <p>
  * <b>Configuration handling:</b> Query parameters are converted to a generic {@code Map<String, Object>}
  * instead of source-specific classes like S3Configuration. This allows the SPI to remain generic
@@ -80,72 +75,57 @@ public class ExternalSourceResolver {
             return;
         }
 
-        // Run resolution asynchronously to avoid blocking
         executor.execute(() -> {
             try {
-                // Use the StorageProviderRegistry from DataSourceModule
-                // This registry is populated with all discovered storage providers
-                StorageProviderRegistry registry = dataSourceModule.storageProviderRegistry();
-                StorageManager storageManager = new StorageManager(registry, settings);
+                Map<String, ExternalSourceResolution.ResolvedSource> resolved = new HashMap<>();
 
-                try {
-                    Map<String, ExternalSourceResolution.ResolvedSource> resolved = new HashMap<>();
+                for (String path : paths) {
+                    Map<String, Expression> params = pathParams.get(path);
+                    Map<String, Object> config = paramsToConfigMap(params);
 
-                    for (String path : paths) {
-                        Map<String, Expression> params = pathParams.get(path);
-
-                        // Convert query parameters to generic config map
-                        Map<String, Object> config = paramsToConfigMap(params);
-
-                        try {
-                            ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, storageManager);
-                            resolved.put(path, resolvedSource);
-                            LOGGER.info("Successfully resolved external source: {}", path);
-                        } catch (Exception e) {
-                            LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
-                            String exceptionMessage = e.getMessage();
-                            String errorDetail = exceptionMessage != null ? exceptionMessage : e.getClass().getSimpleName();
-                            String errorMessage = String.format(
-                                Locale.ROOT,
-                                "Failed to resolve external source [%s]: %s",
-                                path,
-                                errorDetail
-                            );
-                            listener.onFailure(new RuntimeException(errorMessage, e));
-                            return;
-                        }
+                    try {
+                        ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config);
+                        resolved.put(path, resolvedSource);
+                        LOGGER.info("Successfully resolved external source: {}", path);
+                    } catch (Exception e) {
+                        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+                        String exceptionMessage = e.getMessage();
+                        String errorDetail = exceptionMessage != null ? exceptionMessage : e.getClass().getSimpleName();
+                        String errorMessage = String.format(Locale.ROOT, "Failed to resolve external source [%s]: %s", path, errorDetail);
+                        listener.onFailure(new RuntimeException(errorMessage, e));
+                        return;
                     }
-
-                    listener.onResponse(new ExternalSourceResolution(resolved));
-                } finally {
-                    storageManager.close();
                 }
+
+                listener.onResponse(new ExternalSourceResolution(resolved));
             } catch (Exception e) {
                 listener.onFailure(e);
             }
         });
     }
 
-    private ExternalSourceResolution.ResolvedSource resolveSource(String path, Map<String, Object> config, StorageManager storageManager)
-        throws Exception {
+    private ExternalSourceResolution.ResolvedSource resolveSource(String path, Map<String, Object> config) throws Exception {
         LOGGER.info("Resolving external source: path=[{}]", path);
 
         if (GlobExpander.isMultiFile(path)) {
-            return resolveMultiFileSource(path, config, storageManager);
+            return resolveMultiFileSource(path, config);
         }
 
-        SourceMetadata metadata = resolveSingleSource(path, config, storageManager);
+        SourceMetadata metadata = resolveSingleSource(path, config);
         ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
         return new ExternalSourceResolution.ResolvedSource(extMetadata, FileSet.UNRESOLVED);
     }
 
-    private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(
-        String path,
-        Map<String, Object> config,
-        StorageManager storageManager
-    ) throws Exception {
+    private ExternalSourceResolution.ResolvedSource resolveMultiFileSource(String path, Map<String, Object> config) throws Exception {
         StoragePath storagePath = StoragePath.of(path);
-        StorageProvider provider = storageManager.provider(storagePath, config);
+        StorageProviderRegistry registry = dataSourceModule.storageProviderRegistry();
+
+        StorageProvider provider;
+        if (config != null && config.isEmpty() == false) {
+            provider = registry.createProvider(storagePath.scheme(), settings, config);
+        } else {
+            provider = registry.provider(storagePath);
+        }
 
         FileSet fileSet;
         if (path.indexOf(',') >= 0) {
@@ -158,104 +138,46 @@ public class ExternalSourceResolver {
             throw new IllegalArgumentException("Glob pattern matched no files: " + path);
         }
 
-        // Use the first file to infer format and read metadata
         StoragePath firstFile = fileSet.files().get(0).path();
-        FormatReaderRegistry formatRegistry = dataSourceModule.formatReaderRegistry();
-        FormatReader reader = formatRegistry.byExtension(firstFile.objectName());
-
-        StorageObject storageObject = storageManager.newStorageObject(firstFile.toString(), config);
-        SourceMetadata metadata = reader.metadata(storageObject);
+        SourceMetadata metadata = resolveSingleSource(firstFile.toString(), config);
 
         ExternalSourceMetadata extMetadata = wrapAsExternalSourceMetadata(metadata, config);
         return new ExternalSourceResolution.ResolvedSource(extMetadata, fileSet);
     }
 
-    private SourceMetadata resolveSingleSource(String path, Map<String, Object> config, StorageManager storageManager) throws Exception {
-        // Strategy 1: Try registered TableCatalogs
-        SourceMetadata metadata = tryTableCatalogs(path, config);
-        if (metadata != null) {
-            LOGGER.debug("Resolved via TableCatalog: {}", metadata.sourceType());
-            return metadata;
-        }
-
-        // Strategy 2: Try FormatReader based on file extension
-        metadata = tryFormatReaders(path, config, storageManager);
-        if (metadata != null) {
-            LOGGER.debug("Resolved via FormatReader: {}", metadata.sourceType());
-            return metadata;
-        }
-
-        // Strategy 3: Fall back to legacy adapters for backward compatibility
-        return resolveLegacy(path, config, storageManager);
-    }
-
-    @Nullable
-    private SourceMetadata tryTableCatalogs(String path, Map<String, Object> config) {
-        // Check if any registered TableCatalog can handle this path
-        // Currently, we check for "iceberg" catalog if the path looks like an Iceberg table
-        SourceType detectedType = detectSourceType(path);
-
-        if (detectedType == SourceType.ICEBERG && dataSourceModule.hasTableCatalog("iceberg")) {
-            try (TableCatalog catalog = dataSourceModule.createTableCatalog("iceberg", settings)) {
-                if (catalog.canHandle(path)) {
-                    return catalog.metadata(path, config);
-                }
-            } catch (IOException e) {
-                LOGGER.debug("TableCatalog 'iceberg' failed for path [{}]: {}", path, e.getMessage());
-            }
-        }
-
-        // Try other registered catalogs
-        // Future: iterate over all registered catalogs and check canHandle()
-        return null;
-    }
-
-    @Nullable
-    private SourceMetadata tryFormatReaders(String path, Map<String, Object> config, StorageManager storageManager) {
-        FormatReaderRegistry formatRegistry = dataSourceModule.formatReaderRegistry();
-
-        // Try to get a format reader by file extension
+    private SourceMetadata resolveSingleSource(String path, Map<String, Object> config) {
+        // Early scheme validation: reject unsupported schemes without loading any plugin factories
         try {
-            FormatReader reader = formatRegistry.byExtension(path);
-            if (reader != null) {
-                // Get storage object for the path
-                StorageObject storageObject = getStorageObject(path, config, storageManager);
-                return reader.metadata(storageObject);
+            StoragePath parsed = StoragePath.of(path);
+            DataSourceCapabilities capabilities = dataSourceModule.capabilities();
+            if (capabilities != null && capabilities.supportsScheme(parsed.scheme()) == false) {
+                throw new UnsupportedSchemeException(
+                    "Unsupported storage scheme [" + parsed.scheme() + "]. Supported: " + capabilities.supportedSchemesString()
+                );
             }
-        } catch (Exception e) {
-            LOGGER.debug("FormatReader lookup failed for path [{}]: {}", path, e.getMessage());
+        } catch (UnsupportedSchemeException e) {
+            throw e;
+        } catch (IllegalArgumentException e) {
+            // Path parsing failed -- let the factory iteration handle it
         }
 
-        return null;
-    }
-
-    private SourceMetadata resolveLegacy(String path, Map<String, Object> config, StorageManager storageManager) throws Exception {
-        SourceType type = detectSourceType(path);
-        LOGGER.info("Attempting legacy resolution for path=[{}], detected type=[{}]", path, type);
-
-        // Legacy adapters have been moved to separate modules
+        Exception lastFailure = null;
+        for (ExternalSourceFactory factory : dataSourceModule.sourceFactories().values()) {
+            if (factory.canHandle(path)) {
+                try {
+                    return factory.resolveMetadata(path, config);
+                } catch (Exception e) {
+                    LOGGER.debug("Factory [{}] claimed path [{}] but failed: {}", factory.type(), path, e.getMessage());
+                    lastFailure = e;
+                }
+            }
+        }
+        if (lastFailure != null) {
+            throw new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure);
+        }
         throw new UnsupportedOperationException(
-            "No handler found for source type ["
-                + type
-                + "] at path ["
-                + path
-                + "]. "
-                + "Please ensure the appropriate data source plugin is installed."
+            "No handler found for source at path [" + path + "]. " + "Please ensure the appropriate data source plugin is installed."
         );
-    }
-
-    private StorageObject getStorageObject(String path, Map<String, Object> config, StorageManager storageManager) throws Exception {
-        StoragePath storagePath = StoragePath.of(path);
-        String scheme = storagePath.scheme().toLowerCase(Locale.ROOT);
-
-        if ((scheme.equals("http") || scheme.equals("https")) && config.isEmpty()) {
-            // For HTTP/HTTPS with no config, use registry-based approach
-            return storageManager.newStorageObject(path);
-        } else {
-            // For S3 and file schemes, or HTTP with config, use config-based approach
-            // StorageManager now accepts Map<String, Object> directly
-            return storageManager.newStorageObject(path, config);
-        }
     }
 
     private Map<String, Object> paramsToConfigMap(@Nullable Map<String, Expression> params) {
@@ -281,17 +203,24 @@ public class ExternalSourceResolver {
 
     private ExternalSourceMetadata wrapAsExternalSourceMetadata(SourceMetadata metadata, Map<String, Object> queryConfig) {
         if (metadata instanceof ExternalSourceMetadata extMetadata) {
-            // If the metadata already carries config (e.g. from a TableCatalog), preserve it.
-            // Otherwise, overlay the query-level config (from WITH clause) so that connection
-            // parameters (endpoint, credentials) reach the execution phase.
             if (extMetadata.config() != null && extMetadata.config().isEmpty() == false) {
                 return extMetadata;
             }
         }
 
-        // Create a wrapper that delegates to the SourceMetadata but uses the query-level
-        // config. This is scheme-agnostic: S3, HTTP, LOCAL, or any future backend — the
-        // config from the WITH clause is forwarded transparently to the execution phase.
+        // Merge the config from resolveMetadata (e.g. endpoint for Flight) with query-level params (WITH clause).
+        // Query-level params take precedence so users can override connector-resolved values.
+        Map<String, Object> mergedConfig;
+        Map<String, Object> metadataConfig = metadata.config();
+        if (metadataConfig != null && metadataConfig.isEmpty() == false) {
+            mergedConfig = new HashMap<>(metadataConfig);
+            if (queryConfig != null) {
+                mergedConfig.putAll(queryConfig);
+            }
+        } else {
+            mergedConfig = queryConfig;
+        }
+
         return new ExternalSourceMetadata() {
             @Override
             public String location() {
@@ -315,30 +244,8 @@ public class ExternalSourceResolver {
 
             @Override
             public Map<String, Object> config() {
-                return queryConfig;
+                return mergedConfig;
             }
         };
-    }
-
-    private SourceType detectSourceType(String path) {
-        String lowerPath = path.toLowerCase(Locale.ROOT);
-        boolean isParquet = lowerPath.endsWith(".parquet");
-        LOGGER.debug("Detecting source type for path: [{}], ends with .parquet: [{}]", path, isParquet);
-
-        if (isParquet) {
-            LOGGER.debug("Detected as PARQUET file");
-            return SourceType.PARQUET;
-        }
-
-        // Check if path looks like an Iceberg table path
-        // Iceberg tables typically have metadata directories
-        // Default to Iceberg if not explicitly Parquet
-        LOGGER.debug("Detected as ICEBERG table");
-        return SourceType.ICEBERG;
-    }
-
-    private enum SourceType {
-        ICEBERG,
-        PARQUET
     }
 }

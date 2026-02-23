@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveFieldsResponse;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
@@ -140,9 +141,11 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
         // Create a minimal DataSourceModule for testing
         BlockFactory blockFactory = new BlockFactory(new NoopCircuitBreaker("test"), BigArrays.NON_RECYCLING_INSTANCE);
+        List<DataSourcePlugin> plugins = List.of(new DataSourcePlugin() {});
         try (
             DataSourceModule dataSourceModule = new DataSourceModule(
-                List.of(new DataSourcePlugin() {}),
+                plugins,
+                DataSourceCapabilities.build(plugins),
                 Settings.EMPTY,
                 blockFactory,
                 EsExecutors.DIRECT_EXECUTOR_SERVICE

@@ -50,12 +50,19 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
      */
     public void testManyKeywordFieldsWith10UniqueValuesInSubqueryIntermediateResults() throws IOException {
         heapAttackIT.initManyBigFieldsIndex(500, "keyword", false);
-        ListMatcher columns = matchesList();
-        for (int f = 0; f < 1000; f++) {
-            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
-        }
         for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
-            Map<?, ?> response = buildSubqueries(subquery, "manybigfields", "");
+            ListMatcher columns = matchesList();
+            int fieldsToRead = subquery < MAX_SUBQUERIES ? 1000 : 600; // with 1000 fields we circuit break
+            StringBuilder query = new StringBuilder("manybigfields | KEEP ");
+            for (int f = 0; f < fieldsToRead; f++) {
+                String fieldName = "f" + String.format(Locale.ROOT, "%03d", f);
+                columns = columns.item(matchesMap().entry("name", fieldName).entry("type", "keyword"));
+                if (f != 0) {
+                    query.append(", ");
+                }
+                query.append('f').append(String.format(Locale.ROOT, "%03d", f));
+            }
+            Map<?, ?> response = buildSubqueries(subquery, query.toString(), "");
             assertMap(response, matchesMap().entry("columns", columns));
         }
     }

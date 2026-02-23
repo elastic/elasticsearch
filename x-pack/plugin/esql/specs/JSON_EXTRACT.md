@@ -158,9 +158,8 @@ FROM logs METADATA _source
 
 ## Test Coverage
 
-- Unit tests (`JsonExtractTests.java`) — covers both generic and constant-path evaluators
+- Unit tests (`JsonExtractTests.java`) — parameterized type combination/warning suppliers, plus inline tests for edge cases (Unicode, large inputs, root accessors, bracket notation, XContent encodings, unsupported JSONPath syntax) and randomized tests across all four XContent encodings
 - Path parsing tests (`JsonPathTests.java`) — dot notation, bracket notation, quoted keys, `$` prefix, whitespace inside brackets, escape sequences, empty string keys, error cases with full message assertions, error position offsets. Includes randomized tests for round-trip parsing, dot/bracket equivalence, quoted keys with special characters, escape sequences, whitespace, and `$` prefix variations.
-- Static edge case tests (`JsonExtractStaticTests.java`) — Unicode, large inputs, root accessors, empty string keys, unsupported JSONPath syntax
 - Serialization tests (`JsonExtractSerializationTests.java`)
 - Error tests (`JsonExtractErrorTests.java`)
 - CSV spec integration tests (`json_extract.csv-spec`) — includes duplicate keys, null-in-array

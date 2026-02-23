@@ -114,32 +114,37 @@ public class JsonExtract extends EsqlScalarFunction {
         description = """
             Extracts a value from a JSON string using a subset of
             https://datatracker.ietf.org/doc/rfc9535/[JSONPath] syntax.
-            The supported path features are dot notation for nested fields
-            (`user.address.city`), bracket notation for array indices
-            (`items[0]`), quoted bracket notation for keys containing dots
-            or special characters (`['user.name']`) or empty string keys
-            (`['']`), the `$` root selector, and any combination of these
-            (`store['items'][0].name`). Dots in dot notation are always
-            path separators per the JSONPath specification — a JSON key
-            that literally contains a dot (e.g., `"user.name"`) must be
-            accessed with bracket notation (`['user.name']`). Dot notation
-            and quoted bracket notation are interchangeable for simple keys
-            (`a.b` and `a['b']` produce the same result). Optional whitespace
-            is allowed inside brackets (`[ 0 ]` is equivalent to `[0]`).
+            Paths can use dot notation (`user.address.city`), bracket
+            notation (`['user']['address']['city']`), or a mix of both
+            (`user['address'].city`). For simple keys, dot notation and
+            bracket notation are interchangeable — `a.b` and `a['b']`
+            produce the same result.
+
+            Bracket notation is required for keys that contain dots or
+            special characters (`['user.name']`), for empty string keys
+            (`['']`), and for array indices (`items[0]`). Dots in dot
+            notation are always path separators per the JSONPath
+            specification — a JSON key that literally contains a dot
+            (e.g., `"user.name"`) must be accessed via bracket notation.
+            The optional `$` root selector can be used to index into
+            top-level arrays (`$[0]`). Optional whitespace is allowed
+            inside brackets (`[ 0 ]` is equivalent to `[0]`).
             Path matching is case-sensitive per the JSON specification.
 
-            The extracted value is returned as a `keyword` string: string values without
-            surrounding quotes, numbers and booleans as their string representation,
-            and objects or arrays as JSON strings. Returns `null` if either parameter
-            is `null` or if the extracted JSON value is `null`.
+            The extracted value is returned as a `keyword` string: string
+            values without surrounding quotes, numbers and booleans as their
+            string representation, and objects or arrays as JSON strings.
+            Returns `null` if either parameter is `null` or if the extracted
+            JSON value is `null`.
 
-            Returns `null` and emits a warning if the input is not valid JSON, the path is
-            malformed, the path does not exist, the array index is out of bounds, or the
-            path attempts to traverse through a non-object/non-array value.
+            Returns `null` and emits a warning if the input is not valid JSON,
+            the path is malformed, the path does not exist, the array index is
+            out of bounds, or the path attempts to traverse through a
+            non-object/non-array value.
 
-            This function does not support wildcards (`*`), recursive descent (`..`),
-            array slicing (`[0:3]`), filter expressions (`?(@.price<10)`), or negative
-            array indices (`[-1]`).""",
+            This function does not support wildcards (`*`), recursive descent
+            (`..`), array slicing (`[0:3]`), filter expressions
+            (`?(@.price<10)`), or negative array indices (`[-1]`).""",
         examples = {
             @Example(file = "json_extract", tag = "json_extract"),
             @Example(file = "json_extract", tag = "json_extract_dollar", description = """

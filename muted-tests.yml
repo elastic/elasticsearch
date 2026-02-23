@@ -419,9 +419,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
   method: testCrossClusterReplicationForTSDB
   issue: https://github.com/elastic/elasticsearch/issues/142797
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/142426
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField
   issue: https://github.com/elastic/elasticsearch/issues/141202
@@ -434,9 +431,6 @@ tests:
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/142426
 - class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
   method: testWithFailure
   issue: https://github.com/elastic/elasticsearch/issues/142821

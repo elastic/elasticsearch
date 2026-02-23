@@ -101,6 +101,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "expected named expression for grouping; got ",
         "Time-series aggregations require direct use of @timestamp which was not found. If @timestamp was renamed in EVAL, "
             + "use the original @timestamp field instead.", // https://github.com/elastic/elasticsearch/issues/140607
+        "change point value \\[.*\\] must be numeric", // https://github.com/elastic/elasticsearch/issues/142858
+        // https://github.com/elastic/elasticsearch/issues/142860
+        "(Grok|Dissect) only supports KEYWORD or TEXT values, found expression \\[.*\\] type \\[NULL\\]",
+        // https://github.com/elastic/elasticsearch/issues/142543
+        "Column \\[.*\\] has conflicting data types in FORK branches: \\[NULL\\] and \\[.*\\]",
+        "Column \\[.*\\] has conflicting data types in FORK branches: \\[.*\\] and \\[NULL\\]",
 
         // Ts-command errors awaiting fixes
         "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
@@ -130,6 +136,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      */
     private static final Pattern NULL_TYPE_MISMATCH_PATTERN = Pattern.compile(
         ".*first argument of \\[([^]]+)] is \\[null] so second argument must also be \\[null] but was \\[.*].*",
+        Pattern.DOTALL
+    );
+    /**
+     * Matches "... argument of [X] must be [Y], found value [unmapped_field] type [Z]" errors.
+     * This happens when an unmapped field ends up with a different data type that doesn't match the one of the function's argument(s).
+     */
+    private static final Pattern ANY_TYPE_MISMATCH_PATTERN = Pattern.compile(
+        ".*argument of \\[.*] must be \\[.*], found value \\[([^]]+)] type \\[.*].*",
         Pattern.DOTALL
     );
     /**
@@ -285,7 +299,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                     return outputValidation;
                 }
             }
-            if (isUnmappedFieldError(outputValidation.errorMessage()) || isScalarTypeMismatchError(outputValidation.errorMessage())) {
+            if (isUnmappedFieldError(outputValidation.errorMessage(), result.query())
+                || isScalarTypeMismatchError(outputValidation.errorMessage())) {
                 return outputValidation;
             }
             if (isFirstLastSameFieldError(outputValidation.errorMessage(), result.query())) {
@@ -305,7 +320,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
                 return;
             }
         }
-        if (isUnmappedFieldError(query.exception().getMessage()) || isScalarTypeMismatchError(query.exception().getMessage())) {
+        if (isUnmappedFieldError(query.exception().getMessage(), query.query())
+            || isScalarTypeMismatchError(query.exception().getMessage())) {
             return;
         }
         if (isFirstLastSameFieldError(query.exception().getMessage(), query.query())) {
@@ -338,7 +354,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      *   <li>"Rule execution limit [100] reached" - can happen with complex plans involving "nullify" unmapped fields</li>
      * </ul>
      */
-    private static boolean isUnmappedFieldError(String errorMessage) {
+    private static boolean isUnmappedFieldError(String errorMessage, String query) {
+        if (query.startsWith(SET_UNMAPPED_FIELDS_PREFIX) == false) {
+            return false;
+        }
         String errorWithoutLineBreaks = ERROR_MESSAGE_LINE_BREAK.matcher(errorMessage).replaceAll("");
         // Try the more specific pattern first (with suggestion)
         Matcher matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
@@ -359,7 +378,12 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             String expression = matcher.group(1);
             return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
         }
-
+        // a non-NULL type mismatch for an unmapped field name used in a function as argument
+        matcher = ANY_TYPE_MISMATCH_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            String expression = matcher.group(1);
+            return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
+        }
         // https://github.com/elastic/elasticsearch/issues/142390
         if (errorWithoutLineBreaks.contains("Rule execution limit [100] reached")) {
             return true;

@@ -71,6 +71,7 @@ processingCommand
     | fuseCommand
     | uriPartsCommand
     | metricsInfoCommand
+    | registeredDomainCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
@@ -372,6 +373,10 @@ insistCommand
 
 uriPartsCommand
     : URI_PARTS qualifiedName ASSIGN primaryExpression
+    ;
+
+registeredDomainCommand
+    : REGISTERED_DOMAIN qualifiedName ASSIGN primaryExpression
     ;
 
 setCommand

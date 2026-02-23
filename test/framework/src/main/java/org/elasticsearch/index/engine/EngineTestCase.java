@@ -1574,6 +1574,13 @@ public abstract class EngineTestCase extends ESTestCase {
         return ((InternalEngine) engine).getNumVersionLookups();
     }
 
+    /**
+     * Returns the number of times a version was looked up from the index.
+     */
+    public static long getNumIndexVersionLookups(Engine engine) {
+        return ((InternalEngine) engine).getNumIndexVersionsLookups();
+    }
+
     public static long getInFlightDocCount(Engine engine) {
         if (engine instanceof InternalEngine) {
             return ((InternalEngine) engine).getInFlightDocCount();

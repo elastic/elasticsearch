@@ -66,7 +66,6 @@ public class EmbeddedCli implements Closeable {
      */
     private boolean closed = false;
 
-    @SuppressWarnings("this-escape")
     public EmbeddedCli(String elasticsearchAddress, boolean checkConnectionOnStartup, @Nullable SecurityConfig security)
         throws IOException {
         this(elasticsearchAddress, checkConnectionOnStartup, security, null);
@@ -75,7 +74,6 @@ public class EmbeddedCli implements Closeable {
     /**
      * Create an embedded CLI with API key authentication.
      */
-    @SuppressWarnings("this-escape")
     public EmbeddedCli(String elasticsearchAddress, boolean checkConnectionOnStartup, ApiKeySecurityConfig apiKeySecurity)
         throws IOException {
         this(elasticsearchAddress, checkConnectionOnStartup, null, apiKeySecurity);

@@ -40,6 +40,10 @@ $ ./bin/elasticsearch-sql-cli --apikey <encoded-api-key> https://some.server:920
 When using API key authentication, do not include username and password in the URL. The CLI will return an error if both API key and basic authentication credentials are provided.
 ::::
 
+::::{warning}
+Command line arguments are visible to other users on the system through process listing commands like `ps aux` or by inspecting `/proc/<pid>/cmdline`. Avoid using this method on shared systems where other users might be able to view your credentials.
+::::
+
 Once the CLI is running you can use any [query](elasticsearch://reference/query-languages/sql/sql-spec.md) that Elasticsearch supports:
 
 ```sql

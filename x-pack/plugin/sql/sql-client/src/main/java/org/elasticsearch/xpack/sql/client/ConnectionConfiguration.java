@@ -211,6 +211,13 @@ public class ConnectionConfiguration {
         this.pass = pass;
         this.apiKey = apiKey;
 
+        // validate that only one authentication method is specified
+        if (StringUtils.hasText(apiKey) && StringUtils.hasText(user)) {
+            throw new ClientException(
+                "Cannot use both API key and basic authentication. Please specify either [" + AUTH_API_KEY + "] or [" + AUTH_USER + "]."
+            );
+        }
+
         this.sslConfig = sslConfig;
         this.proxyConfig = proxyConfig;
         this.baseURI = baseURI;

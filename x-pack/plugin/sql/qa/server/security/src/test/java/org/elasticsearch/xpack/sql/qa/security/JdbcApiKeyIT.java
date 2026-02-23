@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -22,6 +23,8 @@ import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 
@@ -34,6 +37,22 @@ public class JdbcApiKeyIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = SqlSecurityTestCluster.getCluster();
+
+    private final List<String> createdApiKeyIds = new ArrayList<>();
+
+    @After
+    public void cleanupApiKeys() throws IOException {
+        for (String apiKeyId : createdApiKeyIds) {
+            try {
+                Request deleteApiKey = new Request("DELETE", "/_security/api_key");
+                deleteApiKey.setJsonEntity("{\"ids\": [\"" + apiKeyId + "\"]}");
+                client().performRequest(deleteApiKey);
+            } catch (Exception e) {
+                logger.warn("Failed to delete API key [{}]: {}", apiKeyId, e.getMessage());
+            }
+        }
+        createdApiKeyIds.clear();
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -50,11 +69,7 @@ public class JdbcApiKeyIT extends ESRestTestCase {
         return SSL_ENABLED ? "https" : "http";
     }
 
-    /**
-     * Test that a JDBC connection can be established using an API key.
-     */
     public void testJdbcConnectionWithApiKey() throws Exception {
-        // Create an API key with full access
         String encodedApiKey = createApiKey("jdbc_test_key", """
             {
                 "name": "jdbc_test_key",
@@ -72,7 +87,6 @@ public class JdbcApiKeyIT extends ESRestTestCase {
             }
             """);
 
-        // Create a test index
         Request createIndex = new Request("PUT", "/test_api_key");
         createIndex.setJsonEntity("""
             {
@@ -85,7 +99,6 @@ public class JdbcApiKeyIT extends ESRestTestCase {
             """);
         client().performRequest(createIndex);
 
-        // Index a document
         Request indexDoc = new Request("PUT", "/test_api_key/_doc/1");
         indexDoc.addParameter("refresh", "true");
         indexDoc.setJsonEntity("""
@@ -95,7 +108,6 @@ public class JdbcApiKeyIT extends ESRestTestCase {
             """);
         client().performRequest(indexDoc);
 
-        // Connect via JDBC using the API key
         Properties props = new Properties();
         props.setProperty("apiKey", encodedApiKey);
         props.setProperty("timezone", "UTC");
@@ -104,7 +116,6 @@ public class JdbcApiKeyIT extends ESRestTestCase {
         String jdbcUrl = "jdbc:es://" + getProtocol() + "://" + getTestRestCluster().split(",")[0];
 
         try (Connection connection = DriverManager.getConnection(jdbcUrl, props)) {
-            // Execute a simple query
             try (Statement statement = connection.createStatement()) {
                 try (ResultSet rs = statement.executeQuery("SELECT value FROM test_api_key")) {
                     assertTrue("Expected at least one result", rs.next());
@@ -115,9 +126,6 @@ public class JdbcApiKeyIT extends ESRestTestCase {
         }
     }
 
-    /**
-     * Test that an invalid API key results in an authentication error.
-     */
     public void testJdbcConnectionWithInvalidApiKey() throws Exception {
         Properties props = new Properties();
         props.setProperty("apiKey", "invalid_api_key_value");
@@ -134,13 +142,7 @@ public class JdbcApiKeyIT extends ESRestTestCase {
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("security_exception"));
     }
 
-    /**
-     * Test that API key authentication respects role restrictions.
-     * When an API key doesn't have access to an index, SQL reports it as "Unknown index"
-     * because the index is effectively hidden from the API key's view.
-     */
     public void testJdbcConnectionWithLimitedApiKey() throws Exception {
-        // Create a restricted index that the API key cannot access
         Request createRestrictedIndex = new Request("PUT", "/restricted_index");
         createRestrictedIndex.setJsonEntity("""
             {
@@ -162,7 +164,6 @@ public class JdbcApiKeyIT extends ESRestTestCase {
             """);
         client().performRequest(indexRestrictedDoc);
 
-        // Create an API key that only has access to a specific index pattern
         String encodedApiKey = createApiKey("limited_key", """
             {
                 "name": "limited_key",
@@ -188,8 +189,6 @@ public class JdbcApiKeyIT extends ESRestTestCase {
         String jdbcUrl = "jdbc:es://" + getProtocol() + "://" + getTestRestCluster().split(",")[0];
 
         try (Connection connection = DriverManager.getConnection(jdbcUrl, props)) {
-            // Query to restricted index should fail - the index appears as "Unknown" because
-            // the API key doesn't have permission to see it
             try (Statement statement = connection.createStatement()) {
                 SQLException e = expectThrows(SQLException.class, () -> statement.executeQuery("SELECT * FROM restricted_index"));
                 assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Unknown index [restricted_index]"));
@@ -204,6 +203,8 @@ public class JdbcApiKeyIT extends ESRestTestCase {
 
         try (InputStream content = response.getEntity().getContent()) {
             Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+            String apiKeyId = (String) responseMap.get("id");
+            createdApiKeyIds.add(apiKeyId);
             return (String) responseMap.get("encoded");
         }
     }

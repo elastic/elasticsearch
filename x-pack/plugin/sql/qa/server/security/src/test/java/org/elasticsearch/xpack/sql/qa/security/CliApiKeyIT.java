@@ -15,10 +15,13 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli.ApiKeySecurityConfig;
+import org.junit.After;
 import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.sql.qa.security.RestSqlIT.SSL_ENABLED;
@@ -31,6 +34,22 @@ public class CliApiKeyIT extends ESRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster cluster = SqlSecurityTestCluster.getCluster();
+
+    private final List<String> createdApiKeyIds = new ArrayList<>();
+
+    @After
+    public void cleanupApiKeys() throws IOException {
+        for (String apiKeyId : createdApiKeyIds) {
+            try {
+                Request deleteApiKey = new Request("DELETE", "/_security/api_key");
+                deleteApiKey.setJsonEntity("{\"ids\": [\"" + apiKeyId + "\"]}");
+                client().performRequest(deleteApiKey);
+            } catch (Exception e) {
+                logger.warn("Failed to delete API key [{}]: {}", apiKeyId, e.getMessage());
+            }
+        }
+        createdApiKeyIds.clear();
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -47,11 +66,7 @@ public class CliApiKeyIT extends ESRestTestCase {
         return SSL_ENABLED ? "https" : "http";
     }
 
-    /**
-     * Test that a CLI connection can be established using an API key.
-     */
     public void testCliConnectionWithApiKey() throws Exception {
-        // Create an API key with full access
         String encodedApiKey = createApiKey("cli_test_key", """
             {
                 "name": "cli_test_key",
@@ -69,7 +84,6 @@ public class CliApiKeyIT extends ESRestTestCase {
             }
             """);
 
-        // Create a test index
         Request createIndex = new Request("PUT", "/test_cli_api_key");
         createIndex.setJsonEntity("""
             {
@@ -82,7 +96,6 @@ public class CliApiKeyIT extends ESRestTestCase {
             """);
         client().performRequest(createIndex);
 
-        // Index a document
         Request indexDoc = new Request("PUT", "/test_cli_api_key/_doc/1");
         indexDoc.addParameter("refresh", "true");
         indexDoc.setJsonEntity("""
@@ -92,23 +105,17 @@ public class CliApiKeyIT extends ESRestTestCase {
             """);
         client().performRequest(indexDoc);
 
-        // Connect via CLI using the API key
         ApiKeySecurityConfig apiKeyConfig = createApiKeySecurityConfig(encodedApiKey);
 
         try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), true, apiKeyConfig)) {
-            // Execute a simple query
             String result = cli.command("SELECT value FROM test_cli_api_key");
             assertThat(result, containsString("value"));
-            String dataLine = cli.readLine();
-            // Skip separator line
+            cli.readLine(); // separator line
             String valueLine = cli.readLine();
             assertThat(valueLine, containsString("123"));
         }
     }
 
-    /**
-     * Test that an invalid API key results in an authentication error.
-     */
     public void testCliConnectionWithInvalidApiKey() throws Exception {
         ApiKeySecurityConfig apiKeyConfig = new ApiKeySecurityConfig(
             SSL_ENABLED,
@@ -119,15 +126,12 @@ public class CliApiKeyIT extends ESRestTestCase {
 
         try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), false, apiKeyConfig)) {
             String result = cli.command("SELECT 1");
-            // The CLI shows a communication error when authentication fails
-            // Read subsequent lines to get the full error message
             StringBuilder fullError = new StringBuilder(result);
             String line;
             while ((line = cli.readLine()) != null && !line.isEmpty()) {
                 fullError.append(line);
             }
             String errorMessage = fullError.toString();
-            // Invalid API key causes authentication failure which manifests as communication error
             assertTrue(
                 "Expected authentication error but got: " + errorMessage,
                 errorMessage.contains("security_exception") || errorMessage.contains("Communication error")
@@ -135,11 +139,7 @@ public class CliApiKeyIT extends ESRestTestCase {
         }
     }
 
-    /**
-     * Test that API key authentication respects role restrictions.
-     */
     public void testCliConnectionWithLimitedApiKey() throws Exception {
-        // Create a restricted index that the API key cannot access
         Request createRestrictedIndex = new Request("PUT", "/cli_restricted_index");
         createRestrictedIndex.setJsonEntity("""
             {
@@ -161,7 +161,6 @@ public class CliApiKeyIT extends ESRestTestCase {
             """);
         client().performRequest(indexRestrictedDoc);
 
-        // Create an API key that only has access to a specific index pattern
         String encodedApiKey = createApiKey("cli_limited_key", """
             {
                 "name": "cli_limited_key",
@@ -182,10 +181,7 @@ public class CliApiKeyIT extends ESRestTestCase {
         ApiKeySecurityConfig apiKeyConfig = createApiKeySecurityConfig(encodedApiKey);
 
         try (EmbeddedCli cli = new EmbeddedCli(elasticsearchAddress(), true, apiKeyConfig)) {
-            // Query to restricted index should fail - the index appears as "Unknown" because
-            // the API key doesn't have permission to see it
             String result = cli.command("SELECT * FROM cli_restricted_index");
-            // The first line contains "Found 1 problem", the actual error is on the next line
             String errorLine = cli.readLine();
             assertThat(errorLine, containsString("Unknown index [cli_restricted_index]"));
         }
@@ -203,6 +199,8 @@ public class CliApiKeyIT extends ESRestTestCase {
 
         try (InputStream content = response.getEntity().getContent()) {
             Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+            String apiKeyId = (String) responseMap.get("id");
+            createdApiKeyIds.add(apiKeyId);
             return (String) responseMap.get("encoded");
         }
     }

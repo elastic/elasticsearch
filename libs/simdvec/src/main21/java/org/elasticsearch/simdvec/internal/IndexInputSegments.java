@@ -15,7 +15,6 @@ import org.elasticsearch.core.DirectAccessInput;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Utility for obtaining a {@link MemorySegment} view of data in an
@@ -61,13 +60,14 @@ public final class IndexInputSegments {
         }
         if (in instanceof DirectAccessInput dai) {
             long offset = in.getFilePointer();
-            var result = new AtomicReference<R>();
+            @SuppressWarnings("unchecked")
+            R[] result = (R[]) new Object[1];
             boolean available = dai.withByteBufferSlice(offset, length, bb -> {
                 in.skipBytes(length);
-                result.set(action.apply(MemorySegment.ofBuffer(bb)));
+                result[0] = action.apply(MemorySegment.ofBuffer(bb));
             });
             if (available) {
-                return result.get();
+                return result[0];
             }
         }
         return action.apply(copyOnHeap(in, Math.toIntExact(length)));

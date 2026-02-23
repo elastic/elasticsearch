@@ -152,12 +152,18 @@ public class LateMaterializationPlannerGoldenTests extends GoldenTestCase {
         return new EsqlTestUtils.TestSearchStats() {
             @Override
             public boolean exists(FieldAttribute.FieldName field) {
-                return false;
+                if (field.string().equals(missingField)) {
+                    return false;
+                }
+                return true;
             }
 
             @Override
             public boolean isIndexed(FieldAttribute.FieldName field) {
-                return false;
+                if (field.string().equals(missingField)) {
+                    return false;
+                }
+                return true;
             }
         };
     }

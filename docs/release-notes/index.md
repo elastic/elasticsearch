@@ -24,14 +24,6 @@ To check for security updates, go to [Security announcements for the Elastic sta
 
 ### Highlights [elasticsearch-9.3.0-highlights]
 
-::::{dropdown} New Cloud Connect UI for self-managed installations
-Adds Cloud Connect functionality to Kibana, which allows you to use cloud solutions like AutoOps and Elastic Inference Service in your self-managed Elasticsearch clusters.
-::::
-
-::::{dropdown} Independent AI/ML model delivery
-Elastic will regularly be adding new AI/ML models from 9.3 onwards which will appear as pre-configured inference endpoints in Elasticsearch. See the [Elastic Inference Service](https://www.elastic.co/docs/explore-analyze/elastic-inference/eis) page for more details
-::::
-
 ::::{dropdown} Add CEF processor to Ingest node
 The `cef` ingest processor parses a CEF (Common Event Format) message into a structured JSON object. It follows the CEF specification to extract fields such as device vendor, device product, device version, signature ID, name, severity, and extension fields. This allows users to easily analyze and visualize CEF-formatted logs within Elasticsearch and Kibana.
 ::::
@@ -294,8 +286,6 @@ Machine Learning:
 * Nightly maintenance for anomaly detection results indices to keep to manageable size. [#136065](https://github.com/elastic/elasticsearch/pull/136065)
 * Require basic licence for the Elastic Inference Service [#137434](https://github.com/elastic/elasticsearch/pull/137434)
 * Transition EIS auth polling to persistent task on a single node [#136713](https://github.com/elastic/elasticsearch/pull/136713)
-* Downgrade log severity for a batch of recoverable errors [#2889](https://github.com/elastic/ml-cpp/pull/2889)
-
 
 Mapping:
 * Add `index.mapping.nested_parents.limit` and raise nested fields limit to 100 [#138961](https://github.com/elastic/elasticsearch/pull/138961)
@@ -544,6 +534,8 @@ Vector Search:
 * Ensure we parse `on_disk_rescore` as its valid to pass false [#141158](https://github.com/elastic/elasticsearch/pull/141158)
 * Intercept filters to knn queries [#138457](https://github.com/elastic/elasticsearch/pull/138457) (issue: [#138410](https://github.com/elastic/elasticsearch/issues/138410))
 
+
+
 ## 9.2.5 [elasticsearch-9.2.5-release-notes]
 
 ### Features and enhancements [elasticsearch-9.2.5-features-enhancements]
@@ -593,6 +585,8 @@ Search:
 
 Snapshot/Restore:
 * Fix race condition in `CancellableRateLimitedFluxIterator` [#141323](https://github.com/elastic/elasticsearch/pull/141323)
+
+
 
 ## 9.1.10 [elasticsearch-9.1.10-release-notes]
 
@@ -3653,19 +3647,4 @@ Vector Search:
 Watcher:
 * Watcher history index has too many indexed fields - [#117701](https://github.com/elastic/elasticsearch/pull/117701) (issue: [#71479](https://github.com/elastic/elasticsearch/issues/71479))
 
-* Do not capture `ClusterChangedEvent` in `IndicesStore` call to #onClusterStateShardsClosed [#120193](https://github.com/elastic/elasticsearch/pull/120193)
 
-Suggesters:
-* Return an empty suggestion when suggest phase times out [#122575](https://github.com/elastic/elasticsearch/pull/122575) (issue: [#122548](https://github.com/elastic/elasticsearch/issues/122548))
-
-Transform:
-* If the Transform is configured to write to an alias as its destination index, when the delete_dest_index parameter is set to true, then the Delete API will now delete the write index backing the alias [#122074](https://github.com/elastic/elasticsearch/pull/122074) (issue: [#121913](https://github.com/elastic/elasticsearch/issues/121913))
-
-Vector Search:
-* Apply default k for knn query eagerly [#118774](https://github.com/elastic/elasticsearch/pull/118774)
-* Fix `bbq_hnsw` merge file cleanup on random IO exceptions [#119691](https://github.com/elastic/elasticsearch/pull/119691) (issue: [#119392](https://github.com/elastic/elasticsearch/issues/119392))
-* Knn vector rescoring to sort score docs [#122653](https://github.com/elastic/elasticsearch/pull/122653) (issue: [#119711](https://github.com/elastic/elasticsearch/issues/119711))
-* Return appropriate error on null dims update instead of npe [#125716](https://github.com/elastic/elasticsearch/pull/125716)
-
-Watcher:
-* Watcher history index has too many indexed fields - [#117701](https://github.com/elastic/elasticsearch/pull/117701) (issue: [#71479](https://github.com/elastic/elasticsearch/issues/71479))

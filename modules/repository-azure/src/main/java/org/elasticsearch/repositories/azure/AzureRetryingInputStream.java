@@ -91,13 +91,13 @@ public class AzureRetryingInputStream extends RetryingInputStream<String> {
         @Override
         public Map<String, Object> getMetricsAttributes(StreamAction action) {
             return Map.of(
-                "es_repo_type",
+                "repo_type",
                 AzureRepository.TYPE,
-                "es_repo_name",
+                "repo_name",
                 blobStore.getRepositoryMetadata().name(),
-                "es_retry_operation",
+                "operation",
                 AzureBlobStore.Operation.GET_BLOB.getKey(),
-                "es_operation_purpose",
+                "purpose",
                 purpose.getKey(),
                 "es_retry_action",
                 action.getPastTense()

@@ -129,13 +129,13 @@ class S3RetryingInputStream extends RetryingInputStream<String> {
         @Override
         public Map<String, Object> getMetricsAttributes(StreamAction action) {
             return Map.of(
-                "es_repo_type",
+                "repo_type",
                 S3Repository.TYPE,
-                "es_repo_name",
+                "repo_name",
                 blobStore.getRepositoryMetadata().name(),
-                "es_retry_operation",
+                "operation",
                 Operation.GET_OBJECT.getKey(),
-                "es_operation_purpose",
+                "purpose",
                 purpose.getKey(),
                 "es_retry_action",
                 action.getPastTense()

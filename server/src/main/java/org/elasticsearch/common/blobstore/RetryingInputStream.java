@@ -46,10 +46,10 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class RetryingInputStream<V> extends InputStream {
 
     private static final Set<String> REQUIRED_METRIC_ATTRIBUTES = Set.of(
-        "es_repo_type",
-        "es_repo_name",
-        "es_retry_operation",
-        "es_operation_purpose",
+        "repo_type",
+        "repo_name",
+        "operation",
+        "purpose",
         "es_retry_action"
     );
 

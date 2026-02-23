@@ -1565,13 +1565,13 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
 
     private Map<String, Object> metricAttributes(String action) {
         return Map.of(
-            "es_repo_type",
+            "repo_type",
             "s3",
-            "es_repo_name",
+            "repo_name",
             "repository",
-            "es_retry_operation",
+            "operation",
             "GetObject",
-            "es_operation_purpose",
+            "purpose",
             "Indices",
             "es_retry_action",
             action

@@ -20,8 +20,6 @@ import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
-import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
-import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.MapExpression;
@@ -51,13 +49,13 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.Param
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
-import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPostOptimizationValidation;
+import static org.elasticsearch.xpack.esql.expression.Foldables.TypeResolutionValidator.forPreOptimizationValidation;
 import static org.elasticsearch.xpack.esql.expression.Foldables.resolveTypeQuery;
 import static org.elasticsearch.xpack.esql.expression.function.Options.resolve;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.emitChunks;
 
-public class TopSnippets extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
+public class TopSnippets extends EsqlScalarFunction implements OptionalArgument {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -163,8 +161,33 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             return new TypeResolution("Unresolved children");
         }
 
-        return isString(field(), sourceText(), FIRST).and(() -> isString(query(), sourceText(), SECOND))
+        return resolveParams();
+    }
+
+    /**
+     * Resolves the type for the function parameters, as part of the type resolution for the function
+     *
+     */
+    protected TypeResolution resolveParams() {
+        return isString(field(), sourceText(), FIRST).and(() -> resolveQuery())
             .and(() -> resolve(options(), source(), THIRD, ALLOWED_OPTIONS, TopSnippets::validateOptions));
+    }
+
+    /**
+     * Resolves the type for the query parameter, as part of the type resolution for the function
+     *
+     * @return type resolution for the query parameter
+     */
+    protected TypeResolution resolveQuery() {
+        TypeResolution result = isString(query(), sourceText(), SECOND);
+        if (result.unresolved()) {
+            return result;
+        }
+        result = resolveTypeQuery(query(), sourceText(), forPreOptimizationValidation(query()));
+        if (result.equals(TypeResolution.TYPE_RESOLVED) == false) {
+            return result;
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     private static void validateOptions(Map<String, Object> options) {
@@ -281,10 +304,6 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         emitChunks(builder, snippets);
     }
 
-    @Override
-    public void postOptimizationVerification(Failures failures) {
-        resolveTypeQuery(query(), sourceText(), forPostOptimizationValidation(query(), failures));
-    }
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {

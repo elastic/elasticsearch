@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
@@ -20,6 +21,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -28,8 +31,11 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.junit.After;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -358,7 +364,192 @@ public class JsonExtractStaticTests extends ESTestCase {
         );
     }
 
+    // --- XContent encoding tests ---
+    // _source preserves the original encoding from indexing. These tests verify that
+    // doExtract handles all Elasticsearch content types (JSON, SMILE, CBOR, YAML),
+    // not just JSON. Each test runs across all four encodings.
+
+    public void testAllEncodingsSimpleExtraction() throws IOException {
+        forAllEncodings(Map.of("name", "Alice", "age", 30), "name", "Alice");
+    }
+
+    public void testAllEncodingsNestedExtraction() throws IOException {
+        forAllEncodings(Map.of("user", Map.of("city", "London")), "user.city", "London");
+    }
+
+    public void testAllEncodingsArrayExtraction() throws IOException {
+        forAllEncodings(Map.of("tags", List.of("a", "b", "c")), "tags[1]", "b");
+    }
+
+    public void testAllEncodingsNumericExtraction() throws IOException {
+        forAllEncodings(Map.of("val", 42), "val", "42");
+    }
+
+    public void testAllEncodingsBooleanExtraction() throws IOException {
+        forAllEncodings(Map.of("flag", true), "flag", "true");
+    }
+
+    public void testAllEncodingsFloatingPointExtraction() throws IOException {
+        forAllEncodings(Map.of("val", 3.14159), "val", "3.14159");
+    }
+
+    public void testAllEncodingsNegativeNumberExtraction() throws IOException {
+        forAllEncodings(Map.of("val", -42), "val", "-42");
+    }
+
+    public void testAllEncodingsEmptyStringExtraction() throws IOException {
+        forAllEncodings(Map.of("val", ""), "val", "");
+    }
+
+    public void testAllEncodingsUnicodeExtraction() throws IOException {
+        forAllEncodings(Map.of("name", "Ñoño"), "name", "Ñoño");
+    }
+
+    public void testAllEncodingsDeepNesting() throws IOException {
+        forAllEncodings(Map.of("a", Map.of("b", Map.of("c", Map.of("d", "deep")))), "a.b.c.d", "deep");
+    }
+
+    public void testAllEncodingsMixedArrayAndObject() throws IOException {
+        forAllEncodings(
+            Map.of("orders", List.of(Map.of("id", 1, "item", "book"), Map.of("id", 2, "item", "pen"))),
+            "orders[1].item",
+            "pen"
+        );
+    }
+
+    // --- Randomized tests ---
+    // Each test generates random data and runs across all four XContent encodings.
+
+    /**
+     * Generates a random flat object, picks a random key, and verifies extraction
+     * across all four XContent encodings.
+     */
+    public void testRandomFlatObjectAllEncodings() throws IOException {
+        int numKeys = randomIntBetween(1, 20);
+        Map<String, Object> map = new LinkedHashMap<>();
+        for (int i = 0; i < numKeys; i++) {
+            map.put("key" + i, randomAlphaOfLengthBetween(1, 50));
+        }
+        String targetKey = "key" + randomIntBetween(0, numKeys - 1);
+        String expected = (String) map.get(targetKey);
+        forAllEncodings(map, targetKey, expected);
+    }
+
+    /**
+     * Generates a random nested object (2-4 levels deep) with sibling noise keys,
+     * builds a dot-notation path to a leaf value, and verifies extraction across
+     * all four XContent encodings.
+     */
+    public void testRandomNestedObjectAllEncodings() throws IOException {
+        int depth = randomIntBetween(2, 4);
+        String leafValue = randomAlphaOfLengthBetween(1, 30);
+
+        Map<String, Object> innermost = new HashMap<>();
+        String leafKey = "leaf" + randomIntBetween(0, 99);
+        innermost.put(leafKey, leafValue);
+        for (int i = 0; i < randomIntBetween(0, 3); i++) {
+            innermost.put("sibling" + i, randomAlphaOfLengthBetween(1, 10));
+        }
+
+        Object nested = innermost;
+        List<String> pathParts = new ArrayList<>();
+        pathParts.add(leafKey);
+        for (int i = depth - 1; i >= 0; i--) {
+            String key = "level" + i;
+            Map<String, Object> wrapper = new HashMap<>();
+            wrapper.put(key, nested);
+            for (int j = 0; j < randomIntBetween(0, 3); j++) {
+                wrapper.put("noise" + j, randomAlphaOfLengthBetween(1, 10));
+            }
+            nested = wrapper;
+            pathParts.add(key);
+        }
+        Collections.reverse(pathParts);
+        String path = String.join(".", pathParts);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> root = (Map<String, Object>) nested;
+        forAllEncodings(root, path, leafValue);
+    }
+
+    /**
+     * Generates a random array, picks a random index, and verifies extraction
+     * across all four XContent encodings.
+     */
+    public void testRandomArrayIndexAllEncodings() throws IOException {
+        int arraySize = randomIntBetween(1, 20);
+        List<String> items = new ArrayList<>();
+        for (int i = 0; i < arraySize; i++) {
+            items.add(randomAlphaOfLengthBetween(1, 20));
+        }
+        int targetIndex = randomIntBetween(0, arraySize - 1);
+        forAllEncodings(Map.of("items", items), "items[" + targetIndex + "]", items.get(targetIndex));
+    }
+
+    /**
+     * Generates random scalar values (string, integer, boolean) and verifies
+     * extraction of each type across all four XContent encodings.
+     */
+    public void testRandomScalarTypesAllEncodings() throws IOException {
+        String strVal = randomAlphaOfLengthBetween(1, 30);
+        int intVal = randomIntBetween(-10000, 10000);
+        boolean boolVal = randomBoolean();
+
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("str", strVal);
+        map.put("num", intVal);
+        map.put("flag", boolVal);
+
+        forAllEncodings(map, "str", strVal);
+        forAllEncodings(map, "num", Integer.toString(intVal));
+        forAllEncodings(map, "flag", Boolean.toString(boolVal));
+    }
+
     // --- Helper methods ---
+
+    private static final List<XContentType> ALL_XCONTENT_TYPES = List.of(
+        XContentType.JSON,
+        XContentType.SMILE,
+        XContentType.CBOR,
+        XContentType.YAML
+    );
+
+    /**
+     * Encodes the map in each of the four XContent types, extracts the path,
+     * and asserts the result matches the expected value for every encoding.
+     */
+    private void forAllEncodings(Map<String, ?> map, String path, String expected) throws IOException {
+        for (XContentType type : ALL_XCONTENT_TYPES) {
+            BytesRef bytes = encodeAsXContent(map, type);
+            String result = extractFromBytes(bytes, path);
+            assertThat("[" + type + "] path " + path, result, equalTo(expected));
+        }
+    }
+
+    /**
+     * Encodes a map as the given XContent type (JSON, SMILE, CBOR, or YAML)
+     * and returns the raw bytes as a BytesRef.
+     */
+    private static BytesRef encodeAsXContent(Map<String, ?> map, XContentType type) throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(type.xContent())) {
+            builder.map(map);
+            return BytesReference.bytes(builder).toBytesRef();
+        }
+    }
+
+    /**
+     * Extracts a value from raw bytes (any XContent encoding) using the given path.
+     */
+    private String extractFromBytes(BytesRef bytes, String path) {
+        try (
+            var eval = AbstractScalarFunctionTestCase.evaluator(
+                new JsonExtract(Source.EMPTY, field("str", DataType.KEYWORD), field("path", DataType.KEYWORD))
+            ).get(driverContext());
+            Block block = eval.eval(row(List.of(bytes, new BytesRef(path))))
+        ) {
+            return block.isNull(0) ? null : ((BytesRef) BlockUtils.toJavaObject(block, 0)).utf8ToString();
+        }
+    }
 
     private String extract(String json, String path) {
         try (

@@ -15,10 +15,11 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -244,21 +245,32 @@ public class JsonExtract extends EsqlScalarFunction {
     /**
      * Core extraction logic shared by both evaluators.
      * <p>
-     * Opens a streaming JSON parser on the input string, advances to the first token,
-     * and delegates to {@link #extractValue} to walk the path. The error handling here
-     * is the key part — see {@link JsonExtractException} for why we need two catch blocks:
+     * Detects the content type from the raw bytes via {@link XContentFactory#xContentType(byte[], int, int)},
+     * then opens a streaming parser for that type. This handles all Elasticsearch content encodings
+     * (JSON, SMILE, CBOR, YAML) — important because {@code _source} preserves the original encoding
+     * the document was indexed with. For keyword/text inputs the content will always be JSON.
+     * <p>
+     * The error handling uses two catch blocks — see {@link JsonExtractException} for why:
      * <ul>
      *   <li>{@code JsonExtractException} — our application errors (path not found, index out of
      *       bounds). The message is preserved as-is because it's already user-friendly.</li>
-     *   <li>{@code IOException | XContentParseException} — parser errors (malformed JSON).
+     *   <li>{@code IOException | XContentParseException} — parser errors (malformed input).
      *       Converted to a generic "invalid JSON input" message because parser error details
      *       are implementation noise that wouldn't help the user.</li>
      * </ul>
      */
     private static void doExtract(BytesRefBlock.Builder builder, BytesRef str, JsonPath path) {
-        String jsonStr = str.utf8ToString();
-
-        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, jsonStr)) {
+        // Detect the content type from the raw bytes. This handles all Elasticsearch encodings:
+        // JSON (first byte '{'), SMILE (3-byte magic header), CBOR (object type markers),
+        // and YAML ('---' header). Falls back to JSON for bare values like "true", "42",
+        // or "[1,2]" whose first byte doesn't match any content type header — this is correct
+        // because _source always starts with an object (detected reliably), while keyword/text
+        // inputs are always JSON.
+        XContentType type = XContentFactory.xContentType(str.bytes, str.offset, str.length);
+        if (type == null) {
+            type = XContentType.JSON;
+        }
+        try (XContentParser parser = type.xContent().createParser(XContentParserConfiguration.EMPTY, str.bytes, str.offset, str.length)) {
             XContentParser.Token token = parser.nextToken();
             if (token == null) {
                 throw new JsonExtractException("invalid JSON input");

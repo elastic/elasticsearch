@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.simdvec.internal;
 
+import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.elasticsearch.core.CheckedFunction;
@@ -26,9 +27,9 @@ import java.lang.foreign.MemorySegment;
  * <p>All resource management (ref-counting, buffer release) is handled
  * internally — callers never see a closeable resource.
  */
-public final class IndexInputSegments {
+public final class IndexInputUtils {
 
-    private IndexInputSegments() {}
+    private IndexInputUtils() {}
 
     /**
      * Obtains a memory segment for the next {@code length} bytes of the
@@ -50,6 +51,7 @@ public final class IndexInputSegments {
      * @return the result of applying {@code action}
      */
     public static <R> R withSlice(IndexInput in, long length, CheckedFunction<MemorySegment, R, IOException> action) throws IOException {
+        checkInputType(in);
         if (in instanceof MemorySegmentAccessInput msai) {
             long offset = in.getFilePointer();
             MemorySegment slice = msai.segmentSliceOrNull(offset, length);
@@ -71,6 +73,22 @@ public final class IndexInputSegments {
             }
         }
         return action.apply(copyOnHeap(in, Math.toIntExact(length)));
+    }
+
+    /**
+     * Checks that a {@link FilterIndexInput} wrapper also implements
+     * {@link MemorySegmentAccessInput} or {@link DirectAccessInput},
+     * so that zero-copy access is preserved through the wrapper chain.
+     */
+    public static void checkInputType(IndexInput in) {
+        if (in instanceof FilterIndexInput && (in instanceof MemorySegmentAccessInput || in instanceof DirectAccessInput) == false) {
+            throw new IllegalArgumentException(
+                "IndexInput is a FilterIndexInput ("
+                    + in.getClass().getName()
+                    + ") that does not implement MemorySegmentAccessInput or DirectAccessInput. "
+                    + "Ensure the wrapper implements DirectAccessInput or is unwrapped before constructing the scorer."
+            );
+        }
     }
 
     /**

@@ -15,13 +15,13 @@ import jdk.incubator.vector.LongVector;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
+import org.elasticsearch.simdvec.internal.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
@@ -185,8 +185,8 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
          * otherwise an {@link IllegalArgumentException} is thrown.
          *
          * <p> Memory segment access is handled by
-         * {@link org.elasticsearch.simdvec.internal.IndexInputSegments#withSlice
-         * IndexInputSegments.withSlice}, which probes the index input for
+         * {@link org.elasticsearch.simdvec.internal.IndexInputUtils#withSlice
+         * IndexInputUtils.withSlice}, which probes the index input for
          * {@link MemorySegmentAccessInput} /
          * {@link DirectAccessInput} support and
          * falls back to a heap copy when neither is available.
@@ -197,7 +197,7 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
          * @param bulkSize the number of vectors per bulk
          */
         MemorySegmentScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
-            checkInputType(in);
+            IndexInputUtils.checkInputType(in);
             this.in = in;
             this.length = dataLength;
             this.dimensions = dimensions;
@@ -307,14 +307,4 @@ public final class MemorySegmentESNextOSQVectorsScorer extends ESNextOSQVectorsS
         }
     }
 
-    private static void checkInputType(IndexInput in) {
-        if (in instanceof FilterIndexInput && (in instanceof MemorySegmentAccessInput || in instanceof DirectAccessInput) == false) {
-            throw new IllegalArgumentException(
-                "IndexInput is a FilterIndexInput ("
-                    + in.getClass().getName()
-                    + ") that does not implement MemorySegmentAccessInput or DirectAccessInput. "
-                    + "Ensure the wrapper implements DirectAccessInput or is unwrapped before constructing the scorer."
-            );
-        }
-    }
 }

@@ -26,12 +26,12 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 
 /**
- * Tests that {@link IndexInputSegments#withSlice} correctly handles all
+ * Tests that {@link IndexInputUtils#withSlice} correctly handles all
  * three input types: {@link MemorySegmentAccessInput} (mmap),
  * {@link DirectAccessInput} (byte-buffer), and plain {@link IndexInput}
  * (heap-copy fallback).
  */
-public class IndexInputSegmentsTests extends ESTestCase {
+public class IndexInputUtilsTests extends ESTestCase {
 
     private static final String FILE_NAME = "test.bin";
 
@@ -120,7 +120,7 @@ public class IndexInputSegmentsTests extends ESTestCase {
 
     private void verifyWithSlice(IndexInput in, byte[] expectedData) throws IOException {
         int firstChunk = 64;
-        byte[] result1 = IndexInputSegments.withSlice(in, firstChunk, segment -> {
+        byte[] result1 = IndexInputUtils.withSlice(in, firstChunk, segment -> {
             byte[] buf = new byte[(int) segment.byteSize()];
             MemorySegment.ofArray(buf).copyFrom(segment);
             return buf;
@@ -129,7 +129,7 @@ public class IndexInputSegmentsTests extends ESTestCase {
         assertEquals(firstChunk, in.getFilePointer());
 
         int secondChunk = 128;
-        byte[] result2 = IndexInputSegments.withSlice(in, secondChunk, segment -> {
+        byte[] result2 = IndexInputUtils.withSlice(in, secondChunk, segment -> {
             byte[] buf = new byte[(int) segment.byteSize()];
             MemorySegment.ofArray(buf).copyFrom(segment);
             return buf;
@@ -138,7 +138,7 @@ public class IndexInputSegmentsTests extends ESTestCase {
         assertEquals(firstChunk + secondChunk, in.getFilePointer());
 
         int remaining = expectedData.length - firstChunk - secondChunk;
-        byte[] result3 = IndexInputSegments.withSlice(in, remaining, segment -> {
+        byte[] result3 = IndexInputUtils.withSlice(in, remaining, segment -> {
             byte[] buf = new byte[(int) segment.byteSize()];
             MemorySegment.ofArray(buf).copyFrom(segment);
             return buf;

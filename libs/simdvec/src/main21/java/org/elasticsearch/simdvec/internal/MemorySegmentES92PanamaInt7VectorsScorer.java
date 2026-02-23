@@ -18,11 +18,8 @@ import jdk.incubator.vector.VectorShape;
 import jdk.incubator.vector.VectorSpecies;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.core.DirectAccessInput;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 
 import java.io.IOException;
@@ -64,12 +61,12 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
 
     protected MemorySegmentES92PanamaInt7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
         super(in, dimensions, bulkSize);
-        checkInputType(in);
+        IndexInputUtils.checkInputType(in);
     }
 
     protected long panamaInt7DotProduct(byte[] q) throws IOException {
         assert dimensions == q.length;
-        return IndexInputSegments.withSlice(in, dimensions, segment -> panamaInt7DotProductImpl(q, segment, dimensions));
+        return IndexInputUtils.withSlice(in, dimensions, segment -> panamaInt7DotProductImpl(q, segment, dimensions));
     }
 
     private static long panamaInt7DotProductImpl(byte[] q, MemorySegment segment, int dimensions) {
@@ -153,7 +150,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
 
     protected void panamaInt7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
         assert dimensions == q.length;
-        IndexInputSegments.withSlice(in, (long) dimensions * count, segment -> {
+        IndexInputUtils.withSlice(in, (long) dimensions * count, segment -> {
             panamaInt7DotProductBulkImpl(q, segment, dimensions, count, scores);
             return null;
         });
@@ -229,7 +226,7 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         float[] scores,
         int bulkSize
     ) throws IOException {
-        IndexInputSegments.withSlice(in, 16L * bulkSize, memorySegment -> {
+        IndexInputUtils.withSlice(in, 16L * bulkSize, memorySegment -> {
             applyCorrectionsBulkImpl(
                 memorySegment,
                 queryAdditionalCorrection,
@@ -368,14 +365,4 @@ abstract class MemorySegmentES92PanamaInt7VectorsScorer extends ES92Int7VectorsS
         }
     }
 
-    private static void checkInputType(IndexInput in) {
-        if (in instanceof FilterIndexInput && (in instanceof MemorySegmentAccessInput || in instanceof DirectAccessInput) == false) {
-            throw new IllegalArgumentException(
-                "IndexInput is a FilterIndexInput ("
-                    + in.getClass().getName()
-                    + ") that does not implement MemorySegmentAccessInput or DirectAccessInput. "
-                    + "Ensure the wrapper implements DirectAccessInput or is unwrapped before constructing the scorer."
-            );
-        }
-    }
 }

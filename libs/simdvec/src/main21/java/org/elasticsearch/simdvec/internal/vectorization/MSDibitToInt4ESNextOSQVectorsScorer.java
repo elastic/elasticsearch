@@ -18,7 +18,7 @@ import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.simdvec.internal.IndexInputSegments;
+import org.elasticsearch.simdvec.internal.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.Arena;
@@ -57,7 +57,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
     }
 
     private long nativeQuantizeScore(byte[] q) throws IOException {
-        return IndexInputSegments.withSlice(in, length, segment -> nativeQuantizeScoreImpl(q, segment, length));
+        return IndexInputUtils.withSlice(in, length, segment -> nativeQuantizeScoreImpl(q, segment, length));
     }
 
     private static long nativeQuantizeScoreImpl(byte[] q, MemorySegment datasetMemorySegment, int length) {
@@ -89,7 +89,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
 
     private long quantizeScore256(byte[] q) throws IOException {
         int size = length / 2;
-        return IndexInputSegments.withSlice(in, size, segment -> quantizeScore256Impl(q, segment, size));
+        return IndexInputUtils.withSlice(in, size, segment -> quantizeScore256Impl(q, segment, size));
     }
 
     private static long quantizeScore256Impl(byte[] q, MemorySegment memorySegment, int size) {
@@ -170,7 +170,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
 
     private long quantizeScore128(byte[] q) throws IOException {
         int size = length / 2;
-        return IndexInputSegments.withSlice(in, size, segment -> quantizeScore128Impl(q, segment, size));
+        return IndexInputUtils.withSlice(in, size, segment -> quantizeScore128Impl(q, segment, size));
     }
 
     private static long quantizeScore128Impl(byte[] q, MemorySegment memorySegment, int size) {
@@ -260,7 +260,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
 
     private void nativeQuantizeScoreBulk(MemorySegment queryMemorySegment, int count, MemorySegment scoresSegment) throws IOException {
         var datasetLengthInBytes = (long) length * count;
-        IndexInputSegments.withSlice(in, datasetLengthInBytes, datasetSegment -> {
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, datasetSegment -> {
             dotProductD2Q4Bulk(datasetSegment, queryMemorySegment, length, count, scoresSegment);
             return null;
         });
@@ -369,7 +369,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         MemorySegment scoresSegment,
         int bulkSize
     ) throws IOException {
-        return IndexInputSegments.withSlice(
+        return IndexInputUtils.withSlice(
             in,
             16L * bulkSize,
             seg -> ScoreCorrections.nativeApplyCorrectionsBulk(
@@ -399,7 +399,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         float[] scores,
         int bulkSize
     ) throws IOException {
-        return IndexInputSegments.withSlice(
+        return IndexInputUtils.withSlice(
             in,
             16L * bulkSize,
             memorySegment -> applyCorrections128BulkImpl(
@@ -516,7 +516,7 @@ final class MSDibitToInt4ESNextOSQVectorsScorer extends MemorySegmentESNextOSQVe
         float[] scores,
         int bulkSize
     ) throws IOException {
-        return IndexInputSegments.withSlice(
+        return IndexInputUtils.withSlice(
             in,
             16L * bulkSize,
             memorySegment -> applyCorrections256BulkImpl(

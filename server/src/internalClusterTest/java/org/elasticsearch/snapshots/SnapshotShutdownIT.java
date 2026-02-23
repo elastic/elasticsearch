@@ -426,7 +426,8 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
         addUnassignedShardsWatcher(clusterService, indexName);
         putShutdownForRemovalMetadata(primaryNode, clusterService);
         unblockAllDataNodes(repoName); // lets the shard snapshot pause, but allocation filtering stops it from moving
-        safeAwait(updateSnapshotStatusRequestArrived); // wait for data node to notify master that the shard snapshot is paused (and any other updates to arrive)
+        safeAwait(updateSnapshotStatusRequestArrived); // wait for data node to notify master that the shard snapshot is paused (and any
+                                                       // other updates to arrive)
 
         // abort snapshot (and wait for the abort to land in the cluster state)
         final var deleteStartedListener = ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {

@@ -163,4 +163,4 @@ FROM logs METADATA _source
 - **Path parsing tests** (`JsonPathTests.java`) — dot notation, bracket notation, quoted keys, `$` prefix, whitespace inside brackets, escape sequences, empty string keys, error cases with full message assertions, error position offsets. Includes randomized tests for round-trip parsing, dot/bracket equivalence, quoted keys with special characters, escape sequences, whitespace, and `$` prefix variations.
 - **Serialization tests** (`JsonExtractSerializationTests.java`)
 - **Error tests** (`JsonExtractErrorTests.java`)
-- **CSV spec integration tests** (`json_extract.csv-spec`) — includes duplicate keys, null-in-array
+- **CSV spec integration tests** (`json_extract.csv-spec`) — includes duplicate keys, null-in-array, top-level arrays (index access, nested object, object extraction, out of bounds), and top-level scalars (string, number, boolean, null)

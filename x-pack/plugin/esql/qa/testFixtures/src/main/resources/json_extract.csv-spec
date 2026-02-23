@@ -242,6 +242,28 @@ val:keyword
 "{""id"":1,""item"":""book""}"
 ;
 
+jsonExtractTopLevelArrayFull
+required_capability: fn_json_extract
+ROW json = "[1,2,3]"
+| EVAL val = JSON_EXTRACT(json, "$")
+| KEEP val
+;
+
+val:keyword
+["[1\,2\,3]"]
+;
+
+jsonExtractTopLevelArrayExtractNestedArray
+required_capability: fn_json_extract
+ROW json = "[[1,2],[3,4]]"
+| EVAL val = JSON_EXTRACT(json, "$[0]")
+| KEEP val
+;
+
+val:keyword
+["[1\,2]"]
+;
+
 // Top-level scalars
 
 jsonExtractTopLevelString

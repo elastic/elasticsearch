@@ -474,6 +474,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
             SnapshotState.SUCCESS,
             startFullSnapshot(repoName, randomIdentifier()).get(10, TimeUnit.SECONDS).getSnapshotInfo().state()
         );
+        masterTransportService.clearAllRules();
         clearShutdownMetadata(clusterService);
     }
 
@@ -615,6 +616,7 @@ public class SnapshotShutdownIT extends AbstractSnapshotIntegTestCase {
 
         // Release the master node to respond
         snapshotStatusUpdateLatch.countDown();
+        masterTransportService.clearAllRules();
 
         // Wait for the snapshot to fully pause.
         safeAwait(snapshotPausedListener);

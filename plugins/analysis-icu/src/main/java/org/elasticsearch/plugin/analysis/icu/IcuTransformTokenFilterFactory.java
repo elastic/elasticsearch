@@ -21,16 +21,28 @@ import org.elasticsearch.index.analysis.NormalizingTokenFilterFactory;
 
 public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory implements NormalizingTokenFilterFactory {
 
-    private final String id;
-    private final int dir;
     private final Transliterator transliterator;
 
     public IcuTransformTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(name);
-        this.id = settings.get("id", "Null");
-        String s = settings.get("dir", "forward");
-        this.dir = "forward".equals(s) ? Transliterator.FORWARD : Transliterator.REVERSE;
-        this.transliterator = Transliterator.getInstance(id, dir);
+        String id = settings.get("id");
+        String ruleset = settings.get("ruleset");
+        String strDir = settings.get("dir", "forward");
+        int dir = "forward".equals(strDir) ? Transliterator.FORWARD : Transliterator.REVERSE;
+
+        if (id != null && ruleset != null) {
+            throw new IllegalArgumentException("icu_transform filter [" + name + "] must not specify both [id] and [ruleset]");
+        }
+
+        if (ruleset != null) {
+            try {
+                this.transliterator = Transliterator.createFromRules(name, ruleset, dir);
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("icu_transform filter [" + name + "] has invalid ruleset: " + e.getMessage(), e);
+            }
+        } else {
+            this.transliterator = Transliterator.getInstance(id, dir);
+        }
     }
 
     @Override

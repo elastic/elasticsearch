@@ -14,8 +14,10 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -26,6 +28,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
@@ -36,6 +39,8 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.compute.operator.topn.SharedMinCompetitive;
+import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.SourceOperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
@@ -99,7 +104,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             }
 
             @Override
-            void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results) {
+            void checkPages(boolean scoring, int numDocs, int limit, int maxPageSize, List<Page> results) {
                 int maxPages = Math.min(numDocs, limit);
                 int minPages = (int) Math.ceil((double) maxPages / maxPageSize);
                 assertThat(results, hasSize(both(greaterThanOrEqualTo(minPages)).and(lessThanOrEqualTo(maxPages))));
@@ -109,6 +114,11 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             int numResults(int numDocs) {
                 return numDocs;
             }
+
+            @Override
+            MinCompetitiveQuery.Factory minCompetitive(CircuitBreaker breaker) {
+                return randomMatchAllMinCompetitive(breaker);
+            }
         },
         MATCH_0 {
             @Override
@@ -117,13 +127,18 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             }
 
             @Override
-            void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results) {
+            void checkPages(boolean scoring, int numDocs, int limit, int maxPageSize, List<Page> results) {
                 assertThat(results, hasSize(both(greaterThanOrEqualTo(0)).and(lessThanOrEqualTo(1))));
             }
 
             @Override
             int numResults(int numDocs) {
                 return Math.min(numDocs, 1);
+            }
+
+            @Override
+            MinCompetitiveQuery.Factory minCompetitive(CircuitBreaker breaker) {
+                return randomMatchAllMinCompetitive(breaker);
             }
         },
         MATCH_0_AND_1 {
@@ -136,7 +151,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             }
 
             @Override
-            void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results) {
+            void checkPages(boolean scoring, int numDocs, int limit, int maxPageSize, List<Page> results) {
                 assertThat(results, hasSize(Math.min(numDocs, 2)));
                 if (results.isEmpty() == false) {
                     Page page = results.get(0);
@@ -156,6 +171,11 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             int numResults(int numDocs) {
                 return Math.min(numDocs, 2);
             }
+
+            @Override
+            MinCompetitiveQuery.Factory minCompetitive(CircuitBreaker breaker) {
+                return randomMatchAllMinCompetitive(breaker);
+            }
         },
         LTE_100_GT_100 {
             @Override
@@ -167,8 +187,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             }
 
             @Override
-            void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results) {
-                MATCH_ALL.checkPages(numDocs, limit, maxPageSize, results);
+            void checkPages(boolean scoring, int numDocs, int limit, int maxPageSize, List<Page> results) {
+                MATCH_ALL.checkPages(scoring, numDocs, limit, maxPageSize, results);
                 for (Page page : results) {
                     IntBlock extra = page.getBlock(page.getBlockCount() - 2);
                     LongBlock data = page.getBlock(page.getBlockCount() - 1);
@@ -182,11 +202,44 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             int numResults(int numDocs) {
                 return numDocs;
             }
+
+            @Override
+            MinCompetitiveQuery.Factory minCompetitive(CircuitBreaker breaker) {
+                return randomMatchAllMinCompetitive(breaker);
+            }
+        },
+        MIN_COMPETITIVE_LT_100 {
+            @Override
+            List<LuceneSliceQueue.QueryAndTags> queryAndExtra() {
+                return List.of(new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of()));
+            }
+
+            @Override
+            void checkPages(boolean scoring, int numDocs, int limit, int maxPageSize, List<Page> results) {
+                for (Page r : results) {
+                    LongBlock sBlock = r.getBlock(initialBlockIndex(r, scoring, queryAndExtra()));
+                    LongVector sVector = sBlock.asVector();
+                    for (int p = 0; p < sVector.getPositionCount(); p++) {
+                        assertThat(sVector.getLong(p), lessThan(100L));
+                    }
+                    assertThat(r.getPositionCount(), lessThanOrEqualTo(maxPageSize));
+                }
+            }
+
+            @Override
+            int numResults(int numDocs) {
+                return Math.min(numDocs, 100);
+            }
+
+            @Override
+            MinCompetitiveQuery.Factory minCompetitive(CircuitBreaker breaker) {
+                return minCompetitiveForQuery(breaker, SortedNumericDocValuesField.newSlowRangeQuery("s", Long.MIN_VALUE, 99));
+            }
         };
 
         abstract List<LuceneSliceQueue.QueryAndTags> queryAndExtra();
 
-        abstract void checkPages(int numDocs, int limit, int maxPageSize, List<Page> results);
+        abstract void checkPages(boolean scoring, int numDocs, int limit, int maxPageSize, List<Page> results);
 
         abstract int numResults(int numDocs);
 
@@ -196,6 +249,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
                 assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
             }
         }
+
+        abstract MinCompetitiveQuery.Factory minCompetitive(CircuitBreaker breaker);
     }
 
     private final TestCase testCase;
@@ -205,7 +260,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
      */
     private final boolean scoring;
 
-    private Directory directory = newDirectory();
+    private final Directory directory = newDirectory();
     private IndexReader reader;
 
     public LuceneSourceOperatorTests(TestCase testCase, boolean scoring) {
@@ -231,7 +286,9 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             for (LuceneSliceQueue.QueryAndTags q : testCase.queryAndExtra()) {
                 count += searcher.count(q.query());
             }
-            assertThat(count, equalTo(testCase.numResults(numDocs)));
+            if (testCase.minCompetitive(blockFactory().breaker()) == null) {
+                assertThat(count, equalTo(testCase.numResults(numDocs)));
+            }
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -240,6 +297,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> testCase.queryAndExtra();
         int maxPageSize = between(10, Math.max(10, numDocs));
         int taskConcurrency = randomIntBetween(1, 4);
+        MinCompetitiveQuery.Factory minCompetitive = testCase.minCompetitive(blockFactory().breaker());
         return new LuceneSourceOperator.Factory(
             new IndexedByShardIdFromSingleton<>(ctx),
             queryFunction,
@@ -248,7 +306,8 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             taskConcurrency,
             maxPageSize,
             limit,
-            scoring
+            scoring,
+            minCompetitive
         );
     }
 
@@ -270,6 +329,31 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             }
             return writer.getReader();
         }
+    }
+
+    static MinCompetitiveQuery.Factory randomMatchAllMinCompetitive(CircuitBreaker breaker) {
+        if (randomBoolean()) {
+            return null;
+        }
+        SharedMinCompetitive.KeyConfig config = new SharedMinCompetitive.KeyConfig(
+            ElementType.LONG,
+            TopNEncoder.DEFAULT_SORTABLE,
+            false,
+            false
+        );
+        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(breaker, List.of(config));
+        return new MinCompetitiveQuery.Factory(supplier, (context, min) -> Queries.ALL_DOCS_INSTANCE);
+    }
+
+    static MinCompetitiveQuery.Factory minCompetitiveForQuery(CircuitBreaker breaker, Query query) {
+        SharedMinCompetitive.KeyConfig config = new SharedMinCompetitive.KeyConfig(
+            ElementType.LONG,
+            TopNEncoder.DEFAULT_SORTABLE,
+            false,
+            false
+        );
+        SharedMinCompetitive.Supplier supplier = new SharedMinCompetitive.Supplier(breaker, List.of(config));
+        return new MinCompetitiveQuery.Factory(supplier, (context, min) -> query);
     }
 
     @Override
@@ -417,13 +501,13 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         assertAllRefCountedSameInstance(results);
 
         for (Page page : results) {
-            LongBlock sBlock = page.getBlock(initialBlockIndex(page));
+            LongBlock sBlock = page.getBlock(initialBlockIndex(page, scoring, testCase.queryAndExtra()));
             for (int p = 0; p < page.getPositionCount(); p++) {
                 assertThat(sBlock.getLong(sBlock.getFirstValueIndex(p)), both(greaterThanOrEqualTo(0L)).and(lessThan((long) numDocs)));
             }
         }
 
-        testCase.checkPages(numDocs, limit, factory.maxPageSize(), results);
+        testCase.checkPages(scoring, numDocs, limit, factory.maxPageSize(), results);
         int count = results.stream().mapToInt(Page::getPositionCount).sum();
         logger.info("{} received={} limit={} numResults={}", factory.dataPartitioning, count, limit, testCase.numResults(numDocs));
         assertThat(count, equalTo(Math.min(limit, testCase.numResults(numDocs))));
@@ -431,14 +515,14 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
     }
 
     // Returns the initial block index, ignoring the score block if scoring is enabled
-    private int initialBlockIndex(Page page) {
+    private static int initialBlockIndex(Page page, boolean scoring, List<LuceneSliceQueue.QueryAndTags> queryAndExtra) {
         assert page.getBlock(0) instanceof DocBlock : "expected doc block at index 0";
         int offset = 1;
         if (scoring) {
             assert page.getBlock(1) instanceof DoubleBlock : "expected double block at index 1";
             offset++;
         }
-        offset += testCase.queryAndExtra().get(0).tags().size();
+        offset += queryAndExtra.getFirst().tags().size();
         return offset;
     }
 

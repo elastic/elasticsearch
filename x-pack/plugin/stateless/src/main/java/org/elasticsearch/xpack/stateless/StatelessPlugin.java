@@ -1095,7 +1095,7 @@ public class StatelessPlugin extends Plugin
                 clusterService,
                 (NodeClient) client,
                 searchMetricsService,
-                new ReplicasLoadBalancingScaler(clusterService, client),
+                new ReplicasLoadBalancingScaler(clusterService, client, services.telemetryProvider().getMeterRegistry()),
                 desiredTopologyContext,
                 services.telemetryProvider().getMeterRegistry()
             );

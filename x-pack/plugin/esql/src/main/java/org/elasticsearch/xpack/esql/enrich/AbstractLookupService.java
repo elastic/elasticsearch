@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
@@ -148,6 +149,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     protected final BigArrays bigArrays;
     protected final LocalCircuitBreaker.SizeSettings localBreakerSettings;
     protected final ProjectResolver projectResolver;
+    protected final PlannerSettings.Holder plannerSettings;
     /**
      * Should output {@link Page pages} be combined into a single resulting page?
      * If this is {@code true} we'll run a {@link MergePositionsOperator} to merge
@@ -169,7 +171,8 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         BlockFactory blockFactory,
         boolean mergePages,
         CheckedBiFunction<StreamInput, BlockFactory, T, IOException> readRequest,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        PlannerSettings.Holder plannerSettings
     ) {
         this.actionName = actionName;
         this.clusterService = clusterService;
@@ -183,6 +186,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
         this.localBreakerSettings = new LocalCircuitBreaker.SizeSettings(clusterService.getSettings());
         this.mergePages = mergePages;
         this.projectResolver = projectResolver;
+        this.plannerSettings = plannerSettings;
         transportService.registerRequestHandler(
             actionName,
             transportService.getThreadPool().executor(EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME),
@@ -329,6 +333,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     protected void doLookup(T request, CancellableTask task, ActionListener<LookupResponse> listener) {
+        PlannerSettings plannerSettings = this.plannerSettings.get();
         for (int j = 0; j < request.inputPage.getBlockCount(); j++) {
             Block inputBlock = request.inputPage.getBlock(j);
             if (inputBlock.areAllValuesNull()) {
@@ -414,7 +419,12 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
 
             List<Operator> operators = new ArrayList<>();
             if (request.extractFields.isEmpty() == false) {
-                var extractFieldsOperator = extractFieldsOperator(shardContext.context, driverContext, request.extractFields);
+                var extractFieldsOperator = extractFieldsOperator(
+                    plannerSettings,
+                    shardContext.context,
+                    driverContext,
+                    request.extractFields
+                );
                 releasables.add(extractFieldsOperator);
                 operators.add(extractFieldsOperator);
             }
@@ -480,6 +490,7 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
     }
 
     private static Operator extractFieldsOperator(
+        PlannerSettings plannerSettings,
         EsPhysicalOperationProviders.ShardContext shardContext,
         DriverContext driverContext,
         List<NamedExpression> extractFields
@@ -493,7 +504,9 @@ public abstract class AbstractLookupService<R extends AbstractLookupService.Requ
                 fieldName,
                 extractField.dataType() == DataType.UNSUPPORTED,
                 MappedFieldType.FieldExtractPreference.NONE,
-                null
+                null,
+                plannerSettings.blockLoaderSizeOrdinals(),
+                plannerSettings.blockLoaderSizeScript()
             );
             fields.add(
                 new ValuesSourceReaderOperator.FieldInfo(

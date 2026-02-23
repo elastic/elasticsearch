@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
 import java.util.List;
@@ -76,7 +77,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
         IndexNameExpressionResolver indexNameExpressionResolver,
         BigArrays bigArrays,
         BlockFactory blockFactory,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        PlannerSettings.Holder plannerSettings
     ) {
         super(
             LOOKUP_ACTION_NAME,
@@ -89,7 +91,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             blockFactory,
             true,
             TransportRequest::readFrom,
-            projectResolver
+            projectResolver,
+            plannerSettings
         );
     }
 

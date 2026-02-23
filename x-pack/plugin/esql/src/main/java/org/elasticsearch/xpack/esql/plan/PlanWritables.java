@@ -18,11 +18,11 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -51,10 +52,10 @@ import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
+import org.elasticsearch.xpack.esql.plan.physical.RegisteredDomainExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
@@ -93,7 +94,6 @@ public class PlanWritables {
             LocalRelation.ENTRY,
             Limit.ENTRY,
             Lookup.ENTRY,
-            MMR.ENTRY,
             MvExpand.ENTRY,
             OrderBy.ENTRY,
             Project.ENTRY,
@@ -104,7 +104,8 @@ public class PlanWritables {
             TimeSeriesAggregate.ENTRY,
             TopN.ENTRY,
             UriParts.ENTRY,
-            MetricsInfo.ENTRY
+            MetricsInfo.ENTRY,
+            RegisteredDomain.ENTRY
         );
     }
 
@@ -119,6 +120,7 @@ public class PlanWritables {
             ExchangeExec.ENTRY,
             ExchangeSinkExec.ENTRY,
             ExchangeSourceExec.ENTRY,
+            ExternalSourceExec.ENTRY,
             FieldExtractExec.ENTRY,
             FilterExec.ENTRY,
             FragmentExec.ENTRY,
@@ -126,7 +128,6 @@ public class PlanWritables {
             HashJoinExec.ENTRY,
             LimitExec.ENTRY,
             LocalSourceExec.ENTRY,
-            MMRExec.ENTRY,
             MvExpandExec.ENTRY,
             ProjectExec.ENTRY,
             RerankExec.ENTRY,
@@ -136,7 +137,8 @@ public class PlanWritables {
             TimeSeriesAggregateExec.ENTRY,
             TopNExec.ENTRY,
             UriPartsExec.ENTRY,
-            MetricsInfoExec.ENTRY
+            MetricsInfoExec.ENTRY,
+            RegisteredDomainExec.ENTRY
         );
     }
 

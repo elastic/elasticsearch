@@ -63,6 +63,7 @@ import org.elasticsearch.xpack.esql.plan.physical.ParameterizedQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -96,6 +97,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         BigArrays bigArrays,
         BlockFactory blockFactory,
         ProjectResolver projectResolver,
+        PlannerSettings.Holder plannerSettings,
         ExchangeService exchangeService
     ) {
         super(
@@ -109,7 +111,8 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
             blockFactory,
             false,// merge pages is NOT implemented for Lookup Join
             TransportRequest::readFrom,
-            projectResolver
+            projectResolver,
+            plannerSettings
         );
         this.executionPlanner = new LookupExecutionPlanner(blockFactory, bigArrays, localBreakerSettings);
         this.exchangeService = exchangeService;
@@ -532,6 +535,7 @@ public class LookupFromIndexService extends AbstractLookupService<LookupFromInde
         CancellableTask task,
         ActionListener<AbstractLookupService.LookupResponse> listener
     ) {
+        PlannerSettings plannerSettings = this.plannerSettings.get();
         // Streaming lookup is always a setup request - check that input page is empty
         if (request.inputPage.getPositionCount() != 0) {
             listener.onFailure(

@@ -22,14 +22,23 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import java.io.IOException;
 import java.util.concurrent.ExecutorService;
 
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_MAX_CONN;
+import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAULT_NUM_MERGE_WORKER;
+
 public class ES94HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFormat {
 
     static final String NAME = "ES94HnswScalarQuantizedVectorsFormat";
+    /**
+     * For k=100, we ask by default to search a graph of 100*1.5=150 results.
+     * So the threshold is set to 150 to match this expected search cost.
+     */
+    public static final int HNSW_GRAPH_THRESHOLD = 150;
 
     private final FlatVectorsFormat flatVectorFormat;
 
     public ES94HnswScalarQuantizedVectorsFormat() {
-        super(NAME);
+        super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
         flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT);
     }
 
@@ -40,7 +49,7 @@ public class ES94HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         int bits,
         boolean useDirectIO
     ) {
-        super(NAME, maxConn, beamWidth);
+        super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
         flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits, useDirectIO);
     }
 
@@ -53,7 +62,21 @@ public class ES94HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
-        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec);
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, HNSW_GRAPH_THRESHOLD);
+        flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits, useDirectIO);
+    }
+
+    public ES94HnswScalarQuantizedVectorsFormat(
+        int maxConn,
+        int beamWidth,
+        DenseVectorFieldMapper.ElementType elementType,
+        int bits,
+        boolean useDirectIO,
+        int numMergeWorkers,
+        ExecutorService mergeExec,
+        int hnswGraphThreshold
+    ) {
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, HNSW_GRAPH_THRESHOLD));
         flatVectorFormat = new ES94ScalarQuantizedVectorsFormat(elementType, bits, useDirectIO);
     }
 
@@ -71,7 +94,7 @@ public class ES94HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
             flatVectorFormat.fieldsWriter(state),
             numMergeWorkers,
             mergeExec,
-            0
+            hnswGraphThreshold
         );
     }
 

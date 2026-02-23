@@ -100,7 +100,9 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             hasToString(
                 is(
                     "ES94HnswScalarQuantizedVectorsFormat(name=ES94HnswScalarQuantizedVectorsFormat, maxConn=10, beamWidth=20, "
-                        + "flatVectorFormat=ES94ScalarQuantizedVectorsFormat("
+                        + "hnswGraphThreshold="
+                        + ES94HnswScalarQuantizedVectorsFormat.HNSW_GRAPH_THRESHOLD
+                        + ", flatVectorFormat=ES94ScalarQuantizedVectorsFormat("
                         + "name=ES94ScalarQuantizedVectorsFormat, encoding=DIBIT_QUERY_NIBBLE, "
                         + "flatVectorScorer="
                         + ES94ScalarQuantizedVectorsFormat.flatVectorScorer
@@ -110,5 +112,46 @@ public class ES94HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
                 )
             )
         );
+    }
+
+    protected KnnVectorsFormat createFormat(
+        int maxConn,
+        int beamWidth,
+        int numMergeWorkers,
+        ExecutorService service,
+        int hnswGraphThreshold
+    ) {
+        return new ES94HnswScalarQuantizedVectorsFormat(
+            maxConn,
+            beamWidth,
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            bits,
+            false,
+            numMergeWorkers,
+            service,
+            hnswGraphThreshold
+        );
+    }
+
+    public void testDefaultHnswGraphThreshold() {
+        KnnVectorsFormat format = createFormat(16, 100);
+        assertThat(format.toString().contains("hnswGraphThreshold=" + ES94HnswScalarQuantizedVectorsFormat.HNSW_GRAPH_THRESHOLD), is(true));
+    }
+
+    public void testHnswGraphThresholdWithCustomValue() {
+        int customThreshold = random().nextInt(1, 1001);
+        KnnVectorsFormat format = createFormat(16, 100, 1, null, customThreshold);
+        assertThat(format.toString().contains("hnswGraphThreshold=" + customThreshold), is(true));
+    }
+
+    public void testHnswGraphThresholdWithZeroValue() {
+        // When threshold is 0, hnswGraphThreshold is omitted from toString (always build graph)
+        KnnVectorsFormat format = createFormat(16, 100, 1, null, 0);
+        assertThat(format.toString().contains("hnswGraphThreshold"), is(false));
+    }
+
+    public void testHnswGraphThresholdWithNegativeValueFallsBackToDefault() {
+        KnnVectorsFormat format = createFormat(16, 100, 1, null, -1);
+        assertThat(format.toString().contains("hnswGraphThreshold=" + ES94HnswScalarQuantizedVectorsFormat.HNSW_GRAPH_THRESHOLD), is(true));
     }
 }

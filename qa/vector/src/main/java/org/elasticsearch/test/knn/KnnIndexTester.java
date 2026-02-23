@@ -182,7 +182,14 @@ public class KnnIndexTester {
                 );
             };
             case HNSW -> switch (quantizeBits) {
-                case null -> new ES93HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), elementType, mergeWorkers, exec, args.flatIndexThreshold());
+                case null -> new ES93HnswVectorsFormat(
+                    args.hnswM(),
+                    args.hnswEfConstruction(),
+                    elementType,
+                    mergeWorkers,
+                    exec,
+                    args.flatIndexThreshold()
+                );
                 case 1 -> new ES93HnswBinaryQuantizedVectorsFormat(
                     args.hnswM(),
                     args.hnswEfConstruction(),

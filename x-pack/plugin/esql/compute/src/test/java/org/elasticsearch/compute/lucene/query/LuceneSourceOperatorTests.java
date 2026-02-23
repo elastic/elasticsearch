@@ -443,7 +443,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             List<ShardContext> shardContexts = List.of(new MockShardContext(r0, 0), new MockShardContext(rLarge, 1));
 
             Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> TestCase.MATCH_ALL.queryAndExtra();
-            int maxPageSize = randomIntBetween(32, 64);
+            int maxPageSize = 1;
             int taskConcurrency = randomIntBetween(1, 4);
 
             LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(

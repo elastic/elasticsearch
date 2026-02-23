@@ -169,10 +169,7 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                 batcher.get().processExternalChanges(randomBoolean(), true);
             }
             if (randomBoolean()) {
-                throw randomFrom(
-                    new NotMasterException("simulated no longer master"),
-                    new FailedToCommitClusterStateException("simulated failed to commit failure")
-                );
+                throw new FailedToCommitClusterStateException("simulated failed to commit failure");
             } else {
                 taskContext.success(batcher.get()::onTaskCompletion);
                 return batchContext.initialState();
@@ -187,6 +184,55 @@ public class SnapshotExternalChangesBatcherTests extends ESTestCase {
                 batcher.get().processExternalChanges(randomBoolean(), true);
                 deterministicTaskQueue.runRandomTask();
                 assertThat(masterService.numberOfPendingTasks(), is(concurrentChange.get() ? 1 : 0));
+            }
+        }
+    }
+
+    public void testExternalChangesTaskAbortsOnMasterFailure() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        final var hasFailed = new AtomicBoolean(false);
+        final var lastSuccessfulExecutedChange = new AtomicBoolean(false);
+
+        final AtomicReference<SnapshotExternalChangesBatcher> batcher = new AtomicReference<>();
+        final ClusterStateTaskExecutor<SnapshotExternalChangesBatcher.Task> executor = batchContext -> {
+            hasFailed.set(false);
+            assertThat("at most one task in the queue at any time", batchContext.taskContexts().size(), is(1));
+            final var taskContext = batchContext.taskContexts().getFirst();
+            if (randomBoolean()) {
+                hasFailed.set(true);
+                if (randomBoolean()) {
+                    // Can fail before or after acquiring changes. Both cases should result in the same end state
+                    batcher.get().acquireChangesToExecute();
+                }
+                if (randomBoolean()) {
+                    // This change should get dropped because of the failure.
+                    batcher.get().processExternalChanges(randomBoolean(), randomBoolean());
+                }
+                throw randomFrom(new NotMasterException("simulated no longer master"));
+            } else {
+                lastSuccessfulExecutedChange.set(batcher.get().acquireChangesToExecute());
+                taskContext.success(batcher.get()::onTaskCompletion);
+                return batchContext.initialState();
+            }
+        };
+
+        try (var masterService = createMasterService(threadPool)) {
+            final var queue = masterService.createTaskQueue("snapshots-service-external-change", Priority.NORMAL, executor);
+            batcher.set(new SnapshotExternalChangesBatcher(queue, s -> false, (e, m) -> {}, s -> {}, (e, v) -> {}));
+
+            boolean nodesChanged = randomBoolean();
+            boolean shardChanged = true;
+            batcher.get().processExternalChanges(nodesChanged, shardChanged);
+            for (int i = 0; i < 10; i++) {
+                deterministicTaskQueue.runRandomTask();
+                assertThat(masterService.numberOfPendingTasks(), is(0));
+                if (!hasFailed.get()) {
+                    // Verify the last failure wiped historical changes
+                    assertThat(lastSuccessfulExecutedChange.get(), is(nodesChanged));
+                }
+                nodesChanged = randomBoolean();
+                batcher.get().processExternalChanges(nodesChanged, shardChanged);
             }
         }
     }

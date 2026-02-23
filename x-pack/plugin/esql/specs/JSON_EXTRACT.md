@@ -151,17 +151,18 @@ FROM logs METADATA _source
 
 - **JSONPath subset**: Implements dot notation, bracket notation (numeric and quoted), the `$` root selector, optional blank space inside brackets, and escape sequences inside quoted keys from RFC 9535. Rejects leading zeros in array indices per the RFC. Multi-value features (wildcards, recursive descent, filters, slicing) are out of scope.
 - **Streaming JSON parser**: Uses `XContentParser` to avoid creating intermediate objects for paths not being extracted.
+- **Multi-encoding `_source` support**: The `_source` metadata field may be stored in any of Elasticsearch's four XContent encodings — JSON, SMILE, CBOR, or YAML. `JsonExtract` detects the encoding via `XContentFactory.xContentType()` and creates the appropriate parser, so it works regardless of the underlying storage format.
+- **Structure serialization**: When extracting objects or arrays, uses `XContentBuilder.copyCurrentStructure(parser)` to serialize the sub-structure back to a JSON string. This delegates to the established Elasticsearch pattern for token-by-token structure copying, handling all encodings and correct RFC 8259 escaping. A future optimization to use zero-copy byte slicing (once `XContentParser` exposes byte offsets) is tracked in [#142873](https://github.com/elastic/elasticsearch/issues/142873).
 - **Constant path optimization**: When the `path` argument is a foldable constant (the common case), it is parsed once into a `JsonPath` object and reused across all rows via a specialized `processConstant` evaluator. Path splitting uses manual character iteration instead of `String.split(regex)` to avoid regex compilation overhead.
 - **Error reporting**: Parse errors include the full path, a human-readable reason, and a character position. For constant paths, positions can be offset to refer to the query text rather than the path string via the `errorPositionOffset` parameter.
-- **`_source` support**: First parameter accepts `keyword`, `text`, or `_source` metadata field.
 - **Duplicate keys**: Returns the first matching value (first-match streaming parser semantics). Behavior is undefined per RFC 8259; ClickHouse also uses first-match.
 
 ## Test Coverage
 
-- Unit tests (`JsonExtractTests.java`) — parameterized type combination/warning suppliers, plus inline tests for edge cases (Unicode, large inputs, root accessors, bracket notation, XContent encodings, unsupported JSONPath syntax) and randomized tests across all four XContent encodings
-- Path parsing tests (`JsonPathTests.java`) — dot notation, bracket notation, quoted keys, `$` prefix, whitespace inside brackets, escape sequences, empty string keys, error cases with full message assertions, error position offsets. Includes randomized tests for round-trip parsing, dot/bracket equivalence, quoted keys with special characters, escape sequences, whitespace, and `$` prefix variations.
-- Serialization tests (`JsonExtractSerializationTests.java`)
-- Error tests (`JsonExtractErrorTests.java`)
-- CSV spec integration tests (`json_extract.csv-spec`) — includes duplicate keys, null-in-array
-- YAML REST test configuration (`60_usage.yml`)
-- Changelog entry (`docs/changelog/142375.yaml`)
+- **Unit tests** (`JsonExtractTests.java`) — parameterized type combination/warning suppliers, plus ~70 inline tests covering: root accessors, `$` prefix, bracket notation, Unicode, escaped characters, deep nesting, large JSON, constant path evaluator type checks, numeric edge cases, duplicate keys, null-in-array, empty structures, unsupported JSONPath syntax, XContent encoding round-trips (JSON, SMILE, CBOR, YAML), empty input, type mismatch navigation (key into array, index into object, key into scalar), and array index out of bounds. Includes 4 randomized tests across all four XContent encodings.
+- **Path parsing tests** (`JsonPathTests.java`) — dot notation, bracket notation, quoted keys, `$` prefix, whitespace inside brackets, escape sequences, empty string keys, error cases with full message assertions, error position offsets. Includes randomized tests for round-trip parsing, dot/bracket equivalence, quoted keys with special characters, escape sequences, whitespace, and `$` prefix variations.
+- **Serialization tests** (`JsonExtractSerializationTests.java`)
+- **Error tests** (`JsonExtractErrorTests.java`)
+- **CSV spec integration tests** (`json_extract.csv-spec`) — includes duplicate keys, null-in-array
+- **YAML REST test configuration** (`60_usage.yml`)
+- **Changelog entry** (`docs/changelog/142375.yaml`)

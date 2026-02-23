@@ -108,7 +108,7 @@ public abstract class LuceneOperator extends SourceOperator {
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
 
-        this.shardProcessNanos = new long[refCounteds.size()];
+        this.shardProcessNanos = new long[sliceQueue.maxShardIndex() + 1];
         this.shardRowsEmitted = new long[shardProcessNanos.length];
     }
 
@@ -224,7 +224,7 @@ public abstract class LuceneOperator extends SourceOperator {
     protected List<ShardLoad> shardLoadDelta(long now) {
         stopShardClock(now);
         var ret = IntStream.range(0, shardRowsEmitted.length)
-            .mapToObj(index -> new ShardLoad(sliceQueue.getShardContext(index), shardProcessNanos[index], shardRowsEmitted[index]))
+            .mapToObj(index -> new ShardLoad(sliceQueue.shardContext(index), shardProcessNanos[index], shardRowsEmitted[index]))
             .toList();
 
         Arrays.fill(shardRowsEmitted, 0);

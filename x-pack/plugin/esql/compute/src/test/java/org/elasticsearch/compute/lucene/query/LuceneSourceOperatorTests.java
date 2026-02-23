@@ -193,7 +193,7 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
 
         void assertSourceOperator(LuceneSourceOperator sourceOperator) {
             for (int shard = 0; shard < sourceOperator.refCounteds.size(); shard++) {
-                var shardContext = sourceOperator.getSliceQueue().getShardContext(shard);
+                var shardContext = sourceOperator.getSliceQueue().shardContext(shard);
                 assertThat(shardContext.stats().stats().getTotal().getSearchLoadRate(), greaterThan(0d));
             }
         }

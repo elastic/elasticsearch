@@ -1,16 +1,15 @@
 ---
 setup:
   - requires:
+      cluster_features: "index.time_series_synthetic_id"
+      reason: explicit synthetic_id false only applies when cluster has the feature
+  - requires:
       cluster_features: "gte_v8.14.0"
       reason: _tsid hashing introduced in 8.13 and tsid routing changed in 8.14
 
-  - skip:
-      cluster_features: "index.time_series_synthetic_id"
-      reason: when cluster has synthetic_id feature use 26_id_generation_synthetic_id_false instead
-
   - do:
       indices.create:
-          index: id_generation_test
+          index: id_generation_test_synthetic_id_false
           body:
             settings:
               index:
@@ -20,6 +19,8 @@ setup:
                   start_time: 2021-04-28T00:00:00Z
                   end_time: 2021-04-29T00:00:00Z
                 number_of_shards: 2
+                mapping:
+                  synthetic_id: false
             mappings:
               properties:
                 "@timestamp":
@@ -48,7 +49,7 @@ setup:
   - do:
       bulk:
         refresh: true
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
@@ -72,7 +73,7 @@ generates a consistent id:
   - do:
       bulk:
         refresh: true
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
@@ -81,7 +82,7 @@ generates a consistent id:
   - do:
       bulk:
         refresh: true
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:52:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
@@ -89,9 +90,9 @@ generates a consistent id:
 
   - do:
       get:
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         id: cn4excfoxSs_KdA5AAABeRnRFAY
-  - match: {_index: id_generation_test}
+  - match: {_index: id_generation_test_synthetic_id_false}
   - match: {_id: cn4excfoxSs_KdA5AAABeRnRFAY}
   - match:
       _source:
@@ -109,7 +110,7 @@ generates a consistent id:
 
   - do:
       search:
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           query:
             match_all: {}
@@ -158,7 +159,7 @@ generates a consistent id:
 
   - do:
       search:
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           query:
             match_all: {}
@@ -204,7 +205,7 @@ generates a consistent id:
 index a new document on top of an old one:
   - do:
       search:
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           size: 0
           aggs:
@@ -220,7 +221,7 @@ index a new document on top of an old one:
   - do:
       index:
         refresh: true
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         op_type: index
         body:
           "@timestamp": "2021-04-28T18:51:03.142Z"
@@ -237,7 +238,7 @@ index a new document on top of an old one:
 
   - do:
       search:
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           size: 0
           aggs:
@@ -254,7 +255,7 @@ index a new document on top of an old one:
 index a new document on top of an old one over bulk:
   - do:
       search:
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           size: 0
           aggs:
@@ -270,7 +271,7 @@ index a new document on top of an old one over bulk:
   - do:
       bulk:
         refresh: true
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
@@ -278,7 +279,7 @@ index a new document on top of an old one over bulk:
 
   - do:
       search:
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           size: 0
           aggs:
@@ -297,7 +298,7 @@ create operation on top of old document fails:
       catch: "/\\[cn4excfoxSs_KdA5AAABeRnR_mY\\]\\[.*@2021-04-28T18:51:03.142Z\\]: version conflict, document already exists \\(current version \\[1\\]\\)/"
       index:
         refresh: true
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           "@timestamp": "2021-04-28T18:51:03.142Z"
           metricset: pod
@@ -315,7 +316,7 @@ create operation on top of old document fails over bulk:
   - do:
       bulk:
         refresh: true
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           - '{"create": {}}'
           - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 111434595272, "rx": 430605511}}}}'
@@ -325,7 +326,7 @@ create operation on top of old document fails over bulk:
 ids query:
   - do:
       search:
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           fields:
             - field: k8s.pod.network.tx
@@ -343,9 +344,9 @@ ids query:
 get:
   - do:
       get:
-        index:   id_generation_test
+        index:   id_generation_test_synthetic_id_false
         id:      cZZNs7B9sSWsyrL5AAABeRnSA5M
-  - match: {_index: id_generation_test}
+  - match: {_index: id_generation_test_synthetic_id_false}
   - match: {_id: cZZNs7B9sSWsyrL5AAABeRnSA5M}
   - match:
       _source:
@@ -365,7 +366,7 @@ get not found:
   - do:
       catch: missing
       get:
-        index:   id_generation_test
+        index:   id_generation_test_synthetic_id_false
         id:      not found
 
 ---
@@ -373,7 +374,7 @@ get with routing:
   - do:
       catch: bad_request
       get:
-        index:   id_generation_test
+        index:   id_generation_test_synthetic_id_false
         id:      cZZNs-xII2fZweptAAABeRnSA5M
         routing: routing
 
@@ -381,7 +382,7 @@ get with routing:
 delete:
   - do:
       delete:
-        index:   id_generation_test
+        index:   id_generation_test_synthetic_id_false
         id:      cn4excfoxSs_KdA5AAABeRnR_mY
   - match: {result: deleted}
 
@@ -390,7 +391,7 @@ delete not found:
   - do:
       catch: missing
       delete:
-        index:   id_generation_test
+        index:   id_generation_test_synthetic_id_false
         id:      not found
 
 ---
@@ -398,7 +399,7 @@ delete with routing:
   - do:
       catch: bad_request
       delete:
-        index:   id_generation_test
+        index:   id_generation_test_synthetic_id_false
         id:      not found
         routing: routing
 
@@ -408,19 +409,19 @@ delete over _bulk:
   # (should be removed when test issue is resolved)
   - do:
       mget:
-        index: id_generation_test
+        index: id_generation_test_synthetic_id_false
         body:
           ids: [ cn4excfoxSs_KdA5AAABeRnR_mY, cn4excfoxSs_KdA5AAABeRnR11Y ]
-  - match: { docs.0._index: "id_generation_test" }
+  - match: { docs.0._index: "id_generation_test_synthetic_id_false" }
   - match: { docs.0._id: "cn4excfoxSs_KdA5AAABeRnR_mY" }
   - match: { docs.0.found: true }
-  - match: { docs.1._index: "id_generation_test" }
+  - match: { docs.1._index: "id_generation_test_synthetic_id_false" }
   - match: { docs.1._id: "cn4excfoxSs_KdA5AAABeRnR11Y" }
   - match: { docs.1.found: true }
 
   - do:
       bulk:
-        index:   id_generation_test
+        index:   id_generation_test_synthetic_id_false
         body:
           - '{"delete": {"_id": "cn4excfoxSs_KdA5AAABeRnR_mY"}}'
           - '{"delete": {"_id": "cn4excfoxSs_KdA5AAABeRnR11Y"}}'
@@ -428,7 +429,7 @@ delete over _bulk:
   - match: {items.0.delete.result: deleted}
   - match: {items.1.delete.result: deleted}
   - match: {items.2.delete.status: 404}
-  - match: {items.2.delete.error.reason: '/invalid\ id\ \[not\ found\ \+\+\ not\ found\]\ for\ index\ \[id_generation_test\]\ in\ time.series\ mode/'}
+  - match: {items.2.delete.error.reason: '/invalid\ id\ \[not\ found\ \+\+\ not\ found\]\ for\ index\ \[id_generation_test_synthetic_id_false\]\ in\ time.series\ mode/'}
 
 ---
 routing_path matches deep object:

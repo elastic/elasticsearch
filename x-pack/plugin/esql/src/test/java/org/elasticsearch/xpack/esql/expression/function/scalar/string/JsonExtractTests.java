@@ -406,6 +406,33 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         assertWarningResult("{}", "anything", "path [anything] does not exist");
     }
 
+    public void testEmptyInput() {
+        assertWarningResult("", "$", "invalid JSON input");
+    }
+
+    // --- Type mismatch ---
+
+    public void testKeyNavigationIntoArray() {
+        // Path expects an object key but the value is an array
+        assertWarningResult("{\"a\":[1,2]}", "a.b", "path [a.b] does not exist");
+    }
+
+    public void testIndexNavigationIntoObject() {
+        // Path expects an array index but the value is an object
+        assertWarningResult("{\"a\":{\"b\":1}}", "a[0]", "path [a[0]] does not exist");
+    }
+
+    public void testKeyNavigationIntoScalar() {
+        // Path expects further nesting but the value is a scalar
+        assertWarningResult("{\"a\":42}", "a.b", "path [a.b] does not exist");
+    }
+
+    // --- Array index out of bounds ---
+
+    public void testArrayIndexExceedsBounds() {
+        assertWarningResult("{\"a\":[1,2,3]}", "a[5]", "array index out of bounds");
+    }
+
     // --- Unsupported JSONPath features ---
 
     public void testWildcardDotStar() {

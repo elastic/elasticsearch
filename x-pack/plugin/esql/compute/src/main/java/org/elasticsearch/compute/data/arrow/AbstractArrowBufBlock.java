@@ -70,11 +70,11 @@ public abstract class AbstractArrowBufBlock<V extends Vector, B extends Block> e
 
     protected abstract ArrowBufBlockConstructor<B> blockConstructor();
 
-    private static int validityBufferLength(int positions) {
+    protected static int validityBufferLength(int positions) {
         return ((positions + 63) / 64) * Long.BYTES;
     }
 
-    private static void setValidityBit(ArrowBuf buf, int position) {
+    protected static void setValidityBit(ArrowBuf buf, int position) {
         int byteIndex = position / 8;
         buf.setByte(byteIndex, buf.getByte(byteIndex) | (1 << (position % 8)));
     }

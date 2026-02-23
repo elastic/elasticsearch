@@ -25,7 +25,7 @@ import java.io.IOException;
  */
 $if(BytesRef)$
 public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVector, BytesRefArrayVector, ConstantNullVector,
-    OrdinalBytesRefVector {
+    OrdinalBytesRefVector, org.elasticsearch.compute.data.arrow.BytesRefArrowBufVector {
 $elseif(boolean)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
     ConstantNullVector, org.elasticsearch.compute.data.arrow.$Type$ArrowBufVector {

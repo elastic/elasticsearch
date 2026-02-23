@@ -7,8 +7,8 @@
 
 package org.elasticsearch.compute.operator.topn;
 
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -23,6 +23,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -37,7 +39,7 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
     public void testOneOffer() {
         long v = randomLong();
         try (SharedMinCompetitive minCompetitive = longMinCompetitive()) {
-            offerLong(blockFactory().breaker(), minCompetitive, v);
+            offerLong(blockFactory(), minCompetitive, v);
             try (Page p = minCompetitive.get(blockFactory())) {
                 assertThat(p.getPositionCount(), equalTo(1));
                 assertThat(p.getBlockCount(), equalTo(1));
@@ -51,9 +53,9 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
         int count = 10_000;
         long[] values = randomLongs().limit(count).toArray();
         try (SharedMinCompetitive minCompetitive = longMinCompetitive()) {
-            CircuitBreaker breaker = blockFactory().breaker();
+            BlockFactory blockFactory = blockFactory();
             for (long v : values) {
-                offerLong(breaker, minCompetitive, v);
+                offerLong(blockFactory, minCompetitive, v);
             }
             try (Page p = minCompetitive.get(blockFactory())) {
                 assertThat(p.getPositionCount(), equalTo(1));
@@ -64,7 +66,7 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
         }
     }
 
-    public void testManyConcurrentOffers() throws ExecutionException, InterruptedException {
+    public void testManyConcurrentOffers() throws ExecutionException, InterruptedException, TimeoutException {
         int count = 10_000;
         int threads = 5;
         long max = Long.MIN_VALUE;
@@ -73,17 +75,17 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
         try {
             try (SharedMinCompetitive minCompetitive = longMinCompetitive()) {
                 for (int t = 0; t < threads; t++) {
-                    CircuitBreaker breaker = blockFactory().breaker();
+                    BlockFactory blockFactory = blockFactory();
                     long[] values = randomLongs().limit(count).toArray();
                     max = Math.max(max, Arrays.stream(values).max().getAsLong());
                     wait.add(exec.submit(() -> {
                         for (long v : values) {
-                            offerLong(breaker, minCompetitive, v);
+                            offerLong(blockFactory, minCompetitive, v);
                         }
                     }));
                 }
                 for (Future<?> w : wait) {
-                    w.get();
+                    w.get(1, TimeUnit.MINUTES);
                 }
                 try (Page p = minCompetitive.get(blockFactory())) {
                     assertThat(p.getPositionCount(), equalTo(1));
@@ -108,10 +110,10 @@ public class SharedMinCompetitiveTests extends ComputeTestCase {
         return new SharedMinCompetitive.Supplier(blockFactory().breaker(), List.of(keyConfig)).get();
     }
 
-    private void offerLong(CircuitBreaker breaker, SharedMinCompetitive minCompetitive, long l) {
+    private void offerLong(BlockFactory blockFactory, SharedMinCompetitive minCompetitive, long l) {
         try (
-            Block block = blockFactory().newConstantLongBlockWith(l, 1);
-            BreakingBytesRefBuilder b = new BreakingBytesRefBuilder(breaker, "work");
+            Block block = blockFactory.newConstantLongBlockWith(l, 1);
+            BreakingBytesRefBuilder b = new BreakingBytesRefBuilder(blockFactory.breaker(), "work");
         ) {
             KeyExtractor extractor = longExtractor(block);
             extractor.writeKey(b, 0);

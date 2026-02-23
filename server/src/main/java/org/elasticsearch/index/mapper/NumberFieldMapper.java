@@ -139,6 +139,10 @@ public class NumberFieldMapper extends FieldMapper {
         private final ScriptCompiler scriptCompiler;
         private final NumberType type;
 
+        public NumberType type() {
+            return type;
+        }
+
         private boolean allowMultipleValues = true;
         private final IndexSettings indexSettings;
 
@@ -312,6 +316,11 @@ public class NumberFieldMapper extends FieldMapper {
                 dimension,
                 metric,
                 optimizeFor };
+        }
+
+        @Override
+        public String contentType() {
+            return type.typeName();
         }
 
         @Override

@@ -83,6 +83,16 @@ public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             var message = getMessageData(appender.getLastEventAndReset());
             assertMessageSuccess(message, "esql", query);
+
+            // Create empty EsqlQueryProfile just to get the markers
+            EsqlQueryProfile profile = new EsqlQueryProfile();
+
+            for (var marker : profile.timeSpanMarkers()) {
+                String tookKey = EsqlLogProducer.PROFILE_PREFIX + marker.name() + ".took";
+                String tookMillisKey = EsqlLogProducer.PROFILE_PREFIX + marker.name() + ".took_millis";
+                assertTrue("Expected profile field present: " + tookKey, message.containsKey(tookKey));
+                assertTrue("Expected profile field present: " + tookMillisKey, message.containsKey(tookMillisKey));
+            }
         }
     }
 

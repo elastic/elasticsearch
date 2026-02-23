@@ -10,8 +10,11 @@ package org.elasticsearch.xpack.esql.querylog;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.xpack.esql.action.EsqlQueryProfile;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
+
+import java.util.Optional;
 
 public class EsqlLogContext extends ActivityLoggerContext {
     public static final String TYPE = "esql";
@@ -32,5 +35,9 @@ public class EsqlLogContext extends ActivityLoggerContext {
 
     String getQuery() {
         return request.query();
+    }
+
+    Optional<EsqlQueryProfile> getQueryProfile() {
+        return response == null ? Optional.empty() : Optional.of(response.getExecutionInfo().queryProfile());
     }
 }

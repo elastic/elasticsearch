@@ -29,10 +29,16 @@ import static org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat.DEFAUL
 public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFormat {
 
     static final String NAME = "ES93HnswScalarQuantizedVectorsFormat";
+    /**
+     * For k=100, we ask by default to search a graph of 100*1.5=150 results.
+     * So the threshold is set to 150 to match this expected search cost.
+     */
+    public static final int HNSW_GRAPH_THRESHOLD = 150;
+
     private final FlatVectorsFormat flatVectorFormat;
 
     public ES93HnswScalarQuantizedVectorsFormat() {
-        super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, DEFAULT_HNSW_GRAPH_THRESHOLD);
+        super(NAME, DEFAULT_MAX_CONN, DEFAULT_BEAM_WIDTH, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
         flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(DenseVectorFieldMapper.ElementType.FLOAT);
     }
 
@@ -45,7 +51,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         boolean compress,
         boolean useDirectIO
     ) {
-        super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, DEFAULT_HNSW_GRAPH_THRESHOLD);
+        super(NAME, maxConn, beamWidth, DEFAULT_NUM_MERGE_WORKER, null, HNSW_GRAPH_THRESHOLD);
         flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, bits, compress, useDirectIO);
     }
 
@@ -60,16 +66,10 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         int numMergeWorkers,
         ExecutorService mergeExec
     ) {
-        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, DEFAULT_HNSW_GRAPH_THRESHOLD);
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, HNSW_GRAPH_THRESHOLD);
         flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, bits, compress, useDirectIO);
     }
 
-    /**
-     * @deprecated This constructor is kept for backward compatibility but the hnswGraphThreshold
-     *             parameter is ignored. This format always uses DEFAULT_HNSW_GRAPH_THRESHOLD.
-     *             Use ES94HnswScalarQuantizedVectorsFormat for customizable threshold support.
-     */
-    @Deprecated
     public ES93HnswScalarQuantizedVectorsFormat(
         int maxConn,
         int beamWidth,
@@ -82,7 +82,7 @@ public class ES93HnswScalarQuantizedVectorsFormat extends AbstractHnswVectorsFor
         ExecutorService mergeExec,
         int hnswGraphThreshold
     ) {
-        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, DEFAULT_HNSW_GRAPH_THRESHOLD);
+        super(NAME, maxConn, beamWidth, numMergeWorkers, mergeExec, resolveThreshold(hnswGraphThreshold, HNSW_GRAPH_THRESHOLD));
         flatVectorFormat = new ES93ScalarQuantizedVectorsFormat(elementType, confidenceInterval, bits, compress, useDirectIO);
     }
 

@@ -22,9 +22,11 @@ import java.util.concurrent.ExecutorService;
 
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 
 public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
@@ -62,7 +64,6 @@ public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
         );
     }
 
-    @SuppressWarnings("deprecation")
     protected KnnVectorsFormat createFormat(
         int maxConn,
         int beamWidth,
@@ -84,30 +85,35 @@ public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
         );
     }
 
-    public void testAlwaysUsesDefaultHnswGraphThreshold() {
-        // ES93HnswScalarQuantizedVectorsFormat always uses DEFAULT_HNSW_GRAPH_THRESHOLD (0)
-        // When threshold is 0, hnswGraphThreshold is omitted from toString (always build graph)
+    public void testDefaultHnswGraphThreshold() {
         KnnVectorsFormat format = createFormat(16, 100);
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswScalarQuantizedVectorsFormat.HNSW_GRAPH_THRESHOLD)));
+    }
+
+    public void testHnswGraphThresholdWithCustomValue() {
+        int customThreshold = random().nextInt(1, 1001);
+        KnnVectorsFormat format = createFormat(16, 100, 1, null, customThreshold);
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + customThreshold)));
+    }
+
+    public void testHnswGraphThresholdWithZeroValue() {
+        // When threshold is 0, hnswGraphThreshold is omitted from toString (always build graph)
+        KnnVectorsFormat format = createFormat(16, 100, 1, null, 0);
         assertThat(format.toString().contains("hnswGraphThreshold"), is(false));
     }
 
-    @SuppressWarnings("deprecation")
-    public void testIgnoresCustomThresholdValue() {
-        // Custom threshold is ignored; always uses DEFAULT_HNSW_GRAPH_THRESHOLD (0)
-        int customThreshold = random().nextInt(1, 1001);
-        KnnVectorsFormat format = createFormat(16, 100, 1, null, customThreshold);
-        // When threshold is 0, hnswGraphThreshold is omitted from toString
-        assertThat(format.toString().contains("hnswGraphThreshold"), is(false));
+    public void testHnswGraphThresholdWithNegativeValueFallsBackToDefault() {
+        KnnVectorsFormat format = createFormat(16, 100, 1, null, -1);
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + ES93HnswScalarQuantizedVectorsFormat.HNSW_GRAPH_THRESHOLD)));
     }
 
     public void testToString() {
-        // ES93HnswScalarQuantizedVectorsFormat always uses DEFAULT_HNSW_GRAPH_THRESHOLD (0)
-        KnnVectorsFormat format = createFormat(10, 20);
-        assertThat(format.toString().contains("name=ES93HnswScalarQuantizedVectorsFormat"), is(true));
-        assertThat(format.toString().contains("maxConn=10"), is(true));
-        assertThat(format.toString().contains("beamWidth=20"), is(true));
-        // When threshold is 0, hnswGraphThreshold is omitted from toString
-        assertThat(format.toString().contains("hnswGraphThreshold"), is(false));
+        int hnswGraphThreshold = random().nextInt(1, 1001);
+        KnnVectorsFormat format = createFormat(10, 20, 1, null, hnswGraphThreshold);
+        assertThat(format, hasToString(containsString("name=ES93HnswScalarQuantizedVectorsFormat")));
+        assertThat(format, hasToString(containsString("maxConn=10")));
+        assertThat(format, hasToString(containsString("beamWidth=20")));
+        assertThat(format, hasToString(containsString("hnswGraphThreshold=" + hnswGraphThreshold)));
     }
 
     @Override
@@ -117,7 +123,7 @@ public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
 
     public void testSimpleOffHeapSize() throws IOException {
         float[] vector = randomVector(random().nextInt(12, 500));
-        // ES93HnswScalarQuantizedVectorsFormat always uses DEFAULT_HNSW_GRAPH_THRESHOLD (0)
+        // Use threshold=0 to ensure HNSW graph is always built
         var format = new ES93HnswScalarQuantizedVectorsFormat(
             16,
             100,
@@ -127,7 +133,8 @@ public class ES93HnswScalarQuantizedVectorsFormatTests extends BaseHnswVectorsFo
             false,
             random().nextBoolean(),
             1,
-            null
+            null,
+            0
         );
         IndexWriterConfig config = newIndexWriterConfig().setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         try (Directory dir = newDirectory()) {

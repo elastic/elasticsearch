@@ -816,10 +816,10 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     @Override
-    public void onRetry(boolean markAsRetry) {
+    public void onRetry(boolean possiblyExecuted) {
         // Monotonic: once set, isRetry must stay true. A later retry with markAsRetry=false
         // cannot undo the fact that an earlier retry may have executed the request.
-        if (markAsRetry) {
+        if (possiblyExecuted) {
             isRetry = true;
         }
     }

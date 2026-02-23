@@ -1077,11 +1077,11 @@ public abstract class TransportReplicationAction<
                                 ),
                                 exp
                             );
-                            boolean markAsRetry = true;
+                            boolean possiblyExecuted = true;
                             if (cause instanceof ReplicationOperation.RetryOnPrimaryException retryOnPrimaryException) {
-                                markAsRetry = retryOnPrimaryException.possiblyExecutedOnPrimary();
+                                possiblyExecuted = retryOnPrimaryException.possiblyExecutedOnPrimary();
                             }
-                            retry(exp, markAsRetry);
+                            retry(exp, possiblyExecuted);
                         } else {
                             finishAsFailed(exp);
                         }
@@ -1097,7 +1097,7 @@ public abstract class TransportReplicationAction<
             retry(failure, true);
         }
 
-        void retry(Exception failure, boolean markRequestAsRetry) {
+        void retry(Exception failure, boolean possiblyExecuted) {
             assert failure != null;
             if (observer.isTimedOut()) {
                 // we running as a last attempt after a timeout has happened. don't retry
@@ -1105,7 +1105,7 @@ public abstract class TransportReplicationAction<
                 return;
             }
             setPhase(task, "waiting_for_retry");
-            request.onRetry(markRequestAsRetry);
+            request.onRetry(possiblyExecuted);
             observer.waitForNextChange(new ClusterStateObserver.Listener() {
                 @Override
                 public void onNewClusterState(ClusterState state) {

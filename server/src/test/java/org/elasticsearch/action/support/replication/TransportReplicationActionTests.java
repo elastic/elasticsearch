@@ -1545,9 +1545,9 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        public void onRetry(boolean markAsRetry) {
-            super.onRetry(markAsRetry);
-            if (markAsRetry) {
+        public void onRetry(boolean possiblyExecuted) {
+            super.onRetry(possiblyExecuted);
+            if (possiblyExecuted) {
                 isRetrySet.set(true);
             }
         }

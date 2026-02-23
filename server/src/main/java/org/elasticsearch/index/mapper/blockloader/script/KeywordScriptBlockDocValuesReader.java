@@ -38,7 +38,7 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
             StringFieldScript script = null;
             try {
@@ -80,13 +80,8 @@ public class KeywordScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
     }
 
-    @Override
-    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-        this.docId = docId;
-        read(docId, (BlockLoader.BytesRefBuilder) builder);
-    }
-
     private void read(int docId, BlockLoader.BytesRefBuilder builder) {
+        this.docId = docId;
         script.runForDoc(docId);
         switch (script.getValues().size()) {
             case 0 -> builder.appendNull();

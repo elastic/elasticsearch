@@ -187,7 +187,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
         public BlockLoader blockLoader(ByteSizeValue ordinalsByteSize) {
             return new BlockDocValuesReader.DocValuesBlockLoader() {
                 @Override
-                public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+                public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
                     if (indexRouting != null) {
                         return new LegacyTsIdFieldReader(breaker, ordinalsByteSize, context, indexRouting, routingPaths);
                     } else {
@@ -247,14 +247,13 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 throws IOException {
                 try (var builder = factory.bytesRefs(docs.count() - offset)) {
                     for (int i = offset; i < docs.count(); i++) {
-                        read(docs.get(i), null, builder);
+                        read(docs.get(i), builder);
                     }
                     return builder.build();
                 }
             }
 
-            @Override
-            public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+            private void read(int docId, BlockLoader.BytesRefBuilder builder) throws IOException {
                 if (tsidDVs.docValues().advanceExact(docId) == false
                     || timestampDVs.docValues().advanceExact(docId) == false
                     || routingHashDVs.docValues().advanceExact(docId) == false) {
@@ -273,7 +272,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 } else {
                     id = TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
                 }
-                ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(id));
+                builder.appendBytesRef(new BytesRef(id));
             }
 
             @Override
@@ -335,14 +334,13 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 throws IOException {
                 try (var builder = factory.bytesRefs(docs.count() - offset)) {
                     for (int i = offset; i < docs.count(); i++) {
-                        read(docs.get(i), null, builder);
+                        read(docs.get(i), builder);
                     }
                     return builder.build();
                 }
             }
 
-            @Override
-            public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+            private void read(int docId, BlockLoader.BytesRefBuilder builder) throws IOException {
                 if (tsidDVs.docValues().advanceExact(docId) == false || timestampDVs.docValues().advanceExact(docId) == false) {
                     assert false : "_tsid or @timestamp missing for docId " + docId;
                     throw new IllegalStateException("_tsid or @timestamp missing for docId " + docId);
@@ -358,7 +356,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                     }
                 }
                 var id = TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, scratch);
-                ((BlockLoader.BytesRefBuilder) builder).appendBytesRef(new BytesRef(id));
+                builder.appendBytesRef(new BytesRef(id));
             }
 
             @Override

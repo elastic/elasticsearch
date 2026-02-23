@@ -37,7 +37,7 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
             BooleanFieldScript script = null;
             try {
@@ -78,13 +78,8 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
     }
 
-    @Override
-    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-        this.docId = docId;
-        read(docId, (BlockLoader.BooleanBuilder) builder);
-    }
-
     private void read(int docId, BlockLoader.BooleanBuilder builder) {
+        this.docId = docId;
         script.runForDoc(docId);
         int total = script.falses() + script.trues();
         switch (total) {

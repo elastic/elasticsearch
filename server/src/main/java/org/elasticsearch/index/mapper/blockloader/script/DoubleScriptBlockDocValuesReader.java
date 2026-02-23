@@ -37,7 +37,7 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
             DoubleFieldScript script = null;
             try {
@@ -79,13 +79,8 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
     }
 
-    @Override
-    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-        this.docId = docId;
-        read(docId, (BlockLoader.DoubleBuilder) builder);
-    }
-
     private void read(int docId, BlockLoader.DoubleBuilder builder) {
+        this.docId = docId;
         script.runForDoc(docId);
         switch (script.count()) {
             case 0 -> builder.appendNull();

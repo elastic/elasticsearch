@@ -29,12 +29,12 @@ public class BytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrdsBlock
     }
 
     @Override
-    protected AllReader singletonReader(TrackingSortedDocValues docValues) {
+    protected ColumnAtATimeReader singletonReader(TrackingSortedDocValues docValues) {
         return new Singleton(docValues);
     }
 
     @Override
-    protected AllReader sortedSetReader(TrackingSortedSetDocValues docValues) {
+    protected ColumnAtATimeReader sortedSetReader(TrackingSortedSetDocValues docValues) {
         return new SortedSet(docValues);
     }
 

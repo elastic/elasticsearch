@@ -37,7 +37,7 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
             DateFieldScript script = null;
             try {
@@ -78,13 +78,8 @@ public class DateScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
     }
 
-    @Override
-    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
-        this.docId = docId;
-        read(docId, (BlockLoader.LongBuilder) builder);
-    }
-
     private void read(int docId, BlockLoader.LongBuilder builder) {
+        this.docId = docId;
         script.runForDoc(docId);
         switch (script.count()) {
             case 0 -> builder.appendNull();

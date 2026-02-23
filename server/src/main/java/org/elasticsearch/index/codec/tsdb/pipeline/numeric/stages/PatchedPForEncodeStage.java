@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages;
 
+import org.elasticsearch.index.codec.tsdb.DocValuesForUtil;
 import org.elasticsearch.index.codec.tsdb.pipeline.EncodingContext;
 import org.elasticsearch.index.codec.tsdb.pipeline.MetadataWriter;
 import org.elasticsearch.index.codec.tsdb.pipeline.StageId;
@@ -63,9 +64,14 @@ public final class PatchedPForEncodeStage implements TransformEncoder {
 
         int optimalBits = findOptimalBitWidth(values, valueCount, maxBitsNeeded, maxExceptions, scratchValues);
 
-        if (optimalBits >= maxBitsNeeded) {
-            // NOTE: Skip PatchedPFor if no bit-width reduction possible.
-            // Metadata overhead (optimalBits + exceptions) would exceed any savings.
+        // NOTE: BitPack rounds bit widths to encoding-friendly buckets via roundBits()
+        // (e.g. 25-32 all round to 32). We must compare rounded widths to determine
+        // actual payload savings — raw bit widths can differ while producing identical
+        // packed output, making PFor metadata pure overhead.
+        final int roundedMaxBits = DocValuesForUtil.roundBits(maxBitsNeeded);
+        final int roundedOptimalBits = DocValuesForUtil.roundBits(optimalBits);
+
+        if (roundedOptimalBits >= roundedMaxBits) {
             return valueCount;
         }
 
@@ -87,12 +93,12 @@ public final class PatchedPForEncodeStage implements TransformEncoder {
         }
 
         // NOTE: Skip when patching doesn't clearly save bytes. Savings come from
-        // reducing bitpack width from maxBitsNeeded to optimalBits across all values.
-        // Cost is the PFor header (2 bytes) plus ~5 bytes per exception (VInt delta
-        // position + VLong value). We require savings >= 2x cost to account for
+        // reducing bitpack width from roundedMaxBits to roundedOptimalBits across all
+        // values. Cost is the PFor header (2 bytes) plus ~5 bytes per exception (VInt
+        // delta position + VLong value). We require savings >= 2x cost to account for
         // estimation error and the decode-time penalty (each exception is a branch
         // that breaks vectorization in the decoder).
-        final int savedBytes = (maxBitsNeeded - optimalBits) * valueCount / 8;
+        final int savedBytes = (roundedMaxBits - roundedOptimalBits) * valueCount / 8;
         final int patchCost = 2 + numExceptions * 5;
         if (savedBytes < patchCost * 2) {
             return valueCount;

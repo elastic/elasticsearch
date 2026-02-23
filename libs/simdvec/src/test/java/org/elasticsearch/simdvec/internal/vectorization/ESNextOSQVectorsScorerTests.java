@@ -30,9 +30,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.*;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQIndexData;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQQueryData;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomVector;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeBulkOSQVectorData;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeSingleOSQVectorData;
 
@@ -236,7 +236,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                 random().nextBytes(paddingBytes);
                 out.writeBytes(paddingBytes, 0, padding);
 
-                OSQVectorData[] vectors = new OSQVectorData[bulkSize];
+                var vectors = new VectorScorerTestUtils.OSQVectorData[bulkSize];
 
                 for (int i = 0; i < numVectors; i += bulkSize) {
                     for (int j = 0; j < bulkSize; j++) {

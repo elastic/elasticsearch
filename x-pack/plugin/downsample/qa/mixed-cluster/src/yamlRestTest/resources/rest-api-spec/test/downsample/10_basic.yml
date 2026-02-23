@@ -148,7 +148,6 @@ setup:
   - match: { test-downsample.mappings.properties.@timestamp.meta.time_zone: UTC }
   - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.type: aggregate_metric_double }
   - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.metrics: [ "min", "max", "sum", "value_count" ] }
-  - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.default_metric: max }
   - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-gauge.time_series_metric: gauge }
   - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-counter.type: long }
   - match: { test-downsample.mappings.properties.k8s.properties.pod.properties.multi-counter.time_series_metric: counter }

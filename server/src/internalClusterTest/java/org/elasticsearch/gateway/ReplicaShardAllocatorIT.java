@@ -85,7 +85,7 @@ public class ReplicaShardAllocatorIT extends ESIntegTestCase {
      * then we will cancel the current recovery and allocate replica to the new copy.
      */
     public void testPreferCopyCanPerformNoopRecovery() throws Exception {
-        String indexName = "test";
+        String indexName = randomIdentifier();
         String nodeWithPrimary = internalCluster().startNode();
 
         updateClusterSettings(

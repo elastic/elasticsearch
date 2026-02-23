@@ -33,6 +33,17 @@ ROW json = "{\\"user\\":{\\"address\\":{\\"city\\":\\"London\\"}}}"
 | --- | --- |
 | "{""user"":{""address"":{""city"":""London""}}}" | London |
 
+Quoted bracket notation is equivalent to dot-notation for simple keys, and is required for keys that contain dots or special characters:
+
+```esql
+ROW json = "{\\"user\\":{\\"address\\":{\\"city\\":\\"London\\"}}}"
+| EVAL city = JSON_EXTRACT(json, "['user']['address']['city']")
+```
+
+| json:keyword | city:keyword |
+| --- | --- |
+| "{""user"":{""address"":{""city"":""London""}}}" | London |
+
 This example extracts the second item from an array of objects using bracket notation:
 
 ```esql

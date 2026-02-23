@@ -152,6 +152,12 @@ public class JsonExtract extends EsqlScalarFunction {
             ),
             @Example(
                 file = "json_extract",
+                tag = "json_extract_bracket",
+                description = "Quoted bracket notation is equivalent to dot-notation for simple keys, "
+                    + "and is required for keys that contain dots or special characters:"
+            ),
+            @Example(
+                file = "json_extract",
                 tag = "json_extract_array",
                 description = "This example extracts the second item from an array of objects using bracket notation:"
             ),

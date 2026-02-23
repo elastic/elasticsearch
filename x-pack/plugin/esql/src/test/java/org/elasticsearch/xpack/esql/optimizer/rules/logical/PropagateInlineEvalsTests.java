@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
 import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.junit.BeforeClass;
 
 import java.util.List;
@@ -164,6 +166,159 @@ public class PropagateInlineEvalsTests extends ESTestCase {
         assertThat(leftEval2.fields(), hasSize(1));
         assertThat(leftEval2.fields().get(0).toAttribute(), is(ref3)); // first_name_l is in the second eval (the one the user added)
         assertThat(leftEval2.fields().get(0).name(), is("first_name_l"));
+    }
+
+    public void testInlineStatsAggOnConstantDoesNotRequireStubReplacement() {
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        var plan = plan("""
+            from test
+            | inline stats x = min(123)
+            | keep x
+            """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
+
+        InlineJoin inlineJoin = inlineJoin(plan);
+        assertThat(inlineJoin.config().leftFields().isEmpty(), is(true));
+        assertThat(inlineJoin.right().anyMatch(p -> p instanceof StubRelation), is(false));
+        assertThat(inlineJoin.right().anyMatch(p -> p instanceof LocalRelation), is(true));
+    }
+
+    public void testInlineStatsExpressionOfConstantAggsDoesNotRequireStubReplacement() {
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        var plan = plan("""
+            from test
+            | inline stats x = min(123) + max(123)
+            | keep x
+            """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
+
+        InlineJoin inlineJoin = inlineJoin(plan);
+        assertThat(inlineJoin.config().leftFields().isEmpty(), is(true));
+        assertThat(inlineJoin.right().anyMatch(p -> p instanceof StubRelation), is(false));
+        assertThat(inlineJoin.right().anyMatch(p -> p instanceof LocalRelation), is(true));
+    }
+
+    public void testGroupingByConstantMoved_To_LeftSideOfJoin() {
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        var plan = plan("""
+            from test
+            | keep emp_no, languages, gender
+            | inline stats max_lang = MAX(languages) BY c = 1
+            """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var inline = as(limit.child(), InlineJoin.class);
+        var leftEval = as(inline.left(), Eval.class);
+        assertThat(leftEval.fields().stream().map(a -> a.name()).toList(), contains("c"));
+
+        Aggregate rightAgg = rightAggregate(inline);
+        var stubRelation = as(rightAgg.child(), StubRelation.class);
+        assertThat(Expressions.names(stubRelation.expressions()), contains("emp_no", "languages", "gender", "c"));
+    }
+
+    public void testGroupingByConstantAndFieldMoved_To_LeftSideOfJoin() {
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        var plan = plan("""
+            from test
+            | keep emp_no, languages, gender
+            | inline stats max_lang = MAX(languages) BY c = 1, y = gender
+            """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var inline = as(limit.child(), InlineJoin.class);
+        var leftEval = as(inline.left(), Eval.class);
+        assertThat(leftEval.fields().stream().map(a -> a.name()).toList(), contains("c", "y"));
+
+        Aggregate rightAgg = rightAggregate(inline);
+        var stubRelation = as(rightAgg.child(), StubRelation.class);
+        assertThat(Expressions.names(stubRelation.expressions()), contains("emp_no", "languages", "gender", "c", "y"));
+    }
+
+    public void testInlineStatsWithConstantAggsAndGroupingAliasingMoved_To_LeftSideOfJoin() {
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        var plan = plan("""
+            from test
+            | keep emp_no, languages, gender
+            | inline stats a = min(123), b = max(456), max_lang = MAX(languages) BY y = gender
+            """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var inline = as(limit.child(), InlineJoin.class);
+        var leftEval = as(inline.left(), Eval.class);
+        assertThat(leftEval.fields().stream().map(a -> a.name()).toList(), contains("y"));
+
+        Aggregate rightAgg = rightAggregate(inline);
+        var stubRelation = as(rightAgg.child(), StubRelation.class);
+        assertThat(Expressions.names(stubRelation.expressions()), contains("emp_no", "languages", "gender", "y"));
+    }
+
+    public void testGroupingOnEvalDefinedFieldDoesNotRequirePropagation() {
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        var plan = plan("""
+            from test
+            | keep emp_no, languages, gender
+            | eval g2 = gender
+            | inline stats max_lang = MAX(languages) BY g2
+            """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var inline = as(limit.child(), InlineJoin.class);
+        var leftEval = as(inline.left(), Eval.class);
+        assertThat(leftEval.fields().stream().map(a -> a.name()).toList(), contains("g2"));
+
+        Aggregate rightAgg = rightAggregate(inline);
+        var stubRelation = as(rightAgg.child(), StubRelation.class);
+        assertThat(Expressions.names(stubRelation.expressions()), contains("emp_no", "languages", "gender", "g2"));
+    }
+
+    public void testConstantDefinedOutsideInlineStatsDoesNotTriggerStubReplacement() {
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        var plan = plan("""
+            from test
+            | keep emp_no, languages, gender
+            | eval c = 123
+            | inline stats x = min(c)
+            | keep x
+            """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
+
+        InlineJoin inlineJoin = inlineJoin(plan);
+        assertThat(inlineJoin.config().leftFields().isEmpty(), is(true));
+        assertThat(inlineJoin.right().anyMatch(p -> p instanceof StubRelation), is(true));
+    }
+
+    public void testGroupingAliasingMoved_WhenLeftHasEvalAndAggUsesRenamedField() {
+        assumeTrue("Requires INLINE STATS", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        var plan = plan("""
+            from test
+            | keep emp_no, languages, gender
+            | eval langs = languages
+            | inline stats max_lang = MAX(langs) BY y = gender
+            """, new AbstractLogicalPlanOptimizerTests.TestSubstitutionOnlyOptimizer());
+
+        var limit = as(plan, Limit.class);
+        var inline = as(limit.child(), InlineJoin.class);
+        var leftEval1 = as(inline.left(), Eval.class);
+        assertThat(leftEval1.fields().stream().map(a -> a.name()).toList(), contains("y"));
+        var leftEval2 = as(leftEval1.child(), Eval.class);
+        assertThat(leftEval2.fields().stream().map(a -> a.name()).toList(), contains("langs"));
+
+        Aggregate rightAgg = rightAggregate(inline);
+        var stubRelation = as(rightAgg.child(), StubRelation.class);
+        assertThat(Expressions.names(stubRelation.expressions()), contains("emp_no", "languages", "gender", "langs", "y"));
+    }
+
+    private static InlineJoin inlineJoin(LogicalPlan plan) {
+        var ijHolder = new Holder<InlineJoin>();
+        plan.forEachDown(InlineJoin.class, ijHolder::setIfAbsent);
+        InlineJoin inlineJoin = ijHolder.get();
+        assertNotNull(inlineJoin);
+        return inlineJoin;
+    }
+
+    private static Aggregate rightAggregate(InlineJoin inlineJoin) {
+        var aggHolder = new Holder<Aggregate>();
+        inlineJoin.right().forEachDown(Aggregate.class, aggHolder::setIfAbsent);
+        Aggregate agg = aggHolder.get();
+        assertNotNull(agg);
+        return agg;
     }
 
     private LogicalPlan plan(String query, LogicalPlanOptimizer optimizer) {

@@ -66,7 +66,7 @@ PUT my-image-index
     ```
     % TEST[continued]
 
-3. You can also provide a hex-encoded query vector string. Hex query vectors are byte-oriented (one byte per dimension, represented as two hex characters). For example, `[-5, 9, -12]` as signed bytes is `fb09f4`.
+3. {applies_to}`stack: ga 9.0-9.3` You can also provide a hex-encoded query vector string. Hex query vectors are byte-oriented (one byte per dimension, represented as two hex characters). For example, `[-5, 9, -12]` as signed bytes is `fb09f4`.
 
     ```console
     POST my-image-index/_search

@@ -27,9 +27,7 @@ import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineResolver;
-import org.elasticsearch.index.codec.tsdb.pipeline.profiler.AdaptivePipelineResolver;
-import org.elasticsearch.index.codec.tsdb.pipeline.profiler.BlockProfiler;
-import org.elasticsearch.index.codec.tsdb.pipeline.profiler.PipelineSelector;
+import org.elasticsearch.index.codec.tsdb.pipeline.profiler.ES819BaselinePipelineResolver;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -100,7 +98,7 @@ public class PerFieldFormatSupplier {
         this.idBloomFilterDocValuesFormat = new ES94BloomFilterDocValuesFormat(bigArrays, IdFieldMapper.NAME);
         final FieldContextResolver fieldContextResolver = this::resolveFieldContext;
         final PipelineResolver pipelineResolver = mapperService.getIndexSettings().isAdaptiveEncodingProfilerEnabled()
-            ? new AdaptivePipelineResolver(BlockProfiler.INSTANCE, PipelineSelector.INSTANCE)
+            ? ES819BaselinePipelineResolver.INSTANCE
             : StaticPipelineResolver.INSTANCE;
         this.es94TsdbDocValuesFormat = ES94TSDBDocValuesFormat.getInstance(false, fieldContextResolver, pipelineResolver);
         this.es94TsdbDocValuesFormatLargeNumericBlock = ES94TSDBDocValuesFormat.getInstance(true, fieldContextResolver, pipelineResolver);

@@ -239,6 +239,11 @@ public class PlannerUtils {
         LocalPhysicalPlanOptimizer physicalOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
+        if (Assertions.ENABLED) {
+            // The data node plan can be changed significantly due to late materialization on the data node; the exchange sink exec
+            // can end up being inconsistent with the actual plan. Let's check this early.
+            PhysicalVerifier.LOCAL_INSTANCE.verify(plan, plan.output());
+        }
         var isCoordPlan = new Holder<>(Boolean.TRUE);
         Set<PhysicalPlan> lookupJoinExecRightChildren = plan.collect(LookupJoinExec.class::isInstance)
             .stream()
@@ -281,13 +286,6 @@ public class PlannerUtils {
         });
 
         PhysicalPlan resultPlan = isCoordPlan.get() ? plan : localPhysicalPlan;
-        // This check is needed because in test code we sometimes invoke localPlan with a non-ExchangeSinkExec root.
-        if (resultPlan instanceof ExchangeSinkExec sink) {
-            resultPlan = sink.replaceChildAndUpdateOutput(sink.child());
-        }
-        if (Assertions.ENABLED) {
-            PhysicalVerifier.LOCAL_INSTANCE.verify(resultPlan, resultPlan.output());
-        }
         return resultPlan;
     }
 

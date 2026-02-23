@@ -427,8 +427,7 @@ for each individual task, which would be very costly.
 Producers of cluster state update tasks, such as [SnapshotsService], can
 then [define](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1516)
 their own task queues, priority and batch executors ([ClusterStateTaskExecutor]), which the `MasterService` uses to
-group and process related tasks
-together.
+group and process related tasks together.
 
 A [queue processor](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/service/MasterService.java#L1313),
 backed by a single-threaded `java.util.concurrent.ExecutorService`, processes batches one at a time.
@@ -535,8 +534,7 @@ the new state but have not yet applied it.
 
 Once the master has collected enough `PublishResponse`s from master-eligible nodes to satisfy quorum (
 see [Quorum](#quorum) section), it creates an [ApplyCommitRequest]. The master then sends this commit message to all
-nodes
-that responded to the `PublishRequest`.
+nodes that responded to the `PublishRequest`.
 
 When receiving this request, each
 node [marks this last accepted state as committed](https://github.com/elastic/elasticsearch/blob/v9.3.0/server/src/main/java/org/elasticsearch/cluster/coordination/CoordinationState.java#L517)

@@ -93,4 +93,49 @@ public class QueryDslTimestampBoundsExtractorTests extends ESTestCase {
         assertThat(bounds, nullValue());
     }
 
+    public void testIgnoresRangeInShouldClause() {
+        var range = new RangeQueryBuilder("@timestamp").format("strict_date_optional_time")
+            .gte("2025-01-01T00:00:00Z")
+            .lte("2025-01-02T00:00:00Z");
+        var filter = new BoolQueryBuilder().should(range);
+
+        assertThat(QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter), nullValue());
+    }
+
+    public void testIgnoresRangeInMustNotClause() {
+        var range = new RangeQueryBuilder("@timestamp").format("strict_date_optional_time")
+            .gte("2025-01-01T00:00:00Z")
+            .lte("2025-01-02T00:00:00Z");
+        var filter = new BoolQueryBuilder().mustNot(range);
+
+        assertThat(QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter), nullValue());
+    }
+
+    public void testFilterRangeExtractedShouldRangeIgnored() {
+        Instant filterStart = Instant.parse("2025-01-01T00:00:00Z");
+        Instant filterEnd = Instant.parse("2025-01-02T00:00:00Z");
+        var filterRange = new RangeQueryBuilder("@timestamp").format("strict_date_optional_time")
+            .gte(filterStart.toString())
+            .lte(filterEnd.toString());
+        var shouldRange = new RangeQueryBuilder("@timestamp").format("strict_date_optional_time")
+            .gte("2025-06-01T00:00:00Z")
+            .lte("2025-06-30T00:00:00Z");
+        var filter = new BoolQueryBuilder().filter(filterRange).should(shouldRange);
+
+        TimestampBounds bounds = QueryDslTimestampBoundsExtractor.extractTimestampBounds(filter);
+        assertThat(bounds, notNullValue());
+        assertThat(bounds.start(), equalTo(filterStart));
+        assertThat(bounds.end(), equalTo(filterEnd));
+    }
+
+    public void testIgnoresRangeNestedInsideShouldSubtree() {
+        var range = new RangeQueryBuilder("@timestamp").format("strict_date_optional_time")
+            .gte("2025-01-01T00:00:00Z")
+            .lte("2025-01-02T00:00:00Z");
+        var innerBool = new BoolQueryBuilder().should(range);
+        var outerBool = new BoolQueryBuilder().must(innerBool);
+
+        assertThat(QueryDslTimestampBoundsExtractor.extractTimestampBounds(outerBool), nullValue());
+    }
+
 }

@@ -175,34 +175,14 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
      * if an error occurs. Processing only starts after this request is received.
      */
     public void handleBatchExchangeStatusRequest(BatchExchangeStatusRequest request, TransportChannel channel, Task task) {
-        final String exchangeId = request.exchangeId();
-
-        // Verify the exchange ID matches (should always be true since ExchangeService routes correctly)
-        if (exchangeId.equals(serverToClientId) == false) {
-            logger.error(
-                "[LookupJoinServer] Received BatchExchangeStatusRequest for wrong exchangeId={}, expected {}",
-                exchangeId,
-                serverToClientId
-            );
-            try {
-                channel.sendResponse(
-                    new BatchExchangeStatusResponse(
-                        new IllegalStateException(
-                            "Exchange ID mismatch: received [" + exchangeId + "] but expected [" + serverToClientId + "]"
-                        )
-                    )
-                );
-            } catch (Exception e) {
-                logger.debug("[LookupJoinServer] Failed to send failure response (exchange ID mismatch)", e);
-            }
-            return;
-        }
+        assert request.exchangeId().equals(serverToClientId)
+            : "Exchange ID mismatch: received [" + request.exchangeId() + "] but expected [" + serverToClientId + "]";
 
         // Check if server is already closing - if so, reply with failure immediately
         if (closing) {
             logger.error(
                 "[LookupJoinServer] Received BatchExchangeStatusRequest but server is already closing for exchangeId={}",
-                exchangeId
+                serverToClientId
             );
             try {
                 channel.sendResponse(new BatchExchangeStatusResponse(new IllegalStateException("Server is closing")));
@@ -217,7 +197,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
         batchExchangeStatusListener = new ChannelActionListener<>(channel);
         logger.debug(
             "[LookupJoinServer] BatchExchangeStatusRequest received for exchangeId={}, stored listener (processing will start now)",
-            exchangeId
+            serverToClientId
         );
 
         // Start the driver now that client is ready and we have the response channel
@@ -228,7 +208,7 @@ public final class BidirectionalBatchExchangeServer extends BidirectionalBatchEx
             // If starting the driver fails, reply immediately with failure
             logger.error(
                 "[LookupJoinServer] Failed to start driver after BatchExchangeStatusRequest for exchangeId={}: {}",
-                exchangeId,
+                serverToClientId,
                 e.getMessage()
             );
             sendBatchExchangeStatusResponse(e);

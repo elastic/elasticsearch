@@ -290,6 +290,10 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         // process while we are attempting to forcefully stop the native process
         // The graceful stopping will only occur if there is an entry in the map
         deploymentIdToTask.remove(task.getDeploymentId());
+        // Unregister synchronously to maintain the invariant: if deploymentIdToTask has no entry for a deployment,
+        // then taskManager has no task for that deployment. This prevents a subsequent clusterChanged() from
+        // creating a duplicate task while the old one is still registered.
+        taskManager.unregister(task);
         ActionListener<AcknowledgedResponse> notifyDeploymentOfStopped = updateRoutingStateToStoppedListener(
             task.getDeploymentId(),
             reason,
@@ -619,11 +623,11 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
             return;
         }
         task.markAsStopped(reason);
+        taskManager.unregister(task);
+        deploymentIdToTask.remove(task.getDeploymentId());
 
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
             try {
-                taskManager.unregister(task);
-                deploymentIdToTask.remove(task.getDeploymentId());
                 stopDeploymentFunc.accept(task, listener);
             } catch (Exception e) {
                 listener.onFailure(e);
@@ -720,7 +724,13 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
         if (deploymentIdToTask.putIfAbsent(taskParams.getDeploymentId(), task) == null) {
             loadingModels.offer(task);
         } else {
-            // If there is already a task for the deployment, unregister the new task
+            logger.warn(
+                () -> format(
+                    "[%s] attempted to load model [%s] but a task already exists for this deployment; unregistering duplicate",
+                    taskParams.getDeploymentId(),
+                    taskParams.getModelId()
+                )
+            );
             taskManager.unregister(task);
         }
     }

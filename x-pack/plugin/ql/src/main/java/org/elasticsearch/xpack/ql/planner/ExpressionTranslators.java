@@ -369,7 +369,8 @@ public final class ExpressionTranslators {
                 return handler.wrapFunctionQuery(r, r.value(), () -> translate(r, handler));
             }
             // Fall back to script query for non-foldable bounds (e.g., DATE_ADD with field reference)
-            return new ScriptQuery(r.source(), r.asScript());
+            Query q = new ScriptQuery(r.source(), r.asScript());
+            return wrapIfNested(q, r.value());
         }
 
         private static RangeQuery translate(Range r, TranslatorHandler handler) {

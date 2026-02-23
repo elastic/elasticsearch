@@ -11,14 +11,12 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.FloatBlock;
-import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.operator.blocksource.LongDenseVectorFloatTupleBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.junit.Before;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.LongStream;
 
@@ -111,43 +109,4 @@ public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggre
         }
     }
 
-    /**
-     * Extracts all vectors for a given group from the input pages.
-     */
-    private List<float[]> allVectors(List<Page> input, Long group) {
-        List<float[]> result = new ArrayList<>();
-        for (Page page : input) {
-            LongBlock groups = page.getBlock(0);
-            FloatBlock values = page.getBlock(1);
-
-            for (int p = 0; p < page.getPositionCount(); p++) {
-                if (group == null) {
-                    // Looking for positions with null group keys
-                    if (groups.isNull(p) == false) {
-                        continue;
-                    }
-                } else {
-                    if (groups.isNull(p)) {
-                        continue;
-                    }
-                    long g = groups.getLong(groups.getFirstValueIndex(p));
-                    if (g != group) {
-                        continue;
-                    }
-                }
-                if (values.isNull(p)) {
-                    continue;
-                }
-
-                int valueCount = values.getValueCount(p);
-                float[] vector = new float[valueCount];
-                int start = values.getFirstValueIndex(p);
-                for (int i = 0; i < valueCount; i++) {
-                    vector[i] = values.getFloat(start + i);
-                }
-                result.add(vector);
-            }
-        }
-        return result;
-    }
 }

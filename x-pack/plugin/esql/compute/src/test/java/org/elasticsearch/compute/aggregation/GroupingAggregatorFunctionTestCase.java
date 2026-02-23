@@ -669,6 +669,26 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         return allValueOffsets(page, group).mapToLong(i -> b.getLong(i));
     }
 
+    protected static List<float[]> allVectors(List<Page> input, Long group) {
+        List<float[]> result = new ArrayList<>();
+        for (Page page : input) {
+            FloatBlock values = page.getBlock(1);
+            matchingGroups(page, group).forEach(p -> {
+                if (values.isNull(p)) {
+                    return;
+                }
+                int valueCount = values.getValueCount(p);
+                float[] vector = new float[valueCount];
+                int start = values.getFirstValueIndex(p);
+                for (int i = 0; i < valueCount; i++) {
+                    vector[i] = values.getFloat(start + i);
+                }
+                result.add(vector);
+            });
+        }
+        return result;
+    }
+
     /**
      * Forcibly chunk groups on the way into the aggregator to make sure it can handle chunked
      * groups. This is needed because our chunking logic for groups doesn't bother chunking

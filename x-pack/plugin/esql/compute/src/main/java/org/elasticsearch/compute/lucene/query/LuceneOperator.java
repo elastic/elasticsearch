@@ -283,7 +283,7 @@ public abstract class LuceneOperator extends SourceOperator {
     protected abstract void describe(StringBuilder sb);
 
     @Override
-    public Operator.Status status() {
+    public LuceneOperator.Status status() {
         return new Status(this);
     }
 

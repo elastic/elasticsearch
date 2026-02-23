@@ -150,6 +150,7 @@ public class MinCompetitiveQuery implements Releasable {
                 perMinValue = newPerMinValue(value);
                 changedValue++;
             }
+            Releasables.close(value);
             return perMinValue;
         }
 

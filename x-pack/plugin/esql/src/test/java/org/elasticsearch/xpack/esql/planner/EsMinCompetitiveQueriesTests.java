@@ -118,7 +118,7 @@ public class EsMinCompetitiveQueriesTests extends ESTestCase {
             }
             return 0;
         }
-        int expected = (int) (asc ? NON_NULL_DOCS - v - 1 : v);
+        int expected = (int) (asc ? v : NON_NULL_DOCS - v - 1);
         if (nullsFirst) {
             expected += NULL_DOCS;
         }
@@ -129,7 +129,7 @@ public class EsMinCompetitiveQueriesTests extends ESTestCase {
     }
 
     private Query minCompetitiveQuery(Page minCompetitive) throws IOException {
-        EsMinCompetitiveQueries queries = new EsMinCompetitiveQueries(setup(), ctx());
+        EsMinCompetitiveQueries queries = new EsMinCompetitiveQueries(setup(), ctx(searcher));
         return queries.buildMinCompetitiveQuery(minCompetitive);
     }
 
@@ -150,7 +150,7 @@ public class EsMinCompetitiveQueriesTests extends ESTestCase {
         return new EsQueryExec.MinCompetitiveSetup(supplier, fieldExists ? "f" : "missingfield");
     }
 
-    private SearchExecutionContext ctx() throws IOException {
+    static SearchExecutionContext ctx(IndexSearcher searcher) throws IOException {
         XContentBuilder mapping = mapping();
         class Helper extends MapperServiceTestCase {
             public SearchExecutionContext ctx() throws IOException {
@@ -160,7 +160,7 @@ public class EsMinCompetitiveQueriesTests extends ESTestCase {
         return new Helper().ctx();
     }
 
-    private XContentBuilder mapping() throws IOException {
+    static XContentBuilder mapping() throws IOException {
         return MapperServiceTestCase.mapping(builder -> builder.startObject("f").field("type", "long").endObject());
     }
 

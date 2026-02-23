@@ -111,9 +111,9 @@ public class EsMinCompetitiveQueries {
          */
         boolean includeMinCompetitive = setup.minCompetitive().keyConfigs().size() > 1;
         if (setup.minCompetitive().keyConfigs().getFirst().asc()) {
-            return ft.rangeQuery(minCompetitive, null, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx);
+            return ft.rangeQuery(null, minCompetitive, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx);
         }
-        return ft.rangeQuery(null, minCompetitive, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx);
+        return ft.rangeQuery(minCompetitive, null, includeMinCompetitive, includeMinCompetitive, null, null, null, ctx);
     }
 
     private Query exists() {

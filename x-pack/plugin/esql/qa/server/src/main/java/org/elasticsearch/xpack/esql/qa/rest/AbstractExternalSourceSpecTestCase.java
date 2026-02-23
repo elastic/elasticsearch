@@ -275,8 +275,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
-        // skip nothing
-        // super skips tests for the "regular" CsvTest/EsqlSpecIT suites
+        checkCapabilities(adminClient(), testFeatureService, testName, testCase);
     }
 
     /**
@@ -365,7 +364,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 // Local path: file:///absolute/path/to/iceberg-fixtures/standalone/employees.parquet
                 if (localFixturesPath != null) {
                     Path localFile = localFixturesPath.resolve(relativePath);
-                    return "file://" + localFile.toAbsolutePath().toString();
+                    return localFile.toUri().toString();
                 } else {
                     // Fallback to S3 if local path not available
                     logger.warn("Local fixtures path not available, falling back to S3");

@@ -62,6 +62,7 @@ import java.util.stream.Collectors;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings.PROJECT_TYPE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -229,8 +230,8 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
             assertThat(
                 e.getMessage(),
                 containsString(
-                    "see https://www.elastic.co/docs/deploy-manage/production-guidance/"
-                        + "optimize-performance/index-count-limit?version=master"
+                    "see https://www.elastic.co/docs/deploy-manage/deploy/"
+                        + "elastic-cloud/differences-from-other-elasticsearch-offerings.md?version=master#index-and-resource-limits"
                 )
             );
         }
@@ -258,6 +259,12 @@ public class CreateIndexLimitIT extends AbstractStatelessPluginIntegTestCase {
         startMasterAndIndexNode(Settings.builder().put(PROJECT_TYPE.getKey(), projectType).build());
         startSearchNode(Settings.builder().put(PROJECT_TYPE.getKey(), projectType).build());
         ensureStableCluster(2);
+
+        var clusterService = internalCluster().getInstance(ClusterService.class);
+        assertThat(
+            clusterService.getClusterSettings().get(MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_SETTING),
+            equalTo(15000)
+        );
 
         final String indexName = randomIndexName();
         int userIndicesLimit = randomIntBetween(3, 5);

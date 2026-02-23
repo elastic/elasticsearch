@@ -121,7 +121,7 @@ public class FireworksAiChatCompletionServiceSettings extends FilteredXContentOb
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return FireworksAiService.INFERENCE_API_FIREWORKS_AI_SERVICE_ADDED;
+        return FireworksAiService.INFERENCE_API_FIREWORKS_AI_CHAT_COMPLETION_ADDED;
     }
 
     @Override

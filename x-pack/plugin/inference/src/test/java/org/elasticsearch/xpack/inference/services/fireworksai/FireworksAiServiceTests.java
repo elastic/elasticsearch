@@ -20,7 +20,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -74,7 +73,11 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
 
     public static TestConfiguration createTestConfiguration() {
         return new TestConfiguration.Builder(
-            new CommonConfig(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION)) {
+            new CommonConfig(
+                TaskType.TEXT_EMBEDDING,
+                TaskType.RERANK,
+                EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)
+            ) {
                 @Override
                 protected SenderService createService(ThreadPool threadPool, HttpClientManager clientManager) {
                     return FireworksAiServiceTests.createService(threadPool, clientManager);
@@ -98,7 +101,7 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
                             ),
                             EmptyTaskSettings.INSTANCE
                         );
-                        case CHAT_COMPLETION -> new ModelConfigurations(
+                        case COMPLETION, CHAT_COMPLETION -> new ModelConfigurations(
                             "some_inference_id",
                             taskType,
                             FireworksAiService.NAME,
@@ -108,13 +111,12 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
                             ),
                             new FireworksAiChatCompletionTaskSettings((String) null, null)
                         );
-                        // COMPLETION is not supported, but in order to test unsupported task types it is included here
-                        case COMPLETION -> new ModelConfigurations(
+                        case RERANK -> new ModelConfigurations(
                             "some_inference_id",
                             taskType,
                             FireworksAiService.NAME,
                             mock(ServiceSettings.class),
-                            mock(TaskSettings.class)
+                            EmptyTaskSettings.INSTANCE
                         );
                         default -> throw new IllegalStateException("Unexpected value: " + taskType);
                     };
@@ -147,7 +149,7 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
 
                 @Override
                 protected EnumSet<TaskType> supportedStreamingTasks() {
-                    return EnumSet.of(TaskType.CHAT_COMPLETION);
+                    return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
                 }
             }
         ).enableUpdateModelTests(new UpdateModelConfiguration() {
@@ -156,11 +158,6 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
                 return createInternalEmbeddingModel(similarityMeasure, null);
             }
         }).build();
-    }
-
-    @Override
-    public void testParseRequestConfig_CreatesACompletionModel() {
-        // FireworksAI does not support the completion task type
     }
 
     @Override
@@ -306,7 +303,7 @@ public class FireworksAiServiceTests extends AbstractInferenceServiceTests {
     private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
         if (taskType == TaskType.TEXT_EMBEDDING) {
             assertEmbeddingsModel(model, modelIncludesSecrets);
-        } else if (taskType == TaskType.CHAT_COMPLETION) {
+        } else if (taskType == TaskType.COMPLETION || taskType == TaskType.CHAT_COMPLETION) {
             assertChatCompletionModel(model, modelIncludesSecrets);
         }
     }

@@ -46,7 +46,7 @@ public class FireworksAiChatCompletionTaskSettings extends OpenAiTaskSettings<Fi
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return FireworksAiService.INFERENCE_API_FIREWORKS_AI_SERVICE_ADDED;
+        return FireworksAiService.INFERENCE_API_FIREWORKS_AI_CHAT_COMPLETION_ADDED;
     }
 
     @Override

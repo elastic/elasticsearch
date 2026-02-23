@@ -13,14 +13,13 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.unified.UnifiedChatCompletionRequestEntity;
+import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.fireworksai.completion.FireworksAiChatCompletionModel;
 
 import java.io.IOException;
 import java.util.Objects;
 
 class FireworksAiUnifiedChatCompletionRequestEntity implements ToXContentObject {
-
-    private static final String USER_FIELD = "user";
 
     private final UnifiedChatCompletionRequestEntity unifiedRequestEntity;
     private final FireworksAiChatCompletionModel model;
@@ -39,7 +38,7 @@ class FireworksAiUnifiedChatCompletionRequestEntity implements ToXContentObject 
         );
 
         if (Strings.isNullOrEmpty(model.getTaskSettings().user()) == false) {
-            builder.field(USER_FIELD, model.getTaskSettings().user());
+            builder.field(ServiceFields.USER, model.getTaskSettings().user());
         }
 
         builder.endObject();

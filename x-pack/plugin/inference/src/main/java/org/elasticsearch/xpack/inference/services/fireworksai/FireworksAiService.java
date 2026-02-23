@@ -81,13 +81,25 @@ public class FireworksAiService extends SenderService {
         "inference_api_fireworks_ai_service_added"
     );
 
-    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.CHAT_COMPLETION);
+    public static final TransportVersion INFERENCE_API_FIREWORKS_AI_CHAT_COMPLETION_ADDED = TransportVersion.fromName(
+        "inference_api_fireworks_ai_chat_completion_added"
+    );
+
+    private static final EnumSet<TaskType> SUPPORTED_TASK_TYPES = EnumSet.of(
+        TaskType.TEXT_EMBEDDING,
+        TaskType.COMPLETION,
+        TaskType.CHAT_COMPLETION
+    );
+
+    private static final FireworksAiChatCompletionModelCreator CHAT_COMPLETION_MODEL_CREATOR = new FireworksAiChatCompletionModelCreator();
 
     private static final Map<TaskType, ModelCreator<? extends FireworksAiModel>> MODEL_CREATORS = Map.of(
         TaskType.TEXT_EMBEDDING,
         new FireworksAiEmbeddingsModelCreator(),
+        TaskType.COMPLETION,
+        CHAT_COMPLETION_MODEL_CREATOR,
         TaskType.CHAT_COMPLETION,
-        new FireworksAiChatCompletionModelCreator()
+        CHAT_COMPLETION_MODEL_CREATOR
     );
 
     static final ResponseHandler UNIFIED_CHAT_COMPLETION_HANDLER = new OpenAiUnifiedChatCompletionResponseHandler(
@@ -123,7 +135,7 @@ public class FireworksAiService extends SenderService {
 
     @Override
     public Set<TaskType> supportedStreamingTasks() {
-        return EnumSet.of(TaskType.CHAT_COMPLETION);
+        return EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION);
     }
 
     @Override

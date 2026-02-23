@@ -152,6 +152,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    */
   void exitTimeSeriesCommand(EsqlBaseParser.TimeSeriesCommandContext ctx);
   /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#externalCommand}.
+   * @param ctx the parse tree
+   */
+  void enterExternalCommand(EsqlBaseParser.ExternalCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#externalCommand}.
+   * @param ctx the parse tree
+   */
+  void exitExternalCommand(EsqlBaseParser.ExternalCommandContext ctx);
+  /**
    * Enter a parse tree produced by {@link EsqlBaseParser#indexPatternAndMetadataFields}.
    * @param ctx the parse tree
    */
@@ -755,6 +765,16 @@ public interface EsqlBaseParserListener extends ParseTreeListener {
    * @param ctx the parse tree
    */
   void exitFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx);
+  /**
+   * Enter a parse tree produced by {@link EsqlBaseParser#metricsInfoCommand}.
+   * @param ctx the parse tree
+   */
+  void enterMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx);
+  /**
+   * Exit a parse tree produced by {@link EsqlBaseParser#metricsInfoCommand}.
+   * @param ctx the parse tree
+   */
+  void exitMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx);
   /**
    * Enter a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree

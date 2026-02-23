@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.TestBlock;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BooleansBlockLoader;
@@ -28,34 +29,40 @@ public class MvMaxBooleansFromDocValuesBlockLoaderTests extends AbstractBooleans
     }
 
     @Override
-    protected void innerTest(LeafReaderContext ctx, int mvCount) throws IOException {
+    protected void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException {
         var booleansLoader = new BooleansBlockLoader("field");
         var mvMaxBooleansLoader = new MvMaxBooleansBlockLoader("field");
-
-        var booleansReader = booleansLoader.reader(ctx);
-        var mvMaxBooleansReader = mvMaxBooleansLoader.reader(ctx);
-        assertThat(mvMaxBooleansReader, readerMatcher());
         BlockLoader.Docs docs = TestBlock.docs(ctx);
-        try (
-            TestBlock doubles = read(booleansLoader, booleansReader, ctx, docs);
-            TestBlock maxDoubles = read(mvMaxBooleansLoader, mvMaxBooleansReader, ctx, docs);
-        ) {
-            checkBlocks(doubles, maxDoubles);
-        }
 
-        booleansReader = booleansLoader.reader(ctx);
-        mvMaxBooleansReader = mvMaxBooleansLoader.reader(ctx);
-        for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
-            int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
-            for (int d = 0; d < docsArray.length; d++) {
-                docsArray[d] = i + d;
-            }
-            docs = TestBlock.docs(docsArray);
+        try (
+            var booleansReader = booleansLoader.reader(breaker, ctx);
+            var mvMaxBooleansReader = mvMaxBooleansLoader.reader(breaker, ctx);
+        ) {
+            assertThat(mvMaxBooleansReader, readerMatcher());
             try (
                 TestBlock booleans = read(booleansLoader, booleansReader, ctx, docs);
                 TestBlock maxBooleans = read(mvMaxBooleansLoader, mvMaxBooleansReader, ctx, docs);
             ) {
                 checkBlocks(booleans, maxBooleans);
+            }
+        }
+
+        try (
+            var booleansReader = booleansLoader.reader(breaker, ctx);
+            var mvMaxBooleansReader = mvMaxBooleansLoader.reader(breaker, ctx);
+        ) {
+            for (int i = 0; i < ctx.reader().numDocs(); i += 10) {
+                int[] docsArray = new int[Math.min(10, ctx.reader().numDocs() - i)];
+                for (int d = 0; d < docsArray.length; d++) {
+                    docsArray[d] = i + d;
+                }
+                docs = TestBlock.docs(docsArray);
+                try (
+                    TestBlock booleans = read(booleansLoader, booleansReader, ctx, docs);
+                    TestBlock maxBooleans = read(mvMaxBooleansLoader, mvMaxBooleansReader, ctx, docs);
+                ) {
+                    checkBlocks(booleans, maxBooleans);
+                }
             }
         }
     }

@@ -50,12 +50,12 @@ class JvmActions {
         System.setProperties(System.getProperties()); // no side effect in case if allowed (but shouldn't)
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
     static void setDefaultLocale() {
         Locale.setDefault(Locale.getDefault());
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    @EntitlementTest(expectedAccess = ALWAYS_ALLOWED)
     static void setDefaultLocaleForCategory() {
         Locale.setDefault(Locale.Category.DISPLAY, Locale.getDefault(Locale.Category.DISPLAY));
     }

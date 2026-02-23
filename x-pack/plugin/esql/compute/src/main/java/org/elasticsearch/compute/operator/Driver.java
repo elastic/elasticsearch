@@ -360,7 +360,7 @@ public class Driver implements Releasable, Describable {
                     if (op instanceof SourceOperator sourceOperator) {
                         long now = nowSupplier.getAsLong();
                         // report one last time before closing
-                        sourceOperator.reportSearchLoad(now - lastStatusUpdate, now)
+                        sourceOperator.reportSearchLoad(now - lastStatusUpdate, now);
                     }
                     op.close();
                     finishedOperators.remove();

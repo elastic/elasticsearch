@@ -64,6 +64,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
@@ -150,6 +151,7 @@ public class ApproximationSupportTests extends ESTestCase {
         Explain.class,
         ShowInfo.class,
         LocalRelation.class,
+        MetricsInfo.class,
         ExternalRelation.class,
 
         // The plans are superclasses of other plans.

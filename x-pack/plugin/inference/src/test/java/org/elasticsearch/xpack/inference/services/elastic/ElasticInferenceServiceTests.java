@@ -86,6 +86,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
+import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.InferenceString.DataFormat.BASE64;
 import static org.elasticsearch.inference.InferenceString.DataType.IMAGE;
@@ -1076,6 +1077,85 @@ public class ElasticInferenceServiceTests extends ESTestCase {
 
             // Check that the product use case header was set correctly
             assertThat(httpRequest.getHeader(InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER), is(productUseCase));
+        }
+    }
+
+    public void testUnifiedCompletionInfer_SupportsMultimodalInputs() throws IOException {
+        var elasticInferenceServiceURL = getUrl(webServer);
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (
+            var service = createService(senderFactory, elasticInferenceServiceURL);
+            var ignored = threadPool.getThreadContext().stashContext()
+        ) {
+            // Mock a successful streaming response
+            String responseJson = """
+                data: {"id":"1","object":"completion","created":1677858242,"model":"my-model-id",
+                "choices":[{"finish_reason":null,"index":0,"delta":{"role":"assistant","content":"Hello"}}]}
+
+                data: {"id":"2","object":"completion","created":1677858242,"model":"my-model-id",
+                "choices":[{"finish_reason":"stop","index":0,"delta":{"content":" world!"}}]}
+
+                data: [DONE]
+
+                """;
+
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            // Create completion model
+            var model = new ElasticInferenceServiceCompletionModel(
+                INFERENCE_ENTITY_ID,
+                TaskType.CHAT_COMPLETION,
+                new ElasticInferenceServiceCompletionServiceSettings("my-model-id"),
+                ElasticInferenceServiceComponents.of(elasticInferenceServiceURL)
+            );
+
+            var request = UnifiedCompletionRequest.of(
+                List.of(
+                    new UnifiedCompletionRequest.Message(
+                        new UnifiedCompletionRequest.ContentObjects(
+                            List.of(
+                                new UnifiedCompletionRequest.ContentObjectImage(
+                                    new UnifiedCompletionRequest.ContentObjectImageUrl("image data", null)
+                                )
+                            )
+                        ),
+                        "user",
+                        null,
+                        null
+                    )
+                )
+            );
+
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+
+            service.unifiedCompletionInfer(model, request, InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+
+            // We don't need to check the actual response as we're only testing header propagation
+            listener.actionGet(TEST_REQUEST_TIMEOUT);
+
+            // Verify the request was sent
+            assertThat(webServer.requests(), hasSize(1));
+            var requestBody = webServer.requests().getFirst().getBody();
+
+            // Check that the image content was included in the request
+            String expectedJson = stripWhitespace("""
+                {
+                    "messages":[
+                        {
+                            "content":[
+                                {"image_url":{"url":"image data"},"type":"image_url"}
+                            ],
+                            "role":"user"
+                        }
+                    ],
+                    "model":"my-model-id",
+                    "n":1,
+                    "stream":true,
+                    "stream_options":{"include_usage":true}
+                }
+                """);
+            assertThat(requestBody, is(expectedJson));
         }
     }
 

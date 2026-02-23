@@ -141,6 +141,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         );
         AbstractLookupService.LookupShardContextFactory lookupLookupShardContextFactory = AbstractLookupService.LookupShardContextFactory
             .fromSearchService(searchService);
+        PlannerSettings.Holder plannerSettings = new PlannerSettings.Holder(clusterService);
         this.enrichLookupService = new EnrichLookupService(
             clusterService,
             searchService.getIndicesService(),
@@ -149,7 +150,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             indexNameExpressionResolver,
             bigArrays,
             blockFactoryProvider.blockFactory(),
-            projectResolver
+            projectResolver,
+            plannerSettings
         );
         this.lookupFromIndexService = new LookupFromIndexService(
             clusterService,
@@ -159,7 +161,8 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             indexNameExpressionResolver,
             bigArrays,
             blockFactoryProvider.blockFactory(),
-            projectResolver
+            projectResolver,
+            plannerSettings
         );
 
         this.asyncTaskManagementService = new AsyncTaskManagementService<>(

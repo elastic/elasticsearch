@@ -36,10 +36,6 @@ import static org.hamcrest.Matchers.notNullValue;
  *   <li>Generated evaluator classes can be instantiated</li>
  *   <li>The Abs3 function definition is correct</li>
  * </ul>
- * <p>
- * Note: This is a unit test, not an integration test. Full end-to-end testing
- * with ES|QL queries would require setting up an ES cluster with the test plugin,
- * which is beyond the scope of this Phase 2 PoC.
  */
 public class RuntimeFunctionTests extends ESTestCase {
 
@@ -143,7 +139,7 @@ public class RuntimeFunctionTests extends ESTestCase {
         assertThat(functions.size(), equalTo(1));
 
         var functionDef = functions.iterator().next();
-        assertThat(functionDef.name(), equalTo("abs2"));
+        assertThat(functionDef.name(), equalTo("abs3"));
     }
 
     /**

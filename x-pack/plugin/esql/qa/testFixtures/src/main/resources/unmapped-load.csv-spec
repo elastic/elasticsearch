@@ -95,6 +95,25 @@ FROM partial_mapping_sample_data
 2024-10-23T13:52:55.015Z | 173.21.3.15  | 8268152             | Connection error?      | 1                     | English
 ;
 
+
+// https://github.com/elastic/elasticsearch/issues/141978
+lookupJoinWithMissingAttributeInKeep
+required_capability: optional_fields_nullify_tech_preview
+required_capability: join_lookup_v12
+
+SET unmapped_fields="load"\;
+FROM languages
+| LOOKUP JOIN languages_lookup ON language_code 
+| KEEP language_code, language_name, foobar
+;
+
+language_code:integer | language_name:keyword | foobar:keyword
+1                     | English               | null
+2                     | French                | null
+3                     | Spanish               | null
+4                     | German                | null
+;
+
 ######################
 # Single index tests #
 ######################

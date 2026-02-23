@@ -469,6 +469,24 @@ x:integer      |does_not_exist:null |language_code:integer |language_name:keywor
 1              |null                |null                  |null
 ;
 
+// https://github.com/elastic/elasticsearch/issues/141978
+lookupJoinWithMissingAttributeInKeep
+required_capability: optional_fields_nullify_tech_preview
+required_capability: join_lookup_v12
+
+SET unmapped_fields="nullify"\;
+FROM languages
+| LOOKUP JOIN languages_lookup ON language_code 
+| KEEP language_code, language_name, foobar
+;
+
+language_code:integer | language_name:keyword | foobar:null
+1                     | English               | null
+2                     | French                | null
+3                     | Spanish               | null
+4                     | German                | null
+;
+
 enrich
 required_capability: optional_fields_nullify_tech_preview
 required_capability: enrich_load

@@ -205,12 +205,16 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     }
 
     /**
-     * Inserts an Eval atop each child of the given {@code nAry}, if the child is a LeafPlan.
+     * Inserts an Eval atop each child of the given {@code nAry}, if the child is a LeafPlan. Skips LOOKUP EsRelations.
      */
     private static LogicalPlan evalUnresolvedAtopNary(LogicalPlan nAry, List<Alias> nullAliases) {
         List<LogicalPlan> newChildren = new ArrayList<>(nAry.children().size());
         boolean changed = false;
         for (var child : nAry.children()) {
+            if (child instanceof EsRelation esr && esr.indexMode() == IndexMode.LOOKUP) {
+                newChildren.add(child);
+                continue;
+            }
             if (child instanceof LeafPlan source) {
                 assertSourceType(source);
                 child = new Eval(source.source(), source, nullAliases);

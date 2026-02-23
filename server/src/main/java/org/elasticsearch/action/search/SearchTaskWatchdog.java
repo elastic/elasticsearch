@@ -94,16 +94,17 @@ public class SearchTaskWatchdog extends AbstractLifecycleComponent {
         this.taskManager = taskManager;
         this.threadPool = threadPool;
 
-        clusterSettings.initializeAndWatch(ENABLED, this::setEnabled);
+        clusterSettings.initializeAndWatch(INTERVAL, v -> this.interval = v);
         clusterSettings.initializeAndWatch(COORDINATOR_THRESHOLD, v -> setCoordinatorThreshold(v.nanos()));
         clusterSettings.initializeAndWatch(DATA_NODE_THRESHOLD, v -> setDataNodeThreshold(v.nanos()));
-        clusterSettings.initializeAndWatch(INTERVAL, v -> this.interval = v);
         clusterSettings.initializeAndWatch(COOLDOWN_PERIOD, v -> this.cooldownPeriodNanos = v.nanos());
+        clusterSettings.initializeAndWatch(ENABLED, this::setEnabled);
     }
 
     private void setEnabled(boolean enabled) {
         this.enabled = enabled;
-        if (enabled && lifecycle.started()) {
+        if (enabled) {
+            logger.info("enabling SearchTaskWatchdog");
             scheduleNext();
         }
     }

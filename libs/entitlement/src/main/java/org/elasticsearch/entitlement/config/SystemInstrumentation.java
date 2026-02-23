@@ -22,6 +22,7 @@ import org.elasticsearch.entitlement.rules.Policies;
 import org.elasticsearch.entitlement.rules.TypeToken;
 import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationRegistry;
 
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.PrintStream;
 import java.io.PrintWriter;
@@ -45,8 +46,8 @@ public class SystemInstrumentation implements InstrumentationConfig {
         builder.on(Runtime.class, rule -> {
             rule.callingVoid(Runtime::exit, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();
             rule.callingVoid(Runtime::halt, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();
-            rule.callingVoid(Runtime::addShutdownHook, Thread.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
-            rule.callingVoid(Runtime::removeShutdownHook, Thread.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+            rule.callingVoid(Runtime::addShutdownHook, Thread.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();
+            rule.callingVoid(Runtime::removeShutdownHook, Thread.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();
             rule.callingVoid(Runtime::load, String.class)
                 .enforce((_, path) -> Policies.fileRead(Path.of(path)).and(Policies.loadingNativeLibraries()))
                 .elseThrowNotEntitled();
@@ -55,12 +56,12 @@ public class SystemInstrumentation implements InstrumentationConfig {
 
         builder.on(System.class, rule -> {
             rule.callingVoidStatic(System::exit, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();
-            rule.callingVoidStatic(System::setProperty, String.class, String.class).enforce(Policies::writeProperty).elseThrowNotEntitled();
-            rule.callingVoidStatic(System::setProperties, Properties.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
-            rule.callingVoidStatic(System::clearProperty, String.class).enforce(Policies::writeProperty).elseThrowNotEntitled();
-            rule.callingVoidStatic(System::setIn, InputStream.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
-            rule.callingVoidStatic(System::setOut, PrintStream.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
-            rule.callingVoidStatic(System::setErr, PrintStream.class).enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled();
+            rule.callingVoidStatic(System::setProperty, String.class, String.class).enforce(Policies::writeProperty).elseReturnEarly();
+            rule.callingVoidStatic(System::setProperties, Properties.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();
+            rule.callingVoidStatic(System::clearProperty, String.class).enforce(Policies::writeProperty).elseReturnEarly();
+            rule.callingVoidStatic(System::setIn, InputStream.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();
+            rule.callingVoidStatic(System::setOut, PrintStream.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();
+            rule.callingVoidStatic(System::setErr, PrintStream.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();
             rule.callingVoidStatic(System::load, String.class)
                 .enforce(path -> Policies.fileRead(Path.of(path)).and(Policies.loadingNativeLibraries()))
                 .elseThrowNotEntitled();
@@ -68,10 +69,10 @@ public class SystemInstrumentation implements InstrumentationConfig {
         });
 
         builder.on(ProcessBuilder.class, rule -> {
-            rule.calling(ProcessBuilder::start).enforce(Policies::startProcess).elseThrowNotEntitled();
+            rule.calling(ProcessBuilder::start).enforce(Policies::startProcess).elseThrow(e -> new IOException(e));
             rule.callingStatic(ProcessBuilder::startPipeline, new TypeToken<List<ProcessBuilder>>() {})
                 .enforce(Policies::startProcess)
-                .elseThrowNotEntitled();
+                .elseThrow(e -> new IOException(e));
         });
 
         builder.on(Jlink.class, rule -> { rule.protectedCtor().enforce(Policies::changeJvmGlobalState).elseThrowNotEntitled(); });

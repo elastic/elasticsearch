@@ -137,6 +137,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
     }
 
     public void testJoinClusterWithReadOnlyCompatibleIndices() {
+        final ProjectId projectId = randomProjectIdOrDefault();
         var randomBlock = randomFrom(IndexMetadata.SETTING_BLOCKS_WRITE, IndexMetadata.SETTING_READ_ONLY);
         {
             var indexMetadata = IndexMetadata.builder("searchable-snapshot")
@@ -154,7 +155,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                 IndexVersion.current(),
-                Metadata.builder().put(indexMetadata, false).build()
+                Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
             );
         }
         {
@@ -174,7 +175,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                     IndexVersion.current(),
-                    Metadata.builder().put(indexMetadata, false).build()
+                    Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
                 )
             );
         }
@@ -194,7 +195,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                 IndexVersion.current(),
-                Metadata.builder().put(indexMetadata, false).build()
+                Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
             );
         }
         {
@@ -214,7 +215,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                     IndexVersion.current(),
-                    Metadata.builder().put(indexMetadata, false).build()
+                    Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
                 )
             );
         }
@@ -231,7 +232,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                     IndexVersion.current(),
-                    Metadata.builder().put(indexMetadata, false).build()
+                    Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
                 )
             );
         }
@@ -256,7 +257,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                 IndexVersions.MINIMUM_COMPATIBLE,
                 IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                 IndexVersion.current(),
-                Metadata.builder().put(indexMetadata, false).build()
+                Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
             );
         }
         {
@@ -275,7 +276,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                     IndexVersion.current(),
-                    Metadata.builder().put(indexMetadata, false).build()
+                    Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
                 )
             );
         }
@@ -300,7 +301,7 @@ public class NodeJoinExecutorTests extends ESTestCase {
                     IndexVersions.MINIMUM_COMPATIBLE,
                     IndexVersions.MINIMUM_READONLY_COMPATIBLE,
                     IndexVersion.current(),
-                    Metadata.builder().put(indexMetadata, false).build()
+                    Metadata.builder().put(ProjectMetadata.builder(projectId).put(indexMetadata, false)).build()
                 )
             );
         }

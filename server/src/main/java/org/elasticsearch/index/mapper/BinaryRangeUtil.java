@@ -24,7 +24,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Set;
 
-enum BinaryRangeUtil {
+public enum BinaryRangeUtil {
 
     ;
 
@@ -70,7 +70,7 @@ enum BinaryRangeUtil {
         return out.bytes().toBytesRef();
     }
 
-    static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) throws IOException {
+    public static List<RangeFieldMapper.Range> decodeLongRanges(BytesRef encodedRanges) throws IOException {
         return decodeRanges(encodedRanges, RangeType.LONG, BinaryRangeUtil::decodeLong);
     }
 

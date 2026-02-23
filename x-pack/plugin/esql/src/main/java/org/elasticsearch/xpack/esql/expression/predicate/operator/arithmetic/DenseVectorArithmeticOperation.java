@@ -139,9 +139,7 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
             return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
         }
         if (false == operand.foldable()) {
-            return new TypeResolution(
-                LoggerMessageFormat.format(null, ERROR_MSG, operand.sourceText())
-            );
+            return new TypeResolution(LoggerMessageFormat.format(null, ERROR_MSG, operand.sourceText()));
         }
         return TypeResolution.TYPE_RESOLVED;
     }

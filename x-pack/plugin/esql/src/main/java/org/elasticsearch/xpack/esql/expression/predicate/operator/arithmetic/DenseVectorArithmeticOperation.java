@@ -106,24 +106,10 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
                 return TypeResolution.TYPE_RESOLVED;
             }
             if (leftType != DENSE_VECTOR) {
-                if (false == isSupportedScalar(leftType)) {
-                    return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
-                }
-                if (false == left().foldable()) {
-                    return new TypeResolution(
-                        LoggerMessageFormat.format(null, "[{}] should evaluate to a dense_vector or scalar constant", left().sourceText())
-                    );
-                }
+                return validateScalarOperand(left(), leftType, leftType, rightType);
             }
             if (rightType != DENSE_VECTOR) {
-                if (false == isSupportedScalar(rightType)) {
-                    return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
-                }
-                if (false == right().foldable()) {
-                    return new TypeResolution(
-                        LoggerMessageFormat.format(null, "[{}] should evaluate to a dense_vector or scalar constant", right().sourceText())
-                    );
-                }
+                return validateScalarOperand(right(), rightType, leftType, rightType);
             }
             return TypeResolution.TYPE_RESOLVED;
         }
@@ -146,6 +132,18 @@ public abstract class DenseVectorArithmeticOperation extends EsqlArithmeticOpera
             }
         }
         return super.toEvaluator(toEvaluator);
+    }
+
+    private TypeResolution validateScalarOperand(Expression operand, DataType operandType, DataType leftType, DataType rightType) {
+        if (false == isSupportedScalar(operandType)) {
+            return new TypeResolution(formatIncompatibleTypesMessage(symbol(), leftType, rightType));
+        }
+        if (false == operand.foldable()) {
+            return new TypeResolution(
+                LoggerMessageFormat.format(null, ERROR_MSG, operand.sourceText())
+            );
+        }
+        return TypeResolution.TYPE_RESOLVED;
     }
 
     private static boolean isSupportedScalar(DataType dataType) {

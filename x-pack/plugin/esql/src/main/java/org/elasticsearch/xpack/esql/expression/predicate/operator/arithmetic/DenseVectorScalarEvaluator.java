@@ -21,7 +21,7 @@ import java.util.function.BiFunction;
 
 /**
  * {@link EvalOperator.ExpressionEvaluator} implementation for performing arithmetic operations when
- * lhs is a dense_vector and rhs a scalar.
+ * lhs is a dense_vector and rhs a scalar or vice versa.
  *
  */
 class DenseVectorScalarEvaluator implements EvalOperator.ExpressionEvaluator {

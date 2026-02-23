@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.reindex;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,6 +34,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
@@ -59,6 +61,7 @@ public class BulkByScrollTask extends CancellableTask {
     private volatile LeaderBulkByScrollTaskState leaderState;
     private volatile WorkerBulkByScrollTaskState workerState;
     private volatile boolean relocationRequested = false;
+    private final SetOnce<ResumeInfo.RelocationOrigin> relocationOrigin = new SetOnce<>();
 
     public BulkByScrollTask(
         long id,
@@ -220,6 +223,16 @@ public class BulkByScrollTask extends CancellableTask {
      */
     public boolean isRelocationRequested() {
         return relocationRequested;
+    }
+
+    /** Sets the identity of the original task that this task is a relocation of. */
+    public void setRelocationOrigin(ResumeInfo.RelocationOrigin origin) {
+        this.relocationOrigin.set(Objects.requireNonNull(origin));
+    }
+
+    /** Returns the relocation origin if this task is a relocated continuation. */
+    public Optional<ResumeInfo.RelocationOrigin> getRelocationOrigin() {
+        return Optional.ofNullable(relocationOrigin.get());
     }
 
     /**

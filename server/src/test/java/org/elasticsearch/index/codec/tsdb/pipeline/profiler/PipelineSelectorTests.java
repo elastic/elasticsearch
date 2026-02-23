@@ -44,7 +44,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Rle.class))));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
 
@@ -249,7 +249,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertEquals(first, second);
     }
 
-    public void testLowRunRatioSelectsRle() {
+    public void testLowRunRatioDoesNotSelectRle() {
         final long[] values = new long[512];
         for (int i = 0; i < 512; i++) {
             values[i] = i / 256;
@@ -258,7 +258,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertTrue(profile.range() > 0);
 
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.LONG, null, null);
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Rle.class))));
     }
 
     public void testAllLongPathsUseDoubleDelta() {
@@ -308,7 +308,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.PatchedPFor.class)));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Rle.class))));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
 
@@ -320,7 +320,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Rle.class))));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.BitPack.class)));
     }
 
@@ -339,7 +339,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
     }
 
-    public void testRleDoublePreservesDataType() {
+    public void testLowRunRatioDoubleDoesNotSelectRle() {
         final long[] values = new long[512];
         for (int i = 0; i < 512; i++) {
             values[i] = i / 256;
@@ -347,7 +347,7 @@ public class PipelineSelectorTests extends ESTestCase {
         final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.DOUBLE, null, null);
 
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
-        assertThat(config.specs(), hasItem(instanceOf(StageSpec.Rle.class)));
+        assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.Rle.class))));
     }
 
     public void testDoubleGaugeCounterDistinction() {

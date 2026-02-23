@@ -68,17 +68,6 @@ public final class StageIsolationResolver implements PipelineResolver {
         );
     }
 
-    // NOTE: adds RLE on top of double delta + PFor: delta > delta > offset > gcd > pfor > rle > bitPack
-    // This is the full adaptive long pipeline — total regression should match the original benchmark.
-    public static StageIsolationResolver withDoubleDeltaPForAndRle() {
-        return new StageIsolationResolver(
-            "double-delta-pfor-rle",
-            bs -> PipelineConfig.forLongs(bs).delta().delta().offset().gcd().patchedPFor().rle().bitPack(),
-            bs -> PipelineConfig.forDoubles(bs).delta().delta().offset().gcd().patchedPFor().rle().bitPack(),
-            bs -> PipelineConfig.forFloats(bs).delta().delta().offset().gcd().patchedPFor().rle().bitPack()
-        );
-    }
-
     @Override
     public PipelineConfig resolve(final FieldContext context, long[] sample, int sampleSize, IOContext ioContext) {
         if (sampleSize == 0) {

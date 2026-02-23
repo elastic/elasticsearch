@@ -20,25 +20,7 @@ public final class PipelineSelector {
     private static final double QUANTIZE_4_DECIMALS = 1e-4;
     private static final double QUANTIZE_6_DECIMALS = 1e-6;
 
-    // NOTE: must match OffsetCodecStage.DEFAULT_MIN_OFFSET_RATIO_PERCENT so estimatePostOffsetBpv
-    // agrees with whether the offset stage will actually fire. If these diverge, the RLE cost
-    // model may over- or under-estimate post-offset bit-width.
-    private static final int DEFAULT_MIN_OFFSET_RATIO_PERCENT = 25;
-
     public static final PipelineSelector INSTANCE = new PipelineSelector();
-
-    private final int minOffsetRatioPercent;
-
-    public PipelineSelector() {
-        this(DEFAULT_MIN_OFFSET_RATIO_PERCENT);
-    }
-
-    public PipelineSelector(int minOffsetRatioPercent) {
-        if (minOffsetRatioPercent < 1 || minOffsetRatioPercent > 99) {
-            throw new IllegalArgumentException("minOffsetRatioPercent must be in [1, 99]: " + minOffsetRatioPercent);
-        }
-        this.minOffsetRatioPercent = minOffsetRatioPercent;
-    }
 
     public PipelineConfig select(
         final BlockProfile profile,
@@ -63,17 +45,17 @@ public final class PipelineSelector {
         // data, and the second fires only if the resulting deltas are themselves
         // monotonic (e.g. accelerating sequences). For constant-rate timestamps,
         // the second delta skips and offset handles the constant residuals.
-        return PipelineConfig.forLongs(blockSize).delta().delta().offset().gcd().patchedPFor().rle().bitPack();
+        return PipelineConfig.forLongs(blockSize).delta().delta().offset().gcd().patchedPFor().bitPack();
     }
 
-    private PipelineConfig selectDouble(
+    private static PipelineConfig selectDouble(
         final BlockProfile profile,
         int blockSize,
         @Nullable OptimizeFor hint,
         @Nullable MetricType metricType
     ) {
-        if (profile.range() == 0 || isRleProfitable(profile)) {
-            return PipelineConfig.forDoubles(blockSize).offset().gcd().rle().bitPack();
+        if (profile.range() == 0) {
+            return PipelineConfig.forDoubles(blockSize).offset().gcd().bitPack();
         }
         if (metricType == MetricType.COUNTER || profile.xorMaxBits() < profile.rawMaxBits()) {
             return selectXorDouble(blockSize, hint);
@@ -107,14 +89,14 @@ public final class PipelineSelector {
         return PipelineConfig.forDoubles(blockSize).fpcStage().offset().gcd().bitPack();
     }
 
-    private PipelineConfig selectFloat(
+    private static PipelineConfig selectFloat(
         final BlockProfile profile,
         int blockSize,
         @Nullable OptimizeFor hint,
         @Nullable MetricType metricType
     ) {
-        if (profile.range() == 0 || isRleProfitable(profile)) {
-            return PipelineConfig.forFloats(blockSize).offset().gcd().rle().bitPack();
+        if (profile.range() == 0) {
+            return PipelineConfig.forFloats(blockSize).offset().gcd().bitPack();
         }
         if (metricType == MetricType.COUNTER || profile.xorMaxBits() < profile.rawMaxBits()) {
             return selectXorFloat(blockSize, hint);
@@ -146,53 +128,5 @@ public final class PipelineSelector {
             return PipelineConfig.forFloats(blockSize).chimpFloatStage().offset().gcd().bitPack();
         }
         return PipelineConfig.forFloats(blockSize).fpcStage().offset().gcd().bitPack();
-    }
-
-    // NOTE: estimates whether RLE saves more bytes than its metadata costs, accounting for
-    // both block size and bit-width. The offset stage runs before RLE but may skip when min
-    // is zero, too small relative to max, or on overflow — so we estimate post-offset bits
-    // conservatively. RLE metadata is: runCount VInt + valueCount VInt + one VInt per run
-    // length (~1 byte each for typical run lengths < 128).
-    private boolean isRleProfitable(final BlockProfile profile) {
-        final int runCount = profile.runCount();
-        final int valueCount = profile.valueCount();
-        final int estimatedBpv = estimatePostOffsetBpv(profile);
-        final int estimatedSavings = (valueCount - runCount) * estimatedBpv / 8;
-        final int estimatedCost = 2 + runCount;
-        return estimatedSavings > estimatedCost;
-    }
-
-    // NOTE: estimates bits per value after the offset stage. Offset subtracts min from all
-    // values, reducing max to range = max - min. But it skips when: min == 0 (no shift needed),
-    // min is small relative to max (below minOffsetRatioPercent), or max - min overflows.
-    // When offset skips, values retain their original bit-width.
-    private int estimatePostOffsetBpv(final BlockProfile profile) {
-        final long range = profile.range();
-        final long min = profile.min();
-        final long max = profile.max();
-        if (range < 0) {
-            // NOTE: overflow (max - min wraps), offset will skip
-            return profile.rawMaxBits();
-        }
-        if (min == 0) {
-            // NOTE: offset skips when min is zero — no shift to apply
-            return profile.rawMaxBits();
-        }
-        if (min > 0 && min < computeOffsetThreshold(max)) {
-            // NOTE: offset skips when min is too small relative to max
-            return profile.rawMaxBits();
-        }
-        return range > 0 ? (64 - Long.numberOfLeadingZeros(range)) : 0;
-    }
-
-    // NOTE: mirrors OffsetCodecStage.computeThreshold — must stay in sync.
-    private long computeOffsetThreshold(long max) {
-        if (minOffsetRatioPercent == DEFAULT_MIN_OFFSET_RATIO_PERCENT) {
-            return max >>> 2;
-        }
-        if (max > Long.MAX_VALUE / minOffsetRatioPercent) {
-            return (max / 100) * minOffsetRatioPercent;
-        }
-        return (max * minOffsetRatioPercent) / 100;
     }
 }

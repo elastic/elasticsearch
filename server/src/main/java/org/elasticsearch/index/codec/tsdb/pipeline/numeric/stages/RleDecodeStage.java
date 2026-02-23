@@ -15,6 +15,11 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformDecoder;
 
 import java.io.IOException;
 
+// NOTE: RLE transform is broken — it reduces valueCount but the downstream BitPack stage
+// always packs blockSize values (zero-filling the tail), so the payload size never decreases.
+// RLE metadata is pure overhead. Kept for backward compatibility: existing segments encoded
+// with RLE must still be decodable.
+@Deprecated
 public final class RleDecodeStage implements TransformDecoder {
 
     @Override

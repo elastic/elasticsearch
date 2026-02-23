@@ -19,6 +19,12 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.PayloadEncoder;
 
 import java.io.IOException;
 
+// NOTE: RLE payload codec is broken — it writes run-length encoded values as the terminal
+// payload stage, but the run-length overhead (8 bytes per unique value + VInt per run) is
+// only worthwhile for blocks with very few unique values. In practice, the standard BitPack
+// payload almost always produces smaller output. Kept for backward compatibility with existing
+// encoded segments.
+@Deprecated
 public final class RlePayloadCodecStage implements PayloadEncoder, PayloadDecoder {
 
     public static final RlePayloadCodecStage INSTANCE = new RlePayloadCodecStage();

@@ -16,6 +16,12 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.TransformEncoder;
 
 import java.io.IOException;
 
+// NOTE: RLE transform is broken — it reduces valueCount but the downstream BitPack stage
+// always packs blockSize values (zero-filling the tail), so the payload size never decreases.
+// RLE metadata (runCount + valueCount + run lengths) is pure overhead. Additionally, the skip
+// threshold (0.90 run ratio) is far too generous, causing RLE to fire on blocks with minimal
+// repetition. Kept for backward compatibility with existing encoded segments.
+@Deprecated
 public final class RleEncodeStage implements TransformEncoder {
 
     private static final double DEFAULT_MAX_RUN_RATIO_THRESHOLD = 0.90;

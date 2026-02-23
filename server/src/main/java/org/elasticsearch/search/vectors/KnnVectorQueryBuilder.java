@@ -440,7 +440,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         }
         if (queryVectorBuilder != null) {
             SetOnce<float[]> toSet = new SetOnce<>();
-            QueryVectorBuilderAsyncAction.registerAction(ctx, queryVectorBuilder, toSet);
+            ctx.registerUniqueAsyncAction(new QueryVectorBuilderAsyncAction(queryVectorBuilder), toSet::set);
             return new KnnVectorQueryBuilder(
                 fieldName,
                 queryVector,

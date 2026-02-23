@@ -9,11 +9,9 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryRewriteAsyncAction;
-import org.elasticsearch.index.query.QueryRewriteContext;
 
 import java.util.Objects;
 
@@ -29,7 +27,18 @@ public final class QueryVectorBuilderAsyncAction extends QueryRewriteAsyncAction
 
     @Override
     protected void execute(Client client, ActionListener<float[]> listener) {
-        queryVectorBuilder.buildVector(client, listener);
+        queryVectorBuilder.buildVector(client, listener.delegateFailureAndWrap((l, v) -> {
+            if (v == null) {
+                throw new IllegalArgumentException(
+                    format(
+                        "[%s] with name [%s] returned null query_vector",
+                        QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
+                        queryVectorBuilder.getWriteableName()
+                    )
+                );
+            }
+            l.onResponse(v);
+        }));
     }
 
     @Override
@@ -40,24 +49,5 @@ public final class QueryVectorBuilderAsyncAction extends QueryRewriteAsyncAction
     @Override
     public boolean doEquals(QueryVectorBuilderAsyncAction other) {
         return Objects.equals(queryVectorBuilder, other.queryVectorBuilder);
-    }
-
-    public static void registerAction(
-        QueryRewriteContext queryRewriteContext,
-        QueryVectorBuilder queryVectorBuilder,
-        SetOnce<float[]> supplier
-    ) {
-        queryRewriteContext.registerUniqueAsyncAction(new QueryVectorBuilderAsyncAction(queryVectorBuilder), v -> {
-            supplier.set(v);
-            if (v == null) {
-                throw new IllegalArgumentException(
-                    format(
-                        "[%s] with name [%s] returned null query_vector",
-                        QUERY_VECTOR_BUILDER_FIELD.getPreferredName(),
-                        queryVectorBuilder.getWriteableName()
-                    )
-                );
-            }
-        });
     }
 }

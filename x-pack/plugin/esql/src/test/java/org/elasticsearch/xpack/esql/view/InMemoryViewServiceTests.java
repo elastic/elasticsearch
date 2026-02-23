@@ -159,6 +159,24 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(replaceViews(plan), matchesPlan(query("FROM emp1")));
     }
 
+    public void testCCSRemoteWildcardNotResolvedAsView() {
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM *:view1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM *:view1")));
+    }
+
+    public void testCCSExpressionNotResolvedAsView() {
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM remote:view1, view1");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM remote:view1,emp1")));
+    }
+
+    public void testCCSWildcardNotResolvedAsView() {
+        addView("view1", "FROM emp1");
+        LogicalPlan plan = query("FROM remote:view*");
+        assertThat(replaceViews(plan), matchesPlan(query("FROM remote:view*")));
+    }
+
     public void testReplaceViewPlans() {
         addView("view1", "FROM emp | WHERE emp.age > 30");
         addView("view2", "FROM view1 | WHERE emp.age < 40");

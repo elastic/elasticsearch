@@ -1189,18 +1189,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<FieldAttribute, FieldAttribute> insistedMap = new HashMap<>();
             var transformed = plan.transformExpressionsOnly(FieldAttribute.class, fa -> {
                 var esField = fa.field();
-                var isPotentiallyUnmapped = esField instanceof PotentiallyUnmappedKeywordEsField || esField instanceof InvalidMappedField;
-                if (isPotentiallyUnmapped == false) {
-                    var existing = insistedMap.get(fa);
-                    if (existing != null) { // field shows up multiple times in the node; return first processing
-                        return existing;
-                    }
-                    // Field is partially unmapped.
-                    if (indexResolutions.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                        FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indexResolutions);
-                        insistedMap.put(fa, newFA);
-                        return newFA;
-                    }
+                if (esField instanceof PotentiallyUnmappedKeywordEsField
+                    || (esField instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped())) {
+                    return fa;
+                }
+                var existing = insistedMap.get(fa);
+                if (existing != null) { // field shows up multiple times in the node; return first processing
+                    return existing;
+                }
+                if (indexResolutions.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
+                    FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indexResolutions);
+                    insistedMap.put(fa, newFA);
+                    return newFA;
                 }
                 return fa;
             });

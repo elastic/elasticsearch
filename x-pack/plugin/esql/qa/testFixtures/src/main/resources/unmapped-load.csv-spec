@@ -864,13 +864,13 @@ logs                   | 2023-10-23T13:55:01.546Z | More java stuff
 logs                   | 2023-10-23T13:55:01.545Z | Doing java stuff for 192.168.86.038
 logs                   | 2023-10-23T13:55:01.544Z | Running cats (cycle 1)
 logs                   | 2023-10-23T13:55:01.543Z | Pinging 192.168.86.046
-no_mapping_sample_data | 2024-10-23T13:55:01.543Z | null
-no_mapping_sample_data | 2024-10-23T13:53:55.832Z | null
-no_mapping_sample_data | 2024-10-23T13:52:55.015Z | null
-no_mapping_sample_data | 2024-10-23T13:51:54.732Z | null
-no_mapping_sample_data | 2024-10-23T13:33:34.937Z | null
-no_mapping_sample_data | 2024-10-23T12:27:28.948Z | null
-no_mapping_sample_data | 2024-10-23T12:15:03.360Z | null
+no_mapping_sample_data | 2024-10-23T13:55:01.543Z | Connected to 10.1.0.1!
+no_mapping_sample_data | 2024-10-23T13:53:55.832Z | Connection error?
+no_mapping_sample_data | 2024-10-23T13:52:55.015Z | Connection error?
+no_mapping_sample_data | 2024-10-23T13:51:54.732Z | Connection error?
+no_mapping_sample_data | 2024-10-23T13:33:34.937Z | 42
+no_mapping_sample_data | 2024-10-23T12:27:28.948Z | Connected to 10.1.0.2!
+no_mapping_sample_data | 2024-10-23T12:15:03.360Z | Connected to 10.1.0.3!
 sample_data            | 2023-10-23T13:55:01.543Z | Connected to 10.1.0.1
 sample_data            | 2023-10-23T13:53:55.832Z | Connection error
 sample_data            | 2023-10-23T13:52:55.015Z | Connection error

@@ -24,6 +24,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.OPEN;
 import static org.elasticsearch.common.blobstore.RetryingInputStream.StreamAction.READ;
@@ -43,6 +44,14 @@ import static org.elasticsearch.core.Strings.format;
  * @param <V> The type used to represent the version of a blob
  */
 public abstract class RetryingInputStream<V> extends InputStream {
+
+    private static final Set<String> REQUIRED_METRIC_ATTRIBUTES = Set.of(
+        "es_repo_type",
+        "es_repo_name",
+        "es_operation",
+        "es_purpose",
+        "es_action"
+    );
 
     private static final Logger logger = LogManager.getLogger(RetryingInputStream.class);
 
@@ -150,6 +159,8 @@ public abstract class RetryingInputStream<V> extends InputStream {
 
     private void onRetrySucceeded(StreamAction action, long numberOfRetries) {
         final var metricsAttributes = blobStoreServices.getMetricsAttributes(action);
+        assert metricsAttributes.keySet().containsAll(REQUIRED_METRIC_ATTRIBUTES)
+            : "Missing required attributes expected " + REQUIRED_METRIC_ATTRIBUTES + ", got " + metricsAttributes.keySet();
         repositoriesMetrics.inputStreamRetryCompletedCounter().incrementBy(1, metricsAttributes);
         repositoriesMetrics.inputStreamRetryHistogram().record(numberOfRetries, metricsAttributes);
         blobStoreServices.onRetrySucceeded(action, numberOfRetries);

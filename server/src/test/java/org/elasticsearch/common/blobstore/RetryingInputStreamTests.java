@@ -47,8 +47,9 @@ public class RetryingInputStreamTests extends ESTestCase {
         final var failureCounter = new AtomicInteger(retryableFailures);
         final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(5, 200)).getBytes());
         final var eTag = randomUUID();
+        final var purpose = randomRetryingPurpose();
 
-        final var services = new BlobStoreServicesAdapter(retryableFailures * 2) {
+        final var services = new BlobStoreServicesAdapter(purpose, retryableFailures * 2) {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
@@ -56,7 +57,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             }
         };
 
-        byte[] results = copyToBytes(new ShortDelayRetryingInputStream(services, randomRetryingPurpose()));
+        byte[] results = copyToBytes(new ShortDelayRetryingInputStream(services, purpose));
         assertEquals(resourceBytes.length(), results.length);
         assertThat(new BytesArray(results), equalBytes(resourceBytes));
         assertEquals(retryableFailures + 1, services.getAttempts());
@@ -67,8 +68,9 @@ public class RetryingInputStreamTests extends ESTestCase {
         final var maxRetries = randomIntBetween(1, 5);
         final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(10, 100)).getBytes());
         final var eTag = randomUUID();
+        final var purpose = randomFiniteRetryingPurpose();
 
-        final var services = new BlobStoreServicesAdapter(maxRetries) {
+        final var services = new BlobStoreServicesAdapter(purpose, maxRetries) {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
@@ -76,10 +78,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             }
         };
 
-        final var ioException = assertThrows(
-            IOException.class,
-            () -> copyToBytes(new ShortDelayRetryingInputStream(services, randomFiniteRetryingPurpose()))
-        );
+        final var ioException = assertThrows(IOException.class, () -> copyToBytes(new ShortDelayRetryingInputStream(services, purpose)));
         assertEquals("This is retry-able", ioException.getMessage());
         assertEquals(maxRetries + 1, services.getAttempts());
         assertEquals(Stream.generate(() -> READ).limit(maxRetries + 1).toList(), services.getRetryStarted());
@@ -89,8 +88,9 @@ public class RetryingInputStreamTests extends ESTestCase {
         final var maxRetries = randomIntBetween(2, 5);
         final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(5, 200)).getBytes());
         final var eTag = randomUUID();
+        final var purpose = OperationPurpose.REPOSITORY_ANALYSIS;
 
-        final var services = new BlobStoreServicesAdapter(maxRetries) {
+        final var services = new BlobStoreServicesAdapter(purpose, maxRetries) {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
@@ -98,10 +98,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             }
         };
 
-        final var ioException = assertThrows(
-            IOException.class,
-            () -> copyToBytes(new ShortDelayRetryingInputStream(services, OperationPurpose.REPOSITORY_ANALYSIS))
-        );
+        final var ioException = assertThrows(IOException.class, () -> copyToBytes(new ShortDelayRetryingInputStream(services, purpose)));
         assertEquals("This is retry-able", ioException.getMessage());
         assertEquals(1, services.getAttempts());
         assertEquals(List.of(READ), services.getRetryStarted());
@@ -112,8 +109,9 @@ public class RetryingInputStreamTests extends ESTestCase {
         final int numberOfFailures = randomIntBetween(1, 10);
         final AtomicInteger failureCounter = new AtomicInteger(numberOfFailures);
         final var eTag = randomUUID();
+        final var indices = OperationPurpose.INDICES;
 
-        final var services = new BlobStoreServicesAdapter(0) {
+        final var services = new BlobStoreServicesAdapter(indices, 0) {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
@@ -121,7 +119,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             }
         };
 
-        byte[] result = copyToBytes(new ShortDelayRetryingInputStream(services, OperationPurpose.INDICES));
+        byte[] result = copyToBytes(new ShortDelayRetryingInputStream(services, indices));
         assertThat(new BytesArray(result), equalBytes(resourceBytes));
         assertEquals(numberOfFailures + 1, services.getAttempts());
         assertEquals(Stream.generate(() -> READ).limit(numberOfFailures).toList(), services.getRetryStarted());
@@ -134,8 +132,9 @@ public class RetryingInputStreamTests extends ESTestCase {
         final var meaningfulProgressAttempts = randomIntBetween(1, 3);
         final var meaningfulProgressAttemptsCounter = new AtomicInteger(meaningfulProgressAttempts);
         final var eTag = randomUUID();
+        final var purpose = randomFiniteRetryingPurpose();
 
-        final var services = new BlobStoreServicesAdapter(maxRetries) {
+        final var services = new BlobStoreServicesAdapter(purpose, maxRetries) {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
@@ -151,10 +150,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             }
         };
 
-        final var ioException = assertThrows(
-            IOException.class,
-            () -> copyToBytes(new ShortDelayRetryingInputStream(services, randomFiniteRetryingPurpose()))
-        );
+        final var ioException = assertThrows(IOException.class, () -> copyToBytes(new ShortDelayRetryingInputStream(services, purpose)));
         assertEquals("This is retry-able", ioException.getMessage());
         assertEquals(maxRetries + meaningfulProgressAttempts, services.getAttempts());
         assertEquals(Stream.generate(() -> READ).limit(maxRetries + meaningfulProgressAttempts).toList(), services.getRetryStarted());
@@ -168,8 +164,9 @@ public class RetryingInputStreamTests extends ESTestCase {
         );
         final var retryableFailures = randomIntBetween(1, 5);
         final var failureCounter = new AtomicInteger(retryableFailures);
+        final var purpose = randomRetryingPurpose();
 
-        final var services = new BlobStoreServicesAdapter(retryableFailures * 2) {
+        final var services = new BlobStoreServicesAdapter(purpose, retryableFailures * 2) {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
@@ -181,7 +178,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         };
         final IOException ioException = assertThrows(
             IOException.class,
-            () -> copyToBytes(new ShortDelayRetryingInputStream(services, randomRetryingPurpose()))
+            () -> copyToBytes(new ShortDelayRetryingInputStream(services, purpose))
         );
         assertSame(notRetriableException, ioException);
         assertEquals(retryableFailures + 1, services.getAttempts());
@@ -194,8 +191,9 @@ public class RetryingInputStreamTests extends ESTestCase {
         final int numberOfFailures = randomIntBetween(1, 10);
         final AtomicInteger failureCounter = new AtomicInteger(numberOfFailures);
         final var eTag = randomUUID();
+        final var purpose = randomRetryingPurpose();
 
-        final var services = new BlobStoreServicesAdapter(numberOfFailures) {
+        final var services = new BlobStoreServicesAdapter(purpose, numberOfFailures) {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
@@ -208,7 +206,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             }
         };
 
-        copyToBytes(new ShortDelayRetryingInputStream(services, randomRetryingPurpose()));
+        copyToBytes(new ShortDelayRetryingInputStream(services, purpose));
     }
 
     public void testSkipWillRetry() throws IOException {
@@ -216,8 +214,9 @@ public class RetryingInputStreamTests extends ESTestCase {
         final int numberOfFailures = randomIntBetween(1, 10);
         final AtomicInteger failureCounter = new AtomicInteger(numberOfFailures);
         final var eTag = randomUUID();
+        final var purpose = randomRetryingPurpose();
 
-        final var services = new BlobStoreServicesAdapter(numberOfFailures) {
+        final var services = new BlobStoreServicesAdapter(purpose, numberOfFailures) {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
@@ -225,7 +224,7 @@ public class RetryingInputStreamTests extends ESTestCase {
             }
         };
 
-        try (var inputStream = new ShortDelayRetryingInputStream(services, randomRetryingPurpose())) {
+        try (var inputStream = new ShortDelayRetryingInputStream(services, purpose)) {
             assertEquals(resourceBytes.length() - 1, inputStream.skip(resourceBytes.length() - 1));
         }
     }
@@ -239,8 +238,9 @@ public class RetryingInputStreamTests extends ESTestCase {
         final var readRetriesRemaining = new AtomicInteger(readRetries);
         final var resourceBytes = randomBytesReference((int) ByteSizeValue.ofKb(randomIntBetween(5, 200)).getBytes());
         final var eTag = randomUUID();
+        final var purpose = randomRetryingPurpose();
 
-        final var services = new BlobStoreServicesAdapter(maxRetries) {
+        final var services = new BlobStoreServicesAdapter(purpose, maxRetries) {
             @Override
             public RetryingInputStream.SingleAttemptInputStream<String> doGetInputStream(@Nullable String version, long start, long end)
                 throws IOException {
@@ -259,7 +259,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         };
 
         final byte[] result = copyToBytes(
-            new ShortDelayRetryingInputStream(new RepositoriesMetrics(recordingMeterRegistry), services, randomRetryingPurpose())
+            new ShortDelayRetryingInputStream(new RepositoriesMetrics(recordingMeterRegistry), services, purpose)
         );
         assertThat(new BytesArray(result), equalBytes(resourceBytes));
         recordingMeterRegistry.getRecorder().collect();
@@ -328,7 +328,7 @@ public class RetryingInputStreamTests extends ESTestCase {
         return meterRegistry.getRecorder()
             .getMeasurements(instrumentType, metricName)
             .stream()
-            .filter(measurement -> Objects.equals(measurement.attributes().get("action"), action.getPastTense()))
+            .filter(measurement -> Objects.equals(measurement.attributes().get("es_action"), action.getPastTense()))
             .findFirst()
             .orElseThrow(() -> new AssertionError("Measurement not found for action " + action));
     }
@@ -374,13 +374,17 @@ public class RetryingInputStreamTests extends ESTestCase {
 
     private abstract static class BlobStoreServicesAdapter implements RetryingInputStream.BlobStoreServices<String> {
 
+        private final OperationPurpose purpose;
+        private final String repositoryName;
         private final AtomicInteger attemptCounter = new AtomicInteger();
         private final List<RetryingInputStream.StreamAction> retryStarted = new ArrayList<>();
         private final List<Success> retrySucceeded = new ArrayList<>();
         private final int maxRetries;
 
-        private BlobStoreServicesAdapter(int maxRetries) {
+        private BlobStoreServicesAdapter(OperationPurpose purpose, int maxRetries) {
+            this.purpose = purpose;
             this.maxRetries = maxRetries;
+            this.repositoryName = randomIdentifier("repo-");
         }
 
         @Override
@@ -431,7 +435,18 @@ public class RetryingInputStreamTests extends ESTestCase {
 
         @Override
         public Map<String, Object> getMetricsAttributes(RetryingInputStream.StreamAction action) {
-            return Map.of("action", action.getPastTense());
+            return Map.of(
+                "es_repo_type",
+                "test_type",
+                "es_repo_name",
+                repositoryName,
+                "es_operation",
+                "GET_BLOB",
+                "es_purpose",
+                purpose.getKey(),
+                "es_action",
+                action.getPastTense()
+            );
         }
 
         record Success(RetryingInputStream.StreamAction action, long numberOfRetries) {};

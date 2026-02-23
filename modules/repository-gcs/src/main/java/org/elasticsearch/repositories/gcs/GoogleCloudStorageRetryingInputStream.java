@@ -149,15 +149,15 @@ class GoogleCloudStorageRetryingInputStream extends RetryingInputStream<Long> {
         @Override
         public Map<String, Object> getMetricsAttributes(StreamAction action) {
             return Map.of(
-                "repo_type",
+                "es_repo_type",
                 GoogleCloudStorageRepository.TYPE,
-                "repo_name",
+                "es_repo_name",
                 blobStore.getRepositoryName(),
-                "operation",
+                "es_operation",
                 StorageOperation.GET.key(),
-                "purpose",
+                "es_purpose",
                 purpose.getKey(),
-                "action",
+                "es_action",
                 action.getPastTense()
             );
         }

@@ -211,6 +211,11 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public MatchOnlyTextFieldMapper build(MapperBuilderContext context) {
             BuilderParams builderParams = builderParams(this, context);
             MatchOnlyTextFieldType tft = buildFieldType(context, builderParams.multiFields());

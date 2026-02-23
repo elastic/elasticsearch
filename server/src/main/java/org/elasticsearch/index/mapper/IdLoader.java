@@ -24,8 +24,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -265,8 +265,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             }
 
             private static long estimatedSize(long ordinalsByteSize) {
-                return AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE + ordinalsByteSize
-                    + AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
+                return TrackingNumericDocValues.ESTIMATED_SIZE + ordinalsByteSize + TrackingNumericDocValues.ESTIMATED_SIZE;
             }
 
         }
@@ -347,7 +346,7 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
             }
 
             private static long estimatedSize(long ordinalsByteSize, int routingPathCount) {
-                return routingPathCount * ordinalsByteSize + ordinalsByteSize + AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
+                return routingPathCount * ordinalsByteSize + ordinalsByteSize + TrackingNumericDocValues.ESTIMATED_SIZE;
             }
         }
     }

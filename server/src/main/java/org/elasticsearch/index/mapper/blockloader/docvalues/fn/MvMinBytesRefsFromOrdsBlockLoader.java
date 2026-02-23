@@ -12,8 +12,9 @@ package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractBytesRefsFromOrdsBlockLoader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 
 import java.io.IOException;
 
@@ -23,19 +24,19 @@ import java.io.IOException;
 public class MvMinBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrdsBlockLoader {
     private final String fieldName;
 
-    public MvMinBytesRefsFromOrdsBlockLoader(String fieldName) {
-        super(fieldName);
+    public MvMinBytesRefsFromOrdsBlockLoader(String fieldName, ByteSizeValue byteSize) {
+        super(fieldName, byteSize);
         this.fieldName = fieldName;
     }
 
     @Override
-    protected AllReader singletonReader(SortedDocValues docValues) {
-        return new Singleton(docValues);
+    protected AllReader singletonReader(CircuitBreaker breaker, SortedDocValues docValues) {
+        return new Singleton(breaker, docValues);
     }
 
     @Override
-    protected AllReader sortedSetReader(SortedSetDocValues docValues) {
-        return new MvMinSortedSet(docValues);
+    protected AllReader sortedSetReader(CircuitBreaker breaker, SortedSetDocValues docValues) {
+        return new MvMinSortedSet(breaker, docValues);
     }
 
     @Override
@@ -43,10 +44,11 @@ public class MvMinBytesRefsFromOrdsBlockLoader extends AbstractBytesRefsFromOrds
         return "MvMinBytesRefsFromOrds[" + fieldName + "]";
     }
 
-    private static class MvMinSortedSet extends BlockDocValuesReader {
+    private class MvMinSortedSet extends BytesRefsBlockDocValuesReader {
         private final SortedSetDocValues ordinals;
 
-        MvMinSortedSet(SortedSetDocValues ordinals) {
+        MvMinSortedSet(CircuitBreaker breaker, SortedSetDocValues ordinals) {
+            super(breaker);
             this.ordinals = ordinals;
         }
 

@@ -12,10 +12,13 @@ package org.elasticsearch.simdvec;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 
+import java.util.Objects;
+
 public interface MemorySegmentAccessInputAccess {
     MemorySegmentAccessInput get();
 
     static IndexInput unwrap(IndexInput input) {
-        return input instanceof MemorySegmentAccessInputAccess msaia ? (IndexInput) msaia.get() : input;
+        MemorySegmentAccessInput memorySeg = input instanceof MemorySegmentAccessInputAccess msaia ? msaia.get() : null;
+        return Objects.requireNonNullElse((IndexInput) memorySeg, input);
     }
 }

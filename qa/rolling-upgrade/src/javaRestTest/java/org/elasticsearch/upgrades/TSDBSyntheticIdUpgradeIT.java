@@ -140,7 +140,7 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
             """, timestamp, randomByte()));
     }
 
-    private static void assertNoWriteIndex(String indexName, IndexVersion oldClusterIndexVersion) {
+    private static void assertNoWriteIndex(String indexName, IndexVersion oldClusterIndexVersion) throws IOException {
         String setting = IndexSettings.SYNTHETIC_ID.getKey();
         String unknownSetting = "unknown setting [" + setting + "]";
         String versionTooLow = String.format(
@@ -152,7 +152,9 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
         );
 
         ResponseException e = assertThrows(ResponseException.class, () -> createSyntheticIdIndex(indexName));
-        assertThat(e.getMessage(), Matchers.either(Matchers.containsString(unknownSetting)).or(Matchers.containsString(versionTooLow)));
+        String reason = ObjectPath.createFromResponse(e.getResponse()).evaluate("error.reason");
+
+        assertThat(reason, Matchers.either(Matchers.containsString(unknownSetting)).or(Matchers.containsString(versionTooLow)));
         assertThat(e.getMessage(), Matchers.containsString("illegal_argument_exception"));
     }
 

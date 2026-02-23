@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.planner.mapper.MapperUtils;
 
 import java.io.IOException;
 import java.util.List;
@@ -87,6 +89,9 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
 
     @Override
     public List<Attribute> output() {
+        if (fragment instanceof Aggregate agg) {
+            return MapperUtils.intermediateAttributes(agg);
+        }
         return fragment.output();
     }
 

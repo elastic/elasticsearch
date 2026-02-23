@@ -190,7 +190,7 @@ public class MapperUtils {
         return unsupported(p);
     }
 
-    static List<Attribute> intermediateAttributes(Aggregate aggregate) {
+    public static List<Attribute> intermediateAttributes(Aggregate aggregate) {
         List<Attribute> intermediateAttributes = AbstractPhysicalOperationProviders.intermediateAttributes(
             aggregate.aggregates(),
             aggregate.groupings()

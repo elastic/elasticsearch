@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
@@ -162,9 +163,10 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
     }
 
     private static void parseJson(String jsonInput, Consumer<Headers> assertCallback) throws IOException {
+        ConstructingObjectParser<Headers, Void> constructingObjectParser = new ConstructingObjectParser<>("headers_parser", false, args -> Headers.create(args[0]));
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(XContentParserConfiguration.EMPTY, jsonInput)) {
             parser.nextToken();
-            var parsed = Headers.parse(parser);
+            var parsed = constructingObjectParser.parse(parser, null);
             assertCallback.accept(parsed);
         }
     }

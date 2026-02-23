@@ -30,7 +30,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
             return model;
         }
 
-        var requestTaskSettings = AzureOpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
+        var requestTaskSettings = new AzureOpenAiEmbeddingsTaskSettings(taskSettings, ConfigurationParseContext.REQUEST);
         return new AzureOpenAiEmbeddingsModel(model, AzureOpenAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
     }
 
@@ -49,7 +49,7 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
             taskType,
             service,
             AzureOpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            AzureOpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
+            new AzureOpenAiEmbeddingsTaskSettings(taskSettings, context),
             chunkingSettings,
             AzureOpenAiSecretSettings.fromMap(secrets)
         );

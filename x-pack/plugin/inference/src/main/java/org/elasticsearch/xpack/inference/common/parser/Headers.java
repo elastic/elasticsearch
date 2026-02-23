@@ -28,21 +28,15 @@ public record Headers(@Nullable Map<String, String> headers) implements ToXConte
 
     private static final ParseField HEADERS = new ParseField("headers");
 
-    private static final ConstructingObjectParser<Headers, Void> PARSER = new ConstructingObjectParser<>(
-        Headers.class.getSimpleName(),
-        true,
-        Headers::create
-    );
-
-    static {
-        PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), HEADERS);
+    public static <Value, Context> void initParser(ConstructingObjectParser<Value, Context> parser) {
+        parser.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), HEADERS);
     }
 
     @SuppressWarnings("unchecked")
-    private static Headers create(Object[] args) {
+    public static Headers create(Object arg) {
         var validationException = new ValidationException();
         var stringHeaders = validateMapStringValues(
-            (Map<String, String>) args[0],
+            (Map<String, String>) arg,
             HEADERS.getPreferredName(),
             validationException,
             false,
@@ -56,16 +50,12 @@ public record Headers(@Nullable Map<String, String> headers) implements ToXConte
         return new Headers(stringHeaders);
     }
 
-    /**
-     * Parses a {@link Headers} from the given parser. The parser must be positioned on an object that may contain
-     * an optional {@code headers} field (a map of string to string).
-     */
-    public static Headers parse(XContentParser parser) throws IOException {
-        return PARSER.parse(parser, null);
-    }
-
     public Headers(StreamInput in) throws IOException {
         this(in.readOptionalImmutableMap(StreamInput::readString, StreamInput::readString));
+    }
+
+    public boolean isEmpty() {
+        return headers == null || headers.isEmpty();
     }
 
     @Override

@@ -11,24 +11,25 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiServiceFields;
-import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializingTestCase<AzureOpenAiCompletionTaskSettings> {
 
     public static AzureOpenAiCompletionTaskSettings createRandomWithUser() {
-        return new AzureOpenAiCompletionTaskSettings(randomAlphaOfLength(15));
+        return new AzureOpenAiCompletionTaskSettings(randomAlphaOfLength(15), null);
     }
 
     public static AzureOpenAiCompletionTaskSettings createRandom() {
-        return new AzureOpenAiCompletionTaskSettings(randomAlphaOfLengthOrNull(15));
+        return new AzureOpenAiCompletionTaskSettings(randomAlphaOfLengthOrNull(15), null);
     }
 
     public void testIsEmpty() {
@@ -40,7 +41,7 @@ public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializ
     public void testUpdatedTaskSettings() {
         var initialSettings = createRandom();
         var newSettings = createRandom();
-        AzureOpenAiCompletionTaskSettings updatedSettings = (AzureOpenAiCompletionTaskSettings) initialSettings.updatedTaskSettings(
+        var updatedSettings = initialSettings.updatedTaskSettings(
             newSettings.user() == null ? Map.of() : Map.of(AzureOpenAiServiceFields.USER, newSettings.user())
         );
 
@@ -51,15 +52,15 @@ public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializ
         var user = "user";
 
         assertThat(
-            new AzureOpenAiCompletionTaskSettings(user),
-            is(AzureOpenAiCompletionTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, user))))
+            new AzureOpenAiCompletionTaskSettings(user, null),
+            is(new AzureOpenAiCompletionTaskSettings(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, user)), ConfigurationParseContext.PERSISTENT))
         );
     }
 
     public void testFromMap_UserIsEmptyString() {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> AzureOpenAiEmbeddingsTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "")))
+            () -> new AzureOpenAiCompletionTaskSettings(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "")), ConfigurationParseContext.PERSISTENT)
         );
 
         MatcherAssert.assertThat(
@@ -69,17 +70,55 @@ public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializ
     }
 
     public void testFromMap_MissingUser_DoesNotThrowException() {
-        var taskSettings = AzureOpenAiCompletionTaskSettings.fromMap(new HashMap<>(Map.of()));
+        var taskSettings = new AzureOpenAiCompletionTaskSettings(new HashMap<>(Map.of()), ConfigurationParseContext.PERSISTENT);
         assertNull(taskSettings.user());
     }
 
-    public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
-        var taskSettings = AzureOpenAiCompletionTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")));
+    public void testFromMap_WithRequestContext_ReturnsEmptySettings_WhenMapIsEmpty() {
+        var settings = new AzureOpenAiCompletionTaskSettings(new HashMap<>(Map.of()), ConfigurationParseContext.REQUEST);
+        assertTrue(settings.isEmpty());
+        assertNull(settings.user());
+        assertNull(settings.headers());
+        assertThat(settings, is(AzureOpenAiCompletionTaskSettings.EMPTY));
+    }
 
-        var overriddenTaskSettings = AzureOpenAiCompletionTaskSettings.of(
-            taskSettings,
-            AzureOpenAiCompletionRequestTaskSettings.EMPTY_SETTINGS
+    public void testFromMap_WithRequestContext_ReturnsEmptySettings_WhenMapDoesNotContainKnownFields() {
+        var settings = new AzureOpenAiCompletionTaskSettings(
+            new HashMap<>(Map.of("key", "model")),
+            ConfigurationParseContext.REQUEST
         );
+        assertTrue(settings.isEmpty());
+        assertNull(settings.user());
+        assertNull(settings.headers());
+        assertThat(settings, is(AzureOpenAiCompletionTaskSettings.EMPTY));
+    }
+
+    public void testFromMap_WithRequestContext_ReturnsUser() {
+        var settings = new AzureOpenAiCompletionTaskSettings(
+            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")),
+            ConfigurationParseContext.REQUEST
+        );
+        assertThat(settings.user(), is("user"));
+    }
+
+    public void testFromMap_WithRequestContext_WhenUserIsEmpty_ThrowsValidationException() {
+        var exception = expectThrows(
+            ValidationException.class,
+            () -> new AzureOpenAiCompletionTaskSettings(
+                new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "")),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+        assertThat(exception.getMessage(), containsString("[user] must be a non-empty string"));
+    }
+
+    public void testOverrideWith_KeepsOriginalValuesWithOverridesAreNull() {
+        var taskSettings = new AzureOpenAiCompletionTaskSettings(
+            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, "user")),
+            ConfigurationParseContext.PERSISTENT
+        );
+
+        var overriddenTaskSettings = AzureOpenAiCompletionTaskSettings.of(taskSettings, AzureOpenAiCompletionTaskSettings.EMPTY);
         assertThat(overriddenTaskSettings, is(taskSettings));
     }
 
@@ -87,14 +126,18 @@ public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializ
         var user = "user";
         var userOverride = "user override";
 
-        var taskSettings = AzureOpenAiCompletionTaskSettings.fromMap(new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, user)));
+        var taskSettings = new AzureOpenAiCompletionTaskSettings(
+            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, user)),
+            ConfigurationParseContext.PERSISTENT
+        );
 
-        var requestTaskSettings = AzureOpenAiCompletionRequestTaskSettings.fromMap(
-            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, userOverride))
+        var requestTaskSettings = new AzureOpenAiCompletionTaskSettings(
+            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, userOverride)),
+            ConfigurationParseContext.REQUEST
         );
 
         var overriddenTaskSettings = AzureOpenAiCompletionTaskSettings.of(taskSettings, requestTaskSettings);
-        assertThat(overriddenTaskSettings, is(new AzureOpenAiCompletionTaskSettings(userOverride)));
+        assertThat(overriddenTaskSettings, is(new AzureOpenAiCompletionTaskSettings(userOverride, null)));
     }
 
     @Override
@@ -110,6 +153,6 @@ public class AzureOpenAiCompletionTaskSettingsTests extends AbstractWireSerializ
     @Override
     protected AzureOpenAiCompletionTaskSettings mutateInstance(AzureOpenAiCompletionTaskSettings instance) throws IOException {
         String user = randomValueOtherThan(instance.user(), () -> randomAlphaOfLengthOrNull(15));
-        return new AzureOpenAiCompletionTaskSettings(user);
+        return new AzureOpenAiCompletionTaskSettings(user, instance.headers());
     }
 }

@@ -7,77 +7,40 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai.completion;
 
-import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.TaskSettings;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.inference.common.parser.Headers;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAiTaskSettings;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
-import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
-
-public class AzureOpenAiCompletionTaskSettings implements TaskSettings {
+public class AzureOpenAiCompletionTaskSettings extends AzureOpenAiTaskSettings<AzureOpenAiCompletionTaskSettings> {
 
     public static final String NAME = "azure_openai_completion_task_settings";
 
-    public static final String USER = "user";
-
-    public static AzureOpenAiCompletionTaskSettings fromMap(Map<String, Object> map) {
-        ValidationException validationException = new ValidationException();
-
-        String user = extractOptionalString(map, USER, ModelConfigurations.TASK_SETTINGS, validationException);
-
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
-
-        return new AzureOpenAiCompletionTaskSettings(user);
-    }
-
-    private final String user;
+    public static final AzureOpenAiCompletionTaskSettings EMPTY = new AzureOpenAiCompletionTaskSettings((String) null, null);
 
     public static AzureOpenAiCompletionTaskSettings of(
         AzureOpenAiCompletionTaskSettings originalSettings,
-        AzureOpenAiCompletionRequestTaskSettings requestSettings
+        AzureOpenAiCompletionTaskSettings requestSettings
     ) {
-        var userToUse = requestSettings.user() == null ? originalSettings.user : requestSettings.user();
-        return new AzureOpenAiCompletionTaskSettings(userToUse);
+        var userToUse = requestSettings.user() == null ? originalSettings.user() : requestSettings.user();
+        var headersToUse = requestSettings.headers() == null ? originalSettings.headers() : requestSettings.headers();
+        return new AzureOpenAiCompletionTaskSettings(userToUse, headersToUse);
     }
 
-    public AzureOpenAiCompletionTaskSettings(@Nullable String user) {
-        this.user = user;
+    public AzureOpenAiCompletionTaskSettings(@Nullable String user, @Nullable Headers headers) {
+        super(user, headers);
     }
 
     public AzureOpenAiCompletionTaskSettings(StreamInput in) throws IOException {
-        this.user = in.readOptionalString();
+        super(in);
     }
 
-    @Override
-    public boolean isEmpty() {
-        return user == null;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        {
-            if (user != null) {
-                builder.field(USER, user);
-            }
-        }
-        builder.endObject();
-        return builder;
-    }
-
-    public String user() {
-        return user;
+    public AzureOpenAiCompletionTaskSettings(Map<String, Object> map, ConfigurationParseContext context) {
+        super(map, context);
     }
 
     @Override
@@ -86,33 +49,7 @@ public class AzureOpenAiCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
-    public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersion.minimumCompatible();
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeOptionalString(user);
-    }
-
-    @Override
-    public boolean equals(Object object) {
-        if (this == object) return true;
-        if (object == null || getClass() != object.getClass()) return false;
-        AzureOpenAiCompletionTaskSettings that = (AzureOpenAiCompletionTaskSettings) object;
-        return Objects.equals(user, that.user);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(user);
-    }
-
-    @Override
-    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
-        AzureOpenAiCompletionRequestTaskSettings updatedSettings = AzureOpenAiCompletionRequestTaskSettings.fromMap(
-            new HashMap<>(newSettings)
-        );
-        return of(this, updatedSettings);
+    protected AzureOpenAiCompletionTaskSettings create(@Nullable String user, @Nullable Headers headers) {
+        return new AzureOpenAiCompletionTaskSettings(user, headers);
     }
 }

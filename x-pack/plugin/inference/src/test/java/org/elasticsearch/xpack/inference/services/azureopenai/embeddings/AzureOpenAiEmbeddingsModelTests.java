@@ -113,7 +113,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             "service",
             new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
-            new AzureOpenAiEmbeddingsTaskSettings(user),
+            new AzureOpenAiEmbeddingsTaskSettings(user, null),
             chunkingSettings,
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
@@ -135,7 +135,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             "service",
             new AzureOpenAiEmbeddingsServiceSettings(resourceName, deploymentId, apiVersion, null, false, null, null, null),
-            new AzureOpenAiEmbeddingsTaskSettings(user),
+            new AzureOpenAiEmbeddingsTaskSettings(user, null),
             null,
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );
@@ -171,7 +171,7 @@ public class AzureOpenAiEmbeddingsModelTests extends ESTestCase {
                 similarity,
                 null
             ),
-            new AzureOpenAiEmbeddingsTaskSettings(user),
+            new AzureOpenAiEmbeddingsTaskSettings(user, null),
             null,
             new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
         );

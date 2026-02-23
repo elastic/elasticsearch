@@ -276,6 +276,23 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
         assertTrue(called.get());
     }
 
+    /**
+     * When constructed with a non-null initial remote version, doStart skips the version lookup and issues
+     * the initial search directly. Only one HTTP request is made (the search), not two (version + search).
+     */
+    public void testDoStartSkipsVersionLookupWhenInitialRemoteVersionSet() throws Exception {
+        AtomicBoolean called = new AtomicBoolean();
+        RemoteScrollableHitSource hitSource = sourceWithInitialRemoteVersion(Version.CURRENT, "start_ok.json");
+        hitSource.doStart(wrapAsListener(r -> {
+            assertFalse(r.isTimedOut());
+            assertEquals(FAKE_SCROLL_ID, r.getScrollId());
+            assertEquals(4, r.getTotalHits());
+            assertThat(r.getHits(), hasSize(1));
+            called.set(true);
+        }));
+        assertTrue(called.get());
+    }
+
     public void testParseRequestFailure() throws Exception {
         AtomicBoolean called = new AtomicBoolean();
         Consumer<Response> checkResponse = r -> {
@@ -507,6 +524,86 @@ public class RemoteScrollableHitSourceTests extends ESTestCase {
             hitSource.remoteVersion = Version.CURRENT;
         }
         return hitSource;
+    }
+
+    /**
+     * Creates a RemoteScrollableHitSource with a pre-resolved initial remote version so that doStart skips the version lookup.
+     * The mock client serves only the given response paths (one request = one path when using initial version).
+     */
+    private RemoteScrollableHitSource sourceWithInitialRemoteVersion(Version initialRemoteVersion, String... paths) throws Exception {
+        return sourceWithInitialRemoteVersion(initialRemoteVersion, ContentType.APPLICATION_JSON, paths);
+    }
+
+    @SuppressWarnings("unchecked")
+    private RemoteScrollableHitSource sourceWithInitialRemoteVersion(
+        Version initialRemoteVersion,
+        ContentType contentType,
+        String... paths
+    ) throws Exception {
+        URL[] resources = new URL[paths.length];
+        for (int i = 0; i < paths.length; i++) {
+            resources[i] = Thread.currentThread().getContextClassLoader().getResource("responses/" + paths[i].replace("fail:", ""));
+            if (resources[i] == null) {
+                throw new IllegalArgumentException("Couldn't find [" + paths[i] + "]");
+            }
+        }
+
+        CloseableHttpAsyncClient httpClient = mock(CloseableHttpAsyncClient.class);
+        when(
+            httpClient.<HttpResponse>execute(
+                any(HttpAsyncRequestProducer.class),
+                any(HttpAsyncResponseConsumer.class),
+                any(HttpClientContext.class),
+                any(FutureCallback.class)
+            )
+        ).thenAnswer(new Answer<Future<HttpResponse>>() {
+            int responseCount = 0;
+
+            @Override
+            public Future<HttpResponse> answer(InvocationOnMock invocationOnMock) throws Throwable {
+                threadPool.getThreadContext().stashContext();
+                FutureCallback<HttpResponse> futureCallback = (FutureCallback<HttpResponse>) invocationOnMock.getArguments()[3];
+                HttpAsyncRequestProducer requestProducer = (HttpAsyncRequestProducer) invocationOnMock.getArguments()[0];
+                HttpEntityEnclosingRequest request = (HttpEntityEnclosingRequest) requestProducer.generateRequest();
+                URL resource = resources[responseCount];
+                String path = paths[responseCount++];
+                ProtocolVersion protocolVersion = new ProtocolVersion("http", 1, 1);
+                if (path.startsWith("fail:")) {
+                    String body = Streams.copyToString(new InputStreamReader(request.getEntity().getContent(), StandardCharsets.UTF_8));
+                    if (path.equals("fail:rejection.json")) {
+                        StatusLine statusLine = new BasicStatusLine(protocolVersion, RestStatus.TOO_MANY_REQUESTS.getStatus(), "");
+                        futureCallback.completed(new BasicHttpResponse(statusLine));
+                    } else {
+                        futureCallback.failed(new RuntimeException(body));
+                    }
+                } else {
+                    StatusLine statusLine = new BasicStatusLine(protocolVersion, 200, "");
+                    HttpResponse httpResponse = new BasicHttpResponse(statusLine);
+                    httpResponse.setEntity(new InputStreamEntity(FileSystemUtils.openFileURLStream(resource), contentType));
+                    futureCallback.completed(httpResponse);
+                }
+                return null;
+            }
+        });
+
+        HttpAsyncClientBuilder clientBuilder = mock(HttpAsyncClientBuilder.class);
+        when(clientBuilder.build()).thenReturn(httpClient);
+        RestClient restClient = RestClient.builder(new HttpHost("localhost", 9200))
+            .setHttpClientConfigCallback(httpClientBuilder -> clientBuilder)
+            .build();
+
+        return new RemoteScrollableHitSource(
+            logger,
+            backoff(),
+            threadPool,
+            this::countRetry,
+            responseQueue::add,
+            failureQueue::add,
+            restClient,
+            remoteInfo(),
+            searchRequest,
+            initialRemoteVersion
+        );
     }
 
     private RemoteInfo remoteInfo() {

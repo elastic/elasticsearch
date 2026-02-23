@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.ConnectorFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorFactoryProvider;
@@ -19,7 +22,9 @@ import org.elasticsearch.xpack.esql.datasources.spi.TableCatalogFactory;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
@@ -32,14 +37,14 @@ import java.util.concurrent.ExecutorService;
  * <p>This module:
  * <ul>
  *   <li>Discovers all plugins implementing {@link DataSourcePlugin}</li>
- *   <li>Collects storage providers, format readers, table catalog connectors, and operator factories</li>
+ *   <li>Collects storage providers, format readers, and external source factories</li>
  *   <li>Populates registries for runtime lookup</li>
  *   <li>Validates that no duplicate registrations occur</li>
  *   <li>Creates an {@link OperatorFactoryRegistry} for unified operator factory lookup</li>
  * </ul>
  *
  * <p>This module implements Closeable to properly release resources held by storage providers
- * (such as HttpClient connections).
+ * (such as HttpClient connections) and managed TableCatalog instances.
  *
  * <p>Note: Method names follow the project convention of omitting the "get" prefix.
  */
@@ -47,9 +52,12 @@ public final class DataSourceModule implements Closeable {
 
     private final StorageProviderRegistry storageProviderRegistry;
     private final FormatReaderRegistry formatReaderRegistry;
-    private final Map<String, TableCatalogFactory> tableCatalogs;
-    private final Map<String, SourceOperatorFactoryProvider> operatorFactories;
+    private final Map<String, ExternalSourceFactory> sourceFactories;
+    // FIXME: pluginFactories is a backward-compat bridge for DataSourcePlugin.operatorFactories().
+    // Once plugins migrate to ExternalSourceFactory.operatorFactory(), remove this field.
+    private final Map<String, SourceOperatorFactoryProvider> pluginFactories;
     private final FilterPushdownRegistry filterPushdownRegistry;
+    private final List<Closeable> managedCloseables;
     private final Settings settings;
 
     public DataSourceModule(
@@ -64,9 +72,11 @@ public final class DataSourceModule implements Closeable {
 
         Map<String, StorageProviderFactory> storageFactories = new HashMap<>();
         Map<String, FormatReaderFactory> formatFactories = new HashMap<>();
-        Map<String, TableCatalogFactory> catalogFactories = new HashMap<>();
+        Map<String, ExternalSourceFactory> sourceFactoryMap = new LinkedHashMap<>();
+        // FIXME: pluginFactories is a backward-compat bridge for DataSourcePlugin.operatorFactories().
+        // Once plugins migrate to ExternalSourceFactory.operatorFactory(), remove this field.
         Map<String, SourceOperatorFactoryProvider> operatorFactoryProviders = new HashMap<>();
-        Map<String, FilterPushdownSupport> filterPushdownProviders = new HashMap<>();
+        List<Closeable> closeables = new ArrayList<>();
 
         for (DataSourcePlugin plugin : dataSourcePlugins) {
 
@@ -86,29 +96,42 @@ public final class DataSourceModule implements Closeable {
                 }
             }
 
-            Map<String, TableCatalogFactory> newCatalogTypes = plugin.tableCatalogs(settings);
-            for (Map.Entry<String, TableCatalogFactory> entry : newCatalogTypes.entrySet()) {
-                String catalogType = entry.getKey();
-                if (catalogFactories.put(catalogType, entry.getValue()) != null) {
-                    throw new IllegalArgumentException("Table catalog for [" + catalogType + "] is already registered");
+            // New unified path: sourceFactories()
+            Map<String, ExternalSourceFactory> newSourceFactories = plugin.sourceFactories(settings);
+            for (Map.Entry<String, ExternalSourceFactory> entry : newSourceFactories.entrySet()) {
+                String sourceType = entry.getKey();
+                if (sourceFactoryMap.put(sourceType, entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Source factory for type [" + sourceType + "] is already registered");
                 }
             }
 
+            // Bridge: connectors() → sourceFactoryMap (ConnectorFactory is ExternalSourceFactory)
+            Map<String, ConnectorFactory> newConnectors = plugin.connectors(settings);
+            for (Map.Entry<String, ConnectorFactory> entry : newConnectors.entrySet()) {
+                String connectorType = entry.getKey();
+                if (sourceFactoryMap.put(connectorType, entry.getValue()) != null) {
+                    throw new IllegalArgumentException("Source factory for type [" + connectorType + "] is already registered");
+                }
+            }
+
+            // Bridge: tableCatalogs() → create TableCatalog, add to sourceFactoryMap + closeables
+            Map<String, TableCatalogFactory> newCatalogTypes = plugin.tableCatalogs(settings);
+            for (Map.Entry<String, TableCatalogFactory> entry : newCatalogTypes.entrySet()) {
+                String catalogType = entry.getKey();
+                TableCatalog catalog = entry.getValue().create(settings);
+                closeables.add(catalog);
+                if (sourceFactoryMap.put(catalogType, catalog) != null) {
+                    throw new IllegalArgumentException("Source factory for type [" + catalogType + "] is already registered");
+                }
+            }
+
+            // FIXME: standalone operatorFactories() and filterPushdownSupport() on DataSourcePlugin
+            // are unused by all production plugins; remove bridge once confirmed.
             Map<String, SourceOperatorFactoryProvider> newOperatorFactories = plugin.operatorFactories(settings);
             for (Map.Entry<String, SourceOperatorFactoryProvider> entry : newOperatorFactories.entrySet()) {
                 String sourceType = entry.getKey();
                 if (operatorFactoryProviders.put(sourceType, entry.getValue()) != null) {
                     throw new IllegalArgumentException("Operator factory for source type [" + sourceType + "] is already registered");
-                }
-            }
-
-            Map<String, FilterPushdownSupport> newFilterPushdown = plugin.filterPushdownSupport(settings);
-            for (Map.Entry<String, FilterPushdownSupport> entry : newFilterPushdown.entrySet()) {
-                String sourceType = entry.getKey();
-                if (filterPushdownProviders.put(sourceType, entry.getValue()) != null) {
-                    throw new IllegalArgumentException(
-                        "Filter pushdown support for source type [" + sourceType + "] is already registered"
-                    );
                 }
             }
         }
@@ -122,14 +145,38 @@ public final class DataSourceModule implements Closeable {
             formatReaderRegistry.registerLazy(entry.getKey(), entry.getValue(), settings, blockFactory);
         }
 
-        this.tableCatalogs = Map.copyOf(catalogFactories);
-        this.operatorFactories = Map.copyOf(operatorFactoryProviders);
+        // Register the framework-internal FileSourceFactory as a catch-all fallback.
+        // It must be last so that plugin-provided factories (Iceberg, Flight) get priority.
+        FileSourceFactory fileFallback = new FileSourceFactory(storageProviderRegistry, formatReaderRegistry, settings);
+        sourceFactoryMap.put("file", fileFallback);
+        // Also register under each format name so OperatorFactoryRegistry can look up
+        // by the sourceType returned from FormatReader.formatName() (e.g. "parquet", "csv").
+        for (String formatName : formatFactories.keySet()) {
+            sourceFactoryMap.putIfAbsent(formatName, fileFallback);
+        }
+
+        this.sourceFactories = Map.copyOf(sourceFactoryMap);
+        this.pluginFactories = Map.copyOf(operatorFactoryProviders);
+        this.managedCloseables = List.copyOf(closeables);
+
+        // Build FilterPushdownRegistry from ExternalSourceFactory capabilities
+        Map<String, FilterPushdownSupport> filterPushdownProviders = new HashMap<>();
+        for (Map.Entry<String, ExternalSourceFactory> entry : this.sourceFactories.entrySet()) {
+            FilterPushdownSupport fps = entry.getValue().filterPushdownSupport();
+            if (fps != null) {
+                filterPushdownProviders.put(entry.getKey(), fps);
+            }
+        }
+        // FIXME: standalone filterPushdownSupport() bridge omitted — no production plugin uses it.
         this.filterPushdownRegistry = new FilterPushdownRegistry(filterPushdownProviders);
     }
 
     @Override
     public void close() throws IOException {
-        storageProviderRegistry.close();
+        List<Closeable> all = new ArrayList<>();
+        all.add(storageProviderRegistry);
+        all.addAll(managedCloseables);
+        IOUtils.close(all);
     }
 
     public StorageProviderRegistry storageProviderRegistry() {
@@ -140,8 +187,8 @@ public final class DataSourceModule implements Closeable {
         return formatReaderRegistry;
     }
 
-    public Map<String, SourceOperatorFactoryProvider> operatorFactories() {
-        return operatorFactories;
+    public Map<String, ExternalSourceFactory> sourceFactories() {
+        return sourceFactories;
     }
 
     public FilterPushdownRegistry filterPushdownRegistry() {
@@ -149,18 +196,6 @@ public final class DataSourceModule implements Closeable {
     }
 
     public OperatorFactoryRegistry createOperatorFactoryRegistry(Executor executor) {
-        return new OperatorFactoryRegistry(operatorFactories, storageProviderRegistry, formatReaderRegistry, executor, settings);
-    }
-
-    public TableCatalog createTableCatalog(String catalogType, Settings settings) {
-        TableCatalogFactory factory = tableCatalogs.get(catalogType);
-        if (factory == null) {
-            throw new IllegalArgumentException("No table catalog registered for type: " + catalogType);
-        }
-        return factory.create(settings);
-    }
-
-    public boolean hasTableCatalog(String catalogType) {
-        return tableCatalogs.containsKey(catalogType);
+        return new OperatorFactoryRegistry(sourceFactories, pluginFactories, executor);
     }
 }

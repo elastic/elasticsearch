@@ -8,9 +8,12 @@
 package org.elasticsearch.xpack.ml.datafeed.extractor;
 
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.ml.datafeed.LinkedProjectState;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
@@ -19,6 +22,9 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Utility methods for various DataExtractor implementations.
@@ -74,6 +80,49 @@ public final class DataExtractorUtils {
      */
     private static Long toLongIfFinite(double x) {
         return Double.isFinite(x) ? (long) x : null;
+    }
+
+    /**
+     * Extracts per-cluster (linked project) state from a search response. For non-CPS datafeeds
+     * where {@code searchResponse.getClusters()} is null or {@link SearchResponse.Clusters#EMPTY},
+     * returns an empty list so downstream logic is a no-op.
+     *
+     * @param searchResponse The search response, possibly from a cross-cluster / cross-project search.
+     * @return List of {@link LinkedProjectState} per cluster alias, or empty if no cluster info.
+     */
+    public static List<LinkedProjectState> extractLinkedProjectStates(SearchResponse searchResponse) {
+        SearchResponse.Clusters clusters = searchResponse.getClusters();
+        if (clusters == null || clusters == SearchResponse.Clusters.EMPTY || clusters.getClusterAliases().isEmpty()) {
+            return List.of();
+        }
+        List<LinkedProjectState> result = new ArrayList<>(clusters.getClusterAliases().size());
+        for (String alias : clusters.getClusterAliases()) {
+            SearchResponse.Cluster cluster = clusters.getCluster(alias);
+            if (cluster == null) {
+                continue;
+            }
+            LinkedProjectState.Status status = mapStatus(cluster.getStatus());
+            String errorReason = errorReasonFromFailures(cluster.getFailures());
+            long searchLatencyMs = cluster.getTook() != null ? cluster.getTook().millis() : 0L;
+            result.add(new LinkedProjectState(alias, status, errorReason, searchLatencyMs));
+        }
+        return result;
+    }
+
+    private static LinkedProjectState.Status mapStatus(SearchResponse.Cluster.Status clusterStatus) {
+        return switch (clusterStatus) {
+            case SUCCESSFUL, RUNNING, PARTIAL -> LinkedProjectState.Status.AVAILABLE;
+            case SKIPPED -> LinkedProjectState.Status.SKIPPED;
+            case FAILED -> LinkedProjectState.Status.FAILED;
+        };
+    }
+
+    @Nullable
+    private static String errorReasonFromFailures(List<ShardSearchFailure> failures) {
+        if (failures == null || failures.isEmpty()) {
+            return null;
+        }
+        return failures.get(0).reason();
     }
 
     /**

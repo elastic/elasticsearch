@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -158,7 +159,7 @@ public class ChunkedDataExtractor implements DataExtractor {
                 setUpChunkedSearch();
             }
         }
-        return new Result(lastSearchInterval, Optional.empty());
+        return new Result(lastSearchInterval, Optional.empty(), List.of());
     }
 
     private void advanceTime() {

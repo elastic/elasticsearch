@@ -8,4 +8,5 @@
 | exponential_histogram | double |
 | integer | double |
 | long | double |
+| tdigest {applies_to}`stack: preview 9.4.0` | double |
 

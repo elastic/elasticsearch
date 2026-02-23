@@ -27,7 +27,6 @@ import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.SortedSetSelector;
-
 import org.apache.lucene.store.ByteBuffersDataInput;
 import org.apache.lucene.store.ByteBuffersDataOutput;
 import org.apache.lucene.store.ByteBuffersIndexOutput;
@@ -726,12 +725,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         // Per-string compressed offsets (size+1 entries)
         ByteBuffersDataOutput offsetBuffer = new ByteBuffersDataOutput();
         ByteBuffersIndexOutput offsetOutput = new ByteBuffersIndexOutput(offsetBuffer, "temp", "temp");
-        DirectMonotonicWriter offsetWriter = DirectMonotonicWriter.getInstance(
-            meta,
-            offsetOutput,
-            size + 1,
-            DIRECT_MONOTONIC_BLOCK_SHIFT
-        );
+        DirectMonotonicWriter offsetWriter = DirectMonotonicWriter.getInstance(meta, offsetOutput, size + 1, DIRECT_MONOTONIC_BLOCK_SHIFT);
 
         long start = data.getFilePointer();
 

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.retriever;
 
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
@@ -29,6 +30,10 @@ import java.util.function.Supplier;
  */
 public class RankDocsRetrieverBuilder extends RetrieverBuilder {
 
+    public static final NodeFeature NESTED_RETRIEVER_MIN_SCORE_TOTAL_HITS_FIX = new NodeFeature(
+        "nested_retriever_min_score_total_hits_fix"
+    );
+
     public static final String NAME = "rank_docs_retriever";
     final int rankWindowSize;
     final List<RetrieverBuilder> sources;
@@ -45,12 +50,13 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
     }
 
     @Override
-    public String getName() {
-        return NAME;
+    protected boolean hasMinScore() {
+        return this.minScore != null || sources.stream().anyMatch(RetrieverBuilder::hasMinScore);
     }
 
-    private boolean sourceHasMinScore() {
-        return this.minScore != null || sources.stream().anyMatch(x -> x.minScore() != null);
+    @Override
+    public String getName() {
+        return NAME;
     }
 
     private boolean sourceShouldRewrite(QueryRewriteContext ctx) throws IOException {
@@ -125,7 +131,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
                 );
             }
         } else {
-            rankQuery = new RankDocsQueryBuilder(rankDocResults, null, false);
+            rankQuery = new RankDocsQueryBuilder(rankDocResults, null, true);
         }
         rankQuery.queryName(retrieverName());
         // ignore prefilters of this level, they were already propagated to children
@@ -133,7 +139,7 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         if (searchSourceBuilder.size() < 0) {
             searchSourceBuilder.size(rankWindowSize);
         }
-        if (sourceHasMinScore()) {
+        if (hasMinScore()) {
             searchSourceBuilder.minScore(this.minScore == null ? Float.MIN_VALUE : this.minScore);
         }
 

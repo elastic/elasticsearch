@@ -224,6 +224,7 @@ public abstract class LuceneOperator extends SourceOperator {
     protected List<ShardLoad> shardLoadDelta(long now) {
         stopShardClock(now);
         var ret = IntStream.range(0, shardRowsEmitted.length)
+            .filter(index -> shardProcessNanos[index] > 0 || shardRowsEmitted[index] > 0)
             .mapToObj(index -> new ShardLoad(sliceQueue.shardContext(index), shardProcessNanos[index], shardRowsEmitted[index]))
             .toList();
 

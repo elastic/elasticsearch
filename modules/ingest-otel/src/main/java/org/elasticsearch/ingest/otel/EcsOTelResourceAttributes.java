@@ -58,7 +58,8 @@ final class EcsOTelResourceAttributes {
         "cloud.service.name",
         "cloud.account.id",
         "process.command_line",
-        "faas.version"
+        "faas.version",
+        "log.file.path"
     );
 
     private EcsOTelResourceAttributes() {}

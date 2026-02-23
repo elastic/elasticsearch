@@ -1340,9 +1340,6 @@ public class InternalEngine extends Engine {
                 // Step 2: Per-doc: determine indexing strategy, generate seqNo
                 final List<Index> updatedOps = new java.util.ArrayList<>(batchSize);
                 final List<IndexingStrategy> plans = new java.util.ArrayList<>(batchSize);
-                final List<LuceneDocument> appendDocs = new java.util.ArrayList<>();
-                final List<Integer> appendDocIndices = new java.util.ArrayList<>(); // maps back to operations index
-
                 for (int i = 0; i < batchSize; i++) {
                     Index op = operations.get(i);
                     lastWriteNanos = op.startTime();
@@ -1382,23 +1379,18 @@ public class InternalEngine extends Engine {
 
                     updatedOps.add(op);
 
-                    // Collect append-only docs for batch Lucene add
-                    if (plan.indexIntoLucene && plan.useLuceneUpdateDocument == false) {
-                        List<LuceneDocument> docs = op.parsedDoc().docs();
-                        for (LuceneDocument doc : docs) {
-                            appendDocs.add(doc);
-                        }
-                        appendDocIndices.add(i);
-                    }
-
                     // Placeholder result — will be filled in below
                     results.add(null);
                 }
 
-                // Step 3: Batch Lucene add for append-only operations
-                if (appendDocs.isEmpty() == false) {
-                    indexWriter.addDocuments(appendDocs);
-                    numDocAppends.inc(appendDocs.size());
+                // Step 3: Lucene add for append-only operations (one call per document to preserve index sort)
+                for (int i = 0; i < batchSize; i++) {
+                    IndexingStrategy plan = plans.get(i);
+                    Index op = updatedOps.get(i);
+                    if (plan.indexIntoLucene && plan.useLuceneUpdateDocument == false) {
+                        indexWriter.addDocuments(op.parsedDoc().docs());
+                        numDocAppends.inc(op.parsedDoc().docs().size());
+                    }
                 }
 
                 // Step 4: Index non-append operations individually into Lucene

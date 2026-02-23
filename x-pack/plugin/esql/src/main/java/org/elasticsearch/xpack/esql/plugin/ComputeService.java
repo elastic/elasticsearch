@@ -61,7 +61,6 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -817,20 +816,6 @@ public class ComputeService {
             originalPlan,
             LocalPhysicalOptimization.ENABLED
         );
-        Function<AggregateExec, ReductionPlan> placeAggBetweenExchanges = p -> {
-            PhysicalPlan reductionSource = new ExchangeSourceExec(
-                originalPlan.source(),
-                // For an agg, the data that's sent between exchanges is different because the reduction driver gets intermediate
-                // attributes.
-                new ArrayList<>(p.references()),
-                originalPlan.isIntermediateAgg()
-            );
-            return new ReductionPlan(
-                originalPlan.replaceChild(p.replaceChildren(List.of(reductionSource))),
-                originalPlan,
-                LocalPhysicalOptimization.ENABLED
-            );
-        };
 
         // The default plan is just the exchange source piped directly into the exchange sink.
         ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
@@ -846,9 +831,7 @@ public class ComputeService {
                     .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : passThroughReduction);
             case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
             // Not a TopN - must be an agg or a limit
-            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> rp.plan() instanceof AggregateExec agg
-                ? placeAggBetweenExchanges.apply(agg)
-                : placePlanBetweenExchanges.apply(rp.plan());
+            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> placePlanBetweenExchanges.apply(rp.plan());
             default -> passThroughReduction;
         };
         if (planTimeProfile != null) {

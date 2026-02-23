@@ -449,6 +449,9 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testAbortSnapshotWhileRemovingNode
   issue: https://github.com/elastic/elasticsearch/issues/142869
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testDeleteSnapshotWithPausedShardSnapshots
+  issue: https://github.com/elastic/elasticsearch/issues/142870
 
 # Examples:
 #

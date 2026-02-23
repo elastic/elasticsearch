@@ -60,10 +60,11 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
@@ -842,12 +843,16 @@ public class ComputeService {
         // TODO: How we generate intermediate attributes prevents us from cleanly checking dependencies here.
         // FragmentExec.output() doesn't take into account intermediate attributes of aggs, and time series aggs
         // have some peculiarities due to implicit dimensions. We should clean this up and add a proper check here.
-        if (Assertions.ENABLED && reductionPlan.nodeReducePlan().child() instanceof AggregateExec == false) {
-            PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.nodeReducePlan(), originalPlan.output());
-            ExchangeSourceExec reductionSource = (ExchangeSourceExec) reductionPlan.nodeReducePlan().collectLeaves().getFirst();
-            // The data driver's output is sent to the reduction driver, so the outputs must match up.
-            PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionSource.output());
+        if (Assertions.ENABLED == false
+            || (reductionPlan.dataNodePlan().child() instanceof FragmentExec fragment && fragment.fragment() instanceof Aggregate)) {
+            return reductionPlan;
         }
+
+        PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.nodeReducePlan(), originalPlan.output());
+        ExchangeSourceExec reductionSource = (ExchangeSourceExec) reductionPlan.nodeReducePlan().collectLeaves().getFirst();
+        // The data driver's output is sent to the reduction driver, so the outputs must match up.
+        PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionSource.output());
+
         return reductionPlan;
     }
 

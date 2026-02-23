@@ -541,6 +541,7 @@ public class StatelessPlugin extends Plugin
     private final boolean sharedCacheMmapExplicitlySet;
     private final boolean useRealMemoryCircuitBreakerExplicitlySet;
     private final boolean pageCacheReyclerLimitExplicitlySet;
+    private final boolean clusterMaxIndicesPerProjectExplicitlySet;
 
     private final boolean enabled;
     private final boolean hasSearchRole;
@@ -621,6 +622,7 @@ public class StatelessPlugin extends Plugin
         sharedCachedSettingExplicitlySet = SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.exists(settings);
         sharedCacheMmapExplicitlySet = SharedBlobCacheService.SHARED_CACHE_MMAP.exists(settings);
         useRealMemoryCircuitBreakerExplicitlySet = HierarchyCircuitBreakerService.USE_REAL_MEMORY_USAGE_SETTING.exists(settings);
+        clusterMaxIndicesPerProjectExplicitlySet = MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.exists(settings);
         pageCacheReyclerLimitExplicitlySet = PageCacheRecycler.LIMIT_HEAP_SETTING.exists(settings);
         hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
         hasMasterRole = DiscoveryNode.isMasterNode(settings);
@@ -732,6 +734,10 @@ public class StatelessPlugin extends Plugin
                     settings.put(PageCacheRecycler.LIMIT_HEAP_SETTING.getKey(), "3%");
                 }
             }
+            if (clusterMaxIndicesPerProjectExplicitlySet == false) {
+                settings.put(MetadataCreateIndexService.CLUSTER_MAX_INDICES_PER_PROJECT_SETTING.getKey(), 15000);
+            }
+
             // always override counting reads, stateless does not expose this number so the overhead for tracking it is wasted in any case
             settings.put(SharedBlobCacheService.SHARED_CACHE_COUNT_READS.getKey(), false);
 

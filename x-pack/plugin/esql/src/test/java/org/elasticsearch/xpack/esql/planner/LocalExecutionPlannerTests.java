@@ -22,11 +22,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.lucene.DataPartitioning;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
-import org.elasticsearch.compute.lucene.LuceneSourceOperator;
-import org.elasticsearch.compute.lucene.LuceneTopNSourceOperator;
+import org.elasticsearch.compute.lucene.query.DataPartitioning;
+import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
+import org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.NoOpReleasable;
@@ -284,7 +284,9 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             ByteSizeValue.ofMb(1),
             between(1, 10000),
             randomDoubleBetween(0.1, 1.0, true),
-            between(0, 1000)
+            between(0, 1000),
+            MappedFieldType.BlockLoaderContext.DEFAULT_ORDINALS_BYTE_SIZE,
+            MappedFieldType.BlockLoaderContext.DEFAULT_SCRIPT_BYTE_SIZE
         );
         LocalExecutionPlanner.LocalExecutionPlan plan = planner().plan(
             "test",

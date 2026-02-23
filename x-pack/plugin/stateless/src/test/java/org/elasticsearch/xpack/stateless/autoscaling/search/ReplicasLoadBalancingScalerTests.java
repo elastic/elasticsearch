@@ -46,6 +46,10 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -58,6 +62,7 @@ import org.mockito.Mockito;
 
 import java.nio.file.Path;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -80,7 +85,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         testThreadPool = new TestThreadPool(getTestName());
         ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool, createClusterSettings());
         client = new MockClient(testThreadPool);
-        scaler = new ReplicasLoadBalancingScaler(clusterService, client);
+        scaler = new ReplicasLoadBalancingScaler(clusterService, client, MeterRegistry.NOOP);
         scaler.init();
         scaler.updateEnableReplicasForLoadBalancing(true);
     }
@@ -718,6 +723,52 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         assertThat(result.desiredReplicasPerIndex().isEmpty(), is(true));
     }
 
+    public void testIndicesStatsErrorsMetric() {
+        RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+        ClusterService clusterService = ClusterServiceUtils.createClusterService(testThreadPool, createClusterSettings());
+        MockClient client = new MockClient(testThreadPool);
+
+        // At first, fail
+        client.setFailure(new RuntimeException("stats failed"));
+
+        ReplicasLoadBalancingScaler scalerWithMetrics = new ReplicasLoadBalancingScaler(clusterService, client, recordingMeterRegistry);
+        scalerWithMetrics.init();
+        scalerWithMetrics.updateEnableReplicasForLoadBalancing(true);
+
+        ClusterState state = clusterService.state();
+        ReplicaRankingContext context = new ReplicaRankingContext(Map.of(), Map.of(), 100);
+        DesiredClusterTopology topology = new DesiredClusterTopology(
+            new DesiredClusterTopology.TierTopology(10, "8G", randomFloat(), randomFloat(), randomFloat()),
+            randomTierTopology()
+        );
+
+        // First call: stats fail -> counter = 1
+        scalerWithMetrics.getRecommendedReplicas(state, context, topology, false, new PlainActionFuture<>());
+        recordingMeterRegistry.getRecorder().collect();
+        List<Measurement> measurements = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.indices_stats_errors.total");
+        assertThat(measurements.size(), is(1));
+        assertThat(measurements.get(0).getLong(), is(1L));
+
+        // Second call: stats fail again -> counter = 2
+        scalerWithMetrics.getRecommendedReplicas(state, context, topology, false, new PlainActionFuture<>());
+        recordingMeterRegistry.getRecorder().collect();
+        measurements = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.indices_stats_errors.total");
+        assertThat(measurements.size(), is(2));
+        assertThat(measurements.get(1).getLong(), is(1L));
+
+        // Then succeed
+        client.setIndicesStatsResponse(Map.of());
+
+        // Third call: stats succeed -> counter unchanged at 2, result has desired replicas
+        scalerWithMetrics.getRecommendedReplicas(state, context, topology, false, new PlainActionFuture<>());
+        recordingMeterRegistry.getRecorder().collect();
+        measurements = recordingMeterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.indices_stats_errors.total");
+        assertThat(measurements.size(), is(2));
+    }
+
     private static class MockClient extends NoOpNodeClient {
         final AtomicInteger executionCount = new AtomicInteger(0);
         private Map<String, IndexStats> indicesStatsResponse;
@@ -761,8 +812,9 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
                     return indicesStatsResponse.get(indexName);
                 }).when(statsResponse).getIndex(Mockito.anyString());
                 listener.onResponse((Response) statsResponse);
+            } else {
+                super.doExecute(action, request, listener);
             }
-            super.doExecute(action, request, listener);
         }
     }
 

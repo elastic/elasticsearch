@@ -29,7 +29,7 @@ public class DefaultObjectGenerationHandler implements DataSourceHandler {
      * fields having the same name.
      */
     public static final String RESERVED_FIELD_NAME_PREFIX = "_reserved_";
-    
+
     @Override
     public DataSourceResponse.ChildFieldGenerator handle(DataSourceRequest.ChildFieldGenerator request) {
         return new DataSourceResponse.ChildFieldGenerator() {

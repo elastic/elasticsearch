@@ -1143,8 +1143,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             // Field is partially unmapped.
             // TODO: Should the check for partially unmapped fields be done specific to each sub-query in a fork?
             if (resolvedCol instanceof FieldAttribute fa && indices.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                var esIndex = indices.stream().map(IndexResolution::get).filter(r -> r.isPartiallyUnmappedField(fa.name())).findFirst();
-                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, esIndex.get());
+                return fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indices);
             }
 
             // Either the field is mapped everywhere and we can just use the resolved column, or the INSIST clause isn't on top of a FROM
@@ -1152,8 +1151,13 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return resolvedCol;
         }
 
-        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa, EsIndex esIndex) {
-            var name = fa.name();
+        private static FieldAttribute invalidInsistAttribute(FieldAttribute fa, List<IndexResolution> indexResolutions) {
+            String name = fa.name();
+            EsIndex esIndex = indexResolutions.stream()
+                .map(IndexResolution::get)
+                .filter(r -> r.isPartiallyUnmappedField(name))
+                .findFirst()
+                .orElseThrow();
             Map<String, Set<String>> typesToIndices = new TreeMap<>();
             if (fa.field() instanceof InvalidMappedField imf) {
                 typesToIndices.putAll(imf.getTypesToIndices());
@@ -1185,20 +1189,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Map<FieldAttribute, FieldAttribute> insistedMap = new HashMap<>();
             var transformed = plan.transformExpressionsOnly(FieldAttribute.class, fa -> {
                 var esField = fa.field();
-                var isInsisted = esField instanceof PotentiallyUnmappedKeywordEsField || esField instanceof InvalidMappedField;
-                if (isInsisted == false) {
+                var isPotentiallyUnmapped = esField instanceof PotentiallyUnmappedKeywordEsField || esField instanceof InvalidMappedField;
+                if (isPotentiallyUnmapped == false) {
                     var existing = insistedMap.get(fa);
                     if (existing != null) { // field shows up multiple times in the node; return first processing
                         return existing;
                     }
                     // Field is partially unmapped.
                     if (indexResolutions.stream().anyMatch(r -> r.get().isPartiallyUnmappedField(fa.name()))) {
-                        var esIndex = indexResolutions.stream()
-                            .map(IndexResolution::get)
-                            .filter(r -> r.isPartiallyUnmappedField(fa.name()))
-                            .findFirst()
-                            .get();
-                        FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, esIndex);
+                        FieldAttribute newFA = fa.dataType() == KEYWORD ? insistKeyword(fa) : invalidInsistAttribute(fa, indexResolutions);
                         insistedMap.put(fa, newFA);
                         return newFA;
                     }

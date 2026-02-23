@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
@@ -30,8 +32,14 @@ import java.util.Set;
  * type conversion is done at the data node level.
  */
 public class MultiTypeEsField extends EsField {
+    private static final TransportVersion UNMAPPED_FIELDS_LOAD = TransportVersion.fromName("esql_unampped_fields_load");
 
     private final Map<String, Expression> indexToConversionExpressions;
+
+    /**
+     * If this is not {@code null}, then this expression should be used to convert the field value in case the field is not mapped in an
+     * index, to convert the {@link DataType#KEYWORD} to the target type.
+     */
     @Nullable
     private final Expression potentiallyUnmappedExpression;
 
@@ -55,8 +63,7 @@ public class MultiTypeEsField extends EsField {
             in.readBoolean(),
             in.readImmutableMap(i -> i.readNamedWriteable(Expression.class)),
             readTimeSeriesFieldType(in),
-            // FIXME(gal, NOCOMMIT) Does this need to be protected by a version check?
-            in.readBoolean() ? in.readNamedWriteable(Expression.class) : null
+            in.getTransportVersion().supports(UNMAPPED_FIELDS_LOAD) ? in.readOptionalNamedWriteable(Expression.class) : null
         );
     }
 
@@ -67,12 +74,7 @@ public class MultiTypeEsField extends EsField {
         out.writeBoolean(isAggregatable());
         out.writeMap(getIndexToConversionExpressions(), (o, v) -> out.writeNamedWriteable(v));
         writeTimeSeriesFieldType(out);
-        if (potentiallyUnmappedExpression == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeNamedWriteable(potentiallyUnmappedExpression);
-        }
+        out.writeOptionalNamedWriteable(out.getTransportVersion().supports(UNMAPPED_FIELDS_LOAD) ? potentiallyUnmappedExpression : null);
     }
 
     public String getWriteableName() {
@@ -151,6 +153,6 @@ public class MultiTypeEsField extends EsField {
 
     @Override
     public String toString() {
-        return super.toString() + " (" + indexToConversionExpressions + ")";
+        return Strings.format("%s (%s, %)", super.toString(), indexToConversionExpressions, potentiallyUnmappedExpression);
     }
 }

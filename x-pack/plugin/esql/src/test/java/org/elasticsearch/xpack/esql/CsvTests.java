@@ -528,7 +528,7 @@ public class CsvTests extends ESTestCase {
 
     private static MergedResult mergeMappings(List<MappingPerIndex> mappingsPerIndex) {
         int numberOfIndices = mappingsPerIndex.size();
-        Set<String> allIndexNames = mappingsPerIndex.stream().map(MappingPerIndex::index).collect(Collectors.toSet());
+        List<String> allIndexNames = mappingsPerIndex.stream().map(MappingPerIndex::index).toList();
         Map<String, Map<String, EsField>> columnNamesToFieldByIndices = new HashMap<>();
         for (var mappingPerIndex : mappingsPerIndex) {
             for (var entry : mappingPerIndex.mapping().entrySet()) {
@@ -540,12 +540,13 @@ public class CsvTests extends ESTestCase {
 
         Map<String, Set<String>> fieldToUnmappedIndices = new HashMap<>();
         for (var e : columnNamesToFieldByIndices.entrySet()) {
-            if (e.getValue().size() < numberOfIndices) {
-                String fieldName = e.getKey();
-                Set<String> mappedIndices = e.getValue().keySet();
-                Set<String> unmappedIndices = new HashSet<>(allIndexNames);
-                unmappedIndices.removeAll(mappedIndices);
-                fieldToUnmappedIndices.put(fieldName, unmappedIndices);
+            Set<String> mappedFields = e.getValue().keySet();
+            if (mappedFields.size() < numberOfIndices) {
+                String columnName = e.getKey();
+                Set<String> unmappedIndices = allIndexNames.stream()
+                    .filter(n -> mappedFields.contains(n) == false)
+                    .collect(Collectors.toUnmodifiableSet());
+                fieldToUnmappedIndices.put(columnName, unmappedIndices);
             }
         }
         var mappings = columnNamesToFieldByIndices.entrySet()

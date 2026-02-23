@@ -21,17 +21,18 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 
 /**
- * Representation of field mapped differently across indices.
+ * Representation of field mapped differently across indices; or being potentially unmapped in some, in which case it is treated as
+ * {@link DataType#KEYWORD} in the indices where it is unmapped.
  * Used during mapping discovery only.
- * Note that the field <code>typesToIndices</code> is not serialized because that information is
+ * Note that the fields <code>typesToIndices</code> and <code>isPotentiallyUnmapped</code> are not serialized because that information is
  * not required through the cluster, only surviving as long as the Analyser phase of query planning.
- * It is used specifically for the 'union types' feature in ES|QL.
+ * It is used specifically for the 'union types' and 'unmapped fields' feature in ES|QL.
  */
 public class InvalidMappedField extends EsField {
 
     private final String errorMessage;
     private final Map<String, Set<String>> typesToIndices;
-    // FIXME(gal, NOCOMMIT) document
+    // Marks the field as being unmapped in some indices.
     private final boolean isPotentiallyUnmapped;
 
     public InvalidMappedField(String name, String errorMessage, Map<String, EsField> properties) {
@@ -79,9 +80,8 @@ public class InvalidMappedField extends EsField {
             ((PlanStreamInput) in).readCachedString(),
             in.readString(),
             in.readImmutableMap(StreamInput::readString, EsField::readFrom),
-            // FIXME(gal, NOCOMMIT) Does this need to be protected with a version? Perhaps it's best to create a new type?
             Map.of(),
-            in.readBoolean(),
+            false,
             readTimeSeriesFieldType(in)
         );
     }
@@ -95,7 +95,6 @@ public class InvalidMappedField extends EsField {
         ((PlanStreamOutput) out).writeCachedString(getName());
         out.writeString(errorMessage);
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
-        out.writeBoolean(isPotentiallyUnmapped);
         writeTimeSeriesFieldType(out);
     }
 
@@ -139,10 +138,6 @@ public class InvalidMappedField extends EsField {
 
     public boolean isPotentiallyUnmapped() {
         return isPotentiallyUnmapped;
-    }
-
-    public static String makeErrorsMessageIncludingInsistKeyword(Map<String, Set<String>> typesToIndices) {
-        return makeErrorMessage(typesToIndices, true);
     }
 
     private static String makeErrorMessage(Map<String, Set<String>> typesToIndices, boolean includeInsistKeyword) {

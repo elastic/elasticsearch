@@ -856,7 +856,7 @@ FROM sample_data, logs, no_mapping_sample_data METADATA _index
 | SORT _index, @timestamp DESC
 ;
 
-_index:keyword         | @timestamp:date           | message:keyword
+_index:keyword         | @timestamp:date          | message:keyword
 logs                   | 2023-10-23T13:57:01.544Z | Running cats (cycle 3)
 logs                   | 2023-10-23T13:56:01.544Z | Running cats (cycle 2)
 logs                   | 2023-10-23T13:56:01.543Z | No response

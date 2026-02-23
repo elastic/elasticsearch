@@ -87,6 +87,8 @@ and then grouping - that is not going to be faster.
 
 ## Examples
 
+The following examples demonstrate common `STATS` patterns.
+
 ### Group by column
 
 Combine an aggregation with `BY` to compute a value for each group:
@@ -194,7 +196,7 @@ works. For example, group by a derived value using `LEFT`:
 :::{include} ../examples/stats.csv-spec/docsStatsByExpression.md
 :::
 
-### Omitting column names
+### Output column naming
 
 Specifying the output column name is optional. If not specified, the new column
 name is equal to the expression. The following query returns a column named

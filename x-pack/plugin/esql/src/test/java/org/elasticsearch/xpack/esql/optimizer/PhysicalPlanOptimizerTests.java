@@ -115,6 +115,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.TopN;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
@@ -132,6 +133,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.EvalExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
 import org.elasticsearch.xpack.esql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -140,6 +142,7 @@ import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
+import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -8947,7 +8950,8 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             null,
             null,
             null,
-            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, PlannerSettings.DEFAULTS)
+            new EsPhysicalOperationProviders(FoldContext.small(), EmptyIndexedByShardId.instance(), null, PlannerSettings.DEFAULTS),
+            null  // OperatorFactoryRegistry - not needed for these tests
         );
 
         return planner.plan("test", FoldContext.small(), plannerSettings, plan, EmptyIndexedByShardId.instance());
@@ -9157,6 +9161,31 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var randomSampling = as(filter.get(0), RandomSamplingQueryBuilder.class);
         assertThat(randomSampling.probability(), equalTo(0.1));
         assertThat(randomSampling.hash(), equalTo(0));
+    }
+
+    public void testReductionPlanForMetricsInfoReturnsIntermediateReduction() {
+        EsRelation esRelation = new EsRelation(
+            Source.EMPTY,
+            "k8s",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("k8s", IndexMode.TIME_SERIES),
+            List.of()
+        );
+        MetricsInfo metricsInfo = new MetricsInfo(Source.EMPTY, esRelation);
+
+        FragmentExec fragment = new FragmentExec(metricsInfo);
+        ExchangeSinkExec dataPlan = new ExchangeSinkExec(Source.EMPTY, fragment.output(), false, fragment);
+
+        PlannerUtils.PlanReduction reduction = PlannerUtils.reductionPlan(dataPlan);
+        assertThat(reduction, instanceOf(PlannerUtils.ReducedPlan.class));
+        PlannerUtils.ReducedPlan reducedPlan = (PlannerUtils.ReducedPlan) reduction;
+        var metricsInfoExec = as(reducedPlan.plan(), MetricsInfoExec.class);
+        assertThat(metricsInfoExec.mode(), equalTo(MetricsInfoExec.Mode.INTERMEDIATE));
+
+        assertThat(metricsInfoExec.intermediateAttributes(), equalTo(dataPlan.output()));
+        assertThat(metricsInfoExec.output(), equalTo(dataPlan.output()));
     }
 
     @SuppressWarnings("SameParameterValue")

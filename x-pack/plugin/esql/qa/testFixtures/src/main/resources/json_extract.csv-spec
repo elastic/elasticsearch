@@ -70,6 +70,17 @@ json:keyword                                                                    
 // end::json_extract_array-result[]
 ;
 
+jsonExtractDeepMixedNesting
+required_capability: fn_json_extract
+ROW json = "{\"company\":{\"departments\":[{\"name\":\"eng\",\"leads\":[{\"name\":\"Alice\"},{\"name\":\"Bob\"}]},{\"name\":\"sales\",\"leads\":[{\"name\":\"Carol\"}]}]}}"
+| EVAL lead = JSON_EXTRACT(json, "company.departments[0].leads[1].name")
+| KEEP lead
+;
+
+lead:keyword
+Bob
+;
+
 jsonExtractObject
 required_capability: fn_json_extract
 // tag::json_extract_object[]

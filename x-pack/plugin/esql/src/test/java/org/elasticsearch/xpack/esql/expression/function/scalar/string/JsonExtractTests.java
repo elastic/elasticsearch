@@ -172,6 +172,14 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         assertResult("{\"orders\":[{\"id\":1},{\"id\":2}]}", "$.orders[1].id", "2");
     }
 
+    public void testDeepMixedNesting() {
+        assertResult(
+            "{\"company\":{\"departments\":[{\"name\":\"eng\",\"leads\":[{\"name\":\"Alice\"},{\"name\":\"Bob\"}]}]}}",
+            "company.departments[0].leads[1].name",
+            "Bob"
+        );
+    }
+
     public void testDollarDotAloneReturnsRoot() {
         assertResult("{\"a\":1}", "$.", "{\"a\":1}");
     }

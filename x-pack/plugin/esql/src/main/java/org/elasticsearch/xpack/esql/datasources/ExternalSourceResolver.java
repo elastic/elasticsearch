@@ -175,8 +175,15 @@ public class ExternalSourceResolver {
         if (lastFailure != null) {
             throw new IllegalArgumentException("Failed to resolve metadata for [" + path + "]", lastFailure);
         }
+        var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
         throw new UnsupportedOperationException(
-            "No handler found for source at path [" + path + "]. " + "Please ensure the appropriate data source plugin is installed."
+            "No handler found for source at path ["
+                + path
+                + "]. "
+                + "Please ensure the appropriate data source plugin is installed. "
+                + "Known handlers: ["
+                + sources
+                + "]."
         );
     }
 

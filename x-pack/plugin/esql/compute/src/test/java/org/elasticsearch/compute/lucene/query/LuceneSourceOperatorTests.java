@@ -27,6 +27,7 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
@@ -428,6 +429,60 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
         logger.info("{} received={} limit={} numResults={}", factory.dataPartitioning, count, limit, testCase.numResults(numDocs));
         assertThat(count, equalTo(Math.min(limit, testCase.numResults(numDocs))));
         testCase.assertSourceOperator(sourceOperator);
+    }
+
+    public void testAccumulateSearchLoad() throws IOException {
+        Directory dir0 = newDirectory();
+        Directory dirLarge = newDirectory();
+        IndexReader r0 = null;
+        IndexReader rLarge = null;
+        try {
+            r0 = simpleReader(dir0, 0, 1);
+            rLarge = simpleReader(dirLarge, 200, 10);
+
+            List<ShardContext> shardContexts = List.of(new MockShardContext(r0, 0), new MockShardContext(rLarge, 1));
+
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> TestCase.MATCH_ALL.queryAndExtra();
+            int maxPageSize = randomIntBetween(32, 64);
+            int taskConcurrency = randomIntBetween(1, 4);
+
+            LuceneSourceOperator.Factory factory = new LuceneSourceOperator.Factory(
+                new IndexedByShardIdFromList<>(shardContexts),
+                queryFunction,
+                DataPartitioning.SEGMENT,
+                DataPartitioning.AutoStrategy.DEFAULT,
+                taskConcurrency,
+                maxPageSize,
+                LuceneOperator.NO_LIMIT,
+                scoring
+            );
+            DriverContext ctx = driverContext();
+            LuceneSourceOperator sourceOperator = (LuceneSourceOperator) factory.get(ctx);
+            List<Page> results = new ArrayList<>();
+            new TestDriverRunner().run(
+                TestDriverFactory.create(ctx, sourceOperator, List.of(), new TestResultPageSinkOperator(results::add))
+            );
+
+            var res = sourceOperator.shardLoadDelta(System.nanoTime());
+            assertThat(res.size(), equalTo(2));
+            for (var s : res) {
+                assertThat(s.rowsEmitted(), equalTo(0L));
+                assertThat(s.processTimeNanos(), equalTo(0L));
+            }
+
+            long totalPositions = results.stream().mapToInt(Page::getPositionCount).sum();
+            assertThat(totalPositions, greaterThan(0L));
+            OperatorTestCase.assertDriverContext(ctx);
+
+            double load0 = shardContexts.get(0).stats().stats().getTotal().getSearchLoadRate();
+            double loadLarge = shardContexts.get(1).stats().stats().getTotal().getSearchLoadRate();
+
+            // Shard with no docs may still see minimal load from query rewrite, but should be <= others
+            assertThat(loadLarge, greaterThan(0d));
+            assertThat(loadLarge, greaterThanOrEqualTo(load0));
+        } finally {
+            IOUtils.close(r0, rLarge, dir0, dirLarge);
+        }
     }
 
     // Returns the initial block index, ignoring the score block if scoring is enabled

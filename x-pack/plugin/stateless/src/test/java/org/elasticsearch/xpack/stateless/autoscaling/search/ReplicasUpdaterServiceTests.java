@@ -48,6 +48,7 @@ import org.elasticsearch.telemetry.InstrumentType;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -128,7 +129,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         mockClient = new MockClient();
         desiredTopologyContext = new DesiredTopologyContext(ClusterServiceUtils.createClusterService(this.testThreadPool));
         ClusterService clusterService = createClusterService(testThreadPool, createClusterSettings());
-        replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(clusterService, mockClient);
+        replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(clusterService, mockClient, MeterRegistry.NOOP);
         recordingMeterRegistry = new RecordingMeterRegistry();
         replicasUpdaterService = new ReplicasUpdaterService(
             testThreadPool,
@@ -159,7 +160,11 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
     public void testUpdatePollInterval() {
         ClusterService clusterService = createClusterService(testThreadPool, createClusterSettings());
-        ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(clusterService, mockClient);
+        ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(
+            clusterService,
+            mockClient,
+            MeterRegistry.NOOP
+        );
         ReplicasUpdaterService instance = new ReplicasUpdaterService(
             testThreadPool,
             clusterService,
@@ -181,7 +186,11 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
     public void testUpdatePollIntervalUnscheduled() {
         ClusterService clusterService = createClusterService(testThreadPool, createClusterSettings());
-        ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(clusterService, mockClient);
+        ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(
+            clusterService,
+            mockClient,
+            MeterRegistry.NOOP
+        );
         ReplicasUpdaterService instance = new ReplicasUpdaterService(
             testThreadPool,
             clusterService,
@@ -240,7 +249,11 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             )
         );
         ClusterService clusterService = createClusterService(testThreadPool, createClusterSettings());
-        ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(clusterService, mockClient);
+        ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(
+            clusterService,
+            mockClient,
+            MeterRegistry.NOOP
+        );
         ReplicasUpdaterService instance = new ReplicasUpdaterService(
             testThreadPool,
             clusterService,
@@ -1101,7 +1114,11 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         };
         NoOpNodeClient client = new NoOpNodeClient(testThreadPool);
         ClusterService clusterService = createClusterService(testThreadPool, createClusterSettings());
-        ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(clusterService, client);
+        ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(
+            clusterService,
+            client,
+            MeterRegistry.NOOP
+        );
         replicasUpdaterService = new ReplicasUpdaterService(
             testThreadPool,
             clusterService,
@@ -1188,7 +1205,8 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         Supplier<ReplicasLoadBalancingResult> stubLoadBalancingResult = results::pop;
         ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(
             clusterService,
-            new NoOpClient(testThreadPool)
+            new NoOpClient(testThreadPool),
+            MeterRegistry.NOOP
         ) {
             @Override
             public void getRecommendedReplicas(
@@ -1292,7 +1310,8 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         Supplier<ReplicasLoadBalancingResult> stubLoadBalancingResult = results::pop;
         ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(
             clusterService,
-            new NoOpClient(testThreadPool)
+            new NoOpClient(testThreadPool),
+            MeterRegistry.NOOP
         ) {
             @Override
             public void getRecommendedReplicas(
@@ -1380,7 +1399,8 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         ClusterService clusterService = createClusterService(testThreadPool, createClusterSettings());
         ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(
             clusterService,
-            new NoOpClient(testThreadPool)
+            new NoOpClient(testThreadPool),
+            MeterRegistry.NOOP
         ) {
             @Override
             public void getRecommendedReplicas(
@@ -1609,7 +1629,8 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
         Supplier<ReplicasLoadBalancingResult> stubLoadBalancingResult = results::pop;
         ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(
             clusterService,
-            new NoOpClient(testThreadPool)
+            new NoOpClient(testThreadPool),
+            MeterRegistry.NOOP
         ) {
             @Override
             public void getRecommendedReplicas(

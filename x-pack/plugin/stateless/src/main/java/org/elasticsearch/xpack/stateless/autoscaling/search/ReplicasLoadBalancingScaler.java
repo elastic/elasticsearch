@@ -35,6 +35,8 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.telemetry.metric.LongCounter;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.stateless.autoscaling.DesiredClusterTopology;
 import org.elasticsearch.xpack.stateless.autoscaling.search.IndexReplicationRanker.IndexRankingProperties;
 
@@ -102,9 +104,16 @@ public class ReplicasLoadBalancingScaler {
     private volatile boolean enableReplicasForLoadBalancing;
     private volatile double maxReplicaRelativeSearchLoad;
 
-    public ReplicasLoadBalancingScaler(ClusterService clusterService, Client client) {
+    private final LongCounter indicesStatsErrors;
+
+    public ReplicasLoadBalancingScaler(ClusterService clusterService, Client client, MeterRegistry meterRegistry) {
         this.client = client;
         this.clusterService = clusterService;
+        this.indicesStatsErrors = meterRegistry.registerLongCounter(
+            "es.autoscaling.search.indices_stats_errors.total",
+            "The number of times there was an error getting indices stats, which are required to scale replicas for load balancing.",
+            "errors"
+        );
     }
 
     public void init() {
@@ -196,6 +205,7 @@ public class ReplicasLoadBalancingScaler {
             @Override
             public void onFailure(Exception e) {
                 LOGGER.warn("unable to get indices stats for replicas load balancing, returning topology check result", e);
+                indicesStatsErrors.increment();
                 // if stats API or processing fails, return topology check result plus current state for other indices
                 SortedMap<String, Integer> desiredState = new TreeMap<>(); // natural order of keys as we don't have the search loads
                 for (IndexRankingProperties props : rankingContext.properties()) {

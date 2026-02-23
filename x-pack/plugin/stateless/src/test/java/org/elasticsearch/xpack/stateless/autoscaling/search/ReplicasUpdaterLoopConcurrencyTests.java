@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.telemetry.TelemetryProvider;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpNodeClient;
@@ -85,7 +86,11 @@ public class ReplicasUpdaterLoopConcurrencyTests extends ESTestCase {
         listener = new TestExecutionTrackingListener();
         ClusterService clusterService = createClusterService(testThreadPool, createClusterSettings());
         NoOpNodeClient client = new NoOpNodeClient(testThreadPool);
-        ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(clusterService, client);
+        ReplicasLoadBalancingScaler replicasLoadBalancingScaler = new ReplicasLoadBalancingScaler(
+            clusterService,
+            client,
+            MeterRegistry.NOOP
+        );
         replicasUpdaterService = new ReplicasUpdaterService(
             testThreadPool,
             clusterService,
@@ -375,7 +380,11 @@ public class ReplicasUpdaterLoopConcurrencyTests extends ESTestCase {
         ClusterService clusterService = createClusterService(testThreadPool, createClusterSettings());
         NoOpNodeClient client = new NoOpNodeClient(testThreadPool);
         org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasLoadBalancingScaler replicasLoadBalancingScaler =
-            new org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasLoadBalancingScaler(clusterService, client);
+            new org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasLoadBalancingScaler(
+                clusterService,
+                client,
+                MeterRegistry.NOOP
+            );
         replicasUpdaterService = new org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasUpdaterService(
             testThreadPool,
             clusterService,

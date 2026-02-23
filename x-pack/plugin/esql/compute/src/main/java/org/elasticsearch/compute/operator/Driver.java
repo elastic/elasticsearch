@@ -357,10 +357,10 @@ public class Driver implements Releasable, Describable {
                 while (finishedOperators.hasNext()) {
                     Operator op = finishedOperators.next();
                     statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
-                    if (op instanceof SourceOperator) {
+                    if (op instanceof SourceOperator sourceOperator) {
                         long now = nowSupplier.getAsLong();
                         // report one last time before closing
-                        reportSearchLoad(now - lastStatusUpdate, now);
+                        sourceOperator.reportSearchLoad(now - lastStatusUpdate, now)
                     }
                     op.close();
                     finishedOperators.remove();

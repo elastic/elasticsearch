@@ -9,7 +9,7 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
-import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
+import org.elasticsearch.entitlement.bridge.NotEntitledException;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

@@ -275,8 +275,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
-        // skip nothing
-        // super skips tests for the "regular" CsvTest/EsqlSpecIT suites
+        checkCapabilities(adminClient(), testFeatureService, testName, testCase);
     }
 
     /**

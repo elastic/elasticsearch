@@ -2023,7 +2023,7 @@ public class EsqlCapabilities {
         /**
          * Enables late materialization on node reduce. See also QueryPragmas.NODE_LEVEL_REDUCTION
          */
-        ENABLE_REDUCE_NODE_LATE_MATERIALIZATION(Build.current().isSnapshot()),
+        ENABLE_REDUCE_NODE_LATE_MATERIALIZATION,
 
         /**
          * {@link ReplaceStatsFilteredOrNullAggWithEval} now replaces an
@@ -2182,6 +2182,11 @@ public class EsqlCapabilities {
          * Supports the REGISTERED_DOMAIN command.
          */
         REGISTERED_DOMAIN_COMMAND,
+
+        /**
+         * Support for the EXTERNAL command (datasource access).
+         */
+        EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

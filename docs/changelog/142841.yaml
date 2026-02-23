@@ -1,4 +1,4 @@
-area: "Compute Engine"
+area: ES|QL
 issues: []
 pr: 142841
 summary: Attribute ES|QL shard search load in Lucene operators

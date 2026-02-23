@@ -205,6 +205,11 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public UnsignedLongFieldMapper build(MapperBuilderContext context) {
             if (inheritDimensionParameterFromParentObject(context)) {
                 dimension.setValue(true);

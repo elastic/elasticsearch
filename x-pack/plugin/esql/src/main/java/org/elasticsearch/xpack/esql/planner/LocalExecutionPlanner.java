@@ -1057,51 +1057,41 @@ public class LocalExecutionPlanner {
      * @return the physical operation
      */
     private PhysicalOperation planExternalSource(ExternalSourceExec externalSource, LocalExecutionPlannerContext context) {
-        // Create layout with output attributes
         Layout.Builder layout = new Layout.Builder();
         layout.append(externalSource.output());
 
-        // Determine page size based on estimated row size
         Integer estimatedRowSize = externalSource.estimatedRowSize();
         int pageSize = (estimatedRowSize != null && estimatedRowSize > 0)
             ? Math.max(SourceOperator.MIN_TARGET_PAGE_SIZE, SourceOperator.TARGET_PAGE_SIZE / estimatedRowSize)
             : 1000;
 
-        // Parse the storage path
-        StoragePath path = StoragePath.of(externalSource.sourcePath());
+        if (operatorFactoryRegistry == null) {
+            throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
+        }
 
-        // Extract column names from attributes
+        // Single path through OperatorFactoryRegistry — handles connectors, plugins, and storage+format
+        StoragePath path = StoragePath.of(externalSource.sourcePath());
         List<String> projectedColumns = new ArrayList<>();
         for (Attribute attr : externalSource.output()) {
             projectedColumns.add(attr.name());
         }
 
-        // Create the operator factory using the registry
-        SourceOperator.SourceOperatorFactory factory;
-        if (operatorFactoryRegistry != null) {
-            // Build the operator context with all available metadata
-            SourceOperatorContext operatorContext = SourceOperatorContext.builder()
-                .sourceType(externalSource.sourceType())
-                .path(path)
-                .projectedColumns(projectedColumns)
-                .attributes(externalSource.output())
-                .batchSize(pageSize)
-                .maxBufferSize(10)
-                .executor(operatorFactoryRegistry.executor())
-                .config(externalSource.config())
-                .sourceMetadata(externalSource.sourceMetadata())
-                .pushedFilter(externalSource.pushedFilter())
-                .fileSet(externalSource.fileSet())
-                .build();
+        SourceOperatorContext operatorContext = SourceOperatorContext.builder()
+            .sourceType(externalSource.sourceType())
+            .path(path)
+            .projectedColumns(projectedColumns)
+            .attributes(externalSource.output())
+            .batchSize(pageSize)
+            .maxBufferSize(10)
+            .executor(operatorFactoryRegistry.executor())
+            .config(externalSource.config())
+            .sourceMetadata(externalSource.sourceMetadata())
+            .pushedFilter(externalSource.pushedFilter())
+            .fileSet(externalSource.fileSet())
+            .build();
 
-            factory = operatorFactoryRegistry.factory(operatorContext);
-        } else {
-            throw new IllegalStateException("OperatorFactoryRegistry is required for external sources");
-        }
-
-        // Set driver parallelism to 1 for now (can be optimized later with file splitting)
+        SourceOperator.SourceOperatorFactory factory = operatorFactoryRegistry.factory(operatorContext);
         context.driverParallelism(new DriverParallelism(DriverParallelism.Type.DATA_PARALLELISM, 1));
-
         return PhysicalOperation.fromSource(factory, layout.build());
     }
 

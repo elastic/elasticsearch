@@ -111,6 +111,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -1675,11 +1676,20 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUnsupportedFieldsInUriParts() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
         verifyUnsupported("""
             from test
             | uri_parts p = unsupported
+            """, errorMsg);
+    }
+
+    public void testUnsupportedFieldsInRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
+        verifyUnsupported("""
+            from test
+            | registered_domain rd = unsupported
             """, errorMsg);
     }
 
@@ -6206,7 +6216,7 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testUriParts() {
-        assumeTrue("requires compound output capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
         LogicalPlan plan = analyze("ROW uri=\"http://user:pass@host.com:8080/path/file.ext?query=1#frag\" | uri_parts p = uri");
 
         Limit limit = as(plan, Limit.class);
@@ -6233,6 +6243,27 @@ public class AnalyzerTests extends ESTestCase {
         // Test invalid input type
         VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW uri=123 | uri_parts p = uri"));
         assertThat(e.getMessage(), containsString("Input for URI_PARTS must be of type [string] but is [integer]"));
+    }
+
+    public void testRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        LogicalPlan plan = analyze("ROW fqdn=\"www.example.co.uk\" | registered_domain rd = fqdn");
+
+        Limit limit = as(plan, Limit.class);
+        RegisteredDomain parts = as(limit.child(), RegisteredDomain.class);
+
+        final List<Attribute> attributes = parts.generatedAttributes();
+
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+
+        assertContainsAttribute(attributes, "rd.domain", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "rd.registered_domain", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "rd.top_level_domain", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "rd.subdomain", DataType.KEYWORD);
+        assertEquals(4, attributes.size());
+
+        VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW fqdn=123 | registered_domain rd = fqdn"));
+        assertThat(e.getMessage(), containsString("Input for REGISTERED_DOMAIN must be of type [string] but is [integer]"));
     }
 
     private void assertContainsAttribute(List<Attribute> attributes, String expectedName, DataType expectedType) {

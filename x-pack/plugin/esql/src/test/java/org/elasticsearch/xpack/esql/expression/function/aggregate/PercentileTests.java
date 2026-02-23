@@ -119,7 +119,7 @@ public class PercentileTests extends AbstractAggregationTestCase {
         return Double.isNaN(result) ? null : result;
     }
 
-    private static Double getExpectedPercentileForTDigests(List<TDigestHolder> values, double percentile) {
+    public static Double getExpectedPercentileForTDigests(List<TDigestHolder> values, double percentile) {
         TDigestState merged = TDigestState.createWithoutCircuitBreaking(TDigestStates.COMPRESSION);
         values.stream().filter(Objects::nonNull).forEach(tDigestHolder -> tDigestHolder.addTo(merged));
         double result = merged.quantile(percentile / 100.0);

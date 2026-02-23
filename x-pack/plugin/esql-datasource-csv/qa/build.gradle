@@ -24,8 +24,13 @@ dependencies {
   javaRestTestImplementation project(':test:fixtures:s3-fixture')
   javaRestTestImplementation project(':test:fixtures:aws-fixture-utils')
 
+  // GCS fixture infrastructure for mocking GCS operations
+  javaRestTestImplementation project(':test:fixtures:gcs-fixture')
+
   // Repository S3 module for cluster
   clusterModules project(':modules:repository-s3')
+  // Repository GCS module for cluster
+  clusterModules project(':modules:repository-gcs')
   clusterPlugins project(':plugins:mapper-size')
   clusterPlugins project(':plugins:mapper-murmur3')
 
@@ -33,6 +38,8 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-csv'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
   clusterPlugins project(xpackModule('esql-datasource-s3'))
+  // GCS datasource plugin for gs:// storage backend
+  clusterPlugins project(xpackModule('esql-datasource-gcs'))
 }
 
 // The CSV fixtures (employees.csv and csv-basic.csv-spec) are included

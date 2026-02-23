@@ -11,7 +11,8 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -33,63 +34,17 @@ public abstract class DelegatingBlockLoader implements BlockLoader {
     }
 
     @Override
-    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException {
-        IOSupplier<ColumnAtATimeReader> reader = delegate.columnAtATimeReader(context);
+    public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException {
+        IOFunction<CircuitBreaker, ColumnAtATimeReader> reader = delegate.columnAtATimeReader(context);
         if (reader == null) {
             return null;
         }
-        return () -> new ColumnReader(reader.get());
-    }
-
-    private class ColumnReader implements ColumnAtATimeReader {
-        private final ColumnAtATimeReader reader;
-
-        ColumnReader(ColumnAtATimeReader reader) {
-            this.reader = reader;
-        }
-
-        @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            return reader.read(factory, docs, offset, nullsFiltered);
-        }
-
-        @Override
-        public boolean canReuse(int startingDocID) {
-            return reader.canReuse(startingDocID);
-        }
-
-        @Override
-        public String toString() {
-            return "Delegating[to=" + delegatingTo() + ", impl=" + reader + "]";
-        }
-    }
-
-    private class RowReader implements RowStrideReader {
-        private final RowStrideReader reader;
-
-        private RowReader(RowStrideReader reader) {
-            this.reader = reader;
-        }
-
-        @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            reader.read(docId, storedFields, builder);
-        }
-
-        @Override
-        public boolean canReuse(int startingDocID) {
-            return reader.canReuse(startingDocID);
-        }
-
-        @Override
-        public String toString() {
-            return "Delegating[to=" + delegatingTo() + ", impl=" + reader + "]";
-        }
+        return breaker -> new ColumnReader(reader.apply(breaker));
     }
 
     @Override
-    public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        RowStrideReader reader = delegate.rowStrideReader(context);
+    public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        RowStrideReader reader = delegate.rowStrideReader(breaker, context);
         if (reader == null) {
             return null;
         }
@@ -116,5 +71,61 @@ public abstract class DelegatingBlockLoader implements BlockLoader {
     @Override
     public final String toString() {
         return "Delegating[to=" + delegatingTo() + ", impl=" + delegate + "]";
+    }
+
+    private class ColumnReader implements ColumnAtATimeReader {
+        private final ColumnAtATimeReader reader;
+
+        ColumnReader(ColumnAtATimeReader reader) {
+            this.reader = reader;
+        }
+
+        @Override
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            return reader.read(factory, docs, offset, nullsFiltered);
+        }
+
+        @Override
+        public boolean canReuse(int startingDocID) {
+            return reader.canReuse(startingDocID);
+        }
+
+        @Override
+        public String toString() {
+            return "Delegating[to=" + delegatingTo() + ", impl=" + reader + "]";
+        }
+
+        @Override
+        public void close() {
+            reader.close();
+        }
+    }
+
+    private class RowReader implements RowStrideReader {
+        private final RowStrideReader reader;
+
+        private RowReader(RowStrideReader reader) {
+            this.reader = reader;
+        }
+
+        @Override
+        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+            reader.read(docId, storedFields, builder);
+        }
+
+        @Override
+        public boolean canReuse(int startingDocID) {
+            return reader.canReuse(startingDocID);
+        }
+
+        @Override
+        public String toString() {
+            return "Delegating[to=" + delegatingTo() + ", impl=" + reader + "]";
+        }
+
+        @Override
+        public void close() {
+            reader.close();
+        }
     }
 }

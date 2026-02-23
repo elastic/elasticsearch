@@ -14,10 +14,13 @@ import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
+import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
 
 import java.io.IOException;
 
@@ -28,7 +31,6 @@ import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.Sep
  */
 public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
     private final String fieldName;
-
     private final Warnings warnings;
 
     public ByteLengthFromBytesRefDocValuesBlockLoader(Warnings warnings, String fieldName) {
@@ -42,27 +44,39 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-        if (values == null) {
-            return ConstantNull.READER;
-        }
+    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        breaker.addEstimateBytesAndMaybeBreak(BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE, "load blocks");
+        long release = BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE;
+        try {
 
-        String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-        DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-        assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
-        if (countsSkipper.maxValue() == 1) {
-            return new SingleValued(values);
-        }
+            BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
+            if (values == null) {
+                return ConstantNull.READER;
+            }
 
-        NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-        return new MultiValuedBinaryWithSeparateCounts(warnings, counts, values);
+            String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
+            DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
+            assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
+            if (countsSkipper.maxValue() == 1) {
+                release = 0;
+                return new SingleValued(breaker, values);
+            }
+
+            breaker.addEstimateBytesAndMaybeBreak(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE, "load blocks");
+            release += AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
+            NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
+            release = 0;
+            return new MultiValuedBinaryWithSeparateCounts(breaker, warnings, counts, values);
+        } finally {
+            breaker.addWithoutBreaking(-release);
+        }
     }
 
     private static final class SingleValued extends BlockDocValuesReader {
         private final BinaryDocValues docValues;
 
-        SingleValued(BinaryDocValues docValues) {
+        SingleValued(CircuitBreaker breaker, BinaryDocValues docValues) {
+            super(breaker);
             this.docValues = docValues;
         }
 
@@ -104,6 +118,11 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         }
 
         @Override
+        public void close() {
+            breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
+        }
+
+        @Override
         public String toString() {
             return "ByteLengthFromBytesRef.SingleValued";
         }
@@ -111,13 +130,20 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
 
     private static final class MultiValuedBinaryWithSeparateCounts extends MultiValuedBinaryWithSeparateCountsLengthReader {
 
-        MultiValuedBinaryWithSeparateCounts(Warnings warnings, NumericDocValues counts, BinaryDocValues values) {
-            super(warnings, counts, values);
+        MultiValuedBinaryWithSeparateCounts(CircuitBreaker breaker, Warnings warnings, NumericDocValues counts, BinaryDocValues values) {
+            super(breaker, warnings, counts, values);
         }
 
         @Override
         int length(BytesRef bytesRef) {
             return bytesRef.length;
+        }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(
+                -(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE + BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE)
+            );
         }
 
         @Override

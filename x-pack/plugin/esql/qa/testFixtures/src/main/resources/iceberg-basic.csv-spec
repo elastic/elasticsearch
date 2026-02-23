@@ -1,0 +1,206 @@
+// Tests for Iceberg tables with metadata
+
+simpleRow
+ROW a = 1, b = "iceberg";
+
+a:integer | b:keyword
+1         | "iceberg"
+;
+
+// Employees dataset: 100 rows, 23 columns (integers, keywords, dates, doubles, booleans, multi-values)
+
+readAllEmployees
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| KEEP emp_no, first_name, last_name, birth_date, gender, hire_date, languages, height, salary, still_hired
+| SORT emp_no
+| LIMIT 5;
+
+emp_no:integer | first_name:keyword | last_name:keyword | birth_date:date          | gender:keyword | hire_date:date           | languages:integer | height:double | salary:integer | still_hired:boolean
+10001          | "Georgi"           | "Facello"         | 1953-09-02T00:00:00.000Z | "M"            | 1986-06-26T00:00:00.000Z | 2                 | 2.03          | 57305          | true
+10002          | "Bezalel"          | "Simmel"          | 1964-06-02T00:00:00.000Z | "F"            | 1985-11-21T00:00:00.000Z | 5                 | 2.08          | 56371          | true
+10003          | "Parto"            | "Bamford"         | 1959-12-03T00:00:00.000Z | "M"            | 1986-08-28T00:00:00.000Z | 4                 | 1.83          | 61805          | false
+10004          | "Chirstian"        | "Koblick"         | 1954-05-01T00:00:00.000Z | "M"            | 1986-12-01T00:00:00.000Z | 5                 | 1.78          | 36174          | true
+10005          | "Kyoichi"          | "Maliniak"        | 1955-01-21T00:00:00.000Z | "M"            | 1989-09-12T00:00:00.000Z | 1                 | 2.05          | 63528          | true
+;
+
+selectSpecificColumns
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| KEEP emp_no, first_name, last_name, salary
+| SORT emp_no
+| LIMIT 5;
+
+emp_no:integer | first_name:keyword | last_name:keyword | salary:integer
+10001          | "Georgi"           | "Facello"         | 57305
+10002          | "Bezalel"          | "Simmel"          | 56371
+10003          | "Parto"            | "Bamford"         | 61805
+10004          | "Chirstian"        | "Koblick"         | 36174
+10005          | "Kyoichi"          | "Maliniak"        | 63528
+;
+
+filterByEmployeeNumber
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| WHERE emp_no == 10001
+| KEEP emp_no, first_name, last_name;
+
+emp_no:integer | first_name:keyword | last_name:keyword
+10001          | "Georgi"           | "Facello"
+;
+
+filterBySalaryRange
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| WHERE salary > 60000 AND salary < 70000
+| KEEP emp_no, first_name, salary
+| SORT emp_no
+| LIMIT 5;
+
+emp_no:integer | first_name:keyword | salary:integer
+10003          | "Parto"            | 61805
+10005          | "Kyoichi"          | 63528
+10006          | "Anneke"           | 60335
+10009          | "Sumant"           | 66174
+10016          | "Kazuhito"         | 61358
+;
+
+filterByGender
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| WHERE gender == "F"
+| KEEP emp_no, first_name, last_name, gender
+| SORT emp_no
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | last_name:keyword | gender:keyword
+10002          | "Bezalel"          | "Simmel"          | "F"
+10006          | "Anneke"           | "Preusig"         | "F"
+10007          | "Tzvetan"          | "Zielinski"       | "F"
+;
+
+filterByEmploymentStatus
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| WHERE still_hired == false
+| KEEP emp_no, first_name, last_name, still_hired
+| SORT emp_no
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | last_name:keyword | still_hired:boolean
+10003          | "Parto"            | "Bamford"         | false
+10006          | "Anneke"           | "Preusig"         | false
+10009          | "Sumant"           | "Peac"            | false
+;
+
+aggregateCount
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| STATS count = COUNT(*);
+
+count:long
+100
+;
+
+aggregateByGender
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| STATS count = COUNT(*) BY gender
+| SORT gender;
+
+count:long | gender:keyword
+33         | "F"
+57         | "M"
+10         | null
+;
+
+aggregateAverageSalary
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| STATS avg_salary = AVG(salary);
+
+avg_salary:double
+48248.55
+;
+
+aggregateSalaryStats
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| STATS min_salary = MIN(salary), max_salary = MAX(salary), avg_salary = AVG(salary);
+
+min_salary:integer | max_salary:integer | avg_salary:double
+25324              | 74999              | 48248.55
+;
+
+aggregateSalaryByGender
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| STATS avg_salary = AVG(salary), count = COUNT(*) BY gender
+| SORT gender;
+
+avg_salary:double    | count:long | gender:keyword
+50490.78787878788    | 33         | "F"
+46860.59649122807    | 57         | "M"
+48760.5              | 10         | null
+;
+
+filterAndSort
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| WHERE salary > 70000
+| KEEP emp_no, first_name, salary
+| SORT salary DESC
+| LIMIT 5;
+
+emp_no:integer | first_name:keyword | salary:integer
+10029          | "Otmar"            | 74999
+10045          | "Moss"             | 74970
+10007          | "Tzvetan"          | 74572
+10027          | "Divier"           | 73851
+10019          | "Lillian"          | 73717
+;
+
+evalComputedColumn
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| EVAL annual_bonus = salary * 0.1
+| KEEP emp_no, first_name, salary, annual_bonus
+| SORT emp_no
+| LIMIT 3;
+
+emp_no:integer | first_name:keyword | salary:integer | annual_bonus:double
+10001          | "Georgi"           | 57305          | 5730.5
+10002          | "Bezalel"          | 56371          | 5637.1
+10003          | "Parto"            | 61805          | 6180.5
+;
+
+complexQuery
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| WHERE still_hired == true AND salary > 55000
+| EVAL salary_category = CASE(salary < 60000, "standard", salary < 70000, "senior", "principal")
+| STATS count = COUNT(*), avg_salary = AVG(salary) BY salary_category
+| SORT salary_category;
+
+count:long | avg_salary:double | salary_category:keyword
+2          | 74075.0           | "principal"
+5          | 67017.0           | "senior"
+4          | 56789.25          | "standard"
+;
+
+// Additional column types
+
+selectAdditionalColumns
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| KEEP emp_no, first_name, `languages.long`, avg_worked_seconds
+| SORT emp_no
+| LIMIT 5;
+
+emp_no:integer | first_name:keyword | languages.long:long | avg_worked_seconds:long
+10001          | "Georgi"           | 2                   | 268728049
+10002          | "Bezalel"          | 5                   | 328922887
+10003          | "Parto"            | 4                   | 200296405
+10004          | "Chirstian"        | 5                   | 311267831
+10005          | "Kyoichi"          | 1                   | 244294991
+;
+
+selectHeightVariants
+EXTERNAL "s3://iceberg-test/warehouse/employees"
+| EVAL height_float_rounded = ROUND(`height.float`, 2), height_half_float_rounded = ROUND(`height.half_float`, 2)
+| KEEP emp_no, height, height_float_rounded, `height.scaled_float`, height_half_float_rounded
+| SORT emp_no
+| LIMIT 5;
+
+emp_no:integer | height:double | height_float_rounded:double | height.scaled_float:double | height_half_float_rounded:double
+10001          | 2.03          | 2.03                        | 2.03                       | 2.03
+10002          | 2.08          | 2.08                        | 2.08                       | 2.08
+10003          | 1.83          | 1.83                        | 1.83                       | 1.83
+10004          | 1.78          | 1.78                        | 1.78                       | 1.78
+10005          | 2.05          | 2.05                        | 2.05                       | 2.05
+;

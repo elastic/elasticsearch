@@ -103,6 +103,7 @@ RUN groupadd -g 1000 elasticsearch && \
     chown -R 0:0 /usr/share/elasticsearch
 
 ENV ELASTIC_CONTAINER=true
+ENV GLIBC_TUNABLES=glibc.malloc.hugetlb=0
 
 WORKDIR /usr/share/elasticsearch
 

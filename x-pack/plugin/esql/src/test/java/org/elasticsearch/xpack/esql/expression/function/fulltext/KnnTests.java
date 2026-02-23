@@ -102,6 +102,15 @@ public class KnnTests extends AbstractFullTextFunctionTestCase {
     }
 
     @Override
+    public void testLiteralExpressions() {
+        // Knn test data contains values that cannot be serialized when wrapped in a Literal,
+        // so we skip the serialization path and only check type resolution.
+        assumeTrue("Data can't be converted to literals", testCase.canGetDataAsLiterals());
+        Expression expression = build(testCase.getSource(), testCase.getDataAsLiterals());
+        assertFalse("expected resolved", expression.typeResolved().unresolved());
+    }
+
+    @Override
     protected Expression build(Source source, List<Expression> args) {
         Knn knn = new Knn(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
         // We need to add the QueryBuilder to the match expression, as it is used to implement equals() and hashCode() and

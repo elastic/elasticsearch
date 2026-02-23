@@ -135,7 +135,7 @@ public abstract class AbstractFullTextFunctionTestCase extends AbstractFunctionT
      * Checks that a literal full text functions built from the test case is resolved, which means that any type resolution logic
      * has been applied
      */
-    public final void testLiteralExpressions() {
+    public void testLiteralExpressions() {
         Expression expression = buildLiteralExpression(testCase);
         assertFalse("expected resolved", expression.typeResolved().unresolved());
     }

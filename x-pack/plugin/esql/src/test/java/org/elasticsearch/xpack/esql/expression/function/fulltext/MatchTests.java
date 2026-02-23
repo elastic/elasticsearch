@@ -68,7 +68,8 @@ public class MatchTests extends AbstractFullTextFunctionTestCase {
         addNonNumericCases(suppliers);
         addQueryAsStringTestCases(suppliers);
         addStringTestCases(suppliers);
-        return addNullFieldTestCases(suppliers);
+        addNullFieldTestCases(suppliers);
+        return suppliers;
     }
 
     private static void addNonNumericCases(List<TestCaseSupplier> suppliers) {

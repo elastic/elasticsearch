@@ -8,17 +8,14 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.hamcrest.Matcher;
 
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.SerializationTestUtils.serializeDeserialize;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFullTextFunctionTestCase {
@@ -50,18 +47,4 @@ public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFullText
         );
     }
 
-    /**
-     * Copy of the overridden method that doesn't check for children size, as the {@code options} child isn't serialized in Kql.
-     */
-    @Override
-    protected Expression serializeDeserializeExpression(Expression expression) {
-        Expression newExpression = serializeDeserialize(
-            expression,
-            PlanStreamOutput::writeNamedWriteable,
-            in -> in.readNamedWriteable(Expression.class),
-            testCase.getConfiguration() // The configuration query should be == to the source text of the function for this to work
-        );
-        // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
-        return newExpression.replaceChildren(expression.children());
-    }
 }

@@ -70,7 +70,7 @@ public class SearchTaskWatchdogTests extends ESTestCase {
             }
         };
 
-        final var watchdog = new SearchTaskWatchdog(settings, clusterSettings, mockTaskManager, deterministicTaskQueue.getThreadPool());
+        final var watchdog = new SearchTaskWatchdog(clusterSettings, mockTaskManager, deterministicTaskQueue.getThreadPool());
         watchdog.start();
 
         // coordinator has outstanding children, no logging expected
@@ -140,7 +140,7 @@ public class SearchTaskWatchdogTests extends ESTestCase {
             }
         };
 
-        final var watchdog = new SearchTaskWatchdog(settings, clusterSettings, mockTaskManager, deterministicTaskQueue.getThreadPool());
+        final var watchdog = new SearchTaskWatchdog(clusterSettings, mockTaskManager, deterministicTaskQueue.getThreadPool());
         watchdog.start();
 
         // task not exceeding threshold yet
@@ -188,7 +188,7 @@ public class SearchTaskWatchdogTests extends ESTestCase {
             }
         };
 
-        final var watchdog = new SearchTaskWatchdog(settings, clusterSettings, mockTaskManager, deterministicTaskQueue.getThreadPool());
+        final var watchdog = new SearchTaskWatchdog(clusterSettings, mockTaskManager, deterministicTaskQueue.getThreadPool());
         watchdog.start();
 
         assertThat(deterministicTaskQueue.hasDeferredTasks(), is(false));

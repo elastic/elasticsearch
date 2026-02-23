@@ -1285,7 +1285,6 @@ class NodeConstruction {
         );
 
         final SearchTaskWatchdog searchTaskWatchdog = new SearchTaskWatchdog(
-            settings,
             settingsModule.getClusterSettings(),
             transportService.getTaskManager(),
             threadPool

@@ -16,7 +16,6 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.tasks.TaskManager;
@@ -91,22 +90,15 @@ public class SearchTaskWatchdog extends AbstractLifecycleComponent {
     private volatile long lastLoggedNanos = 0;
     private final AtomicBoolean scheduled = new AtomicBoolean(false);
 
-    public SearchTaskWatchdog(Settings settings, ClusterSettings clusterSettings, TaskManager taskManager, ThreadPool threadPool) {
+    public SearchTaskWatchdog(ClusterSettings clusterSettings, TaskManager taskManager, ThreadPool threadPool) {
         this.taskManager = taskManager;
         this.threadPool = threadPool;
 
-        this.enabled = ENABLED.get(settings);
-        this.coordinatorThresholdNanos = COORDINATOR_THRESHOLD.get(settings).nanos();
-        this.dataNodeThresholdNanos = DATA_NODE_THRESHOLD.get(settings).nanos();
-        this.minThresholdNanos = computeMinThreshold(coordinatorThresholdNanos, dataNodeThresholdNanos);
-        this.interval = INTERVAL.get(settings);
-        this.cooldownPeriodNanos = COOLDOWN_PERIOD.get(settings).nanos();
-
-        clusterSettings.addSettingsUpdateConsumer(ENABLED, this::setEnabled);
-        clusterSettings.addSettingsUpdateConsumer(COORDINATOR_THRESHOLD, v -> setCoordinatorThreshold(v.nanos()));
-        clusterSettings.addSettingsUpdateConsumer(DATA_NODE_THRESHOLD, v -> setDataNodeThreshold(v.nanos()));
-        clusterSettings.addSettingsUpdateConsumer(INTERVAL, v -> this.interval = v);
-        clusterSettings.addSettingsUpdateConsumer(COOLDOWN_PERIOD, v -> this.cooldownPeriodNanos = v.nanos());
+        clusterSettings.initializeAndWatch(ENABLED, this::setEnabled);
+        clusterSettings.initializeAndWatch(COORDINATOR_THRESHOLD, v -> setCoordinatorThreshold(v.nanos()));
+        clusterSettings.initializeAndWatch(DATA_NODE_THRESHOLD, v -> setDataNodeThreshold(v.nanos()));
+        clusterSettings.initializeAndWatch(INTERVAL, v -> this.interval = v);
+        clusterSettings.initializeAndWatch(COOLDOWN_PERIOD, v -> this.cooldownPeriodNanos = v.nanos());
     }
 
     private void setEnabled(boolean enabled) {

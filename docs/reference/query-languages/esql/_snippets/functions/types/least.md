@@ -13,9 +13,9 @@
 | integer | integer | integer |
 | ip | ip | ip |
 | keyword | keyword | keyword |
+| keyword<br>text |  | keyword |
 | long |  | long |
 | long | long | long |
 | text | text | keyword |
 | version | version | version |
-| • keyword<br>• text |  | keyword |
 

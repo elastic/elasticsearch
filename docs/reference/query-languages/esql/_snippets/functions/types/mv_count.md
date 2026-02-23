@@ -4,5 +4,5 @@
 
 | field | result |
 | --- | --- |
-| • boolean<br>• cartesian_point<br>• cartesian_shape<br>• date<br>• date_nanos<br>• double<br>• geo_point<br>• geo_shape<br>• geohash<br>• geohex<br>• geotile<br>• integer<br>• ip<br>• keyword<br>• long<br>• text<br>• unsigned_long<br>• version | integer |
+| boolean<br>cartesian_point<br>cartesian_shape<br>date<br>date_nanos<br>double<br>geo_point<br>geo_shape<br>geohash<br>geohex<br>geotile<br>integer<br>ip<br>keyword<br>long<br>text<br>unsigned_long<br>version | integer |
 

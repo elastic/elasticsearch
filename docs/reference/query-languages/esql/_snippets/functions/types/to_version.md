@@ -4,5 +4,5 @@
 
 | field | result |
 | --- | --- |
-| • keyword<br>• text<br>• version | version |
+| keyword<br>text<br>version | version |
 

@@ -4,6 +4,6 @@
 
 | field | precision | result |
 | --- | --- | --- |
-| • boolean<br>• date<br>• date_nanos<br>• double<br>• integer<br>• ip<br>• keyword<br>• long<br>• text<br>• version |  | long |
-| • boolean<br>• date<br>• date_nanos<br>• double<br>• integer<br>• ip<br>• keyword<br>• long<br>• text<br>• version | • integer<br>• long<br>• unsigned_long | long |
+| boolean<br>date<br>date_nanos<br>double<br>integer<br>ip<br>keyword<br>long<br>text<br>version |  | long |
+| boolean<br>date<br>date_nanos<br>double<br>integer<br>ip<br>keyword<br>long<br>text<br>version | integer<br>long<br>unsigned_long | long |
 

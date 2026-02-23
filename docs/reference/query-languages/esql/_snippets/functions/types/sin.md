@@ -4,5 +4,5 @@
 
 | angle | result |
 | --- | --- |
-| • double<br>• integer<br>• long<br>• unsigned_long | double |
+| double<br>integer<br>long<br>unsigned_long | double |
 

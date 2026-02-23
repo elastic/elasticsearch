@@ -4,5 +4,5 @@
 
 | field | window | result |
 | --- | --- | --- |
-| • aggregate_metric_double<br>• double<br>• exponential_histogram<br>• integer<br>• long<br>• tdigest | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| aggregate_metric_double<br>double<br>exponential_histogram<br>integer<br>long<br>tdigest | time_duration {applies_to}`stack: preview 9.3.0` | double |
 

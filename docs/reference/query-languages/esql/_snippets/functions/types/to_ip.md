@@ -4,6 +4,6 @@
 
 | field | options | result |
 | --- | --- | --- |
-| • ip<br>• keyword<br>• text |  | ip |
-| • ip<br>• keyword<br>• text | named parameters | ip |
+| ip<br>keyword<br>text |  | ip |
+| ip<br>keyword<br>text | named parameters | ip |
 

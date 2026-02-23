@@ -10,7 +10,7 @@
 | double | keyword | double |
 | integer | keyword | integer |
 | ip | keyword | ip |
+| keyword<br>text | keyword | keyword |
 | long | keyword | long |
 | version | keyword | version |
-| • keyword<br>• text | keyword | keyword |
 

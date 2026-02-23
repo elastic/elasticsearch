@@ -4,5 +4,5 @@
 
 | string | regex | newString | result |
 | --- | --- | --- | --- |
-| • keyword<br>• text | • keyword<br>• text | • keyword<br>• text | keyword |
+| keyword<br>text | keyword<br>text | keyword<br>text | keyword |
 

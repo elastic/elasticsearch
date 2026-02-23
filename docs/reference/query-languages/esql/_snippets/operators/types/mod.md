@@ -4,10 +4,10 @@
 
 | lhs | rhs | result |
 | --- | --- | --- |
-| double | • double<br>• integer<br>• long | double |
+| double | double<br>integer<br>long | double |
 | integer | integer | integer |
+| integer<br>long | double | double |
+| integer<br>long | long | long |
 | long | integer | long |
 | unsigned_long | unsigned_long | unsigned_long |
-| • integer<br>• long | double | double |
-| • integer<br>• long | long | long |
 

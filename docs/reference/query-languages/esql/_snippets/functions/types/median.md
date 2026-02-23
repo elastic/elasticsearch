@@ -4,6 +4,6 @@
 
 | number | result |
 | --- | --- |
+| double<br>exponential_histogram<br>integer<br>long | double |
 | tdigest {applies_to}`stack: preview 9.4.0` | double |
-| • double<br>• exponential_histogram<br>• integer<br>• long | double |
 

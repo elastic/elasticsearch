@@ -4,6 +4,6 @@
 
 | geometry | result |
 | --- | --- |
-| • cartesian_point<br>• cartesian_shape | cartesian_shape |
-| • geo_point<br>• geo_shape | geo_shape |
+| cartesian_point<br>cartesian_shape | cartesian_shape |
+| geo_point<br>geo_shape | geo_shape |
 

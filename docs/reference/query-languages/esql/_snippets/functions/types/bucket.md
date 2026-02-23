@@ -4,10 +4,10 @@
 
 | field | buckets | from | to | result |
 | --- | --- | --- | --- | --- |
-| date | integer | • date<br>• keyword<br>• text | • date<br>• keyword<br>• text | date |
-| date | • date_period<br>• time_duration |  |  | date |
-| date_nanos | integer | • date<br>• keyword<br>• text | • date<br>• keyword<br>• text | date_nanos |
-| date_nanos | • date_period<br>• time_duration |  |  | date_nanos |
-| • double<br>• integer<br>• long | integer | • double<br>• integer<br>• long | • double<br>• integer<br>• long | double |
-| • double<br>• integer<br>• long | • double<br>• integer<br>• long |  |  | double |
+| date | date_period<br>time_duration |  |  | date |
+| date | integer | date<br>keyword<br>text | date<br>keyword<br>text | date |
+| date_nanos | date_period<br>time_duration |  |  | date_nanos |
+| date_nanos | integer | date<br>keyword<br>text | date<br>keyword<br>text | date_nanos |
+| double<br>integer<br>long | double<br>integer<br>long |  |  | double |
+| double<br>integer<br>long | integer | double<br>integer<br>long | double<br>integer<br>long | double |
 

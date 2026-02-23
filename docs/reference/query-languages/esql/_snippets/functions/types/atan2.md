@@ -4,5 +4,5 @@
 
 | y_coordinate | x_coordinate | result |
 | --- | --- | --- |
-| • double<br>• integer<br>• long<br>• unsigned_long | • double<br>• integer<br>• long<br>• unsigned_long | double |
+| double<br>integer<br>long<br>unsigned_long | double<br>integer<br>long<br>unsigned_long | double |
 

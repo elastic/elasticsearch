@@ -4,5 +4,5 @@
 
 | field | window | result |
 | --- | --- | --- |
-| • double<br>• integer<br>• long |  | double |
+| double<br>integer<br>long |  | double |
 

@@ -4,5 +4,5 @@
 
 | field | result |
 | --- | --- |
-| • cartesian_point<br>• keyword<br>• text | cartesian_point |
+| cartesian_point<br>keyword<br>text | cartesian_point |
 

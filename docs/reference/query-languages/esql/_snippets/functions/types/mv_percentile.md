@@ -4,7 +4,7 @@
 
 | number | percentile | result |
 | --- | --- | --- |
-| double | • double<br>• integer<br>• long | double |
-| integer | • double<br>• integer<br>• long | integer |
-| long | • double<br>• integer<br>• long | long |
+| double | double<br>integer<br>long | double |
+| integer | double<br>integer<br>long | integer |
+| long | double<br>integer<br>long | long |
 

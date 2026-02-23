@@ -7,15 +7,15 @@
 | boolean | boolean | boolean |
 | cartesian_point | cartesian_point | boolean |
 | cartesian_shape | cartesian_shape | boolean |
+| date<br>date_nanos | date<br>date_nanos | boolean |
+| double<br>integer<br>long | double<br>integer<br>long | boolean |
 | geo_point | geo_point | boolean |
 | geo_shape | geo_shape | boolean |
 | geohash | geohash | boolean |
 | geohex | geohex | boolean |
 | geotile | geotile | boolean |
 | ip | ip | boolean |
+| keyword<br>text | keyword<br>text | boolean |
 | unsigned_long | unsigned_long | boolean |
 | version | version | boolean |
-| • date<br>• date_nanos | • date<br>• date_nanos | boolean |
-| • double<br>• integer<br>• long | • double<br>• integer<br>• long | boolean |
-| • keyword<br>• text | • keyword<br>• text | boolean |
 

@@ -4,5 +4,5 @@
 
 | str | suffix | result |
 | --- | --- | --- |
-| • keyword<br>• text | • keyword<br>• text | boolean |
+| keyword<br>text | keyword<br>text | boolean |
 

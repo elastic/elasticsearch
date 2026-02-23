@@ -4,5 +4,5 @@
 
 | field | result |
 | --- | --- |
-| • date_period<br>• keyword<br>• text | date_period |
+| date_period<br>keyword<br>text | date_period |
 

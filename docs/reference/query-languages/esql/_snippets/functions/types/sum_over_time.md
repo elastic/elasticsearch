@@ -4,6 +4,6 @@
 
 | field | window | result |
 | --- | --- | --- |
-| • aggregate_metric_double<br>• double<br>• exponential_histogram<br>• tdigest | time_duration {applies_to}`stack: preview 9.3.0` | double |
-| • integer<br>• long | time_duration {applies_to}`stack: preview 9.3.0` | long |
+| aggregate_metric_double<br>double<br>exponential_histogram<br>tdigest | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| integer<br>long | time_duration {applies_to}`stack: preview 9.3.0` | long |
 

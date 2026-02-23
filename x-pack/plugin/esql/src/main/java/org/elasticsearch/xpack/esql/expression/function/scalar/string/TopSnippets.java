@@ -178,7 +178,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
      * @return type resolution for the query parameter
      */
     protected TypeResolution resolveQuery() {
-        return isString(query(), sourceText(), SECOND).and(() -> isFoldable(query(), sourceText(), SECOND));
+        return isString(query(), sourceText(), SECOND);
     }
 
     private static void validateOptions(Map<String, Object> options) {

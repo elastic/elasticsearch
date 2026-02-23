@@ -224,7 +224,8 @@ public class CsvIT extends ESTestCase {
         var request = syncEsqlQueryRequest(testCase.query);
         var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
         cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);
-        try (var response = listener.actionGet(30, TimeUnit.SECONDS)) {
+        // Using a longer timeout here as test infrastructure might populate data lazily while request is in progress.
+        try (var response = listener.actionGet(5, TimeUnit.MINUTES)) {
             ExpectedResults expected = loadCsvSpecValues(testCase.expectedResults);
             ActualResults actual = new ActualResults(
                 response.zoneId(),
@@ -338,7 +339,7 @@ public class CsvIT extends ESTestCase {
     private static void loadViews() {
         // TODO We should instead load views once and never unload them
         if ("views".equals(currentGroupName)) {
-            CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> views.maybeLoad(view));
+            CsvTestsDataLoader.VIEW_CONFIGS.forEach((name, view) -> views.maybeLoad(name, view));
         } else {
             views.unloadAll();
         }
@@ -354,29 +355,26 @@ public class CsvIT extends ESTestCase {
             } else {
                 return Stream.of(CSV_DATASET.get(pattern));
             }
-        }).filter(Objects::nonNull).forEach(resource -> indices.maybeLoad(resource));
+        }).filter(Objects::nonNull).forEach(resource -> indices.maybeLoad(resource.indexName(), resource));
     }
 
     private static void loadInference(GetInferenceModelAction.Request request) {
-        inference.maybeLoad(INFERENCE_CONFIGS.get(request.getInferenceEntityId()));
+        inference.maybeLoad(request.getInferenceEntityId(), INFERENCE_CONFIGS.get(request.getInferenceEntityId()));
     }
 
     private static void loadEnrichPolicy(EnrichPolicyResolver.LookupRequest request) {
         for (var name : request.policyNames) {
-            enrich.maybeLoad(CsvTestsDataLoader.ENRICH_POLICIES.get(name));
+            enrich.maybeLoad(name, CsvTestsDataLoader.ENRICH_POLICIES.get(name));
         }
     }
 
     private static ResourceLoader<CsvTestsDataLoader.TestDataset> indices = new ResourceLoader<>() {
         @Override
-        protected String name(CsvTestsDataLoader.TestDataset resource) {
-            return resource.indexName();
-        }
-
-        @Override
         protected void load(CsvTestsDataLoader.TestDataset dataset) throws IOException {
             logger.info("Loading dataset [{}]", dataset.indexName());
-            dataset.inferenceEndpoints().stream().map(INFERENCE_CONFIGS::get).forEach(c -> inference.maybeLoad(c));
+            for (String inferenceId : dataset.inferenceEndpoints()) {
+                inference.maybeLoad(inferenceId, INFERENCE_CONFIGS.get(inferenceId));
+            }
             assertAcked(
                 cluster.client()
                     .admin()
@@ -408,18 +406,13 @@ public class CsvIT extends ESTestCase {
 
     private static ResourceLoader<CsvTestsDataLoader.EnrichConfig> enrich = new ResourceLoader<>() {
         @Override
-        protected String name(CsvTestsDataLoader.EnrichConfig resource) {
-            return resource.policyName();
-        }
-
-        @Override
         protected void load(CsvTestsDataLoader.EnrichConfig policy) throws IOException {
             logger.info("Creating policy [{}]", policy.policyFileName());
             var p = EnrichPolicy.fromXContent(
                 JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, policy.streamPolicy())
             );
             for (var index : p.getIndices()) {
-                indices.maybeLoad(CSV_DATASET.get(index));
+                indices.maybeLoad(index, CSV_DATASET.get(index));
             }
             assertAcked(
                 cluster.client()
@@ -440,11 +433,6 @@ public class CsvIT extends ESTestCase {
 
     private static ResourceLoader<CsvTestsDataLoader.InferenceConfig> inference = new ResourceLoader<>() {
         @Override
-        protected String name(CsvTestsDataLoader.InferenceConfig resource) {
-            return resource.id();
-        }
-
-        @Override
         protected void load(CsvTestsDataLoader.InferenceConfig inference) {
             logger.info("Loading inference [{}]", inference.id());
             cluster.client()
@@ -463,11 +451,6 @@ public class CsvIT extends ESTestCase {
     };
 
     private static ResourceLoader<CsvTestsDataLoader.ViewConfig> views = new ResourceLoader<>() {
-        @Override
-        protected String name(CsvTestsDataLoader.ViewConfig resource) {
-            return resource.name();
-        }
-
         @Override
         protected void load(CsvTestsDataLoader.ViewConfig view) {
             logger.info("Loading view [{}]", view.name());
@@ -494,16 +477,14 @@ public class CsvIT extends ESTestCase {
         private final Set<String> loaded = new HashSet<>();
         private Throwable failure = null;
 
-        protected abstract String name(T resource);
-
         protected abstract void load(T resource) throws Throwable;
 
         protected void unload(String name) {
             throw new UnsupportedOperationException("Unloading is not supported");
         }
 
-        public void maybeLoad(T resource) {
-            var name = name(resource);
+        public void maybeLoad(String name, T resource) {
+            assertNotNull("Resource [" + name + "] is not found!", resource);
             if (failure == null && loaded.add(name)) {
                 try {
                     load(resource);

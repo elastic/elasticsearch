@@ -15,10 +15,13 @@ special characters (`['user.name']`), for empty string keys
 notation are always path separators per the JSONPath
 specification — a JSON key that literally contains a dot
 (e.g., `"user.name"`) must be accessed via bracket notation.
-The optional `$` root selector can be used to index into
-top-level arrays (`$[0]`). Optional whitespace is allowed
-inside brackets (`[ 0 ]` is equivalent to `[0]`).
-Path matching is case-sensitive per the JSON specification.
+The JSONPath `$` root selector is supported for compatibility
+but is always optional — `$.name` and `name` are equivalent.
+It is only necessary when indexing into a top-level array
+(`$[0]`), since there is no key name to start the path with.
+Optional whitespace is allowed inside brackets (`[ 0 ]` is
+equivalent to `[0]`). Path matching is case-sensitive per the
+JSON specification.
 
 The extracted value is returned as a `keyword` string: string
 values without surrounding quotes, numbers and booleans as their

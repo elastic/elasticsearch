@@ -574,7 +574,8 @@ public class TestBlock implements BlockLoader.Block {
         };
     }
 
-    public static final BlockLoader.Docs docs(int... docs) {
+    public static BlockLoader.Docs docs(int... docs) {
+        boolean containsDupes = containsDupes(docs);
         return new BlockLoader.Docs() {
             @Override
             public int count() {
@@ -585,10 +586,20 @@ public class TestBlock implements BlockLoader.Block {
             public int get(int i) {
                 return docs[i];
             }
+
+            @Override
+            public boolean mayContainDuplicates() {
+                return containsDupes;
+            }
+
+            @Override
+            public String toString() {
+                return "docs " + Arrays.toString(docs);
+            }
         };
     }
 
-    public static final BlockLoader.Docs docs(LeafReaderContext ctx) {
+    public static BlockLoader.Docs docs(LeafReaderContext ctx) {
         return new BlockLoader.Docs() {
             @Override
             public int count() {
@@ -598,6 +609,40 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public int get(int i) {
                 return i;
+            }
+
+            @Override
+            public boolean mayContainDuplicates() {
+                return false;
+            }
+
+            @Override
+            public String toString() {
+                return "docs for " + ctx;
+            }
+        };
+    }
+
+    public static BlockLoader.Docs docsUpTo(int end) {
+        return new BlockLoader.Docs() {
+            @Override
+            public int count() {
+                return end;
+            }
+
+            @Override
+            public int get(int i) {
+                return i;
+            }
+
+            @Override
+            public boolean mayContainDuplicates() {
+                return false;
+            }
+
+            @Override
+            public String toString() {
+                return "range to " + end;
             }
         };
     }
@@ -982,5 +1027,18 @@ public class TestBlock implements BlockLoader.Block {
                 return this;
             }
         }
-    };
+    }
+
+    static boolean containsDupes(int[] docs) {
+        int[] sorted = Arrays.copyOf(docs, docs.length);
+        int prev = sorted[0];
+        for (int i = 1; i < docs.length; i++) {
+            int v = sorted[i];
+            if (prev == v) {
+                return true;
+            }
+            prev = v;
+        }
+        return false;
+    }
 }

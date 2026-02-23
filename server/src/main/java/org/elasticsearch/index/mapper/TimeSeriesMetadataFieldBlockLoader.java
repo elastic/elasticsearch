@@ -11,8 +11,9 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
@@ -26,10 +27,13 @@ import java.util.Set;
  */
 public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
 
-    private final Set<String> dimensions;
+    private final Set<String> metadataFields;
 
-    public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context) {
-        this.dimensions = dimensionFields(context);
+    public TimeSeriesMetadataFieldBlockLoader(MappedFieldType.BlockLoaderContext context, boolean loadDimensions, boolean loadMetrics) {
+        if (loadDimensions == false && loadMetrics == false) {
+            throw new IllegalArgumentException("At least one type of metadata (dimension or metric) is required");
+        }
+        this.metadataFields = timeSeriesMetadata(context, loadDimensions, loadMetrics);
     }
 
     @Override
@@ -38,18 +42,21 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     @Override
-    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+    public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         return null;
     }
 
     @Override
-    public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return new TimeSeries();
+    public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        return new TimeSeries(breaker);
     }
 
     @Override
     public StoredFieldsSpec rowStrideStoredFieldSpec() {
-        return StoredFieldsSpec.withSourcePaths(IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE, dimensions);
+        return StoredFieldsSpec.withSourcePaths(
+            IgnoredSourceFieldMapper.IgnoredSourceFormat.COALESCED_SINGLE_IGNORED_SOURCE,
+            metadataFields
+        );
     }
 
     @Override
@@ -63,6 +70,10 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
     }
 
     private static class TimeSeries extends BlockStoredFieldsReader {
+        protected TimeSeries(CircuitBreaker breaker) {
+            super(breaker);
+        }
+
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             // TODO support appending BytesReference
@@ -75,26 +86,40 @@ public final class TimeSeriesMetadataFieldBlockLoader implements BlockLoader {
         }
     }
 
-    private static Set<String> dimensionFields(MappedFieldType.BlockLoaderContext ctx) {
+    private Set<String> timeSeriesMetadata(MappedFieldType.BlockLoaderContext ctx, boolean loadDimensions, boolean loadMetrics) {
         if (ctx.indexSettings().getMode() == IndexMode.TIME_SERIES) {
-            IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
-            List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
-            if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
-                return new LinkedHashSet<>(dimensionFieldsFromSettings);
+            Set<String> result = new LinkedHashSet<>();
+
+            if (loadDimensions && loadMetrics == false) {
+                IndexMetadata indexMetadata = ctx.indexSettings().getIndexMetadata();
+                List<String> dimensionFieldsFromSettings = indexMetadata.getTimeSeriesDimensions();
+                if (dimensionFieldsFromSettings != null && dimensionFieldsFromSettings.isEmpty() == false) {
+                    result.addAll(dimensionFieldsFromSettings);
+                    return result;
+                }
             }
 
-            Set<String> dimensionFields = new LinkedHashSet<>();
             MappingLookup mappingLookup = ctx.mappingLookup();
             for (Mapper mapper : mappingLookup.fieldMappers()) {
                 if (mapper instanceof FieldMapper fieldMapper) {
                     MappedFieldType fieldType = fieldMapper.fieldType();
-                    if (fieldType.isDimension()) {
-                        dimensionFields.add(fieldType.name());
+                    if (loadDimensions && fieldType.isDimension()) {
+                        result.add(fieldType.name());
+                    }
+
+                    if (loadMetrics && fieldType.getMetricType() != null) {
+                        result.add(fieldType.name());
                     }
                 }
             }
-            return dimensionFields;
+
+            return result;
         }
         throw new IllegalStateException("The TimeSeriesMetadataFieldBlockLoader cannot be used in non-time series mode.");
+    }
+
+    @Override
+    public String toString() {
+        return "TimeSeriesMetadata";
     }
 }

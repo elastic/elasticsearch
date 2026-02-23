@@ -51,7 +51,7 @@ public class EsField implements Writeable {
                 if (other != DIMENSION) {
                     return METRIC;
                 }
-                throw new IllegalStateException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [METRIC].");
+                throw new IllegalArgumentException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [METRIC].");
             }
         },
         DIMENSION(3) {
@@ -60,7 +60,7 @@ public class EsField implements Writeable {
                 if (other != METRIC) {
                     return DIMENSION;
                 }
-                throw new IllegalStateException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [DIMENSION].");
+                throw new IllegalArgumentException("Time Series Metadata conflict.  Cannot merge [" + other + "] with [DIMENSION].");
             }
         };
 

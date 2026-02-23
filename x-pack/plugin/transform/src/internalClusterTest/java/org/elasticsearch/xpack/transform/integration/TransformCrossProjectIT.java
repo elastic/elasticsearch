@@ -9,23 +9,24 @@ package org.elasticsearch.xpack.transform.integration;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
-import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
-import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.transform.TransformSingleNodeTestCase;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class TransformCrossProjectIT extends TransformSingleNodeTestCase {
 
@@ -59,18 +60,58 @@ public class TransformCrossProjectIT extends TransformSingleNodeTestCase {
 
         var expectedProjectRouting = "_alias:_origin";
 
-        createTransform(
-            TransformConfig.builder()
-                .setId(transformId)
-                .setDest(new DestConfig(transformId, null, null))
-                .setSource(new SourceConfig(new String[] { transformSrc }, QueryConfig.matchAll(), Map.of(), expectedProjectRouting))
-                .setFrequency(TimeValue.ONE_MINUTE)
-                .setSyncConfig(new TimeSyncConfig("time", TimeValue.ONE_MINUTE))
-                .setLatestConfig(new LatestConfig(List.of("roll"), "time"))
-                .build()
-        );
+        createDiceTransform(transformId, transformSrc, expectedProjectRouting);
 
         var transformConfig = getTransform(transformId);
         assertThat(transformConfig.getSource().getProjectRouting(), equalTo(expectedProjectRouting));
     }
+
+    public void testUpdateTransformWithProjectRouting() throws Exception {
+        var transformSrc = "reviews_transform_update_project_routing";
+        createSourceIndex(transformSrc);
+        indexRandomDiceDoc(transformSrc);
+
+        var transformId = "transform_update_project_routing";
+
+        createDiceTransform(transformId, transformSrc, null);
+        assertThat(getTransform(transformId).getSource().getProjectRouting(), is(nullValue()));
+
+        Consumer<String> updateProjectRouting = projectRouting -> updateTransform(
+            transformId,
+            new TransformConfigUpdate(
+                new SourceConfig(new String[] { transformSrc }, QueryConfig.matchAll(), Map.of(), projectRouting),
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            )
+        );
+
+        var expectedProjectRouting = "_alias:_origin";
+        updateProjectRouting.accept(expectedProjectRouting);
+        assertThat(getTransform(transformId).getSource().getProjectRouting(), equalTo(expectedProjectRouting));
+
+        var newProjectRouting = "_alias:*";
+        updateProjectRouting.accept(newProjectRouting);
+        assertThat(getTransform(transformId).getSource().getProjectRouting(), equalTo(newProjectRouting));
+
+        updateProjectRouting.accept(null);
+        assertThat(getTransform(transformId).getSource().getProjectRouting(), is(nullValue()));
+
+        // the audit index can take some time to create, so we verify it last
+        assertBusy(
+            () -> assertThat(
+                getAuditMessages(transformId).stream().filter(str -> str.contains("project_routing")).toList(),
+                containsInAnyOrder(
+                    containsString("project_routing has been set to [_alias:_origin]."),
+                    containsString("project_routing updated from [_alias:_origin] to [_alias:*]."),
+                    containsString("project_routing [_alias:*] has been removed.")
+                )
+            )
+        );
+    }
+
 }

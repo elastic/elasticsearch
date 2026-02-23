@@ -9,6 +9,11 @@
 
 package org.elasticsearch.test.knn;
 
+import com.google.cloud.storage.Blob;
+import com.google.cloud.storage.BlobId;
+import com.google.cloud.storage.Storage;
+import com.google.cloud.storage.StorageOptions;
+
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.elasticsearch.common.Strings;
@@ -20,12 +25,19 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.zip.CRC32C;
 
 /**
  * Command line arguments for the KNN index tester.
@@ -44,7 +56,7 @@ record TestConfiguration(
     boolean reindex,
     boolean forceMerge,
     VectorSimilarityFunction vectorSpace,
-    int quantizeBits,
+    Integer quantizeBits,
     KnnIndexTester.VectorEncoding vectorEncoding,
     int dimensions,
     KnnIndexTester.MergePolicyType mergePolicy,
@@ -59,6 +71,8 @@ record TestConfiguration(
     int secondaryClusterSize
 ) {
 
+    static final ParseField DATASET_FIELD = new ParseField("dataset");
+    static final ParseField DATA_DIR_FIELD = new ParseField("data_dir");
     static final ParseField DOC_VECTORS_FIELD = new ParseField("doc_vectors");
     static final ParseField QUERY_VECTORS_FIELD = new ParseField("query_vectors");
     static final ParseField NUM_DOCS_FIELD = new ParseField("num_docs");
@@ -102,7 +116,7 @@ record TestConfiguration(
      */
     static final double DEFAULT_WRITER_BUFFER_MB = (JvmInfo.jvmInfo().getMem().getHeapMax().getBytes() / (1024.0 * 1024.0)) * 0.1;
 
-    static TestConfiguration fromXContent(XContentParser parser) throws IOException {
+    static TestConfiguration fromXContent(XContentParser parser) throws Exception {
         Builder builder = PARSER.apply(parser, null);
         return builder.build();
     }
@@ -110,6 +124,8 @@ record TestConfiguration(
     static final ObjectParser<TestConfiguration.Builder, Void> PARSER = new ObjectParser<>("test_configuration", false, Builder::new);
 
     static {
+        PARSER.declareString(Builder::setDataset, DATASET_FIELD);
+        PARSER.declareString(Builder::setDataDir, DATA_DIR_FIELD);
         PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS_FIELD);
         PARSER.declareString(Builder::setQueryVectors, QUERY_VECTORS_FIELD);
         PARSER.declareInt(Builder::setNumDocs, NUM_DOCS_FIELD);
@@ -128,7 +144,12 @@ record TestConfiguration(
         PARSER.declareBoolean(Builder::setReindex, REINDEX_FIELD);
         PARSER.declareBoolean(Builder::setForceMerge, FORCE_MERGE_FIELD);
         PARSER.declareString(Builder::setVectorSpace, VECTOR_SPACE_FIELD);
-        PARSER.declareInt(Builder::setQuantizeBits, QUANTIZE_BITS_FIELD);
+        PARSER.declareField(
+            Builder::setQuantizeBits,
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue(),
+            QUANTIZE_BITS_FIELD,
+            ObjectParser.ValueType.INT_OR_NULL
+        );
         PARSER.declareString(Builder::setVectorEncoding, VECTOR_ENCODING_FIELD);
         PARSER.declareInt(Builder::setDimensions, DIMENSIONS_FIELD);
         PARSER.declareFieldArray(
@@ -166,7 +187,84 @@ record TestConfiguration(
         return Strings.toString(b, true, false);
     }
 
+    public static String formattedParameterHelp() {
+        List<ParameterHelp> params = List.of(
+            new ParameterHelp("doc_vectors", "array[string]", "Required. Paths to document vectors files used for indexing."),
+            new ParameterHelp("query_vectors", "string", "Optional. Path to query vectors file; omit to skip searches."),
+            new ParameterHelp("num_docs", "int", "Number of documents to index."),
+            new ParameterHelp("num_queries", "int", "Number of queries to run from the query vectors file."),
+            new ParameterHelp("index_type", "string", "Index type: hnsw, flat, ivf, or gpu_hnsw."),
+            new ParameterHelp("ivf_cluster_size", "int", "IVF: number of clusters."),
+            new ParameterHelp("secondary_cluster_size", "int", "IVF: centroids per parent cluster; -1 uses the format default."),
+            new ParameterHelp("hnsw_m", "int", "HNSW: M parameter (graph degree)."),
+            new ParameterHelp("hnsw_ef_construction", "int", "HNSW: efConstruction parameter."),
+            new ParameterHelp("index_threads", "int", "Number of threads used for indexing."),
+            new ParameterHelp("reindex", "boolean", "Whether to build a new index from the document vectors."),
+            new ParameterHelp("force_merge", "boolean", "Whether to force-merge the index after indexing."),
+            new ParameterHelp("force_merge_max_num_segments", "int", "Force-merge target number of segments."),
+            new ParameterHelp("vector_space", "string", "Similarity: euclidean, dot_product, or cosine."),
+            new ParameterHelp("quantize_bits", "int", "Quantization bits; valid values depend on index_type."),
+            new ParameterHelp("vector_encoding", "string", "Vector encoding: byte, float32, or bfloat16."),
+            new ParameterHelp("dimensions", "int", "Vector dimensions; -1 uses dimensions from the vector file."),
+            new ParameterHelp("merge_policy", "string", "Merge policy: tiered, log_byte, log_doc, or no."),
+            new ParameterHelp("merge_workers", "int", "Number of merge worker threads for vector formats."),
+            new ParameterHelp("writer_buffer_mb", "double", "Index writer RAM buffer size in MB."),
+            new ParameterHelp("writer_buffer_docs", "int", "Max buffered docs before flush; -1 disables auto flush by docs."),
+            new ParameterHelp("on_disk_rescore", "boolean", "Search: enable on-disk rescore for search."),
+            new ParameterHelp("precondition", "boolean", "IVF: apply preconditioning prior to indexing."),
+            new ParameterHelp("preconditioning_block_dims", "int", "IVF: block dimensions used for preconditioning."),
+            new ParameterHelp("num_candidates", "array[int]", "HNSW: number of candidates (efSearch) to consider per query."),
+            new ParameterHelp("k", "array[int]", "Search: top K results to return."),
+            new ParameterHelp("visit_percentage", "array[double]", "IVF: percentage of IVF index to visit (0.0-100.0)."),
+            new ParameterHelp("over_sampling_factor", "array[float]", "Search: oversampling factor for approximate search."),
+            new ParameterHelp("search_threads", "array[int]", "Search: threads per searcher."),
+            new ParameterHelp("num_searchers", "array[int]", "Search: number of parallel searchers."),
+            new ParameterHelp("filter_selectivity", "array[float]", "Search: filter selectivity (0.0-1.0)."),
+            new ParameterHelp("filter_cache", "array[boolean]", "Search: whether filters are cached."),
+            new ParameterHelp("early_termination", "array[boolean]", "Search: allow early termination when possible."),
+            new ParameterHelp("seed", "array[long]", "Search: random seed used random filters."),
+            new ParameterHelp(
+                "search_params",
+                "array[object]",
+                "Explicit per-search settings; each object may include search fields like num_candidates, k, and visit_percentage."
+            )
+        );
+
+        int nameWidth = "parameter".length();
+        int typeWidth = "type".length();
+        for (ParameterHelp param : params) {
+            nameWidth = Math.max(nameWidth, param.name.length());
+            typeWidth = Math.max(typeWidth, param.type.length());
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("Configuration parameters:");
+        sb.append("\n");
+        sb.append(formatParamRow("parameter", "type", "description", nameWidth, typeWidth));
+        sb.append("\n");
+        sb.append("-".repeat(nameWidth)).append("  ").append("-".repeat(typeWidth)).append("  ").append("-".repeat("description".length()));
+        sb.append("\n");
+        for (ParameterHelp param : params) {
+            sb.append(formatParamRow(param.name, param.type, param.description, nameWidth, typeWidth));
+            sb.append("\n");
+        }
+        sb.append("\n");
+        sb.append(
+            "Notes: array parameters are combined as a cartesian product to define multiple search runs. "
+                + "If you use search_params, do not provide multiple values for array parameters."
+        );
+        return sb.toString();
+    }
+
+    private static String formatParamRow(String name, String type, String description, int nameWidth, int typeWidth) {
+        return String.format(Locale.ROOT, "%-" + nameWidth + "s  %-" + typeWidth + "s  %s", name, type, description);
+    }
+
+    private record ParameterHelp(String name, String type, String description) {}
+
     static class Builder implements ToXContentObject {
+        private String dataset;
+        private String dataDir = ".data";
         private List<Path> docVectors;
         private Path queryVectors;
         private int numDocs = 1000;
@@ -185,8 +283,8 @@ record TestConfiguration(
         private boolean reindex = false;
         private boolean forceMerge = false;
         private int forceMergeMaxNumSegments = 1;
-        private VectorSimilarityFunction vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
-        private int quantizeBits = 8;
+        private VectorSimilarityFunction vectorSpace;   // can be specified in config file, dataset, or the default is set in build()
+        private Integer quantizeBits = null;
         private KnnIndexTester.VectorEncoding vectorEncoding = KnnIndexTester.VectorEncoding.FLOAT32;
         private int dimensions;
         private List<Boolean> earlyTermination = List.of(Boolean.FALSE);
@@ -207,6 +305,16 @@ record TestConfiguration(
          * disabled by default (writer flushes by RAM usage).
          */
         private int writerMaxBufferedDocs = IndexWriterConfig.DISABLE_AUTO_FLUSH;
+
+        public Builder setDataset(String dataset) {
+            this.dataset = dataset;
+            return this;
+        }
+
+        public Builder setDataDir(String dataDir) {
+            this.dataDir = dataDir;
+            return this;
+        }
 
         public Builder setDocVectors(List<String> docVectors) {
             if (docVectors == null || docVectors.isEmpty()) {
@@ -307,7 +415,7 @@ record TestConfiguration(
             return this;
         }
 
-        public Builder setQuantizeBits(int quantizeBits) {
+        public Builder setQuantizeBits(Integer quantizeBits) {
             this.quantizeBits = quantizeBits;
             return this;
         }
@@ -387,9 +495,154 @@ record TestConfiguration(
             return this;
         }
 
-        public TestConfiguration build() {
+        /*
+         * Each dataset has a descriptor file, expected to be at gs://<bucket>/<dataset>/<dataset>.json, with contents of:
+           {
+             "data": [
+               "<corpus_1>.fvec",
+               "<corpus_2>.fvec"
+             ],
+             "queries": "<queries>.fvec",
+             "dimensions": 512,
+             "vector_space": "cosine",
+             "num_doc_vectors": 10000000,
+             "num_query_vectors": 5000
+           }
+         */
+        private void resolveDataset() throws Exception {
+            final String cloudProjectId = "benchmarking";
+            final String datasetBucket = "knnindextester";
+
+            Path dataDir = PathUtils.get(this.dataDir).toAbsolutePath();
+            Map<?, ?> dsData;
+            List<Path> data;
+            Path queries;
+
+            try (Storage storage = StorageOptions.newBuilder().setProjectId(cloudProjectId).build().getService()) {
+                // get the dataset descriptor file
+                BlobId id = BlobId.fromGsUtilUri(Strings.format("gs://%s/%s/%2$s.json", datasetBucket, dataset));
+                KnnIndexTester.logger.info("Loading dataset descriptor {}...", id.toGsUtilUri());
+                Blob blob = storage.get(id);
+                if (blob == null) {
+                    throw new IllegalArgumentException("Dataset descriptor " + id.toGsUtilUri() + " not found");
+                }
+
+                try (
+                    XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, blob.getContent())
+                ) {
+                    dsData = parser.map();
+                }
+
+                // grab the data files from storage if needed
+                List<String> dsFiles = ((List<?>) dsData.get("data")).stream()
+                    .map(f -> Strings.format("gs://%s/%s/%s", datasetBucket, dataset, f))
+                    .toList();
+                data = downloadFromGoogleCloud(storage, dsFiles, dataDir);
+                queries = downloadFromGoogleCloud(
+                    storage,
+                    List.of(Strings.format("gs://%s/%s/%s", datasetBucket, dataset, dsData.get("queries"))),
+                    dataDir
+                ).getFirst();
+            }
+
+            String vectorSpace = dsData.get("vector_space").toString();
+            int numDocVectors = ((Number) dsData.get("num_doc_vectors")).intValue();
+            int numQueryVectors = ((Number) dsData.get("num_query_vectors")).intValue();
+
+            if (numDocs > numDocVectors) {
+                throw new IllegalArgumentException(numDocs + " docs requested, but only " + numDocVectors + " available");
+            }
+            KnnIndexTester.logger.info("Using {}/{} docs", numDocs, numDocVectors);
+            if (numQueries > numQueryVectors) {
+                throw new IllegalArgumentException(numQueries + " queries requested, but only " + numQueryVectors + " available");
+            }
+            KnnIndexTester.logger.info("Using {}/{} queries", numQueries, numQueryVectors);
+
+            docVectors = data;
+            queryVectors = queries;
+            setDimensions(-1);  // dataset dimensions is documentation, the tester reads the dimensions from the fvec files
+            // vector space might already be set explicitly from the config file
+            if (this.vectorSpace == null) {
+                setVectorSpace(vectorSpace);
+            }
+        }
+
+        private static List<Path> downloadFromGoogleCloud(Storage storage, List<String> files, Path dest) throws Exception {
+            if (Files.exists(dest) && !Files.isDirectory(dest)) {
+                throw new IllegalArgumentException("Data path must be a directory");
+            }
+
+            List<Path> dataFiles = new ArrayList<>();
+            for (String gsFile : files) {
+                BlobId id = BlobId.fromGsUtilUri(gsFile);
+                Blob blob = storage.get(id);
+                if (blob == null) {
+                    throw new IllegalArgumentException("Blob " + gsFile + " not found");
+                }
+
+                Path destFile = dest.resolve(id.getName());
+                dataFiles.add(destFile);
+                if (!Files.exists(destFile)) {
+                    KnnIndexTester.logger.info("Downloading {} to {}...", gsFile, destFile);
+
+                    // may need to create a subdirectory
+                    Files.createDirectories(destFile.getParent());
+                    blob.downloadTo(destFile);
+                } else {
+                    KnnIndexTester.logger.info("Checking CRC32C for {}...", destFile.getFileName());
+                    // check CRC32
+                    String blobCrc32c = blob.getCrc32c();
+                    if (blobCrc32c == null) {
+                        KnnIndexTester.logger.warn("Skipping CRC32C check for {} (blob CRC32C not available)", gsFile);
+                        continue;
+                    }
+
+                    String localCrc32c = computeFileCrc32cBase64(destFile);
+                    if (!blobCrc32c.equals(localCrc32c)) {
+                        throw new IllegalArgumentException(
+                            "CRC32C mismatch on local file " + destFile + ". Check file, then delete to re-download"
+                        );
+                    }
+                }
+            }
+            return dataFiles;
+        }
+
+        /**
+         * Google Cloud Storage exposes CRC32C as base64-encoded big-endian 4 bytes.
+         * This computes the CRC32C of the local file and encodes it in the same format.
+         */
+        private static String computeFileCrc32cBase64(Path file) throws IOException {
+            final CRC32C crc32c = new CRC32C();
+            final byte[] buffer = new byte[1024 * 1024];
+
+            try (InputStream in = Files.newInputStream(file)) {
+                for (int read; (read = in.read(buffer)) != -1;) {
+                    crc32c.update(buffer, 0, read);
+                }
+            }
+
+            long value = crc32c.getValue();
+            byte[] be = new byte[] {
+                (byte) ((value >>> 24) & 0xff),
+                (byte) ((value >>> 16) & 0xff),
+                (byte) ((value >>> 8) & 0xff),
+                (byte) (value & 0xff) };
+            return Base64.getEncoder().encodeToString(be);
+        }
+
+        public TestConfiguration build() throws Exception {
+            if (dataset != null) {
+                // this fills in various options from the dataset
+                resolveDataset();
+            }
+            if (vectorSpace == null) {
+                // specify the default here, so it can be set by the config file or dataset first
+                vectorSpace = VectorSimilarityFunction.EUCLIDEAN;
+            }
+
             if (docVectors == null) {
-                throw new IllegalArgumentException("Document vectors path must be provided");
+                throw new IllegalArgumentException("Dataset or document vectors path must be provided");
             }
             if (dimensions <= 0 && dimensions != -1) {
                 throw new IllegalArgumentException(
@@ -465,6 +718,12 @@ record TestConfiguration(
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            if (dataset != null) {
+                builder.field(DATASET_FIELD.getPreferredName(), dataset);
+            }
+            if (!dataDir.equals(".data")) {
+                builder.field(DATA_DIR_FIELD.getPreferredName(), dataDir);
+            }
             if (docVectors != null) {
                 List<String> docVectorsStrings = docVectors.stream().map(Path::toString).toList();
                 builder.field(DOC_VECTORS_FIELD.getPreferredName(), docVectorsStrings);
@@ -488,7 +747,9 @@ record TestConfiguration(
             builder.field(REINDEX_FIELD.getPreferredName(), reindex);
             builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
             builder.field(VECTOR_SPACE_FIELD.getPreferredName(), vectorSpace.name().toLowerCase(Locale.ROOT));
-            builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
+            if (quantizeBits != null) {
+                builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
+            }
             builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
             builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);
             builder.field(EARLY_TERMINATION_FIELD.getPreferredName(), earlyTermination);

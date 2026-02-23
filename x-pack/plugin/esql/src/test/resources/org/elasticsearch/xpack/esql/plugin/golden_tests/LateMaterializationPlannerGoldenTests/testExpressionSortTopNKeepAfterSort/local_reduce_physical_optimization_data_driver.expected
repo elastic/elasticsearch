@@ -1,0 +1,6 @@
+ExchangeSinkExec[[hire_date{f}, $$order_by{r}],false]
+\_ProjectExec[[_doc{f}, $$order_by{r}]]
+  \_TopNExec[[Order[$$order_by{r},ASC,LAST]],20[INTEGER],36]
+    \_EvalExec[[SIN(height{f}) * 2[INTEGER] AS $$order_by]]
+      \_FieldExtractExec[height{f}]<[],[]>
+        \_EsQueryExec[employees], indexMode[standard], [_doc{f}], limit[], sort[] estimatedRowSize[20] queryBuilderAndTags [[QueryBuilderAndTags[query=null, tags=[]]]]

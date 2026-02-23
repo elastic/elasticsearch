@@ -72,7 +72,7 @@ import java.util.function.Predicate;
 import java.util.function.ToLongFunction;
 
 /**
- * Transport Action for get snapshots operation
+ * Transport action for get-snapshots API
  */
 public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSnapshotsRequest, GetSnapshotsResponse> {
 
@@ -183,6 +183,73 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
      * results.
      */
     private class GetSnapshotsOperation {
+        /*
+         * Overall (conceptual) dataflow:
+         *
+         *     All snapshots (in requested repositories)
+         *         |
+         *         +----------------------------------X  ?from_sort_value (when ?sort = repo)
+         *         |
+         *         +-->  In-progress snapshots
+         *         |         |
+         *         |         +------------------------X  snapshotNamePredicate (requested names/wildcards)
+         *         |         |
+         *         |         +-->  Synthesize SnapshotInfos for in-progress snapshots --------------------------+
+         *         |                                                                                            |
+         *         +-->  Completed snapshots                                                                    |
+         *                      |                                                                               |
+         *                      +---------------------X  Skipped as also in-progress                            |
+         *                      +---------------------X  snapshotNamePredicate (requested names/wildcards)      |
+         *                      +---------------------X  ?from_sort_value (when ?sort = name)                   |
+         *                      |                                                                               |
+         *                      +-->  Look up SnapshotDetails                                                   |
+         *                            |                                                                         |
+         *                            | Preflight filtering (may be incomplete)                                 |
+         *                            +---------------X  ?from_sort_value (when ?sort = start/duration/indices) |
+         *                            +---------------X  ?state                                                 |
+         *                            +---------------X  ?slm_policy_filter                                     |
+         *                            |                                                                         |
+         *                            |                                                                         |
+         *                            |                                                                         |
+         *                            |      We might be able to tell here if it'll pass real filtering         |
+         *                            |      but be skipped due to ?after, so we could add it to total          |
+         *                            |      and then skip loading its SnapshotInfo (TODO).                     |
+         *                            |                                                                         |
+         *                            |      We might be able to tell here if it'll pass real filtering         |
+         *                            |      and ?after but there will be ≥offset+size earlier-sorting          |
+         *                            |      snapshots so we could add it to total & remaining and skip         |
+         *                            |      loading its SnapshotInfo (TODO).                                   |
+         *                            |                                                                         |
+         *                            |      Harder: we might even be able to tell here if it'll pass           |
+         *                            |      real filtering and ?after but there will be <offset                |
+         *                            |      earlier-sorting snapshots so we could add it to total and          |
+         *                            |      then skip loading its SnapshotInfo (TODO).                         |
+         *                            |                                                                         |
+         *                            |                                                                         |
+         *                            |                                                                         |
+         *                            +-->  Load SnapshotInfos for completed snapshots -------------------------+
+         *                                                                                                      |
+         *     SnapshotInfos (merged) <-------------------------------------------------------------------------+
+         *         |
+         *         | Real filtering (for when SnapshotDetails incomplete/insufficient)
+         *         +----------------------------------X  ?from_sort_value
+         *         +----------------------------------X  ?state
+         *         +----------------------------------X  ?slm_policy_filter
+         *         |
+         *         +-->  Counted in total
+         *               |
+         *               +----------------------------X  Skipped due to ?after
+         *               |
+         *               +---> Not already returned - added to SnapshotInfoCollector
+         *                     |
+         *                     +----------------------X  Skipped due to ?offset
+         *                     +--------------------------------------------------------------------------------+
+         *                     +----------------------X  Omitted due to ?size (counted in remaining)            |
+         *                                                                                                      |
+         *                                                                                                      |
+         *                                                  RESULTS <-------------------------------------------+
+         */
+
         private final CancellableTask cancellableTask;
 
         private final ProjectId projectId;
@@ -200,9 +267,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final SortOrder order;
         @Nullable
         private final String fromSortValue;
-        private final int offset;
         private final Predicate<SnapshotInfo> afterPredicate;
-        private final int size;
 
         // current state
         private final SnapshotsInProgress snapshotsInProgress;
@@ -216,7 +281,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private final GetSnapshotInfoExecutor getSnapshotInfoExecutor;
 
         // results
-        private final List<SnapshotInfo> allSnapshotInfos = Collections.synchronizedList(new ArrayList<>());
+        private final SnapshotInfoCollector snapshotInfoCollector;
 
         /**
          * Accumulates number of snapshots that match the name/fromSortValue/slmPolicy predicates, to be returned in the response.
@@ -248,8 +313,6 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.sortBy = sortBy;
             this.order = order;
             this.fromSortValue = fromSortValue;
-            this.offset = offset;
-            this.size = size;
             this.snapshotsInProgress = snapshotsInProgress;
             this.verbose = verbose;
             this.indices = indices;
@@ -264,6 +327,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 threadPool.info(ThreadPool.Names.SNAPSHOT_META).getMax(),
                 cancellableTask::isCancelled
             );
+
+            this.snapshotInfoCollector = SnapshotInfoCollector.create(sortBy.getSnapshotInfoComparator(order), size, offset);
 
             if (verbose == false) {
                 assert fromSortValuePredicates.isMatchAll() : "filtering is not supported in non-verbose mode";
@@ -287,7 +352,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         }
 
         /**
-         * Populate the results fields ({@link #allSnapshotInfos} and {@link #totalCount}).
+         * Populate the results fields ({@link #snapshotInfoCollector} and {@link #totalCount}).
          */
         private void populateResults(ActionListener<Void> listener) {
             try (var listeners = new RefCountingListener(listener)) {
@@ -345,7 +410,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                                             if (matchesPredicates(snapshotInfo)) {
                                                 totalCount.incrementAndGet();
                                                 if (afterPredicate.test(snapshotInfo)) {
-                                                    allSnapshotInfos.add(snapshotInfo.maybeWithoutIndices(indices));
+                                                    snapshotInfoCollector.add(snapshotInfo.maybeWithoutIndices(indices));
                                                 }
                                             }
                                             refListener.onResponse(null);
@@ -550,37 +615,24 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         private GetSnapshotsResponse buildResponse() {
             assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.MANAGEMENT); // see [NOTE ON THREADING]
             cancellableTask.ensureNotCancelled();
-            int remaining = 0;
-            final var resultsStream = allSnapshotInfos.stream()
-                .peek(this::assertSatisfiesAllPredicates)
-                .sorted(sortBy.getSnapshotInfoComparator(order))
-                .skip(offset);
-            final List<SnapshotInfo> snapshotInfos;
-            if (size == GetSnapshotsRequest.NO_LIMIT || allSnapshotInfos.size() <= size) {
-                snapshotInfos = resultsStream.toList();
-            } else {
-                snapshotInfos = new ArrayList<>(size);
-                for (var iterator = resultsStream.iterator(); iterator.hasNext();) {
-                    final var snapshotInfo = iterator.next();
-                    if (snapshotInfos.size() < size) {
-                        snapshotInfos.add(snapshotInfo);
-                    } else {
-                        remaining += 1;
-                    }
-                }
-            }
+            final var snapshotInfos = snapshotInfoCollector.getSnapshotInfos();
+            assert assertSatisfiesAllPredicates(snapshotInfos);
+            final int remaining = snapshotInfoCollector.getRemaining();
             return new GetSnapshotsResponse(
                 snapshotInfos,
-                remaining > 0 ? sortBy.encodeAfterQueryParam(snapshotInfos.get(snapshotInfos.size() - 1)) : null,
+                remaining > 0 ? sortBy.encodeAfterQueryParam(snapshotInfos.getLast()) : null,
                 totalCount.get(),
                 remaining
             );
         }
 
-        private void assertSatisfiesAllPredicates(SnapshotInfo snapshotInfo) {
-            assert matchesPredicates(snapshotInfo);
-            assert afterPredicate.test(snapshotInfo);
-            assert indices || snapshotInfo.indices().isEmpty();
+        private boolean assertSatisfiesAllPredicates(List<SnapshotInfo> snapshotInfos) {
+            snapshotInfos.forEach(snapshotInfo -> {
+                assert matchesPredicates(snapshotInfo);
+                assert afterPredicate.test(snapshotInfo);
+                assert indices || snapshotInfo.indices().isEmpty();
+            });
+            return true;
         }
 
         private boolean matchesPredicates(SnapshotId snapshotId, RepositoryData repositoryData) {

@@ -33,12 +33,26 @@ import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
  * </p>
  */
 interface KeyExtractor {
-    int writeKey(BreakingBytesRefBuilder key, int position);
+    void writeKey(BreakingBytesRefBuilder key, int position);
 
+    /**
+     * Build a {@link KeyExtractor} extractor for the provided configuration.
+     *
+     * @param elementType elements of the key
+     * @param encoder     encoder appropriate for the data in the key. Callers need not
+     *                    call {@link TopNEncoder#toSortable} on the provided encoder.
+     * @param ascending   Are we sorting ascending ({@code true}) or descending ({@code false}).
+     *                    This must be sent to both to call {@link TopNEncoder#toSortable} and
+     *                    to handle multivalued fields.
+     * @param nul         The byte that should be used for {@code null} values.
+     * @param nonNul      The byte that should prefix non-{@code null} values.
+     * @param block       The {@link Block} we're extracting from.
+     */
     static KeyExtractor extractorFor(ElementType elementType, TopNEncoder encoder, boolean ascending, byte nul, byte nonNul, Block block) {
         if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
             throw new IllegalArgumentException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
         }
+        encoder = encoder.toSortable(ascending);
         return switch (block.elementType()) {
             case BOOLEAN -> KeyExtractorForBoolean.extractorFor(encoder, ascending, nul, nonNul, (BooleanBlock) block);
             case BYTES_REF -> KeyExtractorForBytesRef.extractorFor(encoder, ascending, nul, nonNul, (BytesRefBlock) block);

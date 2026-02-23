@@ -126,7 +126,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var request = new UnifiedCompletionRequest(
             List.of(
                 new UnifiedCompletionRequest.Message(
-                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("some text", "text"))),
+                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObjectText("some text"))),
                     "user",
                     null,
                     null
@@ -192,7 +192,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var request = new UnifiedCompletionRequest(
             List.of(
                 new UnifiedCompletionRequest.Message(
-                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("some text", "text"))),
+                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObjectText("some text"))),
                     "user",
                     null,
                     null
@@ -432,9 +432,9 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     public void testSerialization_WithContentObjects() throws IOException {
-        var contentObjects = List.of(
-            new UnifiedCompletionRequest.ContentObject("First part. ", "text"),
-            new UnifiedCompletionRequest.ContentObject("Second part.", "text")
+        List<UnifiedCompletionRequest.ContentObject> contentObjects = List.of(
+            new UnifiedCompletionRequest.ContentObjectText("First part. "),
+            new UnifiedCompletionRequest.ContentObjectText("Second part.")
         );
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentObjects(contentObjects),
@@ -498,7 +498,11 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
     }
 
     public void testError_UnsupportedContentObjectType() throws IOException {
-        var contentObjects = List.of(new UnifiedCompletionRequest.ContentObject("http://example.com/image.png", "image_url"));
+        List<UnifiedCompletionRequest.ContentObject> contentObjects = List.of(
+            new UnifiedCompletionRequest.ContentObjectImage(
+                new UnifiedCompletionRequest.ContentObjectImageUrl("http://example.com/image.png", null)
+            )
+        );
         UnifiedCompletionRequest.Message message = new UnifiedCompletionRequest.Message(
             new UnifiedCompletionRequest.ContentObjects(contentObjects),
             USER_ROLE,
@@ -579,7 +583,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var request = new UnifiedCompletionRequest(
             List.of(
                 new UnifiedCompletionRequest.Message(
-                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("some text", "text"))),
+                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObjectText("some text"))),
                     "user",
                     "100",
                     List.of(
@@ -691,7 +695,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             var requestContentObject = new UnifiedCompletionRequest(
                 List.of(
                     new UnifiedCompletionRequest.Message(
-                        new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("", "text"))),
+                        new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObjectText(""))),
                         "assistant",
                         null,
                         List.of(
@@ -748,7 +752,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var requestContentObject = new UnifiedCompletionRequest(
             List.of(
                 new UnifiedCompletionRequest.Message(
-                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("", "text"))),
+                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObjectText(""))),
                     "assistant",
                     null,
                     List.of(
@@ -826,7 +830,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var request = new UnifiedCompletionRequest(
             List.of(
                 new UnifiedCompletionRequest.Message(
-                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("some text", "text"))),
+                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObjectText("some text"))),
                     "user",
                     null,
                     null
@@ -878,7 +882,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             List.of(
                 new UnifiedCompletionRequest.Message(
                     new UnifiedCompletionRequest.ContentObjects(
-                        List.of(new UnifiedCompletionRequest.ContentObject("instruction text", "text"))
+                        List.of(new UnifiedCompletionRequest.ContentObjectText("instruction text"))
                     ),
                     "system",
                     null,
@@ -886,14 +890,14 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
                 ),
                 new UnifiedCompletionRequest.Message(
                     new UnifiedCompletionRequest.ContentObjects(
-                        List.of(new UnifiedCompletionRequest.ContentObject("instruction text2", "text"))
+                        List.of(new UnifiedCompletionRequest.ContentObjectText("instruction text2"))
                     ),
                     "system",
                     null,
                     null
                 ),
                 new UnifiedCompletionRequest.Message(
-                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("some text", "text"))),
+                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObjectText("some text"))),
                     "user",
                     null,
                     null
@@ -944,14 +948,14 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
             List.of(
                 new UnifiedCompletionRequest.Message(
                     new UnifiedCompletionRequest.ContentObjects(
-                        List.of(new UnifiedCompletionRequest.ContentObject("instruction text", "text"))
+                        List.of(new UnifiedCompletionRequest.ContentObjectText("instruction text"))
                     ),
                     "system",
                     null,
                     null
                 ),
                 new UnifiedCompletionRequest.Message(
-                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("some text", "text"))),
+                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObjectText("some text"))),
                     "user",
                     null,
                     null
@@ -983,7 +987,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var request = new UnifiedCompletionRequest(
             List.of(
                 new UnifiedCompletionRequest.Message(
-                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("some text", "text"))),
+                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObjectText("some text"))),
                     "user",
                     null,
                     null
@@ -1051,7 +1055,7 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntityTests extends ESTes
         var request = new UnifiedCompletionRequest(
             List.of(
                 new UnifiedCompletionRequest.Message(
-                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObject("some text", "text"))),
+                    new UnifiedCompletionRequest.ContentObjects(List.of(new UnifiedCompletionRequest.ContentObjectText("some text"))),
                     "user",
                     null,
                     null

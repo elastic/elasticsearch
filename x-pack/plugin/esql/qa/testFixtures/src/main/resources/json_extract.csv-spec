@@ -12,6 +12,20 @@ json:keyword                             | name:keyword
 // end::json_extract-result[]
 ;
 
+jsonExtractStringDollarPrefix
+required_capability: fn_json_extract
+// tag::json_extract_dollar[]
+ROW json = "{\"name\":\"Alice\",\"age\":30}"
+| EVAL name = JSON_EXTRACT(json, "$.name")
+// end::json_extract_dollar[]
+;
+
+// tag::json_extract_dollar-result[]
+json:keyword                             | name:keyword
+"{""name"":""Alice"",""age"":30}"        | Alice
+// end::json_extract_dollar-result[]
+;
+
 jsonExtractNumber
 required_capability: fn_json_extract
 ROW json = "{\"name\":\"Alice\",\"age\":30}"
@@ -36,7 +50,7 @@ jsonExtractNested
 required_capability: fn_json_extract
 // tag::json_extract_nested[]
 ROW json = "{\"user\":{\"address\":{\"city\":\"London\"}}}"
-| EVAL city = JSON_EXTRACT(json, "$.user.address.city")
+| EVAL city = JSON_EXTRACT(json, "user.address.city")
 // end::json_extract_nested[]
 ;
 
@@ -60,7 +74,7 @@ jsonExtractMixedNesting
 required_capability: fn_json_extract
 // tag::json_extract_array[]
 ROW json = "{\"orders\":[{\"id\":1,\"item\":\"book\"},{\"id\":2,\"item\":\"pen\"}]}"
-| EVAL second_item = JSON_EXTRACT(json, "$.orders[1].item")
+| EVAL second_item = JSON_EXTRACT(json, "orders[1].item")
 // end::json_extract_array[]
 ;
 

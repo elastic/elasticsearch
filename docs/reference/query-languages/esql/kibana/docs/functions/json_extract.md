@@ -3,13 +3,12 @@
 ### JSON EXTRACT
 Extracts a value from a JSON string using a subset of
 https://datatracker.ietf.org/doc/rfc9535/[JSONPath] syntax.
-Paths can be written with or without the JSONPath `$` prefix
-(`$.name` and `name` are equivalent). The supported JSONPath
-features are dot notation for nested fields (`user.address.city`),
-bracket notation for array indices (`items[0]`), quoted bracket
-notation for keys with special characters (`['user.name']`) or
-empty string keys (`['']`), the `$` root selector, and any combination of these
-(`$.store['items'][0].name`). Dot notation and quoted bracket
+The supported path features are dot notation for nested fields
+(`user.address.city`), bracket notation for array indices
+(`items[0]`), quoted bracket notation for keys with special
+characters (`['user.name']`) or empty string keys (`['']`),
+the `$` root selector, and any combination of these
+(`store['items'][0].name`). Dot notation and quoted bracket
 notation are interchangeable for simple keys (`a.b` and `a['b']`
 produce the same result). Optional whitespace is allowed
 inside brackets (`[ 0 ]` is equivalent to `[0]`).

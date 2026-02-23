@@ -11,29 +11,40 @@ ROW json = "{\\"name\\":\\"Alice\\",\\"age\\":30}"
 | --- | --- |
 | "{""name"":""Alice"",""age"":30}" | Alice |
 
-Extract a nested value using dot-notation:
+The `$` prefix is optional — this query produces the same result as the previous example:
+
+```esql
+ROW json = "{\\"name\\":\\"Alice\\",\\"age\\":30}"
+| EVAL name = JSON_EXTRACT(json, "$.name")
+```
+
+| json:keyword | name:keyword |
+| --- | --- |
+| "{""name"":""Alice"",""age"":30}" | Alice |
+
+To extract a deeply nested value, use dot-notation:
 
 ```esql
 ROW json = "{\\"user\\":{\\"address\\":{\\"city\\":\\"London\\"}}}"
-| EVAL city = JSON_EXTRACT(json, "$.user.address.city")
+| EVAL city = JSON_EXTRACT(json, "user.address.city")
 ```
 
 | json:keyword | city:keyword |
 | --- | --- |
 | "{""user"":{""address"":{""city"":""London""}}}" | London |
 
-Extract a value from a nested array using bracket notation:
+This example extracts the second item from an array of objects using bracket notation:
 
 ```esql
 ROW json = "{\\"orders\\":[{\\"id\\":1,\\"item\\":\\"book\\"},{\\"id\\":2,\\"item\\":\\"pen\\"}]}"
-| EVAL second_item = JSON_EXTRACT(json, "$.orders[1].item")
+| EVAL second_item = JSON_EXTRACT(json, "orders[1].item")
 ```
 
 | json:keyword | second_item:keyword |
 | --- | --- |
 | "{""orders"":[{""id"":1,""item"":""book""},{""id"":2,""item"":""pen""}]}" | pen |
 
-Extract a nested object, returned as a JSON string:
+When the extracted value is an object or array, it is returned as a JSON string:
 
 ```esql
 ROW json = "{\\"user\\":{\\"name\\":\\"Alice\\",\\"age\\":30}}"
@@ -44,7 +55,7 @@ ROW json = "{\\"user\\":{\\"name\\":\\"Alice\\",\\"age\\":30}}"
 | --- | --- |
 | "{""user"":{""name"":""Alice"",""age"":30}}" | "{""name"":""Alice"",""age"":30}" |
 
-Extract a value from a top-level array using the `$` root selector:
+To extract from a top-level JSON array, use a bracket index on the root element:
 
 ```esql
 ROW json = "[\\"a\\",\\"b\\",\\"c\\"]"
@@ -56,7 +67,7 @@ ROW json = "[\\"a\\",\\"b\\",\\"c\\"]"
 | --- |
 | b |
 
-Navigate through nested objects and arrays:
+This example navigates through nested objects and arrays to extract a specific value:
 
 ```esql
 ROW json = "{\\"company\\":{\\"departments\\":[{\\"name\\":\\"eng\\",\\"leads\\":[{\\"name\\":\\"Alice\\"},{\\"name\\":\\"Bob\\"}]},{\\"name\\":\\"sales\\",\\"leads\\":[{\\"name\\":\\"Carol\\"}]}]}}"

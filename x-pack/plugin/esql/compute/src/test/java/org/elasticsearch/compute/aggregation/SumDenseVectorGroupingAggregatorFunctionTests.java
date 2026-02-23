@@ -64,6 +64,7 @@ public class SumDenseVectorGroupingAggregatorFunctionTests extends GroupingAggre
         return false;
     }
 
+    @Override
     protected void appendNullGroupValue(ElementType elementType, Block.Builder builder, int blockId) {
         // Dense vectors are multi-valued float positions; the default single randomFloat()
         // would create a 1-dimensional vector that conflicts with the expected dimensions.

@@ -90,10 +90,10 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         LuceneSlice slice1 = queue.nextSlice(null);
         assertThat(slice1.numLeaves(), equalTo(1));
         LeafReaderContext singleLeaf = slice1.getLeaf(0).leafReaderContext();
-        assertNull(slice1.isBlockedOnCaching(singleLeaf));
+        assertNull(slice1.leafBlockedOnCaching(singleLeaf));
         LuceneSlice slice2 = queue.nextSlice(null);
         assertThat(slice2.numLeaves(), equalTo(1));
-        assertNull(slice2.isBlockedOnCaching(singleLeaf));
+        assertNull(slice2.leafBlockedOnCaching(singleLeaf));
         // thread-1 executes the first 100 docs
         CountCollector collector1 = new CountCollector();
         Thread thread1 = new Thread(() -> {
@@ -106,10 +106,10 @@ public class DocPartitioningQueryCacheTests extends ComputeTestCase {
         });
         thread1.start();
         assertBusy(() -> {
-            assertNotNull(slice1.isBlockedOnCaching(singleLeaf));
-            assertNotNull(slice2.isBlockedOnCaching(singleLeaf));
+            assertNotNull(slice1.leafBlockedOnCaching(singleLeaf));
+            assertNotNull(slice2.leafBlockedOnCaching(singleLeaf));
         });
-        SubscribableListener<Void> blocked = slice1.isBlockedOnCaching(singleLeaf);
+        SubscribableListener<Void> blocked = slice1.leafBlockedOnCaching(singleLeaf);
         assertFalse(blocked.isDone());
         CountCollector collector2 = new CountCollector();
         Thread thread2 = new Thread(() -> {

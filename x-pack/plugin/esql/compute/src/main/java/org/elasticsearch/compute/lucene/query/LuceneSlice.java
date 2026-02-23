@@ -14,7 +14,6 @@ import org.elasticsearch.compute.lucene.PartialLeafReaderContext;
 import org.elasticsearch.compute.lucene.ShardContext;
 
 import java.util.List;
-import java.util.function.Function;
 
 /**
  * Holds a list of multiple partial Lucene segments
@@ -26,7 +25,7 @@ public record LuceneSlice(
     List<PartialLeafReaderContext> leaves,
     Weight weight,
     List<Object> tags,
-    Function<LeafReaderContext, SubscribableListener<Void>> blockedOnCaching
+    BlockedOnCaching blockedOnCaching
 ) {
     int numLeaves() {
         return leaves.size();
@@ -36,7 +35,13 @@ public record LuceneSlice(
         return leaves.get(index);
     }
 
-    SubscribableListener<Void> isBlockedOnCaching(LeafReaderContext leaf) {
-        return blockedOnCaching.apply(leaf);
+    SubscribableListener<Void> leafBlockedOnCaching(LeafReaderContext leaf) {
+        return blockedOnCaching.blockedListener(leaf);
     }
+
+    public interface BlockedOnCaching {
+        SubscribableListener<Void> blockedListener(LeafReaderContext leaf);
+    }
+
+    public static final BlockedOnCaching NEVER_BLOCKED = used -> null;
 }

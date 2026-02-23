@@ -185,7 +185,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 final Weight weight = currentSlice.weight();
                 processedQueries.add(weight.getQuery());
                 currentScorer = new LuceneScorer(currentSlice.shardContext(), weight, currentSlice.tags(), leaf);
-                sliceBlocked = currentSlice.isBlockedOnCaching(currentScorer.leafReaderContext());
+                sliceBlocked = currentSlice.leafBlockedOnCaching(currentScorer.leafReaderContext());
                 if (sliceBlocked == null || sliceBlocked.isDone()) {
                     currentScorer.reinitialize();
                 }

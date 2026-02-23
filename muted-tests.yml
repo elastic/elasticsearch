@@ -550,30 +550,51 @@ tests:
 - class: org.elasticsearch.index.mapper.BinaryFieldMapperTests
   method: testDefaultsForTimeSeriesIndex
   issue: https://github.com/elastic/elasticsearch/pull/142366
+# error={reason=cannot change field "_id" from doc values type=NONE to inconsistent doc values type=BINARY, type=illegal_argument_exception}
+- class: org.elasticsearch.xpack.logsdb.TsdbIndexingRollingUpgradeIT
+  method: testIndexing
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+- class: org.elasticsearch.xpack.logsdb.TsdbIT
+  method: testTsdbDataStream
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+# TsidExtractingIdFieldMapper.createField(TsidExtractingIdFieldMapper.java:88)
+# _id must be unset or set to [0XbnnsE9AoHbGpRryIzXGQ0wf_8Zlt1Ce_8AAAAH] but was [BwAAAEk383E-IPhiAADmaSK9hAA] because [index] is in time_series mode
 - class: org.elasticsearch.index.mapper.TsidExtractingIdFieldMapperTests
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+# TsidExtractingIdFieldMapper.extractTimeSeriesIdFromSyntheticId(TsidExtractingIdFieldMapper.java:179) assert id.length > Long.BYTES + Integer.BYTES;
+- class: org.elasticsearch.xpack.ccr.index.engine.FollowingEngineTests
+  method: testProcessOnceOnPrimary
   issue: https://github.com/elastic/elasticsearch/pull/142366
   # ROUTING TsidExtractingIdFieldMapper.extractRoutingHashFromSyntheticId
 - class: org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapperTests
   method: testRetrievedFromIdInTimeSeriesMode
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.cluster.routing.IndexRoutingTests
-  method: testRoutingPathOneSub
+  methods:
+    - testRoutingPathOneSub
+    - testRoutingPathNumbersInSource
+    - testRoutingPathManyTopLevel
+    - testRoutingPathDotInName
+    - testRoutingPathBwc
+    - testRoutingPathManySubs
+    - testRoutingPathOneTopLevel
   issue: https://github.com/elastic/elasticsearch/pull/142366
 - class: org.elasticsearch.index.mapper.SourceFieldMapperTests
   methods:
     - testRecoverySourceWithTimeSeriesCustom
     - testRecoverySourceWithTimeSeries
   issue: https://github.com/elastic/elasticsearch/pull/142366
-- class: org.elasticsearch.cluster.routing.IndexRoutingTests
-  methods:
-    - testRoutingPathNumbersInSource
-    - testRoutingPathManyTopLevel
-    - testRoutingPathDotInName
-    - testRoutingPathBwc
-  issue: https://github.com/elastic/elasticsearch/pull/142366
   # TEST EXPECTATION stored_fields_in_bytes - TSDB synthetic ID / feature flag removal - PR 142366
 - class: org.elasticsearch.datastreams.TSDBIndexingIT
   method: testTrimId
+  issue: https://github.com/elastic/elasticsearch/pull/142366
+# [tsdb][0] primary shard is not active (probably other allocation problem underneath)
+- class: org.elasticsearch.upgrades.IndexingIT
+  methods:
+    - testTsdb
+    - testIndexing
+    - testAutoIdWithOpTypeCreate
+    - testDateNanosFormatUpgrade
   issue: https://github.com/elastic/elasticsearch/pull/142366
 
 # Examples:

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.arrow;
+package org.elasticsearch.compute.data.arrow;
 
 import org.apache.arrow.memory.ArrowBuf;
 import org.apache.arrow.memory.RootAllocator;
@@ -24,8 +24,6 @@ import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
-import org.elasticsearch.compute.data.arrow.LongArrowBufBlock;
-import org.elasticsearch.compute.data.arrow.LongArrowBufVector;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;

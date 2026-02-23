@@ -21,11 +21,13 @@ import org.apache.arrow.vector.types.Types;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.arrow.BooleanArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.DoubleArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.FloatArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.IntArrowBufBlock;
+import org.elasticsearch.compute.data.arrow.LongArrowBufBlock;
 
 /**
  * Converts Apache Arrow FieldVector to ESQL Blocks.
@@ -90,19 +92,14 @@ public abstract class ArrowToBlockConverter {
         @Override
         public Block convert(FieldVector vector, BlockFactory factory) {
             Float4Vector f4v = (Float4Vector) vector;
-            int valueCount = f4v.getValueCount();
-
-            try (DoubleBlock.Builder builder = factory.newDoubleBlockBuilder(valueCount)) {
-                for (int i = 0; i < valueCount; i++) {
-                    if (f4v.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        // Convert float to double for ESQL
-                        builder.appendDouble((double) f4v.get(i));
-                    }
-                }
-                return builder.build();
-            }
+            return new FloatArrowBufBlock(
+                f4v.getDataBuffer(),
+                f4v.getValidityBuffer(),
+                f4v.getOffsetBuffer(),
+                f4v.getValueCount(),
+                0,
+                factory
+            );
         }
     }
 
@@ -114,18 +111,7 @@ public abstract class ArrowToBlockConverter {
         @Override
         public Block convert(FieldVector vector, BlockFactory factory) {
             Float8Vector f8v = (Float8Vector) vector;
-            int valueCount = f8v.getValueCount();
-
-            try (DoubleBlock.Builder builder = factory.newDoubleBlockBuilder(valueCount)) {
-                for (int i = 0; i < valueCount; i++) {
-                    if (f8v.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendDouble(f8v.get(i));
-                    }
-                }
-                return builder.build();
-            }
+            return new DoubleArrowBufBlock(f8v.getDataBuffer(), f8v.getValidityBuffer(), null, f8v.getValueCount(), 0, factory);
         }
     }
 
@@ -137,18 +123,14 @@ public abstract class ArrowToBlockConverter {
         @Override
         public Block convert(FieldVector vector, BlockFactory factory) {
             BigIntVector bigIntVector = (BigIntVector) vector;
-            int valueCount = bigIntVector.getValueCount();
-
-            try (LongBlock.Builder builder = factory.newLongBlockBuilder(valueCount)) {
-                for (int i = 0; i < valueCount; i++) {
-                    if (bigIntVector.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendLong(bigIntVector.get(i));
-                    }
-                }
-                return builder.build();
-            }
+            return new LongArrowBufBlock(
+                bigIntVector.getDataBuffer(),
+                bigIntVector.getValidityBuffer(),
+                null,
+                bigIntVector.getValueCount(),
+                0,
+                factory
+            );
         }
     }
 
@@ -160,18 +142,14 @@ public abstract class ArrowToBlockConverter {
         @Override
         public Block convert(FieldVector vector, BlockFactory factory) {
             IntVector intVector = (IntVector) vector;
-            int valueCount = intVector.getValueCount();
-
-            try (IntBlock.Builder builder = factory.newIntBlockBuilder(valueCount)) {
-                for (int i = 0; i < valueCount; i++) {
-                    if (intVector.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendInt(intVector.get(i));
-                    }
-                }
-                return builder.build();
-            }
+            return new IntArrowBufBlock(
+                intVector.getDataBuffer(),
+                intVector.getValidityBuffer(),
+                null,
+                intVector.getValueCount(),
+                0,
+                factory
+            );
         }
     }
 
@@ -183,18 +161,14 @@ public abstract class ArrowToBlockConverter {
         @Override
         public Block convert(FieldVector vector, BlockFactory factory) {
             BitVector bitVector = (BitVector) vector;
-            int valueCount = bitVector.getValueCount();
-
-            try (BooleanBlock.Builder builder = factory.newBooleanBlockBuilder(valueCount)) {
-                for (int i = 0; i < valueCount; i++) {
-                    if (bitVector.isNull(i)) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendBoolean(bitVector.get(i) != 0);
-                    }
-                }
-                return builder.build();
-            }
+            return new BooleanArrowBufBlock(
+                bitVector.getDataBuffer(),
+                bitVector.getValidityBuffer(),
+                null,
+                bitVector.getValueCount(),
+                0,
+                factory
+            );
         }
     }
 

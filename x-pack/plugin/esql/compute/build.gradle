@@ -16,7 +16,7 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
-  implementation('org.apache.arrow:arrow-memory-core:18.3.0')
+  api('org.apache.arrow:arrow-memory-core:18.3.0')
   api project(':libs:exponential-histogram')
   implementation project(':libs:swisshash')
 
@@ -33,6 +33,18 @@ dependencies {
   }
   testImplementation(project(xpackModule('core')))
   testImplementation(project(xpackModule('ml')))
+
+  // Arrow test dependencies
+  testImplementation('org.apache.arrow:arrow-vector:18.3.0')
+  testImplementation('org.apache.arrow:arrow-format:18.3.0')
+  testImplementation('org.apache.arrow:arrow-memory-core:18.3.0')
+  testImplementation('org.checkerframework:checker-qual:3.42.0')
+  testImplementation('com.google.flatbuffers:flatbuffers-java:23.5.26')
+  testImplementation('org.apache.arrow:arrow-memory-unsafe:18.3.0')
+  // Needed for the json arrow serialization, and loaded even if we don't use it.
+  testImplementation("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  testImplementation("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
+  testImplementation("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
 }
 
 def projectDirectory = project.layout.projectDirectory
@@ -44,6 +56,23 @@ tasks.named("compileJava").configure {
 tasks.named('checkstyleMain').configure {
   source = "src/main/java"
   excludes = ["**/*.java.st"]
+}
+
+tasks.named("test").configure {
+  // Needed for Arrow tests
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    // Arrow uses sun.misc.Unsafe. Only used in tests.
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1',
+  )
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /arrow-.*/, to: 'arrow'
 }
 
 tasks.named("spotlessJava") { dependsOn "stringTemplates" }

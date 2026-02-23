@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -14,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
@@ -128,7 +130,7 @@ class LateMaterializationPlanner {
         }
         var updatedFragment = new Project(Source.EMPTY, withAddedDocToRelation, expectedDataOutput);
         FragmentExec updatedFragmentExec = fragmentExec.withFragment(updatedFragment);
-        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChild(updatedFragmentExec);
+        ExchangeSinkExec updatedDataPlan = originalPlan.replaceChildAndUpdateOutput(updatedFragmentExec);
 
         // Replace the TopN child with the data driver as the source.
         PhysicalPlan reductionPlan = toPhysical(fragmentExec.fragment(), context).transformDown(TopNExec.class, t -> {

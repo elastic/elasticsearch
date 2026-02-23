@@ -213,7 +213,10 @@ public class InterceptedInferenceKnnVectorQueryBuilder extends InterceptedInfere
 
             if (registerAction) {
                 SetOnce<float[]> newQueryVectorSupplier = new SetOnce<>();
-                QueryVectorBuilderAsyncAction.registerAction(queryRewriteContext, queryVectorBuilder, newQueryVectorSupplier);
+                queryRewriteContext.registerUniqueAsyncAction(
+                    new QueryVectorBuilderAsyncAction(queryVectorBuilder),
+                    newQueryVectorSupplier::set
+                );
                 return new InterceptedInferenceKnnVectorQueryBuilder(queryBuilder, originalQuery, newQueryVectorSupplier);
             }
         }

@@ -16,6 +16,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.monitor.jvm.SunThreadInfo;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.monitor.process.ProcessProbe;
+import org.elasticsearch.telemetry.metric.DoubleWithAttributes;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -49,6 +50,7 @@ public class SystemMetrics extends AbstractLifecycleComponent {
         registerSystemMemoryMetrics();
         registerCgroupMemoryMetrics();
         registerJvmGcMetrics();
+        registerSystemCpuMetrics();
     }
 
     @Override
@@ -173,6 +175,21 @@ public class SystemMetrics extends AbstractLifecycleComponent {
                     }
                     return measurements;
                 }
+            )
+        );
+    }
+
+    private void registerSystemCpuMetrics() {
+        short initial = OsProbe.getSystemCpuPercent();
+        if (initial < 0) {
+            return;
+        }
+        metrics.add(
+            registry.registerDoubleGauge(
+                "system.cpu.total.norm.pct",
+                "System-wide CPU usage as a ratio.",
+                "1",
+                () -> new DoubleWithAttributes(Math.max(0, OsProbe.getSystemCpuPercent() / 100.0))
             )
         );
     }

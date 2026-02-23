@@ -69,6 +69,7 @@ public class MetricValidator {
         "es.thread_pool.security-crypto.*",
         "es.thread_pool.security-token-key.*",
         // APM Java agent-compatible metric names (see https://www.elastic.co/docs/reference/apm/agents/java/metrics#metrics-jvm)
+        "system.cpu.*",
         "system.memory.*",
         "system.process.*",
         "jvm.file_descriptor.*",

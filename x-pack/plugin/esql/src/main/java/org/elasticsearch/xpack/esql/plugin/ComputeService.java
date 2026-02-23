@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalVerifier;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
@@ -801,9 +802,14 @@ public class ComputeService {
     ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
-        ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan, LocalPhysicalOptimization.ENABLED);
+        // Just send out everything through a single exchange as a fallback
+        ReductionPlan passThroughReduction = new ReductionPlan(
+            originalPlan.replaceChild(source),
+            originalPlan,
+            LocalPhysicalOptimization.ENABLED
+        );
         if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
-            return defaultResult;
+            return passThroughReduction;
         }
 
         Function<PhysicalPlan, ReductionPlan> placePlanBetweenExchanges = p -> new ReductionPlan(
@@ -811,6 +817,21 @@ public class ComputeService {
             originalPlan,
             LocalPhysicalOptimization.ENABLED
         );
+        Function<AggregateExec, ReductionPlan> placeAggBetweenExchanges = p -> {
+            PhysicalPlan reductionSource = new ExchangeSourceExec(
+                originalPlan.source(),
+                // For an agg, the data that's sent between exchanges is different because the reduction driver gets intermediate
+                // attributes.
+                new ArrayList<>(p.references()),
+                originalPlan.isIntermediateAgg()
+            );
+            return new ReductionPlan(
+                originalPlan.replaceChild(p.replaceChildren(List.of(reductionSource))),
+                originalPlan,
+                LocalPhysicalOptimization.ENABLED
+            );
+        };
+
         // The default plan is just the exchange source piped directly into the exchange sink.
         ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
             case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
@@ -822,21 +843,13 @@ public class ComputeService {
                     originalPlan
                 )
                     // Fallback to the behavior listed below, i.e., a regular top n reduction without loading new fields.
-                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : defaultResult);
+                    .orElseGet(() -> runNodeLevelReduction ? placePlanBetweenExchanges.apply(topN.plan()) : passThroughReduction);
             case PlannerUtils.TopNReduction topN when runNodeLevelReduction -> placePlanBetweenExchanges.apply(topN.plan());
-            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> {
-                PhysicalPlan reductionSource = new ExchangeSourceExec(
-                    originalPlan.source(),
-                    new ArrayList<>(rp.plan().references()),
-                    originalPlan.isIntermediateAgg()
-                );
-                yield new ReductionPlan(
-                    originalPlan.replaceChild(rp.plan().replaceChildren(List.of(reductionSource))),
-                    originalPlan,
-                    LocalPhysicalOptimization.ENABLED
-                );
-            }
-            default -> defaultResult;
+            // Not a TopN - must be an agg or a limit
+            case PlannerUtils.ReducedPlan rp when runNodeLevelReduction -> rp.plan() instanceof AggregateExec agg
+                ? placeAggBetweenExchanges.apply(agg)
+                : placePlanBetweenExchanges.apply(rp.plan());
+            default -> passThroughReduction;
         };
         if (planTimeProfile != null) {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
@@ -848,7 +861,9 @@ public class ComputeService {
         );
         if (Assertions.ENABLED) {
             PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.nodeReducePlan(), reductionPlan.nodeReducePlan().child().output());
-            PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionPlan.dataNodePlan().child().output());
+            ExchangeSourceExec reductionSource = (ExchangeSourceExec) reductionPlan.nodeReducePlan().collectLeaves().getFirst();
+            // The data driver's output is sent to the reduction driver, so the outputs must match up.
+            PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionSource.output());
         }
         return reductionPlan;
     }

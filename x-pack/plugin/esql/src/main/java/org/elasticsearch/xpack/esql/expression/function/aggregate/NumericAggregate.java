@@ -67,7 +67,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
         }
         return isType(
             field(),
-            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG || dt == DataType.DENSE_VECTOR,
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
             sourceText(),
             DEFAULT,
             "numeric except unsigned_long or counter types"
@@ -80,7 +80,7 @@ public abstract class NumericAggregate extends AggregateFunction implements ToAg
 
     @Override
     public DataType dataType() {
-        return field().dataType() == DataType.DENSE_VECTOR ? DataType.DENSE_VECTOR : DataType.DOUBLE;
+        return DataType.DOUBLE;
     }
 
     @Override

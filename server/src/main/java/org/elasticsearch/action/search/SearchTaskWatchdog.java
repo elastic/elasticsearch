@@ -159,8 +159,8 @@ public class SearchTaskWatchdog extends AbstractLifecycleComponent {
 
             final long now = threadPool.relativeTimeInNanos();
 
-            // skip task iteration if in cooldown period
-            if (lastLoggedNanos > 0 && (now - lastLoggedNanos) < cooldownPeriodNanos) {
+            boolean isInCooldownPeriod = lastLoggedNanos > 0 && (now - lastLoggedNanos) < cooldownPeriodNanos;
+            if (isInCooldownPeriod) {
                 return;
             }
 

@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -43,7 +44,7 @@ public final class MappingLookup {
      * A lookup representing an empty mapping. It can be used to look up fields, although it won't hold any, but it does not
      * hold a valid {@link DocumentParser}, {@link IndexSettings} or {@link IndexAnalyzers}.
      */
-    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of());
+    public static final MappingLookup EMPTY = fromMappers(Mapping.EMPTY, List.of(), List.of(), IndexMode.STANDARD);
 
     private final CacheKey cacheKey = new CacheKey();
 
@@ -59,14 +60,16 @@ public final class MappingLookup {
     private final List<FieldMapper> indexTimeScriptMappers;
     private final Mapping mapping;
     private final int totalFieldsCount;
+    private final IndexMode indexMode;
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
      *
      * @param mapping the mapping source
+     * @param indexMode the mode of the index
      * @return the newly created lookup instance
      */
-    public static MappingLookup fromMapping(Mapping mapping) {
+    public static MappingLookup fromMapping(Mapping mapping, IndexMode indexMode) {
         List<ObjectMapper> newObjectMappers = new ArrayList<>();
         List<FieldMapper> newFieldMappers = new ArrayList<>();
         List<FieldAliasMapper> newFieldAliasMappers = new ArrayList<>();
@@ -79,7 +82,7 @@ public final class MappingLookup {
         for (Mapper child : mapping.getRoot()) {
             collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers, newPassThroughMappers);
         }
-        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughMappers);
+        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers, newPassThroughMappers, indexMode);
     }
 
     private static void collect(
@@ -120,6 +123,7 @@ public final class MappingLookup {
      * @param objectMappers the object mappers
      * @param aliasMappers the field alias mappers
      * @param passThroughMappers the pass-through mappers
+     * @param indexMode the mode of the index
      * @return the newly created lookup instance
      */
     public static MappingLookup fromMappers(
@@ -127,13 +131,19 @@ public final class MappingLookup {
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
-        Collection<PassThroughObjectMapper> passThroughMappers
+        Collection<PassThroughObjectMapper> passThroughMappers,
+        IndexMode indexMode
     ) {
-        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughMappers);
+        return new MappingLookup(mapping, mappers, objectMappers, aliasMappers, passThroughMappers, indexMode);
     }
 
-    public static MappingLookup fromMappers(Mapping mapping, Collection<FieldMapper> mappers, Collection<ObjectMapper> objectMappers) {
-        return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of());
+    public static MappingLookup fromMappers(
+        Mapping mapping,
+        Collection<FieldMapper> mappers,
+        Collection<ObjectMapper> objectMappers,
+        IndexMode indexMode
+    ) {
+        return new MappingLookup(mapping, mappers, objectMappers, List.of(), List.of(), indexMode);
     }
 
     private MappingLookup(
@@ -141,7 +151,8 @@ public final class MappingLookup {
         Collection<FieldMapper> mappers,
         Collection<ObjectMapper> objectMappers,
         Collection<FieldAliasMapper> aliasMappers,
-        Collection<PassThroughObjectMapper> passThroughMappers
+        Collection<PassThroughObjectMapper> passThroughMappers,
+        IndexMode indexMode
     ) {
         this.totalFieldsCount = mapping.getRoot().getTotalFieldsCount();
         this.mapping = mapping;
@@ -207,6 +218,7 @@ public final class MappingLookup {
         this.runtimeFieldMappersCount = runtimeFields.size();
         this.indexAnalyzersMap = Map.copyOf(indexAnalyzersMap);
         this.indexTimeScriptMappers = List.copyOf(indexTimeScriptMappers);
+        this.indexMode = indexMode;
 
         runtimeFields.stream().flatMap(RuntimeField::asMappedFieldTypes).map(MappedFieldType::name).forEach(this::validateDoesNotShadow);
         assert assertMapperNamesInterned(this.fieldMappers, this.objectMappers);
@@ -538,11 +550,13 @@ public final class MappingLookup {
         if (shadowed == null) {
             return;
         }
-        if (shadowed.isDimension()) {
-            throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_dimension");
-        }
-        if (shadowed.getMetricType() != null) {
-            throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_metric");
+        if (indexMode == IndexMode.TIME_SERIES) {
+            if (shadowed.isDimension()) {
+                throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_dimension");
+            }
+            if (shadowed.getMetricType() != null) {
+                throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_metric");
+            }
         }
     }
 }

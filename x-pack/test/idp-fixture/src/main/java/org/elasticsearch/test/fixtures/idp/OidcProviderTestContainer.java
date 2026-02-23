@@ -8,14 +8,23 @@
 package org.elasticsearch.test.fixtures.idp;
 
 import org.elasticsearch.test.fixtures.testcontainers.DockerEnvironmentAwareTestContainer;
+import org.elasticsearch.test.fixtures.testcontainers.PullOrBuildImage;
 import org.testcontainers.containers.Network;
+import org.testcontainers.containers.wait.strategy.Wait;
 import org.testcontainers.images.builder.ImageFromDockerfile;
 import org.testcontainers.images.builder.Transferable;
 
+import java.time.Duration;
+
 public final class OidcProviderTestContainer extends DockerEnvironmentAwareTestContainer {
+
+    private static final String DOCKER_BASE_IMAGE = "docker.elastic.co/elasticsearch-dev/oidc-fixture:1.1";
 
     private static final int PORT = 8080;
     private static final int SSL_PORT = 8443;
+
+    /** Time to wait for /c2id/jwks.json to become available after copying override.properties. */
+    private static final Duration JWKS_READY_TIMEOUT = Duration.ofSeconds(60);
 
     /**
      * for packer caching only
@@ -26,20 +35,25 @@ public final class OidcProviderTestContainer extends DockerEnvironmentAwareTestC
 
     public OidcProviderTestContainer(Network network) {
         super(
-            new ImageFromDockerfile("es-oidc-provider-fixture").withFileFromClasspath("oidc/setup.sh", "/oidc/setup.sh")
-                .withFileFromClasspath("oidc/testnode.jks", "/oidc/testnode.jks")
-                // we cannot make use of docker file builder
-                // as it does not support multi-stage builds
-                .withFileFromClasspath("Dockerfile", "oidc/Dockerfile")
+            new PullOrBuildImage(
+                DOCKER_BASE_IMAGE,
+                new ImageFromDockerfile("localhost/es-oidc-provider-fixture").withFileFromClasspath("build.sh", "/oidc/build.sh")
+                    .withFileFromClasspath("entrypoint.sh", "/oidc/entrypoint.sh")
+                    .withFileFromClasspath("testnode.jks", "/oidc/testnode.jks")
+                    .withFileFromClasspath("Dockerfile", "/oidc/Dockerfile")
+            )
         );
         withNetworkAliases("oidc-provider");
         withNetwork(network);
         addExposedPorts(PORT, SSL_PORT);
+        // Phase 1: consider container "started" when entrypoint is waiting for override.properties
+        setWaitStrategy(Wait.forLogMessage(".*Waiting for properties file.*", 1).withStartupTimeout(JWKS_READY_TIMEOUT));
     }
 
     @Override
     public void start() {
         super.start();
+        // Phase 2: inject override.properties so entrypoint can start Tomcat
         copyFileToContainer(
             Transferable.of(
                 "op.issuer=http://127.0.0.1:"
@@ -52,8 +66,15 @@ public final class OidcProviderTestContainer extends DockerEnvironmentAwareTestC
                     + "op.authz.alwaysPromptForConsent=true\n"
                     + "op.authz.alwaysPromptForAuth=true"
             ),
-            "config/c2id/override.properties"
+            "/config/c2id/override.properties"
         );
+        // Phase 3: wait for JWKS endpoint (Tomcat and c2id are up)
+        Wait.forHttp("/c2id/jwks.json")
+            .forPort(SSL_PORT)
+            .usingTls()
+            .allowInsecure()
+            .withStartupTimeout(JWKS_READY_TIMEOUT)
+            .waitUntilReady(this);
     }
 
     public String getC2OPUrl() {

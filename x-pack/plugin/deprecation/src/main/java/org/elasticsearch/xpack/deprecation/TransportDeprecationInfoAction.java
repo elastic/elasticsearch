@@ -437,6 +437,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
             .map(Map.Entry::getKey)
             .map(discoveryNodes::get)
             .filter(Objects::nonNull)
+            .filter(node -> node.canContainData() && node.isDedicatedFrozenNode() == false)
             .map(DiscoveryNode::getName)
             .sorted()
             .toList();

@@ -1,0 +1,5 @@
+pr: 140886
+summary: Fix `_index` on missing events in CCS
+area: EQL
+type: bug
+issues: []

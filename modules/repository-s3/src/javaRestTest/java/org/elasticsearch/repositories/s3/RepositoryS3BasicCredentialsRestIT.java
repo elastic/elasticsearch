@@ -50,6 +50,8 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
+        .systemProperty("es.insecure_network_trace_enabled", "true")
+        .setting("logger.org.apache.http.headers", "TRACE")
         .build();
 
     @ClassRule

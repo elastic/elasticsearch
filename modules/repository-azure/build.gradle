@@ -83,8 +83,7 @@ dependencies {
 
   implementation project(":modules:transport-netty4")
   implementation("org.slf4j:slf4j-api:${versions.slf4j}")
-  runtimeOnly "org.slf4j:slf4j-nop:${versions.slf4j}"
-//  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}") https://github.com/elastic/elasticsearch/issues/93714
+  runtimeOnly("org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}")
 
   testImplementation project(':test:fixtures:azure-fixture')
   yamlRestTestImplementation project(':test:fixtures:azure-fixture')
@@ -104,6 +103,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /stax-.*/, to: 'stax'
   mapping from: /reactor-netty-.*/, to: 'reactor-netty'
   mapping from: /reactive-streams.*/, to: 'reactive-streams'
+  mapping from: /log4j.*/, to: 'log4j'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -173,8 +173,6 @@ tasks.named("thirdPartyAudit").configure {
 
     // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
     'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
-    // [missing classes] SLF4j includes an optional class that depends on an extension class. see Log4jLogger#createConverter
-    //    'org.slf4j.ext.EventData' - bring back when https://github.com/elastic/elasticsearch/issues/93714 is done
 
     // Optional dependency of tink
     'com.google.crypto.tink.subtle.Ed25519Sign',

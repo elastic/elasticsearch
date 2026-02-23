@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistryTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalModel;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettingsTests;
 import org.junit.Before;
@@ -56,6 +57,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -64,6 +66,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder.OLD_DEFAULT_SETTINGS;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
@@ -114,7 +117,8 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
 
     public void testGetModel() throws Exception {
         String inferenceEntityId = "test-get-model";
-        Model model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
+        // This can return chunking settings as null
+        var model = buildElserModelConfig(inferenceEntityId, TaskType.SPARSE_EMBEDDING);
         ModelRegistryTests.assertStoreModel(modelRegistry, model);
 
         // now get the model
@@ -134,13 +138,38 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
                 Settings.EMPTY
             )
         );
+
+        // When we parse the persisted config, if the chunking settings were null they will be defaulted to OLD_DEFAULT_SETTINGS
         ElasticsearchInternalModel roundTripModel = (ElasticsearchInternalModel) elserService.parsePersistedConfigWithSecrets(
             modelHolder.get().inferenceEntityId(),
             modelHolder.get().taskType(),
             modelHolder.get().settings(),
             modelHolder.get().secrets()
         );
-        assertEquals(model, roundTripModel);
+
+        assertElserModelsEqual(roundTripModel, model);
+    }
+
+    /**
+     * Asserts that the parsed ElasticsearchInternalModel is equal to the expected ElserInternalModel, taking into account
+     * when chunking settings is null in the expected model.
+     * @param actualParsedModel the parsed model by the {@link ElasticsearchInternalService}
+     * @param expected the expected model that was randomly generated and stored
+     */
+    private static void assertElserModelsEqual(ElasticsearchInternalModel actualParsedModel, ElserInternalModel expected) {
+        var expectedChunkingSettings = Objects.requireNonNullElse(expected.getConfigurations().getChunkingSettings(), OLD_DEFAULT_SETTINGS);
+
+        // Recreate the expected model with chunking settings set to the default if it was null
+        var expectedModelWithChunkingSettings = new ElserInternalModel(
+            expected.getInferenceEntityId(),
+            expected.getTaskType(),
+            expected.getConfigurations().getService(),
+            expected.getServiceSettings(),
+            expected.getTaskSettings(),
+            expectedChunkingSettings
+        );
+
+        assertThat(actualParsedModel, equalTo(expectedModelWithChunkingSettings));
     }
 
     public void testStoreModelFailsWhenModelExists() throws Exception {
@@ -607,9 +636,9 @@ public class ModelRegistryIT extends ESSingleNodeTestCase {
         }
     }
 
-    private Model buildElserModelConfig(String inferenceEntityId, TaskType taskType) {
+    static ElserInternalModel buildElserModelConfig(String inferenceEntityId, TaskType taskType) {
         return switch (taskType) {
-            case SPARSE_EMBEDDING -> new org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalModel(
+            case SPARSE_EMBEDDING -> new ElserInternalModel(
                 inferenceEntityId,
                 taskType,
                 ElasticsearchInternalService.NAME,

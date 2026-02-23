@@ -535,7 +535,7 @@ public class TaskManager implements ClusterStateApplier {
             return;
         }
 
-        final long now = System.nanoTime();
+        final long now = threadPool.relativeTimeInNanos();
 
         for (CancellableTaskHolder holder : cancellableTasks.values()) {
             CancellableTask task = holder.getTask();

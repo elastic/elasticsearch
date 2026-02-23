@@ -452,6 +452,9 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testDeleteSnapshotWithPausedShardSnapshots
   issue: https://github.com/elastic/elasticsearch/issues/142870
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testStartRemoveNodeButDoNotComplete
+  issue: https://github.com/elastic/elasticsearch/issues/142871
 
 # Examples:
 #

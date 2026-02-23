@@ -30,10 +30,16 @@ import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsDest;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsSource;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
 import org.elasticsearch.xpack.core.ml.dataframe.analyses.OutlierDetection;
+import org.elasticsearch.xpack.ml.aggs.outlierdetection.InternalOutlierDetection;
+import org.elasticsearch.xpack.ml.aggs.outlierdetection.OutlierDetectionAggregationBuilder;
 import org.junit.After;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -53,6 +59,12 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTestCase {
+
+    private static final Object APPLES_TO_APPLES_SUMMARY_LOCK = new Object();
+    private static final List<String> APPLES_TO_APPLES_METHOD_ORDER = List.of("kthnn", "tnn", "lof");
+    private static final Map<String, ApplesToApplesLatency> APPLES_TO_APPLES_LATENCY_BY_METHOD = new HashMap<>();
+
+    private record ApplesToApplesLatency(long dfaMs, long aggMs, List<String> dfaTop3, List<String> aggTop3) {}
 
     @After
     public void cleanup() {
@@ -1018,6 +1030,282 @@ public class RunDataFrameAnalyticsIT extends MlNativeDataFrameAnalyticsIntegTest
             "Started writing results",
             "Finished analysis"
         );
+    }
+
+    public void testOutlierDetection_ApplesToApples_DfaVsAggregation() throws Exception {
+        runApplesToApplesDfaVsAggregation("tnn", OutlierDetection.Method.DISTANCE_KNN, "tnn", 2L);
+    }
+
+    public void testOutlierDetection_ApplesToApples_DfaVsAggregation_KthNn() throws Exception {
+        runApplesToApplesDfaVsAggregation("kthnn", OutlierDetection.Method.DISTANCE_KTH_NN, "kth_nn", 2L);
+    }
+
+    public void testOutlierDetection_ApplesToApples_DfaVsAggregation_Lof() throws Exception {
+        runApplesToApplesDfaVsAggregation("lof", OutlierDetection.Method.LOF, "lof", 1L);
+    }
+
+    public void testOutlierDetection_ApplesToApples_DfaVsAggregation_LatencyPercentiles() throws Exception {
+        int iterations = 3;
+
+        Map<String, List<ApplesToApplesLatency>> latenciesByMethod = new LinkedHashMap<>();
+        latenciesByMethod.put("kthnn", new ArrayList<>());
+        latenciesByMethod.put("tnn", new ArrayList<>());
+        latenciesByMethod.put("lof", new ArrayList<>());
+
+        for (int iteration = 1; iteration <= iterations; iteration++) {
+            String runId = "iter" + iteration;
+            latenciesByMethod.get("kthnn")
+                .add(runApplesToApplesDfaVsAggregation("kthnn", OutlierDetection.Method.DISTANCE_KTH_NN, "kth_nn", 2L, runId));
+            latenciesByMethod.get("tnn")
+                .add(runApplesToApplesDfaVsAggregation("tnn", OutlierDetection.Method.DISTANCE_KNN, "tnn", 2L, runId));
+            latenciesByMethod.get("lof")
+                .add(runApplesToApplesDfaVsAggregation("lof", OutlierDetection.Method.LOF, "lof", 1L, runId));
+        }
+
+        logApplesToApplesLatencyPercentiles(latenciesByMethod, iterations);
+    }
+
+    @SuppressWarnings("unchecked")
+    private ApplesToApplesLatency runApplesToApplesDfaVsAggregation(
+        String suffix,
+        OutlierDetection.Method dfaMethod,
+        String aggMethod,
+        long minExpectedTop3Overlap
+    ) throws Exception {
+        return runApplesToApplesDfaVsAggregation(suffix, dfaMethod, aggMethod, minExpectedTop3Overlap, null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private ApplesToApplesLatency runApplesToApplesDfaVsAggregation(
+        String suffix,
+        OutlierDetection.Method dfaMethod,
+        String aggMethod,
+        long minExpectedTop3Overlap,
+        String runId
+    ) throws Exception {
+        String sourceSuffix = runId == null ? suffix : suffix + "-" + runId;
+        String sourceIndex = "test-outlier-dfa-vs-agg-" + sourceSuffix;
+        String destIndex = sourceIndex + "-results";
+
+        String mapping = """
+            {
+              "properties": {
+                "numeric_1": {"type": "double"},
+                "numeric_2": {"type": "double"},
+                "categorical_1": {"type": "keyword"},
+                "vec": {
+                  "type": "dense_vector",
+                  "dims": 2,
+                  "index": true,
+                  "similarity": "l2_norm"
+                }
+              }
+            }""";
+
+        indicesAdmin().prepareCreate(sourceIndex).setMapping(mapping).get();
+
+        BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
+        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+
+        for (int i = 0; i < 28; i++) {
+            IndexRequest indexRequest = new IndexRequest(sourceIndex);
+            indexRequest.id("normal-" + i);
+            double value1 = 1.0 + (i % 3) * 0.05;
+            double value2 = 1.0 + (i % 5) * 0.04;
+            indexRequest.source("numeric_1", value1, "numeric_2", value2, "categorical_1", "normal", "vec", new double[] { value1, value2 });
+            bulkRequestBuilder.add(indexRequest);
+        }
+
+        IndexRequest primaryOutlier = new IndexRequest(sourceIndex);
+        primaryOutlier.id("outlier-primary");
+        primaryOutlier.source("numeric_1", 100.0, "numeric_2", 1.0, "categorical_1", "outlier", "vec", new double[] { 100.0, 1.0 });
+        bulkRequestBuilder.add(primaryOutlier);
+
+        IndexRequest secondaryOutlier = new IndexRequest(sourceIndex);
+        secondaryOutlier.id("outlier-secondary");
+        secondaryOutlier.source("numeric_1", 80.0, "numeric_2", 1.0, "categorical_1", "outlier", "vec", new double[] { 80.0, 1.0 });
+        bulkRequestBuilder.add(secondaryOutlier);
+
+        BulkResponse bulkResponse = bulkRequestBuilder.get();
+        if (bulkResponse.hasFailures()) {
+            fail("Failed to index data: " + bulkResponse.buildFailureMessage());
+        }
+
+        String analyticsId = "test_outlier_dfa_vs_agg_" + sourceSuffix.replace('-', '_');
+        DataFrameAnalyticsConfig config = buildAnalytics(
+            analyticsId,
+            sourceIndex,
+            destIndex,
+            null,
+            new OutlierDetection.Builder().setNNeighbors(3).setMethod(dfaMethod).setComputeFeatureInfluence(false).build()
+        );
+        putAnalytics(config);
+
+        long dfaStartNanos = System.nanoTime();
+        startAnalytics(analyticsId);
+        waitUntilAnalyticsIsStopped(analyticsId);
+        long dfaElapsedMillis = TimeValue.nsecToMSec(System.nanoTime() - dfaStartNanos);
+
+        List<String> dfaTop3 = new ArrayList<>();
+        assertResponse(prepareSearch(destIndex).setSize(100), dfaSearchResponse -> {
+            List<Map.Entry<String, Double>> dfaScores = new ArrayList<>();
+            for (SearchHit hit : dfaSearchResponse.getHits()) {
+                Map<String, Object> destDoc = hit.getSourceAsMap();
+                Map<String, Object> ml = (Map<String, Object>) destDoc.get("ml");
+                dfaScores.add(Map.entry(hit.getId(), (double) ml.get("outlier_score")));
+            }
+            dfaScores.sort((a, b) -> Double.compare(b.getValue(), a.getValue()));
+            dfaTop3.addAll(dfaScores.stream().limit(3).map(Map.Entry::getKey).toList());
+        });
+
+        OutlierDetectionAggregationBuilder aggBuilder = new OutlierDetectionAggregationBuilder("agg_outliers")
+            .setField("vec")
+            .setTopN(3)
+            .setNNeighbors(3)
+            .setMethod(aggMethod)
+            .setSeed(42L);
+
+        long[] aggElapsedMillis = new long[1];
+        List<String> aggTop3 = new ArrayList<>();
+        long aggStartNanos = System.nanoTime();
+        assertResponse(prepareSearch(sourceIndex).setSize(0).addAggregation(aggBuilder), aggSearchResponse -> {
+            aggElapsedMillis[0] = TimeValue.nsecToMSec(System.nanoTime() - aggStartNanos);
+            InternalOutlierDetection aggOutliers = aggSearchResponse.getAggregations().get("agg_outliers");
+            aggTop3.addAll(aggOutliers.getCandidates().stream().limit(3).map(candidate -> candidate.getDocId()).toList());
+        });
+
+        assertThat(dfaTop3.size(), equalTo(3));
+        assertThat(aggTop3.size(), equalTo(3));
+        assertThat(dfaTop3.get(0), equalTo(aggTop3.get(0)));
+
+        boolean dfaHasKnownOutlier = dfaTop3.contains("outlier-primary") || dfaTop3.contains("outlier-secondary");
+        boolean aggHasKnownOutlier = aggTop3.contains("outlier-primary") || aggTop3.contains("outlier-secondary");
+        assertThat(dfaHasKnownOutlier, is(true));
+        assertThat(aggHasKnownOutlier, is(true));
+
+        long overlapCount = dfaTop3.stream().filter(aggTop3::contains).count();
+        assertThat(overlapCount, greaterThanOrEqualTo(minExpectedTop3Overlap));
+
+        logger.info(
+            "apples-to-apples DFA vs outlier agg comparison [{}] [dfa_ms={}, agg_ms={}, dfa_top3={}, agg_top3={}]",
+            suffix,
+            dfaElapsedMillis,
+            aggElapsedMillis[0],
+            dfaTop3,
+            aggTop3
+        );
+
+        ApplesToApplesLatency latency = new ApplesToApplesLatency(dfaElapsedMillis, aggElapsedMillis[0], List.copyOf(dfaTop3), List.copyOf(aggTop3));
+        logApplesToApplesLatencySummary(suffix, latency);
+        return latency;
+    }
+
+    private void logApplesToApplesLatencySummary(String method, ApplesToApplesLatency latency) {
+        synchronized (APPLES_TO_APPLES_SUMMARY_LOCK) {
+            APPLES_TO_APPLES_LATENCY_BY_METHOD.put(method, latency);
+
+            if (APPLES_TO_APPLES_METHOD_ORDER.stream().allMatch(APPLES_TO_APPLES_LATENCY_BY_METHOD::containsKey) == false) {
+                return;
+            }
+
+            StringBuilder summary = new StringBuilder();
+            summary.append("apples-to-apples latency summary\n");
+            summary.append(String.format(Locale.ROOT, "%-6s | %8s | %8s | %8s | %s%n", "method", "dfa_ms", "agg_ms", "dfa/agg", "top1(dfa=agg)"));
+            summary.append("----------------------------------------------------------------\n");
+
+            for (String orderedMethod : APPLES_TO_APPLES_METHOD_ORDER) {
+                ApplesToApplesLatency methodLatency = APPLES_TO_APPLES_LATENCY_BY_METHOD.get(orderedMethod);
+                String ratioText = methodLatency.aggMs() == 0
+                    ? "inf"
+                    : String.format(Locale.ROOT, "%.1f", (double) methodLatency.dfaMs() / methodLatency.aggMs());
+                String dfaTop1 = methodLatency.dfaTop3().isEmpty() ? "n/a" : methodLatency.dfaTop3().get(0);
+                String aggTop1 = methodLatency.aggTop3().isEmpty() ? "n/a" : methodLatency.aggTop3().get(0);
+                summary.append(
+                    String.format(
+                        Locale.ROOT,
+                        "%-6s | %8d | %8d | %8s | %s=%s%n",
+                        orderedMethod,
+                        methodLatency.dfaMs(),
+                        methodLatency.aggMs(),
+                        ratioText,
+                        dfaTop1,
+                        aggTop1
+                    )
+                );
+            }
+
+            logger.info("{}", summary.toString());
+            APPLES_TO_APPLES_LATENCY_BY_METHOD.clear();
+        }
+    }
+
+    private void logApplesToApplesLatencyPercentiles(Map<String, List<ApplesToApplesLatency>> latenciesByMethod, int iterations) {
+        StringBuilder summary = new StringBuilder();
+        summary.append("apples-to-apples latency percentile summary [iterations=").append(iterations).append("]\n");
+        summary.append(
+            String.format(
+                Locale.ROOT,
+                "%-6s | %8s | %8s | %8s | %8s | %10s | %10s%n",
+                "method",
+                "dfa_p50",
+                "dfa_p95",
+                "agg_p50",
+                "agg_p95",
+                "ratio_p50",
+                "ratio_p95"
+            )
+        );
+        summary.append("----------------------------------------------------------------------------------------------\n");
+
+        for (String method : APPLES_TO_APPLES_METHOD_ORDER) {
+            List<ApplesToApplesLatency> latencies = latenciesByMethod.get(method);
+            List<Long> dfaMillis = new ArrayList<>(latencies.size());
+            List<Long> aggMillis = new ArrayList<>(latencies.size());
+            List<Double> ratios = new ArrayList<>(latencies.size());
+
+            for (ApplesToApplesLatency latency : latencies) {
+                dfaMillis.add(latency.dfaMs());
+                aggMillis.add(latency.aggMs());
+                ratios.add(latency.aggMs() == 0 ? Double.POSITIVE_INFINITY : (double) latency.dfaMs() / latency.aggMs());
+            }
+
+            long dfaP50 = percentileLong(dfaMillis, 0.50);
+            long dfaP95 = percentileLong(dfaMillis, 0.95);
+            long aggP50 = percentileLong(aggMillis, 0.50);
+            long aggP95 = percentileLong(aggMillis, 0.95);
+            double ratioP50 = percentileDouble(ratios, 0.50);
+            double ratioP95 = percentileDouble(ratios, 0.95);
+
+            summary.append(
+                String.format(
+                    Locale.ROOT,
+                    "%-6s | %8d | %8d | %8d | %8d | %10.1f | %10.1f%n",
+                    method,
+                    dfaP50,
+                    dfaP95,
+                    aggP50,
+                    aggP95,
+                    ratioP50,
+                    ratioP95
+                )
+            );
+        }
+
+        logger.info("{}", summary.toString());
+    }
+
+    private static long percentileLong(List<Long> values, double percentile) {
+        List<Long> sortedValues = new ArrayList<>(values);
+        Collections.sort(sortedValues);
+        int index = Math.max(0, (int) Math.ceil(percentile * sortedValues.size()) - 1);
+        return sortedValues.get(index);
+    }
+
+    private static double percentileDouble(List<Double> values, double percentile) {
+        List<Double> sortedValues = new ArrayList<>(values);
+        Collections.sort(sortedValues);
+        int index = Math.max(0, (int) Math.ceil(percentile * sortedValues.size()) - 1);
+        return sortedValues.get(index);
     }
 
     public void testStart_GivenTimeout_Returns408() throws Exception {

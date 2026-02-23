@@ -299,6 +299,8 @@ import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.outlierdetection.InternalOutlierDetection;
+import org.elasticsearch.xpack.ml.aggs.outlierdetection.OutlierDetectionAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.changepoint.InternalChangePointAggregation;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
@@ -558,6 +560,11 @@ public class MachineLearning extends Plugin
     private static final LicensedFeature.Momentary BUCKET_COUNT_KS_TEST_AGG_FEATURE = LicensedFeature.momentary(
         MachineLearningField.ML_FEATURE_FAMILY,
         "bucket-count-ks-test-agg",
+        License.OperationMode.PLATINUM
+    );
+    private static final LicensedFeature.Momentary OUTLIER_DETECTION_AGG_FEATURE = LicensedFeature.momentary(
+        MachineLearningField.ML_FEATURE_FAMILY,
+        "outlier-detection-agg",
         License.OperationMode.PLATINUM
     );
 
@@ -1884,7 +1891,13 @@ public class MachineLearning extends Plugin
                 FrequentItemSetsAggregationBuilder::new,
                 checkAggLicense(FrequentItemSetsAggregationBuilder.PARSER, FREQUENT_ITEM_SETS_AGG_FEATURE)
             ).addResultReader(FrequentItemSetsAggregatorFactory.getResultReader())
-                .setAggregatorRegistrar(FrequentItemSetsAggregationBuilder::registerAggregators)
+                .setAggregatorRegistrar(FrequentItemSetsAggregationBuilder::registerAggregators),
+            new AggregationSpec(
+                OutlierDetectionAggregationBuilder.NAME,
+                OutlierDetectionAggregationBuilder::new,
+                checkAggLicense(OutlierDetectionAggregationBuilder.PARSER, OUTLIER_DETECTION_AGG_FEATURE)
+            ).addResultReader(InternalOutlierDetection::new)
+                .setAggregatorRegistrar(s -> s.registerUsage(OutlierDetectionAggregationBuilder.NAME))
         );
     }
 

@@ -25,6 +25,7 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
 
     public static final String LOGGER_NAME = "search.activitylog";
     public static final String[] NEVER_MATCH = new String[] { "*", "-*" };
+    public static final String SEARCH_HAS_AGGREGATIONS_FIELD = ES_FIELDS_PREFIX + "search.has_aggregations";
 
     private boolean logSystemSearches = false;
     private final Predicate<String> systemChecker;
@@ -60,7 +61,7 @@ public class SearchLogProducer implements ActivityLogProducer<SearchLogContext> 
             msg.field(ES_FIELDS_PREFIX + "is_system", true);
         }
         if (context.hasAggregations()) {
-            msg.field(ES_FIELDS_PREFIX + "search.has_aggregations", true);
+            msg.field(SEARCH_HAS_AGGREGATIONS_FIELD, true);
         }
         return Optional.of(msg);
     }

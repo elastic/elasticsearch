@@ -62,9 +62,11 @@ import java.util.Map;
 
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
 import static org.elasticsearch.common.logging.activity.ActivityLogProducer.EVENT_OUTCOME_FIELD;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchPhraseQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.filter;
 import static org.elasticsearch.test.AbstractSearchCancellationTestCase.ScriptedBlockPlugin.SEARCH_BLOCK_SCRIPT_NAME;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
@@ -306,6 +308,28 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
                 new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TestSystemDataStreamPlugin.SYSTEM_DATA_STREAM_NAME)
             ).actionGet();
         }
+    }
+
+    public void testSearchHasAggregationsLog() {
+        setupIndex();
+
+        // Search without aggregations: search.has_aggregations must not be present
+        assertSearchHitsWithoutFailures(prepareSearch(INDEX_NAME).setQuery(matchQuery("field1", "quick")), "1", "2", "3");
+        var eventNoAgg = appender.getLastEventAndReset();
+        Map<String, String> messageNoAgg = getMessageData(eventNoAgg);
+        assertMessageSuccess(messageNoAgg, "search", "quick");
+        assertNull(messageNoAgg.get(SearchLogProducer.SEARCH_HAS_AGGREGATIONS_FIELD));
+
+        // Search with aggregations: search.has_aggregations must be true
+        assertResponse(
+            prepareSearch(INDEX_NAME).setSize(0).setQuery(matchAllQuery()).addAggregation(filter("agg_filter", matchAllQuery())),
+            ElasticsearchAssertions::assertNoFailures
+        );
+        var eventWithAgg = appender.getLastEventAndReset();
+        Map<String, String> messageWithAgg = getMessageData(eventWithAgg);
+        assertMessageSuccess(messageWithAgg, "search", "match_all");
+        assertThat(messageNoAgg.get(ES_FIELDS_PREFIX + "hits"), equalTo("3"));
+        assertThat(messageWithAgg.get(SearchLogProducer.SEARCH_HAS_AGGREGATIONS_FIELD), equalTo("true"));
     }
 
     private void setupIndex() {

@@ -123,6 +123,7 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             // - Let the reindex resilience work (relocation and PIT) merge first
             // - Check whether anything needs to be updated because of relocation
             // - Check whether anything needs to be updated because of PIT (e.g. whether we can use PIT with remote in the same way)
+            // - Consider the optimization of having each worker get the remote version from the leader state, rather than re-fetching it
             // - Fix ReindexResumeIT
             // - Consider additional integration tests e.g. ReindexFromOldRemoteIT
             // - Think about whether it's worthwhile to support ?slices=auto with a stateful remote

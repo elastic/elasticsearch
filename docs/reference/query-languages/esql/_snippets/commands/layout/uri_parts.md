@@ -1,6 +1,6 @@
 ```yaml {applies_to}
 serverless: preview
-stack: preview
+stack: preview 9.4
 ```
 
 The `URI_PARTS` processing command parses a Uniform Resource Identifier (URI) string and extracts its components into new columns.

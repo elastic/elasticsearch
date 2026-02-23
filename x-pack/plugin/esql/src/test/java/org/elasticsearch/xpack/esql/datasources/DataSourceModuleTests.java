@@ -28,6 +28,7 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Integration tests for DataSourceModule verifying SPI discovery and registration.
@@ -52,6 +53,21 @@ public class DataSourceModuleTests extends ESTestCase {
      * implementations to avoid dependencies on moved classes.
      */
     private static class TestDataSourcePlugin implements DataSourcePlugin {
+        @Override
+        public Set<String> supportedSchemes() {
+            return Set.of("file");
+        }
+
+        @Override
+        public Set<String> supportedFormats() {
+            return Set.of("csv");
+        }
+
+        @Override
+        public Set<String> supportedExtensions() {
+            return Set.of(".csv", ".tsv");
+        }
+
         @Override
         public Map<String, StorageProviderFactory> storageProviders(Settings settings) {
             return Map.of("file", s -> new MockFileStorageProvider());
@@ -130,6 +146,11 @@ public class DataSourceModuleTests extends ESTestCase {
         public void close() {}
     }
 
+    private static DataSourceModule createModule(List<DataSourcePlugin> plugins, Settings settings, BlockFactory blockFactory) {
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(plugins);
+        return new DataSourceModule(plugins, capabilities, settings, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+    }
+
     /**
      * Test that SPI discovery mechanism works for DataSourcePlugin via META-INF/services.
      * Note: DataSourcePlugin implementations now live in separate plugin modules (esql-datasource-csv,
@@ -153,7 +174,7 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testStorageProviderRegistration() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         StorageProviderRegistry registry = module.storageProviderRegistry();
 
@@ -169,7 +190,7 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testFormatReaderRegistration() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         FormatReaderRegistry registry = module.formatReaderRegistry();
 
@@ -203,7 +224,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            () -> createModule(plugins, Settings.EMPTY, blockFactory)
         );
         assertTrue(e.getMessage().contains("already registered"));
     }
@@ -220,7 +241,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            () -> createModule(plugins, Settings.EMPTY, blockFactory)
         );
         assertTrue(e.getMessage().contains("already registered"));
     }
@@ -230,17 +251,20 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testEmptyPluginList() {
         List<DataSourcePlugin> plugins = List.of();
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         // Registries should be empty but not null
         assertNotNull(module.storageProviderRegistry());
         assertNotNull(module.formatReaderRegistry());
-        assertNotNull(module.operatorFactories());
+        assertNotNull(module.sourceFactories());
         assertNotNull(module.filterPushdownRegistry());
 
         // No providers should be registered
         assertFalse("No file provider should be registered", module.storageProviderRegistry().hasProvider("file"));
         assertFalse("No CSV reader should be registered", module.formatReaderRegistry().hasFormat("csv"));
+
+        // The "file" fallback factory should always be present
+        assertTrue("File fallback factory should be registered", module.sourceFactories().containsKey("file"));
     }
 
     /**
@@ -248,7 +272,7 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testOperatorFactoryRegistryCreation() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         // Create OperatorFactoryRegistry with a simple executor
         OperatorFactoryRegistry operatorRegistry = module.createOperatorFactoryRegistry(Runnable::run);
@@ -256,22 +280,48 @@ public class DataSourceModuleTests extends ESTestCase {
     }
 
     /**
+     * Test that the "file" fallback factory is always present in sourceFactories.
+     */
+    public void testFileSourceFactoryFallbackPresent() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        assertTrue("File fallback factory should be in sourceFactories", module.sourceFactories().containsKey("file"));
+        assertEquals("file", module.sourceFactories().get("file").type());
+    }
+
+    /**
+     * Test that the "file" fallback factory can handle paths with known scheme + extension.
+     */
+    public void testFileSourceFactoryCanHandle() {
+        List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
+
+        var fileFactory = module.sourceFactories().get("file");
+        assertNotNull(fileFactory);
+
+        // file scheme + .csv extension should be handled
+        assertTrue("Should handle file:///tmp/data.csv", fileFactory.canHandle("file:///tmp/data.csv"));
+        // file scheme + .tsv extension should be handled (registered by MockCsvFormatReader)
+        assertTrue("Should handle file:///tmp/data.tsv", fileFactory.canHandle("file:///tmp/data.tsv"));
+        // Unknown extension should not be handled
+        assertFalse("Should not handle file:///tmp/data.xyz", fileFactory.canHandle("file:///tmp/data.xyz"));
+        // No extension should not be handled
+        assertFalse("Should not handle file:///tmp/data", fileFactory.canHandle("file:///tmp/data"));
+        // Unknown scheme should not be handled
+        assertFalse("Should not handle s3://bucket/data.csv", fileFactory.canHandle("s3://bucket/data.csv"));
+    }
+
+    /**
      * Test that DataSourceModule correctly reports table catalog availability.
      */
     public void testTableCatalogAvailability() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         // TestDataSourcePlugin doesn't provide table catalogs
-        assertFalse("Test plugin should not have iceberg catalog", module.hasTableCatalog("iceberg"));
-        assertFalse("Test plugin should not have delta catalog", module.hasTableCatalog("delta"));
-
-        // Requesting non-existent catalog should throw
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> module.createTableCatalog("iceberg", Settings.EMPTY)
-        );
-        assertTrue(e.getMessage().contains("No table catalog registered"));
+        assertFalse("Test plugin should not have iceberg catalog", module.sourceFactories().containsKey("iceberg"));
+        assertFalse("Test plugin should not have delta catalog", module.sourceFactories().containsKey("delta"));
     }
 
     /**
@@ -279,7 +329,7 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testStorageProviderSchemeSupport() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         StorageProviderRegistry registry = module.storageProviderRegistry();
 
@@ -293,7 +343,7 @@ public class DataSourceModuleTests extends ESTestCase {
      */
     public void testFormatReaderMetadata() {
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         FormatReaderRegistry registry = module.formatReaderRegistry();
         FormatReader csvReader = registry.byName("csv");
@@ -311,7 +361,7 @@ public class DataSourceModuleTests extends ESTestCase {
 
         List<DataSourcePlugin> plugins = List.of(new TestDataSourcePlugin());
         // This should not throw - settings are passed to factories
-        DataSourceModule module = new DataSourceModule(plugins, customSettings, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, customSettings, blockFactory);
 
         assertNotNull(module.storageProviderRegistry());
         assertNotNull(module.formatReaderRegistry());
@@ -324,6 +374,11 @@ public class DataSourceModuleTests extends ESTestCase {
         // Create a custom plugin that provides a mock storage provider
         DataSourcePlugin customPlugin = new DataSourcePlugin() {
             @Override
+            public Set<String> supportedSchemes() {
+                return Set.of("custom");
+            }
+
+            @Override
             public java.util.Map<String, org.elasticsearch.xpack.esql.datasources.spi.StorageProviderFactory> storageProviders(
                 Settings settings
             ) {
@@ -332,7 +387,7 @@ public class DataSourceModuleTests extends ESTestCase {
         };
 
         List<DataSourcePlugin> plugins = List.of(customPlugin);
-        DataSourceModule module = new DataSourceModule(plugins, Settings.EMPTY, blockFactory, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        DataSourceModule module = createModule(plugins, Settings.EMPTY, blockFactory);
 
         assertTrue("Custom provider should be registered", module.storageProviderRegistry().hasProvider("custom"));
         StorageProvider customProvider = module.storageProviderRegistry().provider(StoragePath.of("custom://bucket/file.txt"));

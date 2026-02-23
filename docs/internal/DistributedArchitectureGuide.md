@@ -280,7 +280,7 @@ to communicate with Elasticsearch.
 
 The [ClusterState] is the portion of the cluster state which is held in-memory by every node. To ensure
 correctness, updates to the `ClusterState` require strong
-consistency ([linearizable](https://en.wikipedia.org/wiki/Linearizability)). Without strong consistency, nodes could
+consistency ([linearizability](https://en.wikipedia.org/wiki/Linearizability)). Without strong consistency, nodes could
 observe conflicting cluster states (eg two nodes could believe they both hold the primary for the same shard, or apply
 different mappings to the same index) leading to data loss or corruption.
 

@@ -21,12 +21,12 @@ import org.elasticsearch.entitlement.runtime.registry.InternalInstrumentationReg
 import java.io.File;
 import java.io.FileDescriptor;
 import java.io.FileFilter;
-import java.io.IOException;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.FilenameFilter;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
@@ -136,9 +136,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.callingStatic(Files::getOwner, Path.class, LinkOption[].class)
                 .enforce(Policies::fileRead)
                 .elseThrow(e -> new IOException(e));
-            rule.callingStatic(Files::probeContentType, Path.class)
-                .enforce(Policies::fileRead)
-                .elseThrow(e -> new IOException(e));
+            rule.callingStatic(Files::probeContentType, Path.class).enforce(Policies::fileRead).elseThrow(e -> new IOException(e));
             rule.callingStatic(Files::setOwner, Path.class, UserPrincipal.class)
                 .enforce(Policies::fileWrite)
                 .elseThrow(e -> new IOException(e));
@@ -157,9 +155,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.callingStatic(Files::newByteChannel, Path.class, OpenOption[].class)
                 .enforce((path, options) -> Policies.fileReadOrWrite(path, Set.of(options)))
                 .elseThrow(e -> new IOException(e));
-            rule.callingStatic(Files::newDirectoryStream, Path.class)
-                .enforce(Policies::fileRead)
-                .elseThrow(e -> new IOException(e));
+            rule.callingStatic(Files::newDirectoryStream, Path.class).enforce(Policies::fileRead).elseThrow(e -> new IOException(e));
             rule.callingStatic(Files::newDirectoryStream, Path.class, String.class)
                 .enforce(Policies::fileRead)
                 .elseThrow(e -> new IOException(e));
@@ -171,16 +167,10 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.callingStatic(Files::createSymbolicLink, Path.class, Path.class, FileAttribute[].class)
                 .enforce(Policies::createLink)
                 .elseThrow(e -> new IOException(e));
-            rule.callingStatic(Files::createLink, Path.class, Path.class)
-                .enforce(Policies::createLink)
-                .elseThrow(e -> new IOException(e));
+            rule.callingStatic(Files::createLink, Path.class, Path.class).enforce(Policies::createLink).elseThrow(e -> new IOException(e));
             rule.callingVoidStatic(Files::delete, Path.class).enforce(Policies::fileWrite).elseThrow(e -> new IOException(e));
-            rule.callingStatic(Files::deleteIfExists, Path.class)
-                .enforce(Policies::fileWrite)
-                .elseThrow(e -> new IOException(e));
-            rule.callingStatic(Files::readSymbolicLink, Path.class)
-                .enforce(Policies::fileRead)
-                .elseThrow(e -> new IOException(e));
+            rule.callingStatic(Files::deleteIfExists, Path.class).enforce(Policies::fileWrite).elseThrow(e -> new IOException(e));
+            rule.callingStatic(Files::readSymbolicLink, Path.class).enforce(Policies::fileRead).elseThrow(e -> new IOException(e));
             rule.callingStatic(Files::getFileStore, Path.class).enforce(Policies::fileRead).elseThrow(e -> new IOException(e));
             rule.callingStatic(Files::isSameFile, Path.class, Path.class)
                 .enforce(Policies.and(Policies::fileRead, Policies::fileRead))
@@ -254,14 +244,10 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.callingStatic(Files::copy, InputStream.class, Path.class, CopyOption[].class)
                 .enforce((_, target) -> Policies.fileWrite(target))
                 .elseThrow(e -> new IOException(e));
-            rule.callingStatic(Files::copy, Path.class, OutputStream.class)
-                .enforce(Policies::fileRead)
-                .elseThrow(e -> new IOException(e));
+            rule.callingStatic(Files::copy, Path.class, OutputStream.class).enforce(Policies::fileRead).elseThrow(e -> new IOException(e));
             rule.callingStatic(Files::readAllBytes, Path.class).enforce(Policies::fileRead).elseThrow(e -> new IOException(e));
             rule.callingStatic(Files::readString, Path.class).enforce(Policies::fileRead).elseThrow(e -> new IOException(e));
-            rule.callingStatic(Files::readString, Path.class, Charset.class)
-                .enforce(Policies::fileRead)
-                .elseThrow(e -> new IOException(e));
+            rule.callingStatic(Files::readString, Path.class, Charset.class).enforce(Policies::fileRead).elseThrow(e -> new IOException(e));
             rule.callingStatic(Files::readAllLines, Path.class, Charset.class)
                 .enforce(Policies::fileRead)
                 .elseThrow(e -> new IOException(e));
@@ -302,9 +288,7 @@ public class FileInstrumentation implements InstrumentationConfig {
                 new TypeToken<BiPredicate<Path, BasicFileAttributes>>() {},
                 TypeToken.of(FileVisitOption[].class)
             ).enforce(Policies::fileRead).elseThrow(e -> new IOException(e));
-            rule.callingStatic(Files::lines, Path.class, Charset.class)
-                .enforce(Policies::fileRead)
-                .elseThrow(e -> new IOException(e));
+            rule.callingStatic(Files::lines, Path.class, Charset.class).enforce(Policies::fileRead).elseThrow(e -> new IOException(e));
             rule.callingStatic(Files::lines, Path.class).enforce(Policies::fileRead).elseThrow(e -> new IOException(e));
         });
 
@@ -463,9 +447,7 @@ public class FileInstrumentation implements InstrumentationConfig {
 
         builder.on(BodyHandlers.class, rule -> {
             rule.callingStatic(BodyHandlers::ofFile, Path.class).enforce(Policies::fileWrite).elseThrowNotEntitled();
-            rule.callingStatic(BodyHandlers::ofFile, Path.class, OpenOption[].class)
-                .enforce(Policies::fileWrite)
-                .elseThrowNotEntitled();
+            rule.callingStatic(BodyHandlers::ofFile, Path.class, OpenOption[].class).enforce(Policies::fileWrite).elseThrowNotEntitled();
             rule.callingStatic(BodyHandlers::ofFileDownload, Path.class, OpenOption[].class)
                 .enforce(Policies::fileWrite)
                 .elseThrowNotEntitled();
@@ -473,20 +455,14 @@ public class FileInstrumentation implements InstrumentationConfig {
 
         builder.on(BodySubscribers.class, rule -> {
             rule.callingStatic(BodySubscribers::ofFile, Path.class).enforce(Policies::fileWrite).elseThrowNotEntitled();
-            rule.callingStatic(BodySubscribers::ofFile, Path.class, OpenOption[].class)
-                .enforce(Policies::fileWrite)
-                .elseThrowNotEntitled();
+            rule.callingStatic(BodySubscribers::ofFile, Path.class, OpenOption[].class).enforce(Policies::fileWrite).elseThrowNotEntitled();
         });
 
         builder.on(FileURLConnection.class, rule -> {
             rule.callingVoid(FileURLConnection::connect).enforce(f -> Policies.urlFileRead(f.getURL())).elseThrow(e -> new IOException(e));
             rule.calling(FileURLConnection::getHeaderFields).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(null);
-            rule.calling(FileURLConnection::getHeaderField, String.class)
-                .enforce(f -> Policies.urlFileRead(f.getURL()))
-                .elseReturn(null);
-            rule.calling(FileURLConnection::getHeaderField, Integer.class)
-                .enforce(f -> Policies.urlFileRead(f.getURL()))
-                .elseReturn(null);
+            rule.calling(FileURLConnection::getHeaderField, String.class).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(null);
+            rule.calling(FileURLConnection::getHeaderField, Integer.class).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(null);
             rule.calling(FileURLConnection::getContentLength).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(-1);
             rule.calling(FileURLConnection::getContentLengthLong).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(-1L);
             rule.calling(FileURLConnection::getHeaderFieldKey, Integer.class)

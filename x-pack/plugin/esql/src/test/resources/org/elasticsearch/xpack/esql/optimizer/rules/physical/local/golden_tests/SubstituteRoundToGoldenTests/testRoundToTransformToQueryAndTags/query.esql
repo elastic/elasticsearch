@@ -1,0 +1,2 @@
+from all_types
+| stats count(*) by x = round_to(long, 1697760000000,1697846400000,1697932800000,1698019200000)

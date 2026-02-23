@@ -3,4 +3,4 @@ issues:
  - 142462
 pr: 142763
 summary: Validate TOP_SNIPPETS query argument is foldable at verification
-type: enhancement
+type: bug

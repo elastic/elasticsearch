@@ -155,6 +155,7 @@ public class KnnIndexTester {
         final KnnVectorsFormat format;
         Integer quantizeBits = args.quantizeBits();
         DenseVectorFieldMapper.ElementType elementType = args.vectorEncoding().elementType;
+        int mergeWorkers = exec != null ? args.numMergeWorkers() : 1;
 
         format = switch (args.indexType()) {
             case IVF -> {
@@ -175,7 +176,7 @@ public class KnnIndexTester {
                     elementType,
                     args.onDiskRescore(),
                     exec,
-                    exec != null ? args.numMergeWorkers() : 1,
+                    mergeWorkers,
                     args.doPrecondition(),
                     args.preconditioningBlockDims()
                 );
@@ -188,19 +189,13 @@ public class KnnIndexTester {
                 );
             };
             case HNSW -> switch (quantizeBits) {
-                case null -> new ES93HnswVectorsFormat(
-                    args.hnswM(),
-                    args.hnswEfConstruction(),
-                    elementType,
-                    exec != null ? args.numMergeWorkers() : 1,
-                    exec
-                );
+                case null -> new ES93HnswVectorsFormat(args.hnswM(), args.hnswEfConstruction(), elementType, mergeWorkers, exec);
                 case 1 -> new ES93HnswBinaryQuantizedVectorsFormat(
                     args.hnswM(),
                     args.hnswEfConstruction(),
                     elementType,
                     false,
-                    exec != null ? args.numMergeWorkers() : 1,
+                    mergeWorkers,
                     exec
                 );
                 default -> new ES93HnswScalarQuantizedVectorsFormat(
@@ -211,7 +206,7 @@ public class KnnIndexTester {
                     quantizeBits,
                     true,
                     false,
-                    exec != null ? args.numMergeWorkers() : 1,
+                    mergeWorkers,
                     exec
                 );
             };

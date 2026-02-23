@@ -73,7 +73,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         CodecReader finalReader;
         if (useSyntheticId) {
             // Wraps the codec reader to avoid reading synthetic id stored field values during merges. This is important to avoid synthetic
-            // ids to be materialized from docs values for every document during merges and to avoid synthetic id to be stored back on disk
+            // ids to be materialized from doc values for every document during merges and to avoid synthetic id to be stored back on disk
             // in merged segments.
             finalReader = new SkipSyntheticIdFilterCodecReader(reader);
         } else {
@@ -303,7 +303,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
     /**
      * A {@link FilterStoredFieldsReader} that prevents {@link StoredFieldVisitor} from accessing synthetic id stored fields during merges.
-     * This is useful to avoid synthetic ids to be materialized from docs values unnecessarily.
+     * This is useful to avoid synthetic ids to be materialized from doc values unnecessarily.
      */
     private static class SkipSyntheticIdFilterStoredFieldsReader extends FilterStoredFieldsReader {
 

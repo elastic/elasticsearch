@@ -82,7 +82,8 @@ public class ReindexMetadataTests extends AbstractAsyncBulkByScrollActionMetadat
                 ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID),
                 null,
                 request(),
-                listener()
+                listener(),
+                null
             );
         }
 

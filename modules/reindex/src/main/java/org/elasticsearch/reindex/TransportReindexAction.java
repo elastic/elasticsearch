@@ -116,22 +116,10 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
     protected void doExecute(Task task, ReindexRequest request, ActionListener<BulkByScrollResponse> listener) {
         validate(request);
         BulkByScrollTask bulkByScrollTask = (BulkByScrollTask) task;
-
-        /*
-            1. If we're reindexing from a remote cluster, then the cluster version is obtained
-            2. We initialise the reindexing task
-            3. The reindexing task is executed.
-         */
-        reindexer.lookupRemoteVersion(
-            task,
+        reindexer.initTask(
+            bulkByScrollTask,
             request,
-            listener.delegateFailure(
-                (l, v) -> reindexer.initTask(
-                    bulkByScrollTask,
-                    request,
-                    l.delegateFailure((l2, v2) -> reindexer.execute(bulkByScrollTask, request, getBulkClient(), l2))
-                )
-            )
+            listener.delegateFailure((l, v) -> reindexer.execute(bulkByScrollTask, request, getBulkClient(), l))
         );
     }
 

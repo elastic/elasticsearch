@@ -101,7 +101,8 @@ public class ReindexScriptTests extends AbstractAsyncBulkByScrollActionScriptTes
             ClusterState.EMPTY_STATE.projectState(Metadata.DEFAULT_PROJECT_ID),
             sslConfig,
             request,
-            listener()
+            listener(),
+            null
         );
     }
 }

@@ -18,6 +18,7 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
@@ -53,16 +54,31 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
         RemoteInfo remoteInfo,
         SearchRequest searchRequest
     ) {
+        this(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail, client, remoteInfo, searchRequest, null);
+    }
+
+    public RemoteScrollableHitSource(
+        Logger logger,
+        BackoffPolicy backoffPolicy,
+        ThreadPool threadPool,
+        Runnable countSearchRetry,
+        Consumer<AsyncResponse> onResponse,
+        Consumer<Exception> fail,
+        RestClient client,
+        RemoteInfo remoteInfo,
+        SearchRequest searchRequest,
+        @Nullable Version initialRemoteVersion
+    ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.remote = remoteInfo;
         this.searchRequest = searchRequest;
         this.client = client;
+        this.remoteVersion = initialRemoteVersion;
     }
 
     @Override
     protected void doStart(RejectAwareActionListener<Response> searchListener) {
-        lookupRemoteVersion(RejectAwareActionListener.withResponseHandler(searchListener, version -> {
-            remoteVersion = version;
+        if (remoteVersion != null) {
             execute(
                 RemoteRequestBuilders.initialSearch(searchRequest, remote.getQuery(), remoteVersion),
                 RESPONSE_PARSER,
@@ -70,7 +86,18 @@ public class RemoteScrollableHitSource extends ScrollableHitSource {
                 threadPool,
                 client
             );
-        }), threadPool, client);
+        } else {
+            lookupRemoteVersion(RejectAwareActionListener.withResponseHandler(searchListener, version -> {
+                remoteVersion = version;
+                execute(
+                    RemoteRequestBuilders.initialSearch(searchRequest, remote.getQuery(), remoteVersion),
+                    RESPONSE_PARSER,
+                    RejectAwareActionListener.withResponseHandler(searchListener, r -> onStartResponse(searchListener, r)),
+                    threadPool,
+                    client
+                );
+            }), threadPool, client);
+        }
     }
 
     @Override

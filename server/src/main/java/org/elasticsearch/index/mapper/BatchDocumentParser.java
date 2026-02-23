@@ -223,8 +223,9 @@ public final class BatchDocumentParser {
         String id = batch.docId(docIndex);
         String routing = batch.docRouting(docIndex);
         XContentType xContentType = batch.docXContentType(docIndex);
+        BytesRef tsid = batch.docTsid(docIndex);
 
-        return new SourceToParse(id, source, xContentType, routing);
+        return new SourceToParse(id, source, xContentType, routing, Map.of(), tsid);
     }
 
     /**

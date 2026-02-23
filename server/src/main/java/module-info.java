@@ -201,6 +201,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.io;
     exports org.elasticsearch.common.io.stream;
     exports org.elasticsearch.common.logging;
+    exports org.elasticsearch.common.logging.activity;
     exports org.elasticsearch.common.lucene;
     exports org.elasticsearch.common.lucene.index;
     exports org.elasticsearch.common.lucene.search;
@@ -514,6 +515,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.mapper.blockloader;
     exports org.elasticsearch.index.mapper.blockloader.docvalues;
     exports org.elasticsearch.index.mapper.blockloader.docvalues.fn;
+    exports org.elasticsearch.index.mapper.blockloader.script;
     exports org.elasticsearch.readiness to org.elasticsearch.internal.sigterm;
     exports org.elasticsearch.inference.metadata;
     exports org.elasticsearch.search.diversification.mmr;

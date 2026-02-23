@@ -1,6 +1,0 @@
-pr: 142462
-summary: "ES|QL: Validate TOP_SNIPPETS query argument is foldable at verification time"
-area: ES|QL
-type: bug
-issues:
- - 142462

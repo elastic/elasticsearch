@@ -19,29 +19,28 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
-
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for performing arithmetic operations on two dense_vector arguments.
+ * {@link EvalOperator.ExpressionEvaluator} implementation for performing arithmetic operations when
+ * lhs is a dense_vector and rhs a scalar or vice versa.
  *
  */
-class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DenseVectorsEvaluator.class);
+class DenseVectorScalarEvaluator implements EvalOperator.ExpressionEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DenseVectorScalarEvaluator.class);
 
     private final BiFunction<Float, Float, Float> op;
     private final String name;
     private final Source source;
     private final EvalOperator.ExpressionEvaluator lhs;
-    private final EvalOperator.ExpressionEvaluator rhs;
+    private final Float rhs;
     private final DriverContext driverContext;
     private Warnings warnings;
 
-    DenseVectorsEvaluator(
+    DenseVectorScalarEvaluator(
         BiFunction<Float, Float, Float> op,
         String name,
         Source source,
         EvalOperator.ExpressionEvaluator lhs,
-        EvalOperator.ExpressionEvaluator rhs,
+        Float rhs,
         DriverContext driverContext
     ) {
         this.op = op;
@@ -54,37 +53,29 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public Block eval(Page page) {
-        try (var lhsBlock = (FloatBlock) lhs.eval(page); var rhsBlock = (FloatBlock) rhs.eval(page)) {
+        assert rhs != null : "Operand for dense vector arithmetic operation cannot be null";
+        try (var lhsBlock = (FloatBlock) lhs.eval(page)) {
             int positionCount = page.getPositionCount();
             try (var resultBlock = driverContext.blockFactory().newFloatBlockBuilder(positionCount)) {
                 float[] buffer = new float[0];
                 for (int p = 0; p < positionCount; p++) {
-                    if (lhsBlock.isNull(p) || rhsBlock.isNull(p)) {
+                    if (lhsBlock.isNull(p)) {
                         resultBlock.appendNull();
                         continue;
                     }
 
                     int lhsValueCount = lhsBlock.getValueCount(p);
-                    int rhsValueCount = rhsBlock.getValueCount(p);
-
-                    // invalid operation if dimensions do not match
-                    if (lhsValueCount != rhsValueCount) {
-                        warnings().registerException(new IllegalArgumentException("dense_vector dimensions do not match"));
-                        resultBlock.appendNull();
-                        continue;
-                    }
-
-                    // Perform element-wise operations
-                    int lhsStart = lhsBlock.getFirstValueIndex(p);
-                    int rhsStart = rhsBlock.getFirstValueIndex(p);
                     if (buffer.length < lhsValueCount) {
                         buffer = new float[lhsValueCount];
                     }
+                    int lhsStart = lhsBlock.getFirstValueIndex(p);
                     try {
                         for (int i = 0; i < lhsValueCount; i++) {
                             float l = lhsBlock.getFloat(lhsStart + i);
-                            float r = rhsBlock.getFloat(rhsStart + i);
-                            buffer[i] = op.apply(l, r);
+                            // Always assume the scalar operand is the rhs in the processing.
+                            // We need to flip the order of arguments for non-commutative operations in the Factory when the scalar is
+                            // the lhs, to ensure the correct order of arguments is applied here.
+                            buffer[i] = op.apply(l, rhs);
                         }
                         resultBlock.beginPositionEntry();
                         for (int i = 0; i < lhsValueCount; i++) {
@@ -103,17 +94,17 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
 
     @Override
     public long baseRamBytesUsed() {
-        return BASE_RAM_BYTES_USED + lhs.baseRamBytesUsed() + rhs.baseRamBytesUsed();
+        return BASE_RAM_BYTES_USED + lhs.baseRamBytesUsed() + RamUsageEstimator.shallowSizeOfInstance(Float.class);
     }
 
     @Override
     public String toString() {
-        return "DenseVectorsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + ", opName=" + name + "]";
+        return "DenseVectorScalarEvaluator[" + "lhs=" + lhs + ", rhs=scalar_constant" + ", opName=" + name + "]";
     }
 
     @Override
     public void close() {
-        Releasables.closeExpectNoException(lhs, rhs);
+        Releasables.closeExpectNoException(lhs);
     }
 
     private Warnings warnings() {
@@ -123,35 +114,41 @@ class DenseVectorsEvaluator implements EvalOperator.ExpressionEvaluator {
         return warnings;
     }
 
-    static final class Factory implements ExpressionEvaluator.Factory {
+    static final class Factory implements EvalOperator.ExpressionEvaluator.Factory {
         private final Source source;
-        private final EvalOperator.ExpressionEvaluator.Factory lhs;
-        private final EvalOperator.ExpressionEvaluator.Factory rhs;
+        private final EvalOperator.ExpressionEvaluator.Factory vector;
+        private final Float scalar;
         private final BiFunction<Float, Float, Float> op;
         private final String opName;
 
-        Factory(
-            Source source,
-            ExpressionEvaluator.Factory lhs,
-            ExpressionEvaluator.Factory rhs,
-            BiFunction<Float, Float, Float> op,
-            String opName
-        ) {
+        // Factory when lhs is a dense_vector and rhs a scalar
+        Factory(Source source, EvalOperator.ExpressionEvaluator.Factory lhs, Float rhs, BiFunction<Float, Float, Float> op, String opName) {
             this.source = source;
-            this.lhs = lhs;
-            this.rhs = rhs;
+            this.vector = lhs;
+            this.scalar = rhs;
             this.op = op;
             this.opName = opName;
         }
 
+        // Factory when lhs is a scalar and rhs a dense_vector.
+        Factory(Source source, Float lhs, EvalOperator.ExpressionEvaluator.Factory rhs, BiFunction<Float, Float, Float> op, String opName) {
+            this.source = source;
+            this.scalar = lhs;
+            this.vector = rhs;
+            // flip the order of arguments for scalar-vector operations, as we assume the scalar is always the rhs in the processing
+            this.op = (a, b) -> op.apply(b, a);
+            this.opName = opName;
+        }
+
         @Override
-        public DenseVectorsEvaluator get(DriverContext context) {
-            return new DenseVectorsEvaluator(op, opName, source, lhs.get(context), rhs.get(context), context);
+        public DenseVectorScalarEvaluator get(DriverContext context) {
+            return new DenseVectorScalarEvaluator(op, opName, source, vector.get(context), scalar, context);
         }
 
         @Override
         public String toString() {
-            return "DenseVectorsEvaluator[" + "lhs=" + lhs + ", rhs=" + rhs + ", opName=" + opName + "]";
+            return "DenseVectorScalarEvaluator[" + "lhs=" + vector + ", rhs=scalar_constant, opName=" + opName + "]";
         }
     }
+
 }

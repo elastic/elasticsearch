@@ -433,12 +433,7 @@ public class TransformIndexerTests extends ESTestCase {
             "total_price_with_tax",
             Map.of("type", "double", "script", Map.of("source", "emit(1.0)"))
         );
-        SourceConfig sourceWithRuntimeMappings = new SourceConfig(
-            new String[] { "source_index" },
-            QueryConfig.matchAll(),
-            runtimeMappings,
-            null
-        );
+        SourceConfig sourceWithRuntimeMappings = new SourceConfig(new String[] { "source_index" }, QueryConfig.matchAll(), runtimeMappings);
         TransformConfig config = new TransformConfig(
             randomAlphaOfLength(10),
             sourceWithRuntimeMappings,

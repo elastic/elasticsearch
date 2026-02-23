@@ -32,6 +32,7 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.text.UTF8DecodingReader;
@@ -689,8 +690,8 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             }
 
             @Override
-            public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-                return new BlockStoredFieldsReader.Bytes(field) {
+            public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+                return new BlockStoredFieldsReader.Bytes(breaker, field) {
                     private final BytesRef scratch = new BytesRef();
 
                     @Override
@@ -713,7 +714,7 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
                 if (usesBinaryDocValues) {
                     return new BytesRefsFromBinaryMultiSeparateCountBlockLoader(name());
                 } else {
-                    return new BytesRefsFromOrdsBlockLoader(name());
+                    return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
                 }
             }
 

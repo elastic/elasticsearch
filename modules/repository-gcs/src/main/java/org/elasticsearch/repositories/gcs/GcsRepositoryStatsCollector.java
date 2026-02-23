@@ -281,5 +281,9 @@ public class GcsRepositoryStatsCollector {
         return out;
     }
 
+    public RepositoriesMetrics getRepositoriesMetrics() {
+        return telemetry;
+    }
+
     record Collector(LongAdder operations, LongAdder requests) {}
 }

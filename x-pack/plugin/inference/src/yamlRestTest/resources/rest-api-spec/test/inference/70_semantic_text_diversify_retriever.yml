@@ -205,7 +205,7 @@ setup:
 ---
 "Validate diversification must have a query vector or builder":
   - do:
-      catch: /\[query_vector\] or \[query_vector_builder\] must be supplied when retrieving search hit document vectors for a \[semantic_text\] field./
+      catch: /\[query_vector\] or \[query_vector_builder\] must be supplied when diversifying on a \[semantic_text\] field./
       search:
         index: test-result-diversification-semantic-text-index
         body:
@@ -228,7 +228,7 @@ setup:
 ---
 "Validate diversification must have compatible query vector format":
   - do:
-      catch: /supplied query vector is incompatible with search hit document vectors for the \[semantic_text\] field./
+      catch: /supplied query vector is incompatible with document vectors for the \[semantic_text\] field./
       search:
         index: test-result-diversification-semantic-text-index
         body:

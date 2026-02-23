@@ -380,8 +380,11 @@ public final class DiversifyRetrieverBuilder extends CompoundRetrieverBuilder<Di
                 if (vector != null) {
                     fieldVectors.put(asRankDoc.rank, vector);
                 }
-                // } catch (IllegalArgumentException e) {
-                // throw new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e);
+            } catch (IllegalArgumentException e) {
+                // since this is run within an async block inside the compound retriever builder, we
+                // cannot allow the IllegalArgumentException to bubble up, but rather we need
+                // to have the status exception thrown here.
+                throw new ElasticsearchStatusException(e.getMessage(), RestStatus.BAD_REQUEST, e);
             } catch (IOException ioEx) {
                 throw new UncheckedIOException(ioEx);
             }

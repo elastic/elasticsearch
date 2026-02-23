@@ -238,6 +238,12 @@ public class SemanticTextChunkUtils {
 
         // forward to the start token
         parser.nextToken();
-        return VectorData.parseXContent(parser);
+        VectorData parsedVector = VectorData.parseXContent(parser);
+        if (parsedVector.isFloat()
+            && (elementType == DenseVectorFieldMapper.ElementType.BIT || elementType == DenseVectorFieldMapper.ElementType.BYTE)) {
+            // the parsing created float elements, we need this to be bytes
+            parsedVector = new VectorData(parsedVector.asByteVector());
+        }
+        return parsedVector;
     }
 }

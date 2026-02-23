@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 41847
+pr: 142047
+summary: Dynamically grow hash in linear counting in HLL
+type: bug

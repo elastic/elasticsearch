@@ -37,10 +37,11 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
- * Tests for {@link JsonExtract}. Parameterized suppliers cover type combinations, warning
- * propagation, and constant-path optimization through the {@link AbstractScalarFunctionTestCase}
- * framework. Inline {@code testXxx()} methods cover deterministic extraction scenarios
- * (path syntax, edge cases, XContent encodings) and randomized tests.
+ * Tests for {@link JsonExtract}. Parameterized suppliers cover type combinations, extraction
+ * behavior (paths, bracket notation, unicode, warnings), and constant-path optimization through
+ * the {@link AbstractScalarFunctionTestCase} framework. Standalone {@code testXxx()} methods cover
+ * XContent encoding tests, randomized tests, evaluator type assertions, and programmatically
+ * generated large/deep JSON tests.
  * <p>
  * Path parsing logic is tested separately in {@link JsonPathTests}.
  */
@@ -53,42 +54,39 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        // Type combination coverage: all string type pairs
+        // --- Type combination coverage: all string type pairs ---
         for (DataType jsonType : DataType.stringTypes()) {
             for (DataType pathType : DataType.stringTypes()) {
                 suppliers.add(
                     new TestCaseSupplier(
                         "extract string " + TestCaseSupplier.nameFromTypes(types(jsonType, pathType)),
                         types(jsonType, pathType),
-                        () -> new TestCaseSupplier.TestCase(
-                            List.of(
-                                new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), jsonType, "str"),
-                                new TestCaseSupplier.TypedData(new BytesRef("name"), pathType, "path")
-                            ),
-                            expectedToString(),
-                            DataType.KEYWORD,
-                            equalTo(new BytesRef("Alice"))
-                        )
+                        () -> testCase(jsonType, pathType, "{\"name\":\"Alice\"}", "name", "Alice")
                     )
                 );
             }
         }
 
-        // Warning case: invalid JSON (exercises warning propagation through the framework)
-        suppliers.add(new TestCaseSupplier("invalid json", types(DataType.KEYWORD, DataType.KEYWORD), () -> {
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(new BytesRef("not valid json"), DataType.KEYWORD, "str"),
-                    new TestCaseSupplier.TypedData(new BytesRef("field"), DataType.KEYWORD, "path")
-                ),
-                expectedToString(),
-                DataType.KEYWORD,
-                nullValue()
-            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line 1:1: java.lang.IllegalArgumentException: invalid JSON input");
-        }));
+        // --- SOURCE type support (for _source metadata field) ---
+        for (DataType pathType : DataType.stringTypes()) {
+            suppliers.add(
+                new TestCaseSupplier(
+                    "extract from source " + TestCaseSupplier.nameFromTypes(types(DataType.SOURCE, pathType)),
+                    types(DataType.SOURCE, pathType),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(
+                            new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), DataType.SOURCE, "str"),
+                            new TestCaseSupplier.TypedData(new BytesRef("name"), pathType, "path")
+                        ),
+                        expectedToString(),
+                        DataType.KEYWORD,
+                        equalTo(new BytesRef("Alice"))
+                    )
+                )
+            );
+        }
 
-        // Constant path optimization: exercises the JsonExtractConstantEvaluator via forceLiteral
+        // --- Constant path optimization: exercises JsonExtractConstantEvaluator via forceLiteral ---
         for (DataType jsonType : DataType.stringTypes()) {
             suppliers.add(
                 new TestCaseSupplier(
@@ -121,24 +119,168 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
                 .withWarning("Line 1:1: java.lang.IllegalArgumentException: invalid JSON input");
         }));
 
-        // SOURCE type support (for _source metadata field)
-        for (DataType pathType : DataType.stringTypes()) {
-            suppliers.add(
-                new TestCaseSupplier(
-                    "extract from source " + TestCaseSupplier.nameFromTypes(types(DataType.SOURCE, pathType)),
-                    types(DataType.SOURCE, pathType),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(new BytesRef("{\"name\":\"Alice\"}"), DataType.SOURCE, "str"),
-                            new TestCaseSupplier.TypedData(new BytesRef("name"), pathType, "path")
-                        ),
-                        expectedToString(),
-                        DataType.KEYWORD,
-                        equalTo(new BytesRef("Alice"))
-                    )
-                )
-            );
-        }
+        // --- Named fixed cases: extraction behavior ---
+
+        // Basic types
+        suppliers.add(fixedCase("string value", "{\"name\":\"Alice\"}", "name", "Alice"));
+        suppliers.add(fixedCase("number value", "{\"val\":42}", "val", "42"));
+        suppliers.add(fixedCase("boolean value", "{\"flag\":true}", "flag", "true"));
+        suppliers.add(fixedCase("floating point", "{\"val\":3.14159}", "val", "3.14159"));
+        suppliers.add(fixedCase("scientific notation", "{\"val\":1.5E10}", "val", "1.5E10"));
+        suppliers.add(fixedCase("negative number", "{\"val\":-42}", "val", "-42"));
+
+        // Nested paths
+        suppliers.add(fixedCase("dot notation nested", "{\"user\":{\"city\":\"London\"}}", "user.city", "London"));
+        suppliers.add(fixedCase("deep nesting", "{\"a\":{\"b\":{\"c\":{\"d\":\"deep\"}}}}", "a.b.c.d", "deep"));
+
+        // Array access
+        suppliers.add(fixedCase("array index", "{\"tags\":[\"a\",\"b\"]}", "tags[0]", "a"));
+        suppliers.add(fixedCase("mixed array and object nesting", "{\"orders\":[{\"id\":1},{\"id\":2}]}", "orders[1].id", "2"));
+        suppliers.add(
+            fixedCase(
+                "deep mixed nesting",
+                "{\"company\":{\"departments\":[{\"name\":\"eng\",\"leads\":[{\"name\":\"Alice\"},{\"name\":\"Bob\"}]}]}}",
+                "company.departments[0].leads[1].name",
+                "Bob"
+            )
+        );
+
+        // Bracket notation
+        suppliers.add(fixedCase("bracket single-quoted key", "{\"name\":\"Alice\"}", "['name']", "Alice"));
+        suppliers.add(fixedCase("bracket double-quoted key", "{\"name\":\"Alice\"}", "[\"name\"]", "Alice"));
+        suppliers.add(fixedCase("bracket key with dot", "{\"user.name\":\"Alice\"}", "['user.name']", "Alice"));
+        suppliers.add(fixedCase("bracket key with space", "{\"first name\":\"Bob\"}", "['first name']", "Bob"));
+        suppliers.add(fixedCase("bracket key with brackets", "{\"items[0]\":\"value\"}", "['items[0]']", "value"));
+        suppliers.add(fixedCase("bracket nested", "{\"a\":{\"b.c\":42}}", "a['b.c']", "42"));
+        suppliers.add(
+            fixedCase("mixed dot and bracket", "{\"store\":{\"user.name\":\"Alice\",\"city\":\"London\"}}", "store['user.name']", "Alice")
+        );
+        suppliers.add(fixedCase("consecutive brackets", "{\"a\":{\"b.c\":{\"d\":1}}}", "a['b.c']['d']", "1"));
+        suppliers.add(fixedCase("bracket after array index", "{\"arr\":[{\"a.b\":1},{\"a.b\":2}]}", "arr[0]['a.b']", "1"));
+        suppliers.add(fixedCase("escaped single quote in key", "{\"it's\":\"value\"}", "['it\\'s']", "value"));
+        suppliers.add(fixedCase("escaped double quote in key", "{\"say \\\"hi\\\"\":\"value\"}", "[\"say \\\"hi\\\"\"]", "value"));
+        suppliers.add(fixedCase("escaped backslash in key", "{\"a\\\\b\":\"value\"}", "['a\\\\b']", "value"));
+        suppliers.add(fixedCase("empty string key", "{\"\":\"value\"}", "['']", "value"));
+
+        // Dollar prefix
+        suppliers.add(fixedCase("$.name", "{\"name\":\"Alice\"}", "$.name", "Alice"));
+        suppliers.add(fixedCase("$.nested path", "{\"user\":{\"address\":{\"city\":\"London\"}}}", "$.user.address.city", "London"));
+        suppliers.add(fixedCase("$.array index", "{\"tags\":[\"a\",\"b\"]}", "$.tags[0]", "a"));
+        suppliers.add(fixedCase("$.mixed nesting", "{\"orders\":[{\"id\":1},{\"id\":2}]}", "$.orders[1].id", "2"));
+        suppliers.add(fixedCase("$['bracket']", "{\"user.name\":\"Alice\"}", "$['user.name']", "Alice"));
+        suppliers.add(fixedCase("$[0] array index", "[10,20,30]", "$[1]", "20"));
+        suppliers.add(fixedCase("$['a'].b nested", "{\"a\":{\"b\":1}}", "$['a'].b", "1"));
+
+        // Bare $ with different JSON value types
+        suppliers.add(fixedCase("bare $ returns object", "{\"a\":1,\"b\":2}", "$", "{\"a\":1,\"b\":2}"));
+        suppliers.add(fixedCase("bare $ returns array", "[1,2,3]", "$", "[1,2,3]"));
+        suppliers.add(fixedCase("bare $ returns string", "\"hello\"", "$", "hello"));
+        suppliers.add(fixedCase("bare $ returns number", "42", "$", "42"));
+        suppliers.add(fixedCase("bare $ returns boolean", "true", "$", "true"));
+
+        // Root access
+        suppliers.add(fixedCase("empty path returns root", "{\"a\":1}", "", "{\"a\":1}"));
+        suppliers.add(fixedCase("$. returns root", "{\"a\":1}", "$.", "{\"a\":1}"));
+        suppliers.add(fixedCase("bare [0] array index", "[1,2,3]", "[0]", "1"));
+
+        // Object/array extraction (returned as JSON strings)
+        suppliers.add(fixedCase("extract object as JSON string", "{\"obj\":{\"a\":1}}", "obj", "{\"a\":1}"));
+        suppliers.add(fixedCase("extract array as JSON string", "{\"arr\":[1,2,3]}", "arr", "[1,2,3]"));
+        suppliers.add(fixedCase("empty object", "{\"obj\":{}}", "obj", "{}"));
+        suppliers.add(fixedCase("empty array", "{\"arr\":[]}", "arr", "[]"));
+        suppliers.add(fixedCase("empty string value", "{\"val\":\"\"}", "val", ""));
+
+        // Unicode
+        suppliers.add(fixedCase("unicode key", "{\"名前\":\"太郎\"}", "名前", "太郎"));
+        suppliers.add(fixedCase("unicode value", "{\"name\":\"Ñoño\"}", "name", "Ñoño"));
+        suppliers.add(fixedCase("emoji key", "{\"🔑\":\"value\"}", "🔑", "value"));
+
+        // Escaped characters in JSON values
+        suppliers.add(fixedCase("quotes in value", "{\"msg\":\"she said \\\"hello\\\"\"}", "msg", "she said \"hello\""));
+        suppliers.add(fixedCase("newline in value", "{\"msg\":\"line1\\nline2\"}", "msg", "line1\nline2"));
+        suppliers.add(fixedCase("backslash in value", "{\"path\":\"C:\\\\Users\\\\test\"}", "path", "C:\\Users\\test"));
+
+        // Duplicate keys
+        suppliers.add(fixedCase("duplicate keys returns first", "{\"foo\":1,\"foo\":2}", "foo", "1"));
+
+        // --- Null result cases (JSON null values, no warning) ---
+        suppliers.add(nullResultCase("JSON null value", "{\"val\":null}", "val"));
+        suppliers.add(nullResultCase("null in array", "{\"items\":[1,null,3]}", "items[1]"));
+        suppliers.add(nullResultCase("bare $ returns null", "null", "$"));
+
+        // --- Warning cases ---
+
+        // Missing path / invalid input
+        suppliers.add(warningCase("missing path", "{\"a\":1}", "b", "path [b] does not exist"));
+        suppliers.add(warningCase("invalid JSON", "not valid json", "field", "invalid JSON input"));
+        suppliers.add(warningCase("empty input", "", "$", "invalid JSON input"));
+        suppliers.add(warningCase("empty object path miss", "{}", "anything", "path [anything] does not exist"));
+
+        // Array bounds and type mismatches
+        suppliers.add(warningCase("array index out of bounds", "{\"a\":[1,2,3]}", "a[5]", "array index out of bounds"));
+        suppliers.add(foldingWarningCase("negative array index", "{\"a\":[1,2,3]}", "a[-1]", "array index out of bounds"));
+        suppliers.add(warningCase("key into array", "{\"a\":[1,2]}", "a.b", "path [a.b] does not exist"));
+        suppliers.add(warningCase("index into object", "{\"a\":{\"b\":1}}", "a[0]", "path [a[0]] does not exist"));
+        suppliers.add(warningCase("key into scalar", "{\"a\":42}", "a.b", "path [a.b] does not exist"));
+
+        // Unsupported JSONPath features
+        suppliers.add(warningCase("wildcard .*", "{\"a\":1,\"b\":2}", "*", "path [*] does not exist"));
+        suppliers.add(
+            foldingWarningCase(
+                "wildcard [*]",
+                "[1,2,3]",
+                "$[*]",
+                "Invalid JSON path [$[*]]: expected integer array index, got [*] at position 1"
+            )
+        );
+        suppliers.add(
+            foldingWarningCase(
+                "recursive descent $..",
+                "{\"a\":{\"name\":1}}",
+                "$..name",
+                "Invalid JSON path [$..name]: path cannot start with a dot at position 2"
+            )
+        );
+        suppliers.add(
+            foldingWarningCase(
+                "recursive descent bare ..",
+                "{\"a\":{\"name\":1}}",
+                "..name",
+                "Invalid JSON path [..name]: path cannot start with a dot at position 0"
+            )
+        );
+        suppliers.add(
+            foldingWarningCase(
+                "array slice",
+                "{\"arr\":[1,2,3,4]}",
+                "arr[0:3]",
+                "Invalid JSON path [arr[0:3]]: expected integer array index, got [0:3] at position 3"
+            )
+        );
+        suppliers.add(
+            foldingWarningCase(
+                "array slice with step",
+                "{\"arr\":[1,2,3,4]}",
+                "arr[::2]",
+                "Invalid JSON path [arr[::2]]: expected integer array index, got [::2] at position 3"
+            )
+        );
+        suppliers.add(
+            foldingWarningCase(
+                "filter expression",
+                "{\"items\":[{\"price\":5}]}",
+                "items[?(@.price<10)]",
+                "Invalid JSON path [items[?(@.price<10)]]: expected integer array index, got [?(@.price<10)] at position 5"
+            )
+        );
+        suppliers.add(
+            foldingWarningCase(
+                "union [0,1]",
+                "{\"arr\":[1,2,3]}",
+                "arr[0,1]",
+                "Invalid JSON path [arr[0,1]]: expected integer array index, got [0,1] at position 3"
+            )
+        );
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
@@ -148,167 +290,23 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         return new JsonExtract(source, args.get(0), args.get(1));
     }
 
-    // --- Root accessor ---
+    // --- Evaluator type assertions ---
 
-    public void testEmptyPathReturnsRoot() {
-        assertResult("{\"a\":1}", "", "{\"a\":1}");
-    }
-
-    // --- JSONPath $ prefix ---
-
-    public void testDollarDotPrefix() {
-        assertResult("{\"name\":\"Alice\"}", "$.name", "Alice");
-    }
-
-    public void testDollarDotNestedPath() {
-        assertResult("{\"user\":{\"address\":{\"city\":\"London\"}}}", "$.user.address.city", "London");
-    }
-
-    public void testDollarDotArrayIndex() {
-        assertResult("{\"tags\":[\"a\",\"b\"]}", "$.tags[0]", "a");
-    }
-
-    public void testDollarDotMixedNesting() {
-        assertResult("{\"orders\":[{\"id\":1},{\"id\":2}]}", "$.orders[1].id", "2");
-    }
-
-    public void testDeepMixedNesting() {
-        assertResult(
-            "{\"company\":{\"departments\":[{\"name\":\"eng\",\"leads\":[{\"name\":\"Alice\"},{\"name\":\"Bob\"}]}]}}",
-            "company.departments[0].leads[1].name",
-            "Bob"
+    public void testConstantPathProducesConstantEvaluator() {
+        Source source = Source.synthetic("json_extract");
+        var evaluatorFactory = evaluator(
+            new JsonExtract(source, field("str", DataType.KEYWORD), new Literal(source, new BytesRef("name"), DataType.KEYWORD))
         );
+        assertThat(evaluatorFactory, instanceOf(JsonExtractConstantEvaluator.Factory.class));
     }
 
-    public void testDollarDotAloneReturnsRoot() {
-        assertResult("{\"a\":1}", "$.", "{\"a\":1}");
+    public void testNonConstantPathProducesGenericEvaluator() {
+        Source source = Source.synthetic("json_extract");
+        var evaluatorFactory = evaluator(new JsonExtract(source, field("str", DataType.KEYWORD), field("path", DataType.KEYWORD)));
+        assertThat(evaluatorFactory, instanceOf(JsonExtractEvaluator.Factory.class));
     }
 
-    // --- Bare $ root accessor ---
-
-    public void testBareDollarReturnsObject() {
-        assertResult("{\"a\":1,\"b\":2}", "$", "{\"a\":1,\"b\":2}");
-    }
-
-    public void testBareDollarReturnsArray() {
-        assertResult("[1,2,3]", "$", "[1,2,3]");
-    }
-
-    public void testBareDollarReturnsString() {
-        assertResult("\"hello\"", "$", "hello");
-    }
-
-    public void testBareDollarReturnsNumber() {
-        assertResult("42", "$", "42");
-    }
-
-    public void testBareDollarReturnsBoolean() {
-        assertResult("true", "$", "true");
-    }
-
-    public void testBareDollarReturnsNull() {
-        assertNullResult("null", "$");
-    }
-
-    // --- Bracket notation for named keys ---
-
-    public void testSingleQuotedKey() {
-        assertResult("{\"name\":\"Alice\"}", "['name']", "Alice");
-    }
-
-    public void testDoubleQuotedKey() {
-        assertResult("{\"name\":\"Alice\"}", "[\"name\"]", "Alice");
-    }
-
-    public void testQuotedKeyWithDot() {
-        assertResult("{\"user.name\":\"Alice\"}", "['user.name']", "Alice");
-    }
-
-    public void testQuotedKeyWithSpace() {
-        assertResult("{\"first name\":\"Bob\"}", "['first name']", "Bob");
-    }
-
-    public void testQuotedKeyWithBrackets() {
-        assertResult("{\"items[0]\":\"value\"}", "['items[0]']", "value");
-    }
-
-    public void testQuotedKeyNested() {
-        assertResult("{\"a\":{\"b.c\":42}}", "a['b.c']", "42");
-    }
-
-    public void testMixedDotAndBracketNotation() {
-        assertResult("{\"store\":{\"user.name\":\"Alice\",\"city\":\"London\"}}", "store['user.name']", "Alice");
-    }
-
-    public void testConsecutiveBracketNotation() {
-        assertResult("{\"a\":{\"b.c\":{\"d\":1}}}", "a['b.c']['d']", "1");
-    }
-
-    public void testBracketNotationAfterArrayIndex() {
-        assertResult("{\"arr\":[{\"a.b\":1},{\"a.b\":2}]}", "arr[0]['a.b']", "1");
-    }
-
-    public void testEscapedSingleQuoteInKey() {
-        assertResult("{\"it's\":\"value\"}", "['it\\'s']", "value");
-    }
-
-    public void testEscapedDoubleQuoteInKey() {
-        assertResult("{\"say \\\"hi\\\"\":\"value\"}", "[\"say \\\"hi\\\"\"]", "value");
-    }
-
-    public void testEscapedBackslashInKey() {
-        assertResult("{\"a\\\\b\":\"value\"}", "['a\\\\b']", "value");
-    }
-
-    public void testDollarPrefixWithBracketNotation() {
-        assertResult("{\"user.name\":\"Alice\"}", "$['user.name']", "Alice");
-    }
-
-    public void testDollarBracketArrayIndex() {
-        assertResult("[10,20,30]", "$[1]", "20");
-    }
-
-    public void testBareLeadingBracketArrayIndex() {
-        assertResult("[1,2,3]", "[0]", "1");
-    }
-
-    public void testDollarBracketNestedPath() {
-        assertResult("{\"a\":{\"b\":1}}", "$['a'].b", "1");
-    }
-
-    public void testEmptyStringKey() {
-        assertResult("{\"\":\"value\"}", "['']", "value");
-    }
-
-    // --- Unicode handling ---
-
-    public void testUnicodeKey() {
-        assertResult("{\"名前\":\"太郎\"}", "名前", "太郎");
-    }
-
-    public void testUnicodeValue() {
-        assertResult("{\"name\":\"Ñoño\"}", "name", "Ñoño");
-    }
-
-    public void testEmojiKey() {
-        assertResult("{\"🔑\":\"value\"}", "🔑", "value");
-    }
-
-    // --- Escaped characters in JSON ---
-
-    public void testEscapedQuotesInValue() {
-        assertResult("{\"msg\":\"she said \\\"hello\\\"\"}", "msg", "she said \"hello\"");
-    }
-
-    public void testNewlineInValue() {
-        assertResult("{\"msg\":\"line1\\nline2\"}", "msg", "line1\nline2");
-    }
-
-    public void testBackslashInValue() {
-        assertResult("{\"path\":\"C:\\\\Users\\\\test\"}", "path", "C:\\Users\\test");
-    }
-
-    // --- Deeply nested JSON ---
+    // --- Large/deep JSON tests (programmatically generated) ---
 
     public void testDeeplyNestedPath() {
         // Build a 50-level deep nested JSON
@@ -327,8 +325,6 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         }
         assertResult(json.toString(), pathBuilder.toString(), "deep");
     }
-
-    // --- Large JSON ---
 
     public void testLargeJsonArray() {
         // JSON array with 1000 elements, extract the last one
@@ -350,153 +346,6 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         }
         json.append("}");
         assertResult(json.toString(), "key999", "999");
-    }
-
-    // --- Constant path specialization ---
-
-    public void testConstantPathProducesConstantEvaluator() {
-        Source source = Source.synthetic("json_extract");
-        var evaluatorFactory = evaluator(
-            new JsonExtract(source, field("str", DataType.KEYWORD), new Literal(source, new BytesRef("name"), DataType.KEYWORD))
-        );
-        assertThat(evaluatorFactory, instanceOf(JsonExtractConstantEvaluator.Factory.class));
-    }
-
-    public void testNonConstantPathProducesGenericEvaluator() {
-        Source source = Source.synthetic("json_extract");
-        var evaluatorFactory = evaluator(new JsonExtract(source, field("str", DataType.KEYWORD), field("path", DataType.KEYWORD)));
-        assertThat(evaluatorFactory, instanceOf(JsonExtractEvaluator.Factory.class));
-    }
-
-    // --- Numeric edge cases ---
-
-    public void testNegativeArrayIndex() {
-        assertWarningResult("{\"a\":[1,2,3]}", "a[-1]", "array index out of bounds");
-    }
-
-    public void testFloatingPointNumber() {
-        assertResult("{\"val\":3.14159}", "val", "3.14159");
-    }
-
-    public void testScientificNotation() {
-        assertResult("{\"val\":1.5E10}", "val", "1.5E10");
-    }
-
-    public void testNegativeNumber() {
-        assertResult("{\"val\":-42}", "val", "-42");
-    }
-
-    // --- Duplicate keys and null-in-array ---
-
-    public void testDuplicateKeysReturnsFirstMatch() {
-        assertResult("{\"foo\":1,\"foo\":2}", "foo", "1");
-    }
-
-    public void testNullInsideArray() {
-        assertNullResult("{\"items\":[1,null,3]}", "items[1]");
-    }
-
-    // --- Empty structures ---
-
-    public void testEmptyObject() {
-        assertResult("{\"obj\":{}}", "obj", "{}");
-    }
-
-    public void testEmptyArray() {
-        assertResult("{\"arr\":[]}", "arr", "[]");
-    }
-
-    public void testEmptyString() {
-        assertResult("{\"val\":\"\"}", "val", "");
-    }
-
-    public void testEmptyJsonObject() {
-        assertWarningResult("{}", "anything", "path [anything] does not exist");
-    }
-
-    public void testEmptyInput() {
-        assertWarningResult("", "$", "invalid JSON input");
-    }
-
-    // --- Type mismatch ---
-
-    public void testKeyNavigationIntoArray() {
-        // Path expects an object key but the value is an array
-        assertWarningResult("{\"a\":[1,2]}", "a.b", "path [a.b] does not exist");
-    }
-
-    public void testIndexNavigationIntoObject() {
-        // Path expects an array index but the value is an object
-        assertWarningResult("{\"a\":{\"b\":1}}", "a[0]", "path [a[0]] does not exist");
-    }
-
-    public void testKeyNavigationIntoScalar() {
-        // Path expects further nesting but the value is a scalar
-        assertWarningResult("{\"a\":42}", "a.b", "path [a.b] does not exist");
-    }
-
-    // --- Array index out of bounds ---
-
-    public void testArrayIndexExceedsBounds() {
-        assertWarningResult("{\"a\":[1,2,3]}", "a[5]", "array index out of bounds");
-    }
-
-    // --- Unsupported JSONPath features ---
-
-    public void testWildcardDotStar() {
-        // $.* is parsed as key "*" — not found
-        assertWarningResult("{\"a\":1,\"b\":2}", "*", "path [*] does not exist");
-    }
-
-    public void testWildcardBracketStar() {
-        // $[*] — "*" is not a valid array index, caught at parse time
-        assertWarningResult("[1,2,3]", "$[*]", "Invalid JSON path [$[*]]: expected integer array index, got [*] at position 1");
-    }
-
-    public void testRecursiveDescent() {
-        // $..name — leading dot after stripping "$." → invalid path
-        assertWarningResult("{\"a\":{\"name\":1}}", "$..name", "Invalid JSON path [$..name]: path cannot start with a dot at position 2");
-    }
-
-    public void testRecursiveDescentBare() {
-        // ..name without $ — leading dot → invalid path
-        assertWarningResult("{\"a\":{\"name\":1}}", "..name", "Invalid JSON path [..name]: path cannot start with a dot at position 0");
-    }
-
-    public void testArraySlice() {
-        // [0:3] — "0:3" is not a valid integer index, caught at parse time
-        assertWarningResult(
-            "{\"arr\":[1,2,3,4]}",
-            "arr[0:3]",
-            "Invalid JSON path [arr[0:3]]: expected integer array index, got [0:3] at position 3"
-        );
-    }
-
-    public void testArraySliceWithStep() {
-        // [::2] — "::2" is not a valid integer index, caught at parse time
-        assertWarningResult(
-            "{\"arr\":[1,2,3,4]}",
-            "arr[::2]",
-            "Invalid JSON path [arr[::2]]: expected integer array index, got [::2] at position 3"
-        );
-    }
-
-    public void testFilterExpression() {
-        // ?(@.price<10) — not a valid array index, caught at parse time
-        assertWarningResult(
-            "{\"items\":[{\"price\":5}]}",
-            "items[?(@.price<10)]",
-            "Invalid JSON path [items[?(@.price<10)]]: expected integer array index, got [?(@.price<10)] at position 5"
-        );
-    }
-
-    public void testUnionMultipleIndices() {
-        // [0,1] — "0,1" is not a valid integer index, caught at parse time
-        assertWarningResult(
-            "{\"arr\":[1,2,3]}",
-            "arr[0,1]",
-            "Invalid JSON path [arr[0,1]]: expected integer array index, got [0,1] at position 3"
-        );
     }
 
     // --- XContent encoding tests ---
@@ -639,7 +488,80 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         forAllEncodings(map, "flag", Boolean.toString(boolVal));
     }
 
-    // --- Helper methods ---
+    // --- Parameterized test case helpers ---
+
+    private static TestCaseSupplier.TestCase testCase(DataType jsonType, DataType pathType, String json, String path, String expected) {
+        return new TestCaseSupplier.TestCase(
+            List.of(
+                new TestCaseSupplier.TypedData(new BytesRef(json), jsonType, "str"),
+                new TestCaseSupplier.TypedData(new BytesRef(path), pathType, "path")
+            ),
+            expectedToString(),
+            DataType.KEYWORD,
+            equalTo(new BytesRef(expected))
+        );
+    }
+
+    private static TestCaseSupplier fixedCase(String name, String json, String path, String expected) {
+        return new TestCaseSupplier(
+            name,
+            types(DataType.KEYWORD, DataType.KEYWORD),
+            () -> testCase(DataType.KEYWORD, DataType.KEYWORD, json, path, expected)
+        );
+    }
+
+    private static TestCaseSupplier warningCase(String name, String json, String path, String warningMsg) {
+        return new TestCaseSupplier(
+            name,
+            types(DataType.KEYWORD, DataType.KEYWORD),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(json), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(path), DataType.KEYWORD, "path")
+                ),
+                expectedToString(),
+                DataType.KEYWORD,
+                nullValue()
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: " + warningMsg)
+        );
+    }
+
+    private static TestCaseSupplier foldingWarningCase(String name, String json, String path, String warningMsg) {
+        return new TestCaseSupplier(
+            name,
+            types(DataType.KEYWORD, DataType.KEYWORD),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(json), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(path), DataType.KEYWORD, "path")
+                ),
+                expectedToString(),
+                DataType.KEYWORD,
+                nullValue()
+            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                .withWarning("Line 1:1: java.lang.IllegalArgumentException: " + warningMsg)
+                .withFoldingException(IllegalArgumentException.class, warningMsg)
+        );
+    }
+
+    private static TestCaseSupplier nullResultCase(String name, String json, String path) {
+        return new TestCaseSupplier(
+            name,
+            types(DataType.KEYWORD, DataType.KEYWORD),
+            () -> new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(new BytesRef(json), DataType.KEYWORD, "str"),
+                    new TestCaseSupplier.TypedData(new BytesRef(path), DataType.KEYWORD, "path")
+                ),
+                expectedToString(),
+                DataType.KEYWORD,
+                nullValue()
+            )
+        );
+    }
+
+    // --- XContent encoding helpers ---
 
     private static final List<XContentType> ALL_XCONTENT_TYPES = List.of(
         XContentType.JSON,
@@ -663,6 +585,8 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         }
     }
 
+    // --- Standalone test helpers ---
+
     private String extractFromBytes(BytesRef bytes, String path) {
         try (
             var eval = evaluator(new JsonExtract(Source.EMPTY, field("str", DataType.KEYWORD), field("path", DataType.KEYWORD))).get(
@@ -674,28 +598,11 @@ public class JsonExtractTests extends AbstractScalarFunctionTestCase {
         }
     }
 
-    private String extract(String json, String path) {
-        return extractFromBytes(new BytesRef(json), path);
-    }
-
     private void assertResult(String json, String path, String expected) {
-        String result = extract(json, path);
-        assertThat(result, equalTo(expected));
+        assertThat(extractFromBytes(new BytesRef(json), path), equalTo(expected));
     }
 
-    private void assertNullResult(String json, String path) {
-        String result = extract(json, path);
-        assertThat(result, nullValue());
-    }
-
-    private void assertWarningResult(String json, String path, String warningMessage) {
-        String result = extract(json, path);
-        assertNull(result);
-        assertWarnings(
-            "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-            "Line -1:-1: java.lang.IllegalArgumentException: " + warningMessage
-        );
-    }
+    // --- Utility helpers ---
 
     private static String expectedToString() {
         return "JsonExtractEvaluator[str=Attribute[channel=0], path=Attribute[channel=1]]";

@@ -42,39 +42,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 /**
- * ES|QL scalar function that extracts a value from a JSON string using a
- * <a href="https://datatracker.ietf.org/doc/rfc9535/">JSONPath (RFC 9535)</a> subset.
- * <p>
- * Usage: {@code JSON_EXTRACT(string, path) → keyword}
- * <p>
- * The function accepts any string-typed expression (keyword, text) or the {@code _source}
- * metadata field as the JSON input, and a string path expression. It returns the extracted
- * value as a {@code keyword}:
- * <ul>
- *   <li>Strings → the value without surrounding quotes</li>
- *   <li>Numbers → their string representation ({@code "42"}, {@code "3.14"})</li>
- *   <li>Booleans → {@code "true"} or {@code "false"}</li>
- *   <li>JSON {@code null} → ES|QL {@code null} (no warning)</li>
- *   <li>Objects/arrays → serialized back to a JSON string via {@link XContentBuilder#copyCurrentStructure}</li>
- * </ul>
- * <p>
- * Path syntax is handled by {@link JsonPath}, which parses paths like {@code "user.address.city"}
- * or {@code "$.orders[0].item"} into typed segments. See {@link JsonPath} for the full syntax
- * specification.
- *
- * <h2>JSON parsing</h2>
- * Uses Elasticsearch's streaming {@link XContentParser} to walk the JSON document. Only the
- * fields along the path are examined — all other branches are skipped via
- * {@link XContentParser#skipChildren()}, avoiding unnecessary object allocation.
- *
- * <h2>Error handling</h2>
- * Both evaluators declare {@code warnExceptions = IllegalArgumentException.class}, which means
- * the generated evaluator catches {@link IllegalArgumentException}, emits it as a warning, and
- * produces {@code null} for that row. The internal {@link JsonExtractException} is used to
- * separate our application errors from parser errors — see its javadoc for details.
- *
- * <h2>Status</h2>
- * Preview / snapshot-only. Gated behind {@code FN_JSON_EXTRACT} capability.
+ * Extracts a value from a JSON string using a {@link JsonPath} subset.
+ * Preview / snapshot-only, gated behind {@code FN_JSON_EXTRACT}.
  */
 public class JsonExtract extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -86,22 +55,8 @@ public class JsonExtract extends EsqlScalarFunction {
     private final Expression str;
     private final Expression path;
 
-    /**
-     * Internal exception used to distinguish application-level errors (path not found,
-     * array index out of bounds) from JSON parser errors (malformed JSON).
-     * <p>
-     * This is necessary because {@link XContentParseException} extends {@link IllegalArgumentException}.
-     * Without a separate exception type, we couldn't differentiate between:
-     * <ul>
-     *   <li>Our errors (should preserve the specific message like "path [x] does not exist")</li>
-     *   <li>Parser errors (should be converted to generic "invalid JSON input")</li>
-     * </ul>
-     * <p>
-     * In {@link #doExtract}, we catch {@code JsonExtractException} and re-throw as
-     * {@code IllegalArgumentException} with the original message preserved. We catch
-     * {@code IOException} and {@code XContentParseException} separately and convert them
-     * to a generic "invalid JSON input" message.
-     */
+    // Separates our errors from XContentParseException (which extends IllegalArgumentException)
+    // so doExtract can preserve our messages while converting parser errors to "invalid JSON input".
     private static class JsonExtractException extends Exception {
         JsonExtractException(String message) {
             super(message);
@@ -225,14 +180,6 @@ public class JsonExtract extends EsqlScalarFunction {
         return DataType.KEYWORD;
     }
 
-    /**
-     * Validates that the two parameters have compatible types.
-     * <p>
-     * The first parameter ({@code str}) accepts keyword, text, or _source. We use
-     * {@code isType()} with a custom predicate because {@code isString()} doesn't
-     * accept {@code DataType.SOURCE}. The second parameter ({@code path}) is a
-     * standard string check via {@code isString()}.
-     */
     @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
@@ -274,37 +221,14 @@ public class JsonExtract extends EsqlScalarFunction {
         doExtract(builder, str, path);
     }
 
-    /**
-     * Core extraction logic shared by both evaluators.
-     * <p>
-     * Detects the content type from the raw bytes via {@link XContentFactory#xContentType(byte[], int, int)},
-     * then opens a streaming parser for that type. This handles all Elasticsearch content encodings
-     * (JSON, SMILE, CBOR, YAML) — important because {@code _source} preserves the original encoding
-     * the document was indexed with. For keyword/text inputs the content will always be JSON.
-     * <p>
-     * The error handling uses two catch blocks — see {@link JsonExtractException} for why:
-     * <ul>
-     *   <li>{@code JsonExtractException} — our application errors (path not found, index out of
-     *       bounds). The message is preserved as-is because it's already user-friendly.</li>
-     *   <li>{@code IOException | XContentParseException} — parser errors (malformed input).
-     *       Converted to a generic "invalid JSON input" message because parser error details
-     *       are implementation noise that wouldn't help the user.</li>
-     * </ul>
-     */
     private static void doExtract(BytesRefBlock.Builder builder, BytesRef str, JsonPath path) {
-        // Detect the content type from the raw bytes. This handles all Elasticsearch encodings:
-        // JSON (first byte '{'), SMILE (3-byte magic header), CBOR (object type markers),
-        // and YAML ('---' header). Falls back to JSON for bare values like "true", "42",
-        // or "[1,2]" whose first byte doesn't match any content type header — this is correct
-        // because _source always starts with an object (detected reliably), while keyword/text
-        // inputs are always JSON.
+        // Detect content type — _source may be SMILE/CBOR/YAML, keyword/text is always JSON.
         XContentType type = XContentFactory.xContentType(str.bytes, str.offset, str.length);
         if (type == null) {
             type = XContentType.JSON;
         }
         try (XContentParser parser = type.xContent().createParser(XContentParserConfiguration.EMPTY, str.bytes, str.offset, str.length)) {
-            XContentParser.Token token = parser.nextToken();
-            if (token == null) {
+            if (parser.nextToken() == null) {
                 throw new JsonExtractException("invalid JSON input");
             }
             extractValue(builder, parser, path.segments(), 0, path.originalPath());
@@ -315,33 +239,6 @@ public class JsonExtract extends EsqlScalarFunction {
         }
     }
 
-    /**
-     * Recursively navigates the JSON stream to extract the value at the given path.
-     * <p>
-     * This is the core streaming traversal. The {@code depth} parameter tracks how far
-     * along the segment list we've progressed. At each level, we look at the current JSON
-     * token and the current path segment to decide how to navigate:
-     * <ul>
-     *   <li><b>Base case</b> ({@code depth == segments.size()}): we've consumed all segments,
-     *       so the parser is positioned at the target value. Delegate to
-     *       {@link #extractCurrentValue} to read it.</li>
-     *   <li><b>Object + Key segment</b>: scan the object's fields for one matching the key name.
-     *       On match, recurse with {@code depth + 1}. Non-matching fields are skipped entirely
-     *       via {@code parser.skipChildren()} — this is where the streaming approach saves work.
-     *       If no field matches, throw "path does not exist". For duplicate keys, the first
-     *       match wins (streaming parser semantics, consistent with ClickHouse).</li>
-     *   <li><b>Array + Index segment</b>: iterate through array elements counting up to the
-     *       target index. On match, recurse with {@code depth + 1}. Skipped elements are
-     *       discarded via {@code parser.skipChildren()}. If we reach the end of the array
-     *       without finding the index, throw "array index out of bounds".</li>
-     *   <li><b>Type mismatch</b> (e.g., Key segment but current token is an array, or Index
-     *       segment but current token is an object, or current token is a scalar): the path
-     *       cannot be followed further, so throw "path does not exist".</li>
-     * </ul>
-     *
-     * @param depth        current position in the segments list (0 = first segment)
-     * @param originalPath the path as the user wrote it, for error messages only
-     */
     private static void extractValue(
         BytesRefBlock.Builder builder,
         XContentParser parser,
@@ -351,32 +248,20 @@ public class JsonExtract extends EsqlScalarFunction {
     ) throws IOException, JsonExtractException {
         XContentParser.Token token = parser.currentToken();
 
-        // Base case: all segments consumed — extract whatever the parser is pointing at.
         if (depth == segments.size()) {
             extractCurrentValue(builder, parser);
             return;
         }
 
-        JsonPath.Segment segment = segments.get(depth);
-
-        if (token == XContentParser.Token.START_OBJECT && segment instanceof JsonPath.Segment.Key key) {
-            // Current token is an object and the path segment is a key — navigate by field name.
+        if (token == XContentParser.Token.START_OBJECT && segments.get(depth) instanceof JsonPath.Segment.Key key) {
             navigateObject(builder, parser, segments, depth, originalPath, key);
-        } else if (token == XContentParser.Token.START_ARRAY && segment instanceof JsonPath.Segment.Index idx) {
-            // Current token is an array and the path segment is an index — navigate by position.
+        } else if (token == XContentParser.Token.START_ARRAY && segments.get(depth) instanceof JsonPath.Segment.Index idx) {
             navigateArray(builder, parser, segments, depth, originalPath, idx);
         } else {
-            // Type mismatch: trying to navigate a Key into an array, an Index into an object,
-            // or any segment into a scalar value. The path cannot be followed.
             throw new JsonExtractException("path [" + originalPath + "] does not exist");
         }
     }
 
-    /**
-     * Scans object fields for one matching the key name. First match wins — duplicate keys
-     * are handled by streaming parser semantics (consistent with ClickHouse). Non-matching
-     * fields are skipped entirely via {@code parser.skipChildren()}.
-     */
     private static void navigateObject(
         BytesRefBlock.Builder builder,
         XContentParser parser,
@@ -401,11 +286,6 @@ public class JsonExtract extends EsqlScalarFunction {
         throw new JsonExtractException("path [" + originalPath + "] does not exist");
     }
 
-    /**
-     * Iterates through array elements counting up to the target index. Skipped elements
-     * are discarded via {@code parser.skipChildren()}. If the end of the array is reached
-     * without finding the index, throws "array index out of bounds".
-     */
     private static void navigateArray(
         BytesRefBlock.Builder builder,
         XContentParser parser,
@@ -414,9 +294,8 @@ public class JsonExtract extends EsqlScalarFunction {
         String originalPath,
         JsonPath.Segment.Index idx
     ) throws IOException, JsonExtractException {
-        XContentParser.Token token;
         int currentIndex = 0;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
             if (currentIndex == idx.index()) {
                 extractValue(builder, parser, segments, depth + 1, originalPath);
                 return;
@@ -427,22 +306,11 @@ public class JsonExtract extends EsqlScalarFunction {
         throw new JsonExtractException("array index out of bounds");
     }
 
-    /**
-     * Reads the value at the parser's current position and appends it to the builder.
-     * This is the "leaf" of the extraction — called when all path segments have been consumed.
-     * <p>
-     * Scalars (strings, numbers, booleans) are read directly. JSON {@code null} becomes
-     * ES|QL {@code null} (no warning). Objects and arrays are serialized to a compact JSON
-     * string via {@link XContentBuilder#copyCurrentStructure}, which handles all XContent
-     * encodings (JSON, SMILE, CBOR, YAML) and produces correct JSON output regardless of
-     * input format.
-     */
     private static void extractCurrentValue(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
 
         switch (token) {
-            case VALUE_STRING -> builder.appendBytesRef(new BytesRef(parser.text()));
-            case VALUE_NUMBER -> builder.appendBytesRef(new BytesRef(parser.text()));
+            case VALUE_STRING, VALUE_NUMBER -> builder.appendBytesRef(new BytesRef(parser.text()));
             case VALUE_BOOLEAN -> builder.appendBytesRef(new BytesRef(Boolean.toString(parser.booleanValue())));
             case VALUE_NULL -> builder.appendNull();
             case START_OBJECT, START_ARRAY -> {

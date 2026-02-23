@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.Executor;
-import java.util.stream.Collectors;
 
 /**
  * Resolver for external data sources (Iceberg tables, Parquet files, etc.).
@@ -178,8 +177,13 @@ public class ExternalSourceResolver {
         }
         var sources = String.join(", ", dataSourceModule.sourceFactories().keySet());
         throw new UnsupportedOperationException(
-            "No handler found for source at path [" + path + "]. " + "Please ensure the appropriate data source plugin is installed. " +
-                "Known handlers: [" + sources + "]."
+            "No handler found for source at path ["
+                + path
+                + "]. "
+                + "Please ensure the appropriate data source plugin is installed. "
+                + "Known handlers: ["
+                + sources
+                + "]."
         );
     }
 

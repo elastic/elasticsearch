@@ -12,6 +12,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 
 /**
@@ -35,6 +36,46 @@ import java.util.concurrent.ExecutorService;
  * since there are no corresponding setters.
  */
 public interface DataSourcePlugin {
+
+    /**
+     * URI schemes whose storage providers this plugin supplies (e.g. "s3", "gs", "http").
+     * Called once at registration time; must be cheap (no I/O, no heavy deps).
+     * Connector plugins should use {@link #supportedConnectorSchemes()} instead.
+     */
+    default Set<String> supportedSchemes() {
+        return Set.of();
+    }
+
+    /**
+     * URI schemes handled by this plugin's connectors (e.g. "flight", "grpc").
+     * Separate from {@link #supportedSchemes()} which is for storage providers.
+     */
+    default Set<String> supportedConnectorSchemes() {
+        return Set.of();
+    }
+
+    /**
+     * Format names this plugin provides (e.g. "csv", "parquet").
+     * Keys must match {@link #formatReaders(Settings)} keys.
+     */
+    default Set<String> supportedFormats() {
+        return Set.of();
+    }
+
+    /**
+     * File extensions this plugin's format readers handle (with leading dot, e.g. ".csv", ".parquet").
+     */
+    default Set<String> supportedExtensions() {
+        return Set.of();
+    }
+
+    /**
+     * Catalog types this plugin provides (e.g. "iceberg").
+     * Keys must match {@link #tableCatalogs(Settings)} keys.
+     */
+    default Set<String> supportedCatalogs() {
+        return Set.of();
+    }
 
     default Map<String, StorageProviderFactory> storageProviders(Settings settings) {
         return Map.of();

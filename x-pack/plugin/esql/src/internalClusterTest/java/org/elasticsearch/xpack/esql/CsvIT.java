@@ -359,7 +359,10 @@ public class CsvIT extends ESTestCase {
     }
 
     private static void loadInference(GetInferenceModelAction.Request request) {
-        inference.maybeLoad(request.getInferenceEntityId(), INFERENCE_CONFIGS.get(request.getInferenceEntityId()));
+        var inferenceId = request.getInferenceEntityId();
+        if (!Objects.equals(inferenceId, "*")) {
+            inference.maybeLoad(inferenceId, INFERENCE_CONFIGS.get(inferenceId));
+        }
     }
 
     private static void loadEnrichPolicy(EnrichPolicyResolver.LookupRequest request) {

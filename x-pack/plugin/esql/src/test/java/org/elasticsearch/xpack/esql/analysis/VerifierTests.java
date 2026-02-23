@@ -3818,6 +3818,21 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testTopSnippetsQueryMustBeFoldable() {
+        assertEquals(
+            "1:31: second argument of [TOP_SNIPPETS(first_name, last_name)] must be a constant, received [last_name]",
+            error("FROM test | EVAL x = TOP_SNIPPETS(first_name, last_name)")
+        );
+    }
+
+    public void testTopSnippetsQueryFoldableAfterOptimization() {
+        query("FROM test | EVAL x = TOP_SNIPPETS(first_name, \"search terms\")");
+    }
+
+    public void testTopSnippetsQueryFoldableConcatConstants() {
+        query("FROM test | EVAL x = TOP_SNIPPETS(first_name, CONCAT(\"search\", \" terms\"))");
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());

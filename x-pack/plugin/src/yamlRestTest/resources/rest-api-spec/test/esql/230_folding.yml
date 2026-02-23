@@ -730,3 +730,46 @@ Employee name in list:
   - match: { columns.2.name: "name" }
   - length: { values: 1 }
   - match: { values.0.2: "Alice Smith" }
+
+---
+TOP_SNIPPETS with foldable query:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ top_snippets ]
+      reason: "Uses TOP_SNIPPETS function"
+  - do:
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | EVAL x = TOP_SNIPPETS(name, CONCAT("search", " terms"))
+            | KEEP name, x
+            | LIMIT 1
+  - match: { columns.0.name: "name" }
+  - match: { columns.1.name: "x" }
+  - length: { values: 1 }
+
+---
+TOP_SNIPPETS with non-foldable query:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ top_snippets ]
+      reason: "Uses TOP_SNIPPETS function"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: |
+            FROM employees
+            | EVAL x = TOP_SNIPPETS(name, salary)
+            | LIMIT 1
+  - match: { error.type: "verification_exception" }
+  - contains: { error.reason: "second argument of [TOP_SNIPPETS(name, salary)] must be a constant, received [salary]" }

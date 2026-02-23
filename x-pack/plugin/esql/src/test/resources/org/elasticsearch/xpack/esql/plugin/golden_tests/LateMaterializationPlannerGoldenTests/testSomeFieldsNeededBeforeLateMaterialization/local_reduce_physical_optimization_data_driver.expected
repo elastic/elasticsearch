@@ -1,0 +1,17 @@
+ExchangeSinkExec[[emp_no{f}, hire_date{f}, salary{f}],false]
+\_ProjectExec[[_doc{f}, salary{f}, hire_date{f}]]
+  \_FieldExtractExec[salary{f}, hire_date{f}]<[],[]>
+    \_EsQueryExec[employees], indexMode[standard], [_doc{f}], limit[20], sort[[FieldSort[field=hire_date{f}, direction=ASC, nulls=LAST]]] estimatedRowSize[28] queryBuilderAndTags [[QueryBuilderAndTags[query={
+  "esql_single_value" : {
+    "field" : "salary",
+    "next" : {
+      "range" : {
+        "salary" : {
+          "gt" : 10000,
+          "boost" : 0.0
+        }
+      }
+    },
+    "source" : "salary > 10000@3:9"
+  }
+}, tags=[]]]]

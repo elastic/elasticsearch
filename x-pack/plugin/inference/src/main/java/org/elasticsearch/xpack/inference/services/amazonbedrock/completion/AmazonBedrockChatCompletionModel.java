@@ -96,7 +96,11 @@ public class AmazonBedrockChatCompletionModel extends AmazonBedrockModel {
         AmazonBedrockCompletionTaskSettings taskSettings,
         AwsSecretSettings secrets
     ) {
-        super(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public AmazonBedrockChatCompletionModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets);
     }
 
     public AmazonBedrockChatCompletionModel(Model model, TaskSettings taskSettings) {

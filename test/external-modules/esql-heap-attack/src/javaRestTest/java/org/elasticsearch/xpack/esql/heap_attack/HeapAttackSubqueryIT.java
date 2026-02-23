@@ -50,12 +50,19 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
      */
     public void testManyKeywordFieldsWith10UniqueValuesInSubqueryIntermediateResults() throws IOException {
         heapAttackIT.initManyBigFieldsIndex(500, "keyword", false);
-        ListMatcher columns = matchesList();
-        for (int f = 0; f < 1000; f++) {
-            columns = columns.item(matchesMap().entry("name", "f" + String.format(Locale.ROOT, "%03d", f)).entry("type", "keyword"));
-        }
         for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
-            Map<?, ?> response = buildSubqueries(subquery, "manybigfields", "");
+            ListMatcher columns = matchesList();
+            int fieldsToRead = subquery < MAX_SUBQUERIES ? 1000 : 600; // with 1000 fields we circuit break
+            StringBuilder query = new StringBuilder("manybigfields | KEEP ");
+            for (int f = 0; f < fieldsToRead; f++) {
+                String fieldName = "f" + String.format(Locale.ROOT, "%03d", f);
+                columns = columns.item(matchesMap().entry("name", fieldName).entry("type", "keyword"));
+                if (f != 0) {
+                    query.append(", ");
+                }
+                query.append('f').append(String.format(Locale.ROOT, "%03d", f));
+            }
+            Map<?, ?> response = buildSubqueries(subquery, query.toString(), "");
             assertMap(response, matchesMap().entry("columns", columns));
         }
     }
@@ -66,17 +73,9 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
      */
     public void testManyRandomKeywordFieldsInSubqueryIntermediateResults() throws IOException {
         // 500MB random/unique keyword values trigger CBE, should not OOM
-        if (isServerless()) { // both 100 and 500 docs OOM in serverless
-            return;
-        }
         int docs = 500;
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
-        // 2 subqueries are enough to trigger CBE, confirmed where this CBE happens in ExchangeService.doFetchPageAsync,
-        // as a few big pages are loaded into the exchange buffer
-        // TODO 8 subqueries OOM, because the memory consumed by lucene is not properly tracked in ValuesSourceReaderOperator yet.
-        // Lucene90DocValuesProducer are on the top of objects list, also BlockSourceReader.scratch is not tracked by circuit breaker yet,
-        // skip 8 subqueries for now
-        for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
             assertCircuitBreaks(attempt -> buildSubqueries(subquery, "manybigfields", ""));
         }
     }
@@ -92,8 +91,7 @@ public class HeapAttackSubqueryIT extends HeapAttackTestCase {
         }
         int docs = 500; // 500MB random/unique keyword values
         heapAttackIT.initManyBigFieldsIndex(docs, "keyword", true);
-        // TODO skip 8 subqueries, it OOMs in CI, the same reason as sort many fields
-        for (int subquery : List.of(DEFAULT_SUBQUERIES)) {
+        for (int subquery : List.of(DEFAULT_SUBQUERIES, MAX_SUBQUERIES)) {
             assertCircuitBreaks(attempt -> buildSubqueriesWithSort(subquery, "manybigfields", " f000 "));
         }
     }

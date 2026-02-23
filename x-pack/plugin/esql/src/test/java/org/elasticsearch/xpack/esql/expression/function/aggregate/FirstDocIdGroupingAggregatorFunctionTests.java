@@ -22,8 +22,8 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.hamcrest.Matchers;
@@ -49,23 +49,19 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
         for (int i = 0; i < numPages; i++) {
             int positions = between(1, 1000);
             try (
-                var shards = blockFactory().newIntVectorFixedBuilder(positions);
-                var segments = blockFactory().newIntVectorFixedBuilder(positions);
-                var docs = blockFactory().newIntVectorFixedBuilder(positions);
+                var docs = DocVector.newFixedBuilder(blockFactory(), positions);
                 var groups = blockFactory().newIntVectorFixedBuilder(positions)
             ) {
                 for (int p = 0; p < positions; p++) {
                     Doc doc = new Doc(between(0, 2), between(0, 5), randomNonNegativeInt());
                     shardRefs.putIfAbsent(doc.shard, AbstractRefCounted.of(() -> {}));
-                    shards.appendInt(doc.shard);
-                    segments.appendInt(doc.segment);
-                    docs.appendInt(doc.docId);
+                    docs.append(doc.shard, doc.segment, doc.docId);
                     int group = between(0, 1000);
                     groups.appendInt(group);
                     expectedFirstDocs.putIfAbsent(group, doc);
                 }
-                var refs = new FirstDocIdGroupingAggregatorFunction.MappedShardRefs<>(shardRefs);
-                DocVector docVector = new DocVector(refs, shards.build(), segments.build(), docs.build(), null);
+                DocVector docVector = docs.shardRefCounters(new FirstDocIdGroupingAggregatorFunction.MappedShardRefs<>(shardRefs))
+                    .build(DocVector.config());
                 pages.add(new Page(docVector.asBlock(), groups.build().asBlock()));
             }
         }
@@ -94,7 +90,7 @@ public class FirstDocIdGroupingAggregatorFunctionTests extends ComputeTestCase {
             List.of(hashAggregationOperator),
             new PageConsumerOperator(outputPages::add)
         );
-        OperatorTestCase.runDriver(driver);
+        new TestDriverRunner().run(driver);
         for (RefCounted value : shardRefs.values()) {
             value.decRef();
         }

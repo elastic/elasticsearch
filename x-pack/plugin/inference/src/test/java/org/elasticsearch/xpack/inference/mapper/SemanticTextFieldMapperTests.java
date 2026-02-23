@@ -245,6 +245,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         b.field(INFERENCE_ID_FIELD, DEFAULT_EIS_ELSER_INFERENCE_ID);
     }
 
+    protected void extendedMapping(XContentBuilder b, Map<String, Object> extensions) throws IOException {
+        minimalMapping(b);
+        b.mapContents(extensions);
+    }
+
     @Override
     protected Object getSampleValueForDocument() {
         return null;
@@ -2242,6 +2247,46 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         }), useLegacyFormat, IndexVersions.INFERENCE_METADATA_FIELDS_BACKPORT));
         var innerClause = e.getCause().getCause().getCause().getCause();
         assertThat(innerClause.getMessage(), containsString("[tokens_freq_ratio_threshold] must be between [1] and [100], got 1000.0"));
+    }
+
+    @Override
+    public void testSupportedIndexVersions() throws IOException {
+
+        // Add model settings via extendedSettings to trigger programmatic
+        // creation of SparseVectorFieldMapper and DenseVectorFieldMapper
+
+        Model sparseModel = TestModel.createRandomInstance(TaskType.SPARSE_EMBEDDING);
+        Map<String, Object> sparseExtensions = Map.of(
+            "inference_id",
+            sparseModel.getInferenceEntityId(),
+            "model_settings",
+            Map.of("task_type", TaskType.SPARSE_EMBEDDING.toString())
+        );
+
+        Model denseModel = TestModel.createRandomInstance(TaskType.TEXT_EMBEDDING);
+        Map<String, Object> denseExtensions = Map.of(
+            "inference_id",
+            denseModel.getInferenceEntityId(),
+            "model_settings",
+            Map.of(
+                "task_type",
+                TaskType.TEXT_EMBEDDING.toString(),
+                "dimensions",
+                denseModel.getServiceSettings().dimensions(),
+                "similarity",
+                denseModel.getServiceSettings().similarity(),
+                "element_type",
+                denseModel.getServiceSettings().elementType()
+            )
+        );
+
+        Set<IndexVersion> supportedVersions = getSupportedVersions();
+
+        for (int i = 0; i < Math.min(supportedVersions.size(), 100); i++) {
+            IndexVersion indexVersion = randomFrom(supportedVersions);
+            MapperService denseMapperService = createMapperService(indexVersion, fieldMapping(b -> extendedMapping(b, denseExtensions)));
+            MapperService sparseMapperService = createMapperService(indexVersion, fieldMapping(b -> extendedMapping(b, sparseExtensions)));
+        }
     }
 
     public static SemanticTextIndexOptions randomSemanticTextIndexOptions() {

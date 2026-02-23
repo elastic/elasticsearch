@@ -1094,10 +1094,8 @@ public class ActionModule extends AbstractModule {
         bind(RestController.class).toInstance(restController);
         bind(ActionFilters.class).toInstance(actionFilters);
         bind(DestructiveOperations.class).toInstance(destructiveOperations);
-        bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {
-        }).toInstance(mappingRequestValidators);
-        bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {
-        }).toInstance(indicesAliasesRequestRequestValidators);
+        bind(new TypeLiteral<RequestValidators<PutMappingRequest>>() {}).toInstance(mappingRequestValidators);
+        bind(new TypeLiteral<RequestValidators<IndicesAliasesRequest>>() {}).toInstance(indicesAliasesRequestRequestValidators);
         bind(AutoCreateIndex.class).toInstance(autoCreateIndex);
 
         // register ActionType -> transportAction Map used by NodeClient

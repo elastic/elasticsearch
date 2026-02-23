@@ -78,11 +78,6 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
     public void checkIntegrity() throws IOException {}
 
     @Override
-    public FieldsProducer getMergeInstance() {
-        return new TSDBSyntheticIdFieldsProducer(fieldInfos, docValuesProducer, maxDocs);
-    }
-
-    @Override
     public Terms terms(String field) throws IOException {
         assert FIELDS_NAMES.contains(field) : field;
         return new Terms() {
@@ -93,7 +88,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
             @Override
             public int getDocCount() {
-                return maxDocs - 1; // All docs have a synthetic id
+                return maxDocs; // All docs have a synthetic id
             }
 
             @Override
@@ -216,7 +211,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 tsIdOrd = -tsIdOrd - 1;
                 // set the terms enum on the first non-matching document
                 if (tsIdOrd < docValues.getTsIdValueCount()) {
-                    int firstDocID = docValues.findFirstDocWithTsIdOrdinalEqualOrGreaterThan(tsIdOrd);
+                    int firstDocID = (tsIdOrd == 0) ? 0 : docValues.findFirstDocWithTsIdOrdinalEqualOrGreaterThan(tsIdOrd);
                     assert firstDocID != DocIdSetIterator.NO_MORE_DOCS;
                     docID = firstDocID;
                     docTsIdOrd = tsIdOrd;
@@ -250,7 +245,7 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
                 return SeekStatus.NOT_FOUND;
             }
             if (skipper.minValue() > timestamp) {
-                // timestamp is smaller than the global maximum value in the segment, so no docs matching the _tsid will also match the
+                // timestamp is smaller than the global minimum value in the segment, so no docs matching the _tsid will also match the
                 // timestamp, so we can early exit at the position of the next _tsid (if there is such one).
                 int nextDocTsIdOrd = tsIdOrd + 1;
                 if (nextDocTsIdOrd < docValues.getTsIdValueCount()) {
@@ -474,7 +469,6 @@ public class TSDBSyntheticIdFieldsProducer extends FieldsProducer {
 
     private static UnsupportedOperationException unsupportedException() {
         var error = "This method should not be called on this enum";
-        assert false : error;
         return new UnsupportedOperationException(error);
     }
 }

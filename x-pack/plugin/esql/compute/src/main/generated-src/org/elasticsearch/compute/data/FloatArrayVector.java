@@ -88,7 +88,7 @@ final class FloatArrayVector extends AbstractVector implements FloatVector {
     }
 
     @Override
-    public FloatVector filter(int... positions) {
+    public FloatVector filter(boolean mayContainDuplicates, int... positions) {
         try (FloatVector.Builder builder = blockFactory().newFloatVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendFloat(values[pos]);

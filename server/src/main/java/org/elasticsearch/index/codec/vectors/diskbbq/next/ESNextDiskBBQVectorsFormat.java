@@ -74,7 +74,7 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     public static final int MAX_VECTORS_PER_CLUSTER = 1 << 16; // 65536
     public static final int DEFAULT_CENTROIDS_PER_PARENT_CLUSTER = 16;
     public static final int MIN_CENTROIDS_PER_PARENT_CLUSTER = 2;
-    public static final int MAX_CENTROIDS_PER_PARENT_CLUSTER = 1 << 8; // 256
+    public static final int MAX_CENTROIDS_PER_PARENT_CLUSTER = DEFAULT_VECTORS_PER_CLUSTER; // 384
     public static final int DEFAULT_PRECONDITIONING_BLOCK_DIMENSION = 32;
     public static final int MIN_PRECONDITIONING_BLOCK_DIMS = 8;
     public static final int MAX_PRECONDITIONING_BLOCK_DIMS = 384;
@@ -212,6 +212,15 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                 }
             }
             throw new IllegalArgumentException("Unknown QuantEncoding id: " + id);
+        }
+
+        public static QuantEncoding fromBits(byte bits) {
+            return switch (bits) {
+                case 1 -> ONE_BIT_4BIT_QUERY;
+                case 2 -> TWO_BIT_4BIT_QUERY;
+                case 4 -> FOUR_BIT_SYMMETRIC;
+                default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
+            };
         }
     }
 

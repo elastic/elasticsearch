@@ -9,6 +9,7 @@
 
 package org.elasticsearch.simdvec;
 
+import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
@@ -38,7 +39,21 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     }
 
     @Override
+    public Optional<RandomVectorScorerSupplier> getByteVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        ByteVectorValues values
+    ) {
+        throw new UnsupportedOperationException("should not reach here");
+    }
+
+    @Override
     public Optional<RandomVectorScorer> getFloatVectorScorer(VectorSimilarityFunction sim, FloatVectorValues values, float[] queryVector) {
+        throw new UnsupportedOperationException("should not reach here");
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getByteVectorScorer(VectorSimilarityFunction sim, ByteVectorValues values, byte[] queryVector) {
         throw new UnsupportedOperationException("should not reach here");
     }
 
@@ -57,6 +72,28 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
         VectorSimilarityFunction sim,
         QuantizedByteVectorValues values,
         float[] queryVector
+    ) {
+        throw new UnsupportedOperationException("should not reach here");
+    }
+
+    @Override
+    public Optional<RandomVectorScorerSupplier> getInt7uOSQVectorScorerSupplier(
+        VectorSimilarityType similarityType,
+        IndexInput input,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values
+    ) {
+        throw new UnsupportedOperationException("should not reach here");
+    }
+
+    @Override
+    public Optional<RandomVectorScorer> getInt7uOSQVectorScorer(
+        VectorSimilarityFunction sim,
+        org.apache.lucene.codecs.lucene104.QuantizedByteVectorValues values,
+        byte[] quantizedQuery,
+        float lowerInterval,
+        float upperInterval,
+        float additionalCorrection,
+        int quantizedComponentSum
     ) {
         throw new UnsupportedOperationException("should not reach here");
     }

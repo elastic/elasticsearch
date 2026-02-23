@@ -130,8 +130,4 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
             assertThat(getResponse.isExists(), is(true));
         }
     }
-
-    private void createSourceIndex(String index) {
-        indicesAdmin().create(new CreateIndexRequest(index)).actionGet();
-    }
 }

@@ -19,7 +19,7 @@ FROM <source_index>
 **Parameters**
 
 `<lookup_index>`
-:   The name of the lookup index. This must be a specific index name or alias. Wildcards and remote cluster references are not supported. Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
+:   The name of the lookup index. This must be a specific index name or alias. Wildcards and remote cluster prefixes are not supported. If the query source includes remote indices, the lookup index must exist on all involved clusters. Indices used for lookups must be configured with the [`lookup` index mode](/reference/elasticsearch/index-settings/index-modules.md#index-mode-setting).
 
 `<join_condition>`
 :   Can be one of the following:

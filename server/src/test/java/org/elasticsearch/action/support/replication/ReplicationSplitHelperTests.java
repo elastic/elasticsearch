@@ -57,17 +57,17 @@ import static org.mockito.Mockito.when;
 
 public class ReplicationSplitHelperTests extends ESTestCase {
 
-    public void testNeedsSplitCoordinationWithUnsetSummary() {
+    public void testNeedsSplitCoordinationWithUnsetSummary() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
         indexMetadata = IndexMetadata.builder(indexMetadata).reshardAddShards(2).build();
 
         TestReplicationRequest request = new TestReplicationRequest(new ShardId(indexName, "test-uuid", 0));
-        assertFalse(ReplicationSplitHelper.needsSplitCoordination(request, indexMetadata));
+        assertFalse(ReplicationSplitHelper.needsSplitCoordination(logger, request, indexMetadata));
     }
 
-    public void testNeedsSplitCoordinationWithMatchingSummary() {
+    public void testNeedsSplitCoordinationWithMatchingSummary() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
@@ -81,10 +81,10 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         TestReplicationRequest request = new TestReplicationRequest(new ShardId(indexName, "test-uuid", 0), currentSummary);
 
         // Should return false because the split summary matches
-        assertFalse(ReplicationSplitHelper.needsSplitCoordination(request, indexMetadata));
+        assertFalse(ReplicationSplitHelper.needsSplitCoordination(logger, request, indexMetadata));
     }
 
-    public void testNeedsSplitCoordinationWithMismatchedSummary() {
+    public void testNeedsSplitCoordinationWithMismatchedSummary() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         var settings = indexSettings(IndexVersionUtils.randomCompatibleVersion(), 1, 0).build();
         IndexMetadata indexMetadata = IndexMetadata.builder(indexName).settings(settings).build();
@@ -108,7 +108,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         TestReplicationRequest request = new TestReplicationRequest(new ShardId(indexName, "test-uuid", 0), staleSummary);
 
         // Should return true because the split summary does not match
-        assertTrue(ReplicationSplitHelper.needsSplitCoordination(request, indexMetadata));
+        assertTrue(ReplicationSplitHelper.needsSplitCoordination(logger, request, indexMetadata));
     }
 
     @SuppressWarnings("unchecked")
@@ -129,7 +129,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
 
         TestTransportReplicationAction action = new TestTransportReplicationAction(clusterService) {
             @Override
-            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request) {
+            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request, ProjectMetadata project) {
                 // All documents go to the source shard (current primary)
                 return Map.of(request.shardId(), request);
             }
@@ -212,7 +212,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         // Create a test action that returns only the target shard
         TestTransportReplicationAction action = new TestTransportReplicationAction(clusterService) {
             @Override
-            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request) {
+            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request, ProjectMetadata project) {
                 // All documents go to the target shard
                 return Map.of(targetShardId, request);
             }
@@ -327,7 +327,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
         final TestReplicationRequest targetShardRequest = new TestReplicationRequest(targetShardId);
         TestTransportReplicationAction action = new TestTransportReplicationAction(clusterService) {
             @Override
-            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request) {
+            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request, ProjectMetadata project) {
                 return Map.of(sourceShardId, sourceShardRequest, targetShardId, targetShardRequest);
             }
 
@@ -460,7 +460,7 @@ public class ReplicationSplitHelperTests extends ESTestCase {
 
         TestTransportReplicationAction action = new TestTransportReplicationAction(clusterService) {
             @Override
-            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request) {
+            protected Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request, ProjectMetadata project) {
                 return Map.of(
                     sourceShardId,
                     new TestReplicationRequest(sourceShardId),
@@ -608,7 +608,10 @@ public class ReplicationSplitHelperTests extends ESTestCase {
             );
         }
 
-        protected abstract Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(TestReplicationRequest request);
+        protected abstract Map<ShardId, TestReplicationRequest> splitRequestOnPrimary(
+            TestReplicationRequest request,
+            ProjectMetadata project
+        );
 
         @Override
         protected Tuple<TestResponse, Exception> combineSplitResponses(

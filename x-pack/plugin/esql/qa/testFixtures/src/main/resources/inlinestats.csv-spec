@@ -5313,3 +5313,164 @@ c:long	| n:null	| emp_no:integer
 1     	| null  	| 10002         
 1     	| null  	| 10003          
 ;
+
+
+inlineStatsDroppingGroupingField
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| KEEP languages, salary
+| INLINE STATS avg_sal = ROUND(AVG(salary)) BY languages
+| DROP languages
+| SORT salary
+| LIMIT 10
+;
+
+    salary:i   |      avg_sal:d
+25324          |41681.0        
+25945          |41681.0        
+25976          |50577.0        
+26436          |52419.0        
+27215          |47733.0        
+28035          |50577.0        
+28336          |52520.0        
+28941          |52419.0        
+29175          |48179.0        
+30404          |52419.0        
+;
+
+inlineStatsDroppingMultipleCommandsGroupingFields
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| KEEP languages, salary, gender, emp_no, *rehired
+| INLINE STATS avg_sal_by_gender = ROUND(AVG(salary)) BY gender
+| INLINE STATS avg_sal_by_languages = ROUND(AVG(avg_sal_by_gender)) BY languages
+| DROP languages, gender
+| EVAL languages = emp_no
+| INLINE STATS avg_sal_by_emp_no = ROUND(AVG(salary)) BY no = emp_no % 10, rehired = MV_MIN(is_rehired)
+| RENAME no AS NO
+| DROP NO, languages
+| SORT salary
+| LIMIT 10
+;
+
+    salary:i   | emp_no:i      | is_rehired:boolean        | avg_sal_by_gender:d | avg_sal_by_languages:d | avg_sal_by_emp_no:d | rehired:boolean
+25324          |10015          |[false, false, false, true]|48761.0              |48779.0                 |46801.0              |false          
+25945          |10035          |false                      |46861.0              |48779.0                 |46801.0              |false          
+25976          |10092          |[false, false, true, true] |50491.0              |48082.0                 |51831.0              |false          
+26436          |10048          |[true, true]               |46861.0              |48142.0                 |41230.0              |true           
+27215          |10057          |null                       |50491.0              |48177.0                 |36905.0              |null           
+28035          |10084          |false                      |46861.0              |48082.0                 |45508.0              |false          
+28336          |10026          |[false, true]              |46861.0              |47950.0                 |51094.0              |false          
+28941          |10068          |true                       |46861.0              |48142.0                 |41230.0              |true           
+29175          |10060          |[false, false, false, true]|46861.0              |48116.0                 |47571.0              |false          
+30404          |10042          |null                       |50491.0              |48142.0                 |30404.0              |null           
+;
+
+inlineStatsGroupingByMVField
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| KEEP salary_change, salary
+| INLINE STATS avg_salary_change = MV_AVG(salary_change), avg = AVG(salary) BY salary_change
+| KEEP avg_salary_change
+| SORT avg_salary_change
+| LIMIT 3
+;
+
+avg_salary_change:d
+[-9.81, -1.47, 14.44]       
+[-9.28, 9.42]               
+[-9.23, 5.19, 5.85, 7.5]
+;
+
+chainedInlineStats_BothGroupingByMVField
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| KEEP salary_change, salary
+| INLINE STATS avg_salary_change = MV_AVG(salary_change), avg = AVG(salary) BY salary_change
+| INLINE STATS sum_avg_salary_change = ROUND(SUM(avg_salary_change), 1), avg = AVG(salary) BY salary_change
+| KEEP sum_avg_salary_change
+| SORT sum_avg_salary_change DESC NULLS LAST
+| LIMIT 3
+;
+
+sum_avg_salary_change:d        
+[27.5, 27.5]         
+[26.8, 26.8, 26.8]   
+[26.7, 26.7]              
+;
+
+chainedInlineStats_OneGroupingByMVField
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| KEEP salary_change, salary
+| INLINE STATS avg_salary_change = MV_AVG(salary_change), avg = AVG(salary) BY salary_change
+| INLINE STATS sum_avg_salary_change = SUM(avg_salary_change), avg = AVG(salary)
+| KEEP sum_avg_salary_change
+| LIMIT 3
+;
+
+sum_avg_salary_change:d        
+347.99         
+347.99         
+347.99              
+;
+
+inlineStatsGroupByNull_PruneDifferentInlineStats
+required_capability: inline_stats_drop_groupings_fix
+required_capability: fix_inline_stats_group_by_null
+
+FROM employees
+| INLINE STATS x = AVG(salary), a = COUNT_DISTINCT(languages) BY emp_no = null
+| INLINE STATS y = AVG(salary), b = COUNT_DISTINCT(languages) BY emp_no = null
+| EVAL x = emp_no
+| INLINE STATS z = AVG(salary), c = COUNT_DISTINCT(languages), d = AVG(languages) BY last_name
+| KEEP x, a, emp_no
+| LIMIT 1
+;
+
+    x:null     |       a:l     |    emp_no:null
+null           |5              |null           
+;
+
+doubleInlineStatsPrunning_MVFunctionsAndDroppingGroupings
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| KEEP languages, salary
+| INLINE STATS languages1 = MV_AVG(languages), avg1 = ROUND(AVG(salary), languages) BY languages
+| INLINE STATS languages2 = SUM(languages1), avg2 = ROUND(AVG(salary), languages) BY languages
+| DROP languages
+| SORT salary
+| LIMIT 7
+;
+
+    salary:i   |  languages1:d |      avg1:d   |  languages2:d |      avg2:d
+25324          |5.0            |41680.7619     |105.0          |41680.7619     
+25945          |5.0            |41680.7619     |105.0          |41680.7619     
+25976          |1.0            |50576.7        |15.0           |50576.7        
+26436          |3.0            |52418.882      |51.0           |52418.882      
+27215          |4.0            |47733.0        |72.0           |47733.0        
+28035          |1.0            |50576.7        |15.0           |50576.7        
+28336          |null           |null           |null           |null
+;
+
+removeGroupingByKeepingWhereFalse
+required_capability: inline_stats_drop_groupings_fix
+
+FROM employees
+| INLINE STATS x = MAX(salary) WHERE false, c = COUNT(*) BY emp_no
+| KEEP x, c
+| SORT x, c
+| LIMIT 3
+;
+
+x:integer | c:long
+null      | 1
+null      | 1
+null      | 1
+;

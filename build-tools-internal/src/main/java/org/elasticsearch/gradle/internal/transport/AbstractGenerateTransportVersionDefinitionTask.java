@@ -159,7 +159,7 @@ public abstract class AbstractGenerateTransportVersionDefinitionTask extends Def
             resetValue = idsForUpperBound.get(idsForUpperBound.size() - 2);
         }
         var resetUpperBound = new TransportVersionUpperBound(upperBound.name(), resetValue.definition().name(), resetValue.id());
-        resources.writeUpperBound(resetUpperBound, false);
+        resources.writeUpperBound(resetUpperBound);
     }
 
     private TransportVersionId maybeGetExistingId(

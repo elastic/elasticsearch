@@ -74,6 +74,13 @@ public class VectorIT extends ESIntegTestCase {
     }
 
     public void testFilteredQueryStrategy() {
+        // Disable early termination to isolate the filter heuristic behavior
+        client().admin()
+            .indices()
+            .prepareUpdateSettings(INDEX_NAME)
+            .setSettings(Settings.builder().put(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION.getKey(), false))
+            .get();
+
         float[] vector = new float[16];
         randomVector(vector, 25);
         int upperLimit = 35;

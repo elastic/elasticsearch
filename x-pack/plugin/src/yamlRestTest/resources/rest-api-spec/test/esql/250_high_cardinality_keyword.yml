@@ -46,3 +46,36 @@ setup:
   - match: {columns.0.type: "double"}
   - length: {values.0: 1}
   - match: {values.0.0: 4.5}
+
+---
+"Test mv_min":
+  - requires:
+      cluster_features: ["mapper.keyword.mv_min_function_fuse_to_load"]
+      reason: "testing mv_min fuse to load"
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          keyword: [ "abcdef", "ab", "abcdefg" ]
+  - do:
+      indices.refresh: {}
+
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _id | EVAL k = mv_min(keyword) | SORT k | KEEP _id, k | LIMIT 10'
+
+  - length: {columns: 2}
+  - match: {columns.0.name: "_id"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "k"}
+  - match: {columns.1.type: "keyword"}
+  - length: {values: 3}
+  - match: {values.0.0: "3"}
+  - match: {values.0.1: "ab"}
+  - match: {values.1.0: "1"}
+  - match: {values.1.1: "abc"}
+  - match: {values.2.0: "2"}
+  - match: {values.2.1: "abcdef"}

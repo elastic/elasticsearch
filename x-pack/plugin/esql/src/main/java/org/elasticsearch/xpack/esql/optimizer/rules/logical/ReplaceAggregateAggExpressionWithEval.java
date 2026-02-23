@@ -172,6 +172,6 @@ public class ReplaceAggregateAggExpressionWithEval extends OptimizerRules.Optimi
     }
 
     private static String syntheticName(Expression expression, Expression af, int counter) {
-        return TemporaryNameUtils.temporaryName(expression, af, counter);
+        return TemporaryNameGenerator.temporaryName(expression, af, counter);
     }
 }

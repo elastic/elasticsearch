@@ -22,34 +22,56 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * Class that collects all raw values for an exponential histogram metric field and computes its aggregate (downsampled)
+ * Class that collects all raw values for a (tdigest) histogram metric field and computes its aggregate (downsampled)
  * values.
  */
 abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProducer<HistogramValues> {
 
-    static final String TYPE = "histogram";
-    public static final int COMPRESSION = 100;
+    static final double DEFAULT_COMPRESSION = 100;
+    // MergingDigest is the best fit because we have pre-constructed histograms
+    static final TDigestState.Type DEFAULT_TYPE = TDigestState.Type.MERGING;
+    static final String VALUES_FIELD = "values";
+    static final String CENTROIDS_FIELD = "centroids";
+    protected final String valueLabel;
 
-    TDigestHistogramFieldProducer(String name) {
+    TDigestHistogramFieldProducer(String name, String valueLabel) {
         super(name);
+        this.valueLabel = valueLabel;
     }
 
     /**
-     * @return the requested produces based on the sampling method for metric of type exponential histogram
+     * @return the requested produces based on the sampling method for metric of type legacy histogram
      */
-    public static TDigestHistogramFieldProducer create(String name, DownsampleConfig.SamplingMethod samplingMethod) {
+    public static TDigestHistogramFieldProducer createForLegacyHistogram(String name, DownsampleConfig.SamplingMethod samplingMethod) {
         return switch (samplingMethod) {
-            case AGGREGATE -> new Aggregate(name);
-            case LAST_VALUE -> new LastValue(name);
+            case AGGREGATE -> new Aggregate(name, VALUES_FIELD);
+            case LAST_VALUE -> new LastValue(name, VALUES_FIELD);
+        };
+    }
+
+    /**
+     * @return the requested produces based on the sampling method for metric of type tdigest histogram
+     */
+    public static TDigestHistogramFieldProducer createForTDigest(String name, DownsampleConfig.SamplingMethod samplingMethod) {
+        return switch (samplingMethod) {
+            case AGGREGATE -> new Aggregate(name, CENTROIDS_FIELD);
+            case LAST_VALUE -> new LastValue(name, CENTROIDS_FIELD);
         };
     }
 
     private static class Aggregate extends TDigestHistogramFieldProducer {
-
+        private final TDigestState.Type type;
+        private final double compression;
         private TDigestState tDigestState = null;
 
-        Aggregate(String name) {
-            super(name);
+        Aggregate(String name, String valueLabel) {
+            this(name, valueLabel, DEFAULT_TYPE, DEFAULT_COMPRESSION);
+        }
+
+        Aggregate(String name, String valueLabel, TDigestState.Type type, double compression) {
+            super(name, valueLabel);
+            this.type = type;
+            this.compression = compression;
         }
 
         public void collect(HistogramValues docValues, IntArrayList docIdBuffer) throws IOException {
@@ -61,12 +83,7 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
                 isEmpty = false;
                 if (tDigestState == null) {
                     // TODO: figure out what circuit breaker to use here and in the other histogram
-                    // MergingDigest is the best fit because we have pre-constructed histograms
-                    tDigestState = TDigestState.createOfType(
-                        new NoopCircuitBreaker("downsampling-histograms"),
-                        TDigestState.Type.MERGING,
-                        COMPRESSION
-                    );
+                    tDigestState = TDigestState.createOfType(new NoopCircuitBreaker("downsampling-histograms"), type, compression);
                 }
                 final HistogramValue sketch = docValues.histogram();
                 while (sketch.next()) {
@@ -92,7 +109,7 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
                     values.add(centroid.mean());
                     counts.add(centroid.count());
                 }
-                builder.startObject(name()).field("counts", counts).field("values", values).endObject();
+                builder.startObject(name()).field("counts", counts).field(valueLabel, values).endObject();
                 tDigestState.close();
             }
         }
@@ -102,8 +119,8 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
 
         private HistogramValue lastValue = null;
 
-        LastValue(String name) {
-            super(name);
+        LastValue(String name, String valueLabel) {
+            super(name, valueLabel);
         }
 
         public void collect(HistogramValues docValues, IntArrayList docIdBuffer) throws IOException {
@@ -137,7 +154,7 @@ abstract class TDigestHistogramFieldProducer extends AbstractDownsampleFieldProd
                     values.add(histogramValue.value());
                     counts.add(histogramValue.count());
                 }
-                builder.startObject(name()).field("counts", counts).field("values", values).endObject();
+                builder.startObject(name()).field("counts", counts).field(valueLabel, values).endObject();
             }
         }
     }

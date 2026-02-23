@@ -70,6 +70,17 @@ public abstract class SerializationTestCase extends ESTestCase {
         }
     }
 
+    Page serializeDeserializePageWithVersion(Page origPage, TransportVersion version) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            origPage.writeTo(out);
+            try (BlockStreamInput in = blockStreamInput(out)) {
+                in.setTransportVersion(version);
+                return new Page(in);
+            }
+        }
+    }
+
     <T extends Block> T uncheckedSerializeDeserializeBlock(T origBlock) {
         try {
             return serializeDeserializeBlock(origBlock);

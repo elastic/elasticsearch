@@ -43,4 +43,9 @@ public class ForceDocAtATime implements BlockLoader.AllReader {
     public boolean canReuse(int startingDocID) {
         return delegate.canReuse(startingDocID);
     }
+
+    @Override
+    public void close() {
+        delegate.close();
+    }
 }

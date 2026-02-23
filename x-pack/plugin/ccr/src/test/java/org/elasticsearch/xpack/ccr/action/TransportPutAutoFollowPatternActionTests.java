@@ -10,7 +10,9 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
@@ -31,6 +33,8 @@ import static org.hamcrest.Matchers.notNullValue;
 public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
 
     public void testInnerPut() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setName("name1");
         request.setRemoteCluster("eu_cluster");
@@ -47,7 +51,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster")).metadata(Metadata.builder()).build();
 
         ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
-        AutoFollowMetadata autoFollowMetadata = result.metadata().getProject().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = result.metadata().getProject(projectId).custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getRemoteCluster(), equalTo("eu_cluster"));
@@ -73,6 +77,8 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
     }
 
     public void testInnerPut_existingLeaderIndices() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setName("name1");
         request.setRemoteCluster("eu_cluster");
@@ -107,7 +113,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster")).metadata(mdBuilder).build();
 
         ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
-        AutoFollowMetadata autoFollowMetadata = result.metadata().getProject().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = result.metadata().getProject(projectId).custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getRemoteCluster(), equalTo("eu_cluster"));
@@ -129,6 +135,8 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
     }
 
     public void testInnerPut_existingLeaderIndicesAndAutoFollowMetadata() {
+        @FixForMultiProject(description = "ccr is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
         PutAutoFollowPatternAction.Request request = new PutAutoFollowPatternAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         request.setName("name1");
         request.setRemoteCluster("eu_cluster");
@@ -196,7 +204,7 @@ public class TransportPutAutoFollowPatternActionTests extends ESTestCase {
         ClusterState remoteState = ClusterState.builder(new ClusterName("eu_cluster")).metadata(mdBuilder).build();
 
         ClusterState result = TransportPutAutoFollowPatternAction.innerPut(request, null, localState, remoteState);
-        AutoFollowMetadata autoFollowMetadata = result.metadata().getProject().custom(AutoFollowMetadata.TYPE);
+        AutoFollowMetadata autoFollowMetadata = result.metadata().getProject(projectId).custom(AutoFollowMetadata.TYPE);
         assertThat(autoFollowMetadata, notNullValue());
         assertThat(autoFollowMetadata.getPatterns().size(), equalTo(1));
         assertThat(autoFollowMetadata.getPatterns().get("name1").getRemoteCluster(), equalTo("eu_cluster"));

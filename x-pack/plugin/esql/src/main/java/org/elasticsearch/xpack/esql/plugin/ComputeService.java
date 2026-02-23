@@ -838,7 +838,7 @@ public class ComputeService {
             planTimeProfile.addReductionPlanNanos(System.nanoTime() - startTime);
         }
         reductionPlan = new ReductionPlan(
-            reductionPlan.nodeReducePlan().replaceChildAndUpdateOutput(reductionPlan.nodeReducePlan().child()),
+            reductionPlan.nodeReducePlan(),
             reductionPlan.dataNodePlan().replaceChildAndUpdateOutput(reductionPlan.dataNodePlan().child()),
             reductionPlan.localPhysicalOptimization()
         );

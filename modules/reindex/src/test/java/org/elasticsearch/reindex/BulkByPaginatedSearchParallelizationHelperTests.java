@@ -16,13 +16,13 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -99,16 +99,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         Client client = null;
         DiscoveryNode node = DiscoveryNodeUtils.builder("node").roles(emptySet()).build();
 
-        executeSlicedAction(
-            task,
-            request,
-            ReindexAction.INSTANCE,
-            listener,
-            client,
-            node,
-            version,
-            capturedVersion::set
-        );
+        executeSlicedAction(task, request, ReindexAction.INSTANCE, listener, client, node, version, capturedVersion::set);
 
         assertThat(capturedVersion.get(), sameInstance(version));
     }
@@ -126,16 +117,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         Client client = null;
         DiscoveryNode node = DiscoveryNodeUtils.builder("node").roles(emptySet()).build();
 
-        executeSlicedAction(
-            task,
-            request,
-            ReindexAction.INSTANCE,
-            listener,
-            client,
-            node,
-            null,
-            capturedVersion::set
-        );
+        executeSlicedAction(task, request, ReindexAction.INSTANCE, listener, client, node, null, capturedVersion::set);
 
         assertThat(capturedVersion.get(), nullValue());
     }
@@ -154,16 +136,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
 
         AssertionError e = expectThrows(
             AssertionError.class,
-            () -> executeSlicedAction(
-                task,
-                request,
-                ReindexAction.INSTANCE,
-                listener,
-                client,
-                node,
-                null,
-                v -> {}
-            )
+            () -> executeSlicedAction(task, request, ReindexAction.INSTANCE, listener, client, node, null, v -> {})
         );
         assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("initialized"));
     }

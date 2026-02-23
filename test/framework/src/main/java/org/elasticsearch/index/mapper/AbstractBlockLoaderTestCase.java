@@ -29,25 +29,21 @@ import static org.hamcrest.Matchers.equalTo;
  * Testing helper for implementation of {@link BlockLoader}.
  */
 public abstract class AbstractBlockLoaderTestCase extends ESTestCase {
-    @ParametersFactory(argumentFormatting = "blockAtATime=%s, multiValues=%s, missingValues=%s")
+    @ParametersFactory(argumentFormatting = "multiValues=%s, missingValues=%s")
     public static List<Object[]> parameters() throws IOException {
         List<Object[]> parameters = new ArrayList<>();
-        for (boolean blockAtATime : new boolean[] { true, false }) {
-            for (boolean multiValues : new boolean[] { true, false }) {
-                for (boolean missingValues : new boolean[] { true, false }) {
-                    parameters.add(new Object[] { blockAtATime, multiValues, missingValues });
-                }
+        for (boolean multiValues : new boolean[] { true, false }) {
+            for (boolean missingValues : new boolean[] { true, false }) {
+                parameters.add(new Object[] { multiValues, missingValues });
             }
         }
         return parameters;
     }
 
-    protected final boolean blockAtATime;
     protected final boolean multiValues;
     protected final boolean missingValues;
 
-    public AbstractBlockLoaderTestCase(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        this.blockAtATime = blockAtATime;
+    public AbstractBlockLoaderTestCase(boolean multiValues, boolean missingValues) {
         this.multiValues = multiValues;
         this.missingValues = missingValues;
     }

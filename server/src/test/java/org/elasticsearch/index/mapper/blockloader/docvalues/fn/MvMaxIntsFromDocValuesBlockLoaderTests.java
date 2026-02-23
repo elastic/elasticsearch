@@ -25,8 +25,8 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MvMaxIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocValuesBlockLoaderTests {
-    public MvMaxIntsFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        super(blockAtATime, multiValues, missingValues);
+    public MvMaxIntsFromDocValuesBlockLoaderTests(boolean multiValues, boolean missingValues) {
+        super(multiValues, missingValues);
     }
 
     @Override
@@ -37,10 +37,7 @@ public class MvMaxIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocV
 
         try (var intsReader = intsLoader.reader(breaker, ctx); var mvMaxIntsReader = mvMaxIntsLoader.reader(breaker, ctx);) {
             assertThat(mvMaxIntsReader, readerMatcher());
-            try (
-                TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-                TestBlock minInts = read(mvMaxIntsLoader, mvMaxIntsReader, ctx, docs);
-            ) {
+            try (TestBlock ints = read(intsReader, docs); TestBlock minInts = read(mvMaxIntsReader, docs);) {
                 checkBlocks(ints, minInts);
             }
         }
@@ -52,10 +49,7 @@ public class MvMaxIntsFromDocValuesBlockLoaderTests extends AbstractIntsFromDocV
                     docsArray[d] = i + d;
                 }
                 docs = TestBlock.docs(docsArray);
-                try (
-                    TestBlock ints = read(intsLoader, intsReader, ctx, docs);
-                    TestBlock maxInts = read(mvMaxIntsLoader, mvMaxIntsReader, ctx, docs);
-                ) {
+                try (TestBlock ints = read(intsReader, docs); TestBlock maxInts = read(mvMaxIntsReader, docs);) {
                     checkBlocks(ints, maxInts);
                 }
             }

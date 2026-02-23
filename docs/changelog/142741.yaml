@@ -1,0 +1,6 @@
+pr: 142741
+summary: "Fix ESQL overflowing division error message for doubles"
+area: ES|QL
+type: bug
+issues:
+  - 138798

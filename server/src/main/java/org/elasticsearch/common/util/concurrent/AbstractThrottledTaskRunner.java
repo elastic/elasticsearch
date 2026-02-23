@@ -36,6 +36,7 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     // doesn't necessarily correspond to currently running tasks, since a pollAndSpawn could return without
     // actually running a task when the queue is empty.
     private final AtomicInteger runningTasks = new AtomicInteger();
+    private final AtomicBoolean eagerRunnerActive = new AtomicBoolean();
     private final Queue<T> tasks;
     private final Executor executor;
 
@@ -164,8 +165,14 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
     /**
      * Run a single task on the given executor which eagerly pulls tasks from the queue and executes them. This must only be used if the
      * tasks in the queue are all synchronous, i.e. they release their ref before returning from {@code onResponse()}.
+     *
+     * <p>At most one eager runner is active at a time. If an eager runner is already draining the queue, subsequent calls are no-ops.
+     * {@link #enqueueTask} must be called before this method so that newly enqueued tasks are picked up by any active eager runner.
      */
     public void runSyncTasksEagerly(Executor executor) {
+        if (eagerRunnerActive.compareAndSet(false, true) == false) {
+            return;
+        }
         executor.execute(new AbstractRunnable() {
             @Override
             protected void doRun() {
@@ -203,11 +210,17 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
 
             @Override
             public void onRejection(Exception e) {
+                eagerRunnerActive.set(false);
                 if (e instanceof EsRejectedExecutionException) {
                     logger.debug("runSyncTasksEagerly was rejected", e);
                 } else {
                     onFailure(e);
                 }
+            }
+
+            @Override
+            public void onAfter() {
+                eagerRunnerActive.set(false);
             }
         });
     }

@@ -184,8 +184,15 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         final var capturedTask = new AtomicReference<Runnable>();
         taskRunner.runSyncTasksEagerly(t -> assertTrue(capturedTask.compareAndSet(null, t)));
         assertEquals(taskCount - maxTasks, queue.size()); // hasn't run any tasks yet
+        // Should not run eagerly again since one is already running
+        final var eagerlyRunAgain = new CountDownLatch(1);
+        taskRunner.runSyncTasksEagerly(t -> eagerlyRunAgain.countDown());
         capturedTask.get().run();
         assertTrue(queue.isEmpty());
+        assertThat(eagerlyRunAgain.getCount(), equalTo(1L));
+        // Eagerly run works again since the previous one completed
+        taskRunner.runSyncTasksEagerly(t -> eagerlyRunAgain.countDown());
+        assertThat(eagerlyRunAgain.getCount(), equalTo(0L));
 
         safeAwait(barrier);
         safeAwait(executedCountDown);

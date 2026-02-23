@@ -1564,7 +1564,18 @@ public class S3BlobContainerRetriesTests extends AbstractBlobContainerRetriesTes
     }
 
     private Map<String, Object> metricAttributes(String action) {
-        return Map.of("repo_type", "s3", "repo_name", "repository", "operation", "GetObject", "purpose", "Indices", "action", action);
+        return Map.of(
+            "es_repo_type",
+            "s3",
+            "es_repo_name",
+            "repository",
+            "es_retry_operation",
+            "GetObject",
+            "es_operation_purpose",
+            "Indices",
+            "es_retry_action",
+            action
+        );
     }
 
     private static boolean isMultiDeleteRequest(HttpExchange exchange) {

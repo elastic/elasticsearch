@@ -419,7 +419,7 @@ public class RetryingInputStreamTests extends ESTestCase {
                 repositoryName,
                 "es_retry_operation",
                 "GET_BLOB",
-                "es_retry_purpose",
+                "es_operation_purpose",
                 purpose.getKey(),
                 "es_retry_action",
                 action.getPastTense()

@@ -135,7 +135,7 @@ class S3RetryingInputStream extends RetryingInputStream<String> {
                 blobStore.getRepositoryMetadata().name(),
                 "es_retry_operation",
                 Operation.GET_OBJECT.getKey(),
-                "es_retry_purpose",
+                "es_operation_purpose",
                 purpose.getKey(),
                 "es_retry_action",
                 action.getPastTense()

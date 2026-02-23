@@ -49,7 +49,7 @@ public abstract class RetryingInputStream<V> extends InputStream {
         "es_repo_type",
         "es_repo_name",
         "es_retry_operation",
-        "es_retry_purpose",
+        "es_operation_purpose",
         "es_retry_action"
     );
 

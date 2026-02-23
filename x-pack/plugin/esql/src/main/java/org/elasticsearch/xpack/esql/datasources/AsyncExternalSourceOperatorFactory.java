@@ -209,22 +209,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     }
 
     private void drainPages(CloseableIterator<Page> pages, AsyncExternalSourceBuffer buffer) {
-        while (pages.hasNext() && buffer.noMoreInputs() == false) {
-            var spaceListener = buffer.waitForSpace();
-            if (spaceListener.isDone() == false) {
-                while (spaceListener.isDone() == false && buffer.noMoreInputs() == false) {
-                    Thread.onSpinWait();
-                }
-            }
-
-            if (buffer.noMoreInputs()) {
-                break;
-            }
-
-            Page page = pages.next();
-            page.allowPassingToDifferentDriver();
-            buffer.addPage(page);
-        }
+        ExternalSourceDrainUtils.drainPages(pages, buffer);
     }
 
     /**

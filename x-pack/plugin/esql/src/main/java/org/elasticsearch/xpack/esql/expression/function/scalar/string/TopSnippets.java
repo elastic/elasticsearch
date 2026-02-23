@@ -295,7 +295,6 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument 
         emitChunks(builder, snippets);
     }
 
-
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         int numSnippets;

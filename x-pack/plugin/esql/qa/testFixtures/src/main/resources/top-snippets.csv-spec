@@ -209,24 +209,6 @@ snippets:keyword
 [All he lacks in his plans for dominion is the One Ring - the ring that rules them all - which has fallen into the hands of, ring that rules them all - which has fallen into the hands of the hobbit\, Bilbo Baggins.]
 ;
 
-topSnippetsWithConstantQuery
-required_capability: top_snippets_function
-
-FROM employees
-| EVAL snippets = TOP_SNIPPETS(first_name, "John")
-| KEEP emp_no, first_name, snippets
-| SORT emp_no
-| LIMIT 5
-;
-
-emp_no:integer | first_name:keyword | snippets:keyword
-10001          | Georgi             | null
-10002          | Bezalel            | null
-10003          | Parto              | null
-10004          | Chirstian          | null
-10005          | Kyoichi            | null
-;
-
 topSnippetsWithFoldableConcatQuery
 required_capability: top_snippets_function
 

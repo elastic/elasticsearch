@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse;
+package org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -20,8 +20,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 
-public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
-    AlibabaCloudSearchSparseServiceSettings> {
+public class AlibabaCloudSearchRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<
+    AlibabaCloudSearchRerankServiceSettings> {
 
     private static final String TEST_SERVICE_ID = "test-service-id";
     private static final String INITIAL_TEST_SERVICE_ID = "initial-test-service-id";
@@ -34,13 +34,13 @@ public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractBWCWir
     private static final int TEST_RATE_LIMIT = 20;
     private static final int INITIAL_TEST_RATE_LIMIT = 30;
 
-    public static AlibabaCloudSearchSparseServiceSettings createRandom() {
+    public static AlibabaCloudSearchRerankServiceSettings createRandom() {
         var commonSettings = AlibabaCloudSearchServiceSettingsTests.createRandom();
-        return new AlibabaCloudSearchSparseServiceSettings(commonSettings);
+        return new AlibabaCloudSearchRerankServiceSettings(commonSettings);
     }
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var originalServiceSettings = new AlibabaCloudSearchSparseServiceSettings(
+        var originalServiceSettings = new AlibabaCloudSearchRerankServiceSettings(
             new AlibabaCloudSearchServiceSettings(
                 INITIAL_TEST_SERVICE_ID,
                 INITIAL_TEST_HOST,
@@ -69,7 +69,7 @@ public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractBWCWir
         assertThat(
             updatedServiceSettings,
             is(
-                new AlibabaCloudSearchSparseServiceSettings(
+                new AlibabaCloudSearchRerankServiceSettings(
                     new AlibabaCloudSearchServiceSettings(
                         INITIAL_TEST_SERVICE_ID,
                         INITIAL_TEST_HOST,
@@ -83,7 +83,7 @@ public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractBWCWir
     }
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
-        var originalServiceSettings = new AlibabaCloudSearchSparseServiceSettings(
+        var originalServiceSettings = new AlibabaCloudSearchRerankServiceSettings(
             new AlibabaCloudSearchServiceSettings(
                 INITIAL_TEST_SERVICE_ID,
                 INITIAL_TEST_HOST,
@@ -98,7 +98,7 @@ public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractBWCWir
     }
 
     public void testFromMap_Success() {
-        var serviceSettings = AlibabaCloudSearchSparseServiceSettings.fromMap(
+        var serviceSettings = AlibabaCloudSearchRerankServiceSettings.fromMap(
             new HashMap<>(
                 Map.of(
                     AlibabaCloudSearchServiceSettings.HOST,
@@ -119,7 +119,7 @@ public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractBWCWir
         assertThat(
             serviceSettings,
             is(
-                new AlibabaCloudSearchSparseServiceSettings(
+                new AlibabaCloudSearchRerankServiceSettings(
                     new AlibabaCloudSearchServiceSettings(
                         TEST_SERVICE_ID,
                         TEST_HOST,
@@ -133,31 +133,27 @@ public class AlibabaCloudSearchSparseServiceSettingsTests extends AbstractBWCWir
     }
 
     @Override
-    protected Writeable.Reader<AlibabaCloudSearchSparseServiceSettings> instanceReader() {
-        return AlibabaCloudSearchSparseServiceSettings::new;
+    protected AlibabaCloudSearchRerankServiceSettings mutateInstanceForVersion(
+        AlibabaCloudSearchRerankServiceSettings instance,
+        TransportVersion version
+    ) {
+        return instance;
     }
 
     @Override
-    protected AlibabaCloudSearchSparseServiceSettings createTestInstance() {
+    protected Writeable.Reader<AlibabaCloudSearchRerankServiceSettings> instanceReader() {
+        return AlibabaCloudSearchRerankServiceSettings::new;
+    }
+
+    @Override
+    protected AlibabaCloudSearchRerankServiceSettings createTestInstance() {
         return createRandom();
     }
 
     @Override
-    protected AlibabaCloudSearchSparseServiceSettings mutateInstance(AlibabaCloudSearchSparseServiceSettings instance) throws IOException {
-        return new AlibabaCloudSearchSparseServiceSettings(
+    protected AlibabaCloudSearchRerankServiceSettings mutateInstance(AlibabaCloudSearchRerankServiceSettings instance) throws IOException {
+        return new AlibabaCloudSearchRerankServiceSettings(
             randomValueOtherThan(instance.getCommonSettings(), AlibabaCloudSearchServiceSettingsTests::createRandom)
         );
-    }
-
-    public static Map<String, Object> getServiceSettingsMap(String serviceId, String host, String workspaceName) {
-        return AlibabaCloudSearchServiceSettingsTests.getServiceSettingsMap(serviceId, host, workspaceName);
-    }
-
-    @Override
-    protected AlibabaCloudSearchSparseServiceSettings mutateInstanceForVersion(
-        AlibabaCloudSearchSparseServiceSettings instance,
-        TransportVersion version
-    ) {
-        return instance;
     }
 }

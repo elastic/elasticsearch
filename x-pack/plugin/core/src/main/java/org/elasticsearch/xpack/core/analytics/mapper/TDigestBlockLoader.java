@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.analytics.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
@@ -38,12 +39,23 @@ public class TDigestBlockLoader extends BlockDocValuesReader.DocValuesBlockLoade
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        AllReader encodedDigestReader = encodedDigestLoader.reader(context);
-        AllReader minimaReader = minimaLoader.reader(context);
-        AllReader maximaReader = maximaLoader.reader(context);
-        AllReader sumsReader = sumsLoader.reader(context);
-        AllReader valueCountsReader = valueCountsLoader.reader(context);
+    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        AllReader encodedDigestReader = null;
+        AllReader minimaReader = null;
+        AllReader maximaReader = null;
+        AllReader sumsReader = null;
+        AllReader valueCountsReader = null;
+        try {
+            encodedDigestReader = encodedDigestLoader.reader(breaker, context);
+            minimaReader = minimaLoader.reader(breaker, context);
+            maximaReader = maximaLoader.reader(breaker, context);
+            sumsReader = sumsLoader.reader(breaker, context);
+            valueCountsReader = valueCountsLoader.reader(breaker, context);
+        } finally {
+            if (valueCountsReader == null) {
+                Releasables.close(encodedDigestReader, minimaReader, maximaReader, sumsReader, valueCountsReader);
+            }
+        }
 
         return new TDigestReader(encodedDigestReader, minimaReader, maximaReader, sumsReader, valueCountsReader);
     }
@@ -123,6 +135,11 @@ public class TDigestBlockLoader extends BlockDocValuesReader.DocValuesBlockLoade
         @Override
         public String toString() {
             return "BlockDocValuesReader.TDigest";
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(encodedDigestReader, minimaReader, maximaReader, sumsReader, valueCountsReader);
         }
     }
 }

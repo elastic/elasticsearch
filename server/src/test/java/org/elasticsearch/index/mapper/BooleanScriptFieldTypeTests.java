@@ -27,16 +27,21 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericLongValues;
+import org.elasticsearch.index.mapper.blockloader.script.BooleanScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.DocReader;
 import org.elasticsearch.script.ScoreScript;
@@ -58,6 +63,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -182,6 +188,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                     SearchExecutionContext searchContext = mockContext(true, simpleMappedFieldType());
                     assertThat(
                         searcher.count(new ScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, new Script("test"), new ScoreScript.LeafFactory() {
+
                             @Override
                             public boolean needs_score() {
                                 return false;
@@ -202,6 +209,7 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                                     }
                                 };
                             }
+
                         }, searchContext.lookup(), 2.5f, "test", 0, IndexVersion.current())),
                         equalTo(1)
                     );
@@ -441,6 +449,44 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
     }
 
     public void testBlockLoader() throws IOException {
+        testBlockLoader(newLimitedBreaker(ByteSizeValue.ofMb(1)), f -> f);
+    }
+
+    public void testWithCrankyBreaker() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky, r -> r);
+            logger.info("Cranky breaker didn't break. This should be rare, but possible randomly.");
+        } catch (CircuitBreakingException e) {
+            logger.info("Cranky breaker broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    public void testWithCrankyFactory() throws IOException {
+        try {
+            testBlockLoader(newLimitedBreaker(ByteSizeValue.ofMb(1)), CrankyLeafFactory::new);
+            logger.info("Cranky factory didn't break.");
+        } catch (IllegalStateException e) {
+            logger.info("Cranky factory broke", e);
+        }
+    }
+
+    public void testWithCrankyBreakerAndFactory() throws IOException {
+        CircuitBreaker cranky = new CrankyCircuitBreakerService.CrankyCircuitBreaker();
+        try {
+            testBlockLoader(cranky, CrankyLeafFactory::new);
+            logger.info("Cranky breaker nor reader didn't break. This should be rare, but possible randomly.");
+        } catch (IllegalStateException | CircuitBreakingException e) {
+            logger.info("Cranky breaker or reader broke", e);
+        }
+        assertThat(cranky.getUsed(), equalTo(0L));
+    }
+
+    private void testBlockLoader(
+        CircuitBreaker breaker,
+        Function<BooleanFieldScript.LeafFactory, BooleanFieldScript.LeafFactory> leafFactoryWrapper
+    ) throws IOException {
         try (
             Directory directory = newDirectory();
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
@@ -452,11 +498,11 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 )
             );
             try (DirectoryReader reader = iw.getReader()) {
-                BooleanScriptFieldType fieldType = build("xor_param", Map.of("param", false), OnScriptError.FAIL);
+                BooleanScriptFieldType fieldType = buildWrapped("xor_param", Map.of("param", false), leafFactoryWrapper);
                 List<Boolean> expected = List.of(false, true);
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(expected));
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 1), equalTo(expected.subList(1, 2)));
-                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 1), equalTo(expected.subList(1, 2)));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(expected));
             }
         }
     }
@@ -491,16 +537,22 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 // assert loader is of expected instance type
                 assertThat(loader, instanceOf(BooleanScriptBlockDocValuesReader.BooleanScriptBlockLoader.class));
 
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).get();
-                assertThat(columnAtATimeLoader, instanceOf(BooleanScriptBlockDocValuesReader.class));
+                try (
+                    BlockLoader.ColumnAtATimeReader columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst())
+                        .apply(breaker)
+                ) {
+                    assertThat(columnAtATimeLoader, instanceOf(BooleanScriptBlockDocValuesReader.class));
+                }
 
-                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
-                assertThat(rowStrideReader, instanceOf(BooleanScriptBlockDocValuesReader.class));
+                try (BlockLoader.RowStrideReader rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(rowStrideReader, instanceOf(BooleanScriptBlockDocValuesReader.class));
+                }
 
                 // assert values
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(reader, fieldType, 0), equalTo(expected));
-                assertThat(blockLoaderReadValuesFromRowStrideReader(reader, fieldType), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(expected));
             }
         }
     }
@@ -540,17 +592,18 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
                 assertThat(loader, instanceOf(FallbackSyntheticSourceBlockLoader.class));
 
                 // ignored source doesn't support column at a time loading:
-                var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst());
-                assertThat(columnAtATimeLoader, nullValue());
+                CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
+                assertThat(loader.columnAtATimeReader(reader.leaves().getFirst()), nullValue());
 
-                var rowStrideReader = loader.rowStrideReader(reader.leaves().getFirst());
-                assertThat(
-                    rowStrideReader.getClass().getName(),
-                    equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
-                );
+                try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
+                    assertThat(
+                        rowStrideReader.getClass().getName(),
+                        equalTo("org.elasticsearch.index.mapper.FallbackSyntheticSourceBlockLoader$IgnoredSourceRowStrideReader")
+                    );
+                }
 
                 // assert values
-                assertThat(blockLoaderReadValuesFromRowStrideReader(settings, reader, fieldType, true), equalTo(expected));
+                assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, settings, reader, fieldType, true), equalTo(expected));
             }
         }
     }
@@ -621,6 +674,19 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
         return new BooleanScriptFieldType("test", factory(script), script, emptyMap(), onScriptError);
     }
 
+    protected BooleanScriptFieldType buildWrapped(
+        String code,
+        Map<String, Object> params,
+        Function<BooleanFieldScript.LeafFactory, BooleanFieldScript.LeafFactory> leafFactoryWrapper
+    ) {
+        Script script = new Script(ScriptType.INLINE, "test", code, params);
+        BooleanFieldScript.Factory factory = factory(script);
+        BooleanFieldScript.Factory wrapped = (fieldName, params1, searchLookup, onScriptError) -> leafFactoryWrapper.apply(
+            factory.newFactory(fieldName, params1, searchLookup, onScriptError)
+        );
+        return new BooleanScriptFieldType("test", wrapped, script, emptyMap(), OnScriptError.FAIL);
+    }
+
     private static BooleanFieldScript.Factory factory(Script script) {
         return switch (script.getIdOrCode()) {
             case "read_foo" -> (fieldName, params, lookup, onScriptError) -> (ctx) -> new BooleanFieldScript(
@@ -674,5 +740,21 @@ public class BooleanScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeT
             };
             default -> throw new IllegalArgumentException("unsupported script [" + script.getIdOrCode() + "]");
         };
+    }
+
+    private static class CrankyLeafFactory implements BooleanFieldScript.LeafFactory {
+        private final BooleanFieldScript.LeafFactory next;
+
+        private CrankyLeafFactory(BooleanFieldScript.LeafFactory next) {
+            this.next = next;
+        }
+
+        @Override
+        public BooleanFieldScript newInstance(LeafReaderContext ctx) {
+            if (between(0, 20) == 0) {
+                throw new IllegalStateException("cranky");
+            }
+            return next.newInstance(ctx);
+        }
     }
 }

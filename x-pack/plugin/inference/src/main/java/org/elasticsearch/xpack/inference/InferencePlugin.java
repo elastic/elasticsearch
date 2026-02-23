@@ -125,7 +125,7 @@ import org.elasticsearch.xpack.inference.rank.textsimilarity.TextSimilarityRankR
 import org.elasticsearch.xpack.inference.registry.ClearInferenceEndpointCacheAction;
 import org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.registry.ModelRegistryMetadata;
+import org.elasticsearch.xpack.inference.registry.ModelRegistryClusterStateMetadata;
 import org.elasticsearch.xpack.inference.rest.RestDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.rest.RestDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.rest.RestGetCCMConfigurationAction;
@@ -164,6 +164,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMPersistentStora
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMService;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService;
+import org.elasticsearch.xpack.inference.services.fireworksai.FireworksAiService;
 import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioService;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiService;
 import org.elasticsearch.xpack.inference.services.groq.GroqService;
@@ -562,6 +563,7 @@ public class InferencePlugin extends Plugin
             context -> new GroqService(httpFactory.get(), serviceComponents.get(), context),
             context -> new CohereService(httpFactory.get(), serviceComponents.get(), context),
             context -> new ContextualAiService(httpFactory.get(), serviceComponents.get(), context),
+            context -> new FireworksAiService(httpFactory.get(), serviceComponents.get(), context),
             context -> new AzureOpenAiService(httpFactory.get(), serviceComponents.get(), context),
             context -> new AzureAiStudioService(httpFactory.get(), serviceComponents.get(), context),
             context -> new GoogleAiStudioService(httpFactory.get(), serviceComponents.get(), context),
@@ -591,8 +593,16 @@ public class InferencePlugin extends Plugin
                 new NamedWriteableRegistry.Entry(RankBuilder.class, TextSimilarityRankBuilder.NAME, TextSimilarityRankBuilder::new),
                 new NamedWriteableRegistry.Entry(RankBuilder.class, RandomRankBuilder.NAME, RandomRankBuilder::new),
                 new NamedWriteableRegistry.Entry(RankDoc.class, TextSimilarityRankDoc.NAME, TextSimilarityRankDoc::new),
-                new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::new),
-                new NamedWriteableRegistry.Entry(NamedDiff.class, ModelRegistryMetadata.TYPE, ModelRegistryMetadata::readDiffFrom),
+                new NamedWriteableRegistry.Entry(
+                    Metadata.ProjectCustom.class,
+                    ModelRegistryClusterStateMetadata.TYPE,
+                    ModelRegistryClusterStateMetadata::new
+                ),
+                new NamedWriteableRegistry.Entry(
+                    NamedDiff.class,
+                    ModelRegistryClusterStateMetadata.TYPE,
+                    ModelRegistryClusterStateMetadata::readDiffFrom
+                ),
                 new NamedWriteableRegistry.Entry(
                     QueryBuilder.class,
                     InterceptedInferenceMatchQueryBuilder.NAME,
@@ -622,8 +632,8 @@ public class InferencePlugin extends Plugin
             List.of(
                 new NamedXContentRegistry.Entry(
                     Metadata.ProjectCustom.class,
-                    new ParseField(ModelRegistryMetadata.TYPE),
-                    ModelRegistryMetadata::fromXContent
+                    new ParseField(ModelRegistryClusterStateMetadata.TYPE),
+                    ModelRegistryClusterStateMetadata::fromXContent
                 ),
                 new NamedXContentRegistry.Entry(
                     Metadata.ProjectCustom.class,

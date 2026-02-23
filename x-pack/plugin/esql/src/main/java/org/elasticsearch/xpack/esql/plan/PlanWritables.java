@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.InlineStats;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.Lookup;
-import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
@@ -52,7 +51,6 @@ import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
-import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
 import org.elasticsearch.xpack.esql.plan.physical.MetricsInfoExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
@@ -94,7 +92,6 @@ public class PlanWritables {
             LocalRelation.ENTRY,
             Limit.ENTRY,
             Lookup.ENTRY,
-            MMR.ENTRY,
             MvExpand.ENTRY,
             OrderBy.ENTRY,
             Project.ENTRY,
@@ -128,7 +125,6 @@ public class PlanWritables {
             HashJoinExec.ENTRY,
             LimitExec.ENTRY,
             LocalSourceExec.ENTRY,
-            MMRExec.ENTRY,
             MvExpandExec.ENTRY,
             ProjectExec.ENTRY,
             RerankExec.ENTRY,

@@ -39,19 +39,24 @@ public class TriangleTreeTests extends ESTestCase {
         Geometry normalized = indexer.normalize(geometry);
         List<IndexableField> fieldList = indexer.getIndexableFields(normalized);
 
-        // Write using V2 format: vertex table + ordinal-based tree
+        // Write using V2 format: tree + vertex table
         VertexLookupTable.Builder vtBuilder = VertexLookupTable.builder();
         BytesStreamOutput output = new BytesStreamOutput();
         TriangleTreeWriter.writeTo(output, fieldList, vtBuilder);
-        VertexLookupTable vertexTable = vtBuilder.build();
+        vtBuilder.writeTo(output);
 
-        // Read tree (extent → treeLength → tree)
+        // Read tree (extent → treeLength → tree) then vertex table
         ByteArrayStreamInput input = new ByteArrayStreamInput();
         BytesRef bytesRef = output.bytes().toBytesRef();
         input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         Extent extent = new Extent();
         Extent.readFromCompressed(input, extent);
-        input.readVInt(); // skip tree length
+        int treeLength = input.readVInt();
+        int treeStart = input.getPosition();
+        input.skipBytes(treeLength);
+        VertexLookupTable vertexTable = VertexLookupTable.readFrom(input, bytesRef.bytes);
+
+        input.setPosition(treeStart);
         TriangleCounterVisitor visitor = new TriangleCounterVisitor();
         TriangleTreeReader.visit(input, visitor, extent.maxX(), extent.maxY(), vertexTable);
         assertThat(fieldList.size(), equalTo(visitor.counter));
@@ -87,10 +92,22 @@ public class TriangleTreeTests extends ESTestCase {
         VertexLookupTable.Builder vtBuilder = VertexLookupTable.builder();
         BytesStreamOutput output = new BytesStreamOutput();
         TriangleTreeWriter.writeTo(output, fieldList, vtBuilder);
-        VertexLookupTable vertexTable = vtBuilder.build();
 
-        // Square has 4 unique vertices, regardless of how many triangles reference them
+        // Builder should have 4 unique vertices, regardless of how many triangles reference them
+        assertThat(vtBuilder.size(), equalTo(4));
+
+        // Write the vertex table and read it back to verify the round-trip
+        vtBuilder.writeTo(output);
+        ByteArrayStreamInput input = new ByteArrayStreamInput();
+        BytesRef bytesRef = output.bytes().toBytesRef();
+        input.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        Extent extent = new Extent();
+        Extent.readFromCompressed(input, extent);
+        int treeLength = input.readVInt();
+        input.skipBytes(treeLength);
+        VertexLookupTable vertexTable = VertexLookupTable.readFrom(input, bytesRef.bytes);
         assertThat(vertexTable.size(), equalTo(4));
+
         // Should have at least 2 triangles
         assertThat(fieldList.size(), greaterThan(1));
     }

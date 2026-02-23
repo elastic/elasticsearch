@@ -140,7 +140,7 @@ public class GeometryDocValueWriter {
         out.seek(vertexTablePosition);
 
         // 5. Write vertex lookup table last (includes all vertices from both tree and connectivity)
-        vertexTableBuilder.build().writeTo(out);
+        vertexTableBuilder.writeTo(out);
 
         return out.bytes().toBytesRef();
     }

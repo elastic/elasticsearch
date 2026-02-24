@@ -9,11 +9,14 @@ package org.elasticsearch.xpack.eql.logging;
 
 import joptsimple.internal.Strings;
 
+import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.logging.activity.ActivityLoggerContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.eql.action.EqlSearchRequest;
 import org.elasticsearch.xpack.eql.action.EqlSearchResponse;
 
+import java.util.Arrays;
+import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 public class EqlLogContext extends ActivityLoggerContext {
@@ -46,5 +49,18 @@ public class EqlLogContext extends ActivityLoggerContext {
             return 0;
         }
         return response.hits().totalHits().value();
+    }
+
+    public Optional<ShardInfo> shardInfo() {
+        if (response == null) {
+            return Optional.empty();
+        }
+        // We only know about failed shards in EQL
+        return Optional.of(new ShardInfo(null, null, getFailedShards(response)));
+    }
+
+    private static int getFailedShards(EqlSearchResponse response) {
+        long failedShards = Arrays.stream(response.shardFailures()).map(ShardSearchFailure::shard).distinct().count();
+        return failedShards >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) failedShards;
     }
 }

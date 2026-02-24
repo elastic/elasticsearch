@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Optional;
 import java.util.function.Predicate;
 
 public class SearchLogContext extends ActivityLoggerContext {
@@ -97,5 +98,12 @@ public class SearchLogContext extends ActivityLoggerContext {
 
     public String getIndices() {
         return Strings.join(getIndexNames(), ",");
+    }
+
+    public Optional<ShardInfo> shardInfo() {
+        if (response == null) {
+            return Optional.empty();
+        }
+        return Optional.of(new ShardInfo(response.getSuccessfulShards(), response.getSkippedShards(), response.getFailedShards()));
     }
 }

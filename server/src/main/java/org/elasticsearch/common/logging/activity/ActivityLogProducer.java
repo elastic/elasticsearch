@@ -53,6 +53,17 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
             fields.field("error.type", context.getErrorType());
             fields.field("error.message", context.getErrorMessage());
         }
+        context.shardInfo().ifPresent(shardInfo -> {
+            if (shardInfo.successfulShards() != null) {
+                fields.field(ES_FIELDS_PREFIX + "shards.successful", shardInfo.successfulShards());
+            }
+            if (shardInfo.skippedShards() != null) {
+                fields.field(ES_FIELDS_PREFIX + "shards.skipped", shardInfo.skippedShards());
+            }
+            if (shardInfo.failedShards() != null) {
+                fields.field(ES_FIELDS_PREFIX + "shards.failed", shardInfo.failedShards());
+            }
+        });
         return fields;
     }
 }

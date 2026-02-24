@@ -12,6 +12,8 @@ package org.elasticsearch.common.logging.activity;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 
+import java.util.Optional;
+
 /**
  * Context for {@link ActivityLogger}.
  * This class contains the information needed to log the query and is extended by specific logging contexts for each action.
@@ -56,5 +58,11 @@ public abstract class ActivityLoggerContext {
 
     public String getOpaqueId() {
         return task.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
+    }
+
+    public record ShardInfo(Integer successfulShards, Integer skippedShards, Integer failedShards) {}
+
+    public Optional<ShardInfo> shardInfo() {
+        return Optional.empty();
     }
 }

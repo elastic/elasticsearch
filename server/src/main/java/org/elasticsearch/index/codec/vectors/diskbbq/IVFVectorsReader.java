@@ -303,10 +303,7 @@ public abstract class IVFVectorsReader extends KnnVectorsReader {
                 // well even on very large segments where numCands (max 10K) would otherwise be too small.
                 int effectiveNumCands = Math.min(10_000, Math.max(numCands, 5 * k));
                 double logTerm = Math.log(1.0 + (double) numVectors / effectiveNumCands);
-                visitRatio = Math.min(
-                    1.0f,
-                    (float) (effectiveNumCands * Math.pow(logTerm, 1.5) / numVectors)
-                );
+                visitRatio = Math.min(1.0f, (float) (effectiveNumCands * Math.pow(logTerm, 1.5) / numVectors));
             } else {
                 // Fallback when called without IVFKnnSearchStrategy (e.g. checkIndex).
                 // Use the original k-based heuristic for reasonable default behavior.

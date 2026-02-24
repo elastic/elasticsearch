@@ -245,7 +245,7 @@ public abstract class LuceneOperator extends SourceOperator {
         if (newShardIndex != shardClockShardIndex) {
             // shard changed: record previous shard time and start timing the new shard
             long now = System.nanoTime();
-            recordShardTimeUntil(now);
+            recordShardTimeUntil(shardClockShardIndex, shardClockStartNanos, now);
             shardClockShardIndex = newShardIndex;
             shardClockStartNanos = now;
         }
@@ -258,16 +258,16 @@ public abstract class LuceneOperator extends SourceOperator {
      */
     private void stopShardClock(long now) {
         if (shardClockStartNanos != -1L) {
-            recordShardTimeUntil(now);
+            recordShardTimeUntil(shardClockShardIndex, shardClockStartNanos, now);
             shardClockStartNanos = -1;
         }
     }
 
-    private void recordShardTimeUntil(long nowNanos) {
-        assert shardClockStartNanos >= 0L && shardClockShardIndex >= 0;
-        long delta = nowNanos - shardClockStartNanos;
+    private void recordShardTimeUntil(int shardIndex, long shardStartNanos, long nowNanos) {
+        assert shardStartNanos >= 0L && shardIndex >= 0;
+        long delta = nowNanos - shardStartNanos;
         if (delta > 0L) {
-            shardProcessNanos[shardClockShardIndex] += delta;
+            shardProcessNanos[shardIndex] += delta;
         }
     }
 

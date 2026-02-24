@@ -21,6 +21,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -63,7 +64,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
 
         List<List<Object>> build(RandomIndexWriter iw) throws IOException;
 
-        void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException;
+        void assertRewrite(IndexSearcher indexSearcher, Query query, boolean skippersAvailable) throws IOException;
     }
 
     @ParametersFactory(argumentFormatting = "%s")
@@ -112,7 +113,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                     "single-value function encountered multi-value"
                 );
                 runCase(fieldValues, ctx.searcher().count(query));
-                setup.assertRewrite(ctx.searcher(), query);
+                setup.assertRewrite(ctx.searcher(), query, false);
             }
         }
     }
@@ -163,7 +164,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
                     "single-value function encountered multi-value"
                 );
                 runCase(fieldValues, ctx.searcher().count(query));
-                setup.assertRewrite(ctx.searcher(), query);
+                setup.assertRewrite(ctx.searcher(), query, true);
             }
         } finally {
             threadPool.shutdown();
@@ -227,8 +228,10 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         }
 
         @Override
-        public void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException {
-            if (empty == false && multivaluedField == false) {
+        public void assertRewrite(IndexSearcher indexSearcher, Query query, boolean skippersAvailable) throws IOException {
+            if (multivaluedField == false && skippersAvailable) {
+                assertThat(query.rewrite(indexSearcher), instanceOf(FieldExistsQuery.class));
+            } else if (empty == false && multivaluedField == false) {
                 assertThat(query.rewrite(indexSearcher), instanceOf(MatchAllDocsQuery.class));
             } else {
                 assertThat(query.rewrite(indexSearcher), sameInstance(query));
@@ -286,7 +289,7 @@ public class SingleValueMatchQueryTests extends MapperServiceTestCase {
         }
 
         @Override
-        public void assertRewrite(IndexSearcher indexSearcher, Query query) throws IOException {
+        public void assertRewrite(IndexSearcher indexSearcher, Query query, boolean skippersAvailable) throws IOException {
             // There are multivalued fields
             assertThat(query.rewrite(indexSearcher), sameInstance(query));
         }

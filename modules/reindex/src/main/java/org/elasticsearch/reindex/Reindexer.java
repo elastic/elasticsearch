@@ -176,16 +176,19 @@ public class Reindexer {
         RejectAwareActionListener<Version> rejectAwareListener = new RejectAwareActionListener<>() {
             @Override
             public void onResponse(Version version) {
-                closeRestClientAndRun(restClient, () -> BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
-                    task,
-                    request,
-                    ReindexAction.INSTANCE,
-                    listener,
-                    client,
-                    clusterService.localNode(),
-                    version,
-                    workerAction
-                ));
+                closeRestClientAndRun(
+                    restClient,
+                    () -> BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
+                        task,
+                        request,
+                        ReindexAction.INSTANCE,
+                        listener,
+                        client,
+                        clusterService.localNode(),
+                        version,
+                        workerAction
+                    )
+                );
             }
 
             @Override

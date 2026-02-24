@@ -111,6 +111,11 @@ public class HistogramFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public HistogramFieldMapper build(MapperBuilderContext context) {
             return new HistogramFieldMapper(
                 leafName(),

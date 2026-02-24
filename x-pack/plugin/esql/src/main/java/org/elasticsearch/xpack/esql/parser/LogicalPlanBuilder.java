@@ -77,6 +77,7 @@ import org.elasticsearch.xpack.esql.plan.logical.MMR;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Sample;
@@ -481,6 +482,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         }
 
         return child -> UriParts.createInitialInstance(source, child, input, outputPrefix);
+    }
+
+    @Override
+    public PlanFactory visitRegisteredDomainCommand(EsqlBaseParser.RegisteredDomainCommandContext ctx) {
+        Source source = source(ctx);
+
+        Attribute outputPrefix = visitQualifiedName(ctx.qualifiedName());
+        if (outputPrefix == null) {
+            throw new ParsingException(source, "REGISTERED_DOMAIN command requires an output field prefix");
+        }
+
+        Expression input = expression(ctx.primaryExpression());
+        if (input == null) {
+            throw new ParsingException(source, "REGISTERED_DOMAIN command requires an input expression");
+        }
+
+        return child -> RegisteredDomain.createInitialInstance(source, child, input, outputPrefix);
     }
 
     @Override

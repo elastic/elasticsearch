@@ -184,7 +184,7 @@ public class TsInfoOperator implements Operator {
     /**
      * Creates an INITIAL-mode operator (data nodes).
      */
-    public TsInfoOperator(
+    private TsInfoOperator(
         BlockFactory blockFactory,
         MetricsInfoOperator.MetricFieldLookup fieldLookup,
         int metadataSourceChannel,
@@ -202,7 +202,7 @@ public class TsInfoOperator implements Operator {
     /**
      * Creates a FINAL-mode operator (coordinator).
      */
-    public TsInfoOperator(BlockFactory blockFactory, int[] channels) {
+    private TsInfoOperator(BlockFactory blockFactory, int[] channels) {
         this.mode = Mode.FINAL;
         this.blockFactory = blockFactory;
         this.breaker = blockFactory.breaker();

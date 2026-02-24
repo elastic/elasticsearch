@@ -109,9 +109,17 @@ public class TsInfoOperatorTests extends OperatorTestCase {
         assertNull(map);
     }
 
+    private TsInfoOperator createInitialOperator() {
+        return (TsInfoOperator) new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(driverContext());
+    }
+
+    private TsInfoOperator createFinalOperator(int[] channels) {
+        return (TsInfoOperator) new TsInfoOperator.FinalFactory(channels).get(driverContext());
+    }
+
     public void testInitialModeSingleTsidSingleMetric() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        TsInfoOperator op = new TsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        TsInfoOperator op = createInitialOperator();
         try {
             Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.85, \"host\": \"server1\"}", "my-index");
             op.addInput(input);
@@ -143,7 +151,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
 
     public void testInitialModeMultipleTsidsProducesMultipleRows() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        TsInfoOperator op = new TsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        TsInfoOperator op = createInitialOperator();
         try {
             // Two tsids with different dimension values → two rows for the same metric
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\"}", "my-index");
@@ -175,7 +183,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
 
     public void testInitialModeDimensionsJsonIsSorted() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        TsInfoOperator op = new TsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        TsInfoOperator op = createInitialOperator();
         try {
             // Metadata with multiple dimension keys: "host" and "az" — keys should be sorted in JSON
             Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\", \"az\": \"us-east-1\"}", "my-index");
@@ -202,7 +210,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     public void testFinalModeMergesRowsBySignature() {
         BlockFactory blockFactory = driverContext().blockFactory();
         int[] channels = { 0, 1, 2, 3, 4, 5, 6 };
-        TsInfoOperator op = new TsInfoOperator(blockFactory, channels);
+        TsInfoOperator op = createFinalOperator(channels);
         try {
             // Two identical rows from two data nodes → should merge into 1
             String dimJson = "{\"host\": \"server1\"}";
@@ -245,7 +253,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     public void testFinalModeUnionsDataStreams() {
         BlockFactory blockFactory = driverContext().blockFactory();
         int[] channels = { 0, 1, 2, 3, 4, 5, 6 };
-        TsInfoOperator op = new TsInfoOperator(blockFactory, channels);
+        TsInfoOperator op = createFinalOperator(channels);
         try {
             String dimJson = "{\"host\": \"server1\"}";
             // Data node 1 saw index-a; data node 2 saw index-b — same metric + same dimensions
@@ -287,8 +295,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testEmptyInputProducesEmptyPage() {
-        BlockFactory blockFactory = driverContext().blockFactory();
-        TsInfoOperator op = new TsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        TsInfoOperator op = createInitialOperator();
         try {
             op.finish();
 
@@ -305,7 +312,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
 
     public void testDimensionsColumnContainsJsonObject() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        TsInfoOperator op = new TsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        TsInfoOperator op = createInitialOperator();
         try {
             Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\", \"region\": \"eu\"}", "my-index");
             op.addInput(input);
@@ -330,7 +337,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
 
     public void testOutputHasSevenColumns() {
         BlockFactory blockFactory = driverContext().blockFactory();
-        TsInfoOperator op = new TsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        TsInfoOperator op = createInitialOperator();
         try {
             Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"server1\"}", "my-index");
             op.addInput(input);
@@ -349,7 +356,7 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     public void testFinalModeDifferentDimensionsRemainSeparateRows() {
         BlockFactory blockFactory = driverContext().blockFactory();
         int[] channels = { 0, 1, 2, 3, 4, 5, 6 };
-        TsInfoOperator op = new TsInfoOperator(blockFactory, channels);
+        TsInfoOperator op = createFinalOperator(channels);
         try {
             // Same metric but different dimensions → separate rows
             Page page1 = buildFinalPage(
@@ -388,9 +395,8 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testFinalModeEmptyInputProducesEmptyOutput() {
-        BlockFactory blockFactory = driverContext().blockFactory();
         int[] channels = { 0, 1, 2, 3, 4, 5, 6 };
-        TsInfoOperator op = new TsInfoOperator(blockFactory, channels);
+        TsInfoOperator op = createFinalOperator(channels);
         try {
             op.finish();
 
@@ -514,9 +520,10 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testInitialModeTracksMemoryOnNewEntries() {
-        BlockFactory blockFactory = driverContext().blockFactory();
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
-        try (TsInfoOperator op = new TsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL)) {
+        try (TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(ctx)) {
             Page input1 = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
             op.addInput(input1);
             long usedAfterOne = blockFactory.breaker().getUsed();
@@ -542,9 +549,10 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testFinalModeTracksMemoryOnNewEntries() {
-        BlockFactory blockFactory = driverContext().blockFactory();
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
-        try (TsInfoOperator op = new TsInfoOperator(blockFactory, FINAL_CHANNELS)) {
+        try (TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.FinalFactory(FINAL_CHANNELS).get(ctx)) {
             Page page1 = buildFinalPage(
                 blockFactory,
                 "cpu_usage",
@@ -597,10 +605,11 @@ public class TsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testCloseReleasesTrackedMemory() {
-        BlockFactory blockFactory = driverContext().blockFactory();
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
         long usedBefore = blockFactory.breaker().getUsed();
 
-        TsInfoOperator op = new TsInfoOperator(blockFactory, SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL);
+        TsInfoOperator op = (TsInfoOperator) new TsInfoOperator.Factory(SIMPLE_LOOKUP, METADATA_CHANNEL, INDEX_CHANNEL).get(ctx);
         Page input = buildPage(blockFactory, "{\"cpu_usage\": 0.5, \"host\": \"h1\"}", "index-a");
         op.addInput(input);
         assertThat(blockFactory.breaker().getUsed() - usedBefore, equalTo(TsInfoOperator.SHALLOW_SIZE));

@@ -238,7 +238,7 @@ PUT semantic-embeddings
             "prune": true, <1>
             "pruning_config": {
               "tokens_freq_ratio_threshold": 10, <2>
-              "tokens_weight_threshold": 0.4 <3>
+              "tokens_weight_threshold": 0.5 <3>
             }
           }
         }

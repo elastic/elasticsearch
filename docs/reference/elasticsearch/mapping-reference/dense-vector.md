@@ -53,6 +53,8 @@ PUT my-index/_doc/2
   "my_vector" : [-0.5, 10, 10]
 }
 ```
+1. (Optional) Controls how vectors are indexed internally for kNN search. In this example, `bbq_disk` enables [disk-based binary quantization](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk), which can significantly reduce memory usage for large vector datasets. If you don’t specify `index_options`, {{es}} automatically selects a default indexing strategy based on the vector type and dimensions. To learn more about the available index options and how they affect vector quantization, refer to [Automatically quantize vectors for kNN search](#dense-vector-quantization).
+
 :::
 :::{tab-item} Base64-encoded string
 ```console
@@ -85,8 +87,6 @@ PUT my-index/_doc/2
 ```
 :::
 ::::
-
-1. (Optional) Controls how vectors are indexed internally for kNN search. In this example, `bbq_disk` enables [disk-based binary quantization](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk), which can significantly reduce memory usage for large vector datasets. If you don’t specify `index_options`, {{es}} automatically selects a default indexing strategy based on the vector type and dimensions. To learn more about the available index options and how they affect vector quantization, refer to [Automatically quantize vectors for kNN search](#dense-vector-quantization).
 
 ::::{note}
 Unlike most other data types, dense vectors are always single-valued. It is not possible to store multiple values in one `dense_vector` field.

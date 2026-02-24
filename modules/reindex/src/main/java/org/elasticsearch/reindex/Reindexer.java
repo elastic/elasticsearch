@@ -144,7 +144,7 @@ public class Reindexer {
             .map(ResumeInfo.WorkerResumeInfo::startTime)
             .orElseGet(System::nanoTime);
 
-        // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having in Reindexer, makes it generic
+        // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
         final ActionListener<BulkByScrollResponse> listenerWithRelocations = listenerWithRelocations(task, request, listener);
 
@@ -298,6 +298,8 @@ public class Reindexer {
     }
 
     private void initTaskForRelocationIfEnabled(final BulkByScrollTask task) {
+        // todo: move initialization to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
+        // for update-by-query and delete-by-query
         if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false || relocationNodePicker == null) {
             return;
         }

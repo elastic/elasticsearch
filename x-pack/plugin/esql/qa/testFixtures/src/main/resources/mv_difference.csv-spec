@@ -1,0 +1,90 @@
+mvDifference
+required_capability: fn_mv_difference
+// tag::mv_difference[]
+ROW values = ["a", "b", "c"], element = "a"
+| EVAL result = mv_difference(values, element)
+// end::mv_difference[]
+;
+
+// tag::mv_difference-result[]
+values:keyword | element:keyword | result:keyword 
+[a, b, c]      | a               | [b, c]         
+// end::mv_difference-result[]
+;
+
+mvDifference_empty
+required_capability: fn_mv_difference
+ROW valuesA = ["a","c"], valuesB = ["a", "b", "c"]
+| EVAL result = mv_difference(valuesA, valuesB)
+;
+
+valuesA:keyword | valuesB:keyword | result:keyword 
+[a, c]          | [a, b, c]       | null             
+;
+
+mvDifference_null
+required_capability: fn_mv_difference
+ROW values = ["a", "b", "c"], element = null
+| EVAL result = mv_difference(values, element)
+;
+
+values:keyword | element:null | result:keyword 
+[a, b, c]      | null            | [a, b, c]         
+;
+
+mvDifference_null_input
+required_capability: fn_mv_difference
+ROW values = null, element = ["a", "b", "c"]
+| EVAL result = mv_difference(values, element)
+;
+
+values:null | element:keyword | result:null 
+null        | [a, b, c]       | null         
+;
+
+mvDifference_dedup1
+required_capability: fn_mv_difference
+ROW valuesA = ["a","a","b","c","c","d"], valuesB = ["b", "c"]
+| EVAL result = mv_difference(valuesA, valuesB)
+;
+
+valuesA:keyword      | valuesB:keyword | result:keyword 
+[a,a,b,c,c,d]        | [b, c]          | [a,a,d]          
+;
+
+mvDifference_dedup1
+required_capability: fn_mv_difference
+ROW valuesA = [1,2,2,3,4,5,6,6,6], valuesB = [2,3]
+| EVAL result = mv_difference(valuesA, valuesB)
+;
+
+valuesA:integer      | valuesB:integer | result:integer 
+[1,2,2,3,4,5,6,6,6]  | [2,3]           | [1,4,5,6,6,6]
+;
+
+mvDifference_from
+required_capability: fn_mv_difference
+FROM employees
+| WHERE emp_no == 10002 OR emp_no ==  10053 
+| KEEP emp_no, salary_change, is_rehired
+| EVAL result1 = mv_difference(salary_change, [11.17])
+| EVAL result2 = mv_difference(is_rehired, true)
+| SORT emp_no
+;
+
+emp_no:integer | salary_change:double | is_rehired:boolean         | result1:double | result2:boolean 
+10002          | [-7.23, 11.17]        | [false,false]              |-7.23           | [false,false]   
+10053          | [-7.67, -3.25]        | [false, false, true, true] |[-7.67, -3.25]  | [false,false]  
+;
+
+mvDifference_from_keyword
+required_capability: fn_mv_difference
+FROM employees
+| WHERE emp_no == 10022
+| KEEP first_name, job_positions
+| EVAL result = mv_difference(job_positions, "Internship")
+;
+
+first_name:keyword | job_positions:keyword                                             | result:keyword
+Shahaf             | [Data Scientist, Internship, Python Developer, Reporting Analyst] | [Data Scientist, Python Developer, Reporting Analyst] 
+;

@@ -4,6 +4,7 @@
 * [`MV_CONTAINS`](../../functions-operators/mv-functions.md#esql-mv_contains) {applies_to}`stack: preview` {applies_to}`serverless: preview`
 * [`MV_COUNT`](../../functions-operators/mv-functions.md#esql-mv_count)
 * [`MV_DEDUPE`](../../functions-operators/mv-functions.md#esql-mv_dedupe)
+* [`MV_DIFFERENCE`](../../functions-operators/mv-functions.md#esql-mv_difference) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`
 * [`MV_FIRST`](../../functions-operators/mv-functions.md#esql-mv_first)
 * [`MV_INTERSECTION`](../../functions-operators/mv-functions.md#esql-mv_intersection) {applies_to}`stack: preview 9.3` {applies_to}`serverless: preview`
 * [`MV_INTERSECTS`](../../functions-operators/mv-functions.md#esql-mv_intersects) {applies_to}`stack: preview 9.4` {applies_to}`serverless: preview`

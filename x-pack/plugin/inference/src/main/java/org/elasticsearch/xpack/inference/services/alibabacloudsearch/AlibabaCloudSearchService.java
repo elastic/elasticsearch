@@ -421,7 +421,10 @@ public class AlibabaCloudSearchService extends SenderService implements Rerankin
 
                 configurationMap.put(
                     HTTP_SCHEMA_NAME,
-                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription("")
+                    new SettingsConfiguration.Builder(SUPPORTED_TASK_TYPES).setDescription(
+                        "Specifies the HTTP protocol schema used when connecting to the AlibabaCloud AI Search service. "
+                            + "Valid values are 'http' or 'https'. Defaults to 'https' if not specified."
+                    )
                         .setLabel("HTTP Schema")
                         .setRequired(false)
                         .setSensitive(false)

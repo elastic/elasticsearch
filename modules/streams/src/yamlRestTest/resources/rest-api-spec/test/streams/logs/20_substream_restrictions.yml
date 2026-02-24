@@ -18,6 +18,10 @@ teardown:
       streams.logs_disable:
         name: logs.ecs
 
+  - do:
+      streams.logs_disable:
+        name: logs
+
 ---
 "Check User Can't Write To Substream Directly":
   - do:
@@ -194,3 +198,90 @@ teardown:
   - do:
       indices.delete:
         index: logs.otel
+
+---
+"Enable sub-stream type still works":
+  - do:
+      streams.logs_enable:
+        name: logs
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+  - is_false: logs\.otel.enabled
+
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "logs.otel" } }
+          { "foo": "bar" }
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: "illegal_argument_exception" }
+  - match: { items.0.index.error.reason: "Direct writes to child streams are prohibited. Index directly into the [logs] stream instead" }
+
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "logs" } }
+          { "foo": "bar" }
+  - match: { errors: false }
+  - match: { items.0.index.status: 201 }
+
+  - do:
+      streams.logs_enable:
+        name: logs.otel
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
+
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "logs.otel.foo" } }
+          { "foo": "bar" }
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: "illegal_argument_exception" }
+  - match: { items.0.index.error.reason: "Direct writes to child streams are prohibited. Index directly into the [logs.otel] stream instead" }
+
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "logs.otel" } }
+          { "foo": "bar" }
+  - match: { errors: false }
+  - match: { items.0.index.status: 201 }
+
+  - do:
+      streams.logs_enable:
+        name: logs.ecs
+  - is_true: acknowledged
+
+  - do:
+      streams.status: { }
+  - is_true: logs.enabled
+  - is_true: logs\.otel.enabled
+  - is_true: logs\.ecs.enabled
+
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "logs.ecs.foo" } }
+          { "foo": "bar" }
+  - match: { errors: true }
+  - match: { items.0.index.status: 400 }
+  - match: { items.0.index.error.type: "illegal_argument_exception" }
+  - match: { items.0.index.error.reason: "Direct writes to child streams are prohibited. Index directly into the [logs.ecs] stream instead" }
+
+  - do:
+      bulk:
+        body: |
+          { "index": { "_index": "logs.ecs" } }
+          { "foo": "bar" }
+  - match: { errors: false }
+  - match: { items.0.index.status: 201 }

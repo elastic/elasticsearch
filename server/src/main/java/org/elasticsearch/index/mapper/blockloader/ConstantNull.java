@@ -11,11 +11,10 @@ package org.elasticsearch.index.mapper.blockloader;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
-
-import java.io.IOException;
 
 /**
  * Load blocks with only null.
@@ -32,12 +31,12 @@ public class ConstantNull implements BlockLoader {
     }
 
     @Override
-    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
-        return () -> READER;
+    public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+        return breaker -> READER;
     }
 
     @Override
-    public RowStrideReader rowStrideReader(LeafReaderContext context) {
+    public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) {
         return READER;
     }
 
@@ -69,12 +68,12 @@ public class ConstantNull implements BlockLoader {
         private Reader() {}
 
         @Override
-        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+        public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) {
             return factory.constantNulls(docs.count() - offset);
         }
 
         @Override
-        public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
+        public void read(int docId, StoredFields storedFields, Builder builder) {
             builder.appendNull();
         }
 
@@ -87,5 +86,8 @@ public class ConstantNull implements BlockLoader {
         public String toString() {
             return "constant_nulls";
         }
+
+        @Override
+        public void close() {}
     }
 }

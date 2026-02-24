@@ -121,7 +121,9 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
         var validationException = new ValidationException();
 
         if (settings.user() != null && settings.user().isEmpty()) {
-            validationException.addValidationError(InferenceUtils.mustBeNonEmptyString(AzureOpenAiServiceFields.USER, ModelConfigurations.TASK_SETTINGS));
+            validationException.addValidationError(
+                InferenceUtils.mustBeNonEmptyString(AzureOpenAiServiceFields.USER, ModelConfigurations.TASK_SETTINGS)
+            );
             throw validationException;
         }
     }

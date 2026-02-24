@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.embeddings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
+
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;

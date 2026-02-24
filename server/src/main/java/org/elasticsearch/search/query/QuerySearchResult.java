@@ -563,11 +563,14 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     /**
      * Register SearchHits from a top_hits aggregation so they are released when this result is released.
+     * Takes a reference so the SearchHits stay valid until this result is serialized and released (the
+     * fetch phase may release its reference before the query result is serialized).
      */
     public void registerTopHitsForRelease(SearchHits searchHits) {
         if (topHitsToRelease == null) {
             topHitsToRelease = new ArrayList<>();
         }
+        searchHits.incRef();
         topHitsToRelease.add(searchHits);
     }
 

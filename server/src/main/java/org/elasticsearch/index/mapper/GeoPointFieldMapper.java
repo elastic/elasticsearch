@@ -210,6 +210,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
+        public String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        @Override
         public FieldMapper build(MapperBuilderContext context) {
             boolean ignoreMalformedEnabled = ignoreMalformed.get().value();
             Parser<GeoPoint> geoParser = new GeoPointParser(

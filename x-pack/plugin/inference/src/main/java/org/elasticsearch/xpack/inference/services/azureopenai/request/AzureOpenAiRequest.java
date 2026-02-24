@@ -94,13 +94,13 @@ public abstract class AzureOpenAiRequest implements Request {
 
     @Override
     public Request truncate() {
-        // No truncation for Azure OpenAI completion
+        // Default implementation: no truncation. Subclasses may override to apply truncation if needed.
         return this;
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        // No truncation for Azure OpenAI completion
+        // Default implementation: no truncation was applied, so no truncation info is available.
         return null;
     }
 }

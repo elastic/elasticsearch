@@ -301,12 +301,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         );
         this.transformAuditor.set(auditor);
         Clock clock = Clock.systemUTC();
+        var crossProjectModeDecider = new CrossProjectModeDecider(settings);
         TransformCheckpointService checkpointService = new TransformCheckpointService(
             clock,
-            settings,
-            services.linkedProjectConfigService(),
             configManager,
-            auditor
+            auditor,
+            crossProjectModeDecider
         );
         TransformScheduler scheduler = new TransformScheduler(
             clock,
@@ -319,14 +319,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
         var transformNode = new TransformNode(clusterStateListener);
 
         transformServices.set(
-            new TransformServices(
-                configManager,
-                checkpointService,
-                auditor,
-                scheduler,
-                transformNode,
-                new CrossProjectModeDecider(settings)
-            )
+            new TransformServices(configManager, checkpointService, auditor, scheduler, transformNode, crossProjectModeDecider)
         );
 
         var transformMeterRegistry = TransformMeterRegistry.create(services.telemetryProvider().getMeterRegistry());

@@ -1,0 +1,5 @@
+area: Transform
+issues: []
+pr: 141867
+summary: Support CCS and CPS in `GetCheckpoint`
+type: enhancement

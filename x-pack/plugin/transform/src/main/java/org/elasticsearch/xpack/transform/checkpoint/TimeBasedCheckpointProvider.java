@@ -17,6 +17,7 @@ import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
 import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
@@ -47,12 +48,12 @@ class TimeBasedCheckpointProvider extends DefaultCheckpointProvider {
     TimeBasedCheckpointProvider(
         final Clock clock,
         final ParentTaskAssigningClient client,
-        final RemoteClusterResolver remoteClusterResolver,
         final TransformConfigManager transformConfigManager,
         final TransformAuditor transformAuditor,
-        final TransformConfig transformConfig
+        final TransformConfig transformConfig,
+        final CrossProjectModeDecider crossProjectModeDecider
     ) {
-        super(clock, client, remoteClusterResolver, transformConfigManager, transformAuditor, transformConfig);
+        super(clock, client, transformConfigManager, transformAuditor, transformConfig, crossProjectModeDecider);
         timeSyncConfig = (TimeSyncConfig) transformConfig.getSyncConfig();
         alignTimestamp = createAlignTimestampFunction(transformConfig);
     }

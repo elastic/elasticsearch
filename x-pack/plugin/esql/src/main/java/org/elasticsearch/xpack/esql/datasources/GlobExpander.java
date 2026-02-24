@@ -28,12 +28,23 @@ final class GlobExpander {
         if (path == null) {
             return false;
         }
-        for (char c : StoragePath.GLOB_METACHARACTERS) {
-            if (path.indexOf(c) >= 0) {
-                return true;
-            }
+        // Comma-separated lists are always multi-file (commas cannot appear in authority/host)
+        if (path.indexOf(',') >= 0) {
+            return true;
         }
-        return path.indexOf(',') >= 0;
+        // Only inspect the path portion for glob metacharacters to avoid false
+        // positives from IPv6 literal brackets in the authority (e.g. http://[::1]:port/...).
+        try {
+            return StoragePath.of(path).isPattern();
+        } catch (IllegalArgumentException e) {
+            // Unparseable URL – fall back to raw string check
+            for (char c : StoragePath.GLOB_METACHARACTERS) {
+                if (path.indexOf(c) >= 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     static FileSet expandGlob(String pattern, StorageProvider provider) throws IOException {

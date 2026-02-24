@@ -40,6 +40,13 @@ public class GlobExpanderTests extends ESTestCase {
         assertFalse(GlobExpander.isMultiFile(null));
     }
 
+    public void testIsMultiFileIgnoresIPv6Brackets() {
+        assertFalse(GlobExpander.isMultiFile("http://[::1]:9200/bucket/data.parquet"));
+        assertFalse(GlobExpander.isMultiFile("https://[fe80::1%25eth0]:443/path/file.parquet"));
+        // Glob in the path portion should still be detected
+        assertTrue(GlobExpander.isMultiFile("http://[::1]:9200/bucket/*.parquet"));
+    }
+
     // -- expandGlob --
 
     public void testExpandGlobLiteralReturnsUnresolved() throws IOException {

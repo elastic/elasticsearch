@@ -99,17 +99,14 @@ class NetworkAccessCheckActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void createLDAPCertStore() {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = NoSuchAlgorithmException.class)
+    static void createLDAPCertStore() throws NoSuchAlgorithmException {
         try {
             // We pass down null params to provoke a InvalidAlgorithmParameterException
             CertStore.getInstance("LDAP", null);
         } catch (InvalidAlgorithmParameterException ex) {
             // Assert we actually hit the class we care about, LDAPCertStore (or its impl)
             assert Arrays.stream(ex.getStackTrace()).anyMatch(e -> e.getClassName().endsWith("LDAPCertStore"));
-        } catch (NoSuchAlgorithmException e) {
-            // In some environments (e.g. with FIPS enabled) the LDAPCertStore is not present, so this will fail.
-            // This is OK, as this means the class we care about (LDAPCertStore) is not even present
         }
     }
 
@@ -333,24 +330,50 @@ class NetworkAccessCheckActions {
         ProxySelector.setDefault(null);
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void setDefaultSSLContext() throws NoSuchAlgorithmException {
-        SSLContext.setDefault(SSLContext.getDefault());
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
+    static String setDefaultSSLContext() throws NoSuchAlgorithmException {
+        SSLContext original = SSLContext.getDefault();
+        SSLContext dummy = SSLContext.getInstance("TLS");
+        SSLContext.setDefault(dummy);
+        boolean unchanged = SSLContext.getDefault() == original;
+        if (unchanged == false) {
+            SSLContext.setDefault(original);
+        }
+        return String.valueOf(unchanged);
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void setDefaultHostnameVerifier() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
+    static String setDefaultHostnameVerifier() {
+        var original = HttpsURLConnection.getDefaultHostnameVerifier();
         HttpsURLConnection.setDefaultHostnameVerifier((hostname, session) -> false);
+        boolean unchanged = HttpsURLConnection.getDefaultHostnameVerifier() == original;
+        if (unchanged == false) {
+            HttpsURLConnection.setDefaultHostnameVerifier(original);
+        }
+        return String.valueOf(unchanged);
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void setDefaultSSLSocketFactory() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
+    static String setDefaultSSLSocketFactory() {
+        var original = HttpsURLConnection.getDefaultSSLSocketFactory();
         HttpsURLConnection.setDefaultSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
+        boolean unchanged = HttpsURLConnection.getDefaultSSLSocketFactory() == original;
+        if (unchanged == false) {
+            HttpsURLConnection.setDefaultSSLSocketFactory(original);
+        }
+        return String.valueOf(unchanged);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void setHttpsConnectionProperties() {
-        new DummyImplementations.DummyHttpsURLConnection().setSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String setHttpsConnectionProperties() {
+        var connection = new DummyImplementations.DummyHttpsURLConnection();
+        var original = connection.getSSLSocketFactory();
+        connection.setSSLSocketFactory(new DummyImplementations.DummySSLSocketFactory());
+        boolean unchanged = connection.getSSLSocketFactory() == original;
+        if (unchanged == false) {
+            connection.setSSLSocketFactory(original);
+        }
+        return String.valueOf(unchanged);
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

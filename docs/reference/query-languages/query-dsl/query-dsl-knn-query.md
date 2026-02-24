@@ -83,8 +83,6 @@ PUT my-image-index
     ```
     % TEST[continued]
 
-```
-
 4. {applies_to}`stack: ga 9.4` You can also provide a base64-encoded query vector string. For example, `[-5, 9, -12]` encoded as float32 big-endian bytes is `wKAAAEEQAADBQAAA`.
 
     ```console

@@ -105,6 +105,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.index.IndexVersions.NEW_SPARSE_VECTOR;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ;
 import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_BBQ_BACKPORT_8_X;
+import static org.elasticsearch.index.IndexVersions.SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
@@ -122,7 +123,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChun
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOffsetsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
-import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_ELSER_ENDPOINT_ID_V2;
+import static org.elasticsearch.xpack.inference.services.elastic.InternalPreconfiguredEndpoints.DEFAULT_JINA_V5_ENDPOINT_ID;
 import static org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalService.DEFAULT_ELSER_ID;
 
 /**
@@ -158,7 +159,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_FALLBACK_ELSER_INFERENCE_ID = DEFAULT_ELSER_ID;
-    public static final String DEFAULT_EIS_ELSER_INFERENCE_ID = DEFAULT_ELSER_ENDPOINT_ID_V2;
+    public static final String DEFAULT_EIS_JINA_V5_INFERENCE_ID = DEFAULT_JINA_V5_ENDPOINT_ID;
 
     public static final String UNSUPPORTED_INDEX_MESSAGE = "["
         + CONTENT_TYPE
@@ -169,13 +170,18 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final float DEFAULT_RESCORE_OVERSAMPLE = 3.0f;
 
     /**
-     * Determines the preferred ELSER inference ID based on EIS availability.
-     * Returns .elser-2-elastic (EIS) when available, otherwise falls back to .elser-2-elasticsearch (ML nodes).
-     * This enables automatic selection of EIS for better performance while maintaining compatibility with on-prem deployments.
+     * Determines the default inference ID for semantic_text fields when none is explicitly provided.
+     * Returns .jina-embeddings-v5-text-small (EIS) for indices created on or after
+     * {@code SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5} when jina-v5 is available on EIS,
+     * otherwise falls back to .elser-2-elasticsearch (ML nodes).
+     * Gating on index version ensures all semantic_text fields in an existing index use the same
+     * default model, avoiding mixed embedding types within a single index.
      */
-    private static String getPreferredElserInferenceId(ModelRegistry modelRegistry) {
-        if (modelRegistry != null && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_ELSER_INFERENCE_ID)) {
-            return DEFAULT_EIS_ELSER_INFERENCE_ID;
+    private static String getDefaultInferenceId(ModelRegistry modelRegistry, IndexVersion indexVersionCreated) {
+        if (modelRegistry != null
+            && modelRegistry.containsPreconfiguredInferenceEndpointId(DEFAULT_EIS_JINA_V5_INFERENCE_ID)
+            && indexVersionCreated.onOrAfter(SEMANTIC_TEXT_DEFAULTS_TO_JINA_V5)) {
+            return DEFAULT_EIS_JINA_V5_INFERENCE_ID;
         }
         return DEFAULT_FALLBACK_ELSER_INFERENCE_ID;
     }
@@ -266,7 +272,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                 INFERENCE_ID_FIELD,
                 true,
                 mapper -> ((SemanticTextFieldType) mapper.fieldType()).inferenceId,
-                getPreferredElserInferenceId(modelRegistry)
+                getDefaultInferenceId(modelRegistry, indexSettings.getIndexVersionCreated())
             ).addValidator(v -> {
                 if (Strings.isEmpty(v)) {
                     throw new IllegalArgumentException(

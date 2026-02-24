@@ -64,7 +64,6 @@ PUT semantic-embeddings
   }
 }
 ```
-% TEST[skip:Requires {{infer}} endpoint]
 
 1. (Optional) Specifies the [{{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-reference.md#configuring-inference-endpoints) used to generate embeddings at index time. If you don’t specify an `inference_id`, the `semantic_text` field uses a [default {{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#default-and-preconfigured-endpoints).
 2. (Optional) The {{infer}} endpoint used to generate embeddings at query time. If not specified, the endpoint defined by `inference_id` is used at both index and query time.

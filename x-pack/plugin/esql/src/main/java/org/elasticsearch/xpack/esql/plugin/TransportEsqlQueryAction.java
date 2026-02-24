@@ -266,7 +266,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         }
         TransportVersion localMinimumVersion = clusterService.state().getMinTransportVersion();
         EsqlFlags flags = computeService.createFlags();
-        String sessionId = task instanceof EsqlQueryTask eqt ? eqt.sessionId() : newSessionID();
+        String sessionId = getOrCreateSessionID(task);
         // async-query uses EsqlQueryTask, so pull the EsqlExecutionInfo out of the task
         // sync query uses CancellableTask which does not have EsqlExecutionInfo, so create one
         EsqlExecutionInfo executionInfo = getOrCreateExecutionInfo(task, request);
@@ -457,6 +457,13 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             threadPool.absoluteTimeInMillis() + request.keepAlive().millis(),
             innerResult.executionInfo()
         );
+    }
+
+    /**
+     * Returns the session ID from the task if it is an {@link EsqlQueryTask}, otherwise generates a new one.
+     */
+    static String getOrCreateSessionID(Task task) {
+        return task instanceof EsqlQueryTask eqt ? eqt.sessionId() : newSessionID();
     }
 
     /**

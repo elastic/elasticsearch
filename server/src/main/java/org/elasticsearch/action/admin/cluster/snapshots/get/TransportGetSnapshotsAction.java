@@ -662,18 +662,12 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 return INCONCLUSIVE;
             }
 
-            final var statesFilterResult = matchAllCompletedStates ? INCLUDE
-                : details.getSnapshotState() == null ? INCONCLUSIVE
-                : states.contains(details.getSnapshotState()) ? INCLUDE
-                : EXCLUDE;
+            final var statesFilterResult = testStatesFilter(details);
             if (statesFilterResult == EXCLUDE) {
                 return EXCLUDE;
             }
 
-            final var slmPolicyResult = slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES ? INCLUDE
-                : details.getSlmPolicy() == null ? INCONCLUSIVE
-                : slmPolicyPredicate.test(details.getSlmPolicy()) ? INCLUDE
-                : EXCLUDE;
+            final var slmPolicyResult = testSlmPolicy(details);
             if (slmPolicyResult == EXCLUDE) {
                 return EXCLUDE;
             }
@@ -682,6 +676,28 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 return INCONCLUSIVE;
             }
             return INCLUDE;
+        }
+
+        private PreflightFilterResult testStatesFilter(RepositoryData.SnapshotDetails details) {
+            if (matchAllCompletedStates) {
+                return INCLUDE;
+            }
+            final var snapshotState = details.getSnapshotState();
+            if (snapshotState == null) {
+                return INCONCLUSIVE;
+            }
+            return states.contains(snapshotState) ? INCLUDE : EXCLUDE;
+        }
+
+        private PreflightFilterResult testSlmPolicy(RepositoryData.SnapshotDetails details) {
+            if (slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {
+                return INCLUDE;
+            }
+            final var slmPolicy = details.getSlmPolicy();
+            if (slmPolicy == null) {
+                return INCONCLUSIVE;
+            }
+            return slmPolicyPredicate.test(slmPolicy) ? INCLUDE : EXCLUDE;
         }
 
         private boolean matchesPredicates(SnapshotInfo snapshotInfo) {

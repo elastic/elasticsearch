@@ -9,16 +9,15 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.NumericDvSingletonOrSorted;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
 
 /**
  * Loads {@code double}s from doc values.
@@ -39,67 +38,33 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
 
     @Override
     public final AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-        boolean release = true;
-        try {
-            SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
-            if (docValues != null) {
-                release = false;
-                NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
-                if (singleton != null) {
-                    return singletonReader(breaker, singleton, toDouble);
-                }
-                return sortedReader(breaker, docValues, toDouble);
-            }
-            NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
-            if (singleton != null) {
-                release = false;
-                return singletonReader(breaker, singleton, toDouble);
-            }
+        NumericDvSingletonOrSorted dv = NumericDvSingletonOrSorted.get(breaker, context, fieldName);
+        if (dv == null) {
             return ConstantNull.READER;
-        } finally {
-            if (release) {
-                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-            }
         }
+        if (dv.singleton() != null) {
+            return singletonReader(dv.singleton(), toDouble);
+        }
+        return sortedReader(dv.sorted(), toDouble);
     }
 
-    protected abstract AllReader singletonReader(
-        CircuitBreaker breaker,
-        NumericDocValues docValues,
-        BlockDocValuesReader.ToDouble toDouble
-    );
+    protected abstract AllReader singletonReader(TrackingNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble);
 
-    protected abstract AllReader sortedReader(
-        CircuitBreaker breaker,
-        SortedNumericDocValues docValues,
-        BlockDocValuesReader.ToDouble toDouble
-    );
+    protected abstract AllReader sortedReader(TrackingSortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble);
 
-    protected abstract static class DoublesBlockDocValuesReader extends BlockDocValuesReader {
-        public DoublesBlockDocValuesReader(CircuitBreaker breaker) {
-            super(breaker);
-        }
-
-        @Override
-        public final void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-        }
-    }
-
-    public static class Singleton extends DoublesBlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
-        private final NumericDocValues docValues;
+    public static class Singleton extends BlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
+        private final TrackingNumericDocValues docValues;
         private final ToDouble toDouble;
 
-        public Singleton(CircuitBreaker breaker, NumericDocValues docValues, ToDouble toDouble) {
-            super(breaker);
+        public Singleton(TrackingNumericDocValues docValues, ToDouble toDouble) {
+            super(null);
             this.docValues = docValues;
             this.toDouble = toDouble;
         }
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            if (docValues instanceof OptionalColumnAtATimeReader direct) {
+            if (docValues.docValues() instanceof OptionalColumnAtATimeReader direct) {
                 Block result = direct.tryRead(factory, docs, offset, nullsFiltered, toDouble, false, false);
                 if (result != null) {
                     return result;
@@ -108,8 +73,8 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
             try (DoubleBuilder builder = factory.doublesFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
-                    if (docValues.advanceExact(doc)) {
-                        builder.appendDouble(toDouble.convert(docValues.longValue()));
+                    if (docValues.docValues().advanceExact(doc)) {
+                        builder.appendDouble(toDouble.convert(docValues.docValues().longValue()));
                     } else {
                         builder.appendNull();
                     }
@@ -121,8 +86,8 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             DoubleBuilder blockBuilder = (DoubleBuilder) builder;
-            if (docValues.advanceExact(docId)) {
-                blockBuilder.appendDouble(toDouble.convert(docValues.longValue()));
+            if (docValues.docValues().advanceExact(docId)) {
+                blockBuilder.appendDouble(toDouble.convert(docValues.docValues().longValue()));
             } else {
                 blockBuilder.appendNull();
             }
@@ -130,7 +95,7 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
 
         @Override
         public int docId() {
-            return docValues.docID();
+            return docValues.docValues().docID();
         }
 
         @Override
@@ -140,16 +105,21 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
 
         @Override
         public NumericDocValues numericDocValues() {
-            return docValues;
+            return docValues.docValues();
+        }
+
+        @Override
+        public void close() {
+            docValues.close();
         }
     }
 
-    public static class Sorted extends DoublesBlockDocValuesReader {
-        private final SortedNumericDocValues docValues;
+    public static class Sorted extends BlockDocValuesReader {
+        private final TrackingSortedNumericDocValues docValues;
         private final ToDouble toDouble;
 
-        Sorted(CircuitBreaker breaker, SortedNumericDocValues docValues, ToDouble toDouble) {
-            super(breaker);
+        Sorted(TrackingSortedNumericDocValues docValues, ToDouble toDouble) {
+            super(null);
             this.docValues = docValues;
             this.toDouble = toDouble;
         }
@@ -171,30 +141,35 @@ public abstract class AbstractDoublesFromDocValuesBlockLoader extends BlockDocVa
         }
 
         private void read(int doc, DoubleBuilder builder) throws IOException {
-            if (false == docValues.advanceExact(doc)) {
+            if (false == docValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            int count = docValues.docValueCount();
+            int count = docValues.docValues().docValueCount();
             if (count == 1) {
-                builder.appendDouble(toDouble.convert(docValues.nextValue()));
+                builder.appendDouble(toDouble.convert(docValues.docValues().nextValue()));
                 return;
             }
             builder.beginPositionEntry();
             for (int v = 0; v < count; v++) {
-                builder.appendDouble(toDouble.convert(docValues.nextValue()));
+                builder.appendDouble(toDouble.convert(docValues.docValues().nextValue()));
             }
             builder.endPositionEntry();
         }
 
         @Override
         public int docId() {
-            return docValues.docID();
+            return docValues.docValues().docID();
         }
 
         @Override
         public String toString() {
             return "DoublesFromDocValues.Sorted";
+        }
+
+        @Override
+        public void close() {
+            docValues.close();
         }
     }
 }

@@ -48,8 +48,8 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends AbstractBlockLoad
 
     protected final boolean lowCardinality;
 
-    public AbstractFromOrdsBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues, boolean highCardinality) {
-        super(blockAtATime, multiValues, missingValues);
+    public AbstractFromOrdsBlockLoaderTests(boolean multiValues, boolean missingValues, boolean highCardinality) {
+        super(multiValues, missingValues);
         this.lowCardinality = highCardinality;
     }
 
@@ -82,12 +82,8 @@ public abstract class AbstractFromOrdsBlockLoaderTests extends AbstractBlockLoad
         }
     }
 
-    protected final TestBlock read(BlockLoader loader, BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
-        BlockLoader.AllReader toUse = blockAtATime
-            ? reader
-            : new ForceDocAtATime(() -> loader.builder(TestBlock.factory(), docs.count()), reader);
-
-        return (TestBlock) toUse.read(TestBlock.factory(), docs, 0, false);
+    protected final TestBlock read(BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
+        return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
     }
 
     private static KeywordFieldMapper.KeywordField field(int codePointCount) {

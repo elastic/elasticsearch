@@ -36,6 +36,8 @@ public class FromGenerator implements CommandGenerator {
      */
     public static final String INDEX_FIELD_NAMES = "indexFieldNames";
 
+    public static final String SET_UNMAPPED_FIELDS_PREFIX = "SET unmapped_fields=\"nullify\";";
+
     @Override
     public CommandDescription generate(
         List<CommandDescription> previousCommands,
@@ -46,7 +48,7 @@ public class FromGenerator implements CommandGenerator {
         boolean useUnmappedFields = shouldAddUnmappedFieldWithProbabilityIncrease(3);
         StringBuilder result = new StringBuilder();
         if (useUnmappedFields) {
-            result.append("SET unmapped_fields=\"nullify\";");
+            result.append(SET_UNMAPPED_FIELDS_PREFIX);
         }
         result.append("from ");
         int items = randomIntBetween(1, 3);

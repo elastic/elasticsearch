@@ -1,4 +1,0 @@
-pr: 142351
-summary: Add description for http_schema field in AlibabaCloudSearchService configuration
-area: Inference
-type: bug

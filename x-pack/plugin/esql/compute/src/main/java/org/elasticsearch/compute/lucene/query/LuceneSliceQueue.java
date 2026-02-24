@@ -82,6 +82,7 @@ public final class LuceneSliceQueue {
     public static final int MAX_DOCS_PER_SLICE = 250_000; // copied from IndexSearcher
     public static final int MAX_SEGMENTS_PER_SLICE = 5; // copied from IndexSearcher
 
+    private final int maxShardIndex;
     private final IntFunction<ShardContext> shardContexts;
     private final int totalSlices;
     private final Map<String, PartitioningStrategy> partitioningStrategies;
@@ -116,6 +117,7 @@ public final class LuceneSliceQueue {
         List<LuceneSlice> sliceList,
         Map<String, PartitioningStrategy> partitioningStrategies
     ) {
+        this.maxShardIndex = sliceList.stream().mapToInt(l -> l.shardContext().index()).max().orElse(-1);
         this.shardContexts = shardContexts;
         this.totalSlices = sliceList.size();
         this.slices = new AtomicReferenceArray<>(sliceList.size());
@@ -137,7 +139,11 @@ public final class LuceneSliceQueue {
         }
     }
 
-    ShardContext getShardContext(int index) {
+    int maxShardIndex() {
+        return maxShardIndex;
+    }
+
+    ShardContext shardContext(int index) {
         return shardContexts.apply(index);
     }
 

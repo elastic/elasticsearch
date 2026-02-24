@@ -29,33 +29,30 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 @SuppressWarnings({ "unused" /* called via reflection */ })
 class JvmActions {
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "null")
-    static String setSystemProperty() {
-        String result = System.setProperty("es.entitlements.checkSetSystemProperty", "true");
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void setSystemProperty() {
+        System.setProperty("es.entitlements.checkSetSystemProperty", "true");
         try {
             System.clearProperty("es.entitlements.checkSetSystemProperty");
         } catch (RuntimeException e) {
             // ignore for this test case
         }
-        return String.valueOf(result);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "null")
-    static String clearSystemProperty() {
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void clearSystemProperty() {
         EntitledPlugin.selfTest(); // TODO: find a better home
-        String result = System.clearProperty("es.entitlements.checkClearSystemProperty");
-        return String.valueOf(result);
+        System.clearProperty("es.entitlements.checkClearSystemProperty");
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
-    static String setSystemProperties() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void setSystemProperties() {
         Properties original = System.getProperties();
         System.setProperties(new Properties(original));
         boolean unchanged = System.getProperties() == original;
         if (unchanged == false) {
             System.setProperties(original);
         }
-        return String.valueOf(unchanged);
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

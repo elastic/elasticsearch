@@ -153,7 +153,7 @@ public class PatternTextFieldType extends TextFamilyFieldType {
             var docValues = PatternTextFallbackDocValues.from(context, PatternTextFieldType.this);
             return docId -> {
                 if (docValues != null && docValues.advanceExact(docId)) {
-                    return List.of(docValues.binaryValue().utf8ToString());
+                    return List.of(docValues.binaryValue());
                 }
                 return List.of();
             };

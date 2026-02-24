@@ -9,13 +9,13 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.NumericDvSingletonOrSorted;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
 
@@ -23,12 +23,6 @@ import java.io.IOException;
  * Loads {@code long}s from doc values.
  */
 public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
-    /**
-     * Circuit breaker space reserved for each reader. Measured in heap dumps
-     * around 500 bytes and this is an intention overestimate.
-     */
-    public static final long ESTIMATED_SIZE = ByteSizeValue.ofKb(2).getBytes();
-
     protected final String fieldName;
 
     public AbstractLongsFromDocValuesBlockLoader(String fieldName) {
@@ -42,57 +36,31 @@ public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValu
 
     @Override
     public final AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
-        boolean release = true;
-        try {
-            SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
-            if (docValues != null) {
-                release = false;
-                NumericDocValues singleton = DocValues.unwrapSingleton(docValues);
-                if (singleton != null) {
-                    return singletonReader(breaker, singleton);
-                }
-                return sortedReader(breaker, docValues);
-            }
-            NumericDocValues singleton = context.reader().getNumericDocValues(fieldName);
-            if (singleton != null) {
-                release = false;
-                return singletonReader(breaker, singleton);
-            }
+        NumericDvSingletonOrSorted dv = NumericDvSingletonOrSorted.get(breaker, context, fieldName);
+        if (dv == null) {
             return ConstantNull.READER;
-        } finally {
-            if (release) {
-                breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-            }
         }
+        if (dv.singleton() != null) {
+            return singletonReader(dv.singleton());
+        }
+        return sortedReader(dv.sorted());
     }
 
-    protected abstract AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues);
+    protected abstract AllReader singletonReader(TrackingNumericDocValues docValues);
 
-    protected abstract AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues);
+    protected abstract AllReader sortedReader(TrackingSortedNumericDocValues docValues);
 
-    protected abstract static class LongsBlockDocValuesReader extends BlockDocValuesReader {
-        public LongsBlockDocValuesReader(CircuitBreaker breaker) {
-            super(breaker);
-        }
+    public static class Singleton extends BlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
+        private final TrackingNumericDocValues numericDocValues;
 
-        @Override
-        public final void close() {
-            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
-        }
-    }
-
-    public static class Singleton extends LongsBlockDocValuesReader implements BlockDocValuesReader.NumericDocValuesAccessor {
-        final NumericDocValues numericDocValues;
-
-        public Singleton(CircuitBreaker breaker, NumericDocValues numericDocValues) {
-            super(breaker);
+        public Singleton(TrackingNumericDocValues numericDocValues) {
+            super(null);
             this.numericDocValues = numericDocValues;
         }
 
         @Override
         public Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            if (numericDocValues instanceof OptionalColumnAtATimeReader direct) {
+            if (numericDocValues.docValues() instanceof OptionalColumnAtATimeReader direct) {
                 Block result = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
                 if (result != null) {
                     return result;
@@ -101,8 +69,8 @@ public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValu
             try (LongBuilder builder = factory.longsFromDocValues(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
-                    if (numericDocValues.advanceExact(doc)) {
-                        builder.appendLong(numericDocValues.longValue());
+                    if (numericDocValues.docValues().advanceExact(doc)) {
+                        builder.appendLong(numericDocValues.docValues().longValue());
                     } else {
                         builder.appendNull();
                     }
@@ -114,8 +82,8 @@ public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValu
         @Override
         public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
             LongBuilder blockBuilder = (LongBuilder) builder;
-            if (numericDocValues.advanceExact(docId)) {
-                blockBuilder.appendLong(numericDocValues.longValue());
+            if (numericDocValues.docValues().advanceExact(docId)) {
+                blockBuilder.appendLong(numericDocValues.docValues().longValue());
             } else {
                 blockBuilder.appendNull();
             }
@@ -123,7 +91,7 @@ public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValu
 
         @Override
         public int docId() {
-            return numericDocValues.docID();
+            return numericDocValues.docValues().docID();
         }
 
         @Override
@@ -133,15 +101,20 @@ public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValu
 
         @Override
         public NumericDocValues numericDocValues() {
-            return numericDocValues;
+            return numericDocValues.docValues();
+        }
+
+        @Override
+        public void close() {
+            numericDocValues.close();
         }
     }
 
-    public static class Sorted extends LongsBlockDocValuesReader {
-        private final SortedNumericDocValues numericDocValues;
+    public static class Sorted extends BlockDocValuesReader {
+        private final TrackingSortedNumericDocValues numericDocValues;
 
-        Sorted(CircuitBreaker breaker, SortedNumericDocValues numericDocValues) {
-            super(breaker);
+        Sorted(TrackingSortedNumericDocValues numericDocValues) {
+            super(null);
             this.numericDocValues = numericDocValues;
         }
 
@@ -162,30 +135,35 @@ public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValu
         }
 
         private void read(int doc, LongBuilder builder) throws IOException {
-            if (false == numericDocValues.advanceExact(doc)) {
+            if (false == numericDocValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            int count = numericDocValues.docValueCount();
+            int count = numericDocValues.docValues().docValueCount();
             if (count == 1) {
-                builder.appendLong(numericDocValues.nextValue());
+                builder.appendLong(numericDocValues.docValues().nextValue());
                 return;
             }
             builder.beginPositionEntry();
             for (int v = 0; v < count; v++) {
-                builder.appendLong(numericDocValues.nextValue());
+                builder.appendLong(numericDocValues.docValues().nextValue());
             }
             builder.endPositionEntry();
         }
 
         @Override
         public int docId() {
-            return numericDocValues.docID();
+            return numericDocValues.docValues().docID();
         }
 
         @Override
         public String toString() {
             return "LongsFromDocValues.Sorted";
+        }
+
+        @Override
+        public void close() {
+            numericDocValues.close();
         }
     }
 }

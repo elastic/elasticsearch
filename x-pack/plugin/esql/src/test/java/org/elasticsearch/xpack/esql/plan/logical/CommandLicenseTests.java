@@ -137,6 +137,10 @@ public class CommandLicenseTests extends ESTestCase {
             "MV_EXPAND",
             "InlineStats",
             "INLINE_STATS",
+            "RegisteredDomain",
+            "REGISTERED_DOMAIN",
+            "UriParts",
+            "URI_PARTS",
             "MetricsInfo",
             "METRICS_INFO"
         );

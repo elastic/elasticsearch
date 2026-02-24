@@ -313,8 +313,7 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             );
             try (DirectoryReader reader = iw.getReader()) {
                 DoubleScriptFieldType fieldType = buildWrapped("add_param", Map.of("param", 1), factoryWrapper);
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0), equalTo(List.of(2d, 3d)));
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 1), equalTo(List.of(3d)));
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
                 assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(List.of(2d, 3d)));
             }
         }
@@ -333,22 +332,17 @@ public class DoubleScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTe
             );
             try (DirectoryReader reader = iw.getReader()) {
                 DoubleScriptFieldType fieldType = simpleSourceOnlyMappedFieldType();
+                assertColumnAtATimeReaderNotSupported(reader, fieldType);
 
                 // Assert implementations:
                 BlockLoader loader = fieldType.blockLoader(blContext(Settings.EMPTY, true));
                 assertThat(loader, instanceOf(DoubleScriptBlockDocValuesReader.DoubleScriptBlockLoader.class));
-                // ignored source doesn't support column at a time loading:
                 CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofMb(1));
-                try (var columnAtATimeLoader = loader.columnAtATimeReader(reader.leaves().getFirst()).apply(breaker)) {
-                    assertThat(columnAtATimeLoader, instanceOf(DoubleScriptBlockDocValuesReader.class));
-                }
                 try (var rowStrideReader = loader.rowStrideReader(breaker, reader.leaves().getFirst())) {
                     assertThat(rowStrideReader, instanceOf(DoubleScriptBlockDocValuesReader.class));
                 }
 
                 // Assert values:
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 0), equalTo(List.of(1.1, 2.1)));
-                assertThat(blockLoaderReadValuesFromColumnAtATimeReader(breaker, reader, fieldType, 1), equalTo(List.of(2.1)));
                 assertThat(blockLoaderReadValuesFromRowStrideReader(breaker, reader, fieldType), equalTo(List.of(1.1, 2.1)));
             }
         }

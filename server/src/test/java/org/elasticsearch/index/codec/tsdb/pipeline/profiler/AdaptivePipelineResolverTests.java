@@ -32,7 +32,7 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
 
         final PipelineResolver.FieldContext ctx = longContext("test");
         final PipelineConfig config = resolver.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
-        assertFalse(config.isDefault());
+        assertFalse(config.specs().isEmpty());
     }
 
     public void testSelectsPipelineForConstantData() {
@@ -41,7 +41,7 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
 
         final PipelineResolver.FieldContext ctx = longContext("test");
         final PipelineConfig config = resolver.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
-        assertFalse(config.isDefault());
+        assertFalse(config.specs().isEmpty());
     }
 
     public void testSelectsPipelineForDoubleGauge() {
@@ -50,14 +50,14 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
 
         final PipelineResolver.FieldContext ctx = doubleGaugeContext("cpu.usage");
         final PipelineConfig config = resolver.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
-        assertFalse(config.isDefault());
+        assertFalse(config.specs().isEmpty());
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
     }
 
-    public void testFallsBackToDefaultWhenSampleEmpty() {
+    public void testFallsBackToBaselineWhenSampleEmpty() {
         final PipelineResolver.FieldContext ctx = longContext("test");
         final PipelineConfig config = resolver.resolve(ctx, new long[0], 0, IOContext.DEFAULT);
-        assertTrue(config.isDefault());
+        assertEquals(PipelineConfig.forLongs(BLOCK_SIZE).delta().offset().gcd().bitPack(), config);
     }
 
     public void testDeterministic() {
@@ -80,7 +80,7 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
 
         final PipelineResolver.FieldContext ctx = floatGaugeContext("temperature");
         final PipelineConfig config = resolver.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
-        assertFalse(config.isDefault());
+        assertFalse(config.specs().isEmpty());
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
     }
 
@@ -100,7 +100,7 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
             BLOCK_SIZE
         );
         final PipelineConfig config = resolver.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
-        assertFalse(config.isDefault());
+        assertFalse(config.specs().isEmpty());
         assertEquals(PipelineConfig.DataType.LONG, config.dataType());
     }
 
@@ -112,7 +112,7 @@ public class AdaptivePipelineResolverTests extends ESTestCase {
 
         final PipelineResolver.FieldContext ctx = longContext("test");
         final PipelineConfig config = resolver.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
-        assertFalse(config.isDefault());
+        assertFalse(config.specs().isEmpty());
         assertEquals(PipelineConfig.DataType.LONG, config.dataType());
     }
 

@@ -9,14 +9,11 @@
 
 package org.elasticsearch.index.codec.tsdb.pipeline;
 
-import org.elasticsearch.core.Nullable;
-
 /**
  * Maps a field name to a {@link PipelineResolver.FieldContext} for deferred pipeline resolution.
  */
 @FunctionalInterface
 public interface FieldContextResolver {
 
-    @Nullable
     PipelineResolver.FieldContext resolve(String fieldName);
 }

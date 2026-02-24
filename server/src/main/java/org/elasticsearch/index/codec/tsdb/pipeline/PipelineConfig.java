@@ -26,8 +26,6 @@ public final class PipelineConfig {
         FLOAT
     }
 
-    private static final PipelineConfig DEFAULT = new PipelineConfig(DataType.LONG, 0, List.of());
-
     private final DataType dataType;
     private final int blockSize;
     private final List<StageSpec> specs;
@@ -56,15 +54,8 @@ public final class PipelineConfig {
         return new FloatBuilder(blockSize);
     }
 
-    /**
-     * Returns the default configuration (no pipeline, uses codec defaults).
-     */
-    public static PipelineConfig defaultConfig() {
-        return DEFAULT;
-    }
-
-    public static PipelineConfig defaultConfig(int blockSize) {
-        return new PipelineConfig(DataType.LONG, blockSize, List.of());
+    public static PipelineConfig of(final DataType dataType, int blockSize, final List<StageSpec> specs) {
+        return new PipelineConfig(dataType, blockSize, specs);
     }
 
     public DataType dataType() {
@@ -80,13 +71,6 @@ public final class PipelineConfig {
      */
     public List<StageSpec> specs() {
         return specs;
-    }
-
-    /**
-     * @return true if this is the default configuration (no stages specified)
-     */
-    public boolean isDefault() {
-        return specs.isEmpty();
     }
 
     @Override

@@ -204,20 +204,12 @@ public class PerFieldFormatSupplier {
         return knnVectorsFormat;
     }
 
-    @Nullable
     private PipelineResolver.FieldContext resolveFieldContext(final String fieldName) {
         final IndexMode indexMode = mapperService.getIndexSettings().getMode();
+        final int blockSize = resolveBlockSize(indexMode);
         // NOTE: metadata fields like _seq_no are not in MappingLookup.getMapper() — handle by name
         if (SeqNoFieldMapper.NAME.equals(fieldName)) {
-            return new PipelineResolver.FieldContext(
-                fieldName,
-                indexMode,
-                PipelineConfig.DataType.LONG,
-                null,
-                null,
-                false,
-                resolveBlockSize(indexMode)
-            );
+            return new PipelineResolver.FieldContext(fieldName, indexMode, PipelineConfig.DataType.LONG, null, null, false, blockSize);
         }
         final Mapper mapper = mapperService.mappingLookup().getMapper(fieldName);
         if (mapper instanceof NumberFieldMapper numberFieldMapper) {
@@ -228,7 +220,7 @@ public class PerFieldFormatSupplier {
                 parseOptimizeFor(numberFieldMapper.fieldType().optimizeFor()),
                 extractMetricType(numberFieldMapper.fieldType()),
                 false,
-                resolveBlockSize(indexMode)
+                blockSize
             );
         }
         if (mapper instanceof DateFieldMapper dateFieldMapper) {
@@ -239,10 +231,10 @@ public class PerFieldFormatSupplier {
                 parseOptimizeFor(dateFieldMapper.fieldType().optimizeFor()),
                 null,
                 true,
-                resolveBlockSize(indexMode)
+                blockSize
             );
         }
-        return null;
+        return new PipelineResolver.FieldContext(fieldName, indexMode, PipelineConfig.DataType.LONG, null, null, false, blockSize);
     }
 
     @Nullable

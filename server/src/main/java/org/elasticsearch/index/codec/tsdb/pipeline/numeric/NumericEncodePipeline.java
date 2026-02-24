@@ -21,7 +21,6 @@ import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpDoubleTrans
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpFloatTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdDoubleTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.AlpRdFloatTransformEncodeStage;
-import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.BitPackCodecStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpDoubleTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.ChimpFloatTransformEncodeStage;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.stages.DeltaCodecStage;
@@ -70,15 +69,6 @@ public final class NumericEncodePipeline {
         }
         ids[stages.length] = payloadStage.id();
         this.descriptor = new PipelineDescriptor(ids, blockSize, dataType);
-    }
-
-    static NumericEncodePipeline withDefault(int blockSize) {
-        return new NumericEncodePipeline(
-            new TransformEncoder[] { DeltaCodecStage.INSTANCE, OffsetCodecStage.INSTANCE, GcdCodecStage.INSTANCE },
-            new BitPackCodecStage(blockSize),
-            blockSize,
-            PipelineDescriptor.DataType.LONG
-        );
     }
 
     static NumericEncodePipeline fromConfig(final PipelineConfig config) {

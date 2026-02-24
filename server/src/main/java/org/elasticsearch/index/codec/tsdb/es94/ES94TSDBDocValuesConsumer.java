@@ -46,7 +46,6 @@ import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.packed.DirectMonotonicWriter;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldContextResolver;
@@ -170,19 +169,15 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
         writeField(field, producer, -1, null, ctx, blockSize);
     }
 
-    @Nullable
     private PipelineResolver.FieldContext resolveFieldContext(final String fieldName) {
-        return fieldContextResolver != null ? fieldContextResolver.resolve(fieldName) : null;
+        return fieldContextResolver.resolve(fieldName);
     }
 
-    private int resolveBlockSize(@Nullable final PipelineResolver.FieldContext ctx) {
-        return ctx != null ? ctx.blockSize() : numericBlockSize;
+    private int resolveBlockSize(final PipelineResolver.FieldContext ctx) {
+        return ctx.blockSize();
     }
 
-    private PipelineConfig resolvePipelineConfig(@Nullable final PipelineResolver.FieldContext ctx, final long[] sample, int sampleSize) {
-        if (ctx == null) {
-            return PipelineConfig.defaultConfig();
-        }
+    private PipelineConfig resolvePipelineConfig(final PipelineResolver.FieldContext ctx, final long[] sample, int sampleSize) {
         final PipelineConfig config = pipelineResolver.resolve(ctx, sample, sampleSize, context);
         logger.trace("pipeline resolve [{}] config=[{}]", ctx.fieldName(), config);
         return config;
@@ -203,7 +198,7 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
         TsdbDocValuesProducer valuesProducer,
         long maxOrd,
         OffsetsAccumulator offsetsAccumulator,
-        @Nullable PipelineResolver.FieldContext fieldContext,
+        final PipelineResolver.FieldContext fieldContext,
         int blockSize
     ) throws IOException {
         final int blockShift = Integer.numberOfTrailingZeros(blockSize);
@@ -1098,7 +1093,7 @@ final class ES94TSDBDocValuesConsumer extends XDocValuesConsumer {
         FieldInfo field,
         TsdbDocValuesProducer valuesProducer,
         long maxOrd,
-        @Nullable PipelineResolver.FieldContext pipelineContext,
+        final PipelineResolver.FieldContext pipelineContext,
         int pipelineBlockSize
     ) throws IOException {
         if (field.docValuesSkipIndexType() != DocValuesSkipIndexType.NONE) {

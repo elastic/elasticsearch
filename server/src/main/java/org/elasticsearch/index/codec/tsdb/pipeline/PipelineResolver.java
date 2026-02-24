@@ -14,10 +14,21 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.TimeSeriesParams.MetricType;
 
+import java.util.List;
+
 /**
  * Resolves a pipeline configuration based on field context and an optional data sample.
  */
 public interface PipelineResolver {
+
+    // NOTE: ES819-equivalent baseline pipeline: delta → offset → gcd → bitPack.
+    // Used as the fallback when no better pipeline is available.
+    List<StageSpec> ES819_BASELINE_SPECS = List.of(
+        new StageSpec.Delta(),
+        new StageSpec.Offset(),
+        new StageSpec.Gcd(),
+        new StageSpec.BitPack()
+    );
 
     enum OptimizeFor {
         STORAGE,

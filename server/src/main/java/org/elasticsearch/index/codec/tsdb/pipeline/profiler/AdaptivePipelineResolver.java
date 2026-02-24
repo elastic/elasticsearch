@@ -32,7 +32,7 @@ public final class AdaptivePipelineResolver implements PipelineResolver {
     public PipelineConfig resolve(final FieldContext context, long[] sample, int sampleSize, IOContext ioContext) {
         if (sampleSize == 0) {
             logger.debug("pipeline-select ({}) [{}] -> default (empty sample)", phase(ioContext), context.fieldName());
-            return PipelineConfig.defaultConfig();
+            return PipelineConfig.of(context.dataType(), context.blockSize(), ES819_BASELINE_SPECS);
         }
 
         final int blockSize = context.blockSize();

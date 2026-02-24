@@ -27,7 +27,7 @@ public final class StaticPipelineResolver implements PipelineResolver {
     @Override
     public PipelineConfig resolve(final FieldContext context, long[] sample, int sampleSize, IOContext ioContext) {
         if (context.indexMode() == IndexMode.STANDARD) {
-            return PipelineConfig.defaultConfig();
+            return PipelineConfig.of(context.dataType(), context.blockSize(), ES819_BASELINE_SPECS);
         }
 
         final PipelineConfig staticResult = resolveFromStaticRules(context);
@@ -37,7 +37,7 @@ public final class StaticPipelineResolver implements PipelineResolver {
         }
 
         logger.debug("field [{}] mode=[{}] -> default", context.fieldName(), context.indexMode());
-        return PipelineConfig.defaultConfig();
+        return PipelineConfig.of(context.dataType(), context.blockSize(), ES819_BASELINE_SPECS);
     }
 
     @Nullable

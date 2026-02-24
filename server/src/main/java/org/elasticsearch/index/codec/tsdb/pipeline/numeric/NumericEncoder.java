@@ -29,10 +29,6 @@ public final class NumericEncoder {
         return new NumericEncoder(NumericEncodePipeline.fromConfig(config));
     }
 
-    public static NumericEncoder withDefault(int blockSize) {
-        return new NumericEncoder(NumericEncodePipeline.withDefault(blockSize));
-    }
-
     public NumericBlockEncoder newBlockEncoder() {
         return new NumericBlockEncoder(pipeline);
     }

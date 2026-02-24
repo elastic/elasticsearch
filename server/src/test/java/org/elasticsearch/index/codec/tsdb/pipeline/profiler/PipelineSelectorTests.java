@@ -39,7 +39,6 @@ public class PipelineSelectorTests extends ESTestCase {
         Arrays.fill(values, 42L);
         final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.LONG, null, null);
 
-        assertFalse(config.isDefault());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Delta.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Offset.class)));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
@@ -55,7 +54,6 @@ public class PipelineSelectorTests extends ESTestCase {
             values[i] = base + i * 1000L;
         final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.LONG, null, null);
 
-        assertFalse(config.isDefault());
         assertThat(config.specs(), not(hasItem(instanceOf(StageSpec.DeltaDelta.class))));
         // NOTE: two Delta specs at positions 0 and 1
         assertEquals(2, config.specs().stream().filter(s -> s instanceof StageSpec.Delta).count());
@@ -70,7 +68,7 @@ public class PipelineSelectorTests extends ESTestCase {
         assertTrue(profile.isMonotonicallyIncreasing());
 
         final PipelineConfig config = selector.select(profile, 512, PipelineConfig.DataType.LONG, null, null);
-        assertFalse(config.isDefault());
+
     }
 
     public void testGcdFriendlySelectsGcd() {
@@ -79,7 +77,6 @@ public class PipelineSelectorTests extends ESTestCase {
             values[i] = (i % 100) * 50L;
         final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.LONG, null, null);
 
-        assertFalse(config.isDefault());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.Gcd.class)));
     }
 
@@ -87,7 +84,6 @@ public class PipelineSelectorTests extends ESTestCase {
         final long[] values = NumericDataGenerators.randomLongs(512, 0x5DEECE66DL);
         final PipelineConfig config = selector.select(profiler.profile(values, 512), 512, PipelineConfig.DataType.LONG, null, null);
 
-        assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.LONG, config.dataType());
     }
 

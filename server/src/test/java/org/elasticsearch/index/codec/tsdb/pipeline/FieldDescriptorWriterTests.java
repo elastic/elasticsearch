@@ -75,7 +75,11 @@ public class FieldDescriptorWriterTests extends ESTestCase {
     public void testDefaultConfigGetsBlockSizeApplied() throws IOException {
         final byte[] metaBuf = new byte[1024];
         final ByteArrayDataOutput metaOut = new ByteArrayDataOutput(metaBuf);
-        final FieldDescriptorWriter writer = new FieldDescriptorWriter(metaOut, PipelineConfig.defaultConfig(), 256);
+        final FieldDescriptorWriter writer = new FieldDescriptorWriter(
+            metaOut,
+            PipelineConfig.forLongs(256).delta().offset().gcd().bitPack(),
+            256
+        );
 
         final long[] values = new long[256];
         final byte[] dataBuf = new byte[16384];

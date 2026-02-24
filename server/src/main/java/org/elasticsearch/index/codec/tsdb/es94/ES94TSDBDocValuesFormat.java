@@ -164,9 +164,6 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
     static final NumericCodecFactory NUMERIC_CODEC_FACTORY = new NumericCodecFactory() {
         @Override
         public NumericEncoder createEncoder(PipelineConfig config) {
-            if (config.isDefault()) {
-                return NumericEncoder.withDefault(config.blockSize());
-            }
             return NumericEncoder.fromConfig(config);
         }
 
@@ -285,8 +282,17 @@ public class ES94TSDBDocValuesFormat extends org.apache.lucene.codecs.DocValuesF
         this.binaryDVCompressionMode = binaryDVCompressionMode;
         this.enablePerBlockCompression = enablePerBlockCompression;
         this.numericBlockShift = numericBlockShift;
-        this.fieldContextResolver = fieldContextResolver;
-        this.pipelineResolver = pipelineResolver;
+        final int blockSize = 1 << numericBlockShift;
+        this.fieldContextResolver = fieldContextResolver != null
+            ? fieldContextResolver
+            : fieldName -> new PipelineResolver.FieldContext(fieldName, null, PipelineConfig.DataType.LONG, null, null, false, blockSize);
+        this.pipelineResolver = pipelineResolver != null
+            ? pipelineResolver
+            : (ctx, sample, sampleSize, ioContext) -> PipelineConfig.of(
+                ctx.dataType(),
+                ctx.blockSize(),
+                PipelineResolver.ES819_BASELINE_SPECS
+            );
     }
 
     @Override

@@ -48,9 +48,7 @@ public class PipelineDiscoveryTests extends ESTestCase {
             final PipelineConfig staticConfig = staticResolver.resolve(ctx, values, BLOCK_SIZE, IOContext.DEFAULT);
 
             final int adaptiveBytes = measureSize(adaptiveConfig, values);
-            final int staticBytes = staticConfig.isDefault()
-                ? measureSize(PipelineConfig.forLongs(BLOCK_SIZE).delta().offset().gcd().bitPack(), values)
-                : measureSize(staticConfig, values);
+            final int staticBytes = measureSize(staticConfig, values);
 
             final int delta = staticBytes > 0 ? ((staticBytes - adaptiveBytes) * 100 / staticBytes) : 0;
             logger.info(

@@ -27,7 +27,7 @@ public final class FieldDescriptorWriter {
     public FieldDescriptorWriter(final DataOutput meta, final PipelineConfig config, int blockSize) {
         this.meta = meta;
         this.blockSize = blockSize;
-        this.encoder = config.isDefault() ? NumericEncoder.withDefault(blockSize) : NumericEncoder.fromConfig(config);
+        this.encoder = NumericEncoder.fromConfig(config);
     }
 
     public void encode(final long[] values, int valueCount, final DataOutput data) throws IOException {

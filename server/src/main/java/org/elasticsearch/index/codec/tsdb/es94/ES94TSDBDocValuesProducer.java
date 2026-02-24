@@ -53,6 +53,7 @@ import org.elasticsearch.index.codec.tsdb.TSDBDocValuesEncoder;
 import org.elasticsearch.index.codec.tsdb.pipeline.FieldDescriptor;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
 import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericBlockDecoder;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericDecoder;
@@ -68,6 +69,7 @@ import static org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat.SK
 import static org.elasticsearch.index.codec.tsdb.es94.ES94TSDBDocValuesFormat.TERMS_DICT_BLOCK_LZ4_SHIFT;
 
 final class ES94TSDBDocValuesProducer extends DocValuesProducer {
+
     final IntObjectHashMap<NumericEntry> numerics;
     private final int primarySortFieldNumber;
     final IntObjectHashMap<BinaryEntry> binaries;
@@ -221,9 +223,13 @@ final class ES94TSDBDocValuesProducer extends DocValuesProducer {
             decoder = numericCodecFactory.createDecoder(entry.pipelineDescriptor);
         } else {
             // NOTE: Legacy path for fields written without a pipeline descriptor.
-            // Build a default codec to obtain the descriptor, then create a decoder from it.
-            final PipelineDescriptor defaultDescriptor = numericCodecFactory.createEncoder(PipelineConfig.defaultConfig(numericBlockSize))
-                .descriptor();
+            // Build a baseline codec to obtain the descriptor, then create a decoder from it.
+            final PipelineConfig baselineConfig = PipelineConfig.of(
+                PipelineConfig.DataType.LONG,
+                numericBlockSize,
+                PipelineResolver.ES819_BASELINE_SPECS
+            );
+            final PipelineDescriptor defaultDescriptor = numericCodecFactory.createEncoder(baselineConfig).descriptor();
             decoder = numericCodecFactory.createDecoder(defaultDescriptor);
         }
         return decoder.newBlockDecoder();

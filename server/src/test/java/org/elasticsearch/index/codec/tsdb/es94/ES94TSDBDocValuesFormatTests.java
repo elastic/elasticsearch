@@ -483,7 +483,7 @@ public class ES94TSDBDocValuesFormatTests extends ESTestCase {
             return new PipelineResolver.FieldContext(fieldName, null, PipelineConfig.DataType.LONG, null, null, false, blockSize);
         }, (ctx, sample, sampleSize, ioContext) -> {
             final PipelineConfig config = fieldPipelines.get(ctx.fieldName());
-            return config != null ? config : PipelineConfig.defaultConfig();
+            return config != null ? config : PipelineConfig.forLongs(ctx.blockSize()).delta().offset().gcd().bitPack();
         });
     }
 

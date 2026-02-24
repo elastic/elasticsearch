@@ -71,7 +71,7 @@ public final class StageIsolationResolver implements PipelineResolver {
     @Override
     public PipelineConfig resolve(final FieldContext context, long[] sample, int sampleSize, IOContext ioContext) {
         if (sampleSize == 0) {
-            return PipelineConfig.defaultConfig();
+            return PipelineConfig.of(context.dataType(), context.blockSize(), ES819_BASELINE_SPECS);
         }
         final int blockSize = context.blockSize();
         final PipelineConfig config = switch (context.dataType()) {

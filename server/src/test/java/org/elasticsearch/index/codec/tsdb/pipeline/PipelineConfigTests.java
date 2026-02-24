@@ -20,14 +20,6 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class PipelineConfigTests extends ESTestCase {
 
-    public void testDefaultConfigThrows() {
-        expectThrows(IllegalStateException.class, () -> NumericEncoder.fromConfig(PipelineConfig.defaultConfig()));
-    }
-
-    public void testDefaultConfigIsDefault() {
-        assertTrue(PipelineConfig.defaultConfig().isDefault());
-    }
-
     public void testLongPipelineBuilds() throws IOException {
         final PipelineConfig config = PipelineConfig.forLongs(128).delta().offset().gcd().bitPack();
         final NumericEncoder encoder = NumericEncoder.fromConfig(config);

@@ -22,14 +22,6 @@ public final class ES819BaselinePipelineResolver implements PipelineResolver {
 
     @Override
     public PipelineConfig resolve(final FieldContext context, long[] sample, int sampleSize, IOContext ioContext) {
-        if (sampleSize == 0) {
-            return PipelineConfig.defaultConfig();
-        }
-        final int blockSize = context.blockSize();
-        return switch (context.dataType()) {
-            case LONG -> PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack();
-            case DOUBLE -> PipelineConfig.forDoubles(blockSize).delta().offset().gcd().bitPack();
-            case FLOAT -> PipelineConfig.forFloats(blockSize).delta().offset().gcd().bitPack();
-        };
+        return PipelineConfig.of(context.dataType(), context.blockSize(), ES819_BASELINE_SPECS);
     }
 }

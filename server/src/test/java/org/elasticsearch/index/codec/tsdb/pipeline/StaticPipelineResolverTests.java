@@ -30,7 +30,6 @@ public class StaticPipelineResolverTests extends ESTestCase {
         final PipelineResolver.FieldContext ctx = tsdbContext("cpu.usage", PipelineConfig.DataType.DOUBLE, MetricType.GAUGE);
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
         assertThat(config.blockSize(), greaterThan(0));
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
@@ -48,7 +47,6 @@ public class StaticPipelineResolverTests extends ESTestCase {
         );
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
     }
@@ -57,7 +55,6 @@ public class StaticPipelineResolverTests extends ESTestCase {
         final PipelineResolver.FieldContext ctx = tsdbContext("temperature", PipelineConfig.DataType.FLOAT, MetricType.GAUGE);
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
     }
@@ -74,23 +71,21 @@ public class StaticPipelineResolverTests extends ESTestCase {
         );
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
     }
 
-    public void testTsdbLongCounterReturnsDefault() {
+    public void testTsdbLongCounterReturnsBaseline() {
         final PipelineResolver.FieldContext ctx = tsdbContext("requests.total", PipelineConfig.DataType.LONG, MetricType.COUNTER);
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertTrue(config.isDefault());
+        assertEquals(PipelineConfig.forLongs(TSDB_BLOCK_SIZE).delta().offset().gcd().bitPack(), config);
     }
 
     public void testLogsdbDoubleSelectsAlp() {
         final PipelineResolver.FieldContext ctx = logsdbContext("latency", PipelineConfig.DataType.DOUBLE);
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.DOUBLE, config.dataType());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpDoubleStage.class)));
     }
@@ -99,19 +94,18 @@ public class StaticPipelineResolverTests extends ESTestCase {
         final PipelineResolver.FieldContext ctx = logsdbContext("latency", PipelineConfig.DataType.FLOAT);
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.FLOAT, config.dataType());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.AlpFloatStage.class)));
     }
 
-    public void testLogsdbWithNullMetricTypeReturnsDefault() {
+    public void testLogsdbWithNullMetricTypeReturnsBaseline() {
         final PipelineResolver.FieldContext ctx = logsdbContext("status_code", PipelineConfig.DataType.LONG);
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertTrue(config.isDefault());
+        assertEquals(PipelineConfig.forLongs(LOGSDB_BLOCK_SIZE).delta().offset().gcd().bitPack(), config);
     }
 
-    public void testStandardIndexReturnsDefault() {
+    public void testStandardIndexReturnsBaseline() {
         final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext(
             "counter",
             IndexMode.STANDARD,
@@ -123,7 +117,7 @@ public class StaticPipelineResolverTests extends ESTestCase {
         );
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertTrue(config.isDefault());
+        assertEquals(PipelineConfig.forLongs(128).delta().offset().gcd().bitPack(), config);
     }
 
     public void testLogsdbUsesSmallBlockSize() {
@@ -144,7 +138,6 @@ public class StaticPipelineResolverTests extends ESTestCase {
         final PipelineResolver.FieldContext ctx = tsdbDateContext("@timestamp");
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.LONG, config.dataType());
         assertEquals(TSDB_BLOCK_SIZE, config.blockSize());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.DeltaDelta.class)));
@@ -154,13 +147,12 @@ public class StaticPipelineResolverTests extends ESTestCase {
         final PipelineResolver.FieldContext ctx = logsdbDateContext("@timestamp");
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertFalse(config.isDefault());
         assertEquals(PipelineConfig.DataType.LONG, config.dataType());
         assertEquals(LOGSDB_BLOCK_SIZE, config.blockSize());
         assertThat(config.specs(), hasItem(instanceOf(StageSpec.DeltaDelta.class)));
     }
 
-    public void testStandardTimestampReturnsDefault() {
+    public void testStandardTimestampReturnsBaseline() {
         final PipelineResolver.FieldContext ctx = new PipelineResolver.FieldContext(
             "@timestamp",
             IndexMode.STANDARD,
@@ -172,7 +164,7 @@ public class StaticPipelineResolverTests extends ESTestCase {
         );
         final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
 
-        assertTrue(config.isDefault());
+        assertEquals(PipelineConfig.forLongs(128).delta().offset().gcd().bitPack(), config);
     }
 
     public void testResolvedPipelinesAreValidForRegistry() {
@@ -185,9 +177,7 @@ public class StaticPipelineResolverTests extends ESTestCase {
 
         for (final PipelineResolver.FieldContext ctx : contexts) {
             final PipelineConfig config = resolver.resolve(ctx, EMPTY_SAMPLE, 0, IOContext.DEFAULT);
-            if (config.isDefault() == false) {
-                assertFalse("Config should be valid for registry", config.isDefault());
-            }
+            assertFalse("Config should have stages", config.specs().isEmpty());
         }
     }
 

@@ -22,8 +22,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Integration tests for RANGE_CONTAINS function in LOOKUP JOIN scenarios.
- * Tests various combinations of RANGE_CONTAINS usage in WHERE clauses after LOOKUP JOIN.
+ * Integration tests for RANGE_WITHIN function in LOOKUP JOIN scenarios.
+ * Tests various combinations of RANGE_WITHIN usage in WHERE clauses after LOOKUP JOIN.
  */
 public class LookupJoinRangeContainsIT extends AbstractEsqlIntegTestCase {
 
@@ -153,14 +153,14 @@ public class LookupJoinRangeContainsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Test RANGE_CONTAINS in WHERE clause after LOOKUP JOIN.
-     * Query: FROM employees | LOOKUP JOIN date_ranges ON join_key | WHERE RANGE_CONTAINS(TO_DATETIME("1985-06-15"), date_range)
+     * Test RANGE_WITHIN in WHERE clause after LOOKUP JOIN.
+     * Query: FROM employees | LOOKUP JOIN date_ranges ON join_key | WHERE RANGE_WITHIN(TO_DATETIME("1985-06-15"), date_range)
      */
     public void testRangeContainsInWhereClauseAfterLookupJoin() {
         String query = """
             FROM employees
             | LOOKUP JOIN date_ranges ON join_key
-            | WHERE RANGE_CONTAINS(TO_DATETIME("1985-06-15"), date_range)
+            | WHERE RANGE_WITHIN(TO_DATETIME("1985-06-15"), date_range)
             | KEEP emp_no, name, description
             | SORT emp_no
             """;
@@ -183,14 +183,14 @@ public class LookupJoinRangeContainsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Test RANGE_CONTAINS in WHERE clause filtering on constant date with lookup range field.
-     * Query: FROM employees | LOOKUP JOIN date_ranges ON join_key | WHERE RANGE_CONTAINS(TO_DATETIME("1986-06-15"), date_range)
+     * Test RANGE_WITHIN in WHERE clause filtering on constant date with lookup range field.
+     * Query: FROM employees | LOOKUP JOIN date_ranges ON join_key | WHERE RANGE_WITHIN(TO_DATETIME("1986-06-15"), date_range)
      */
     public void testRangeContainsConstantDateWithLookupRangeField() {
         String query = """
             FROM employees
             | LOOKUP JOIN date_ranges ON join_key
-            | WHERE RANGE_CONTAINS(TO_DATETIME("1986-06-15"), date_range)
+            | WHERE RANGE_WITHIN(TO_DATETIME("1986-06-15"), date_range)
             | KEEP emp_no, name, description
             | SORT emp_no
             """;
@@ -211,13 +211,13 @@ public class LookupJoinRangeContainsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Test RANGE_CONTAINS in WHERE clause with date from left side and constant range.
-     * Query: FROM employees | WHERE RANGE_CONTAINS(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
+     * Test RANGE_WITHIN in WHERE clause with date from left side and constant range.
+     * Query: FROM employees | WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
      */
     public void testRangeContainsDateFieldWithConstantRange() {
         String query = """
             FROM employees
-            | WHERE RANGE_CONTAINS(hire_date, TO_DATE_RANGE("1985-01-01T00:00:00Z..1986-01-01T00:00:00Z"))
+            | WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01T00:00:00Z..1986-01-01T00:00:00Z"))
             | KEEP emp_no, name, hire_date
             | SORT emp_no
             """;
@@ -235,14 +235,14 @@ public class LookupJoinRangeContainsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Test RANGE_CONTAINS in WHERE clause after LOOKUP JOIN with constant date.
-     * Query: FROM employees | LOOKUP JOIN date_ranges ON join_key | WHERE RANGE_CONTAINS(TO_DATETIME("1987-06-15"), date_range)
+     * Test RANGE_WITHIN in WHERE clause after LOOKUP JOIN with constant date.
+     * Query: FROM employees | LOOKUP JOIN date_ranges ON join_key | WHERE RANGE_WITHIN(TO_DATETIME("1987-06-15"), date_range)
      */
     public void testRangeContainsInLookupJoinWhere() {
         String query = """
             FROM employees
             | LOOKUP JOIN date_ranges ON join_key
-            | WHERE RANGE_CONTAINS(TO_DATETIME("1987-06-15"), date_range)
+            | WHERE RANGE_WITHIN(TO_DATETIME("1987-06-15"), date_range)
             | KEEP emp_no, name, description
             | SORT emp_no
             """;
@@ -263,15 +263,15 @@ public class LookupJoinRangeContainsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Test RANGE_CONTAINS with date from left side in WHERE clause after LOOKUP JOIN.
+     * Test RANGE_WITHIN with date from left side in WHERE clause after LOOKUP JOIN.
      * Query: FROM employees | LOOKUP JOIN date_ranges ON join_key
-     * | WHERE RANGE_CONTAINS(hire_date, TO_DATE_RANGE("1986-01-01..1987-01-01"))
+     * | WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1986-01-01..1987-01-01"))
      */
     public void testRangeContainsLeftSideDateInWhereAfterJoin() {
         String query = """
             FROM employees
             | LOOKUP JOIN date_ranges ON join_key
-            | WHERE RANGE_CONTAINS(hire_date, TO_DATE_RANGE("1986-01-01T00:00:00Z..1987-01-01T00:00:00Z"))
+            | WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1986-01-01T00:00:00Z..1987-01-01T00:00:00Z"))
             | KEEP emp_no, name, hire_date, description
             | SORT emp_no
             """;
@@ -285,15 +285,15 @@ public class LookupJoinRangeContainsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Test RANGE_CONTAINS with multiple date ranges in WHERE clause.
-     * Query: FROM employees | LOOKUP JOIN date_ranges ON join_key | WHERE RANGE_CONTAINS(TO_DATETIME("1985-06-15"), date_range)
-     * OR RANGE_CONTAINS(TO_DATETIME("1988-06-15"), date_range)
+     * Test RANGE_WITHIN with multiple date ranges in WHERE clause.
+     * Query: FROM employees | LOOKUP JOIN date_ranges ON join_key | WHERE RANGE_WITHIN(TO_DATETIME("1985-06-15"), date_range)
+     * OR RANGE_WITHIN(TO_DATETIME("1988-06-15"), date_range)
      */
     public void testRangeContainsMultipleRangesInWhere() {
         String query = """
             FROM employees
             | LOOKUP JOIN date_ranges ON join_key
-            | WHERE RANGE_CONTAINS(TO_DATETIME("1985-06-15"), date_range) OR RANGE_CONTAINS(TO_DATETIME("1988-06-15"), date_range)
+            | WHERE RANGE_WITHIN(TO_DATETIME("1985-06-15"), date_range) OR RANGE_WITHIN(TO_DATETIME("1988-06-15"), date_range)
             | KEEP emp_no, name, description
             | SORT emp_no
             """;
@@ -321,14 +321,14 @@ public class LookupJoinRangeContainsIT extends AbstractEsqlIntegTestCase {
     }
 
     /**
-     * Test that RANGE_CONTAINS correctly handles boundary conditions.
-     * Query: FROM employees | LOOKUP JOIN date_ranges ON join_key | WHERE RANGE_CONTAINS(TO_DATETIME("1985-01-01"), date_range)
+     * Test that RANGE_WITHIN correctly handles boundary conditions.
+     * Query: FROM employees | LOOKUP JOIN date_ranges ON join_key | WHERE RANGE_WITHIN(TO_DATETIME("1985-01-01"), date_range)
      */
     public void testRangeContainsBoundaryCondition() {
         String query = """
             FROM employees
             | LOOKUP JOIN date_ranges ON join_key
-            | WHERE RANGE_CONTAINS(TO_DATETIME("1985-01-01"), date_range)
+            | WHERE RANGE_WITHIN(TO_DATETIME("1985-01-01"), date_range)
             | KEEP emp_no, name, description
             | SORT emp_no
             """;

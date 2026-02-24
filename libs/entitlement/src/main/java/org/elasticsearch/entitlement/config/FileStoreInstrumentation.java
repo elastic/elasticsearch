@@ -40,8 +40,8 @@ public class FileStoreInstrumentation implements InstrumentationConfig {
             rule.calling(FileStore::getUnallocatedSpace).enforce(Policies::readStoreAttributes).elseThrow(e -> new IOException(e));
             rule.calling(FileStore::getUsableSpace).enforce(Policies::readStoreAttributes).elseThrow(e -> new IOException(e));
             rule.calling(FileStore::isReadOnly).enforce(Policies::readStoreAttributes).elseReturn(true);
-            rule.calling(FileStore::name).enforce(Policies::readStoreAttributes).elseReturn(null);
-            rule.calling(FileStore::type).enforce(Policies::readStoreAttributes).elseReturn(null);
+            rule.calling(FileStore::name).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
+            rule.calling(FileStore::type).enforce(Policies::readStoreAttributes).elseThrowNotEntitled();
         });
     }
 }

@@ -63,7 +63,8 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
         this(source, field, Literal.TRUE, FieldExtractPreference.NONE);
     }
 
-    private SpatialExtent(Source source, Expression field, Expression filter, FieldExtractPreference preference) {
+    // Public for use in EsqlNodeSubclassTests and nodeInfo
+    public SpatialExtent(Source source, Expression field, Expression filter, FieldExtractPreference preference) {
         super(source, field, filter, preference);
     }
 
@@ -98,12 +99,12 @@ public final class SpatialExtent extends SpatialAggregateFunction implements ToA
 
     @Override
     protected NodeInfo<SpatialExtent> info() {
-        return NodeInfo.create(this, SpatialExtent::new, field());
+        return NodeInfo.create(this, SpatialExtent::new, field(), filter(), fieldExtractPreference);
     }
 
     @Override
     public SpatialExtent replaceChildren(List<Expression> newChildren) {
-        return new SpatialExtent(source(), newChildren.get(0));
+        return new SpatialExtent(source(), newChildren.get(0), newChildren.get(1), fieldExtractPreference);
     }
 
     @Override

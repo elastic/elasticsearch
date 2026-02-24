@@ -42,6 +42,8 @@ import org.elasticsearch.transport.TransportRequest;
 import org.junit.After;
 import org.junit.Before;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -65,6 +67,7 @@ public class ReadOnlyStepTests extends ESTestCase {
     private ResultDeduplicator<Tuple<ProjectId, TransportRequest>, Void> deduplicator;
     private AtomicReference<ActionListener<AddIndexBlockResponse>> capturedListener;
     private AtomicReference<AddIndexBlockRequest> capturedRequest;
+    private Clock fixedClock;
 
     @Before
     public void setup() {
@@ -77,6 +80,7 @@ public class ReadOnlyStepTests extends ESTestCase {
         deduplicator = new ResultDeduplicator<>(threadPool.getThreadContext());
         capturedListener = new AtomicReference<>();
         capturedRequest = new AtomicReference<>();
+        fixedClock = Clock.fixed(Instant.parse("2026-02-24T12:00:00Z"), Clock.systemDefaultZone().getZone());
 
         client = new NoOpClient(threadPool, TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext())) {
             @Override
@@ -389,6 +393,6 @@ public class ReadOnlyStepTests extends ESTestCase {
     }
 
     private DlmStepContext createStepContext(ProjectState projectState) {
-        return new DlmStepContext(index, projectState, deduplicator, errorStore, randomIntBetween(1, 10), client);
+        return new DlmStepContext(index, projectState, deduplicator, errorStore, randomIntBetween(1, 10), client, fixedClock);
     }
 }

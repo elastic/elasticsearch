@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -33,35 +32,28 @@ public class MarkIndexForDLMForceMergeAction {
      * Request to mark an index to be force merged.
      */
     public static class Request extends MasterNodeRequest<Request> {
-        private final ProjectId projectId;
         private final String originalIndex;
         private final String indexToBeForceMerged;
 
         /**
          * Constructor for the request.
-         * @param projectId the project id of the index
          * @param originalIndex the original index that is being transitioned through DLM lifecycle
          * @param indexToBeForceMerged the index that needs to be force merged
          */
-        public Request(ProjectId projectId, String originalIndex, String indexToBeForceMerged) {
+        public Request(String originalIndex, String indexToBeForceMerged) {
             super(INFINITE_MASTER_NODE_TIMEOUT);
-            if (projectId == null) {
-                throw new IllegalArgumentException("projectId must not be null or empty");
-            }
             if (Strings.isNullOrEmpty(originalIndex)) {
                 throw new IllegalArgumentException("originalIndex must not be null or empty");
             }
             if (Strings.isNullOrEmpty(indexToBeForceMerged)) {
                 throw new IllegalArgumentException("indexToBeForceMerged must not be null or empty");
             }
-            this.projectId = projectId;
             this.originalIndex = originalIndex;
             this.indexToBeForceMerged = indexToBeForceMerged;
         }
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            this.projectId = ProjectId.readFrom(in);
             this.originalIndex = in.readString();
             this.indexToBeForceMerged = in.readString();
         }
@@ -69,13 +61,8 @@ public class MarkIndexForDLMForceMergeAction {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            projectId.writeTo(out);
             out.writeString(originalIndex);
             out.writeString(indexToBeForceMerged);
-        }
-
-        public ProjectId getProjectId() {
-            return projectId;
         }
 
         public String getOriginalIndex() {
@@ -93,7 +80,7 @@ public class MarkIndexForDLMForceMergeAction {
 
         @Override
         public int hashCode() {
-            return Objects.hash(projectId, originalIndex, indexToBeForceMerged);
+            return Objects.hash(originalIndex, indexToBeForceMerged);
         }
 
         @Override
@@ -105,8 +92,7 @@ public class MarkIndexForDLMForceMergeAction {
                 return false;
             }
             Request request = (Request) o;
-            return Objects.equals(projectId, request.projectId)
-                && Objects.equals(originalIndex, request.originalIndex)
+            return Objects.equals(originalIndex, request.originalIndex)
                 && Objects.equals(indexToBeForceMerged, request.indexToBeForceMerged);
         }
     }

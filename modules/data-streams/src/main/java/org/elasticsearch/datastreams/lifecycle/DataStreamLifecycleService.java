@@ -523,7 +523,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             transportActionsDeduplicator,
             errorStore,
             signallingErrorRetryInterval,
-            client
+            client,
+            Clock.systemUTC()
         );
         for (DlmAction action : actions) {
 
@@ -1781,10 +1782,14 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         private final String originalIndex;
         private final String indexToBeForceMerged;
 
-        MarkIndexForDlmForceMergeTask(ActionListener<AcknowledgedResponse> listener, MarkIndexForDLMForceMergeAction.Request request) {
+        MarkIndexForDlmForceMergeTask(
+            ActionListener<AcknowledgedResponse> listener,
+            ProjectId projectId,
+            MarkIndexForDLMForceMergeAction.Request request
+        ) {
             super(TimeValue.THIRTY_SECONDS, listener);
             this.listener = listener;
-            this.projectId = request.getProjectId();
+            this.projectId = projectId;
             this.originalIndex = request.getOriginalIndex();
             this.indexToBeForceMerged = request.getIndexToBeForceMerged();
         }
@@ -1803,8 +1808,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     indexToBeForceMerged,
                     originalIndex
                 );
-                logger.debug(errorMessage);
-                throw new IndexNotFoundException(errorMessage);
+                logger.warn(errorMessage);
+                return currentState;
             }
 
             if (cloneIndexMetadata == null) {
@@ -1814,8 +1819,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     indexToBeForceMerged,
                     originalIndex
                 );
-                logger.debug(errorMessage);
-                throw new IllegalStateException(errorMessage);
+                logger.warn(errorMessage);
+                return currentState;
             }
 
             Map<String, String> existingCustomMetadata = originalIndexMetadata.getCustomData(LIFECYCLE_CUSTOM_INDEX_METADATA_KEY);
@@ -1870,13 +1875,18 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
      * Marks the given index to be force merged for DLM by updating the cluster state with the name of the index to be force merged in the
      * custom metadata of the source index. This method returns immediately, but the update to the cluster state happens asynchronously and
      * the listener is notified on success or failure of the cluster state update.
+     * @param projectId the id of the project the index belongs to
      * @param request the request
      * @param listener the listener to be notified on success or failure of the cluster state update.
      */
-    public void markIndexForDlmForceMerge(MarkIndexForDLMForceMergeAction.Request request, ActionListener<AcknowledgedResponse> listener) {
+    public void markIndexForDlmForceMerge(
+        ProjectId projectId,
+        MarkIndexForDLMForceMergeAction.Request request,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         markIndexForDlmForceMergeQueue.submitTask(
             Strings.format("DLM marking index [%s] to be force merged for DLM", request.getIndexToBeForceMerged()),
-            new MarkIndexForDlmForceMergeTask(listener, request),
+            new MarkIndexForDlmForceMergeTask(listener, projectId, request),
             null
         );
     }

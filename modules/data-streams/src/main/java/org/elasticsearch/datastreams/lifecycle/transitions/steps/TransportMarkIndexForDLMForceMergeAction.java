@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAc
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.injection.guice.Inject;
@@ -30,11 +31,13 @@ public class TransportMarkIndexForDLMForceMergeAction extends AcknowledgedTransp
     MarkIndexForDLMForceMergeAction.Request> {
 
     private final DataStreamLifecycleService dataStreamLifecycleService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportMarkIndexForDLMForceMergeAction(
         TransportService transportService,
         ClusterService clusterService,
+        ProjectResolver projectResolver,
         DataStreamLifecycleService dataStreamLifecycleService,
         ThreadPool threadPool,
         ActionFilters actionFilters
@@ -49,6 +52,7 @@ public class TransportMarkIndexForDLMForceMergeAction extends AcknowledgedTransp
             threadPool.executor(ThreadPool.Names.MANAGEMENT)
         );
         this.dataStreamLifecycleService = dataStreamLifecycleService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -58,7 +62,8 @@ public class TransportMarkIndexForDLMForceMergeAction extends AcknowledgedTransp
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        dataStreamLifecycleService.markIndexForDlmForceMerge(request, listener);
+        final var project = projectResolver.getProjectMetadata(state);
+        dataStreamLifecycleService.markIndexForDlmForceMerge(project.id(), request, listener);
     }
 
     @Override
@@ -67,6 +72,7 @@ public class TransportMarkIndexForDLMForceMergeAction extends AcknowledgedTransp
         if (globalBlock != null) {
             return globalBlock;
         }
-        return state.blocks().indexBlockedException(request.getProjectId(), ClusterBlockLevel.METADATA_WRITE, request.getOriginalIndex());
+        final var project = projectResolver.getProjectMetadata(state);
+        return state.blocks().indexBlockedException(project.id(), ClusterBlockLevel.METADATA_WRITE, request.getOriginalIndex());
     }
 }

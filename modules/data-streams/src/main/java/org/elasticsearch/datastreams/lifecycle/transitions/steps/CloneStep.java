@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -38,8 +37,6 @@ import org.elasticsearch.datastreams.lifecycle.transitions.DlmStep;
 import org.elasticsearch.datastreams.lifecycle.transitions.DlmStepContext;
 import org.elasticsearch.index.Index;
 
-import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.util.Optional;
 
 import static org.apache.logging.log4j.LogManager.getLogger;
@@ -48,12 +45,19 @@ import static org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkInde
 
 /**
  * This step clones the index into a new index with 0 replicas.
+ * The clone index is then marked in the custom metadata of the index metadata
+ * of the original index as the index to be force merged by DLM in the next step.
+ * If the original index already has 0 replicas, it will be marked directly for force
+ * merge without cloning.
+ * The step is completed when the clone index (or original index if it had 0 replicas)
+ * has all primary shards active, which means it's ready to be force merged in the next step.
  */
 public class CloneStep implements DlmStep {
 
     private static final TimeValue CLONE_TIMEOUT = TimeValue.timeValueHours(12);
     private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
     private static final Logger logger = getLogger(CloneStep.class);
+    public static final String CLONE_INDEX_PREFIX = "dlm-clone-";
 
     @Override
     public boolean stepCompleted(Index index, ProjectState projectState) {
@@ -143,15 +147,15 @@ public class CloneStep implements DlmStep {
 
         if (cloneCreationTime == null) {
             throw new IllegalStateException(
-                Strings.format("DLM unable to determine creation time for clone index [{}] of index [{}]", cloneIndex, indexName)
+                Strings.format("DLM unable to determine creation time for clone index [%s] of index [%s]", cloneIndex, indexName)
             );
         }
 
-        long currentTime = Clock.systemUTC().millis();
+        long currentTime = stepContext.clock().millis();
         long timeSinceCreation = currentTime - cloneCreationTime;
+        TimeValue timeSinceCreationValue = TimeValue.timeValueMillis(timeSinceCreation);
         if (isCloneIndexStuck(cloneIndexMetadata, timeSinceCreation, stepContext)) {
             // Clone has been stuck for > 12 hours, clean it up so a new clone can be attempted
-            TimeValue timeSinceCreationValue = TimeValue.timeValueMillis(timeSinceCreation);
             logger.info(
                 "DLM cleaning up clone index [{}] for index [{}] as it has been in progress for [{}] (raw: [{}ms]), "
                     + "exceeding timeout of [{}] (raw: [{}ms])",
@@ -177,7 +181,6 @@ public class CloneStep implements DlmStep {
             );
         } else {
             // Clone is still fresh, wait for it to complete
-            TimeValue timeSinceCreationValue = TimeValue.timeValueMillis(timeSinceCreation);
             logger.debug(
                 "DLM clone index [{}] for index [{}] exists and has been in progress for [{}] (raw: [{}ms]), "
                     + "waiting for completion or timeout of [{}] (raw: [{}ms])",
@@ -191,9 +194,19 @@ public class CloneStep implements DlmStep {
         }
     }
 
+    /**
+     * Determines if a clone index creation is stuck based on whether the clone request is still
+     * in progress or the clone shards are not active, and if the defined timeout has been breached.
+     */
     private static boolean isCloneIndexStuck(IndexMetadata cloneIndexMetadata, long timeSinceCreation, DlmStepContext stepContext) {
         ResizeRequest cloneRequest = formCloneRequest(stepContext.indexName(), cloneIndexMetadata.getIndex().getName());
-        return stepContext.isRequestInProgress(cloneRequest) && timeSinceCreation > CLONE_TIMEOUT.millis();
+        boolean cloneShardsAreActive = Optional.ofNullable(cloneIndexMetadata.getIndex())
+            .map(Index::getName)
+            .map(stepContext.projectState().routingTable()::index)
+            .map(IndexRoutingTable::allPrimaryShardsActive)
+            .orElse(false);
+        return (stepContext.isRequestInProgress(cloneRequest) || cloneShardsAreActive == false)
+            && timeSinceCreation > CLONE_TIMEOUT.millis();
     }
 
     private static class CloneIndexResizeActionListener implements ActionListener<CreateIndexResponse> {
@@ -224,7 +237,7 @@ public class CloneStep implements DlmStep {
                 );
                 return;
             }
-            logger.debug("DLM successfully cloned index [{}] to index [{}]", originalIndex, cloneIndex);
+            logger.info("DLM successfully cloned index [{}] to index [{}]", originalIndex, cloneIndex);
             // on success, write the cloned index name to the custom metadata of the index metadata of original index
             markIndexToBeForceMerged(originalIndex, cloneIndex, stepContext, listener.delegateFailure((l, v) -> {
                 logger.info("DLM successfully marked index [{}] to be force merged for source index [{}]", cloneIndex, originalIndex);
@@ -282,7 +295,6 @@ public class CloneStep implements DlmStep {
         ActionListener<Void> listener
     ) {
         MarkIndexForDLMForceMergeAction.Request markIndexForForceMergeRequest = new MarkIndexForDLMForceMergeAction.Request(
-            stepContext.projectId(),
             originalIndex,
             indexToBeForceMerged
         );
@@ -402,18 +414,13 @@ public class CloneStep implements DlmStep {
     }
 
     /**
-     * Gets a unique name deterministically for the clone index based on the original index name.
-     * The generated name format is "dlm-clone-{hash}" where the hash is a full 64-character
-     * SHA-256 hex digest of the original name to ensure uniqueness.
+     * Gets a prefixed name for the clone index based on the original index name
      *
      * @param originalName the original index name
-     * @return a deterministic unique name for the clone index based on the original index name
+     * @return a prefixed clone index name
      */
     public static String getDLMCloneIndexName(String originalName) {
-        String hash = MessageDigests.toHexString(MessageDigests.sha256().digest(originalName.getBytes(StandardCharsets.UTF_8)));
-        String prefix = "dlm-clone-";
-
-        return prefix + hash;
+        return CLONE_INDEX_PREFIX + originalName;
     }
 
     /**
@@ -424,7 +431,6 @@ public class CloneStep implements DlmStep {
      * @param projectMetadata the project metadata containing data stream information
      * @return the creation time in milliseconds, or null if it cannot be determined
      */
-    @Nullable
     protected static Long getCloneIndexCreationTime(String cloneIndex, IndexMetadata cloneIndexMetadata, ProjectMetadata projectMetadata) {
         return Optional.ofNullable(projectMetadata.getIndicesLookup())
             .map(indicesLookup -> indicesLookup.get(cloneIndex))

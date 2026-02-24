@@ -45,6 +45,7 @@ sourceCommand
     | promqlCommand
     // in development
     | {this.isDevVersion()}? explainCommand
+    | {this.isDevVersion()}? externalCommand
     ;
 
 processingCommand
@@ -70,6 +71,7 @@ processingCommand
     | fuseCommand
     | uriPartsCommand
     | metricsInfoCommand
+    | registeredDomainCommand
     | tsInfoCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
@@ -103,6 +105,10 @@ fromCommand
 
 timeSeriesCommand
     : TS indexPatternAndMetadataFields
+    ;
+
+externalCommand
+    : DEV_EXTERNAL stringOrParameter commandNamedParameters
     ;
 
 indexPatternAndMetadataFields
@@ -372,6 +378,10 @@ insistCommand
 
 uriPartsCommand
     : URI_PARTS qualifiedName ASSIGN primaryExpression
+    ;
+
+registeredDomainCommand
+    : REGISTERED_DOMAIN qualifiedName ASSIGN primaryExpression
     ;
 
 setCommand

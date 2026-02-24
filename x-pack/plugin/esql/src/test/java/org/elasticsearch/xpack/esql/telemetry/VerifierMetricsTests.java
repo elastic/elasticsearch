@@ -257,7 +257,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testTwoQueriesExecuted() {
-        Metrics metrics = new Metrics(new EsqlFunctionRegistry());
+        Metrics metrics = new Metrics(new EsqlFunctionRegistry(), true, true);
         Verifier verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         esqlWithVerifier("""
                from employees
@@ -310,7 +310,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testMultipleFunctions() {
-        Metrics metrics = new Metrics(new EsqlFunctionRegistry());
+        Metrics metrics = new Metrics(new EsqlFunctionRegistry(), true, true);
         Verifier verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         esqlWithVerifier("""
                from employees
@@ -947,7 +947,7 @@ public class VerifierMetricsTests extends ESTestCase {
         Verifier verifier = v;
         Metrics metrics = null;
         if (v == null) {
-            metrics = new Metrics(new EsqlFunctionRegistry());
+            metrics = new Metrics(new EsqlFunctionRegistry(), true, true);
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
         IndexResolution metricsIndex = loadMapping("mapping-basic.json", "metrics", IndexMode.TIME_SERIES);

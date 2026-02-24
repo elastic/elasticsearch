@@ -233,6 +233,7 @@ public class TsInfoOperator implements Operator {
             BytesRefBlock indexBlock = page.getBlock(indexChannel);
 
             BytesRef indexScratch = new BytesRef();
+            BytesRef sourceScratch = new BytesRef();
 
             for (int p = 0; p < page.getPositionCount(); p++) {
                 if (metadataSource.isNull(p)) {
@@ -244,7 +245,7 @@ public class TsInfoOperator implements Operator {
 
                 String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
                 String dataStreamName = MetricsInfoOperator.resolveDataStreamName(indexName);
-                Map<String, Object> metadata = parseMetadataSource(metadataSource, p);
+                Map<String, Object> metadata = parseMetadataSource(metadataSource, p, sourceScratch);
                 if (metadata == null) {
                     continue;
                 }
@@ -268,10 +269,6 @@ public class TsInfoOperator implements Operator {
         }
     }
 
-    /**
-     * Recursively walks the parsed {@code _timeseries_metadata} JSON, classifying each leaf as
-     * either a metric (via the field lookup) or a dimension key-value.
-     */
     /**
      * Recursively walks the parsed {@code _timeseries_metadata} JSON in two passes:
      * <ol>
@@ -576,11 +573,11 @@ public class TsInfoOperator implements Operator {
         }
     }
 
-    private Map<String, Object> parseMetadataSource(BytesRefBlock metadataSource, int position) {
+    private Map<String, Object> parseMetadataSource(BytesRefBlock metadataSource, int position, BytesRef sourceScratch) {
         if (metadataSource == null || metadataSource.isNull(position)) {
             return null;
         }
-        BytesRef bytes = metadataSource.getBytesRef(position, new BytesRef());
+        BytesRef bytes = metadataSource.getBytesRef(position, sourceScratch);
         try (
             var parser = XContentType.JSON.xContent()
                 .createParser(XContentParserConfiguration.EMPTY, bytes.bytes, bytes.offset, bytes.length)

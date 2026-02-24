@@ -10,7 +10,6 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -138,7 +137,7 @@ public class BulkByScrollTaskStatusWireSerializingTests extends AbstractWireSeri
     @Override
     protected void assertEqualInstances(StatusWrapper expectedInstance, StatusWrapper newInstance) {
         assertNotSame(expectedInstance, newInstance);
-        BulkByScrollTaskStatusTests.assertTaskStatusEquals(TransportVersion.current(), expectedInstance.status, newInstance.status);
+        BulkByScrollTaskStatusTests.assertTaskStatusEquals(expectedInstance.status, newInstance.status);
     }
 
     /**

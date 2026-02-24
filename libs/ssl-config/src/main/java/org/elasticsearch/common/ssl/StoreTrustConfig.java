@@ -95,6 +95,9 @@ public final class StoreTrustConfig implements SslTrustConfig {
         } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure(fileTypeForException(), List.of(path), e, configBasePath);
         } catch (IOException e) {
+            if (SslFileUtil.isNotEntitled(e)) {
+                throw SslFileUtil.accessControlFailure(fileTypeForException(), List.of(path), e, configBasePath);
+            }
             throw SslFileUtil.ioException(fileTypeForException(), List.of(path), e, getAdditionalErrorDetails());
         } catch (GeneralSecurityException e) {
             throw keystoreException(path, e);

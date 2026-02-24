@@ -387,8 +387,14 @@ public class SSLErrorMessageFileTests extends ESTestCase {
         assertThat(exception, instanceOf(SslConfigException.class));
 
         exception = exception.getCause();
-        assertThat(exception, instanceOf(AccessControlException.class));
-        assertThat(exception, throwableWithMessage(containsString(fileName)));
+        if (exception instanceof IOException ioe
+            && ioe.getCause() != null
+            && "org.elasticsearch.entitlement.bridge.NotEntitledException".equals(ioe.getCause().getClass().getName())) {
+            assertThat(ioe.getCause(), throwableWithMessage(containsString(fileName)));
+        } else {
+            assertThat(exception, instanceOf(AccessControlException.class));
+            assertThat(exception, throwableWithMessage(containsString(fileName)));
+        }
     }
 
     private void checkUnusedConfiguration(String prefix, String settingsConfigured, BiConsumer<String, Settings.Builder> configure) {

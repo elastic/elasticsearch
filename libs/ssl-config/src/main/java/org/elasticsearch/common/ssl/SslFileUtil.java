@@ -81,6 +81,16 @@ final class SslFileUtil {
         return innerAccessControlFailure(fileType, paths, cause, basePath);
     }
 
+    private static final String NOT_ENTITLED_EXCEPTION_NAME = "org.elasticsearch.entitlement.bridge.NotEntitledException";
+
+    static boolean isNotEntitled(IOException e) {
+        return e.getCause() != null && NOT_ENTITLED_EXCEPTION_NAME.equals(e.getCause().getClass().getName());
+    }
+
+    static SslConfigException accessControlFailure(String fileType, List<Path> paths, IOException cause, Path basePath) {
+        return innerAccessControlFailure(fileType, paths, cause, basePath);
+    }
+
     private static SslConfigException innerAccessControlFailure(String fileType, List<Path> paths, Exception cause, Path basePath) {
         String message = "cannot read configured " + fileType + " [" + pathsToString(paths) + "] because ";
         if (paths.size() == 1) {

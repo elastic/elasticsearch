@@ -127,6 +127,9 @@ public final class PemKeyConfig implements SslKeyConfig {
         } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
         } catch (IOException e) {
+            if (SslFileUtil.isNotEntitled(e)) {
+                throw SslFileUtil.accessControlFailure(KEY_FILE_TYPE, List.of(path), e, configBasePath);
+            }
             throw SslFileUtil.ioException(KEY_FILE_TYPE, List.of(path), e);
         } catch (GeneralSecurityException e) {
             throw SslFileUtil.securityException(KEY_FILE_TYPE, List.of(path), e);
@@ -139,6 +142,9 @@ public final class PemKeyConfig implements SslKeyConfig {
         } catch (SecurityException e) {
             throw SslFileUtil.accessControlFailure(CERT_FILE_TYPE, List.of(path), e, configBasePath);
         } catch (IOException e) {
+            if (SslFileUtil.isNotEntitled(e)) {
+                throw SslFileUtil.accessControlFailure(CERT_FILE_TYPE, List.of(path), e, configBasePath);
+            }
             throw SslFileUtil.ioException(CERT_FILE_TYPE, List.of(path), e);
         } catch (GeneralSecurityException e) {
             throw SslFileUtil.securityException(CERT_FILE_TYPE, List.of(path), e);

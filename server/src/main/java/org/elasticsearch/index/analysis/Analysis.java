@@ -245,6 +245,10 @@ public class Analysis {
             );
             throw new IllegalArgumentException(message, ex);
         } catch (IOException ioe) {
+            if (ioe.getCause() != null
+                && ioe.getCause().getClass().getName().equals("org.elasticsearch.entitlement.bridge.NotEntitledException")) {
+                throw new IllegalArgumentException(Strings.format("Access denied trying to read file %s: %s", settingPath, path), ioe);
+            }
             String message = Strings.format("IOException while reading %s: %s", settingPath, path);
             throw new IllegalArgumentException(message, ioe);
         } catch (SecurityException ace) {

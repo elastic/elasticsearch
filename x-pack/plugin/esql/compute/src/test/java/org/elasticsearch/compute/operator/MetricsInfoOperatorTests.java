@@ -447,7 +447,6 @@ public class MetricsInfoOperatorTests extends OperatorTestCase {
     }
 
     public void testIsFinishedOnlyAfterOutputProduced() {
-        BlockFactory blockFactory = driverContext().blockFactory();
         try (MetricsInfoOperator op = createInitialOperator()) {
             assertFalse(op.isFinished());
 

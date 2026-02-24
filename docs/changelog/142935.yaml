@@ -1,4 +1,4 @@
-area: "ES|QL, ES|QL"
+area: ES|QL
 issues: []
 pr: 142935
 summary: '`MetricsInfoOperator` rafctoring'

@@ -452,6 +452,9 @@ tests:
 - class: org.elasticsearch.compute.operator.exchange.BatchDriverTests
   method: testSinglePageSingleBatch
   issue: https://github.com/elastic/elasticsearch/issues/142895
+- class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsTSDBSyntheticIdIntegTests
+  method: testSearchableSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/142918
 
 # Examples:
 #

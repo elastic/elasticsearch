@@ -467,8 +467,7 @@ public class JsonPathTests extends ESTestCase {
     }
 
     private static void assertInvalidPathMessage(String path, String expectedMessage) {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> JsonPath.parse(path));
-        assertThat(e.getMessage(), equalTo(expectedMessage));
+        expectThrows(IllegalArgumentException.class, equalTo(expectedMessage), () -> JsonPath.parse(path));
     }
 
     /** Generates a random string of 1-4 RFC 9535 blank characters (space, tab, newline, carriage return). */

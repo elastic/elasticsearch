@@ -40,10 +40,6 @@ public class SumTests extends AbstractAggregationTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return testParameters(true);
-    }
-
-    static Iterable<Object[]> testParameters(boolean includeDenseVector) {
         var suppliers = new ArrayList<TestCaseSupplier>();
 
         Stream.of(
@@ -106,32 +102,30 @@ public class SumTests extends AbstractAggregationTestCase {
             )
         );
 
-        if (includeDenseVector) {
-            suppliers.addAll(MultiRowTestCaseSupplier.denseVectorCases(1, 100).stream().map(SumTests::makeSupplier).toList());
+        suppliers.addAll(MultiRowTestCaseSupplier.denseVectorCases(1, 100).stream().map(SumTests::makeSupplier).toList());
 
-            suppliers.add(new TestCaseSupplier(List.of(DataType.DENSE_VECTOR), () -> {
-                int dimensions = randomIntBetween(10, 20);
-                int numVectors = randomIntBetween(10, 20);
-                List<Float> acc = new ArrayList<>(dimensions);
-                for (int i = 0; i < dimensions; i++) {
-                    acc.add(0f);
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DENSE_VECTOR), () -> {
+            int dimensions = randomIntBetween(10, 20);
+            int numVectors = randomIntBetween(10, 20);
+            List<Float> acc = new ArrayList<>(dimensions);
+            for (int i = 0; i < dimensions; i++) {
+                acc.add(0f);
+            }
+            List<List<Float>> denseVectors = new ArrayList<>(numVectors);
+            for (int i = 0; i < numVectors; i++) {
+                List<Float> vector = randomDenseVector(dimensions);
+                denseVectors.add(vector);
+                for (int j = 0; j < dimensions; j++) {
+                    acc.set(j, acc.get(j) + vector.get(j));
                 }
-                List<List<Float>> denseVectors = new ArrayList<>(numVectors);
-                for (int i = 0; i < numVectors; i++) {
-                    List<Float> vector = randomDenseVector(dimensions);
-                    denseVectors.add(vector);
-                    for (int j = 0; j < dimensions; j++) {
-                        acc.set(j, acc.get(j) + vector.get(j));
-                    }
-                }
-                return new TestCaseSupplier.TestCase(
-                    List.of(TestCaseSupplier.TypedData.multiRow(denseVectors, DENSE_VECTOR, "field")),
-                    "SumDenseVector",
-                    DENSE_VECTOR,
-                    equalTo(acc)
-                );
-            }));
-        }
+            }
+            return new TestCaseSupplier.TestCase(
+                List.of(TestCaseSupplier.TypedData.multiRow(denseVectors, DENSE_VECTOR, "field")),
+                "SumDenseVector",
+                DENSE_VECTOR,
+                equalTo(acc)
+            );
+        }));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }

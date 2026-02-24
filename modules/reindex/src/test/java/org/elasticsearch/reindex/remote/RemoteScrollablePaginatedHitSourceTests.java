@@ -645,7 +645,8 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
                 failureQueue::add,
                 client,
                 remoteInfo,
-                RemoteScrollablePaginatedHitSourceTests.this.searchRequest
+                RemoteScrollablePaginatedHitSourceTests.this.searchRequest,
+                randomBoolean() ? Version.CURRENT : null
             );
         }
     }

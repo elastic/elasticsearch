@@ -128,7 +128,7 @@ public class TsInfoOperator implements Operator {
             OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new TsInfoOperator(driverContext.blockFactory(), fieldLookup, metadataSourceChannel, indexChannel);
+            return new TsInfoOperator(Mode.INITIAL, driverContext.blockFactory(), fieldLookup, metadataSourceChannel, indexChannel, null);
         }
 
         @Override
@@ -146,7 +146,7 @@ public class TsInfoOperator implements Operator {
     public record FinalFactory(int[] channels) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new TsInfoOperator(driverContext.blockFactory(), channels);
+            return new TsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, -1, -1, channels);
         }
 
         @Override
@@ -181,34 +181,20 @@ public class TsInfoOperator implements Operator {
     private boolean finished = false;
     private boolean outputProduced = false;
 
-    /**
-     * Creates an INITIAL-mode operator (data nodes).
-     */
     private TsInfoOperator(
+        Mode mode,
         BlockFactory blockFactory,
         MetricsInfoOperator.MetricFieldLookup fieldLookup,
         int metadataSourceChannel,
-        int indexChannel
+        int indexChannel,
+        int[] channels
     ) {
-        this.mode = Mode.INITIAL;
+        this.mode = mode;
         this.blockFactory = blockFactory;
         this.breaker = blockFactory.breaker();
         this.fieldLookup = fieldLookup;
         this.metadataSourceChannel = metadataSourceChannel;
         this.indexChannel = indexChannel;
-        this.finalChannels = null;
-    }
-
-    /**
-     * Creates a FINAL-mode operator (coordinator).
-     */
-    private TsInfoOperator(BlockFactory blockFactory, int[] channels) {
-        this.mode = Mode.FINAL;
-        this.blockFactory = blockFactory;
-        this.breaker = blockFactory.breaker();
-        this.fieldLookup = null;
-        this.metadataSourceChannel = -1;
-        this.indexChannel = -1;
         this.finalChannels = channels;
     }
 

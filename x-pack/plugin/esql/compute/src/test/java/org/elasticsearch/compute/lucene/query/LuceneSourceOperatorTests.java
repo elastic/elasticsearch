@@ -529,6 +529,14 @@ public class LuceneSourceOperatorTests extends SourceOperatorTestCase {
             }
         }
 
+        public MockShardContext(ContextIndexSearcher searcher, int index) {
+            this.index = index;
+            this.shardSearchStats = new ShardSearchStats(
+                new SearchStatsSettings(new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
+            );
+            this.searcher = searcher;
+        }
+
         @Override
         public int index() {
             return index;

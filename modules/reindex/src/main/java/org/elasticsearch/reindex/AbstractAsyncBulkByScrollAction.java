@@ -10,6 +10,7 @@
 package org.elasticsearch.reindex;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -38,8 +39,10 @@ import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ClientScrollablePaginatedHitSource;
 import org.elasticsearch.index.reindex.PaginatedHitSource;
 import org.elasticsearch.index.reindex.PaginatedHitSource.SearchFailure;
+import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
 import org.elasticsearch.script.CtxMap;
 import org.elasticsearch.script.Metadata;
 import org.elasticsearch.script.Script;
@@ -55,6 +58,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -549,12 +553,42 @@ public abstract class AbstractAsyncBulkByScrollAction<
         this.lastBatchSize = batchSize;
         this.totalBatchSizeInSingleScrollResponse.addAndGet(batchSize);
 
-        if (asyncResponse.hasRemainingHits() == false) {
-            int totalBatchSize = totalBatchSizeInSingleScrollResponse.getAndSet(0);
-            asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize));
-        } else {
+        if (asyncResponse.hasRemainingHits()) {
             onScrollResponse(asyncResponse);
+            return;
         }
+        if (task.isRelocationRequested() && task.isWorker() && task.getParentTaskId().isSet() == false) {
+            final Optional<String> nodeToRelocateTo = worker.getNodeToRelocateTo();
+            if (nodeToRelocateTo.isPresent()) {
+                final String scrollId = asyncResponse.response().getScrollId();
+                final Version remoteVersion = paginatedHitSource instanceof RemoteScrollablePaginatedHitSource s
+                    ? s.remoteVersion().orElseThrow(() -> new IllegalStateException("Remote scroll version should be set"))
+                    : null;
+                final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
+                    scrollId,
+                    startTime.get(),
+                    worker.getStatus(),
+                    remoteVersion
+                );
+                final ResumeInfo resumeInfo = new ResumeInfo(workerResumeInfo, null);
+                // build response with resume info. everything else doesn't matter since the object is discarded and onFailure is called.
+                final BulkByScrollResponse response = new BulkByScrollResponse(
+                    TimeValue.MINUS_ONE,
+                    new BulkByScrollTask.Status(List.of(), null),
+                    List.of(),
+                    List.of(),
+                    false,
+                    resumeInfo
+                );
+                listener.onResponse(response);
+                // don't call finishHim as it closes the scroll
+                return;
+            }
+            // if the task has no node to relocate to, continue. it might finish before shutdown or a suitable node might join the cluster.
+        }
+
+        int totalBatchSize = totalBatchSizeInSingleScrollResponse.getAndSet(0);
+        asyncResponse.done(worker.throttleWaitTime(thisBatchStartTimeNS, System.nanoTime(), totalBatchSize));
     }
 
     private void recordFailure(Failure failure, List<Failure> failures) {

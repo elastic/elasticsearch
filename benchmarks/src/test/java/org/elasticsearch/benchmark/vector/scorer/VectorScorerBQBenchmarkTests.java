@@ -25,6 +25,10 @@ import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 
 public class VectorScorerBQBenchmarkTests extends ESTestCase {
 
+    private static final int REPETITIONS = 10;
+    private static final int NUM_VECTORS = VectorScorerBQBenchmark.NUM_VECTORS;
+    private static final int NUM_QUERIES = VectorScorerBQBenchmark.NUM_QUERIES;
+
     private final float deltaPercent = 0.05f;
     private final int dims;
     private final VectorScorerBQBenchmark.DirectoryType directoryType;
@@ -46,17 +50,25 @@ public class VectorScorerBQBenchmarkTests extends ESTestCase {
     }
 
     public void testSingleScalarVsVectorized() throws Exception {
-        for (int i = 0; i < 10; i++) {
+        for (int i = 0; i < REPETITIONS; i++) {
             var seed = randomLong();
 
             var scalar = new VectorScorerBQBenchmark();
             var vectorized = new VectorScorerBQBenchmark();
             try {
+                var data = VectorScorerBQBenchmark.generateRandomVectorData(
+                    new Random(seed),
+                    dims,
+                    NUM_VECTORS,
+                    NUM_QUERIES,
+                    similarityFunction
+                );
+
                 scalar.implementation = VectorScorerBQBenchmark.VectorImplementation.SCALAR;
                 scalar.dims = dims;
                 scalar.directoryType = directoryType;
                 scalar.similarityFunction = similarityFunction;
-                scalar.setup(new Random(seed));
+                scalar.setup(data);
 
                 float[] expected = scalar.scoreRandom();
 
@@ -64,7 +76,7 @@ public class VectorScorerBQBenchmarkTests extends ESTestCase {
                 vectorized.dims = dims;
                 vectorized.directoryType = directoryType;
                 vectorized.similarityFunction = similarityFunction;
-                vectorized.setup(new Random(seed));
+                vectorized.setup(data);
 
                 float[] result = vectorized.scoreRandom();
 
@@ -77,35 +89,42 @@ public class VectorScorerBQBenchmarkTests extends ESTestCase {
     }
 
     public void testBulkScalarVsVectorized() throws Exception {
-        // for (int i = 0; i < 10; i++) {
-        var seed = -6198533469181675434L;// randomLong();
+        for (int i = 0; i < REPETITIONS; i++) {
+            var seed = randomLong();
 
-        var scalar = new VectorScorerBQBenchmark();
-        var vectorized = new VectorScorerBQBenchmark();
-        try {
+            var scalar = new VectorScorerBQBenchmark();
+            var vectorized = new VectorScorerBQBenchmark();
+            try {
+                var data = VectorScorerBQBenchmark.generateRandomVectorData(
+                    new Random(seed),
+                    dims,
+                    NUM_VECTORS,
+                    NUM_QUERIES,
+                    similarityFunction
+                );
 
-            scalar.implementation = VectorScorerBQBenchmark.VectorImplementation.SCALAR;
-            scalar.dims = dims;
-            scalar.directoryType = directoryType;
-            scalar.similarityFunction = similarityFunction;
-            scalar.setup(new Random(seed));
+                scalar.implementation = VectorScorerBQBenchmark.VectorImplementation.SCALAR;
+                scalar.dims = dims;
+                scalar.directoryType = directoryType;
+                scalar.similarityFunction = similarityFunction;
+                scalar.setup(data);
 
-            float[] expected = scalar.bulkScoreRandom();
+                float[] expected = scalar.bulkScoreRandom();
 
-            vectorized.implementation = VectorScorerBQBenchmark.VectorImplementation.VECTORIZED;
-            vectorized.dims = dims;
-            vectorized.directoryType = directoryType;
-            vectorized.similarityFunction = similarityFunction;
-            vectorized.setup(new Random(seed));
+                vectorized.implementation = VectorScorerBQBenchmark.VectorImplementation.VECTORIZED;
+                vectorized.dims = dims;
+                vectorized.directoryType = directoryType;
+                vectorized.similarityFunction = similarityFunction;
+                vectorized.setup(data);
 
-            float[] result = vectorized.bulkScoreRandom();
+                float[] result = vectorized.bulkScoreRandom();
 
-            assertArrayEqualsPercent("bulk scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
-        } finally {
-            scalar.teardown();
-            vectorized.teardown();
+                assertArrayEqualsPercent("bulk scoring, scalar VS vectorized", expected, result, deltaPercent, DEFAULT_DELTA);
+            } finally {
+                scalar.teardown();
+                vectorized.teardown();
+            }
         }
-        // }
     }
 
     @ParametersFactory

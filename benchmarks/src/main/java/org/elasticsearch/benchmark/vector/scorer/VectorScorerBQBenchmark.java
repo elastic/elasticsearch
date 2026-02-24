@@ -85,10 +85,8 @@ public class VectorScorerBQBenchmark {
     public VectorSimilarityFunction similarityFunction;
 
     // TODO: parametric?
-    public int numVectors = 1024;
-    int numQueries = 10;
-
-    int indexVectorLengthInBytes;
+    static final int NUM_VECTORS = 1024;
+    static final int NUM_QUERIES = 10;
 
     VectorScorerTestUtils.VectorData[] queries;
     float centroidDp;
@@ -102,50 +100,65 @@ public class VectorScorerBQBenchmark {
     int[] sequentialNodes;
     int[] randomNodes;
 
+    record VectorData(
+        VectorScorerTestUtils.VectorData[] indexVectors,
+        VectorScorerTestUtils.VectorData[] queries,
+        float centroidDp,
+        int[] randomNodes
+    ) {}
+
+    static VectorData generateRandomVectorData(
+        Random random,
+        int dims,
+        int numVectors,
+        int numQueries,
+        VectorSimilarityFunction similarityFunction
+    ) {
+        final float[] centroid = new float[dims];
+        randomVector(random, centroid, similarityFunction);
+
+        var quantizer = new org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer(similarityFunction);
+        float[] vectorValues = new float[dims];
+
+        VectorScorerTestUtils.VectorData[] indexVectors = new VectorScorerTestUtils.VectorData[numVectors];
+        for (int i = 0; i < numVectors; i++) {
+            randomVector(random, vectorValues, similarityFunction);
+            indexVectors[i] = createBinarizedIndexData(vectorValues, centroid, quantizer, dims);
+        }
+
+        VectorScorerTestUtils.VectorData[] queries = new VectorScorerTestUtils.VectorData[numQueries];
+        for (int i = 0; i < numQueries; i++) {
+            randomVector(random, vectorValues, similarityFunction);
+            queries[i] = createBinarizedQueryData(vectorValues, centroid, quantizer, dims);
+        }
+
+        int[] randomNodes = IntStream.range(0, numVectors).map(x -> random.nextInt(0, numVectors)).toArray();
+
+        return new VectorData(indexVectors, queries, VectorUtil.dotProduct(centroid, centroid), randomNodes);
+    }
+
     @Setup
     public void setup() throws IOException {
-        setup(new Random(123));
+        setup(generateRandomVectorData(new Random(123), dims, NUM_VECTORS, NUM_QUERIES, similarityFunction));
     }
 
-    private void createTestFile(
-        Random random,
-        Directory dir,
-        int numVectors,
-        float[] vectorValues,
-        float[] centroid,
-        org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer quantizer,
-        int dims
-    ) throws IOException {
-        try (IndexOutput out = dir.createOutput("vectors", IOContext.DEFAULT)) {
-            for (int i = 0; i < numVectors; i++) {
-                randomVector(random, vectorValues, similarityFunction);
-                var indexData = createBinarizedIndexData(vectorValues, centroid, quantizer, dims);
-                writeBinarizedVectorData(out, indexData);
-            }
-        }
-    }
-
-    void setup(Random random) throws IOException {
-        this.indexVectorLengthInBytes = BQVectorUtils.discretize(dims, 64) / 8;
+    void setup(VectorData data) throws IOException {
+        int indexVectorLengthInBytes = BQVectorUtils.discretize(dims, 64) / 8;
 
         directory = switch (directoryType) {
             case MMAP -> new MMapDirectory(Files.createTempDirectory("vectorDataMmap"));
             case NIO -> new NIOFSDirectory(Files.createTempDirectory("vectorDataNFIOS"));
         };
 
-        final float[] centroid = new float[dims];
-        randomVector(random, centroid, similarityFunction);
-        centroidDp = VectorUtil.dotProduct(centroid, centroid);
-
-        float[] vectorValues = new float[dims];
-        var quantizer = new org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer(similarityFunction);
-
-        createTestFile(random, directory, numVectors, vectorValues, centroid, quantizer, dims);
-        queries = new VectorScorerTestUtils.VectorData[numQueries];
-        for (int i = 0; i < numQueries; i++) {
-            randomVector(random, vectorValues, similarityFunction);
-            queries[i] = createBinarizedQueryData(vectorValues, centroid, quantizer, dims);
+        try (IndexOutput out = directory.createOutput("vectors", IOContext.DEFAULT)) {
+            for (var indexData : data.indexVectors) {
+                writeBinarizedVectorData(out, indexData);
+            }
         }
+
+        this.queries = data.queries;
+        this.centroidDp = data.centroidDp;
+        this.randomNodes = data.randomNodes;
 
         input = directory.openInput("vectors", IOContext.DEFAULT);
 
@@ -154,9 +167,8 @@ public class VectorScorerBQBenchmark {
             case VECTORIZED -> ESVectorizationProvider.getInstance()
                 .newES93BinaryQuantizedVectorScorer(input, dims, indexVectorLengthInBytes);
         };
-        scratchScores = new float[numVectors];
-        sequentialNodes = IntStream.range(0, numVectors).toArray();
-        randomNodes = IntStream.range(0, numVectors).map(x -> random.nextInt(0, numVectors)).toArray();
+        scratchScores = new float[NUM_VECTORS];
+        sequentialNodes = IntStream.range(0, NUM_VECTORS).toArray();
     }
 
     @TearDown
@@ -166,10 +178,10 @@ public class VectorScorerBQBenchmark {
 
     @Benchmark
     public float[] scoreSequential() throws IOException {
-        float[] results = new float[numQueries * numVectors];
-        for (int j = 0; j < numQueries; j++) {
+        float[] results = new float[NUM_QUERIES * NUM_VECTORS];
+        for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
-            for (int i = 0; i < numVectors; i++) {
+            for (int i = 0; i < NUM_VECTORS; i++) {
                 float score = scorer.score(
                     queries[j].vector(),
                     queries[j].lowerInterval(),
@@ -180,7 +192,7 @@ public class VectorScorerBQBenchmark {
                     centroidDp,
                     i
                 );
-                results[j * numVectors + i] = score;
+                results[j * NUM_VECTORS + i] = score;
             }
         }
         return results;
@@ -188,10 +200,10 @@ public class VectorScorerBQBenchmark {
 
     @Benchmark
     public float[] scoreRandom() throws IOException {
-        float[] results = new float[numQueries * numVectors];
-        for (int j = 0; j < numQueries; j++) {
+        float[] results = new float[NUM_QUERIES * NUM_VECTORS];
+        for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
-            for (int i = 0; i < numVectors; i++) {
+            for (int i = 0; i < NUM_VECTORS; i++) {
                 float score = scorer.score(
                     queries[j].vector(),
                     queries[j].lowerInterval(),
@@ -202,7 +214,7 @@ public class VectorScorerBQBenchmark {
                     centroidDp,
                     randomNodes[i]
                 );
-                results[j * numVectors + i] = score;
+                results[j * NUM_VECTORS + i] = score;
             }
         }
         return results;
@@ -210,8 +222,8 @@ public class VectorScorerBQBenchmark {
 
     @Benchmark
     public float[] bulkScoreSequential() throws IOException {
-        float[] results = new float[numQueries * numVectors];
-        for (int j = 0; j < numQueries; j++) {
+        float[] results = new float[NUM_QUERIES * NUM_VECTORS];
+        for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
             scorer.scoreBulk(
                 queries[j].vector(),
@@ -223,17 +235,17 @@ public class VectorScorerBQBenchmark {
                 centroidDp,
                 sequentialNodes,
                 scratchScores,
-                numVectors
+                NUM_VECTORS
             );
-            System.arraycopy(scratchScores, 0, results, j * numVectors, scratchScores.length);
+            System.arraycopy(scratchScores, 0, results, j * NUM_VECTORS, scratchScores.length);
         }
         return results;
     }
 
     @Benchmark
     public float[] bulkScoreRandom() throws IOException {
-        float[] results = new float[numQueries * numVectors];
-        for (int j = 0; j < numQueries; j++) {
+        float[] results = new float[NUM_QUERIES * NUM_VECTORS];
+        for (int j = 0; j < NUM_QUERIES; j++) {
             input.seek(0);
             scorer.scoreBulk(
                 queries[j].vector(),
@@ -245,9 +257,9 @@ public class VectorScorerBQBenchmark {
                 centroidDp,
                 randomNodes,
                 scratchScores,
-                numVectors
+                NUM_VECTORS
             );
-            System.arraycopy(scratchScores, 0, results, j * numVectors, scratchScores.length);
+            System.arraycopy(scratchScores, 0, results, j * NUM_VECTORS, scratchScores.length);
         }
         return results;
     }

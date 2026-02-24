@@ -144,9 +144,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authc.AuthenticationServiceTests
   method: testInvalidToken
   issue: https://github.com/elastic/elasticsearch/issues/133328
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testCancelViaExpirationOnRemoteResultsWithMinimizeRoundtrips
-  issue: https://github.com/elastic/elasticsearch/issues/127302
 - class: org.elasticsearch.xpack.ml.integration.InferenceIT
   method: testInferClassificationModel
   issue: https://github.com/elastic/elasticsearch/issues/133448
@@ -165,9 +162,6 @@ tests:
 - class: org.elasticsearch.xpack.security.authz.microsoft.MicrosoftGraphAuthzPluginIT
   method: testConcurrentAuthentication
   issue: https://github.com/elastic/elasticsearch/issues/135777
-- class: org.elasticsearch.xpack.search.CrossClusterAsyncSearchIT
-  method: testRemoteClusterOnlyCCSWithFailuresOnAllShards
-  issue: https://github.com/elastic/elasticsearch/issues/136894
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
@@ -332,9 +326,6 @@ tests:
 - class: org.elasticsearch.xpack.gpu.GPUPluginInitializationWithGPUIT
   method: testAutoModeSupportedVectorType
   issue: https://github.com/elastic/elasticsearch/issues/142072
-- class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
-  method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
-  issue: https://github.com/elastic/elasticsearch/issues/142079
 - class: org.elasticsearch.search.aggregations.metrics.TopHitsIT
   method: testMixedSortFieldTypes
   issue: https://github.com/elastic/elasticsearch/issues/142077
@@ -380,18 +371,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/TS Command grouping on text field}
   issue: https://github.com/elastic/elasticsearch/issues/142544
-- class: org.elasticsearch.index.IndexSettingsTests
-  method: testSyntheticIdBadVersion
-  issue: https://github.com/elastic/elasticsearch/issues/142508
-- class: org.elasticsearch.index.IndexSettingsTests
-  method: testSyntheticIdBadCodec
-  issue: https://github.com/elastic/elasticsearch/issues/142509
-- class: org.elasticsearch.index.IndexSettingsTests
-  method: testSyntheticIdBadMode
-  issue: https://github.com/elastic/elasticsearch/issues/142510
-- class: org.elasticsearch.index.IndexSettingsTests
-  method: testSyntheticIdCorrectSettings
-  issue: https://github.com/elastic/elasticsearch/issues/142507
 - class: org.elasticsearch.xpack.esql.datasources.GlobDiscoveryLocalTests
   method: testRecursiveDoubleStarAllFiles
   issue: https://github.com/elastic/elasticsearch/issues/142576
@@ -413,15 +392,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeMetricsIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/142739
-- class: org.elasticsearch.index.reindex.ReindexResumeIT
-  method: testLocalResumeReindexFromScroll_slicedAuto
-  issue: https://github.com/elastic/elasticsearch/issues/142749
-- class: org.elasticsearch.upgrades.TSDBSyntheticIdUpgradeIT
-  method: testRollingUpgrade {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/141734
-- class: org.elasticsearch.upgrades.TSDBSyntheticIdUpgradeIT
-  method: testRollingUpgrade {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/141749
 - class: org.elasticsearch.xpack.esql.analysis.AnalyzerTests
   method: testResolveExternalRelationPassesFileSet
   issue: https://github.com/elastic/elasticsearch/issues/142795
@@ -431,9 +401,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrTimeSeriesDataStreamsIT
   method: testCrossClusterReplicationForTSDB
   issue: https://github.com/elastic/elasticsearch/issues/142797
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/142426
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortOneField
   issue: https://github.com/elastic/elasticsearch/issues/141202
@@ -443,21 +410,27 @@ tests:
 - class: org.elasticsearch.action.search.SearchContextInvalidationIT
   method: testScrollReturns404WhenNodeLeavesCluster
   issue: https://github.com/elastic/elasticsearch/issues/142810
-- class: org.elasticsearch.xpack.esql.datasources.ExternalSourceOperatorFactoryTests
-  method: testCreateOperatorWithMockedStorageAndFormat
-  issue: https://github.com/elastic/elasticsearch/issues/142632
 - class: org.elasticsearch.packaging.test.DebMetadataTests
   method: test05CheckLintian
   issue: https://github.com/elastic/elasticsearch/issues/142819
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/142426
 - class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
   method: testWithFailure
   issue: https://github.com/elastic/elasticsearch/issues/142821
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/142843
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testSingleScalarVsVectorized {p0=1024 p1=1 p2=NIO p3=DOT_PRODUCT}
+  issue: https://github.com/elastic/elasticsearch/issues/142881
+- class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
+  method: testSingleScalarVsVectorized {p0=384 p1=4 p2=NIO p3=COSINE}
+  issue: https://github.com/elastic/elasticsearch/issues/142883
+- class: org.elasticsearch.compute.operator.exchange.BatchDriverTests
+  method: testSinglePageSingleBatch
+  issue: https://github.com/elastic/elasticsearch/issues/142895
+- class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsTSDBSyntheticIdIntegTests
+  method: testSearchableSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/142918
 
 # Examples:
 #

@@ -114,7 +114,7 @@ public class ElasticInferenceServiceDenseEmbeddingsRequestEntityTests extends ES
     }
 
     public void testToXContent_SingleInput_DimensionsSpecified() throws IOException {
-        var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings("my-model-id", null, 100, null);
+        var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings("my-model-id", null, 100, null, null);
         var entity = new ElasticInferenceServiceDenseEmbeddingsRequestEntity(
             List.of(new InferenceStringGroup("abc")),
             createTextEmbeddingModel("", serviceSettings, null),

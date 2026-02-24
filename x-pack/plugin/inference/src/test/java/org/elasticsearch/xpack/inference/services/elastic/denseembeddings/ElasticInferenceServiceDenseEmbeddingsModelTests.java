@@ -55,7 +55,7 @@ public class ElasticInferenceServiceDenseEmbeddingsModelTests extends ESTestCase
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             "id",
             taskType,
-            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, SimilarityMeasure.COSINE, null, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, SimilarityMeasure.COSINE, null, null, null),
             ElasticInferenceServiceComponents.of(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );

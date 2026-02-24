@@ -310,7 +310,7 @@ public class ElasticInferenceService extends SenderService {
         return switch (model) {
             case ElasticInferenceServiceDenseEmbeddingsModel denseModel -> new EmbeddingRequestChunker<>(
                 inputs,
-                DEFAULT_DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE,
+                Optional.ofNullable(denseModel.getServiceSettings().maxBatchSize()).orElse(DEFAULT_DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE),
                 denseModel.getConfigurations().getChunkingSettings()
             );
             case ElasticInferenceServiceSparseEmbeddingsModel sparseModel -> new EmbeddingRequestChunker<>(
@@ -501,7 +501,8 @@ public class ElasticInferenceService extends SenderService {
                 modelId,
                 similarityToUse,
                 embeddingSize,
-                maxInputTokens
+                maxInputTokens,
+                serviceSettings.maxBatchSize()
             );
 
             return new ElasticInferenceServiceDenseEmbeddingsModel(embeddingsModel, updateServiceSettings);

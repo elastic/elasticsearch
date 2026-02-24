@@ -35,6 +35,8 @@ import static org.elasticsearch.xpack.inference.services.ServiceFields.SIMILARIT
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractSimilarity;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.MAX_BATCH_SIZE;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsUtils.parseMaxBatchSize;
 
 public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends FilteredXContentObject
     implements
@@ -50,11 +52,15 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends Filte
     private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(
         "inference_api_disable_eis_rate_limiting"
     );
+    static final TransportVersion INFERENCE_API_EIS_DENSE_EMBEDDINGS_MAX_BATCH_SIZE = TransportVersion.fromName(
+        "inference_api_eis_dense_embeddings_max_batch_size"
+    );
 
     private final String modelId;
     private final SimilarityMeasure similarity;
     private final Integer dimensions;
     private final Integer maxInputTokens;
+    private final Integer maxBatchSize;
     private final RateLimitSettings rateLimitSettings;
 
     public static ElasticInferenceServiceDenseEmbeddingsServiceSettings fromMap(
@@ -67,6 +73,7 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends Filte
         SimilarityMeasure similarity = extractSimilarity(map, ModelConfigurations.SERVICE_SETTINGS, validationException);
         Integer dims = removeAsType(map, DIMENSIONS, Integer.class);
         Integer maxInputTokens = removeAsType(map, MAX_INPUT_TOKENS, Integer.class);
+        Integer maxBatchSize = parseMaxBatchSize(map, validationException);
 
         RateLimitSettings.rejectRateLimitFieldForRequestContext(
             map,
@@ -81,19 +88,21 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends Filte
             throw validationException;
         }
 
-        return new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens);
+        return new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, similarity, dims, maxInputTokens, maxBatchSize);
     }
 
     public ElasticInferenceServiceDenseEmbeddingsServiceSettings(
         String modelId,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
-        @Nullable Integer maxInputTokens
+        @Nullable Integer maxInputTokens,
+        @Nullable Integer maxBatchSize
     ) {
         this.modelId = modelId;
         this.similarity = similarity;
         this.dimensions = dimensions;
         this.maxInputTokens = maxInputTokens;
+        this.maxBatchSize = maxBatchSize;
         this.rateLimitSettings = RateLimitSettings.DISABLED_INSTANCE;
     }
 
@@ -106,6 +115,12 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends Filte
 
         if (in.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
             new RateLimitSettings(in);
+        }
+
+        if (in.getTransportVersion().supports(INFERENCE_API_EIS_DENSE_EMBEDDINGS_MAX_BATCH_SIZE)) {
+            this.maxBatchSize = in.readOptionalVInt();
+        } else {
+            this.maxBatchSize = null;
         }
     }
 
@@ -121,6 +136,10 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends Filte
 
     public Integer maxInputTokens() {
         return maxInputTokens;
+    }
+
+    public Integer maxBatchSize() {
+        return maxBatchSize;
     }
 
     @Override
@@ -163,6 +182,10 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends Filte
             builder.field(MAX_INPUT_TOKENS, maxInputTokens);
         }
 
+        if (maxBatchSize != null) {
+            builder.field(MAX_BATCH_SIZE, maxBatchSize);
+        }
+
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -198,6 +221,9 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends Filte
         if (out.getTransportVersion().supports(INFERENCE_API_DISABLE_EIS_RATE_LIMITING) == false) {
             rateLimitSettings.writeTo(out);
         }
+        if (out.getTransportVersion().supports(INFERENCE_API_EIS_DENSE_EMBEDDINGS_MAX_BATCH_SIZE)) {
+            out.writeOptionalVInt(maxBatchSize);
+        }
     }
 
     @Override
@@ -209,11 +235,12 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettings extends Filte
             && similarity == that.similarity
             && Objects.equals(dimensions, that.dimensions)
             && Objects.equals(maxInputTokens, that.maxInputTokens)
+            && Objects.equals(maxBatchSize, that.maxBatchSize)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(modelId, similarity, dimensions, maxInputTokens, rateLimitSettings);
+        return Objects.hash(modelId, similarity, dimensions, maxInputTokens, maxBatchSize, rateLimitSettings);
     }
 }

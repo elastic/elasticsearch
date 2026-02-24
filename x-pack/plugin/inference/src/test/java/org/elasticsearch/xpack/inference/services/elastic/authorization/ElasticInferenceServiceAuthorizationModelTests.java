@@ -268,7 +268,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var textEmbeddingEndpoint = new ElasticInferenceServiceDenseEmbeddingsModel(
             id2,
             TaskType.TEXT_EMBEDDING,
-            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name2, similarity, dimensions, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name2, similarity, dimensions, null, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
             DEFAULT_ENDPOINT_METADATA
@@ -612,7 +612,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var textEmbeddingsModel1 = new ElasticInferenceServiceDenseEmbeddingsModel(
             id1,
             TaskType.TEXT_EMBEDDING,
-            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
             DEFAULT_ENDPOINT_METADATA
@@ -621,7 +621,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var textEmbeddingsModel2 = new ElasticInferenceServiceDenseEmbeddingsModel(
             id2,
             TaskType.TEXT_EMBEDDING,
-            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
             DEFAULT_ENDPOINT_METADATA
@@ -630,7 +630,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var textEmbeddingsModel3 = new ElasticInferenceServiceDenseEmbeddingsModel(
             id3,
             TaskType.TEXT_EMBEDDING,
-            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarityMeasure, dimensions, null, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.DEFAULT_SETTINGS,
             DEFAULT_ENDPOINT_METADATA
@@ -781,7 +781,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceDenseEmbeddingsModel(
                     idDenseMultimodal,
                     TaskType.EMBEDDING,
-                    new ElasticInferenceServiceDenseEmbeddingsServiceSettings(nameDenseMultimodal, similarity, dimensions, null),
+                    new ElasticInferenceServiceDenseEmbeddingsServiceSettings(nameDenseMultimodal, similarity, dimensions, null, null),
                     new ElasticInferenceServiceComponents(url),
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS,
                     DEFAULT_ENDPOINT_METADATA
@@ -789,7 +789,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
                 new ElasticInferenceServiceDenseEmbeddingsModel(
                     idDenseText,
                     TaskType.TEXT_EMBEDDING,
-                    new ElasticInferenceServiceDenseEmbeddingsServiceSettings(nameDenseText, similarity, dimensions, null),
+                    new ElasticInferenceServiceDenseEmbeddingsServiceSettings(nameDenseText, similarity, dimensions, null, null),
                     new ElasticInferenceServiceComponents(url),
                     ChunkingSettingsBuilder.DEFAULT_SETTINGS,
                     DEFAULT_ENDPOINT_METADATA
@@ -1208,7 +1208,7 @@ public class ElasticInferenceServiceAuthorizationModelTests extends ESTestCase {
         var expectedEndpoint = new ElasticInferenceServiceDenseEmbeddingsModel(
             id,
             TaskType.TEXT_EMBEDDING,
-            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarity, dimensions, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(name, similarity, dimensions, null, null),
             new ElasticInferenceServiceComponents(url),
             ChunkingSettingsBuilder.fromMap(chunkingSettings),
             new EndpointMetadata(

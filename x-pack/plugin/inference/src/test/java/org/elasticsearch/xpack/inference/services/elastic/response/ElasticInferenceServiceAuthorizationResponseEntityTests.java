@@ -570,7 +570,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             JINA_EMBED_V3_ENDPOINT_ID,
             TaskType.TEXT_EMBEDDING,
-            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(JINA_EMBED_V3_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(JINA_EMBED_V3_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null, null),
             new ElasticInferenceServiceComponents(url),
             new WordBoundaryChunkingSettings(500, 2),
             new EndpointMetadata(
@@ -610,7 +610,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntityTests extends Abs
         return new ElasticInferenceServiceDenseEmbeddingsModel(
             JINA_CLIP_V2_ENDPOINT_ID,
             TaskType.EMBEDDING,
-            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(JINA_CLIP_V2_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null),
+            new ElasticInferenceServiceDenseEmbeddingsServiceSettings(JINA_CLIP_V2_MODEL_NAME, SimilarityMeasure.COSINE, 1024, null, null),
             new ElasticInferenceServiceComponents(url),
             new WordBoundaryChunkingSettings(500, 2),
             new EndpointMetadata(

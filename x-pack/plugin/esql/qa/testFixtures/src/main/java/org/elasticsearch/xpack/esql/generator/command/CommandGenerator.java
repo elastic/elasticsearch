@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isUnmappedFieldsEnabled;
+
 /**
  * Implement this if you want to your command to be tested by the random query generator.
  * Then add it to the right list in {@link EsqlQueryGenerator}

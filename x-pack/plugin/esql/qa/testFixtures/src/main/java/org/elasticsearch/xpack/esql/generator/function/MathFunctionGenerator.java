@@ -112,4 +112,3 @@ public final class MathFunctionGenerator {
         );
     }
 }
-

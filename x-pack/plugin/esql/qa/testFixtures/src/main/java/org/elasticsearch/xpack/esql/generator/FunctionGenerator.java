@@ -322,4 +322,3 @@ public class FunctionGenerator {
         return TypeSafeExpressionGenerator.typeSafeExpression(columns, acceptedTypes, allowUnmapped);
     }
 }
-

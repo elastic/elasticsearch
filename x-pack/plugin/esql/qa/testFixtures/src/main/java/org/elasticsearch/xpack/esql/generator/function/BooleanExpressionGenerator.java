@@ -101,4 +101,3 @@ public final class BooleanExpressionGenerator {
         return stringField + " RLIKE \"" + pattern + "\"";
     }
 }
-

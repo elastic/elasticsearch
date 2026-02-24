@@ -19,8 +19,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
-import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isUnmappedFieldsEnabled;
 import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.unquote;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isUnmappedFieldsEnabled;
 
 public class EvalGenerator implements CommandGenerator {
 

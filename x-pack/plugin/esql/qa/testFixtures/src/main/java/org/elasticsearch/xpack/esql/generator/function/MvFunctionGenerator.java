@@ -63,7 +63,11 @@ public final class MvFunctionGenerator {
 
         String stringField = fieldOrUnmapped(randomStringField(columns), allowUnmapped);
         if (stringField != null && randomBoolean()) {
-            return randomFrom("mv_concat(" + stringField + ", \", \")", "mv_sort(" + stringField + ")", "mv_sort(" + stringField + ", \"desc\")");
+            return randomFrom(
+                "mv_concat(" + stringField + ", \", \")",
+                "mv_sort(" + stringField + ")",
+                "mv_sort(" + stringField + ", \"desc\")"
+            );
         }
 
         return genericMvFunc;
@@ -86,4 +90,3 @@ public final class MvFunctionGenerator {
         return randomFrom("mv_slice(" + field + ", " + start + ", " + end + ")", "mv_slice(" + field + ", " + start + ")");
     }
 }
-

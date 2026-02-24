@@ -129,4 +129,3 @@ public final class ConditionalFunctionGenerator {
         return func + "(" + String.join(", ", sameTypeFields.subList(0, numArgs)) + ")";
     }
 }
-

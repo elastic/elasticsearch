@@ -55,4 +55,3 @@ public final class IpFunctionGenerator {
         return "ip_prefix(" + ipField + ", " + randomIntBetween(8, 32) + ", " + randomIntBetween(48, 128) + ")";
     }
 }
-

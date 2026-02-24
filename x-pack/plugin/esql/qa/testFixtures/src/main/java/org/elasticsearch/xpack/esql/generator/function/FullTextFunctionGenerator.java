@@ -162,33 +162,26 @@ public final class FullTextFunctionGenerator {
         { "fuzziness", "\"AUTO\"", "1", "2" },
         { "lenient", "true", "false" },
         { "boost", "1.0", "2.5" },
-        { "zero_terms_query", "\"none\"", "\"all\"" },
-    };
+        { "zero_terms_query", "\"none\"", "\"all\"" }, };
 
     private static final String[][] MATCH_PHRASE_OPTIONS = {
         { "slop", "0", "1", "2" },
         { "boost", "1.0", "2.5" },
-        { "zero_terms_query", "\"none\"", "\"all\"" },
-    };
+        { "zero_terms_query", "\"none\"", "\"all\"" }, };
 
     private static final String[][] QSTR_OPTIONS = {
         { "default_operator", "\"OR\"", "\"AND\"" },
         { "lenient", "true", "false" },
         { "fuzziness", "\"AUTO\"", "1" },
-        { "boost", "1.0", "2.5" },
-    };
+        { "boost", "1.0", "2.5" }, };
 
-    private static final String[][] KQL_OPTIONS = {
-        { "case_insensitive", "true", "false" },
-        { "boost", "1.0", "2.5" },
-    };
+    private static final String[][] KQL_OPTIONS = { { "case_insensitive", "true", "false" }, { "boost", "1.0", "2.5" }, };
 
     private static final String[][] MULTI_MATCH_OPTIONS = {
         { "operator", "\"AND\"", "\"OR\"" },
         { "lenient", "true", "false" },
         { "boost", "1.0", "2.5" },
-        { "type", "\"best_fields\"", "\"most_fields\"", "\"phrase\"" },
-    };
+        { "type", "\"best_fields\"", "\"most_fields\"", "\"phrase\"" }, };
 
     /**
      * Generates a {@code match(field, "query")} expression, or its operator variant {@code field : "query"}.
@@ -318,4 +311,3 @@ public final class FullTextFunctionGenerator {
         }
     }
 }
-

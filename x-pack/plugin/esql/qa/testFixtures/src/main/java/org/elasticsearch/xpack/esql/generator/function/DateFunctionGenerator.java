@@ -83,4 +83,3 @@ public final class DateFunctionGenerator {
         return "date_diff(\"" + unit + "\", " + dateFields.get(0) + ", " + dateFields.get(1) + ")";
     }
 }
-

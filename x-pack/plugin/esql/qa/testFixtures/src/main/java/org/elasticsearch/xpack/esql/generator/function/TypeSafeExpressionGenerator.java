@@ -14,9 +14,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomName;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
+import static org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator.randomName;
 import static org.elasticsearch.xpack.esql.generator.function.MathFunctionGenerator.binaryMathFunction;
 import static org.elasticsearch.xpack.esql.generator.function.MathFunctionGenerator.clampFunction;
 import static org.elasticsearch.xpack.esql.generator.function.MathFunctionGenerator.mathFunction;
@@ -93,4 +93,3 @@ public final class TypeSafeExpressionGenerator {
         return null;
     }
 }
-

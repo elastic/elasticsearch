@@ -146,4 +146,3 @@ public final class StringFunctionGenerator {
         return "split(" + stringField + ", \"" + delimiter + "\")";
     }
 }
-

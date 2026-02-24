@@ -300,24 +300,19 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         List<CommandGenerator.CommandDescription> commandsForPlacementChecks
     ) {
         FailureContext {
-            commandsForFieldOriginTracing = commandsForFieldOriginTracing == null
-                ? List.of()
-                : commandsForFieldOriginTracing;
-            commandsForPlacementChecks = commandsForPlacementChecks == null
-                ? List.of()
-                : commandsForPlacementChecks;
+            commandsForFieldOriginTracing = commandsForFieldOriginTracing == null ? List.of() : commandsForFieldOriginTracing;
+            commandsForPlacementChecks = commandsForPlacementChecks == null ? List.of() : commandsForPlacementChecks;
         }
     }
 
-    private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = {
-        ctx -> {
-            for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
-                if (isAllowedError(ctx.errorMessage, allowedError)) {
-                    return true;
-                }
+    private static final AllowedFailureRule[] ALLOWED_FAILURE_RULES = { ctx -> {
+        for (Pattern allowedError : ALLOWED_ERROR_PATTERNS) {
+            if (isAllowedError(ctx.errorMessage, allowedError)) {
+                return true;
             }
-            return false;
-        },
+        }
+        return false;
+    },
         ctx -> isUnmappedFieldError(ctx.errorMessage, ctx.query),
         ctx -> isScalarTypeMismatchError(ctx.errorMessage),
         ctx -> isFirstLastSameFieldError(ctx.errorMessage, ctx.query),
@@ -325,8 +320,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         ctx -> isFieldFullTextError(ctx.errorMessage, ctx.query, ctx.commandsForFieldOriginTracing),
         ctx -> isFullTextAfterSampleBug(ctx.errorMessage, ctx.query),
         ctx -> isFullTextAfterWhereBugs(ctx.errorMessage),
-        ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.errorMessage, ctx.query),
-    };
+        ctx -> isLenientFalseFailedToCreateFullTextQueryError(ctx.errorMessage, ctx.query), };
 
     private static boolean isAllowedFailure(FailureContext ctx) {
         if (ctx == null || ctx.errorMessage == null) {

@@ -139,7 +139,14 @@ public class MetricsInfoOperator implements Operator {
     public record Factory(MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new MetricsInfoOperator(driverContext.blockFactory(), fieldLookup, metadataSourceChannel, indexChannel);
+            return new MetricsInfoOperator(
+                Mode.INITIAL,
+                driverContext.blockFactory(),
+                fieldLookup,
+                metadataSourceChannel,
+                indexChannel,
+                null
+            );
         }
 
         @Override
@@ -161,7 +168,7 @@ public class MetricsInfoOperator implements Operator {
     public record FinalFactory(int[] channels) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new MetricsInfoOperator(driverContext.blockFactory(), channels);
+            return new MetricsInfoOperator(Mode.FINAL, driverContext.blockFactory(), null, -1, -1, channels);
         }
 
         @Override
@@ -196,32 +203,20 @@ public class MetricsInfoOperator implements Operator {
     private boolean finished = false;
     private boolean outputProduced = false;
 
-    /**
-     * Creates an INITIAL-mode operator (data nodes).
-     */
-    public MetricsInfoOperator(BlockFactory blockFactory, MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel) {
-        this.mode = Mode.INITIAL;
+    private MetricsInfoOperator(
+        Mode mode,
+        BlockFactory blockFactory,
+        MetricFieldLookup fieldLookup,
+        int metadataSourceChannel,
+        int indexChannel,
+        int[] channels
+    ) {
+        this.mode = mode;
         this.blockFactory = blockFactory;
         this.breaker = blockFactory.breaker();
         this.fieldLookup = fieldLookup;
         this.metadataSourceChannel = metadataSourceChannel;
         this.indexChannel = indexChannel;
-        this.finalChannels = null;
-    }
-
-    /**
-     * Creates a FINAL-mode operator (coordinator).
-     *
-     * @param channels the 6 input channel indices mapping to
-     *                 [metric_name, data_stream, unit, metric_type, field_type, dimension_fields]
-     */
-    public MetricsInfoOperator(BlockFactory blockFactory, int[] channels) {
-        this.mode = Mode.FINAL;
-        this.blockFactory = blockFactory;
-        this.breaker = blockFactory.breaker();
-        this.fieldLookup = null;
-        this.metadataSourceChannel = -1;
-        this.indexChannel = -1;
         this.finalChannels = channels;
     }
 
@@ -246,6 +241,7 @@ public class MetricsInfoOperator implements Operator {
             BytesRefBlock indexBlock = page.getBlock(indexChannel);
 
             BytesRef indexScratch = new BytesRef();
+            BytesRef sourceScratch = new BytesRef();
 
             for (int p = 0; p < page.getPositionCount(); p++) {
                 if (metadataSource.isNull(p)) {
@@ -257,7 +253,7 @@ public class MetricsInfoOperator implements Operator {
 
                 String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
                 String dataStreamName = resolveDataStreamName(indexName);
-                Map<String, Object> metadata = parseMetadataSource(metadataSource, p);
+                Map<String, Object> metadata = parseMetadataSource(metadataSource, p, sourceScratch);
                 if (metadata == null) {
                     continue;
                 }
@@ -530,11 +526,11 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    private Map<String, Object> parseMetadataSource(BytesRefBlock metadataSource, int position) {
+    private Map<String, Object> parseMetadataSource(BytesRefBlock metadataSource, int position, BytesRef sourceScratch) {
         if (metadataSource == null || metadataSource.isNull(position)) {
             return null;
         }
-        BytesRef bytes = metadataSource.getBytesRef(position, new BytesRef());
+        BytesRef bytes = metadataSource.getBytesRef(position, sourceScratch);
         try (
             var parser = XContentType.JSON.xContent()
                 .createParser(XContentParserConfiguration.EMPTY, bytes.bytes, bytes.offset, bytes.length)

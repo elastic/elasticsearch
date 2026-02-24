@@ -201,7 +201,13 @@ teardown:
 
 ---
 "Enable sub-stream type still works":
+  - requires:
+      reason: "Logs deprecated in 9.4.0+"
+      test_runner_features: [ allowed_warnings ]
+
   - do:
+      allowed_warnings:
+        - "The 'logs' stream is deprecated. Use individual stream names such as 'logs.otel' and 'logs.ecs' instead"
       streams.logs_enable:
         name: logs
   - is_true: acknowledged

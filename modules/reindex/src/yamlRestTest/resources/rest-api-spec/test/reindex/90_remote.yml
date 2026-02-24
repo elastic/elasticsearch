@@ -464,3 +464,284 @@
         index: source
         metric: search
   - match: {indices.source.total.search.open_contexts: 0}
+
+---
+"Reindex from remote with automatic slicing":
+  - requires:
+      "test_runner_features": "contains"
+  - do:
+      index:
+        index:   source
+        id:      "1"
+        body:    { "text": "one" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "2"
+        body:    { "text": "two" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "3"
+        body:    { "text": "three" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "4"
+        body:    { "text": "four" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "5"
+        body:    { "text": "five" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "6"
+        body:    { "text": "six" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "7"
+        body:    { "text": "seven" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "8"
+        body:    { "text": "eight" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "9"
+        body:    { "text": "nine" }
+        refresh: true
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+  - do:
+      reindex:
+        slices: 3
+        refresh: true
+        body:
+          source:
+            remote:
+              host: http://${host}
+            index: source
+          dest:
+            index: dest
+  - match: {created: 9}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 3} # one batch per slice
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+  - length: {slices: 3}
+  - match: {slices.0.updated: 0}
+  - match: {slices.0.version_conflicts: 0}
+  - match: {slices.0.throttled_millis: 0}
+  - match: {slices.1.updated: 0}
+  - match: {slices.1.version_conflicts: 0}
+  - match: {slices.1.throttled_millis: 0}
+  - match: {slices.2.updated: 0}
+  - match: {slices.2.version_conflicts: 0}
+  - match: {slices.2.throttled_millis: 0}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dest
+  - match: {hits.total: 9}
+  - contains: {hits.hits: {_id: "1"}}
+  - contains: {hits.hits: {_id: "2"}}
+  - contains: {hits.hits: {_id: "3"}}
+  - contains: {hits.hits: {_id: "4"}}
+  - contains: {hits.hits: {_id: "5"}}
+  - contains: {hits.hits: {_id: "6"}}
+  - contains: {hits.hits: {_id: "7"}}
+  - contains: {hits.hits: {_id: "8"}}
+  - contains: {hits.hits: {_id: "9"}}
+
+  # Make sure reindex closed all the scroll contexts
+  - do:
+      indices.stats:
+        index: source
+        metric: search
+  - match: {indices.source.total.search.open_contexts: 0}
+
+---
+"Reindex from remote with manual slicing":
+  - requires:
+      "test_runner_features": "contains"
+  - do:
+      index:
+        index:   source
+        id:      "1"
+        body:    { "text": "one" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "2"
+        body:    { "text": "two" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "3"
+        body:    { "text": "three" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "4"
+        body:    { "text": "four" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "5"
+        body:    { "text": "five" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "6"
+        body:    { "text": "six" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "7"
+        body:    { "text": "seven" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "8"
+        body:    { "text": "eight" }
+        refresh: true
+  - do:
+      index:
+        index:   source
+        id:      "9"
+        body:    { "text": "nine" }
+        refresh: true
+
+  # Fetch the http host. We use the host of the master because we know there will always be a master.
+  - do:
+      cluster.state: {}
+  - set: { master_node: master }
+  - do:
+      nodes.info:
+        metric: [ http ]
+  - is_true: nodes.$master.http.publish_address
+  - set: {nodes.$master.http.publish_address: host}
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            remote:
+              host: http://${host}
+            index: source
+            slice:
+              id: 0
+              max: 3
+          dest:
+            index: dest
+  # Cannot assert on the created count for each slice
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            remote:
+              host: http://${host}
+            index: source
+            slice:
+              id: 1
+              max: 3
+          dest:
+            index: dest
+  # Cannot assert on the created count for each slice
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  - do:
+      reindex:
+        refresh: true
+        body:
+          source:
+            remote:
+              host: http://${host}
+            index: source
+            slice:
+              id: 2
+              max: 3
+          dest:
+            index: dest
+  # Cannot assert on the created count for each slice
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - match: {batches: 1}
+  - match: {failures: []}
+  - match: {throttled_millis: 0}
+  - gte: { took: 0 }
+  - is_false: task
+  - is_false: deleted
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: dest
+  - match: {hits.total: 9}
+  - contains: {hits.hits: {_id: "1"}}
+  - contains: {hits.hits: {_id: "2"}}
+  - contains: {hits.hits: {_id: "3"}}
+  - contains: {hits.hits: {_id: "4"}}
+  - contains: {hits.hits: {_id: "5"}}
+  - contains: {hits.hits: {_id: "6"}}
+  - contains: {hits.hits: {_id: "7"}}
+  - contains: {hits.hits: {_id: "8"}}
+  - contains: {hits.hits: {_id: "9"}}
+
+  # Make sure reindex closed all the scroll contexts
+  - do:
+      indices.stats:
+        index: source
+        metric: search
+  - match: {indices.source.total.search.open_contexts: 0}

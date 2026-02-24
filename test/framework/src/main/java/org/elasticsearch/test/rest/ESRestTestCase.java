@@ -641,7 +641,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     @After
     public final void cleanUpCluster() throws Exception {
-        if (preserveClusterUponCompletion() == false) {
+        if (previousFailureSkipsRemaining() == false && preserveClusterUponCompletion() == false) {
             ensureNoInitializingShards();
             wipeCluster();
             waitForClusterStateUpdatesToFinish();
@@ -1343,7 +1343,9 @@ public abstract class ESRestTestCase extends ESTestCase {
             response = cleanupClient().performRequest(request);
         } catch (ResponseException e) {
             String err = EntityUtils.toString(e.getResponse().getEntity());
-            if (err.contains("no handler found for uri [_query/view]") || err.contains("Incorrect HTTP method for uri [_query/view]")) {
+            if (err.contains("no handler found for uri [_query/view]")
+                || err.contains("Incorrect HTTP method for uri [_query/view]")
+                || err.contains("uri [_query/view] with method [GET] exists but is not available")) {
                 // Views are not supported, don't worry about wiping them
                 return;
             }

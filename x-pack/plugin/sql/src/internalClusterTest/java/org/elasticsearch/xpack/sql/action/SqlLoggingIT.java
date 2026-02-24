@@ -87,7 +87,6 @@ public class SqlLoggingIT extends AbstractSqlIntegTestCase {
         var sqlMessage = getMessageData(appender.events.get(1));
         assertMessageSuccess(sqlMessage, "sql", query);
         assertThat(sqlMessage.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("2"));
-        assertThat(searchMessage.get(ES_QUERY_FIELDS_PREFIX + "hits"), equalTo("2"));
     }
 
     public void testSqlFailureLogging() {

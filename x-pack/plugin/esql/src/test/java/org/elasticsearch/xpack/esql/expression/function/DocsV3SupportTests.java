@@ -29,6 +29,24 @@ public class DocsV3SupportTests extends ESTestCase {
     private static DocsV3Support docs = DocsV3Support.forFunctions("test", DocsV3SupportTests.class, null);
     private static final String ESQL = "/reference/query-languages/esql";
 
+    /**
+     * Functions have their own individual pages, so section titles are H2 headings.
+     */
+    public void testFormatSectionTitleForFunctions() {
+        assertThat(docs.formatSectionTitle("Supported types"), equalTo("## Supported types\n\n"));
+        assertThat(docs.formatSectionTitle("Examples"), equalTo("## Examples\n\n"));
+    }
+
+    /**
+     * Operator snippets are included inside H3 sections, so section titles are bold text
+     * to avoid breaking the heading hierarchy on operators.md.
+     */
+    public void testFormatSectionTitleForOperators() {
+        var opDocs = new DocsV3Support.OperatorsDocsSupport("add", DocsV3SupportTests.class, null, Set::of, null);
+        assertThat(opDocs.formatSectionTitle("Supported types"), equalTo("**Supported types**\n\n"));
+        assertThat(opDocs.formatSectionTitle("Examples"), equalTo("**Examples**\n\n"));
+    }
+
     public void testFunctionLink() {
         String text = "The value that is greater than half of all values and less than half of all values, "
             + "also known as the 50% <<esql-percentile>>.";

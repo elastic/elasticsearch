@@ -882,6 +882,16 @@ public abstract class DocsV3Support {
             this.op = op;
         }
 
+        /**
+         * Operator snippets are included inside H3 sections on operators.md
+         * (H1 page → H2 category → H3 operator). Using H2 for sub-sections like
+         * "Supported types" would break the heading hierarchy, so bold text is used instead.
+         */
+        @Override
+        protected String formatSectionTitle(String title) {
+            return "**" + title + "**\n\n";
+        }
+
         @Override
         public void renderSignature() throws IOException {
             if (callbacks.supportsRendering() == false) {
@@ -1386,6 +1396,16 @@ public abstract class DocsV3Support {
         writeToTempSnippetsDir("parameters", rendered);
     }
 
+    /**
+     * Formats a section title (e.g. "Supported types", "Examples") for use in generated snippets.
+     * Functions each have their own individual page, so H2 headings are appropriate here.
+     * Override in subclasses where snippets are included into a different heading context —
+     * see {@link OperatorsDocsSupport#formatSectionTitle}.
+     */
+    protected String formatSectionTitle(String title) {
+        return "## " + title + "\n\n";
+    }
+
     void renderTypes(String name, List<EsqlFunctionRegistry.ArgSignature> args) throws IOException {
         boolean showResultColumn = signatures.get().stream().map(TypeSignature::returnType).anyMatch(Objects::nonNull);
         StringBuilder header = new StringBuilder("| ");
@@ -1416,10 +1436,14 @@ public abstract class DocsV3Support {
             return;
         }
 
-        String rendered = DOCS_WARNING + """
-            ## Supported types
-
-            """ + header + "\n" + separator + "\n" + String.join("\n", table) + "\n\n";
+        String rendered = DOCS_WARNING
+            + formatSectionTitle("Supported types")
+            + header
+            + "\n"
+            + separator
+            + "\n"
+            + String.join("\n", table)
+            + "\n\n";
         logger.info("Writing function types for [{}]", name);
         logger.debug("{}", rendered);
         writeToTempSnippetsDir("types", rendered);
@@ -1523,9 +1547,9 @@ public abstract class DocsV3Support {
         StringBuilder builder = new StringBuilder();
         builder.append(DOCS_WARNING);
         if (info.examples().length == 1) {
-            builder.append("## Example\n\n");
+            builder.append(formatSectionTitle("Example"));
         } else {
-            builder.append("## Examples\n\n");
+            builder.append(formatSectionTitle("Examples"));
         }
         for (Example example : info.examples()) {
             if (example.applies_to().isEmpty() == false) {

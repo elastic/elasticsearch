@@ -173,6 +173,45 @@ public class SchemaUtilTests extends ESTestCase {
         }
     }
 
+    public void testGetSourceFieldMappingsIncludesProjectRouting() throws InterruptedException {
+        String projectRouting = "_alias:_origin";
+        try (var threadPool = createThreadPool()) {
+            final var client = new FieldCapsMockClient(threadPool, emptySet());
+            this.<Map<String, String>>assertAsync(
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    emptyMap(),
+                    new SourceConfig(new String[] { "index-1" }, QueryConfig.matchAll(), emptyMap(), projectRouting),
+                    new String[] { "field-1" },
+                    listener
+                ),
+                mappings -> {
+                    assertNotNull(client.lastFieldCapsRequest);
+                    assertThat(client.lastFieldCapsRequest.getProjectRouting(), is(equalTo(projectRouting)));
+                }
+            );
+        }
+    }
+
+    public void testGetSourceFieldMappingsWithoutProjectRouting() throws InterruptedException {
+        try (var threadPool = createThreadPool()) {
+            final var client = new FieldCapsMockClient(threadPool, emptySet());
+            this.<Map<String, String>>assertAsync(
+                listener -> SchemaUtil.getSourceFieldMappings(
+                    client,
+                    emptyMap(),
+                    new SourceConfig(new String[] { "index-1" }),
+                    new String[] { "field-1" },
+                    listener
+                ),
+                mappings -> {
+                    assertNotNull(client.lastFieldCapsRequest);
+                    assertNull(client.lastFieldCapsRequest.getProjectRouting());
+                }
+            );
+        }
+    }
+
     public void testIsNumericType() {
         assertFalse(SchemaUtil.isNumericType(null));
         assertFalse(SchemaUtil.isNumericType("non-existing"));
@@ -259,6 +298,7 @@ public class SchemaUtilTests extends ESTestCase {
     private static class FieldCapsMockClient extends NoOpClient {
 
         private final Set<String> fieldsWithoutMappings;
+        volatile FieldCapabilitiesRequest lastFieldCapsRequest;
 
         FieldCapsMockClient(ThreadPool threadPool, Set<String> fieldsWithoutMappings) {
             super(threadPool);
@@ -273,6 +313,7 @@ public class SchemaUtilTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             if (request instanceof FieldCapabilitiesRequest fieldCapsRequest) {
+                lastFieldCapsRequest = fieldCapsRequest;
                 Map<String, Map<String, FieldCapabilities>> responseMap = new HashMap<>();
                 for (String field : fieldCapsRequest.fields()) {
                     if (fieldsWithoutMappings.contains(field)) {

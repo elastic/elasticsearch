@@ -118,6 +118,9 @@ public class S3HttpHandler implements HttpHandler {
                 if (blob == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                 } else {
+                    // HEAD response must include Content-Length header for S3 clients (AWS SDK) that read file size
+                    exchange.getResponseHeaders().add("Content-Length", String.valueOf(blob.length()));
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
             } else if (request.isListMultipartUploadsRequest()) {
@@ -181,6 +184,9 @@ public class S3HttpHandler implements HttpHandler {
                             exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
                         } else {
                             var range = parsePartRange(exchange);
+                            if (range.end() == null) {
+                                throw new AssertionError("Copy-part range must specify an end: " + range);
+                            }
                             int start = Math.toIntExact(range.start());
                             int len = Math.toIntExact(range.end() - range.start() + 1);
                             var part = sourceBlob.slice(start, len);
@@ -379,16 +385,15 @@ public class S3HttpHandler implements HttpHandler {
                     return;
                 }
 
-                // S3 supports https://www.rfc-editor.org/rfc/rfc9110.html#name-range. The AWS SDK v1.x seems to always generate range
-                // requests with a header value like "Range: bytes=start-end" where both {@code start} and {@code end} are always defined
-                // (sometimes to very high value for {@code end}). It would be too tedious to fully support the RFC so S3HttpHandler only
-                // supports when both {@code start} and {@code end} are defined to match the SDK behavior.
+                // S3 supports https://www.rfc-editor.org/rfc/rfc9110.html#name-range
+                // This handler supports both bounded ranges (bytes=0-100) and open-ended ranges (bytes=100-)
                 final HttpHeaderParser.Range range = parseRangeHeader(rangeHeader);
                 if (range == null) {
                     throw new AssertionError("Bytes range does not match expected pattern: " + rangeHeader);
                 }
                 long start = range.start();
-                long end = range.end();
+                // For open-ended ranges (bytes=N-), end is null, meaning "to end of file"
+                long end = range.end() != null ? range.end() : blob.length() - 1;
                 if (end < start) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());

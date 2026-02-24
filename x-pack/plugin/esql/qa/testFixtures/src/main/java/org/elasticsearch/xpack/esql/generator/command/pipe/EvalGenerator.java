@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
+import org.elasticsearch.xpack.esql.generator.FunctionGenerator;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 
@@ -89,7 +90,8 @@ public class EvalGenerator implements CommandGenerator {
         List<String> expectedColumns = (List<String>) commandDescription.context().get(NEW_COLUMNS);
         List<String> resultColNames = columns.stream().map(Column::name).toList();
         List<String> lastColumns = resultColNames.subList(resultColNames.size() - expectedColumns.size(), resultColNames.size());
-        if (columns.size() < expectedColumns.size() || lastColumns.equals(expectedColumns) == false) {
+        if (FunctionGenerator.isUnmappedFieldsEnabled(previousCommands) == false
+            && (columns.size() < expectedColumns.size() || lastColumns.equals(expectedColumns) == false)) {
             return new ValidationResult(
                 false,
                 "Expecting the following as last columns ["

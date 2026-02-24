@@ -9,6 +9,7 @@ package org.elasticsearch.blobcache.shared;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.TestEnvironment;
@@ -21,7 +22,6 @@ import java.nio.file.Files;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
 
 public class SharedBytesTests extends ESTestCase {
 
@@ -123,16 +123,19 @@ public class SharedBytesTests extends ESTestCase {
     }
 
     /**
-     * Best-effort test that mmap'd SharedBytes instances release their mapped memory on close, so
-     * that the OS can reclaim disk space immediately. Without proper unmapping, each iteration leaks
-     * the cache file's data blocks (the file is unlinked but the mapping holds the blocks allocated).
+     * Test that mmap'd SharedBytes instances release their mapped memory on close, so that the OS
+     * can reclaim disk space immediately. Without proper unmapping, each iteration leaks the cache
+     * file's data blocks (the file is unlinked but the mapping holds the blocks allocated).
+     *
+     * On Linux, this is verified deterministically by inspecting {@code /proc/self/maps} for
+     * residual memory-mapped regions after all instances are closed. A leaked (unmapped but not
+     * munmap'd) file would still appear as a "(deleted)" entry in the maps file.
      */
     public void testMmapResourcesReleasedOnClose() throws Exception {
-        assumeFalse("mmap not used on Windows", IOUtils.WINDOWS);
+        assumeTrue("test relies on /proc/self/maps to verify mmap cleanup", IOUtils.LINUX);
 
         int regions = 4;
         int regionSize = 1024 * 1024; // 1 MB per region
-        long cacheFileSize = (long) regions * regionSize; // 4 MB total
         int iterations = 100;
 
         var dataPath = createTempDir();
@@ -149,8 +152,6 @@ public class SharedBytesTests extends ESTestCase {
             new SharedBytes(regions, regionSize, nodeEnv, ignored -> {}, ignored -> {}, true).decRef();
             assertFalse(Files.exists(cachePath));
 
-            long spaceBefore = Environment.getUsableSpace(nodeEnv.nodeDataPaths()[0]);
-
             for (int i = 0; i < iterations; i++) {
                 SharedBytes sharedBytes = new SharedBytes(regions, regionSize, nodeEnv, ignored -> {}, ignored -> {}, true);
                 assertTrue("cache file should exist", Files.exists(cachePath));
@@ -158,26 +159,23 @@ public class SharedBytesTests extends ESTestCase {
                 assertFalse("cache file should be deleted after close", Files.exists(cachePath));
             }
 
-            long spaceAfter = Environment.getUsableSpace(nodeEnv.nodeDataPaths()[0]);
-            long spaceLost = spaceBefore - spaceAfter;
-
-            // Without the fix, we'd lose ~iterations * cacheFileSize = 400 MB of unreclaimable space.
-            // With the fix, space is fully reclaimed. We use a generous margin because getUsableSpace()
-            // measures the entire filesystem and can be affected by concurrent activity from other
-            // processes (e.g. parallel test workers, OS indexing, logs) writing to the same volume.
-            assertThat(
-                "Disk space was not reclaimed after closing "
-                    + iterations
-                    + " mmap'd SharedBytes instances. "
-                    + "Lost "
-                    + spaceLost
-                    + " bytes (cache file size: "
-                    + cacheFileSize
-                    + " bytes). "
-                    + "This may indicate that mmap buffers are not being properly unmapped on close.",
-                spaceLost,
-                lessThan(cacheFileSize * 20)
-            );
+            // Verify that no mmap'd regions for the cache file remain after close.
+            // If mmap buffers were not properly unmapped, the deleted cache file would still
+            // appear as a "(deleted)" entry in /proc/self/maps, and the kernel would continue
+            // to hold the file's disk blocks allocated until the mapping is released.
+            try (var lines = Files.lines(PathUtils.get("/proc/self/maps"))) {
+                var leakedMappings = lines.filter(line -> line.contains("shared_snapshot_cache")).toList();
+                assertEquals(
+                    "Found leaked memory-mapped regions for shared_snapshot_cache in /proc/self/maps after closing "
+                        + iterations
+                        + " mmap'd SharedBytes instances. "
+                        + "This indicates that mmap buffers are not being properly unmapped on close. "
+                        + "Leaked entries: "
+                        + leakedMappings,
+                    0,
+                    leakedMappings.size()
+                );
+            }
         }
     }
 

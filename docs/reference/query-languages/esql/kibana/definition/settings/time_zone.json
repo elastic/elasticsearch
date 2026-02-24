@@ -5,7 +5,7 @@
     "keyword"
   ],
   "serverlessOnly" : false,
-  "preview" : true,
+  "preview" : false,
   "snapshotOnly" : false,
   "description" : "The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter. See [timezones](https://www.elastic.co/docs/reference/query-languages/esql/esql-rest#esql-timezones)."
 }

@@ -20,7 +20,7 @@ import java.util.Objects;
 
 public class GpuVectorIndexingFeatureSetUsage extends XPackFeatureUsage {
 
-    private static final TransportVersion GPU_VECTOR_INDEXING_TELEMETRY = TransportVersion.fromName("gpu_vector_indexing_telemetry");
+    public static final TransportVersion GPU_VECTOR_INDEXING_TELEMETRY = TransportVersion.fromName("gpu_vector_indexing_telemetry");
 
     private final long indexBuildCount;
     private final int nodesWithGpu;

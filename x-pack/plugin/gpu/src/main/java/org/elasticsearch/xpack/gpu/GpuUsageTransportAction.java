@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.core.gpu.GpuVectorIndexingFeatureSetUsage;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.gpu.GpuVectorIndexingFeatureSetUsage.GPU_VECTOR_INDEXING_TELEMETRY;
+
 /**
  * Handles the {@code _xpack/usage} request for the GPU vector indexing feature.
  * Dispatches a {@link GpuStatsAction} to collect per-node GPU stats via
@@ -60,14 +62,18 @@ public class GpuUsageTransportAction extends XPackUsageFeatureTransportAction {
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        new ParentTaskAssigningClient(client, clusterService.localNode(), task).execute(
-            GpuStatsAction.INSTANCE,
-            new GpuStatsRequest(),
-            listener.delegateFailureAndWrap((delegate, response) -> {
-                boolean available = GPUPlugin.GPU_INDEXING_FEATURE.checkWithoutTracking(licenseState);
-                delegate.onResponse(new XPackUsageFeatureResponse(buildUsage(response, available)));
-            })
-        );
+        if (clusterService.state().getMinTransportVersion().supports(GPU_VECTOR_INDEXING_TELEMETRY)) {
+            new ParentTaskAssigningClient(client, clusterService.localNode(), task).execute(
+                GpuStatsAction.INSTANCE,
+                new GpuStatsRequest(),
+                listener.delegateFailureAndWrap((delegate, response) -> {
+                    boolean available = GPUPlugin.GPU_INDEXING_FEATURE.checkWithoutTracking(licenseState);
+                    delegate.onResponse(new XPackUsageFeatureResponse(buildUsage(response, available)));
+                })
+            );
+        } else {
+            listener.onResponse(new XPackUsageFeatureResponse(new GpuVectorIndexingFeatureSetUsage(false, false, 0, 0, List.of())));
+        }
     }
 
     // package-private for testing

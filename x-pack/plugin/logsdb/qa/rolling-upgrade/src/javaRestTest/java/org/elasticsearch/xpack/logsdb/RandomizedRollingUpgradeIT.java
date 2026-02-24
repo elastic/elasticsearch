@@ -24,6 +24,7 @@ import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
+import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
 import org.elasticsearch.datageneration.fields.PredefinedField;
 import org.elasticsearch.datageneration.fields.leaf.FlattenedFieldDataGenerator;
@@ -40,7 +41,6 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -90,7 +90,9 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
                     if (System.getProperty("tests.old_cluster_version", "").startsWith("9.0.") == false) {
                         return null;
                     }
-                    var allowed = Arrays.stream(FieldType.values()).filter(ft -> ft != FieldType.COUNTED_KEYWORD).toList();
+                    var allowed = DefaultObjectGenerationHandler.ALLOWED_FIELD_TYPES.stream()
+                        .filter(ft -> ft != FieldType.COUNTED_KEYWORD)
+                        .toList();
                     return new DataSourceResponse.FieldTypeGenerator(
                         () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(allowed).toString())
                     );

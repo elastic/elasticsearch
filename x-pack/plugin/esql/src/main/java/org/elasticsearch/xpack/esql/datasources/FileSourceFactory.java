@@ -70,10 +70,8 @@ final class FileSourceFactory implements ExternalSourceFactory {
             if (storageRegistry.hasProvider(scheme) == false) {
                 return false;
             }
-            // byExtension triggers lazy init of format readers, so it correctly
-            // discovers extensions even on first call (unlike hasExtension).
-            formatRegistry.byExtension(objectName);
-            return true;
+            String ext = objectName.substring(objectName.lastIndexOf('.'));
+            return formatRegistry.hasExtension(ext);
         } catch (IllegalArgumentException e) {
             return false;
         }

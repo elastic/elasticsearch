@@ -255,7 +255,7 @@ public class LuceneSliceQueueTests extends ESTestCase {
                         List.of(new PartialLeafReaderContext(leafContext, minDoc, maxDoc)),
                         null,
                         null,
-                        unused -> null
+                        LuceneSlice.NEVER_BLOCKED
                     );
                     sliceList.add(slice);
                 }

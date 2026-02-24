@@ -368,7 +368,7 @@ public final class LuceneSliceQueue {
                 );
                 return new WeightAndCache(searcher.createWeight(query, scoreMode, 1), queryCache::blockedOnCaching);
             } else {
-                return new WeightAndCache(ctx.searcher().createWeight(query, scoreMode, 1), unused -> null);
+                return new WeightAndCache(ctx.searcher().createWeight(query, scoreMode, 1), LuceneSlice.NEVER_BLOCKED);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);

@@ -39,7 +39,7 @@ public class MatchTests extends AbstractFullTextFunctionTestCase {
     private static Supplier<MapExpression> mapExpressionSupplier() {
         return () -> new MapExpression(
             Source.EMPTY,
-            List.of(Literal.keyword(Source.EMPTY, "fuzziness"), Literal.keyword(Source.EMPTY, randomAlphaOfLength(10)))
+            List.of(Literal.keyword(Source.EMPTY, "max_expansions"), Literal.integer(Source.EMPTY, randomIntBetween(1, 50)))
         );
     }
 

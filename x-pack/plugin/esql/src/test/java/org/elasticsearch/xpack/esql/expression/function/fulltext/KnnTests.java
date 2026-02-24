@@ -46,7 +46,7 @@ public class KnnTests extends AbstractFullTextFunctionTestCase {
                 () -> new TestCaseSupplier.TestCase(
                     List.of(
                         new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "dense_vector field"),
-                        new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query")
+                        new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query").forceLiteral()
                     ),
                     equalTo("KnnEvaluator" + KnnTests.class.getSimpleName()),
                     BOOLEAN,
@@ -64,7 +64,7 @@ public class KnnTests extends AbstractFullTextFunctionTestCase {
                             TEXT,
                             "text field"
                         ),
-                        new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query")
+                        new TestCaseSupplier.TypedData(randomDenseVector(), DENSE_VECTOR, "query").forceLiteral()
                     ),
                     equalTo("KnnEvaluator" + KnnTests.class.getSimpleName()),
                     BOOLEAN,
@@ -86,20 +86,17 @@ public class KnnTests extends AbstractFullTextFunctionTestCase {
     }
 
     private static Supplier<MapExpression> mapExpressionSupplier() {
-        return () -> new MapExpression(Source.EMPTY, List.of(Literal.keyword(Source.EMPTY, randomAlphaOfLength(10))));
-    }
-
-    @Override
-    public void testLiteralExpressions() {
-        // Knn test data contains values that cannot be serialized when wrapped in a Literal,
-        // so we skip the serialization path and only check type resolution.
-        assumeTrue("Data can't be converted to literals", testCase.canGetDataAsLiterals());
-        Expression expression = build(testCase.getSource(), testCase.getDataAsLiterals());
-        assertFalse("expected resolved", expression.typeResolved().unresolved());
+        return () -> new MapExpression(
+            Source.EMPTY,
+            List.of(Literal.keyword(Source.EMPTY, "k"), Literal.integer(Source.EMPTY, randomIntBetween(1, 50)))
+        );
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return build(new Knn(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null), args);
+        return build(
+            new Knn(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null, randomIntBetween(1, 100), null, List.of()),
+            args
+        );
     }
 }

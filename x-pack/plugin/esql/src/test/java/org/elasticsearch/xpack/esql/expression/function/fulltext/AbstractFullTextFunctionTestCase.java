@@ -92,7 +92,7 @@ public abstract class AbstractFullTextFunctionTestCase extends AbstractFunctionT
                 suppliers.add(
                     TestCaseSupplier.testCaseSupplier(
                         queryDataSupplier,
-                        new TestCaseSupplier.TypedDataSupplier(fieldType.typeName(), () -> randomAlphaOfLength(10), DataType.KEYWORD),
+                        new TestCaseSupplier.TypedDataSupplier(fieldType.typeName(), () -> randomAlphaOfLength(10), DataType.KEYWORD, true),
                         (d1, d2) -> equalTo("string"),
                         DataType.BOOLEAN,
                         (o1, o2) -> true
@@ -139,14 +139,5 @@ public abstract class AbstractFullTextFunctionTestCase extends AbstractFunctionT
         );
         // Fields use synthetic sources, which can't be serialized. So we use the originals instead.
         return newExpression.replaceChildren(expression.children());
-    }
-
-    /**
-     * Checks that a literal full text functions built from the test case is resolved, which means that any type resolution logic
-     * has been applied
-     */
-    public void testLiteralExpressions() {
-        Expression expression = buildLiteralExpression(testCase);
-        assertFalse("expected resolved", expression.typeResolved().unresolved());
     }
 }

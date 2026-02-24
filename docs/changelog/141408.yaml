@@ -1,0 +1,5 @@
+area: Snapshot/Restore
+issues: []
+pr: 141408
+summary: Ensure paused shard snapshot can be deleted
+type: bug

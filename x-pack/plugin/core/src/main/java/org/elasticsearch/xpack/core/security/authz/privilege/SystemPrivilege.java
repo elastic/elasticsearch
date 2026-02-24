@@ -27,6 +27,7 @@ public final class SystemPrivilege extends Privilege {
 
     private static final Predicate<String> ALLOWED_ACTIONS = StringMatcher.of(
         "internal:*",
+        "cluster:internal/readiness",
         "indices:monitor/*", // added for monitoring
         "cluster:monitor/*",  // added for monitoring
         "cluster:admin/bootstrap/*", // for the bootstrap service
@@ -36,6 +37,7 @@ public final class SystemPrivilege extends Privilege {
         "indices:admin/template/put", // needed for the TemplateUpgradeService
         "indices:admin/template/delete", // needed for the TemplateUpgradeService
         "indices:admin/seq_no/global_checkpoint_sync*", // needed for global checkpoint syncs
+        "indices:admin/reshard/split*", // needed for reshard operations
         RetentionLeaseSyncAction.ACTION_NAME + "*", // needed for retention lease syncs
         RetentionLeaseBackgroundSyncAction.ACTION_NAME + "*", // needed for background retention lease syncs
         RetentionLeaseActions.ADD.name() + "*", // needed for CCR to add retention leases

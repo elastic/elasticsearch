@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -92,6 +91,11 @@ public class MvExpandOperator implements Operator {
     }
 
     @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return prev != null;
+    }
+
+    @Override
     public final Page getOutput() {
         Page result = getOutputInternal();
         if (result != null) {
@@ -157,7 +161,7 @@ public class MvExpandOperator implements Operator {
             }
             nextItemOnExpanded += expandedMask.length;
             for (int b = 0; b < result.length; b++) {
-                result[b] = b == channel ? expandedBlock.filter(expandedMask) : prev.getBlock(b).filter(duplicateFilter);
+                result[b] = b == channel ? expandedBlock.filter(true, expandedMask) : prev.getBlock(b).filter(true, duplicateFilter);
             }
             success = true;
         } finally {
@@ -369,7 +373,7 @@ public class MvExpandOperator implements Operator {
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_11_X;
+            return TransportVersion.minimumCompatible();
         }
     }
 }

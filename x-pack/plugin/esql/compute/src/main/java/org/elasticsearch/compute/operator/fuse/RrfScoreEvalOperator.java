@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 
@@ -30,25 +31,12 @@ import java.util.List;
  */
 public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
 
-    public record Factory(
-        int discriminatorPosition,
-        int scorePosition,
-        RrfConfig rrfConfig,
-        String sourceText,
-        int sourceLine,
-        int sourceColumn
-    ) implements OperatorFactory {
+    public record Factory(int discriminatorPosition, int scorePosition, RrfConfig rrfConfig, WarningSourceLocation source)
+        implements
+            OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
-            return new RrfScoreEvalOperator(
-                driverContext,
-                discriminatorPosition,
-                scorePosition,
-                rrfConfig,
-                sourceText,
-                sourceLine,
-                sourceColumn
-            );
+            return new RrfScoreEvalOperator(driverContext, discriminatorPosition, scorePosition, rrfConfig, source);
         }
 
         @Override
@@ -68,28 +56,22 @@ public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
     private final RrfConfig config;
     private Warnings warnings;
     private final DriverContext driverContext;
-    private final String sourceText;
-    private final int sourceLine;
-    private final int sourceColumn;
+    private final WarningSourceLocation source;
 
-    private HashMap<String, Integer> counters = new HashMap<>();
+    private final HashMap<String, Integer> counters = new HashMap<>();
 
     public RrfScoreEvalOperator(
         DriverContext driverContext,
         int discriminatorPosition,
         int scorePosition,
         RrfConfig config,
-        String sourceText,
-        int sourceLine,
-        int sourceColumn
+        WarningSourceLocation source
     ) {
         this.scorePosition = scorePosition;
         this.discriminatorPosition = discriminatorPosition;
         this.config = config;
         this.driverContext = driverContext;
-        this.sourceText = sourceText;
-        this.sourceLine = sourceLine;
-        this.sourceColumn = sourceColumn;
+        this.source = source;
     }
 
     @Override
@@ -151,7 +133,7 @@ public class RrfScoreEvalOperator extends AbstractPageMappingOperator {
 
     private Warnings warnings() {
         if (warnings == null) {
-            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), sourceLine, sourceColumn, sourceText);
+            this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
         }
 
         return warnings;

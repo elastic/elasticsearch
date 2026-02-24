@@ -48,6 +48,7 @@ public class ChangePoint extends UnaryPlan
     implements
         SurrogateLogicalPlan,
         PostAnalysisVerificationAware,
+        SortPreserving,
         LicenseAware,
         ExecutesOn.Coordinator {
 

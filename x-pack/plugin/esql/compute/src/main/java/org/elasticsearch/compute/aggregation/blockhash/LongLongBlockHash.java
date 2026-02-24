@@ -10,7 +10,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.LongLongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -31,14 +31,14 @@ final class LongLongBlockHash extends BlockHash {
     private final int channel1;
     private final int channel2;
     private final int emitBatchSize;
-    private final LongLongHash hash;
+    private final LongLongHashTable hash;
 
     LongLongBlockHash(BlockFactory blockFactory, int channel1, int channel2, int emitBatchSize) {
         super(blockFactory);
         this.channel1 = channel1;
         this.channel2 = channel2;
         this.emitBatchSize = emitBatchSize;
-        this.hash = new LongLongHash(1, blockFactory.bigArrays());
+        this.hash = HashImplFactory.newLongLongHash(blockFactory);
     }
 
     @Override
@@ -103,7 +103,12 @@ final class LongLongBlockHash extends BlockHash {
 
     @Override
     public IntVector nonEmpty() {
-        return IntVector.range(0, Math.toIntExact(hash.size()), blockFactory);
+        return blockFactory.newIntRangeVector(0, Math.toIntExact(hash.size()));
+    }
+
+    @Override
+    public int numKeys() {
+        return Math.toIntExact(hash.size());
     }
 
     @Override

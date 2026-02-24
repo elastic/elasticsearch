@@ -1,0 +1,6 @@
+area: Vector Search
+issues:
+ - 141746
+pr: 141872
+summary: "[GPU] Handle segments too big for MSAI segment access"
+type: bug

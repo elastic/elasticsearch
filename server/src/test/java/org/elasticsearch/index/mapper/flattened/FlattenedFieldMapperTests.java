@@ -144,6 +144,29 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         assertEquals(0, fieldNamesFields.size());
     }
 
+    public void testBinaryDocValuesType() throws Exception {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true).build(),
+            fieldMapping(this::minimalMapping)
+        ).documentMapper();
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
+
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(2, fields.size());
+
+        // Check the keyed fields.
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(2, keyedFields.size());
+
+        assertEquals("field", fields.get(1).name());
+        assertEquals(new BytesRef("value"), fields.get(1).binaryValue());
+        assertEquals(DocValuesType.BINARY, fields.get(1).fieldType().docValuesType());
+
+        assertEquals("field._keyed", keyedFields.get(1).name());
+        assertEquals(new BytesRef("key\0value"), keyedFields.get(1).binaryValue());
+        assertEquals(DocValuesType.BINARY, keyedFields.get(1).fieldType().docValuesType());
+    }
+
     public void testNotDimension() throws Exception {
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
         FlattenedFieldMapper.RootFlattenedFieldType ft = (FlattenedFieldMapper.RootFlattenedFieldType) mapperService.fieldType("field");
@@ -245,6 +268,25 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
         assertEquals(1, keyedFields.size());
         assertEquals(DocValuesType.SORTED_SET, keyedFields.get(0).fieldType().docValuesType());
+    }
+
+    public void testDisableIndexBinary() throws Exception {
+        DocumentMapper mapper = createMapperService(
+            Settings.builder().put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), true).build(),
+            fieldMapping(b -> {
+                b.field("type", "flattened");
+                b.field("index", false);
+            })
+        ).documentMapper();
+        ParsedDocument parsedDoc = mapper.parse(source(b -> b.startObject("field").field("key", "value").endObject()));
+
+        List<IndexableField> fields = parsedDoc.rootDoc().getFields("field");
+        assertEquals(1, fields.size());
+        assertEquals(DocValuesType.BINARY, fields.get(0).fieldType().docValuesType());
+
+        List<IndexableField> keyedFields = parsedDoc.rootDoc().getFields("field._keyed");
+        assertEquals(1, keyedFields.size());
+        assertEquals(DocValuesType.BINARY, keyedFields.get(0).fieldType().docValuesType());
     }
 
     public void testDisableDocValues() throws Exception {

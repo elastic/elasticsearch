@@ -1,0 +1,199 @@
+---
+applies_to:
+  stack: preview 9.3
+  serverless: preview
+navigation_title: "Exponential histogram"
+---
+
+# Exponential histogram field type [exponential-histogram]
+
+A field to store pre-aggregated numerical data using an exponential histogram, compatible with the OpenTelemetry data model. This field captures a distribution of values with fixed, exponentially spaced bucket boundaries controlled by a `scale` parameter, and a special zero bucket for values close to zero.
+
+An exponential histogram field has the following structure:
+
+```text
+{
+  "scale": <int>,
+  "sum": <double>,
+  "min": <double>,
+  "max": <double>,
+  "zero": {
+    "threshold": <double, non-negative>,
+    "count": <long, non-negative>
+  },
+  "positive": {
+    "indices": [<long>...],
+    "counts":  [<long>...]
+  },
+  "negative": {
+    "indices": [<long>...],
+    "counts":  [<long>...]
+  }
+}
+```
+
+The `scale` controls the bucket density and precision. Larger scales produce finer buckets. Must be in the range `[-11, 38]`.
+
+Exponential histograms can represent both positive and negative values, which are split into separate bucket ranges.
+Each bucket range is an object with two parallel arrays:
+- `indices`: array of the bucket indices defining the bucket boundaries. Each value must be in the range `[-((2^62) - 1), (2^62) - 1]`.
+- `counts`: array of counts for the corresponding buckets. Must have the same length as `indices`, each value must be `>= 0`.
+
+If either `positive` or `negative` is omitted, it is treated as an empty set of buckets.
+
+See the ["Bucket boundaries and scale"](#exponential-histogram-buckets) section below for how bucket indices map to value ranges.
+The indices should be provided in sorted order. Unsorted indices are supported, but will incur a performance penalty during indexing.
+
+In order to represent zero values or values close to zero, there is a special `zero` bucket, which consists of:
+  - `threshold`: that defines the upper bound considered "zero". Must be non-negative. Defaults to `0.0`.
+  - `count`: number of values in the zero bucket. Defaults to `0`.
+
+The `zero` object can be omitted, in that case `threshold` and `count` are set to their default values.
+
+Optionally, you can include precomputed summary statistics:
+
+- `sum`: The sum of all values in the histogram
+- `min`: The minimum value in the histogram
+- `max`: The maximum value in the histogram
+
+When `sum`, `min`, or `max` are omitted, Elasticsearch will estimate these values during indexing.
+If the histogram is empty (no positive/negative buckets and zero count is `0`), then `sum` must be `0.0` or omitted, and `min` and `max` must be omitted or `null`.
+
+## Limitations
+
+- An `exponential_histogram` field is single-valued: one histogram per field per document. Nested arrays are not supported.
+- `exponential_histogram` fields are not searchable and do not support sorting.
+
+## Use cases [exponential-histogram-use-cases]
+
+`exponential_histogram` fields are primarily intended for use with aggregations. To make them efficient for aggregations, the histogram is stored as compact [doc values](/reference/elasticsearch/mapping-reference/doc-values.md) and not indexed.
+
+Exponential histograms are supported in ES|QL; see the [ES|QL reference](/reference/query-languages/esql.md) for details.
+
+In Query DSL, because the data is not indexed, you can use `exponential_histogram` fields only with the following aggregations:
+
+- [sum](/reference/aggregations/search-aggregations-metrics-sum-aggregation.md) aggregation
+- [avg](/reference/aggregations/search-aggregations-metrics-avg-aggregation.md) aggregation
+- [value_count](/reference/aggregations/search-aggregations-metrics-valuecount-aggregation.md) aggregation
+- [histogram](/reference/aggregations/search-aggregations-bucket-histogram-aggregation.md) aggregation
+
+## Synthetic `_source` [exponential-histogram-synthetic-source]
+
+`exponential_histogram` fields support [synthetic `_source`](/reference/elasticsearch/mapping-reference/mapping-source-field.md) in their default configuration.
+
+When `_source` is reconstructed, empty positive/negative bucket ranges and a zero bucket with `count: 0` and `threshold: 0` may be omitted in the serialized form.
+
+## Examples [exponential-histogram-ex]
+
+Create an index with an `exponential_histogram` field and a `keyword` field:
+
+```console
+PUT my-index-000001
+{
+  "mappings": {
+    "properties": {
+      "my_histo": {
+        "type": "exponential_histogram"
+      },
+      "title": { "type": "keyword" }
+    }
+  }
+}
+```
+
+Index a document with a full exponential histogram payload:
+
+```console
+PUT my-index-000001/_doc/1
+{
+  "title": "histo_1",
+  "my_histo": {
+    "scale": 12,
+    "sum": 1234.0,
+    "min": -123.456,
+    "max": 456.456,
+    "zero": {
+      "threshold": 0.001,
+      "count": 42
+    },
+    "positive": {
+      "indices": [-10, 25, 26],
+      "counts":  [  2,  3,  4]
+    },
+    "negative": {
+      "indices": [-5, 0],
+      "counts":  [10, 7]
+    }
+  }
+}
+```
+
+Indexing an empty histogram is allowed. The `sum` must be `0.0` or omitted and `min` and `max` must be omitted:
+
+```console
+PUT my-index-000001/_doc/2
+{
+  "title": "empty",
+  "my_histo": {
+    "scale": 10,
+    "zero": { "threshold": 0.42 }
+  }
+}
+```
+
+## Coercion from T-Digest [exponential-histogram-coercion]
+
+In order to facilitate a transition from the existing `histogram` field type, `exponential_histogram` fields support coercion from the `histogram` field type's `values`/`counts` format.
+When `coerce` is enabled (default), Elasticsearch will interpret data provided as `values` and `counts` arrays as T-Digest and convert it to an exponential histogram during indexing.
+
+```console
+PUT my-index-000002
+{
+  "mappings": {
+    "properties": {
+      "my_histo": {
+        "type": "exponential_histogram"
+      }
+    }
+  }
+}
+
+PUT my-index-000002/_doc/1
+{
+  "my_histo": {
+    "values": [0.1, 0.2, 0.3, 0.4, 0.5],
+    "counts": [3, 7, 23, 12, 6]
+  }
+}
+```
+
+To reject legacy input, disable coercion on the field mapping or at the index level. See [coerce](/reference/elasticsearch/mapping-reference/coerce.md).
+
+## Bucket boundaries and scale [exponential-histogram-buckets]
+
+Exponential histograms use exponentially growing bucket widths. All bucket boundaries are derived from a base and an integer bucket index:
+
+The base is defined via the `scale` as follows:
+
+:::{math}
+\text{base} = 2^{2^{-\text{scale}}}
+:::
+
+The positive bucket with the index `i` covers the interval
+
+:::{math}
+(\text{base}^i,\; \text{base}^{i+1}]
+:::
+
+The negative bucket with the index `i` covers the interval
+
+:::{math}
+[-\text{base}^{i+1},\; -\text{base}^i)
+:::
+
+Values with absolute value less than or equal to `zero.threshold` belong to the special zero bucket.
+
+Changing the scale adjusts bucket widths:
+
+- Increasing the scale by 1 splits each bucket into two adjacent buckets.
+- Decreasing the scale by 1 merges each pair of adjacent buckets into a single bucket without introducing additional error due to, e.g., rounding or interpolation.

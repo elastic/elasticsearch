@@ -1,0 +1,6 @@
+pr: 141391
+summary: Allow `include_source_on_error` param on logs streams
+area: Data streams
+type: bug
+issues:
+ - 141360

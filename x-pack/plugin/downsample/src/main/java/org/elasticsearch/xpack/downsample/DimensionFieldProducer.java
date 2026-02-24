@@ -23,7 +23,7 @@ import java.util.Objects;
 public class DimensionFieldProducer extends LastValueFieldProducer {
 
     DimensionFieldProducer(final String name) {
-        super(name, false);
+        super(name);
     }
 
     void collectOnce(final Object value) {

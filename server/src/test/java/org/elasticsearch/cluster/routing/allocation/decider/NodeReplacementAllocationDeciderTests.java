@@ -15,10 +15,13 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.routing.GlobalRoutingTableTestHelper;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingNode;
@@ -34,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
@@ -84,7 +88,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanForceAllocate() {
-        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
+        ClusterState state = prepareState(randomProjectIdOrDefault(), NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = createRoutingAllocation(state);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
 
@@ -122,7 +126,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCannotRemainOnReplacedNode() {
-        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
+        ClusterState state = prepareState(randomProjectIdOrDefault(), NODE_A.getId(), NODE_B.getName());
         RoutingAllocation allocation = createRoutingAllocation(state);
         RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
 
@@ -148,9 +152,24 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
     }
 
     public void testCanAllocateToNeitherSourceNorTarget() {
-        ClusterState state = prepareState(NODE_A.getId(), NODE_B.getName());
+        final ProjectId projectId = randomProjectIdOrDefault();
+        ClusterState state = prepareState(projectId, NODE_A.getId(), NODE_B.getName());
+        // Source node still has a shard to vacate
+        state = ClusterState.builder(state)
+            .putRoutingTable(
+                projectId,
+                RoutingTable.builder()
+                    .add(
+                        IndexRoutingTable.builder(indexMetadata.getIndex())
+                            .addShard(newShardRouting(new ShardId(indexMetadata.getIndex(), 0), NODE_A.getId(), true, STARTED))
+                            .build()
+                    )
+                    .build()
+            )
+            .build();
+
         RoutingAllocation allocation = createRoutingAllocation(state);
-        RoutingNode routingNode = RoutingNodesHelper.routingNode(NODE_A.getId(), NODE_A, shard);
+        RoutingNode routingNode = allocation.routingNodes().node(NODE_A.getId());
 
         ShardRouting testShard = this.shard;
         if (randomBoolean()) {
@@ -163,7 +182,7 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             "node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getName() + "], so no data may be allocated to it"
         );
 
-        routingNode = RoutingNodesHelper.routingNode(NODE_B.getId(), NODE_B, testShard);
+        routingNode = allocation.routingNodes().node(NODE_B.getId());
 
         assertThatDecision(
             decider.canAllocate(testShard, routingNode, allocation),
@@ -184,6 +203,130 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         );
     }
 
+    public void testCanAllocateToTargetWhenSourceFinishesVacate() {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        ClusterState state = prepareState(projectId, NODE_A.getId(), NODE_B.getName());
+        // Randomly assign a shard on NODE_C
+        if (randomBoolean()) {
+            state = ClusterState.builder(state)
+                .putRoutingTable(
+                    projectId,
+                    RoutingTable.builder()
+                        .add(
+                            IndexRoutingTable.builder(indexMetadata.getIndex())
+                                .addShard(newShardRouting(new ShardId(indexMetadata.getIndex(), 0), NODE_C.getId(), true, STARTED))
+                                .build()
+                        )
+                        .build()
+                )
+                .build();
+        }
+
+        RoutingAllocation allocation = createRoutingAllocation(state);
+        RoutingNode routingNode = allocation.routingNodes().node(NODE_A.getId());
+
+        ShardRouting testShard = this.shard;
+        if (randomBoolean()) {
+            testShard = shard.initialize(NODE_C.getId(), null, 1);
+            testShard = testShard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        }
+        assertThatDecision(
+            decider.canAllocate(testShard, routingNode, allocation),
+            Decision.Type.NO,
+            "node [" + NODE_A.getId() + "] is being replaced by [" + NODE_B.getName() + "], so no data may be allocated to it"
+        );
+
+        // Randomly remove the source node from the cluster, it should not affect allocation since it has no unassigned shard left
+        final boolean sourceNodeLeft = randomBoolean();
+        if (sourceNodeLeft) {
+            state = ClusterState.builder(state).nodes(DiscoveryNodes.builder(state.nodes()).remove(NODE_A.getId()).build()).build();
+            allocation = createRoutingAllocation(state);
+        }
+
+        routingNode = allocation.routingNodes().node(NODE_B.getId());
+
+        assertThatDecision(
+            decider.canAllocate(testShard, routingNode, allocation),
+            Decision.Type.YES,
+            sourceNodeLeft
+                ? ("the vacating node ["
+                    + NODE_A.getId()
+                    + "] is no longer in the cluster and has left no unassigned shards, the replacing node ["
+                    + NODE_B.getId()
+                    + "] can receive shards from other sources")
+                : ("node ["
+                    + NODE_B.getId()
+                    + "] has completed replacing the vacating node ["
+                    + NODE_A.getId()
+                    + "] and can receive shards from other sources")
+        );
+    }
+
+    public void testCanAllocateToTargetWhenSourceLeftBeforeFinishVacate() {
+        final ProjectId projectId = randomProjectIdOrDefault();
+        ClusterState state = prepareState(projectId, NODE_A.getId(), NODE_B.getName());
+        // Source NODE_A left with unassigned shard
+        final var unassignedShardLeftBySourceNode = ShardRouting.newUnassigned(
+            new ShardId(indexMetadata.getIndex(), 0),
+            true,
+            RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+            new UnassignedInfo(
+                UnassignedInfo.Reason.NODE_LEFT,
+                "node left",
+                null,
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                UnassignedInfo.AllocationStatus.NO_ATTEMPT,
+                Set.of(),
+                NODE_A.getId()
+            ),
+            ShardRouting.Role.DEFAULT
+        );
+        state = ClusterState.builder(state)
+            .nodes(DiscoveryNodes.builder(state.nodes()).remove(NODE_A.getId()).build())
+            .putRoutingTable(
+                projectId,
+                RoutingTable.builder()
+                    .add(IndexRoutingTable.builder(indexMetadata.getIndex()).addShard(unassignedShardLeftBySourceNode).build())
+                    .build()
+            )
+            .build();
+
+        RoutingAllocation allocation = createRoutingAllocation(state);
+
+        var routingNode = allocation.routingNodes().node(NODE_B.getId());
+
+        // The replacement NODE_B can receive unassigned shards left by the old source NODE_A
+        assertThatDecision(
+            decider.canAllocate(unassignedShardLeftBySourceNode, routingNode, allocation),
+            Decision.Type.YES,
+            "the vacating node ["
+                + NODE_A.getId()
+                + "] is no longer in the cluster and has left unassigned shards, the replacing node ["
+                + NODE_B.getId()
+                + "] can receive those shards"
+        );
+
+        // The replacement NODE_B cannot receive a shard that is not from the old source NODE_A
+        ShardRouting testShard = this.shard;
+        if (randomBoolean()) {
+            testShard = shard.initialize(NODE_C.getId(), null, 1);
+            testShard = testShard.moveToStarted(ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);
+        }
+
+        assertThatDecision(
+            decider.canAllocate(testShard, routingNode, allocation),
+            Decision.Type.NO,
+            "the vacating node ["
+                + NODE_A.getId()
+                + "] is no longer in the cluster and has left unassigned shards, the replacing node ["
+                + NODE_B.getId()
+                + "] can only receive those unassigned shards until the replacement is complete"
+        );
+    }
+
     public void testShouldNotAutoExpandReplicasDuringUnrelatedNodeReplacement() {
 
         var indexMetadata = IndexMetadata.builder(idxName)
@@ -191,21 +334,24 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             .build();
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
+        var projectId = randomProjectIdOrDefault();
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_C).build())
             .metadata(
                 Metadata.builder()
-                    .put(IndexMetadata.builder(indexMetadata))
+                    .put(ProjectMetadata.builder(projectId).put(IndexMetadata.builder(indexMetadata)))
                     .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(NODE_A.getId(), NODE_B.getName()))
             )
             .routingTable(
-                RoutingTable.builder()
-                    .add(
-                        IndexRoutingTable.builder(indexMetadata.getIndex())
-                            .addShard(newShardRouting(shardId, NODE_C.getId(), true, STARTED))
-                            .build()
-                    )
-                    .build()
+                GlobalRoutingTableTestHelper.routingTable(
+                    projectId,
+                    RoutingTable.builder()
+                        .add(
+                            IndexRoutingTable.builder(indexMetadata.getIndex())
+                                .addShard(newShardRouting(shardId, NODE_C.getId(), true, STARTED))
+                                .build()
+                        )
+                )
             )
             .build();
 
@@ -272,18 +418,21 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
             .build();
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
+        var projectId = randomProjectIdOrDefault();
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_C).build())
-            .metadata(Metadata.builder().put(IndexMetadata.builder(indexMetadata)))
+            .metadata(Metadata.builder().put(ProjectMetadata.builder(projectId).put(IndexMetadata.builder(indexMetadata))))
             .routingTable(
-                RoutingTable.builder()
-                    .add(
-                        IndexRoutingTable.builder(indexMetadata.getIndex())
-                            .addShard(newShardRouting(shardId, NODE_A.getId(), true, STARTED))
-                            .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
-                            .build()
-                    )
-                    .build()
+                GlobalRoutingTableTestHelper.routingTable(
+                    projectId,
+                    RoutingTable.builder()
+                        .add(
+                            IndexRoutingTable.builder(indexMetadata.getIndex())
+                                .addShard(newShardRouting(shardId, NODE_A.getId(), true, STARTED))
+                                .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
+                                .build()
+                        )
+                )
             )
             .build();
 
@@ -349,14 +498,16 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         // when index is relocating
         state = ClusterState.builder(state)
             .routingTable(
-                RoutingTable.builder()
-                    .add(
-                        IndexRoutingTable.builder(indexMetadata.getIndex())
-                            .addShard(newShardRouting(shardId, NODE_A.getId(), NODE_B.getId(), true, RELOCATING))
-                            .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
-                            .build()
-                    )
-                    .build()
+                GlobalRoutingTableTestHelper.routingTable(
+                    projectId,
+                    RoutingTable.builder()
+                        .add(
+                            IndexRoutingTable.builder(indexMetadata.getIndex())
+                                .addShard(newShardRouting(shardId, NODE_A.getId(), NODE_B.getId(), true, RELOCATING))
+                                .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
+                                .build()
+                        )
+                )
             )
             .build();
         assertThatAutoExpandReplicasDidNotContract(indexMetadata, createRoutingAllocation(state));
@@ -364,14 +515,16 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         // when index is relocated
         state = ClusterState.builder(state)
             .routingTable(
-                RoutingTable.builder()
-                    .add(
-                        IndexRoutingTable.builder(indexMetadata.getIndex())
-                            .addShard(newShardRouting(shardId, NODE_B.getId(), true, STARTED))
-                            .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
-                            .build()
-                    )
-                    .build()
+                GlobalRoutingTableTestHelper.routingTable(
+                    projectId,
+                    RoutingTable.builder()
+                        .add(
+                            IndexRoutingTable.builder(indexMetadata.getIndex())
+                                .addShard(newShardRouting(shardId, NODE_B.getId(), true, STARTED))
+                                .addShard(newShardRouting(shardId, NODE_C.getId(), false, STARTED))
+                                .build()
+                        )
+                )
             )
             .build();
         assertThatAutoExpandReplicasDidNotContract(indexMetadata, createRoutingAllocation(state));
@@ -405,12 +558,12 @@ public class NodeReplacementAllocationDeciderTests extends ESAllocationTestCase 
         );
     }
 
-    private ClusterState prepareState(String sourceNodeId, String targetNodeName) {
+    private ClusterState prepareState(final ProjectId projectId, String sourceNodeId, String targetNodeName) {
         return ClusterState.builder(ClusterName.DEFAULT)
             .nodes(DiscoveryNodes.builder().add(NODE_A).add(NODE_B).add(NODE_C).build())
             .metadata(
                 Metadata.builder()
-                    .put(IndexMetadata.builder(indexMetadata))
+                    .put(ProjectMetadata.builder(projectId).put(IndexMetadata.builder(indexMetadata)))
                     .putCustom(NodesShutdownMetadata.TYPE, createNodeShutdownReplacementMetadata(sourceNodeId, targetNodeName))
             )
             .build();

@@ -12,19 +12,29 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
-import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryComparison;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinaryOperator;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorBinarySet;
+import org.elasticsearch.xpack.esql.plan.logical.promql.operator.VectorMatch;
+import org.elasticsearch.xpack.esql.plan.logical.promql.selector.LiteralSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.RangeSelector;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.Selector;
 
 import java.io.IOException;
-import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
@@ -36,12 +46,23 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  */
 public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnalysisVerificationAware, TimestampAware {
 
+    /**
+     * The name of the column containing the step value (aka time bucket) in range queries.
+     */
+    private static final String STEP_COLUMN_NAME = "step";
+
     private final LogicalPlan promqlPlan;
     private final Literal start;
     private final Literal end;
     private final Literal step;
+    private final Literal buckets;
+    private final Literal scrapeInterval;
     // TODO: this should be made available through the planner
     private final Expression timestamp;
+    private final String valueColumnName;
+    private final NameId valueId;
+    private final NameId stepId;
+    private List<Attribute> output;
 
     // Range query constructor
     public PromqlCommand(
@@ -51,6 +72,27 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         Literal start,
         Literal end,
         Literal step,
+        Literal buckets,
+        Literal scrapeInterval,
+        String valueColumnName,
+        Expression timestamp
+    ) {
+        this(source, child, promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, new NameId(), new NameId(), timestamp);
+    }
+
+    // Range query constructor
+    public PromqlCommand(
+        Source source,
+        LogicalPlan child,
+        LogicalPlan promqlPlan,
+        Literal start,
+        Literal end,
+        Literal step,
+        Literal buckets,
+        Literal scrapeInterval,
+        String valueColumnName,
+        NameId valueId,
+        NameId stepId,
         Expression timestamp
     ) {
         super(source, child);
@@ -58,21 +100,83 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         this.start = start;
         this.end = end;
         this.step = step;
+        this.buckets = buckets;
+        this.scrapeInterval = scrapeInterval;
+        this.valueColumnName = valueColumnName;
+        this.valueId = valueId;
+        this.stepId = stepId;
         this.timestamp = timestamp;
     }
 
     @Override
     protected NodeInfo<PromqlCommand> info() {
-        return NodeInfo.create(this, PromqlCommand::new, child(), promqlPlan(), start(), end(), step(), timestamp());
+        return NodeInfo.create(
+            this,
+            PromqlCommand::new,
+            child(),
+            promqlPlan(),
+            start(),
+            end(),
+            step(),
+            buckets(),
+            scrapeInterval(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
     }
 
     @Override
     public PromqlCommand replaceChild(LogicalPlan newChild) {
-        return new PromqlCommand(source(), newChild, promqlPlan(), start(), end(), step(), timestamp());
+        return new PromqlCommand(
+            source(),
+            newChild,
+            promqlPlan(),
+            start(),
+            end(),
+            step(),
+            buckets(),
+            scrapeInterval(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
     }
 
     public PromqlCommand withPromqlPlan(LogicalPlan newPromqlPlan) {
-        return new PromqlCommand(source(), child(), newPromqlPlan, start(), end(), step(), timestamp());
+        return new PromqlCommand(
+            source(),
+            child(),
+            newPromqlPlan,
+            start(),
+            end(),
+            step(),
+            buckets(),
+            scrapeInterval(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
+    }
+
+    public PromqlCommand withStartEnd(Literal start, Literal end) {
+        return new PromqlCommand(
+            source(),
+            child(),
+            promqlPlan(),
+            start,
+            end,
+            step(),
+            buckets(),
+            scrapeInterval(),
+            valueColumnName(),
+            valueId(),
+            stepId(),
+            timestamp()
+        );
     }
 
     @Override
@@ -111,17 +215,64 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         return step;
     }
 
+    /**
+     * Number of buckets for auto-derived range-query bucket size.
+     */
+    public Literal buckets() {
+        return buckets;
+    }
+
+    /**
+     * The expected scrape interval used to derive implicit range selector windows.
+     */
+    public Literal scrapeInterval() {
+        return scrapeInterval;
+    }
+
+    public boolean hasTimeRange() {
+        return start.value() != null && end.value() != null;
+    }
+
     public boolean isInstantQuery() {
-        return step.value() == null;
+        return step.value() == null && buckets.value() == null;
     }
 
     public boolean isRangeQuery() {
-        return step.value() != null;
+        return isInstantQuery() == false;
+    }
+
+    public String valueColumnName() {
+        return valueColumnName;
+    }
+
+    public NameId valueId() {
+        return valueId;
+    }
+
+    public NameId stepId() {
+        return stepId;
+    }
+
+    @Override
+    public Expression timestamp() {
+        return timestamp;
+    }
+
+    @Override
+    public List<Attribute> output() {
+        if (output == null) {
+            List<Attribute> additionalOutput = promqlPlan.output();
+            output = new ArrayList<>(additionalOutput.size() + 2);
+            output.add(new ReferenceAttribute(source(), null, valueColumnName, DataType.DOUBLE, Nullability.FALSE, valueId, false));
+            output.add(new ReferenceAttribute(source(), null, STEP_COLUMN_NAME, DataType.DATETIME, Nullability.FALSE, stepId, false));
+            output.addAll(additionalOutput);
+        }
+        return output;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(child(), promqlPlan, start, end, step, timestamp);
+        return Objects.hash(child(), promqlPlan, start, end, step, buckets, scrapeInterval, valueColumnName, valueId, stepId, timestamp);
     }
 
     @Override
@@ -134,6 +285,11 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                 && Objects.equals(start, other.start)
                 && Objects.equals(end, other.end)
                 && Objects.equals(step, other.step)
+                && Objects.equals(buckets, other.buckets)
+                && Objects.equals(scrapeInterval, other.scrapeInterval)
+                && Objects.equals(valueColumnName, other.valueColumnName)
+                && Objects.equals(valueId, other.valueId)
+                && Objects.equals(stepId, other.stepId)
                 && Objects.equals(timestamp, other.timestamp);
         }
 
@@ -141,12 +297,15 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         StringBuilder sb = new StringBuilder();
         sb.append(nodeName());
         sb.append(" start=[").append(start);
         sb.append("] end=[").append(end);
         sb.append("] step=[").append(step);
+        sb.append("] buckets=[").append(buckets);
+        sb.append("] scrape_interval=[").append(scrapeInterval);
+        sb.append("] valueColumnName=[").append(valueColumnName);
         sb.append("] promql=[<>\n");
         sb.append(promqlPlan.toString());
         sb.append("\n<>]]");
@@ -154,51 +313,120 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
     }
 
     @Override
+    protected AttributeSet computeReferences() {
+        // Ensures field resolution is aware of all attributes used in the PromQL plan.
+        AttributeSet.Builder references = AttributeSet.builder();
+        promqlPlan().forEachDown(lp -> references.addAll(lp.references()));
+        return references.build();
+    }
+
+    @Override
     public void postAnalysisVerification(Failures failures) {
         LogicalPlan p = promqlPlan();
-        if (p instanceof AcrossSeriesAggregate == false) {
-            failures.add(fail(p, "only aggregations across timeseries are supported at this time (found [{}])", p.sourceText()));
+        boolean hasStep = step.value() != null;
+        boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;
+        if (hasStep == false && hasRangeAndBuckets == false) {
+            failures.add(
+                fail(
+                    this,
+                    "unable to create a bucket; provide either [{}] or all of [{}], [{}], and [{}] [{}]",
+                    "step",
+                    "start",
+                    "end",
+                    "buckets",
+                    sourceText()
+                )
+            );
+            return;
         }
+        // TODO(sidosera): Remove once instant query support is added.
+        if (isInstantQuery()) {
+            failures.add(fail(p, "instant queries are not supported at this time [{}]", sourceText()));
+            return;
+        }
+
+        if (p instanceof RangeSelector && isRangeQuery()) {
+            failures.add(
+                fail(p, "invalid expression type \"range vector\" for range query, must be scalar or instant vector", p.sourceText())
+            );
+        }
+
+        // Validate entire plan
+        Holder<Boolean> root = new Holder<>(true);
         p.forEachDown(lp -> {
-            if (lp instanceof Selector s) {
-                if (s.labelMatchers().nameLabel().matcher().isRegex()) {
-                    failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
-                }
-                if (s.evaluation() != null) {
-                    if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {
-                        failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
+            switch (lp) {
+                case Selector s -> {
+                    if (s.labelMatchers().nameLabel() != null && s.labelMatchers().nameLabel().matcher().isRegex()) {
+                        failures.add(fail(s, "regex label selectors on __name__ are not supported at this time [{}]", s.sourceText()));
                     }
-                    if (s.evaluation().at().value() != null) {
-                        failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
+                    if (s.series() == null) {
+                        failures.add(fail(s, "__name__ label selector is required at this time [{}]", s.sourceText()));
+                    }
+                    if (s.evaluation() != null) {
+                        if (s.evaluation().offset().value() != null && s.evaluation().offsetDuration().isZero() == false) {
+                            failures.add(fail(s, "offset modifiers are not supported at this time [{}]", s.sourceText()));
+                        }
+                        if (s.evaluation().at().value() != null) {
+                            failures.add(fail(s, "@ modifiers are not supported at this time [{}]", s.sourceText()));
+                        }
                     }
                 }
-            }
-            if (lp instanceof Subquery) {
-                failures.add(fail(lp, "subqueries are not supported at this time [{}]", lp.sourceText()));
-            }
-            if (step().value() != null && lp instanceof RangeSelector rs) {
-                Duration rangeDuration = (Duration) rs.range().fold(null);
-                if (rangeDuration.equals(step().value()) == false) {
-                    failures.add(
-                        fail(
-                            rs.range(),
-                            "the duration for range vector selector [{}] "
-                                + "must be equal to the query's step for range queries at this time",
-                            rs.range().sourceText()
-                        )
-                    );
+                case PromqlFunctionCall functionCall -> {
+                    if (functionCall instanceof AcrossSeriesAggregate asa) {
+                        if (asa.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
+                            failures.add(fail(asa, "'without' grouping is not supported at this time [{}]", asa.sourceText()));
+                        }
+                    }
                 }
+                case ScalarFunction scalarFunction -> {
+                    // ok
+                }
+                case VectorBinaryOperator binaryOperator -> {
+                    binaryOperator.children().forEach(child -> {
+                        if (child instanceof RangeSelector) {
+                            failures.add(
+                                fail(child, "binary expression must contain only scalar and instant vector types", child.sourceText())
+                            );
+                        }
+                    });
+                    if (binaryOperator.match() != VectorMatch.NONE) {
+                        failures.add(
+                            fail(
+                                lp,
+                                "{} queries with group modifiers are not supported at this time [{}]",
+                                lp.getClass().getSimpleName(),
+                                lp.sourceText()
+                            )
+                        );
+                    }
+                    if (binaryOperator instanceof VectorBinaryComparison comp) {
+                        if (root.get() == false) {
+                            failures.add(
+                                fail(lp, "comparison operators are only supported at the top-level at this time [{}]", lp.sourceText())
+                            );
+                        }
+                        if (comp.right() instanceof LiteralSelector == false) {
+                            failures.add(
+                                fail(
+                                    lp,
+                                    "comparison operators with non-literal right-hand side are not supported at this time [{}]",
+                                    lp.sourceText()
+                                )
+                            );
+                        }
+                    }
+                    if (binaryOperator instanceof VectorBinarySet) {
+                        failures.add(fail(lp, "set operators are not supported at this time [{}]", lp.sourceText()));
+                    }
+                }
+                case PlaceholderRelation placeholderRelation -> {
+                    // ok
+                }
+                default -> failures.add(
+                    fail(lp, "{} queries are not supported at this time [{}]", lp.getClass().getSimpleName(), lp.sourceText())
+                );
             }
+            root.set(false);
         });
-    }
-
-    @Override
-    public Expression timestamp() {
-        return timestamp;
-    }
-
-    @Override
-    public List<Attribute> output() {
-        return promqlPlan.output();
     }
 }

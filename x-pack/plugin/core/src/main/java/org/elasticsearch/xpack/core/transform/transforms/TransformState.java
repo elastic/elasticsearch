@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.transforms;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -137,11 +136,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
         progress = in.readOptionalWriteable(TransformProgress::new);
         node = in.readOptionalWriteable(NodeAttributes::new);
         shouldStopAtNextCheckpoint = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            authState = in.readOptionalWriteable(AuthorizationState::new);
-        } else {
-            authState = null;
-        }
+        authState = in.readOptionalWriteable(AuthorizationState::new);
     }
 
     public TransformTaskState getTaskState() {
@@ -234,9 +229,7 @@ public class TransformState implements Task.Status, PersistentTaskState {
         out.writeOptionalWriteable(progress);
         out.writeOptionalWriteable(node);
         out.writeBoolean(shouldStopAtNextCheckpoint);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeOptionalWriteable(authState);
-        }
+        out.writeOptionalWriteable(authState);
     }
 
     @Override

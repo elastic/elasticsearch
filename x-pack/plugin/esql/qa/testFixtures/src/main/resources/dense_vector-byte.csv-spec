@@ -12,6 +12,7 @@ id:l | byte_vector:dense_vector
 1    | [40, 50, 60]
 2    | [90, 80, 70]
 3    | [100, 110, 120]
+4    | null
 ;
 
 denseByteVectorWithEval
@@ -29,6 +30,7 @@ id:l | v:dense_vector
 1    | [40, 50, 60]
 2    | [90, 80, 70]
 3    | [100, 110, 120]
+4    | null
 ;
 
 denseByteVectorWithRenameAndDrop
@@ -47,4 +49,28 @@ id:l | new_vector:dense_vector
 1    | [40, 50, 60]
 2    | [90, 80, 70]
 3    | [100, 110, 120]
+4    | null
+;
+
+
+denseVectorAggregationFunctions
+required_capability: dense_vector_agg_functions
+
+from dense_vector
+| stats count_all = count(*), count_vectors = count(byte_vector), present = present(byte_vector), absent = absent(byte_vector)
+;
+
+count_all:long | count_vectors:long | present:boolean | absent:boolean
+5              | 4                  | true            | false
+;
+
+denseVectorCount
+required_capability: dense_vector_agg_functions
+
+from dense_vector
+| stats count_vectors = count(byte_vector)
+;
+
+count_vectors:long
+4               
 ;

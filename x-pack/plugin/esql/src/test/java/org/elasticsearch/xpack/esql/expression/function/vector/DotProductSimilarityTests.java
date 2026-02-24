@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.vector;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
@@ -34,10 +33,6 @@ public class DotProductSimilarityTests extends AbstractVectorSimilarityFunctionT
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         return similarityParameters(DotProduct.class.getSimpleName(), DotProduct.SIMILARITY_FUNCTION);
-    }
-
-    protected EsqlCapabilities.Cap capability() {
-        return EsqlCapabilities.Cap.DOT_PRODUCT_VECTOR_SIMILARITY_FUNCTION;
     }
 
     @Override

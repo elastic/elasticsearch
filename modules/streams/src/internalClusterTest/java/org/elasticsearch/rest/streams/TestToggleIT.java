@@ -15,6 +15,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.StreamsMetadata;
+import org.elasticsearch.common.streams.StreamType;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.streams.logs.LogsStreamsActivationToggleAction;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -46,7 +47,8 @@ public class TestToggleIT extends ESIntegTestCase {
         LogsStreamsActivationToggleAction.Request request = new LogsStreamsActivationToggleAction.Request(
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
-            enable
+            enable,
+            StreamType.LOGS
         );
 
         AcknowledgedResponse acknowledgedResponse = client().execute(LogsStreamsActivationToggleAction.INSTANCE, request).get();
@@ -59,4 +61,39 @@ public class TestToggleIT extends ESIntegTestCase {
         assertThat(projectMetadata.<StreamsMetadata>custom(StreamsMetadata.TYPE).isLogsEnabled(), is(enable));
     }
 
+    private void doLogOTelStreamToggleTest(boolean enable) throws IOException, ExecutionException, InterruptedException {
+        LogsStreamsActivationToggleAction.Request request = new LogsStreamsActivationToggleAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            enable,
+            StreamType.LOGS_OTEL
+        );
+
+        AcknowledgedResponse acknowledgedResponse = client().execute(LogsStreamsActivationToggleAction.INSTANCE, request).get();
+        ElasticsearchAssertions.assertAcked(acknowledgedResponse);
+
+        ClusterStateRequest state = new ClusterStateRequest(TEST_REQUEST_TIMEOUT);
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().state(state).get();
+        ProjectMetadata projectMetadata = clusterStateResponse.getState().metadata().getProject(ProjectId.DEFAULT);
+
+        assertThat(projectMetadata.<StreamsMetadata>custom(StreamsMetadata.TYPE).isLogsOTelEnabled(), is(enable));
+    }
+
+    private void doLogECSStreamToggleTest(boolean enable) throws IOException, ExecutionException, InterruptedException {
+        LogsStreamsActivationToggleAction.Request request = new LogsStreamsActivationToggleAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            enable,
+            StreamType.LOGS_ECS
+        );
+
+        AcknowledgedResponse acknowledgedResponse = client().execute(LogsStreamsActivationToggleAction.INSTANCE, request).get();
+        ElasticsearchAssertions.assertAcked(acknowledgedResponse);
+
+        ClusterStateRequest state = new ClusterStateRequest(TEST_REQUEST_TIMEOUT);
+        ClusterStateResponse clusterStateResponse = client().admin().cluster().state(state).get();
+        ProjectMetadata projectMetadata = clusterStateResponse.getState().metadata().getProject(ProjectId.DEFAULT);
+
+        assertThat(projectMetadata.<StreamsMetadata>custom(StreamsMetadata.TYPE).isLogsECSEnabled(), is(enable));
+    }
 }

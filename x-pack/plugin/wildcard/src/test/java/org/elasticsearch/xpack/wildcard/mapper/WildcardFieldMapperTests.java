@@ -44,10 +44,12 @@ import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -67,6 +69,7 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -444,11 +447,11 @@ public class WildcardFieldMapperTests extends MapperTestCase {
 
         FieldSortBuilder wildcardSortBuilder = new FieldSortBuilder(WILDCARD_FIELD_NAME);
         SortField wildcardSortField = wildcardSortBuilder.build(searchExecutionContext).field();
-        ScoreDoc[] wildcardHits = searcher.search(new MatchAllDocsQuery(), numDocs, new Sort(wildcardSortField)).scoreDocs;
+        ScoreDoc[] wildcardHits = searcher.search(Queries.ALL_DOCS_INSTANCE, numDocs, new Sort(wildcardSortField)).scoreDocs;
 
         FieldSortBuilder keywordSortBuilder = new FieldSortBuilder(KEYWORD_FIELD_NAME);
         SortField keywordSortField = keywordSortBuilder.build(searchExecutionContext).field();
-        ScoreDoc[] keywordHits = searcher.search(new MatchAllDocsQuery(), numDocs, new Sort(keywordSortField)).scoreDocs;
+        ScoreDoc[] keywordHits = searcher.search(Queries.ALL_DOCS_INSTANCE, numDocs, new Sort(keywordSortField)).scoreDocs;
 
         assertThat(wildcardHits.length, equalTo(keywordHits.length));
         for (int i = 0; i < wildcardHits.length; i++) {
@@ -677,26 +680,26 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     public void testQueryCachingEqualityFromAutomaton() {
         String pattern = "A*b*B?a";
         // Case sensitivity matters when it comes to caching
-        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(new MatchAllDocsQuery(), "field", pattern, false);
-        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(new MatchAllDocsQuery(), "field", pattern, true);
+        Query csQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false);
+        Query ciQ = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, true);
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
-        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(new MatchAllDocsQuery(), "field", pattern, false);
+        Query csQ2 = BinaryDvConfirmedQuery.fromWildcardQuery(Queries.ALL_DOCS_INSTANCE, "field", pattern, false);
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
     }
 
     public void testQueryCachingEqualityFromTerms() {
         ;
-        Query csQ = BinaryDvConfirmedQuery.fromTerms(new MatchAllDocsQuery(), "field", new BytesRef("termA"));
-        Query ciQ = BinaryDvConfirmedQuery.fromTerms(new MatchAllDocsQuery(), "field", new BytesRef("termB"));
+        Query csQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termA"));
+        Query ciQ = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termB"));
         assertNotEquals(csQ, ciQ);
         assertNotEquals(csQ.hashCode(), ciQ.hashCode());
 
         // Same query should be equal
-        Query csQ2 = BinaryDvConfirmedQuery.fromTerms(new MatchAllDocsQuery(), "field", new BytesRef("termA"));
+        Query csQ2 = BinaryDvConfirmedQuery.fromTerms(Queries.ALL_DOCS_INSTANCE, "field", new BytesRef("termA"));
         assertEquals(csQ, csQ2);
         assertEquals(csQ.hashCode(), csQ2.hashCode());
     }
@@ -1086,7 +1089,7 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             IndexFieldData.Builder builder = fieldType.fielddataBuilder(fdc);
             return builder.build(new IndexFieldDataCache.None(), null);
         };
-        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY);
+        MappingLookup lookup = MappingLookup.fromMapping(Mapping.EMPTY, randomFrom(IndexMode.values()));
         return new SearchExecutionContext(
             0,
             0,
@@ -1107,7 +1110,9 @@ public class WildcardFieldMapperTests extends MapperTestCase {
             () -> true,
             null,
             emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         ) {
             @Override
             public MappedFieldType getFieldType(String name) {

@@ -25,8 +25,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.TransportVersions.V_8_12_0;
-
 public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clientStats, Map<String, HttpRouteStats> httpRouteStats)
     implements
         Writeable,
@@ -39,12 +37,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
     }
 
     public HttpStats(StreamInput in) throws IOException {
-        this(
-            in.readVLong(),
-            in.readVLong(),
-            in.readCollectionAsList(ClientStats::new),
-            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readMap(HttpRouteStats::new) : Map.of()
-        );
+        this(in.readVLong(), in.readVLong(), in.readCollectionAsList(ClientStats::new), in.readMap(HttpRouteStats::new));
     }
 
     @Override
@@ -52,9 +45,7 @@ public record HttpStats(long serverOpen, long totalOpen, List<ClientStats> clien
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
         out.writeCollection(clientStats);
-        if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
-            out.writeMap(httpRouteStats, StreamOutput::writeWriteable);
-        }
+        out.writeMap(httpRouteStats, StreamOutput::writeWriteable);
     }
 
     public long getServerOpen() {

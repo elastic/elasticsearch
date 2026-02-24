@@ -86,7 +86,11 @@ setup:
   - is_true: summary.write.total_throttled
   - gte: { summary.write.total_elapsed_nanos: 0}
   - is_true: summary.write.total_elapsed
-  - gte: { summary.read.count: 10}
+
+  # extraordinarily unlikely but in theory up to half of the writes could be copies, and each of those writes could
+  # attempt the copy early, fail with a NoSuchFileException, and thus not attempt to read the copy, so we can only
+  # assert this:
+  - gte: { summary.read.count: 5}
   - gte: { summary.read.total_size_bytes: 0}
   - is_true: summary.read.total_size
   - gte: { summary.read.total_wait_nanos: 0}

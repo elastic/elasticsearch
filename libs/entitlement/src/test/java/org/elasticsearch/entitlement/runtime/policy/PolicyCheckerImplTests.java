@@ -9,15 +9,24 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.FileData;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.NO_ENTITLEMENTS_MODULE;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.TEST_PATH_LOOKUP;
+import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.createEmptyTestServerPolicy;
 import static org.elasticsearch.entitlement.runtime.policy.PolicyManagerTests.makeClassInItsOwnModule;
+import static org.elasticsearch.entitlement.runtime.policy.entitlements.FilesEntitlement.Mode.READ;
 
 public class PolicyCheckerImplTests extends ESTestCase {
     public void testRequestingClassFastPath() throws IOException, ClassNotFoundException {
@@ -54,8 +63,72 @@ public class PolicyCheckerImplTests extends ESTestCase {
         );
     }
 
+    /**
+     * Set up a situation where the file read entitlement check encounters
+     * a strange {@link IOException} that is not {@link NoSuchFileException}.
+     * Ensure that the IOException makes it out to the caller, rather than
+     * being transformed into a NotEntitledException.
+     */
+    public void testIOExceptionFollowingSymlink() throws IOException {
+        Path dir = createTempDir();
+        Path symlink = dir.resolve("symlink");
+        Path allegedDir = dir.resolve("not_a_dir");
+        Path target = allegedDir.resolve("target");
+        Files.createFile(allegedDir); // Not a dir!
+        Files.createSymbolicLink(symlink, target);
+
+        PathLookup testPathLookup = new PathLookup() {
+            @Override
+            public Path pidFile() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public Stream<Path> getBaseDirPaths(BaseDir baseDir) {
+                return Stream.empty();
+            }
+
+            @Override
+            public Stream<Path> resolveSettingPaths(BaseDir baseDir, String settingName) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean isPathOnDefaultFilesystem(Path path) {
+                // We need this to be on the default filesystem or it will be trivially allowed
+                return true;
+            }
+        };
+
+        var policyManager = new TestPolicyManager(
+            createEmptyTestServerPolicy(),
+            List.of(),
+            Map.of(
+                "testComponent",
+                new Policy(
+                    "testPolicy",
+                    List.of(new Scope("testModule", List.of(new FilesEntitlement(List.of(FileData.ofPath(symlink, READ))))))
+                )
+            ),
+            c -> PolicyManager.PolicyScope.plugin("testComponent", "testModule"),
+            testPathLookup,
+            List.of(),
+            List.of()
+        );
+        policyManager.setActive(true);
+        policyManager.setTriviallyAllowingTestCode(false);
+
+        var checker = checker(NO_ENTITLEMENTS_MODULE, policyManager, testPathLookup);
+        var exception = assertThrows(IOException.class, () -> checker.checkFileRead(getClass(), symlink, true));
+    }
+
     private static PolicyCheckerImpl checker(Module entitlementsModule) {
-        return new PolicyCheckerImpl(Set.of(), entitlementsModule, null, TEST_PATH_LOOKUP);
+        // TODO: TEST_PATH_LOOKUP is always null at this point!
+        return checker(entitlementsModule, null, TEST_PATH_LOOKUP);
+    }
+
+    private static PolicyCheckerImpl checker(Module entitlementsModule, PolicyManager policyManager, PathLookup testPathLookup) {
+        return new PolicyCheckerImpl(Set.of(), entitlementsModule, policyManager, testPathLookup);
     }
 
 }

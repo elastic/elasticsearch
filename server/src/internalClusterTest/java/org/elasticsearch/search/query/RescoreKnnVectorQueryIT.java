@@ -38,7 +38,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -47,11 +46,10 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiFunction;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.closeTo;
 
 public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
 
@@ -59,6 +57,12 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
     public static final String VECTOR_FIELD = "vector";
     public static final String VECTOR_SCORE_SCRIPT = "vector_scoring";
     public static final String QUERY_VECTOR_PARAM = "query_vector";
+
+    /*
+     * Original KNN scoring and rescoring can use slightly different calculation methods,
+     * so there may be a very slight difference in the scores after rescoring.
+     */
+    private static final float DELTA = 1e-6f;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -87,7 +91,7 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
             Arrays.stream(VectorIndexType.values())
                 .filter(VectorIndexType::isQuantized)
                 .map(t -> t.name().toLowerCase(Locale.ROOT))
-                .collect(Collectors.toCollection(ArrayList::new))
+                .toList()
         );
         XContentBuilder mapping = XContentFactory.jsonBuilder()
             .startObject()
@@ -196,15 +200,12 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
         indexRandom(true, docs);
 
         float[] queryVector = testParams.queryVector;
-        float oversample = randomFloatBetween(1.0f, 100f, true);
-        RescoreVectorBuilder rescoreVectorBuilder = new RescoreVectorBuilder(oversample);
-
         SearchRequestBuilder requestBuilder = searchRequestGenerator.apply(
             testParams,
             prepareSearch(INDEX_NAME).setSize(numDocs).setTrackTotalHits(randomBoolean())
         );
 
-        assertNoFailuresAndResponse(requestBuilder, knnResponse -> { compareWithExactSearch(knnResponse, queryVector, numDocs); });
+        assertNoFailuresAndResponse(requestBuilder, knnResponse -> compareWithExactSearch(knnResponse, queryVector, numDocs));
     }
 
     private static void compareWithExactSearch(SearchResponse knnResponse, float[] queryVector, int docCount) {
@@ -228,7 +229,11 @@ public class RescoreKnnVectorQueryIT extends ESIntegTestCase {
                 if (i >= exactHits.length) {
                     fail("Knn doc not found in exact search");
                 }
-                assertThat("Real score is not the same as rescored score", knnHit.getScore(), equalTo(exactHits[i].getScore()));
+                assertThat(
+                    "Real score is not the same as rescored score",
+                    (double) knnHit.getScore(),
+                    closeTo(exactHits[i].getScore(), DELTA)
+                );
             }
         });
     }

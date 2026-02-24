@@ -51,6 +51,7 @@ import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
+import org.gradle.jvm.toolchain.JavaToolchainSpec;
 import org.gradle.jvm.toolchain.JvmVendorSpec;
 
 import java.util.Collection;
@@ -87,6 +88,10 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static final String DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION = "defaultDistrofeaturesMetadataDeps";
     private static final String TESTS_FEATURES_METADATA_PATH = "tests.features.metadata.path";
     private static final String MINIMUM_WIRE_COMPATIBLE_VERSION_SYSPROP = "tests.minimum.wire.compatible";
+    public static final Action<JavaToolchainSpec> JAVA_TOOLCHAIN_JDK_ADOPTIUM_SPEC_ACTION = spec -> {
+        spec.getVendor().set(JvmVendorSpec.ADOPTIUM);
+        spec.getLanguageVersion().set(JavaLanguageVersion.of(17));
+    };
 
     private final ProviderFactory providerFactory;
 
@@ -299,10 +304,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static void handleJdkIncompatibleWithOS(Version version, Project project, StandaloneRestIntegTestTask task) {
         if (jdkIsIncompatibleWithOS(version)) {
             var toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
-            var fallbackJdk17Launcher = toolChainService.launcherFor(spec -> {
-                spec.getVendor().set(JvmVendorSpec.ADOPTIUM);
-                spec.getLanguageVersion().set(JavaLanguageVersion.of(17));
-            });
+            var fallbackJdk17Launcher = toolChainService.launcherFor(JAVA_TOOLCHAIN_JDK_ADOPTIUM_SPEC_ACTION);
             task.environment(
                 "ES_FALLBACK_JAVA_HOME",
                 fallbackJdk17Launcher.get().getMetadata().getInstallationPath().getAsFile().getPath()

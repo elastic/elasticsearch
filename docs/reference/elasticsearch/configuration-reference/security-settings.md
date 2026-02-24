@@ -852,7 +852,7 @@ In addition to the [settings that are valid for all realms](#ref-realm-settings)
 
 
 `idp.metadata.http.minimum_refresh`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the minimum frequency with which `https` metadata is checked for changes. In regular operation {{es}} will use the value of `idp.metadata.http.refresh` as the polling interval. However, under some circumstances {{es}} may determine that it needs to poll more frequently. In these cases, the `minimum_refresh` will set the minimum frequency at which the metdata will be checked. Defaults to `5m` (5 minutes) and must not be set to a value greater than `idp.metadata.http.refresh`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the minimum frequency with which `https` metadata is checked for changes. In regular operation {{es}} will use the value of `idp.metadata.http.refresh` as the polling interval. However, under some circumstances {{es}} may determine that it needs to poll more frequently. In these cases, the `minimum_refresh` will set the minimum frequency at which the metadata will be checked. Defaults to `5m` (5 minutes) and must not be set to a value greater than `idp.metadata.http.refresh`
 
 `idp.use_single_logout` ![logo cloud](https://doc-icons.s3.us-east-2.amazonaws.com/logo_cloud.svg "Supported on Elastic Cloud Hosted")
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Indicates whether to utilise the Identity Provider’s Single Logout service (if one exists in the IdP metadata file). Defaults to `true`.
@@ -1923,7 +1923,13 @@ PKCS#12 files are configured in the same way as Java keystore files:
 
 ## Transport TLS/SSL settings [transport-tls-ssl-settings]
 
-You can configure the following TLS/SSL settings.
+The settings in this section relate to node-to-node transport connections.
+
+By default, {{es}} uses mutual TLS (mTLS) to secure node-to-node transport connections within a cluster. With mTLS, data is encrypted in transit and both nodes must present valid certificates when connecting. Each node requires that certificates be issued by a trusted certificate authority, ensuring that only authorized nodes can connect. [Learn about configuring node-to-node mTLS](docs-content://deploy-manage/security/secure-cluster-communications.md#encrypt-internode-communication).
+
+::::{warning}
+Transport connections between Elasticsearch nodes are security-critical and you must protect them carefully. Malicious actors who can observe or interfere with unencrypted node-to-node transport traffic can read or modify cluster data. A malicious actor who can establish a transport connection might be able to invoke system-internal APIs, including APIs that read or modify cluster data.
+::::
 
 `xpack.security.transport.ssl.enabled`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Used to enable or disable TLS/SSL on the transport networking layer, which nodes use to communicate with each other. The default is `false`.
@@ -1939,7 +1945,11 @@ You can configure the following TLS/SSL settings.
 
 
 `xpack.security.transport.ssl.client_authentication`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the server’s behavior in regard to requesting a certificate from client connections. Valid values are `required`, `optional`, and `none`. `required` forces a client to present a certificate, while `optional` requests a client certificate but the client is not required to present one. Defaults to `required`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the node's behavior in regard to requesting a certificate when accepting an inbound transport connections from another {{es}} node. Valid values are `required`, `optional`, and `none`. The default is `required` which means that the connecting node must present a valid client certificate during the connection process. May also be set to `optional` which means that a client certificate is requested but the connecting node may choose not to present one, or `none` which means that no client certificate is even requested during the connection process.
+
+    ::::{warning}
+    Turning off mTLS by setting `xpack.security.transport.ssl.client_authentication` to `optional` or `none` allows anyone with network access to establish transport connections. Malicious actors can use these connections to invoke system-internal APIs that might read or modify cluster data. Use mTLS to protect your node-to-node transport connections unless you are absolutely certain that unauthorized network access to these nodes cannot occur.
+    ::::
 
 `xpack.security.transport.ssl.verification_mode`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Defines how to verify the certificates presented by another party in the TLS connection:

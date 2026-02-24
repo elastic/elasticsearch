@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractAggregationTestCase;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -54,7 +56,7 @@ public class DeltaTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Delta(source, args.get(0), args.get(1));
+        return new Delta(source, args.get(0), AggregateFunction.NO_WINDOW, args.get(1));
     }
 
     @Override
@@ -146,6 +148,10 @@ public class DeltaTests extends AbstractAggregationTestCase {
         assertThat(params.get(1).dataType(), equalTo(DataType.DATETIME));
         assertThat(params.get(2).dataType(), equalTo(DataType.INTEGER));
         assertThat(params.get(3).dataType(), equalTo(DataType.LONG));
-        return List.of(params.get(0));
+        ArrayList<DocsV3Support.Param> result = new ArrayList<>();
+        result.add(params.get(0));
+        var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);
+        result.add(new DocsV3Support.Param(DataType.TIME_DURATION, List.of(preview)));
+        return result;
     }
 }

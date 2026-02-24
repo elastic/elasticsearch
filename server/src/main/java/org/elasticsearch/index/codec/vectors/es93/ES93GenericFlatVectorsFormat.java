@@ -15,7 +15,6 @@ import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.index.codec.vectors.AbstractFlatVectorsFormat;
 import org.elasticsearch.index.codec.vectors.DirectIOCapableFlatVectorsFormat;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
@@ -23,9 +22,12 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import java.io.IOException;
 import java.util.Map;
 
+/**
+ * A generic flat format that can use several different underlying vector storage formats.
+ * <p>
+ * This format is not meant to be used directly; it should be used as part of another vector format implementation.
+ */
 public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
-
-    public static final FeatureFlag GENERIC_VECTOR_FORMAT = new FeatureFlag("generic_vector_format");
 
     static final String NAME = "ES93GenericFlatVectorsFormat";
     static final String VECTOR_FORMAT_INFO_EXTENSION = "vfi";
@@ -42,7 +44,7 @@ public class ES93GenericFlatVectorsFormat extends AbstractFlatVectorsFormat {
     );
 
     private static final DirectIOCapableFlatVectorsFormat defaultVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
-        FlatVectorScorerUtil.getLucene99FlatVectorsScorer()
+        ES93FlatVectorScorer.INSTANCE
     );
     private static final DirectIOCapableFlatVectorsFormat bitVectorFormat = new DirectIOCapableLucene99FlatVectorsFormat(
         ES93FlatBitVectorScorer.INSTANCE

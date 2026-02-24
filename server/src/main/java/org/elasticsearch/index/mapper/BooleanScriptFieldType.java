@@ -18,6 +18,7 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.fielddata.BooleanScriptFieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.mapper.blockloader.script.BooleanScriptBlockDocValuesReader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.BooleanFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -37,6 +38,8 @@ import java.util.Map;
 import java.util.function.Function;
 
 public final class BooleanScriptFieldType extends AbstractScriptFieldType<BooleanFieldScript.LeafFactory> {
+
+    private static final MatchNoDocsQuery NEITHER_TRUE_NOR_FALSE_QUERY = new MatchNoDocsQuery("neither true nor false allowed");
 
     public static final RuntimeField.Parser PARSER = new RuntimeField.Parser(Builder::new);
 
@@ -126,7 +129,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
         if (fallbackSyntheticSourceBlockLoader != null) {
             return fallbackSyntheticSourceBlockLoader;
         }
-        return new BooleanScriptBlockDocValuesReader.BooleanScriptBlockLoader(leafFactory(blContext.lookup()));
+        return new BooleanScriptBlockDocValuesReader.BooleanScriptBlockLoader(leafFactory(blContext.lookup()), blContext.scriptByteSize());
     }
 
     private FallbackSyntheticSourceBlockLoader.Reader<?> fallbackSyntheticSourceBlockLoaderReader() {
@@ -281,7 +284,7 @@ public final class BooleanScriptFieldType extends AbstractScriptFieldType<Boolea
             applyScriptContext(context);
             return new BooleanScriptFieldTermQuery(script, leafFactory(context), name(), false);
         }
-        return new MatchNoDocsQuery("neither true nor false allowed");
+        return NEITHER_TRUE_NOR_FALSE_QUERY;
     }
 
     private static boolean toBoolean(Object value) {

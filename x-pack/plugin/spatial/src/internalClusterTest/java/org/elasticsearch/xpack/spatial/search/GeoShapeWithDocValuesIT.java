@@ -60,7 +60,7 @@ public class GeoShapeWithDocValuesIT extends GeoShapeIntegTestCase {
 
     @Override
     protected IndexVersion randomSupportedVersion() {
-        return IndexVersionUtils.randomCompatibleWriteVersion(random());
+        return IndexVersionUtils.randomCompatibleWriteVersion();
     }
 
     @Override

@@ -63,6 +63,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "deepseek",
                     "elastic",
                     "elasticsearch",
+                    "fireworksai",
                     "googleaistudio",
                     "googlevertexai",
                     "groq",
@@ -70,6 +71,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "jinaai",
                     "llama",
                     "mistral",
+                    "nvidia",
                     "openai",
                     "openshift_ai",
                     "streaming_completion_test_service",
@@ -80,7 +82,8 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "text_embedding_test_service",
                     "voyageai",
                     "watsonxai",
-                    "amazon_sagemaker"
+                    "amazon_sagemaker",
+                    "mixedbread"
                 ).toArray()
             )
         );
@@ -111,12 +114,14 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "cohere",
                     "elastic",
                     "elasticsearch",
+                    "fireworksai",
                     "googleaistudio",
                     "googlevertexai",
                     "hugging_face",
                     "jinaai",
                     "llama",
                     "mistral",
+                    "nvidia",
                     "openai",
                     "openshift_ai",
                     "text_embedding_test_service",
@@ -143,9 +148,12 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "elasticsearch",
                     "googlevertexai",
                     "jinaai",
+                    "mixedbread",
+                    "nvidia",
                     "openshift_ai",
                     "test_reranking_service",
                     "voyageai",
+                    "watsonxai",
                     "hugging_face",
                     "amazon_sagemaker",
                     "elastic"
@@ -175,9 +183,11 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "streaming_completion_test_service",
                     "completion_test_service",
                     "hugging_face",
+                    "elastic",
                     "amazon_sagemaker",
                     "mistral",
-                    "watsonxai"
+                    "watsonxai",
+                    "nvidia"
                 ).toArray()
             )
         );
@@ -189,6 +199,7 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
             containsInAnyOrder(
                 List.of(
                     "ai21",
+                    "azureopenai",
                     "llama",
                     "deepseek",
                     "elastic",
@@ -200,7 +211,9 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
                     "amazon_sagemaker",
                     "googlevertexai",
                     "mistral",
-                    "watsonxai"
+                    "nvidia",
+                    "watsonxai",
+                    "amazonbedrock"
                 ).toArray()
             )
         );
@@ -225,7 +238,10 @@ public class InferenceGetServicesIT extends BaseMockEISAuthServerTest {
     }
 
     public void testGetServicesWithEmbeddingTaskType() throws IOException {
-        assertThat(providersFor(TaskType.EMBEDDING), containsInAnyOrder(List.of("text_embedding_test_service").toArray()));
+        assertThat(
+            providersFor(TaskType.EMBEDDING),
+            containsInAnyOrder(List.of("text_embedding_test_service", "jinaai", "elastic").toArray())
+        );
     }
 
     private List<Object> getAllServices() throws IOException {

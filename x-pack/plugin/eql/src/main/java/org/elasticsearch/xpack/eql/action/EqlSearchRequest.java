@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.eql.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LegacyActionRequest;
@@ -135,9 +134,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
             fetchFields = in.readCollectionAsList(FieldAndFormat::new);
         }
         runtimeMappings = in.readGenericMap();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            maxSamplesPerKey = in.readInt();
-        }
+        maxSamplesPerKey = in.readInt();
         allowPartialSearchResults = in.readOptionalBoolean();
         allowPartialSequenceResults = in.readOptionalBoolean();
     }
@@ -514,9 +511,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
             out.writeCollection(fetchFields);
         }
         out.writeGenericMap(runtimeMappings);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-            out.writeInt(maxSamplesPerKey);
-        }
+        out.writeInt(maxSamplesPerKey);
         out.writeOptionalBoolean(allowPartialSearchResults);
         out.writeOptionalBoolean(allowPartialSequenceResults);
     }

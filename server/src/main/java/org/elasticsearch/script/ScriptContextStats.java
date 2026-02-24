@@ -9,7 +9,6 @@
 
 package org.elasticsearch.script;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -59,10 +58,8 @@ public record ScriptContextStats(
         var compilations = in.readVLong();
         var cacheEvictions = in.readVLong();
         var compilationLimitTriggered = in.readVLong();
-        TimeSeries compilationsHistory;
-        TimeSeries cacheEvictionsHistory;
-        compilationsHistory = new TimeSeries(in);
-        cacheEvictionsHistory = new TimeSeries(in);
+        TimeSeries compilationsHistory = new TimeSeries(in);
+        TimeSeries cacheEvictionsHistory = new TimeSeries(in);
         return new ScriptContextStats(
             context,
             compilations,
@@ -91,10 +88,8 @@ public record ScriptContextStats(
         out.writeVLong(compilations);
         out.writeVLong(cacheEvictions);
         out.writeVLong(compilationLimitTriggered);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            compilationsHistory.writeTo(out);
-            cacheEvictionsHistory.writeTo(out);
-        }
+        compilationsHistory.writeTo(out);
+        cacheEvictionsHistory.writeTo(out);
     }
 
     public String getContext() {

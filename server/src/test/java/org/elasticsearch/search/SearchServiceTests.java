@@ -24,6 +24,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -46,6 +47,7 @@ import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.shard.ShardId;
@@ -470,7 +472,8 @@ public class SearchServiceTests extends IndexShardTestCase {
         MappingLookup mappingLookup = MappingLookup.fromMappers(
             mapping,
             List.of(keywordFieldMapper, dateFieldMapper),
-            Collections.emptyList()
+            Collections.emptyList(),
+            IndexMode.STANDARD
         );
         return new SearchExecutionContext(
             0,
@@ -492,7 +495,9 @@ public class SearchServiceTests extends IndexShardTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 

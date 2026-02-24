@@ -416,6 +416,11 @@ public final class DateFieldMapper extends FieldMapper {
         }
 
         @Override
+        public String contentType() {
+            return resolution.type();
+        }
+
+        @Override
         public DateFieldMapper build(MapperBuilderContext context) {
             final String fullFieldName = context.buildFullName(leafName());
             IndexType indexType = indexType(fullFieldName);
@@ -1117,8 +1122,7 @@ public final class DateFieldMapper extends FieldMapper {
      * @return {@code true} if the doc values skipper should be used, {@code false} otherwise.
      */
     private static boolean shouldUseDocValuesSkipper(IndexSettings indexSettings, boolean hasDocValues, final String fullFieldName) {
-        return indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
-            && indexSettings.useDocValuesSkipper()
+        return indexSettings.useDocValuesSkipper()
             && hasDocValues
             && (IndexMode.LOGSDB.equals(indexSettings.getMode()) || IndexMode.TIME_SERIES.equals(indexSettings.getMode()))
             && indexSettings.getIndexSortConfig() != null

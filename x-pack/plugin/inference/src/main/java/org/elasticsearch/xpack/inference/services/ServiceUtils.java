@@ -89,7 +89,6 @@ public final class ServiceUtils {
      * @return {@code null} if not present else the object cast to type T
      * @param <T> The expected type
      */
-    @SuppressWarnings("unchecked")
     public static <T> T removeAsType(Map<String, Object> sourceMap, String key, Class<T> type, ValidationException validationException) {
         return InferenceUtils.removeAsType(sourceMap, key, type, validationException);
     }
@@ -427,16 +426,6 @@ public final class ServiceUtils {
         return InferenceUtils.extractOptionalString(map, settingName, scope, validationException);
     }
 
-    @SuppressWarnings("unchecked")
-    public static <T> List<T> extractOptionalList(
-        Map<String, Object> map,
-        String settingName,
-        Class<T> type,
-        ValidationException validationException
-    ) {
-        return InferenceUtils.extractOptionalList(map, settingName, type, validationException);
-    }
-
     public static Integer extractRequiredPositiveInteger(
         Map<String, Object> map,
         String settingName,
@@ -697,26 +686,6 @@ public final class ServiceUtils {
         return map;
     }
 
-    public static Integer extractRequiredPositiveIntegerLessThanOrEqualToMax(
-        Map<String, Object> map,
-        String settingName,
-        int maxValue,
-        String scope,
-        ValidationException validationException
-    ) {
-        return InferenceUtils.extractRequiredPositiveIntegerLessThanOrEqualToMax(map, settingName, maxValue, scope, validationException);
-    }
-
-    public static Integer extractRequiredPositiveIntegerGreaterThanOrEqualToMin(
-        Map<String, Object> map,
-        String settingName,
-        int minValue,
-        String scope,
-        ValidationException validationException
-    ) {
-        return InferenceUtils.extractRequiredPositiveIntegerGreaterThanOrEqualToMin(map, settingName, minValue, scope, validationException);
-    }
-
     public static Integer extractRequiredPositiveIntegerBetween(
         Map<String, Object> map,
         String settingName,
@@ -746,6 +715,22 @@ public final class ServiceUtils {
         ValidationException validationException
     ) {
         return extractOptionalInteger(map, settingName, scope, validationException, true);
+    }
+
+    public static Integer extractOptionalPositiveIntegerLessThanOrEqualToMax(
+        Map<String, Object> map,
+        String settingName,
+        int maxValue,
+        String scope,
+        ValidationException validationException
+    ) {
+        Integer optionalField = extractOptionalPositiveInteger(map, settingName, scope, validationException);
+
+        if (optionalField != null && optionalField > maxValue) {
+            validationException.addValidationError(mustBeLessThanOrEqualNumberErrorMessage(settingName, scope, optionalField, maxValue));
+        }
+
+        return optionalField;
     }
 
     public static Integer extractOptionalInteger(
@@ -989,6 +974,10 @@ public final class ServiceUtils {
         throwUnsupportedTaskOperation(serviceName, "unified completion");
     }
 
+    public static void throwUnsupportedMultimodalUnifiedCompletionOperation(String serviceName) {
+        throwUnsupportedTaskOperation(serviceName, "unified completion with non-text inputs");
+    }
+
     public static void throwUnsupportedEmbeddingOperation(String serviceName) {
         throwUnsupportedTaskOperation(serviceName, "embedding");
     }
@@ -1004,6 +993,16 @@ public final class ServiceUtils {
             model.getTaskType(),
             supportedTaskTypes
         );
+    }
+
+    public static ElasticsearchStatusException createUnsupportedTaskTypeStatusException(Model model, EnumSet<TaskType> supportedTaskTypes) {
+        var responseString = ServiceUtils.unsupportedTaskTypeForInference(model, supportedTaskTypes);
+
+        if (model.getTaskType() == TaskType.CHAT_COMPLETION) {
+            responseString = responseString + " " + useChatCompletionUrlMessage(model);
+        }
+
+        return new ElasticsearchStatusException(responseString, RestStatus.BAD_REQUEST);
     }
 
     public static String useChatCompletionUrlMessage(Model model) {

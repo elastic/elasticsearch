@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -32,6 +33,12 @@ public class GPUPluginInitializationWithoutGPUIT extends ESIntegTestCase {
         public TestGPUPlugin() {
             super(Settings.EMPTY);
         }
+
+        @Override
+        public List<ActionPlugin.ActionHandler> getActions() {
+            // Skip registering xpack usage/info actions in this test as they require XPackLicenseState
+            return List.of();
+        }
     }
 
     @Override
@@ -39,19 +46,7 @@ public class GPUPluginInitializationWithoutGPUIT extends ESIntegTestCase {
         return List.of(TestGPUPlugin.class);
     }
 
-    public void testFFOff() {
-        assumeFalse("GPU_FORMAT feature flag disabled", GPUPlugin.GPU_FORMAT.isEnabled());
-
-        TestGPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
-        VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
-
-        var format = vectorsFormatProvider.getKnnVectorsFormat(null, null, null, null);
-        assertNull(format);
-    }
-
     public void testAutoModeWithoutGPU() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-
         TestGPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
 
@@ -64,8 +59,9 @@ public class GPUPluginInitializationWithoutGPUIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            // TODO add other type support
-            DenseVectorFieldMapper.ElementType.FLOAT
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            null,
+            1
         );
         assertNull(format);
     }

@@ -98,6 +98,24 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         );
     }
 
+    /**
+     * Restore state from the supplied status, presumably from a previously relocated task
+     */
+    public void restoreState(BulkByScrollTask.Status status) {
+        assert status != null : "Cannot restore from null status";
+        total.set(status.getTotal());
+        updated.set(status.getUpdated());
+        created.set(status.getCreated());
+        deleted.set(status.getDeleted());
+        batch.set(status.getBatches());
+        versionConflicts.set(status.getVersionConflicts());
+        noops.set(status.getNoops());
+        bulkRetries.set(status.getBulkRetries());
+        searchRetries.set(status.getSearchRetries());
+        throttledNanos.set(status.getThrottled().nanos());
+        rethrottle(status.getRequestsPerSecond());
+    }
+
     public void handleCancel() {
         // Drop the throttle to 0, immediately rescheduling any throttle operation so it will wake up and cancel itself.
         rethrottle(Float.POSITIVE_INFINITY);

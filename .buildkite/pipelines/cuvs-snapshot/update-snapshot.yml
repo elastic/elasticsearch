@@ -3,7 +3,7 @@ steps:
     command: .buildkite/scripts/cuvs-snapshot/update-current-snapshot-version.sh
     agents:
       provider: aws
-      imagePrefix: elasticsearch-aws-ubuntu-2204-nvidia
+      imagePrefix: elasticsearch-aws-ubuntu-2404-nvidia
       instanceType: g6.2xlarge
       diskSizeGb: 350
       diskType: gp3

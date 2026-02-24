@@ -1,6 +1,6 @@
 ```yaml {applies_to}
 serverless: ga
-stack: preview 9.1.0, ga 9.2.0
+stack: preview =9.1, ga 9.2+
 ```
 
 :::{note}

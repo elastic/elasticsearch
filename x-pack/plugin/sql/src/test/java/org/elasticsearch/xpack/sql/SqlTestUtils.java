@@ -60,6 +60,7 @@ public final class SqlTestUtils {
         null,
         null,
         false,
+        false,
         null
     );
 
@@ -84,6 +85,7 @@ public final class SqlTestUtils {
             new TaskId(randomAlphaOfLength(10), taskId),
             randomTask(taskId, mode, sqlVersion),
             randomBoolean(),
+            false,
             null
         );
     }

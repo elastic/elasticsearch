@@ -41,10 +41,8 @@ public abstract class StreamingGeometrySimplifier<T extends Geometry> {
     protected int length;
     protected int objCount = 0;
     protected String description;
-    protected PointConstructor pointConstructor = new PointConstructor() {
-    };
-    protected PointResetter pointResetter = new PointResetter() {
-    };
+    protected PointConstructor pointConstructor = new PointConstructor() {};
+    protected PointResetter pointResetter = new PointResetter() {};
 
     protected final PriorityQueue<PointError> queue = new PriorityQueue<>();
 

@@ -7,19 +7,20 @@
 
 package org.elasticsearch.xpack.analytics.aggregations.metrics;
 
+import org.elasticsearch.index.fielddata.HistogramValues;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.metrics.TDigestExecutionHint;
-import org.elasticsearch.search.aggregations.metrics.TDigestState;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.xpack.analytics.aggregations.support.HistogramValuesSource;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBackedTDigestPercentilesAggregator {
+public class HistoBackedTDigestPercentilesAggregator extends AbstractTDigestOrExponentialPercentilesAggregator {
 
     public HistoBackedTDigestPercentilesAggregator(
         String name,
@@ -37,28 +38,8 @@ public class HistoBackedTDigestPercentilesAggregator extends AbstractHistoBacked
     }
 
     @Override
-    public InternalAggregation buildAggregation(long owningBucketOrdinal) {
-        TDigestState state = getState(owningBucketOrdinal);
-        if (state == null) {
-            return buildEmptyAggregation();
-        } else {
-            return new InternalTDigestPercentiles(name, keys, state, keyed, formatter, metadata());
-        }
-    }
-
-    @Override
-    public double metric(String name, long bucketOrd) {
-        TDigestState state = getState(bucketOrd);
-        if (state == null) {
-            return Double.NaN;
-        } else {
-            return state.quantile(Double.parseDouble(name) / 100);
-        }
-    }
-
-    @Override
-    public InternalAggregation buildEmptyAggregation() {
-        TDigestState state = TDigestState.createWithoutCircuitBreaking(compression, executionHint);
-        return new InternalTDigestPercentiles(name, keys, state, keyed, formatter, metadata());
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx, final LeafBucketCollector sub) throws IOException {
+        final HistogramValues values = ((HistogramValuesSource.Histogram) valuesSource).getHistogramValues(aggCtx.getLeafReaderContext());
+        return mergingTDigestCollector(sub, values);
     }
 }

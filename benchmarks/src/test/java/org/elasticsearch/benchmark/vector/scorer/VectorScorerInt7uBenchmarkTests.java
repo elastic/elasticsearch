@@ -12,20 +12,24 @@ package org.elasticsearch.benchmark.vector.scorer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.simdvec.VectorSimilarityType;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 import org.openjdk.jmh.annotations.Param;
 
 import java.util.Arrays;
+import java.util.List;
 
 import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.supportsHeapSegments;
 
 public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
 
-    final double delta = 1e-3;
-    final int dims;
+    private final double delta = 1e-3;
+    private final VectorSimilarityType function;
+    private final int dims;
 
-    public VectorScorerInt7uBenchmarkTests(int dims) {
+    public VectorScorerInt7uBenchmarkTests(VectorSimilarityType function, int dims) {
+        this.function = function;
         this.dims = dims;
     }
 
@@ -34,42 +38,57 @@ public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
         assumeFalse("doesn't work on windows yet", Constants.WINDOWS);
     }
 
-    public void testDotProduct() throws Exception {
+    public void testScores() throws Exception {
         for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerInt7uBenchmark();
-            bench.dims = dims;
-            bench.setup();
-            try {
-                float expected = bench.dotProductScalar();
-                assertEquals(expected, bench.dotProductLucene(), delta);
-                assertEquals(expected, bench.dotProductNative(), delta);
+            VectorScorerInt7uBenchmark.VectorData data = new VectorScorerInt7uBenchmark.VectorData(dims);
+            Float expected = null;
+            for (var impl : VectorImplementation.values()) {
+                var bench = new VectorScorerInt7uBenchmark();
+                bench.function = function;
+                bench.implementation = impl;
+                bench.dims = dims;
+                bench.setup(data);
 
-                if (supportsHeapSegments()) {
-                    expected = bench.dotProductLuceneQuery();
-                    assertEquals(expected, bench.dotProductNativeQuery(), delta);
+                try {
+                    float result = bench.score();
+                    if (expected == null) {
+                        assert impl == VectorImplementation.SCALAR;
+                        expected = result;
+                        continue;
+                    }
+
+                    assertEquals(impl.toString(), expected, result, delta);
+                } finally {
+                    bench.teardown();
                 }
-            } finally {
-                bench.teardown();
             }
         }
     }
 
-    public void testSquareDistance() throws Exception {
+    public void testQueryScores() throws Exception {
+        assumeTrue("Only test with heap segments", supportsHeapSegments());
         for (int i = 0; i < 100; i++) {
-            var bench = new VectorScorerInt7uBenchmark();
-            bench.dims = dims;
-            bench.setup();
-            try {
-                float expected = bench.squareDistanceScalar();
-                assertEquals(expected, bench.squareDistanceLucene(), delta);
-                assertEquals(expected, bench.squareDistanceNative(), delta);
+            VectorScorerInt7uBenchmark.VectorData data = new VectorScorerInt7uBenchmark.VectorData(dims);
+            Float expected = null;
+            for (var impl : List.of(VectorImplementation.LUCENE, VectorImplementation.NATIVE)) {
+                var bench = new VectorScorerInt7uBenchmark();
+                bench.function = function;
+                bench.implementation = impl;
+                bench.dims = dims;
+                bench.setup(data);
 
-                if (supportsHeapSegments()) {
-                    expected = bench.squareDistanceLuceneQuery();
-                    assertEquals(expected, bench.squareDistanceNativeQuery(), delta);
+                try {
+                    float result = bench.scoreQuery();
+                    if (expected == null) {
+                        assert impl == VectorImplementation.LUCENE;
+                        expected = result;
+                        continue;
+                    }
+
+                    assertEquals(impl.toString(), expected, bench.scoreQuery(), delta);
+                } finally {
+                    bench.teardown();
                 }
-            } finally {
-                bench.teardown();
             }
         }
     }
@@ -77,8 +96,12 @@ public class VectorScorerInt7uBenchmarkTests extends ESTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parametersFactory() {
         try {
-            var params = VectorScorerInt7uBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
-            return () -> Arrays.stream(params).map(Integer::parseInt).map(i -> new Object[] { i }).iterator();
+            String[] dims = VectorScorerInt7uBenchmark.class.getField("dims").getAnnotationsByType(Param.class)[0].value();
+            String[] functions = VectorScorerInt7uBenchmark.class.getField("function").getAnnotationsByType(Param.class)[0].value();
+            return () -> Arrays.stream(dims)
+                .map(Integer::parseInt)
+                .flatMap(i -> Arrays.stream(functions).map(VectorSimilarityType::valueOf).map(f -> new Object[] { f, i }))
+                .iterator();
         } catch (NoSuchFieldException e) {
             throw new AssertionError(e);
         }

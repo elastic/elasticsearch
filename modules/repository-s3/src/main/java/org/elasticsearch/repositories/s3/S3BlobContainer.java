@@ -62,6 +62,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -84,6 +85,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.blobstore.support.BlobContainerUtils.getRegisterUsingConsistentRead;
@@ -144,10 +146,11 @@ class S3BlobContainer extends AbstractBlobContainer {
         throws IOException {
         assert BlobContainer.assertPurposeConsistency(purpose, blobName);
         assert inputStream.markSupported() : "No mark support on inputStream breaks the S3 SDK's ability to retry requests";
+        final var condition = failIfAlreadyExists ? ConditionalOperation.IF_NONE_MATCH : ConditionalOperation.NONE;
         if (blobSize <= getLargeBlobThresholdInBytes()) {
-            executeSingleUpload(purpose, blobStore, buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
+            executeSingleUpload(purpose, blobStore, buildKey(blobName), inputStream, blobSize, condition);
         } else {
-            executeMultipartUpload(purpose, blobStore, buildKey(blobName), inputStream, blobSize, failIfAlreadyExists);
+            executeMultipartUpload(purpose, blobStore, buildKey(blobName), inputStream, blobSize, condition);
         }
     }
 
@@ -537,6 +540,59 @@ class S3BlobContainer extends AbstractBlobContainer {
     }
 
     /**
+     * Enumeration of mutually exlusive conditional operations supported by S3.
+     *
+     * @see <a href=https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-requests.html>S3-conditional-requests</a>
+     */
+    sealed interface ConditionalOperation permits ConditionalOperation.IfMatch, ConditionalOperation.IfNoneMatch,
+        ConditionalOperation.None {
+        ConditionalOperation NONE = new None();
+        ConditionalOperation IF_NONE_MATCH = new IfNoneMatch();
+
+        static ConditionalOperation ifMatch(String etag) {
+            return new IfMatch(etag);
+        }
+
+        record None() implements ConditionalOperation {}
+
+        record IfNoneMatch() implements ConditionalOperation {}
+
+        record IfMatch(String etag) implements ConditionalOperation {}
+    }
+
+    static void putObject(
+        OperationPurpose purpose,
+        S3BlobStore s3BlobStore,
+        String blobName,
+        long contentLength,
+        Supplier<RequestBody> body,
+        ConditionalOperation condition
+    ) {
+        final var putRequestBuilder = PutObjectRequest.builder()
+            .bucket(s3BlobStore.bucket())
+            .key(blobName)
+            .contentLength(contentLength)
+            .storageClass(s3BlobStore.getStorageClass())
+            .acl(s3BlobStore.getCannedACL());
+        if (s3BlobStore.serverSideEncryption()) {
+            putRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
+        }
+        if (s3BlobStore.supportsConditionalWrites()) {
+            switch (condition) {
+                case ConditionalOperation.IfMatch ifMatch -> putRequestBuilder.ifMatch(ifMatch.etag);
+                case ConditionalOperation.IfNoneMatch ignored -> putRequestBuilder.ifNoneMatch("*");
+                case ConditionalOperation.None ignored -> {
+                }
+            }
+        }
+        S3BlobStore.configureRequestForMetrics(putRequestBuilder, s3BlobStore, Operation.PUT_OBJECT, purpose);
+        final var putRequest = putRequestBuilder.build();
+        try (var client = s3BlobStore.clientReference()) {
+            client.client().putObject(putRequest, body.get());
+        }
+    }
+
+    /**
      * Uploads a blob using a single upload request
      */
     void executeSingleUpload(
@@ -545,9 +601,9 @@ class S3BlobContainer extends AbstractBlobContainer {
         final String blobName,
         final InputStream input,
         final long blobSize,
-        final boolean failIfAlreadyExists
+        final ConditionalOperation condition
     ) throws IOException {
-        try (var clientReference = s3BlobStore.clientReference()) {
+        try {
             // Extra safety checks
             if (blobSize > MAX_FILE_SIZE.getBytes()) {
                 throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than " + MAX_FILE_SIZE);
@@ -555,23 +611,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             if (blobSize > s3BlobStore.bufferSizeInBytes()) {
                 throw new IllegalArgumentException("Upload request size [" + blobSize + "] can't be larger than buffer size");
             }
-
-            final var putRequestBuilder = PutObjectRequest.builder()
-                .bucket(s3BlobStore.bucket())
-                .key(blobName)
-                .contentLength(blobSize)
-                .storageClass(s3BlobStore.getStorageClass())
-                .acl(s3BlobStore.getCannedACL());
-            if (s3BlobStore.serverSideEncryption()) {
-                putRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
-            }
-            if (failIfAlreadyExists && s3BlobStore.supportsConditionalWrites(purpose)) {
-                putRequestBuilder.ifNoneMatch("*");
-            }
-            S3BlobStore.configureRequestForMetrics(putRequestBuilder, blobStore, Operation.PUT_OBJECT, purpose);
-
-            final var putRequest = putRequestBuilder.build();
-            clientReference.client().putObject(putRequest, RequestBody.fromInputStream(input, blobSize));
+            putObject(purpose, s3BlobStore, blobName, blobSize, () -> RequestBody.fromInputStream(input, blobSize), condition);
         } catch (final SdkException e) {
             throw new IOException("Unable to upload object [" + blobName + "] using a single upload", e);
         }
@@ -590,7 +630,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final long partSize,
         final long blobSize,
         final PartOperation partOperation,
-        final boolean failIfAlreadyExists
+        final ConditionalOperation condition
     ) throws IOException {
 
         ensureMultiPartUploadSize(blobSize);
@@ -661,8 +701,13 @@ class S3BlobContainer extends AbstractBlobContainer {
                 .uploadId(uploadId)
                 .multipartUpload(b -> b.parts(parts));
 
-            if (failIfAlreadyExists && s3BlobStore.supportsConditionalWrites(purpose)) {
-                completeMultipartUploadRequestBuilder.ifNoneMatch("*");
+            if (s3BlobStore.supportsConditionalWrites()) {
+                switch (condition) {
+                    case ConditionalOperation.IfMatch ifMatch -> completeMultipartUploadRequestBuilder.ifMatch(ifMatch.etag);
+                    case ConditionalOperation.IfNoneMatch ignored -> completeMultipartUploadRequestBuilder.ifNoneMatch("*");
+                    case ConditionalOperation.None ignored -> {
+                    }
+                }
             }
 
             S3BlobStore.configureRequestForMetrics(completeMultipartUploadRequestBuilder, blobStore, operation, purpose);
@@ -690,7 +735,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final String blobName,
         final InputStream input,
         final long blobSize,
-        final boolean failIfAlreadyExists
+        final ConditionalOperation condition
     ) throws IOException {
         executeMultipart(
             purpose,
@@ -708,17 +753,18 @@ class S3BlobContainer extends AbstractBlobContainer {
                     return CompletedPart.builder().partNumber(partNum).eTag(uploadResponse.eTag()).build();
                 }
             },
-            failIfAlreadyExists
+            condition
         );
     }
 
     /**
      * Copies a blob using multipart
      * <p>
-     * This is required when the blob size is larger than MAX_FILE_SIZE.
+     * This is required when the blob size is larger than {@link S3BlobContainer#getMaxCopySizeBeforeMultipart}
      * It must be called on the destination blob container.
      * <p>
-     * It uses MAX_FILE_SIZE as the copy part size, because that minimizes the number of requests needed.
+     * It uses {@link S3BlobContainer#getMaxCopySizeBeforeMultipart}
+     * as the copy part size, because that minimizes the number of requests needed.
      * Smaller part sizes might improve throughput when downloading from multiple parts at once, but we have no measurements
      * indicating this would be helpful so we optimize for request count.
      */
@@ -729,7 +775,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final String destinationBlobName,
         final long blobSize
     ) throws IOException {
-        final long copyPartSize = MAX_FILE_SIZE.getBytes();
+        final long copyPartSize = getMaxCopySizeBeforeMultipart();
         final var destinationKey = buildKey(destinationBlobName);
         executeMultipart(
             purpose,
@@ -756,7 +802,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                     return CompletedPart.builder().partNumber(partNum).eTag(uploadPartCopyResponse.copyPartResult().eTag()).build();
                 }
             }),
-            false
+            ConditionalOperation.NONE
         );
     }
 
@@ -886,7 +932,8 @@ class S3BlobContainer extends AbstractBlobContainer {
 
                 // Step 3: Ensure all other uploads in currentUploads are complete (either successfully, aborted by us or by another upload)
 
-                .<Void>newForked(l -> ensureOtherUploadsComplete(uploadId, uploadIndex, currentUploads, l))
+                .<Void>newForked(l -> abortOtherUploads(uploadId, uploadIndex, currentUploads, l))
+                .<Void>andThen(l -> ensureOtherUploadsComplete(uploadId, currentUploads, l))
 
                 // Step 4: Read the current register value. Note that getRegister only has read-after-write semantics but that's ok here as:
                 // - all earlier uploads are now complete,
@@ -1038,7 +1085,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             return found ? uploadIndex : -1;
         }
 
-        private void ensureOtherUploadsComplete(
+        private void abortOtherUploads(
             String uploadId,
             int uploadIndex,
             List<MultipartUpload> currentUploads,
@@ -1070,6 +1117,67 @@ class S3BlobContainer extends AbstractBlobContainer {
             } else {
                 cancelOtherUploads(uploadId, currentUploads, listener);
             }
+        }
+
+        private void ensureOtherUploadsComplete(String uploadId, List<MultipartUpload> currentUploads, ActionListener<Void> listener) {
+            final var otherUploadIds = Sets.<String>newHashSetWithExpectedSize(currentUploads.size());
+            for (var currentUpload : currentUploads) {
+                final var otherUploadId = currentUpload.uploadId();
+                if (uploadId.equals(otherUploadId) == false) {
+                    otherUploadIds.add(otherUploadId);
+                }
+            }
+
+            if (otherUploadIds.isEmpty()) {
+                logger.trace("no uploads to await, proceeding with [{}]", uploadId);
+                listener.onResponse(null);
+                return;
+            }
+
+            final var executor = threadPool.executor(ThreadPool.Names.SNAPSHOT);
+            final var timeoutListener = new SubscribableListener<Void>();
+            timeoutListener.addListener(listener);
+            timeoutListener.addTimeout(blobStore.getCompareAndExchangeTimeToLive(), threadPool, executor);
+
+            class OtherUploadsWaiter extends ActionRunnable<Void> {
+                OtherUploadsWaiter() {
+                    super(timeoutListener);
+                }
+
+                @Override
+                protected void doRun() {
+                    if (timeoutListener.isDone()) {
+                        logger.trace("uploads {} still incomplete at timeout, failing [{}]", otherUploadIds, uploadId);
+                        return;
+                    }
+
+                    final var newUploads = listMultipartUploads();
+                    final var newUploadIds = Sets.<String>newHashSetWithExpectedSize(newUploads.size());
+                    for (var newUpload : newUploads) {
+                        newUploadIds.add(newUpload.uploadId());
+                    }
+                    if (newUploadIds.contains(uploadId) == false) {
+                        logger.trace("upload [{}] not found in {}", uploadId, newUploadIds);
+                        throw AwsServiceException.builder().statusCode(RestStatus.NOT_FOUND.getStatus()).build();
+                    }
+
+                    newUploadIds.retainAll(otherUploadIds);
+                    if (newUploadIds.isEmpty()) {
+                        logger.trace("uploads {} all complete, proceeding with [{}]", otherUploadIds, uploadId);
+                        timeoutListener.onResponse(null);
+                    } else {
+                        logger.trace(
+                            "uploads {} from {} still in progress, retrying before completing [{}]",
+                            newUploadIds,
+                            otherUploadIds,
+                            uploadId
+                        );
+                        threadPool.schedule(OtherUploadsWaiter.this, blobStore.getCompareAndExchangeAntiContentionDelay(), executor);
+                    }
+                }
+            }
+
+            new OtherUploadsWaiter().run();
         }
 
         private void cancelOtherUploads(String uploadId, List<MultipartUpload> currentUploads, ActionListener<Void> listener) {
@@ -1128,7 +1236,7 @@ class S3BlobContainer extends AbstractBlobContainer {
                 Operation.PUT_MULTIPART_OBJECT,
                 purpose
             );
-            if (blobStore.supportsConditionalWrites(purpose)) {
+            if (blobStore.supportsConditionalWrites()) {
                 if (existingEtag == null) {
                     completeMultipartUploadRequestBuilder.ifNoneMatch("*");
                 } else {
@@ -1141,6 +1249,58 @@ class S3BlobContainer extends AbstractBlobContainer {
         }
     }
 
+    private void conditionalWriteCompareAndExchangeOperation(
+        OperationPurpose purpose,
+        String key,
+        BytesReference expected,
+        BytesReference updated,
+        ActionListener<OptionalBytesReference> listener
+    ) {
+        assert blobStore.supportsConditionalWrites();
+
+        SubscribableListener
+
+            .<RegisterAndEtag>newForked(l -> getRegisterAndEtag(purpose, key, l))
+
+            .andThenApply(regEtag -> {
+                assert BytesArray.EMPTY.equals(RegisterAndEtag.ABSENT.registerContents())
+                    : "absent-register must match empty-expected-register, or register will never be created";
+                if (expected.equals(regEtag.registerContents()) == false) {
+                    // register does not match, return value from S3
+                    // if register was changed, return current value
+                    // if register was deleted, return ABSENT(BytesArray.EMPTY)
+                    return OptionalBytesReference.of(regEtag.registerContents());
+                } else {
+                    final var conditionalOperation = regEtag == RegisterAndEtag.ABSENT
+                        ? ConditionalOperation.IF_NONE_MATCH
+                        : ConditionalOperation.ifMatch(regEtag.eTag());
+                    try {
+                        putObject(
+                            purpose,
+                            blobStore,
+                            buildKey(key),
+                            updated.length(),
+                            () -> RequestBody.fromBytes(BytesReference.toBytes(updated)),
+                            conditionalOperation
+                        );
+                        return OptionalBytesReference.of(expected);
+                    } catch (SdkServiceException e) {
+                        final var statusCode = RestStatus.fromCode(e.statusCode());
+                        switch (statusCode) {
+                            // conflict happened, there is no known register
+                            // https://docs.aws.amazon.com/AmazonS3/latest/userguide/conditional-writes.html#conditional-error-response
+                            case NOT_FOUND, CONFLICT, PRECONDITION_FAILED -> {
+                                return OptionalBytesReference.MISSING;
+                            }
+                            default -> throw e;
+                        }
+                    }
+                }
+            })
+
+            .addListener(listener);
+    }
+
     @Override
     public void compareAndExchangeRegister(
         OperationPurpose purpose,
@@ -1149,14 +1309,18 @@ class S3BlobContainer extends AbstractBlobContainer {
         BytesReference updated,
         ActionListener<OptionalBytesReference> listener
     ) {
-        final var clientReference = blobStore.clientReference();
-        new MultipartUploadCompareAndExchangeOperation(
-            purpose,
-            clientReference.client(),
-            blobStore.bucket(),
-            key,
-            blobStore.getThreadPool()
-        ).run(expected, updated, ActionListener.releaseBefore(clientReference, listener));
+        if (blobStore.supportsConditionalWrites()) {
+            conditionalWriteCompareAndExchangeOperation(purpose, key, expected, updated, listener);
+        } else {
+            final var clientReference = blobStore.clientReference();
+            new MultipartUploadCompareAndExchangeOperation(
+                purpose,
+                clientReference.client(),
+                blobStore.bucket(),
+                key,
+                blobStore.getThreadPool()
+            ).run(expected, updated, ActionListener.releaseBefore(clientReference, listener));
+        }
     }
 
     /**
@@ -1230,7 +1394,7 @@ class S3BlobContainer extends AbstractBlobContainer {
         final var etag = getObjectResponse.eTag();
         if (Strings.hasText(etag)) {
             return etag;
-        } else if (blobStore.supportsConditionalWrites(purpose)) {
+        } else if (blobStore.supportsConditionalWrites()) {
             throw new UnsupportedOperationException("GetObject response contained no ETag header, cannot perform conditional write");
         } else {
             // blob stores which do not support conditional writes may also not return ETag headers, but we won't use it anyway so return

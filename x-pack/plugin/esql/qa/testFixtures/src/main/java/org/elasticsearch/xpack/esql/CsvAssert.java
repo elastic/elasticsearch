@@ -11,31 +11,49 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.compute.data.AggregateMetricDoubleBlockBuilder;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Types;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramXContent;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.h3.H3;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ListMatcher;
-import org.elasticsearch.xpack.esql.CsvTestUtils.ActualResults;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Description;
 import org.hamcrest.Matchers;
 import org.hamcrest.StringDescription;
 
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
+import static org.apache.lucene.geo.GeoEncodingUtils.decodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.decodeLongitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLatitude;
+import static org.apache.lucene.geo.GeoEncodingUtils.encodeLongitude;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.Type;
@@ -46,8 +64,11 @@ import static org.elasticsearch.xpack.esql.core.util.DateUtils.UTC_DATE_TIME_FOR
 import static org.elasticsearch.xpack.esql.core.util.NumericUtils.unsignedLongAsNumber;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_NANOS_FORMATTER;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.aggregateMetricDoubleLiteralToString;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.exponentialHistogramToString;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramToString;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
@@ -56,25 +77,11 @@ import static org.junit.Assert.fail;
 public final class CsvAssert {
     private CsvAssert() {}
 
-    static void assertResults(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
-        assertMetadata(expected, actual, logger);
-        assertData(expected, actual, ignoreOrder, logger);
+    public static void assertMetadata(ExpectedResults expected, List<String> actualNames, List<Type> actualTypes, Logger logger) {
+        assertMetadata(expected, actualNames, actualTypes, List.of(), logger);
     }
 
-    static void assertMetadata(ExpectedResults expected, ActualResults actual, Logger logger) {
-        assertMetadata(expected, actual.columnNames(), actual.columnTypes(), actual.pages(), logger);
-    }
-
-    public static void assertMetadata(ExpectedResults expected, List<Map<String, String>> actualColumns, Logger logger) {
-        var actualColumnNames = new ArrayList<String>(actualColumns.size());
-        var actualColumnTypes = actualColumns.stream()
-            .peek(c -> actualColumnNames.add(c.get("name")))
-            .map(c -> CsvTestUtils.Type.asType(c.get("type")))
-            .toList();
-        assertMetadata(expected, actualColumnNames, actualColumnTypes, List.of(), logger);
-    }
-
-    private static void assertMetadata(
+    public static void assertMetadata(
         ExpectedResults expected,
         List<String> actualNames,
         List<Type> actualTypes,
@@ -180,26 +187,124 @@ public final class CsvAssert {
         }
     }
 
-    static void assertData(ExpectedResults expected, ActualResults actual, boolean ignoreOrder, Logger logger) {
-        assertData(expected, actual.values(), ignoreOrder, logger, (t, v) -> v);
-    }
-
-    public static void assertData(
-        ExpectedResults expected,
-        Iterator<Iterator<Object>> actualValuesIterator,
-        boolean ignoreOrder,
-        Logger logger,
-        BiFunction<Type, Object, Object> valueTransformer
-    ) {
-        assertData(expected, EsqlTestUtils.getValuesList(actualValuesIterator), ignoreOrder, logger, valueTransformer);
-    }
-
     private record DataFailure(int row, int column, Object expected, Object actual) {}
 
     public static void assertData(
         ExpectedResults expected,
         List<List<Object>> actualValues,
         boolean ignoreOrder,
+        boolean ignoreValueOrder,
+        Logger logger
+    ) {
+        assertData(expected, actualValues, ignoreOrder, ignoreValueOrder, logger, (type, o) -> o);
+    }
+
+    public static void assertDataWithValueConverter(
+        ExpectedResults expected,
+        List<List<Object>> actualValues,
+        boolean ignoreOrder,
+        boolean ignoreValueOrder,
+        boolean enableRoundingDoubleValuesOnAsserting,
+        Logger logger
+    ) {
+        assertData(
+            expected,
+            actualValues,
+            ignoreOrder,
+            ignoreValueOrder,
+            logger,
+            new ValueTransformer(enableRoundingDoubleValuesOnAsserting)
+        );
+    }
+
+    private record ValueTransformer(boolean enableRoundingDoubleValuesOnAsserting) implements BiFunction<Type, Object, Object> {
+
+        @Override
+        public Object apply(Type type, Object value) {
+            if (value == null) {
+                return "null";
+            }
+            if (value instanceof CsvTestUtils.Range) {
+                return value;
+            }
+            if (type == CsvTestUtils.Type.GEO_POINT || type == CsvTestUtils.Type.CARTESIAN_POINT) {
+                // Point tests are failing in clustered integration tests because of tiny precision differences at very small scales
+                if (value instanceof String wkt) {
+                    try {
+                        Geometry geometry = WellKnownText.fromWKT(GeometryValidator.NOOP, false, wkt);
+                        if (geometry instanceof Point point) {
+                            return normalizedPoint(type, point.getX(), point.getY());
+                        }
+                    } catch (Throwable ignored) {}
+                }
+            }
+            if (type == CsvTestUtils.Type.EXPONENTIAL_HISTOGRAM) {
+                if (value instanceof Map<?, ?> map) {
+                    return ExponentialHistogramXContent.parseForTesting(Types.<Map<String, Object>>forciblyCast(map));
+                }
+                if (value instanceof String json) {
+                    try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
+                        return ExponentialHistogramXContent.parseForTesting(parser);
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                }
+            }
+            if (value instanceof List<?> vs) {
+                return vs.stream().map(v -> apply(type, v)).toList();
+            }
+            if (type == CsvTestUtils.Type.DOUBLE && enableRoundingDoubleValuesOnAsserting) {
+                if (value instanceof Double d) {
+                    if (Double.isNaN(d) || Double.isInfinite(d)) {
+                        return d;
+                    }
+                    return new BigDecimal(d).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
+                } else if (value instanceof String s) {
+                    if ("NaN".equals(s)) {
+                        return Double.NaN;
+                    }
+                    return new BigDecimal(s).round(new MathContext(7, RoundingMode.HALF_DOWN)).doubleValue();
+                }
+            }
+            if (type == CsvTestUtils.Type.TEXT || type == CsvTestUtils.Type.KEYWORD || type == CsvTestUtils.Type.SEMANTIC_TEXT) {
+                if (value instanceof String s) {
+                    value = s.replaceAll("\\\\n", "\n");
+                }
+            }
+            if (type == CsvTestUtils.Type.DOUBLE) {
+                if (value instanceof String s && "NaN".equals(s)) {
+                    return Double.NaN;
+                }
+                return ((Number) value).doubleValue();
+            }
+            if (type == CsvTestUtils.Type.INTEGER) {
+                return ((Number) value).intValue();
+            }
+            if (type == CsvTestUtils.Type.LONG) {
+                return ((Number) value).longValue();
+            }
+            return value.toString();
+        }
+
+        private static String normalizedPoint(CsvTestUtils.Type type, double x, double y) {
+            if (type == CsvTestUtils.Type.GEO_POINT) {
+                return normalizedGeoPoint(x, y);
+            }
+            return String.format(Locale.ROOT, "POINT (%f %f)", (float) x, (float) y);
+        }
+
+        private static String normalizedGeoPoint(double x, double y) {
+            x = decodeLongitude(encodeLongitude(x));
+            y = decodeLatitude(encodeLatitude(y));
+            return String.format(Locale.ROOT, "POINT (%f %f)", x, y);
+        }
+    }
+
+    private static void assertData(
+        ExpectedResults expected,
+        List<List<Object>> actualValues,
+        boolean ignoreOrder,
+        boolean ignoreValueOrder,
         Logger logger,
         BiFunction<Type, Object, Object> valueTransformer
     ) {
@@ -226,17 +331,21 @@ public final class CsvAssert {
                     logger.info(row(actualValues, row));
                 }
 
-                var expectedRow = expectedValues.get(row);
-                var actualRow = actualValues.get(row);
+                List<Object> expectedRow = expectedValues.get(row);
+                List<Object> actualRow = actualValues.get(row);
 
                 for (int column = 0; column < expectedRow.size(); column++) {
-                    var expectedType = expected.columnTypes().get(column);
-                    var expectedValue = convertExpectedValue(expectedType, expectedRow.get(column));
-                    var actualValue = actualRow.get(column);
+                    Type expectedType = expected.columnTypes().get(column);
+                    Object expectedValue = convertExpectedValue(expectedType, expectedRow.get(column));
+                    if (expectedValue == CsvTestUtils.ANY) {
+                        continue;
+                    }
+                    Object actualValue = convertActualValue(expectedType, actualRow.get(column));
 
-                    var transformedExpected = valueTransformer.apply(expectedType, expectedValue);
-                    var transformedActual = valueTransformer.apply(expectedType, actualValue);
-                    if (equals(transformedExpected, transformedActual) == false) {
+                    Object transformedExpected = valueTransformer.apply(expectedType, expectedValue);
+                    Object transformedActual = valueTransformer.apply(expectedType, actualValue);
+
+                    if (equals(transformedExpected, transformedActual, ignoreValueOrder) == false) {
                         dataFailures.add(new DataFailure(row, column, transformedExpected, transformedActual));
                     }
                     if (dataFailures.size() > 10) {
@@ -275,14 +384,26 @@ public final class CsvAssert {
         }
     }
 
-    private static boolean equals(Object expected, Object actual) {
+    private static boolean equals(Object expected, Object actual, boolean ignoreValueOrder) {
         if (expected instanceof List<?> expectedList && actual instanceof List<?> actualList) {
             if (expectedList.size() != actualList.size()) {
                 return false;
             }
             for (int i = 0; i < expectedList.size(); i++) {
-                if (equals(expectedList.get(i), actualList.get(i)) == false) {
-                    return false;
+                if (ignoreValueOrder) {
+                    boolean found = false;
+                    for (int j = 0; j < actualList.size() && found == false; j++) {
+                        if (equals(expectedList.get(i), actualList.get(j), true)) {
+                            found = true;
+                        }
+                    }
+                    if (found == false) {
+                        return false;
+                    }
+                } else {
+                    if (equals(expectedList.get(i), actualList.get(i), ignoreValueOrder) == false) {
+                        return false;
+                    }
                 }
             }
             return true;
@@ -392,15 +513,9 @@ public final class CsvAssert {
 
     private static Comparator<List<Object>> resultRowComparator(List<Type> types) {
         return (x, y) -> {
-            for (int i = 0; i < x.size(); i++) {
-                Object left = x.get(i);
-                if (left instanceof List<?> l) {
-                    left = l.isEmpty() ? null : l.get(0);
-                }
-                Object right = y.get(i);
-                if (right instanceof List<?> r) {
-                    right = r.isEmpty() ? null : r.get(0);
-                }
+            for (int field = 0; field < x.size(); field++) {
+                Object left = x.get(field);
+                Object right = y.get(field);
                 if (left == null && right == null) {
                     continue;
                 }
@@ -410,9 +525,20 @@ public final class CsvAssert {
                 if (right == null) {
                     return -1;
                 }
-                int result = types.get(i).comparator().compare(left, right);
-                if (result != 0) {
-                    return result;
+                List<?> leftList = left instanceof List<?> l ? l : List.of(left);
+                List<?> rightList = right instanceof List<?> r ? r : List.of(right);
+                int len = Math.max(leftList.size(), rightList.size());
+                for (int i = 0; i < len; i++) {
+                    if (i >= leftList.size()) {
+                        return 1;
+                    }
+                    if (i >= rightList.size()) {
+                        return -1;
+                    }
+                    int result = types.get(field).comparator().compare(leftList.get(i), rightList.get(i));
+                    if (result != 0) {
+                        return result;
+                    }
                 }
             }
             return 0;
@@ -456,7 +582,35 @@ public final class CsvAssert {
                 ExponentialHistogram.class,
                 x -> exponentialHistogramToString((ExponentialHistogram) x)
             );
-            default -> expectedValue;
+            case HISTOGRAM -> rebuildExpected(expectedValue, BytesRef.class, x -> histogramToString((BytesRef) x));
+            case DATE_RANGE -> rebuildExpected(
+                expectedValue,
+                LongRangeBlockBuilder.LongRange.class,
+                x -> EsqlDataTypeConverter.dateRangeToString((LongRangeBlockBuilder.LongRange) x)
+            );
+            case INTEGER, LONG, DOUBLE, FLOAT, HALF_FLOAT, SCALED_FLOAT, KEYWORD, TEXT, SEMANTIC_TEXT, IP_RANGE, NULL, BOOLEAN,
+                DENSE_VECTOR, TDIGEST, UNSUPPORTED -> expectedValue;
+        };
+    }
+
+    private static Object convertActualValue(Type expectedType, Object actualValue) {
+        if (actualValue == null) {
+            return null;
+        }
+
+        // The CSV assertions expect UTC dates
+        return switch (expectedType) {
+            case Type.DATETIME -> rebuildExpected(
+                actualValue,
+                String.class,
+                x -> DEFAULT_DATE_TIME_FORMATTER.formatMillis(DEFAULT_DATE_TIME_FORMATTER.parseMillis((String) x))
+            );
+            case Type.DATE_NANOS -> rebuildExpected(
+                actualValue,
+                String.class,
+                x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
+            );
+            default -> actualValue;
         };
     }
 

@@ -133,6 +133,7 @@ setup:
       catch: /illegal_argument_exception/
       search:
         index: dates
+        allow_partial_search_results: false
         body:
           sort: field
           query:
@@ -151,6 +152,7 @@ setup:
       catch: /illegal_argument_exception/
       search:
         index: dates
+        allow_partial_search_results: false
         body:
           sort: field
           query:

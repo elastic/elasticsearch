@@ -6,15 +6,16 @@
  */
 package org.elasticsearch.xpack.aggregatemetric.mapper;
 
+import org.apache.lucene.document.DoubleField;
 import org.apache.lucene.document.DoublePoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.ScriptScoreQuery;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -46,7 +47,7 @@ import static org.mockito.Mockito.when;
 
 public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
 
-    protected AggregateMetricDoubleFieldType createDefaultFieldType(String name, Map<String, String> meta, Metric defaultMetric) {
+    protected AggregateMetricDoubleFieldType createDefaultFieldType(String name, Map<String, String> meta) {
         EnumMap<Metric, NumberFieldMapper.NumberFieldType> metricFields = new EnumMap<>(Metric.class);
         for (Metric m : List.of(Metric.min, Metric.max)) {
             String subfieldName = subfieldName(name, m);
@@ -56,45 +57,45 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
             );
             metricFields.put(m, subfield);
         }
-        return new AggregateMetricDoubleFieldType(name, null, defaultMetric, metricFields, meta);
+        return new AggregateMetricDoubleFieldType(name, null, metricFields, meta);
     }
 
     public void testTermQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
+        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap());
         Query query = fieldType.termQuery(55.2, MOCK_CONTEXT);
-        assertThat(query, equalTo(DoublePoint.newRangeQuery("foo.max", 55.2, 55.2)));
+        assertThat(query, equalTo(DoubleField.newRangeQuery("foo.max", 55.2, 55.2)));
     }
 
     public void testTermsQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
+        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap());
         Query query = fieldType.termsQuery(asList(55.2, 500.3), MOCK_CONTEXT);
         assertThat(query, equalTo(DoublePoint.newSetQuery("foo.max", 55.2, 500.3)));
     }
 
     public void testRangeQuery() {
-        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap(), Metric.max);
+        final MappedFieldType fieldType = createDefaultFieldType("foo", Collections.emptyMap());
         Query query = fieldType.rangeQuery(10.1, 100.1, true, true, null, null, null, MOCK_CONTEXT);
         assertThat(query, instanceOf(IndexOrDocValuesQuery.class));
     }
 
     public void testFetchSourceValueWithOneMetric() throws IOException {
-        final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.min);
+        final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap());
         final double min = 45.8;
         final Map<String, Object> metric = Collections.singletonMap("min", min);
         assertEquals(List.of(metric), fetchSourceValue(fieldType, metric));
     }
 
     public void testFetchSourceValueWithMultipleMetrics() throws IOException {
-        final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.max);
+        final MappedFieldType fieldType = createDefaultFieldType("field", Collections.emptyMap());
         final double max = 45.8;
         final double min = 14.2;
         final Map<String, Object> metric = Map.of("min", min, "max", max);
         assertEquals(List.of(metric), fetchSourceValue(fieldType, metric));
     }
 
-    /** Tests that aggregate_metric_double uses the default_metric subfield's doc-values as values in scripts */
+    /** Tests that aggregate_metric_double uses the average subfield's doc-values as values in scripts */
     public void testUsedInScript() throws IOException {
-        final MappedFieldType mappedFieldType = createDefaultFieldType("field", Collections.emptyMap(), Metric.max);
+        final MappedFieldType mappedFieldType = createDefaultFieldType("field", Collections.emptyMap());
         try (Directory directory = newDirectory(); RandomIndexWriter iw = new RandomIndexWriter(random(), directory)) {
             iw.addDocument(
                 List.of(
@@ -127,29 +128,32 @@ public class AggregateMetricDoubleFieldTypeTests extends FieldTypeTestCase {
                 );
                 when(searchExecutionContext.lookup()).thenReturn(lookup);
                 IndexSearcher searcher = newSearcher(reader);
-                assertThat(searcher.count(new ScriptScoreQuery(new MatchAllDocsQuery(), new Script("test"), new ScoreScript.LeafFactory() {
-                    @Override
-                    public boolean needs_score() {
-                        return false;
-                    }
+                assertThat(
+                    searcher.count(new ScriptScoreQuery(Queries.ALL_DOCS_INSTANCE, new Script("test"), new ScoreScript.LeafFactory() {
+                        @Override
+                        public boolean needs_score() {
+                            return false;
+                        }
 
-                    @Override
-                    public boolean needs_termStats() {
-                        return false;
-                    }
+                        @Override
+                        public boolean needs_termStats() {
+                            return false;
+                        }
 
-                    @Override
-                    public ScoreScript newInstance(DocReader docReader) {
-                        return new ScoreScript(Map.of(), searchExecutionContext.lookup(), docReader) {
-                            @Override
-                            public double execute(ExplanationHolder explanation) {
-                                Map<String, ScriptDocValues<?>> doc = getDoc();
-                                ScriptDocValues.Doubles doubles = (ScriptDocValues.Doubles) doc.get("field");
-                                return doubles.get(0);
-                            }
-                        };
-                    }
-                }, searchExecutionContext.lookup(), 7f, "test", 0, IndexVersion.current())), equalTo(2));
+                        @Override
+                        public ScoreScript newInstance(DocReader docReader) {
+                            return new ScoreScript(Map.of(), searchExecutionContext.lookup(), docReader) {
+                                @Override
+                                public double execute(ExplanationHolder explanation) {
+                                    Map<String, ScriptDocValues<?>> doc = getDoc();
+                                    ScriptDocValues.Doubles doubles = (ScriptDocValues.Doubles) doc.get("field");
+                                    return doubles.get(0);
+                                }
+                            };
+                        }
+                    }, searchExecutionContext.lookup(), 7f, "test", 0, IndexVersion.current())),
+                    equalTo(2)
+                );
             }
         }
     }

@@ -2,8 +2,7 @@
 
 ## `KNN` [esql-knn]
 ```{applies_to}
-stack: preview 9.2.0
-serverless: preview
+stack: preview 9.2.0, ga 9.4.0
 ```
 
 **Syntax**

@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 141483
+pr: 141482
+summary: Add Warning for Sort Under Lookup Join
+type: enhancement

@@ -41,7 +41,7 @@ public final class XPackUsageFeatureAction {
     public static final ActionType<XPackUsageFeatureResponse> CCR = xpackUsageFeatureAction(XPackField.CCR);
     public static final ActionType<XPackUsageFeatureResponse> TRANSFORM = xpackUsageFeatureAction(XPackField.TRANSFORM);
     public static final ActionType<XPackUsageFeatureResponse> VOTING_ONLY = xpackUsageFeatureAction(XPackField.VOTING_ONLY);
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT) // Remove this: it is unused in v9 but needed for mixed v8/v9 clusters
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE) // Remove this: it is unused in v9 but needed for mixed v8/v9 clusters
     public static final ActionType<XPackUsageFeatureResponse> FROZEN_INDICES = xpackUsageFeatureAction(XPackField.FROZEN_INDICES);
     public static final ActionType<XPackUsageFeatureResponse> SPATIAL = xpackUsageFeatureAction(XPackField.SPATIAL);
     public static final ActionType<XPackUsageFeatureResponse> ANALYTICS = xpackUsageFeatureAction(XPackField.ANALYTICS);
@@ -64,6 +64,7 @@ public final class XPackUsageFeatureAction {
     public static final ActionType<XPackUsageFeatureResponse> ENTERPRISE_SEARCH = xpackUsageFeatureAction(XPackField.ENTERPRISE_SEARCH);
     public static final ActionType<XPackUsageFeatureResponse> UNIVERSAL_PROFILING = xpackUsageFeatureAction(XPackField.UNIVERSAL_PROFILING);
     public static final ActionType<XPackUsageFeatureResponse> LOGSDB = xpackUsageFeatureAction(XPackField.LOGSDB);
+    public static final ActionType<XPackUsageFeatureResponse> GPU_VECTOR_INDEXING = xpackUsageFeatureAction(XPackField.GPU_VECTOR_INDEXING);
 
     static final List<ActionType<XPackUsageFeatureResponse>> ALL = List.of(
         AGGREGATE_METRIC,
@@ -95,7 +96,8 @@ public final class XPackUsageFeatureAction {
         ENTERPRISE_SEARCH,
         UNIVERSAL_PROFILING,
         LOGSDB,
-        TIME_SERIES_DATA_STREAMS
+        TIME_SERIES_DATA_STREAMS,
+        GPU_VECTOR_INDEXING
     );
 
     public static ActionType<XPackUsageFeatureResponse> xpackUsageFeatureAction(String suffix) {

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.cluster.metadata.ProjectId;
+
 import java.util.Collection;
 import java.util.Optional;
 
@@ -39,6 +41,15 @@ public interface LinkedProjectConfigService {
          * @param config The updated {@link LinkedProjectConfig}.
          */
         void updateLinkedProject(LinkedProjectConfig config);
+
+        /**
+         * Called when a previously linked project has been unlinked.
+         *
+         * @param originProjectId The {@link ProjectId} for the origin project.
+         * @param linkedProjectId The {@link ProjectId} for the linked project.
+         * @param linkedProjectAlias The linked project alias.
+         */
+        void remove(ProjectId originProjectId, ProjectId linkedProjectId, String linkedProjectAlias);
     }
 
     /**

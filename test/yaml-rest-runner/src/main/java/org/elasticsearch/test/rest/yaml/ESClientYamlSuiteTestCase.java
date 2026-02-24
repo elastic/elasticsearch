@@ -587,7 +587,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
             try {
                 super.verify();
             } catch (Throwable e) {
-                throw new AssertionError(e.getMessage());
+                throw new AssertionError(e);
             }
         }
     }

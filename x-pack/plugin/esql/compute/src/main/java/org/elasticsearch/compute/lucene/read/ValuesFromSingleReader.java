@@ -10,6 +10,7 @@ package org.elasticsearch.compute.lucene.read;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.DocVector;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
@@ -67,12 +68,12 @@ class ValuesFromSingleReader extends ValuesReader {
             loadFromSingleLeaf(
                 Long.MAX_VALUE, // Effectively disable splitting pages when we're not loading in order
                 unshuffled,
-                new ValuesReaderDocs(docs).mapped(forwards),
+                new ValuesReaderDocs(docs).mapped(forwards, 0, docs.getPositionCount()),
                 0
             );
             final int[] backwards = docs.shardSegmentDocMapBackwards();
             for (int i = 0; i < unshuffled.length; i++) {
-                target[i] = unshuffled[i].filter(backwards);
+                target[i] = unshuffled[i].filter(false, backwards);
                 unshuffled[i].close();
                 unshuffled[i] = null;
             }
@@ -89,18 +90,19 @@ class ValuesFromSingleReader extends ValuesReader {
 
         List<ColumnAtATimeWork> columnAtATimeReaders = new ArrayList<>(operator.fields.length);
         List<RowStrideReaderWork> rowStrideReaders = new ArrayList<>(operator.fields.length);
-        try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(operator.blockFactory)) {
+        try (ComputeBlockLoaderFactory loaderBlockFactory = new ComputeBlockLoaderFactory(operator.driverContext.blockFactory())) {
             for (int f = 0; f < operator.fields.length; f++) {
                 ValuesSourceReaderOperator.FieldWork field = operator.fields[f];
                 BlockLoader.ColumnAtATimeReader columnAtATime = field.columnAtATime(ctx);
                 if (columnAtATime != null) {
-                    columnAtATimeReaders.add(new ColumnAtATimeWork(columnAtATime, f));
+                    columnAtATimeReaders.add(new ColumnAtATimeWork(columnAtATime, field.converter, f));
                 } else {
                     rowStrideReaders.add(
                         new RowStrideReaderWork(
                             field.rowStride(ctx),
                             (Block.Builder) field.loader.builder(loaderBlockFactory, docs.count() - offset),
                             field.loader,
+                            field.converter,
                             f
                         )
                     );
@@ -112,7 +114,9 @@ class ValuesFromSingleReader extends ValuesReader {
                 loadFromRowStrideReaders(jumboBytes, target, storedFieldsSpec, rowStrideReaders, ctx, docs, offset);
             }
             for (ColumnAtATimeWork r : columnAtATimeReaders) {
-                target[r.idx] = (Block) r.reader.read(loaderBlockFactory, docs, offset, operator.fields[r.idx].info.nullsFiltered());
+                target[r.idx] = r.convert(
+                    (Block) r.reader.read(loaderBlockFactory, docs, offset, operator.fields[r.idx].info.nullsFiltered())
+                );
                 operator.sanityCheckBlock(r.reader, docs.count() - offset, target[r.idx], r.idx);
             }
             if (log.isDebugEnabled()) {
@@ -142,19 +146,7 @@ class ValuesFromSingleReader extends ValuesReader {
             sourceLoader = shardContext.newSourceLoader().apply(storedFieldsSpec.sourcePaths());
             storedFieldsSpec = storedFieldsSpec.merge(new StoredFieldsSpec(true, false, sourceLoader.requiredStoredFields()));
         }
-        if (storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
-            throw new IllegalStateException(
-                "found row stride readers [" + rowStrideReaders + "] without stored fields [" + storedFieldsSpec + "]"
-            );
-        }
-        StoredFieldLoader storedFieldLoader;
-        if (useSequentialStoredFieldsReader(docs, shardContext.storedFieldsSequentialProportion())) {
-            storedFieldLoader = StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
-            operator.trackStoredFields(storedFieldsSpec, true);
-        } else {
-            storedFieldLoader = StoredFieldLoader.fromSpec(storedFieldsSpec);
-            operator.trackStoredFields(storedFieldsSpec, false);
-        }
+        StoredFieldLoader storedFieldLoader = storedFieldLoader(storedFieldsSpec, shardContext, docs);
         BlockLoaderStoredFieldsFromLeafLoader storedFields = new BlockLoaderStoredFieldsFromLeafLoader(
             storedFieldLoader.getLoader(ctx, null),
             sourceLoader != null ? sourceLoader.leaf(ctx.reader(), null) : null
@@ -184,6 +176,22 @@ class ValuesFromSingleReader extends ValuesReader {
         docs.setCount(p);
     }
 
+    private StoredFieldLoader storedFieldLoader(
+        StoredFieldsSpec storedFieldsSpec,
+        ValuesSourceReaderOperator.ShardContext shardContext,
+        ValuesReaderDocs docs
+    ) {
+        if (storedFieldsSpec.equals(StoredFieldsSpec.NO_REQUIREMENTS)) {
+            return StoredFieldLoader.empty();
+        }
+        if (useSequentialStoredFieldsReader(docs, shardContext.storedFieldsSequentialProportion())) {
+            operator.trackStoredFields(storedFieldsSpec, true);
+            return StoredFieldLoader.fromSpecSequential(storedFieldsSpec);
+        }
+        operator.trackStoredFields(storedFieldsSpec, false);
+        return StoredFieldLoader.fromSpec(storedFieldsSpec);
+    }
+
     /**
      * Is it more efficient to use a sequential stored field reader
      * when reading stored fields for the documents contained in {@code docIds}?
@@ -202,22 +210,36 @@ class ValuesFromSingleReader extends ValuesReader {
      * @param reader reads the values
      * @param idx destination in array of {@linkplain Block}s we build
      */
-    private record ColumnAtATimeWork(BlockLoader.ColumnAtATimeReader reader, int idx) {}
+    private record ColumnAtATimeWork(
+        BlockLoader.ColumnAtATimeReader reader,
+        @Nullable ValuesSourceReaderOperator.ConverterEvaluator converter,
+        int idx
+    ) {
+        Block convert(Block block) {
+            return converter == null ? block : converter.convert(block);
+        }
+    }
 
     /**
      * Work for rows stride readers.
      * @param reader reads the values
+     * @param converter an optional conversion function to apply on load
      * @param idx destination in array of {@linkplain Block}s we build
      */
-    private record RowStrideReaderWork(BlockLoader.RowStrideReader reader, Block.Builder builder, BlockLoader loader, int idx)
-        implements
-            Releasable {
+    private record RowStrideReaderWork(
+        BlockLoader.RowStrideReader reader,
+        Block.Builder builder,
+        BlockLoader loader,
+        @Nullable ValuesSourceReaderOperator.ConverterEvaluator converter,
+        int idx
+    ) implements Releasable {
         void read(int doc, BlockLoaderStoredFieldsFromLeafLoader storedFields) throws IOException {
             reader.read(doc, storedFields, builder);
         }
 
         Block build() {
-            return (Block) loader.convert(builder.build());
+            Block result = builder.build();
+            return converter == null ? result : converter.convert(result);
         }
 
         @Override

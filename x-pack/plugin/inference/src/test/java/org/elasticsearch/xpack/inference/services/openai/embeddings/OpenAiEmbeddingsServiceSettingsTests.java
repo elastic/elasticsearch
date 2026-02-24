@@ -176,7 +176,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    OpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                    ServiceFields.DIMENSIONS_SET_BY_USER,
                     false
                 )
             ),
@@ -223,7 +223,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     dims,
                     ServiceFields.MAX_INPUT_TOKENS,
                     maxInputTokens,
-                    OpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER,
+                    ServiceFields.DIMENSIONS_SET_BY_USER,
                     false,
                     RateLimitSettings.FIELD_NAME,
                     new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, rateLimit))
@@ -251,7 +251,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     public void testFromMap_PersistentContext_DoesNotThrowException_WhenDimensionsIsNull() {
         var settings = OpenAiEmbeddingsServiceSettings.fromMap(
-            new HashMap<>(Map.of(OpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, true, ServiceFields.MODEL_ID, "m")),
+            new HashMap<>(Map.of(ServiceFields.DIMENSIONS_SET_BY_USER, true, ServiceFields.MODEL_ID, "m")),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -603,7 +603,7 @@ public class OpenAiEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         }
 
         if (dimensionsSetByUser != null) {
-            map.put(OpenAiEmbeddingsServiceSettings.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
+            map.put(ServiceFields.DIMENSIONS_SET_BY_USER, dimensionsSetByUser);
         }
         return map;
     }

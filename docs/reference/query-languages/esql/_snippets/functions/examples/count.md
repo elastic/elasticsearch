@@ -28,7 +28,8 @@ FROM employees
 | 19 | 2 |
 | 15 | 1 |
 
-The expression can use inline functions. This example splits a string into multiple values using the `SPLIT` function and counts the values
+The expression can use inline functions. This example splits a string into multiple values
+using the `SPLIT` function and counts the values.
 
 ```esql
 ROW words="foo;bar;baz;qux;quux;foo"
@@ -39,7 +40,9 @@ ROW words="foo;bar;baz;qux;quux;foo"
 | --- |
 | 6 |
 
-To count the number of times an expression returns `TRUE` use a [`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that shouldn’t be included
+To count the number of times an expression returns `TRUE` use a
+[`WHERE`](/reference/query-languages/esql/commands/where.md) command to remove rows that
+shouldn’t be included.
 
 ```esql
 ROW n=1
@@ -51,7 +54,35 @@ ROW n=1
 | --- |
 | 0 |
 
-To count the same stream of data based on two different expressions use the pattern `COUNT(<expression> OR NULL)`. This builds on the three-valued logic ([3VL](https://en.wikipedia.org/wiki/Three-valued_logic)) of the language: `TRUE OR NULL` is `TRUE`, but `FALSE OR NULL` is `NULL`, plus the way COUNT handles `NULL`s: `COUNT(TRUE)` and `COUNT(FALSE)` are both 1, but `COUNT(NULL)` is 0.
+To count the number of times *multiple* expressions return `TRUE` use a WHERE inside the STATS.
+
+```esql
+FROM employees
+| STATS
+    gte20 = COUNT(*) WHERE height >= 2,
+    lte18 = COUNT(*) WHERE height <= 1.8
+```
+
+| gte20:long | lte18:long |
+| --- | --- |
+| 20 | 56 |
+
+`COUNT`ing a multivalued field returns the number of values. `COUNT`ing `NULL` returns 0.
+`COUNT`ing `true` returns 1. `COUNT`ing `false` returns 1.
+
+```esql
+ROW mv = [1, 2], n = NULL, t = TRUE, f = FALSE
+| STATS COUNT(mv), COUNT(n), COUNT(t), COUNT(f)
+```
+
+| COUNT(mv):long | COUNT(n):long | COUNT(t):long | COUNT(f):long |
+| --- | --- | --- | --- |
+| 2 | 0 | 1 | 1 |
+
+You may see a pattern like `COUNT(<expression> OR NULL)`. This has the same meaning as
+`COUNT() WHERE <expression>`. This relies on `COUNT(NULL)` to return `0` and builds on the
+three-valued logic ([3VL](https://en.wikipedia.org/wiki/Three-valued_logic)): `TRUE OR NULL` is `TRUE`, but
+`FALSE OR NULL` is `NULL`. Prefer the `COUNT() WHERE <expression>` pattern.
 
 ```esql
 ROW n=1

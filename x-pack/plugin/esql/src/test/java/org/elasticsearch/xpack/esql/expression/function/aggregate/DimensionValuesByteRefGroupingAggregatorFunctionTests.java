@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
@@ -22,8 +23,9 @@ import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.compute.test.OperatorTestCase;
+import org.elasticsearch.compute.test.RandomBlock;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -35,7 +37,7 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
 
     protected final DriverContext driverContext() {
         BlockFactory blockFactory = blockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+        return new DriverContext(blockFactory.bigArrays(), blockFactory, null);
     }
 
     public void testSimple() {
@@ -43,6 +45,8 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
         int numPages = between(1, 10);
         List<Page> pages = new ArrayList<>(numPages);
         Map<Integer, List<BytesRef>> expectedValues = new HashMap<>();
+        int prefixBlocks = between(0, 2);
+        int suffixBlocks = between(0, 2);
         for (int i = 0; i < numPages; i++) {
             int positions = between(1, 100);
             try (
@@ -70,24 +74,43 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
                     groups.appendInt(group);
                     expectedValues.putIfAbsent(group, values);
                 }
-                pages.add(new Page(valuesBuilder.build(), groups.build().asBlock()));
+                BytesRefBlock valuesBlock = valuesBuilder.build();
+                IntBlock groupsBlock = groups.build().asBlock();
+                Block[] blocks = new Block[prefixBlocks + 2 + suffixBlocks];
+                for (int b = 0; b < prefixBlocks; b++) {
+                    blocks[b] = RandomBlock.randomBlock(RandomBlock.randomElementType(), positions, false, 1, 1, 0, 0).block();
+                }
+                blocks[prefixBlocks] = valuesBlock;
+                blocks[prefixBlocks + 1] = groupsBlock;
+                for (int b = 0; b < suffixBlocks; b++) {
+                    blocks[prefixBlocks + 2 + b] = RandomBlock.randomBlock(RandomBlock.randomElementType(), positions, false, 1, 1, 0, 0)
+                        .block();
+                }
+                pages.add(new Page(blocks));
             }
         }
+        AggregatorMode aggregateMode = randomFrom(AggregatorMode.INITIAL, AggregatorMode.SINGLE, AggregatorMode.FINAL);
         var aggregatorFactory = new DimensionValuesByteRefGroupingAggregatorFunction.FunctionSupplier().groupingAggregatorFactory(
-            randomFrom(AggregatorMode.INITIAL, AggregatorMode.SINGLE),
-            List.of(0)
+            aggregateMode,
+            List.of(prefixBlocks)
         );
         final List<BlockHash.GroupSpec> groupSpecs;
         if (randomBoolean()) {
             // Use IntBlockHash; reserves 0 for null values
-            groupSpecs = List.of(new BlockHash.GroupSpec(1, ElementType.INT));
+            groupSpecs = List.of(new BlockHash.GroupSpec(prefixBlocks + 1, ElementType.INT));
         } else {
             // Use PackedValuesBlockHash; does not reserve 0 for null values
-            groupSpecs = List.of(new BlockHash.GroupSpec(1, ElementType.INT), new BlockHash.GroupSpec(1, ElementType.INT));
+            groupSpecs = List.of(
+                new BlockHash.GroupSpec(prefixBlocks + 1, ElementType.INT),
+                new BlockHash.GroupSpec(prefixBlocks + 1, ElementType.INT)
+            );
         }
         HashAggregationOperator hashAggregationOperator = new HashAggregationOperator(
+            aggregateMode,
             List.of(aggregatorFactory),
             () -> BlockHash.build(groupSpecs, driverContext.blockFactory(), randomIntBetween(1, 1024), randomBoolean()),
+            Integer.MAX_VALUE,
+            1.0,
             driverContext
         );
         List<Page> outputPages = new ArrayList<>();
@@ -97,7 +120,7 @@ public class DimensionValuesByteRefGroupingAggregatorFunctionTests extends Compu
             List.of(hashAggregationOperator),
             new PageConsumerOperator(outputPages::add)
         );
-        OperatorTestCase.runDriver(driver);
+        new TestDriverRunner().run(driver);
 
         Map<Integer, List<BytesRef>> actualValues = new HashMap<>();
         for (Page out : outputPages) {

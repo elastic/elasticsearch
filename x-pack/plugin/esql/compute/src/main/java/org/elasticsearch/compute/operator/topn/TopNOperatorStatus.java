@@ -8,7 +8,7 @@
 package org.elasticsearch.compute.operator.topn;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +28,9 @@ public class TopNOperatorStatus implements Operator.Status {
     );
 
     private static final TransportVersion ESQL_TOPN_TIMINGS = TransportVersion.fromName("esql_topn_timings");
+    private static final TransportVersion ESQL_TOPN_MIN_COMPETITIVE_UPDATES = TransportVersion.fromName(
+        "esql_topn_min_competitive_updates"
+    );
 
     private final long receiveNanos;
     private final long emitNanos;
@@ -37,6 +40,7 @@ public class TopNOperatorStatus implements Operator.Status {
     private final int pagesEmitted;
     private final long rowsReceived;
     private final long rowsEmitted;
+    private final Integer minCompetitiveUpdates;
 
     public TopNOperatorStatus(
         long receiveNanos,
@@ -46,7 +50,8 @@ public class TopNOperatorStatus implements Operator.Status {
         int pagesReceived,
         int pagesEmitted,
         long rowsReceived,
-        long rowsEmitted
+        long rowsEmitted,
+        Integer minCompetitiveUpdateCount
     ) {
         this.receiveNanos = receiveNanos;
         this.emitNanos = emitNanos;
@@ -56,6 +61,7 @@ public class TopNOperatorStatus implements Operator.Status {
         this.pagesEmitted = pagesEmitted;
         this.rowsReceived = rowsReceived;
         this.rowsEmitted = rowsEmitted;
+        this.minCompetitiveUpdates = minCompetitiveUpdateCount;
     }
 
     TopNOperatorStatus(StreamInput in) throws IOException {
@@ -73,7 +79,7 @@ public class TopNOperatorStatus implements Operator.Status {
         this.pagesEmitted = in.readVInt();
         this.rowsReceived = in.readVLong();
         this.rowsEmitted = in.readVLong();
-
+        this.minCompetitiveUpdates = in.getTransportVersion().supports(ESQL_TOPN_MIN_COMPETITIVE_UPDATES) ? in.readOptionalVInt() : null;
     }
 
     @Override
@@ -90,6 +96,9 @@ public class TopNOperatorStatus implements Operator.Status {
         out.writeVInt(pagesEmitted);
         out.writeVLong(rowsReceived);
         out.writeVLong(rowsEmitted);
+        if (out.getTransportVersion().supports(ESQL_TOPN_MIN_COMPETITIVE_UPDATES)) {
+            out.writeOptionalVInt(minCompetitiveUpdates);
+        }
     }
 
     @Override
@@ -129,6 +138,10 @@ public class TopNOperatorStatus implements Operator.Status {
         return rowsEmitted;
     }
 
+    public Integer minCompetitiveUpdateCount() {
+        return minCompetitiveUpdates;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -147,6 +160,9 @@ public class TopNOperatorStatus implements Operator.Status {
         builder.field("pages_emitted", pagesEmitted);
         builder.field("rows_received", rowsReceived);
         builder.field("rows_emitted", rowsEmitted);
+        if (minCompetitiveUpdates != null) {
+            builder.field("min_competitive_updates", minCompetitiveUpdates);
+        }
         return builder.endObject();
     }
 
@@ -163,16 +179,32 @@ public class TopNOperatorStatus implements Operator.Status {
             && pagesReceived == that.pagesReceived
             && pagesEmitted == that.pagesEmitted
             && rowsReceived == that.rowsReceived
-            && rowsEmitted == that.rowsEmitted;
+            && rowsEmitted == that.rowsEmitted
+            && Objects.equals(minCompetitiveUpdates, that.minCompetitiveUpdates);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(receiveNanos, emitNanos, occupiedRows, ramBytesUsed, pagesReceived, pagesEmitted, rowsReceived, rowsEmitted);
+        return Objects.hash(
+            receiveNanos,
+            emitNanos,
+            occupiedRows,
+            ramBytesUsed,
+            pagesReceived,
+            pagesEmitted,
+            rowsReceived,
+            rowsEmitted,
+            minCompetitiveUpdates
+        );
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_11_X;
+        return TransportVersion.minimumCompatible();
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

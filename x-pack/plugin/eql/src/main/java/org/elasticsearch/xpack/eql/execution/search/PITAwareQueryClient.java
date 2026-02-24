@@ -165,4 +165,9 @@ public class PITAwareQueryClient extends BasicQueryClient {
             pitId = null;
         }
     }
+
+    @Override
+    protected boolean usingPit() {
+        return true;
+    }
 }

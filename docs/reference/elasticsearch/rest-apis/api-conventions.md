@@ -282,7 +282,21 @@ Most APIs that accept a `<data-stream>`, `<index>`, or `<target>` request path p
 
 In multi-target syntax, you can use a comma-separated list to run a request on multiple resources, such as data streams, indices, or aliases: `test1,test2,test3`. You can also use [glob-like](https://en.wikipedia.org/wiki/Glob_(programming)) wildcard (`*`) expressions to target resources that match a pattern: `test*` or `*test` or `te*t` or `*test*`.
 
-You can exclude targets using the `-` character: `test*,-test3`.
+Targets can be excluded by prefixing with the `-` character. This applies to both concrete names and wildcard patterns.
+For example, `test*,-test3` resolves to all resources that start with `test` except for the resource named `test3`.
+It is possible for exclusion to exclude all resources. For example, `test*,-test*` resolves to an empty set.
+An exclusion affects targets listed _before_ it and has no impact on targets listed _after_ it.
+For example, `test3*,-test3,test*` resolves to all resources that start with `test`, including `test3`, because it is included
+by the last `test*` pattern.
+
+{applies_to}`stack: ga 9.3` A dash-prefixed (`-`) expression is always treated as an exclusion. The dash character must be
+followed by a concrete name or wildcard pattern. It is invalid to use the dash character on its own.
+
+In previous versions, dash-prefixed expressions were sometimes not treated as exclusions due to a bug. For example:
+- `test,-test` threw an `IndexNotFoundException` instead of excluding `test`
+- `test3,-test*` incorrectly resolved to `test3` instead of excluding matches to the wildcard pattern
+
+This bug is fixed in 9.3.
 
 ::::{important}
 Aliases are resolved after wildcard expressions. This can result in a request that targets an excluded alias. For example, if `test3` is an index alias, the pattern `test*,-test3` still targets the indices for `test3`. To avoid this, exclude the concrete indices for the alias instead.

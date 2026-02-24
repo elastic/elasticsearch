@@ -8,7 +8,7 @@ applies_to:
 
 # Update by query API examples
 
-This page provides examples of how to use the [Update by query API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query).
+The [Update by query API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-update-by-query) updates all documents that match a specified query, enabling bulk modification of the document source or metadata via a script.
 
 You can learn how to:
 

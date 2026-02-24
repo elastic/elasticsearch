@@ -11,13 +11,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.lessThan;
 
 public class SqlStreamTests extends ESTestCase {
@@ -45,23 +43,6 @@ public class SqlStreamTests extends ESTestCase {
 
         String result = out.streamAsString();
         assertThat(result.length(), lessThan(1000));
-    }
-
-    public void testOldCursorProducesVersionMismatchError() {
-        SqlIllegalArgumentException ex = expectThrows(
-            SqlIllegalArgumentException.class,
-            () -> SqlStreamInput.fromString(
-                // some cursor produced by ES 7.15.1
-                "97S0AwFaAWMBCHRlc3RfZW1whgEBAQljb21wb3NpdGUHZ3JvdXBieQEDbWF4CDJkMTBjNGJhAAD/AQls"
-                    + "YW5ndWFnZXMAAAD/AAD/AQAIYmRlZjg4ZTUBBmdlbmRlcgAAAQAAAQEKAQhiZGVmODhlNf8AAgEAAAAA"
-                    + "AP////8PAAAAAAAAAAAAAAAAAVoDAAICAAAAAAAAAAAKAP////8PAgFtCDJkMTBjNGJhBXZhbHVlAAEE"
-                    + "QllURQFrCGJkZWY4OGU1AAABAwA=",
-                new NamedWriteableRegistry(List.of()),
-                TransportVersion.current()
-            )
-        );
-
-        assertThat(ex.getMessage(), containsString("Unsupported cursor version [7150199], expected [" + TransportVersion.current() + "]"));
     }
 
 }

@@ -27,6 +27,7 @@
               "description": "The task type",
               "options": [
                 "completion",
+                "chat_completion",
                 "text_embedding"
               ]
             },

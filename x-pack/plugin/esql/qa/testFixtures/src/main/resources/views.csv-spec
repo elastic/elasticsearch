@@ -1,0 +1,420 @@
+countryAddresses
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_addresses
+;
+ignoreOrder:true
+
+count:long | country:keyword
+1          | Japan
+1          | Netherlands
+1          | United States
+;
+
+airports
+required_capability: views_crud_as_index_actions
+
+FROM airports
+| WHERE country IS NOT NULL
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+| WHERE count > 10
+;
+ignoreOrder:true
+
+count:long | country:keyword
+129        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+11         | Germany
+11         | Italy
+11         | Nigeria
+;
+
+countryAirports
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_airports
+;
+ignoreOrder:true
+
+count:long | country:keyword
+129        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+11         | Germany
+11         | Italy
+11         | Nigeria
+;
+
+countryAirportsFiltered
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_airports
+| WHERE count > 15
+;
+ignoreOrder:true
+
+count:long | country:keyword
+129        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+;
+
+countryAirportsAddresses
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_addresses, country_airports
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+;
+ignoreOrder:true
+
+count:long | country:keyword
+130        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+;
+
+countryAirportsAddressesWildcard
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_a*
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+;
+ignoreOrder:true
+
+count:long | country:keyword
+130        | United States
+50         | India
+45         | Mexico
+41         | China
+37         | Canada
+31         | Brazil
+26         | Russia
+17         | Australia
+17         | United Kingdom
+13         | Argentina
+12         | France
+12         | Indonesia
+;
+
+countryAirportsAddressesUS
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_addresses, country_airports
+| WHERE country == "United States"
+;
+ignoreOrder:true
+
+count:long | country:keyword
+129        | United States
+1          | United States
+;
+
+languages
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM languages_lookup_non_unique_key
+| MV_EXPAND country
+| WHERE country IS NOT NULL AND country NOT LIKE ("*-Land*")
+| EVAL country = CASE(country == "United States of America", "United States", country)
+| STATS count=COUNT() BY country
+| SORT count DESC, country ASC
+;
+ignoreOrder:true
+
+count:long | country:keyword
+1          | Atlantis
+1          | Austria
+1          | Canada
+1          | Germany
+1          | Switzerland
+1          | United Kingdom
+1          | United States
+;
+
+countryLanguages
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_languages
+;
+ignoreOrder:true
+
+count:long | country:keyword
+1          | Atlantis
+1          | Austria
+1          | Canada
+1          | Germany
+1          | Switzerland
+1          | United Kingdom
+1          | United States
+;
+
+countryAirportsAddressesLanguages
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_addresses, country_airports, country_languages
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+| SORT count DESC, country ASC
+;
+
+count:long | country:keyword
+131        | United States
+50         | India
+45         | Mexico
+41         | China
+38         | Canada
+31         | Brazil
+26         | Russia
+18         | United Kingdom
+17         | Australia
+13         | Argentina
+12         | France
+12         | Germany
+12         | Indonesia
+;
+
+countryAirportsAddressesLanguagesWildcard
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM country_*
+| STATS count=SUM(count) BY country
+| WHERE count > 11
+| SORT count DESC, country ASC
+;
+
+count:long | country:keyword
+131        | United States
+50         | India
+45         | Mexico
+41         | China
+38         | Canada
+31         | Brazil
+26         | Russia
+18         | United Kingdom
+17         | Australia
+13         | Argentina
+12         | France
+12         | Germany
+12         | Indonesia
+;
+
+airportsLookupJoin
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: views_crud_as_index_actions
+
+FROM airports
+| RENAME abbrev AS code
+| LOOKUP JOIN airports_mp ON abbrev == code
+| WHERE abbrev IS NOT NULL
+| DROP code
+;
+ignoreOrder:true
+
+abbrev:keyword | city:keyword | city_location:geo_point     | country:keyword | location:geo_point          | name:text      | scalerank:integer | type:keyword
+LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           | POINT (75.957072 30.850360) | Sahnewal       | 9                 | small
+SSE            | Solāpur      | POINT (75.920000 17.680000) | India           | POINT (75.933060 17.625415) | Solapur        | 9                 | mid
+IXR            | Rānchi       | POINT (85.330000 23.360000) | India           | POINT (85.323597 23.317725) | Birsa Munda    | 9                 | mid
+AWZ            | Ahvāz        | POINT (48.669200 31.320300) | Iran            | POINT (48.747107 31.343159) | Ahwaz          | 9                 | mid
+GWL            | Gwalior      | POINT (78.178000 26.221500) | India           | POINT (78.217219 26.285488) | Gwalior        | 9                 | [mid, military]
+HOD            | Al Ḩudaydah  | POINT (42.951100 14.802200) | Yemen           | POINT (42.971096 14.755253) | Hodeidah Int'l | 9                 | mid
+;
+
+
+airportsLookupJoinView
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM airports_mp_filtered
+;
+ignoreOrder:true
+
+abbrev:keyword | city:keyword | city_location:geo_point     | country:keyword | location:geo_point          | name:text      | scalerank:integer | type:keyword
+LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           | POINT (75.957072 30.850360) | Sahnewal       | 9                 | small
+SSE            | Solāpur      | POINT (75.920000 17.680000) | India           | POINT (75.933060 17.625415) | Solapur        | 9                 | mid
+IXR            | Rānchi       | POINT (85.330000 23.360000) | India           | POINT (85.323597 23.317725) | Birsa Munda    | 9                 | mid
+AWZ            | Ahvāz        | POINT (48.669200 31.320300) | Iran            | POINT (48.747107 31.343159) | Ahwaz          | 9                 | mid
+GWL            | Gwalior      | POINT (78.178000 26.221500) | India           | POINT (78.217219 26.285488) | Gwalior        | 9                 | [mid, military]
+HOD            | Al Ḩudaydah  | POINT (42.951100 14.802200) | Yemen           | POINT (42.971096 14.755253) | Hodeidah Int'l | 9                 | mid
+;
+
+airportsLookupJoinViewAirports
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM airports_mp_filtered, airports METADATA _index
+| WHERE abbrev == "LUH"
+| SORT _index
+;
+
+abbrev:keyword | city:keyword | city_location:geo_point     | country:keyword | location:geo_point          | name:text | scalerank:integer | type:keyword | _index:keyword
+LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           | POINT (75.957072 30.850360) | Sahnewal  | 9                 | small        | airports
+LUH            | Ludhiāna     | POINT (75.850000 30.910000) | India           | POINT (75.957072 30.850360) | Sahnewal  | 9                 | small        | null
+;
+
+airportsLookupJoinViewAirportsStats
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM airports_mp_filtered, airports
+| STATS duplications=COUNT() BY abbrev
+| STATS count=COUNT() BY duplications
+| SORT count DESC
+;
+
+count:long | duplications:long
+880        | 1
+7          | 2
+1          | 3
+;
+
+airportsLookupJoinViewAirportsStatsValues
+required_capability: join_lookup_v12
+required_capability: lookup_join_on_boolean_expression
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM airports_mp_filtered, airports METADATA _index
+| EVAL _index = CASE(_index IS NULL, "view", _index)
+| STATS duplications=COUNT(), indexes=VALUES(_index) BY abbrev
+| WHERE duplications == 2
+| EVAL indexes = MV_SORT(indexes)
+;
+ignoreOrder:true
+
+duplications:long | abbrev:keyword | indexes:keyword
+2                 | LUH            | [airports, view]
+2                 | SSE            | [airports, view]
+2                 | IXR            | [airports, view]
+2                 | AWZ            | [airports, view]
+2                 | GWL            | [airports, view]
+2                 | HOD            | [airports, view]
+2                 | PZU            | [airports]
+;
+
+// When a wildcard matches many indexes including views, several factors can contribute to non-deterministic results:
+// - The order in which indexes are processed may vary
+// - the fact that many fields will be null, since they only exist in some of the indexes
+// - implicit limits on subqueries can effectively remove some documents
+// The simplest query that demonstrates this is a wildcard over views and a regular index with a stats aggregation.
+// But any query in the existing csv-spec set that uses `FROM *` will also be non-deterministic if views are present.
+
+queryThatWillNotBeDeterministicWithViews
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM *
+| EVAL country=TO_STRING(country)
+| STATS foo = MAX(num), count = COUNT(num) BY country
+| WHERE country IS NULL
+;
+warning:Line 1:23 (in view [employees_not_rehired]): evaluation of [is_rehired == false] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:23 (in view [employees_rehired]): evaluation of [is_rehired == true] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:23 (in view [employees_not_rehired]): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:23 (in view [employees_rehired]): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+foo:long            | count:long | country:keyword
+1698069301543123456 | 22         | null
+// If views are loaded, the above result will sporadically change to 'null,0,null'
+;
+
+// Testing edge cases with multi-value fields in views
+
+multiValueWarningsWithNoViews
+required_capability: views_crud_as_index_actions
+
+FROM employees
+| WHERE is_rehired == true
+| STATS rehired_count = COUNT()
+;
+warning:Line 2:9: evaluation of [is_rehired == true] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:9: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+rehired_count:long
+11
+;
+
+multiValueWarningsWithView
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+
+FROM employees_rehired
+| STATS rehired_count = COUNT()
+;
+warningRegex: \(in view \[employees_rehired\]\): evaluation of \[is_rehired == true\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex: \(in view \[employees_rehired\]\): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+rehired_count:long
+11
+;
+
+multiValueWarningsWithBranchedView
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+
+FROM employees_*rehired
+| STATS rehired_count = COUNT() by is_rehired
+| SORT is_rehired DESC
+;
+warning:Line 1:23 (in view [employees_not_rehired]): evaluation of [is_rehired == false] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:23 (in view [employees_rehired]): evaluation of [is_rehired == true] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 1:23 (in view [employees_not_rehired]): java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 1:23 (in view [employees_rehired]): java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+rehired_count:long | is_rehired:boolean
+11                 | true
+12                 | false
+;

@@ -1,0 +1,5 @@
+pr: 140166
+summary: "Fix: ensure CPS project routing appears in the right places for `_msearch/template`"
+area: CCS
+type: bug
+issues: []

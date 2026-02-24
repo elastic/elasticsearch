@@ -52,8 +52,6 @@ import static org.elasticsearch.xpack.esql.telemetry.Metrics.FUNC_PREFIX;
 
 public class VerifierMetricsTests extends ESTestCase {
 
-    private EsqlParser parser = new EsqlParser();
-
     public void testDissectQuery() {
         Counters c = esql("from employees | dissect concat(first_name, \" \", last_name) \"%{a} %{b}\"");
         assertEquals(1L, dissect(c));
@@ -259,7 +257,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testTwoQueriesExecuted() {
-        Metrics metrics = new Metrics(new EsqlFunctionRegistry());
+        Metrics metrics = new Metrics(new EsqlFunctionRegistry(), true, true);
         Verifier verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         esqlWithVerifier("""
                from employees
@@ -312,7 +310,7 @@ public class VerifierMetricsTests extends ESTestCase {
     }
 
     public void testMultipleFunctions() {
-        Metrics metrics = new Metrics(new EsqlFunctionRegistry());
+        Metrics metrics = new Metrics(new EsqlFunctionRegistry(), true, true);
         Verifier verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         esqlWithVerifier("""
                from employees
@@ -725,8 +723,8 @@ public class VerifierMetricsTests extends ESTestCase {
     public void testTimeSeriesAggregate() {
         assumeTrue("TS required", EsqlCapabilities.Cap.TS_COMMAND_V0.isEnabled());
         Counters c = esql("""
-            TS metrics
-            | STATS sum(avg_over_time(salary))""");
+            TS k8s
+            | STATS sum(avg_over_time(network.cost))""");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
@@ -814,11 +812,9 @@ public class VerifierMetricsTests extends ESTestCase {
         assertEquals(1L, function("min", c));
     }
 
-    @AwaitsFix(bugUrl = "unresolved @timestamp field")
     public void testPromql() {
-        assumeTrue("PromQL required", EsqlCapabilities.Cap.PROMQL_PRE_TECH_PREVIEW_V4.isEnabled());
         Counters c = esql("""
-            PROMQL metrics step 5m (sum(salary))""");
+            PROMQL index=k8s step=5m sum(network.cost)""");
         assertEquals(0, dissect(c));
         assertEquals(0, eval(c));
         assertEquals(0, grok(c));
@@ -951,12 +947,13 @@ public class VerifierMetricsTests extends ESTestCase {
         Verifier verifier = v;
         Metrics metrics = null;
         if (v == null) {
-            metrics = new Metrics(new EsqlFunctionRegistry());
+            metrics = new Metrics(new EsqlFunctionRegistry(), true, true);
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
         IndexResolution metricsIndex = loadMapping("mapping-basic.json", "metrics", IndexMode.TIME_SERIES);
+        IndexResolution k8sIndex = loadMapping("k8s-mappings.json", "k8s", IndexMode.TIME_SERIES);
         IndexResolution employees = loadMapping("mapping-basic.json", "employees");
-        analyzer(indexResolutions(metricsIndex, employees), verifier).analyze(parser.createStatement(esql));
+        analyzer(indexResolutions(metricsIndex, k8sIndex, employees), verifier).analyze(EsqlParser.INSTANCE.parseQuery(esql));
 
         return metrics == null ? null : metrics.stats();
     }

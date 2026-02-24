@@ -8,6 +8,11 @@
 package org.elasticsearch.xpack.logsdb;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.LeafCollector;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopFieldCollectorManager;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
@@ -29,9 +34,14 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.fielddata.FieldDataContext;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.fieldcomparator.LongValuesComparatorSource;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.license.LicenseSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.MultiValueMode;
@@ -49,6 +59,7 @@ import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 
 public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
@@ -86,7 +97,7 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
             {
               "_doc": {
                 "properties": {
-                  "@timestmap": {
+                  "@timestamp": {
                     "type": "date"
                   },
                   "host.name": {
@@ -272,6 +283,144 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         assertOrder(backingIndex, orderedDocs);
     }
 
+    public void testMatchTailWithMissingHostname() throws Exception {
+        final String dataStreamName = "test-logsdb-match-tail-with-missing-hostname";
+
+        final String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  },
+                  "host.name": {
+                    "type": "keyword"
+                  },
+                  "test_id": {
+                    "type": "text"
+                  }
+                }
+              }
+            }
+            """;
+
+        final DocWithId[] orderedDocs = {
+            doc("{\"@timestamp\":\"2025-01-01T13:00:00\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:01\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:02\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:03\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:04\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:05\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:06\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:07\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:08\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:09\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:10\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:11\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:12\",\"test_id\": \"%id%\"}"), };
+
+        createDataStream(dataStreamName, mapping, s -> s.put("index.mapping.use_doc_values_skipper", "true"));
+
+        List<DocWithId> shuffledDocs = shuffledList(Arrays.asList(orderedDocs));
+        indexDocuments(dataStreamName, shuffledDocs);
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        Index backingIndex = getBackingIndex(dataStreamName);
+        checkTailSkipping(backingIndex, true);
+    }
+
+    public void testMatchTailWithSingletonHostname() throws Exception {
+        final String dataStreamName = "test-logsdb-match-tail-with-singleton-hostname";
+
+        final String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  },
+                  "host.name": {
+                    "type": "keyword"
+                  },
+                  "test_id": {
+                    "type": "text"
+                  }
+                }
+              }
+            }
+            """;
+
+        final DocWithId[] orderedDocs = {
+            doc("{\"@timestamp\":\"2025-01-01T13:00:00\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:01\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:02\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:03\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:04\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:05\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:06\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:07\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:08\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:09\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:10\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:11\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:12\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"), };
+
+        createDataStream(dataStreamName, mapping, s -> s.put("index.mapping.use_doc_values_skipper", "true"));
+
+        List<DocWithId> shuffledDocs = shuffledList(Arrays.asList(orderedDocs));
+        indexDocuments(dataStreamName, shuffledDocs);
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        Index backingIndex = getBackingIndex(dataStreamName);
+        checkTailSkipping(backingIndex, true);
+    }
+
+    public void testMatchTailWithMultipleHostnames() throws Exception {
+        final String dataStreamName = "test-logsdb-match-tail-with-multiple-hostnames";
+
+        final String mapping = """
+            {
+              "_doc": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  },
+                  "host.name": {
+                    "type": "keyword"
+                  },
+                  "test_id": {
+                    "type": "text"
+                  }
+                }
+              }
+            }
+            """;
+
+        final DocWithId[] orderedDocs = {
+            doc("{\"@timestamp\":\"2025-01-01T13:00:00\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:01\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:02\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:03\",\"host.name\":\"bar\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:04\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:05\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:06\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:07\",\"host.name\":\"bar\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:08\",\"host.name\":\"bar\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:09\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:10\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:11\",\"host.name\":\"bar\",\"test_id\": \"%id%\"}"),
+            doc("{\"@timestamp\":\"2025-01-01T13:00:12\",\"host.name\":\"foo\",\"test_id\": \"%id%\"}"), };
+
+        createDataStream(dataStreamName, mapping, s -> s.put("index.mapping.use_doc_values_skipper", "true"));
+
+        List<DocWithId> shuffledDocs = shuffledList(Arrays.asList(orderedDocs));
+        indexDocuments(dataStreamName, shuffledDocs);
+        client().admin().indices().prepareRefresh().execute().actionGet();
+
+        Index backingIndex = getBackingIndex(dataStreamName);
+        checkTailSkipping(backingIndex, false);
+    }
+
     private void createDataStream(String dataStreamName, String mapping) throws IOException {
         createDataStream(dataStreamName, mapping, UnaryOperator.identity());
     }
@@ -375,4 +524,36 @@ public class LogsdbSortConfigIT extends ESSingleNodeTestCase {
         }
     }
 
+    private void checkTailSkipping(Index backingIndex, boolean expectSkipping) throws IOException {
+        indicesAdmin().forceMerge(new ForceMergeRequest(backingIndex.getName()).maxNumSegments(1).flush(true)).actionGet();
+        IndexService indexService = getInstanceFromNode(IndicesService.class).indexServiceSafe(backingIndex);
+        assertThat(indexService.numberOfShards(), equalTo(1));
+        IndexShard shard = indexService.getShard(0);
+        try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
+
+            MappedFieldType timestampField = shard.mapperService().fieldType("@timestamp");
+            SortField sf = timestampField.fielddataBuilder(FieldDataContext.noRuntimeFields("test", "test"))
+                .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService())
+                .sortField(null, MultiValueMode.MAX, null, false);
+            if (sf.getComparatorSource() instanceof LongValuesComparatorSource lv) {
+                lv.setMatchTailQuery();
+            }
+
+            TopFieldCollectorManager cm = new TopFieldCollectorManager(new Sort(sf), 2, 4);
+            LeafCollector leafCollector = cm.newCollector().getLeafCollector(searcher.getLeafContexts().getFirst());
+            DocIdSetIterator it = leafCollector.competitiveIterator();
+
+            // collect 5 hits, which should be enough to trigger updating the competitive iterator
+            for (int doc = 0; doc < 5; doc++) {
+                leafCollector.collect(doc);
+            }
+
+            if (expectSkipping) {
+                assertThat(it.nextDoc(), greaterThan(5));
+            } else {
+                assertThat(it.nextDoc(), equalTo(0));
+            }
+
+        }
+    }
 }

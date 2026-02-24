@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.fieldcaps;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -47,15 +46,8 @@ public record IndexFieldCapabilities(
         boolean isMetadatafield = in.readBoolean();
         boolean isSearchable = in.readBoolean();
         boolean isAggregatable = in.readBoolean();
-        boolean isDimension;
-        TimeSeriesParams.MetricType metricType;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            isDimension = in.readBoolean();
-            metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
-        } else {
-            isDimension = false;
-            metricType = null;
-        }
+        boolean isDimension = in.readBoolean();
+        TimeSeriesParams.MetricType metricType = in.readOptionalEnum(TimeSeriesParams.MetricType.class);
         return new IndexFieldCapabilities(
             name,
             type,
@@ -75,10 +67,8 @@ public record IndexFieldCapabilities(
         out.writeBoolean(isMetadatafield);
         out.writeBoolean(isSearchable);
         out.writeBoolean(isAggregatable);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(isDimension);
-            out.writeOptionalEnum(metricType);
-        }
+        out.writeBoolean(isDimension);
+        out.writeOptionalEnum(metricType);
         out.writeMap(meta, StreamOutput::writeString);
     }
 

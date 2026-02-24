@@ -8,6 +8,7 @@
 package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import fixture.aws.DynamicRegionSupplier;
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
 
@@ -33,8 +34,14 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
     protected static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
 
     protected static class RepositoryAnalysisHttpFixture extends S3HttpFixture {
-        RepositoryAnalysisHttpFixture() {
-            super(USE_FIXTURE, "bucket", "base_path_integration_tests", fixedAccessKey("s3_test_access_key", regionSupplier, "s3"));
+        RepositoryAnalysisHttpFixture(S3ConsistencyModel consistencyModel) {
+            super(
+                USE_FIXTURE,
+                "bucket",
+                "base_path_integration_tests",
+                () -> consistencyModel,
+                fixedAccessKey("s3_test_access_key", regionSupplier, "s3")
+            );
         }
 
         private volatile boolean repoAnalysisStarted;
@@ -94,6 +101,8 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
             .build();
     }
 
+    abstract S3ConsistencyModel consistencyModel();
+
     @Override
     protected Settings repositorySettings() {
         final String bucket = System.getProperty("test.s3.bucket");
@@ -102,22 +111,30 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
         final String basePath = System.getProperty("test.s3.base_path");
         assertThat(basePath, not(blankOrNullString()));
 
-        return Settings.builder()
+        final var settings = Settings.builder()
             .put("client", CLIENT_NAME)
             .put("bucket", bucket)
             .put("base_path", basePath)
             .put("delete_objects_max_size", between(1, 1000))
             .put("buffer_size", ByteSizeValue.ofMb(5)) // so some uploads are multipart ones
-            .put("max_copy_size_before_multipart", ByteSizeValue.ofMb(5))
-            // verify we always set the x-purpose header even if disabled for other repository operations
-            .put(randomBooleanSetting("add_purpose_custom_query_parameter"))
-            // this parameter is ignored for repo analysis
-            .put(randomBooleanSetting("unsafely_incompatible_with_s3_conditional_writes"))
-            .build();
-    }
+            .put("max_copy_size_before_multipart", ByteSizeValue.ofMb(5));
 
-    private static Settings randomBooleanSetting(String settingKey) {
-        return randomFrom(Settings.EMPTY, Settings.builder().put(settingKey, randomBoolean()).build());
+        if (randomBoolean()) {
+            // verify we always set the x-purpose header even if disabled for other repository operations
+            settings.put("add_purpose_custom_query_parameter", randomBoolean());
+        }
+
+        if (consistencyModel().hasConditionalWrites()) {
+            if (randomBoolean()) {
+                // even if we have conditional writes (and thus weak MPU abort consistency) the MPU-based impl should still work
+                settings.put("unsafely_incompatible_with_s3_conditional_writes", randomBoolean());
+            }
+        } else {
+            // if the storage doesn't support conditional writes we have to use the MPU-based impl
+            settings.put("unsafely_incompatible_with_s3_conditional_writes", true);
+        }
+
+        return settings.build();
     }
 
     @Override

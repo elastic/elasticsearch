@@ -10,28 +10,20 @@ package org.elasticsearch.grok;
 
 import org.joni.Matcher;
 
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.BiConsumer;
-import java.util.function.LongSupplier;
+import java.util.concurrent.TimeUnit;
 
 /**
- * Protects against long running operations that happen between the register and unregister invocations.
- * Threads that invoke {@link #register(Matcher)}, but take too long to invoke the {@link #unregister(Matcher)} method
- * will be interrupted.
- *
- * This is needed for Joni's {@link org.joni.Matcher#search(int, int, int)} method, because
- * it can end up spinning endlessly if the regular expression is too complex. Joni has checks
- * that for every 30k iterations it checks if the current thread is interrupted and if so
- * returns {@link org.joni.Matcher#INTERRUPTED}.
+ * Provides an interface for protecting code that uses joni's {@link org.joni.Matcher}
+ * against long-running operations.
+ * <p>
+ * Some implementations of this interface may use threads and timeouts, but the default implementations
+ * here are simpler: there's a no-op implementation, and there's an implementation that relies on
+ * the {@link org.joni.Matcher#setTimeout(long)} method.
  */
 public interface MatcherWatchdog {
 
     /**
-     * Registers the current matcher and interrupts the this matcher
-     * if the takes too long for this thread to invoke {@link #unregister(Matcher)}.
+     * Registers a matcher.
      *
      * @param matcher The matcher to register
      */
@@ -39,34 +31,24 @@ public interface MatcherWatchdog {
 
     /**
      * @return The maximum allowed time in milliseconds for a thread to invoke {@link #unregister(Matcher)}
-     *         after {@link #register(Matcher)} has been invoked before this ThreadWatchDog starts to interrupting that thread.
+     *         after {@link #register(Matcher)} has been invoked.
      */
     long maxExecutionTimeInMillis();
 
     /**
-     * Unregisters the current matcher and prevents it from being interrupted.
+     * Unregisters a matcher.
      *
      * @param matcher The matcher to unregister
      */
     void unregister(Matcher matcher);
 
     /**
-     * Returns an implementation that checks for each fixed interval if there are threads that have invoked {@link #register(Matcher)}
-     * and not {@link #unregister(Matcher)} and have been in this state for longer than the specified max execution interval and
-     * then interrupts these threads.
+     * Returns an implementation that relies on the {@link org.joni.Matcher#setTimeout(long)} method.
      *
-     * @param interval              The fixed interval to check if there are threads to interrupt
-     * @param maxExecutionTime      The time a thread has the execute an operation.
-     * @param relativeTimeSupplier  A supplier that returns relative time
-     * @param scheduler             A scheduler that is able to execute a command for each fixed interval
+     * @param maxExecutionTimeMillis The time in millis that a matcher has to execute an operation.
      */
-    static MatcherWatchdog newInstance(
-        long interval,
-        long maxExecutionTime,
-        LongSupplier relativeTimeSupplier,
-        BiConsumer<Long, Runnable> scheduler
-    ) {
-        return new Default(interval, maxExecutionTime, relativeTimeSupplier, scheduler);
+    static MatcherWatchdog newInstance(long maxExecutionTimeMillis) {
+        return new Default(maxExecutionTimeMillis);
     }
 
     /**
@@ -76,7 +58,7 @@ public interface MatcherWatchdog {
         return Noop.INSTANCE;
     }
 
-    class Noop implements MatcherWatchdog {
+    final class Noop implements MatcherWatchdog {
 
         private static final Noop INSTANCE = new Noop();
 
@@ -94,58 +76,40 @@ public interface MatcherWatchdog {
         public void unregister(Matcher matcher) {}
     }
 
-    class Default implements MatcherWatchdog {
+    final class Default implements MatcherWatchdog {
 
-        private final long interval;
-        private final long maxExecutionTime;
-        private final LongSupplier relativeTimeSupplier;
-        private final BiConsumer<Long, Runnable> scheduler;
-        private final AtomicInteger registered = new AtomicInteger(0);
-        private final AtomicBoolean running = new AtomicBoolean(false);
-        final ConcurrentHashMap<Matcher, Long> registry = new ConcurrentHashMap<>();
+        // duplicated from org.elasticsearch.core.TimeValue because we don't have access to that here
+        private static final long NSEC_PER_MSEC = TimeUnit.NANOSECONDS.convert(1, TimeUnit.MILLISECONDS);
 
-        private Default(long interval, long maxExecutionTime, LongSupplier relativeTimeSupplier, BiConsumer<Long, Runnable> scheduler) {
-            this.interval = interval;
-            this.maxExecutionTime = maxExecutionTime;
-            this.relativeTimeSupplier = relativeTimeSupplier;
-            this.scheduler = scheduler;
+        private final long maxExecutionTimeMillis;
+
+        private Default(long maxExecutionTimeMillis) {
+            this.maxExecutionTimeMillis = maxExecutionTimeMillis;
         }
 
+        @Override
         public void register(Matcher matcher) {
-            registered.getAndIncrement();
-            Long previousValue = registry.put(matcher, relativeTimeSupplier.getAsLong());
-            if (running.compareAndSet(false, true)) {
-                scheduler.accept(interval, this::interruptLongRunningExecutions);
+            if (maxExecutionTimeMillis >= 0) {
+                // note: if maxExecutionTimeMillis == 0, the grok pattern matching will still run, since the logic is that it checks
+                // every N iterations to see if the timeout has passed. so a small enough pattern can still actually do useful work
+                // even with a timeout of zero nanoseconds. this is similar to the previous thread-based logic, which would schedule
+                // a thread to check at some interval if the timeout had already passed (so a max time of zero would still result in
+                // one interval's worth of work happening).
+                matcher.setTimeout(maxExecutionTimeMillis * NSEC_PER_MSEC);
+            } else {
+                matcher.setTimeout(-1); // disable timeouts
             }
-            assert previousValue == null;
         }
 
         @Override
         public long maxExecutionTimeInMillis() {
-            return maxExecutionTime;
+            return maxExecutionTimeMillis;
         }
 
+        @Override
         public void unregister(Matcher matcher) {
-            Long previousValue = registry.remove(matcher);
-            registered.decrementAndGet();
-            assert previousValue != null;
+            // noop
         }
-
-        private void interruptLongRunningExecutions() {
-            final long currentRelativeTime = relativeTimeSupplier.getAsLong();
-            for (Map.Entry<Matcher, Long> entry : registry.entrySet()) {
-                if ((currentRelativeTime - entry.getValue()) > maxExecutionTime) {
-                    entry.getKey().interrupt();
-                    // not removing the entry here, this happens in the unregister() method.
-                }
-            }
-            if (registered.get() > 0) {
-                scheduler.accept(interval, this::interruptLongRunningExecutions);
-            } else {
-                running.set(false);
-            }
-        }
-
     }
 
 }

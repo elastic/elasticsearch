@@ -26,7 +26,6 @@ import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MatchesIterator;
 import org.apache.lucene.search.MultiPhraseQuery;
@@ -46,6 +45,7 @@ import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -442,7 +442,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
         assertEquals(approximation, SourceConfirmedTextQuery.approximate(query));
 
         MultiPhrasePrefixQuery phrasePrefixQuery = new MultiPhrasePrefixQuery("body");
-        assertEquals(new MatchNoDocsQuery(), SourceConfirmedTextQuery.approximate(phrasePrefixQuery));
+        assertEquals(Queries.NO_DOCS_INSTANCE, SourceConfirmedTextQuery.approximate(phrasePrefixQuery));
 
         phrasePrefixQuery.add(new Term("body", "apache"));
         approximation = new BooleanQuery.Builder().add(new PrefixQuery(new Term("body", "apache")), Occur.FILTER).build();

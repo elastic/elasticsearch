@@ -11,13 +11,13 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.memory.MemoryIndex;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.AbstractQueryTestCase;
@@ -155,7 +155,7 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         assertEquals(new TermQuery(new Term(TEXT_FIELD_NAME, "bar")), qb.rewrite(searchExecutionContext).toQuery(searchExecutionContext));
 
         qb = new WrapperQueryBuilder(new BoolQueryBuilder().toString());
-        assertEquals(new MatchAllDocsQuery(), qb.rewrite(searchExecutionContext).toQuery(searchExecutionContext));
+        assertEquals(Queries.ALL_DOCS_INSTANCE, qb.rewrite(searchExecutionContext).toQuery(searchExecutionContext));
     }
 
     @Override
@@ -167,7 +167,7 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
             MemoryIndex idx = new MemoryIndex();
             return idx.createSearcher().rewrite(query);
         }
-        return new MatchAllDocsQuery(); // null == *:*
+        return Queries.ALL_DOCS_INSTANCE; // null == *:*
     }
 
     @Override

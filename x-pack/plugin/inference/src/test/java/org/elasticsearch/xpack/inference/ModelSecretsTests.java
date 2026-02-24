@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -82,7 +81,7 @@ public class ModelSecretsTests extends AbstractWireSerializingTestCase<ModelSecr
 
         @Override
         public TransportVersion getMinimalSupportedVersion() {
-            return TransportVersions.V_8_11_X;
+            return TransportVersion.minimumCompatible();
         }
 
         @Override

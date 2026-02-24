@@ -357,7 +357,8 @@ public class MultiSearchRequestTests extends ESTestCase {
                 null,
                 null,
                 true,
-                Optional.empty()
+                Optional.empty(),
+                null
             );
             assertEquals(originalRequest, parsedRequest);
         }
@@ -545,11 +546,12 @@ public class MultiSearchRequestTests extends ESTestCase {
                 """);
             fail("should have caught second line; extra closing brackets");
         } catch (XContentParseException e) {
+            // Jackson 2.21.0 changed the error message format
             assertThat(
                 e.getMessage(),
                 containsString(
-                    "Unexpected close marker '}': expected ']' (for root starting at "
-                        + "[Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\""
+                    "Unexpected close marker '}': no open Object to close\n"
+                        + " at [Source: (byte[])\"{ \"query\": {\"match_all\": {}}}}}}different error message\""
                 )
             );
         }

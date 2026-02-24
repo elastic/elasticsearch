@@ -9,15 +9,18 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,7 +31,7 @@ import static java.util.Collections.emptyList;
 /**
  * Currently just a surrogate for applying {@link HistogramMerge} per series.
  */
-public class HistogramMergeOverTime extends TimeSeriesAggregateFunction implements OptionalArgument {
+public class HistogramMergeOverTime extends TimeSeriesAggregateFunction implements OptionalArgument, SurrogateExpression, ToAggregator {
     // TODO Eventually we want to replace this with some increase/rate implementation
     // for histograms to be consistent with counters on extrapolation.
 
@@ -38,10 +41,10 @@ public class HistogramMergeOverTime extends TimeSeriesAggregateFunction implemen
         HistogramMergeOverTime::new
     );
 
-    @FunctionInfo(returnType = "exponential_histogram", type = FunctionType.TIME_SERIES_AGGREGATE)
+    @FunctionInfo(returnType = { "exponential_histogram", "tdigest" }, type = FunctionType.TIME_SERIES_AGGREGATE)
     public HistogramMergeOverTime(
         Source source,
-        @Param(name = "histogram", type = "exponential_histogram") Expression field,
+        @Param(name = "histogram", type = { "exponential_histogram", "tdigest" }) Expression field,
         @Param(name = "window", type = "time_duration", optional = true) Expression window
     ) {
         this(source, field, Literal.TRUE, Objects.requireNonNullElse(window, NO_WINDOW));
@@ -83,6 +86,16 @@ public class HistogramMergeOverTime extends TimeSeriesAggregateFunction implemen
     @Override
     public HistogramMergeOverTime withFilter(Expression filter) {
         return new HistogramMergeOverTime(source(), field(), filter, window());
+    }
+
+    @Override
+    public Expression surrogate() {
+        return perTimeSeriesAggregation();
+    }
+
+    @Override
+    public AggregatorFunctionSupplier supplier() {
+        return ((ToAggregator) perTimeSeriesAggregation()).supplier();
     }
 
     @Override

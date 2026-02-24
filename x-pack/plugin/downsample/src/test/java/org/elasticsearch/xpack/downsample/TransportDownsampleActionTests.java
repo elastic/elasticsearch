@@ -37,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -53,6 +54,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardIndexerStatus;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
@@ -65,12 +67,15 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 import static org.elasticsearch.xpack.downsample.DownsampleActionSingleNodeTests.randomSamplingMethod;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -103,6 +108,8 @@ public class TransportDownsampleActionTests extends ESTestCase {
     private MasterServiceTaskQueue<TransportDownsampleAction.DownsampleClusterStateUpdateTask> taskQueue;
     @Mock
     private MapperService mapperService;
+    @Mock
+    private FeatureService featureService;
 
     private static final String MAPPING = """
         {
@@ -140,6 +147,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
             indicesService,
             clusterService,
             mock(TransportService.class),
+            featureService,
             threadPool,
             mock(MetadataCreateIndexService.class),
             new ActionFilters(Set.of()),
@@ -199,6 +207,7 @@ public class TransportDownsampleActionTests extends ESTestCase {
         DocumentMapper documentMapper = mock(DocumentMapper.class);
         when(documentMapper.mappingSource()).thenReturn(CompressedXContent.fromJSON(MAPPING));
         when(mapperService.merge(anyString(), any(CompressedXContent.class), any())).thenReturn(documentMapper);
+        when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
     }
 
     @After
@@ -399,6 +408,83 @@ public class TransportDownsampleActionTests extends ESTestCase {
         verify(indicesAdminClient).refresh(any(), any());
         verify(indicesAdminClient, never()).flush(any(), any());
         verify(indicesAdminClient, never()).forceMerge(any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDownsamplingMapping() throws IOException {
+        Map<String, Object> sourceMapping = Map.of(
+            "runtime",
+            Map.of(
+                "day_of_week",
+                Map.of(
+                    "type",
+                    "keyword",
+                    "script",
+                    Map.of("source", "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))")
+                )
+            ),
+            "properties",
+            Map.of(
+                "@timestamp",
+                Map.of("type", "date", "format", "strict_date_optional_time||epoch_millis"),
+                "timestamp",
+                Map.of("type", "alias"),
+                "dimension",
+                Map.of("type", "keyword", "time_series_dimension", true),
+                "counter",
+                Map.of("type", "long", "time_series_metric", "counter"),
+                "gauge",
+                Map.of("type", "double", "time_series_metric", "gauge"),
+                "exp_histogram",
+                Map.of("type", "exponential_histogram", "time_series_metric", "histogram")
+            )
+        );
+        boolean defaultMetricDeprecated = randomBoolean();
+        String downsampledMappingStr = TransportDownsampleAction.createDownsampleIndexMapping(
+            new DownsampleConfig(new DateHistogramInterval("1h"), null),
+            sourceMapping,
+            defaultMetricDeprecated
+        );
+        Map<String, Object> downsampledMapping = XContentHelper.convertToMap(
+            new CompressedXContent(downsampledMappingStr).compressedReference(),
+            true,
+            XContentType.JSON
+        ).v2();
+        assertThat(downsampledMapping.containsKey("runtime"), equalTo(true));
+        Map<String, Object> downsampledRuntime = (Map<String, Object>) downsampledMapping.get("runtime");
+        assertThat(downsampledRuntime.containsKey("day_of_week"), equalTo(true));
+        assertThat(((Map<String, Object>) downsampledRuntime.get("day_of_week")).get("type"), equalTo("keyword"));
+        assertThat(downsampledMapping.containsKey("properties"), equalTo(true));
+        Map<String, Object> downsampledProperties = (Map<String, Object>) downsampledMapping.get("properties");
+        assertThat(downsampledProperties.containsKey("timestamp"), equalTo(true));
+        assertThat(((Map<String, Object>) downsampledProperties.get("timestamp")).get("type"), equalTo("alias"));
+        assertThat(downsampledProperties.containsKey("@timestamp"), equalTo(true));
+        Map<String, Object> timestamp = (Map<String, Object>) downsampledProperties.get("@timestamp");
+        assertThat(timestamp.get("type"), equalTo("date"));
+        assertThat(timestamp.get("format"), equalTo("strict_date_optional_time||epoch_millis"));
+        assertThat(timestamp.containsKey("meta"), equalTo(true));
+        assertThat(downsampledProperties.containsKey("dimension"), equalTo(true));
+        Map<String, Object> dimension = (Map<String, Object>) downsampledProperties.get("dimension");
+        assertThat(dimension.get("type"), equalTo("keyword"));
+        assertThat(dimension.get("time_series_dimension"), equalTo(true));
+        assertThat(downsampledProperties.containsKey("counter"), equalTo(true));
+        Map<String, Object> counter = (Map<String, Object>) downsampledProperties.get("counter");
+        assertThat(counter.get("type"), equalTo("long"));
+        assertThat(counter.get("time_series_metric"), equalTo("counter"));
+        assertThat(downsampledProperties.containsKey("gauge"), equalTo(true));
+        Map<String, Object> gauge = (Map<String, Object>) downsampledProperties.get("gauge");
+        assertThat(gauge.get("type"), equalTo("aggregate_metric_double"));
+        if (defaultMetricDeprecated) {
+            assertThat(gauge.containsKey("default_metric"), equalTo(false));
+        } else {
+            assertThat(gauge.get("default_metric"), equalTo("max"));
+        }
+        assertThat((List<String>) gauge.get("metrics"), containsInAnyOrder("max", "min", "sum", "value_count"));
+        assertThat(gauge.get("time_series_metric"), equalTo("gauge"));
+        assertThat(downsampledProperties.containsKey("exp_histogram"), equalTo(true));
+        Map<String, Object> expHistogram = (Map<String, Object>) downsampledProperties.get("exp_histogram");
+        assertThat(expHistogram.get("type"), equalTo("exponential_histogram"));
+        assertThat(expHistogram.get("time_series_metric"), equalTo("histogram"));
     }
 
     private void verifyIndexFinalisation() {

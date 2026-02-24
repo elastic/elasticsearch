@@ -134,7 +134,9 @@ import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.stream.Collectors.toSet;
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.ExpectedResults;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
@@ -195,6 +197,10 @@ import static org.mockito.Mockito.mock;
  */
 // @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class CsvTests extends ESTestCase {
+
+    private static final Set<String> ALL_ESQL_CAPABILITIES = Stream.of(EsqlCapabilities.Cap.values())
+        .map(EsqlCapabilities.Cap::capabilityName)
+        .collect(toSet());
 
     private static final Logger LOGGER = LogManager.getLogger(CsvTests.class);
 
@@ -278,6 +284,9 @@ public class CsvTests extends ESTestCase {
 
     public final void test() throws Throwable {
         try {
+            for (String capability : testCase.requiredCapabilities) {
+                assertTrue("Requested capability does not exist: " + capability, ALL_ESQL_CAPABILITIES.contains(capability));
+            }
             assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
             /*
              * The csv tests support all but a few features. The unsupported features
@@ -549,7 +558,7 @@ public class CsvTests extends ESTestCase {
             .stream()
             .filter(e -> e.getValue().size() < numberOfIndices)
             .map(Map.Entry::getKey)
-            .collect(Collectors.toSet());
+            .collect(toSet());
         var mappings = columnNamesToFieldByIndices.entrySet()
             .stream()
             .collect(Collectors.toMap(Map.Entry::getKey, e -> mergeFields(e.getKey(), e.getValue())));

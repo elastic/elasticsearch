@@ -101,7 +101,16 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
         throws IOException {
 
         for (var contentObject : contentObjects.contentObjects()) {
-            if (contentObject.type().equals(TEXT) == false) {
+            if (contentObject instanceof UnifiedCompletionRequest.ContentObjectText contentObjectText) {
+                if (contentObjectText.text().isEmpty()) {
+                    return; // VertexAI API does not support empty text parts
+                }
+
+                // We are only supporting Text messages for now
+                builder.startObject();
+                builder.field(TEXT, contentObjectText.text());
+                builder.endObject();
+            } else {
                 var errorMessage = format(
                     "Type [%s] not supported by Google VertexAI ChatCompletion. Supported types: [text]",
                     contentObject.type()
@@ -109,14 +118,6 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
                 throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
             }
 
-            if (contentObject.text().isEmpty()) {
-                return; // VertexAI API does not support empty text parts
-            }
-
-            // We are only supporting Text messages for now
-            builder.startObject();
-            builder.field(TEXT, contentObject.text());
-            builder.endObject();
         }
 
     }
@@ -158,9 +159,17 @@ public class GoogleVertexAiUnifiedChatCompletionRequestEntity implements ToXCont
                     builder.endObject();
                 } else if (systemMessage.content() instanceof UnifiedCompletionRequest.ContentObjects contentObjects) {
                     for (var contentObject : contentObjects.contentObjects()) {
-                        builder.startObject();
-                        builder.field(TEXT, contentObject.text());
-                        builder.endObject();
+                        if (contentObject instanceof UnifiedCompletionRequest.ContentObjectText contentObjectText) {
+                            builder.startObject();
+                            builder.field(TEXT, contentObjectText.text());
+                            builder.endObject();
+                        } else {
+                            var errorMessage = format(
+                                "Type [%s] not supported by Google VertexAI ChatCompletion. Supported types: [text]",
+                                contentObject.type()
+                            );
+                            throw new ElasticsearchStatusException(errorMessage, RestStatus.BAD_REQUEST);
+                        }
                     }
                 } else {
                     var errorMessage = "Only text system instructions are supported for Vertex AI";

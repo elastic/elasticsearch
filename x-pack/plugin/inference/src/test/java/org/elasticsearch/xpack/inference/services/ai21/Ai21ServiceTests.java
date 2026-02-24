@@ -241,7 +241,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 "id",
                 TaskType.CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(model), getSecretSettingsMap(secret)),
+                getRequestConfigMap(getServiceSettingsMap(model, null), getSecretSettingsMap(secret)),
                 modelVerificationListener
             );
         }
@@ -272,7 +272,7 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             service.parseRequestConfig(
                 "id",
                 TaskType.CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(null), getSecretSettingsMap(secret)),
+                getRequestConfigMap(getServiceSettingsMap(null, null), getSecretSettingsMap(secret)),
                 modelVerificationListener
             );
         }

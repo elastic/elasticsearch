@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -22,17 +23,16 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FoldContext;
-import org.elasticsearch.xpack.esql.core.expression.function.scalar.BinaryScalarFunction;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,12 +46,15 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  * Extracts a value from a JSON string using a {@link JsonPath} subset.
  * Preview / snapshot-only, gated behind {@code FN_JSON_EXTRACT}.
  */
-public class JsonExtract extends BinaryScalarFunction implements EvaluatorMapper {
+public class JsonExtract extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "JsonExtract",
         JsonExtract::new
     );
+
+    private final Expression str;
+    private final Expression path;
 
     // Separates our errors from XContentParseException (which extends IllegalArgumentException)
     // so doExtract can preserve our messages while converting parser errors to "invalid JSON input".
@@ -153,11 +156,20 @@ public class JsonExtract extends BinaryScalarFunction implements EvaluatorMapper
                 + "If `null`, the function returns `null`."
         ) Expression path
     ) {
-        super(source, str, path);
+        super(source, List.of(str, path));
+        this.str = str;
+        this.path = path;
     }
 
     private JsonExtract(StreamInput in) throws IOException {
-        super(in);
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(str);
+        out.writeNamedWriteable(path);
     }
 
     @Override
@@ -177,7 +189,7 @@ public class JsonExtract extends BinaryScalarFunction implements EvaluatorMapper
         }
 
         TypeResolution resolution = isType(
-            left(),
+            str,
             t -> DataType.isString(t) || t == DataType.SOURCE,
             sourceText(),
             FIRST,
@@ -188,7 +200,7 @@ public class JsonExtract extends BinaryScalarFunction implements EvaluatorMapper
         if (resolution.unresolved()) {
             return resolution;
         }
-        resolution = isString(right(), sourceText(), SECOND);
+        resolution = isString(path, sourceText(), SECOND);
         if (resolution.unresolved()) {
             return resolution;
         }
@@ -197,8 +209,8 @@ public class JsonExtract extends BinaryScalarFunction implements EvaluatorMapper
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
-        return EvaluatorMapper.super.fold(source(), ctx);
+    public boolean foldable() {
+        return str.foldable() && path.foldable();
     }
 
     @Evaluator(warnExceptions = IllegalArgumentException.class)
@@ -316,31 +328,31 @@ public class JsonExtract extends BinaryScalarFunction implements EvaluatorMapper
     }
 
     @Override
-    protected BinaryScalarFunction replaceChildren(Expression newLeft, Expression newRight) {
-        return new JsonExtract(source(), newLeft, newRight);
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new JsonExtract(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, JsonExtract::new, left(), right());
+        return NodeInfo.create(this, JsonExtract::new, str, path);
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        ExpressionEvaluator.Factory strExpr = toEvaluator.apply(left());
-        if (right().foldable()) {
-            JsonPath jsonPath = JsonPath.parse(((BytesRef) right().fold(toEvaluator.foldCtx())).utf8ToString());
+        ExpressionEvaluator.Factory strExpr = toEvaluator.apply(str);
+        if (path.foldable()) {
+            JsonPath jsonPath = JsonPath.parse(((BytesRef) path.fold(toEvaluator.foldCtx())).utf8ToString());
             return new JsonExtractConstantEvaluator.Factory(source(), strExpr, jsonPath);
         }
-        ExpressionEvaluator.Factory pathExpr = toEvaluator.apply(right());
+        ExpressionEvaluator.Factory pathExpr = toEvaluator.apply(path);
         return new JsonExtractEvaluator.Factory(source(), strExpr, pathExpr);
     }
 
     Expression str() {
-        return left();
+        return str;
     }
 
     Expression path() {
-        return right();
+        return path;
     }
 }

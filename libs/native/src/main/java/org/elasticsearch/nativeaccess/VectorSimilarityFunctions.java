@@ -141,8 +141,6 @@ public interface VectorSimilarityFunctions {
 
     MethodHandle applyCorrectionsEuclideanBulk();
 
-    MethodHandle bbqApplyCorrectionsEuclideanBulk();
-
     MethodHandle applyCorrectionsMaxInnerProductBulk();
 
     MethodHandle applyCorrectionsDotProductBulk();

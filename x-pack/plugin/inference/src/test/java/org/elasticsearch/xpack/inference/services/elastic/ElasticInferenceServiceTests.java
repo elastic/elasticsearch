@@ -1576,7 +1576,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(
             getUrl(webServer),
             serviceSettings,
-            org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.DEFAULT_SETTINGS
+            new WordBoundaryChunkingSettings(1, 0)
         );
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
@@ -1604,7 +1604,7 @@ public class ElasticInferenceServiceTests extends ESTestCase {
         var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(
             getUrl(webServer),
             serviceSettings,
-            org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder.DEFAULT_SETTINGS
+            new WordBoundaryChunkingSettings(1, 0)
         );
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);

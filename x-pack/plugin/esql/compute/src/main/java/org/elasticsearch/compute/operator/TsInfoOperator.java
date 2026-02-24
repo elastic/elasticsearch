@@ -298,21 +298,21 @@ public class TsInfoOperator implements Operator {
             Object value = entry.getValue();
 
             MetricFieldInfo fieldInfo = fieldLookup.lookup(indexName, key);
-            if (fieldInfo != null) {
-                // metric field — skip in dimension-collection pass
-            } else if (value instanceof Map<?, ?> nested) {
-                collectFields(
-                    (Map<String, Object>) nested,
-                    key,
-                    indexName,
-                    dataStreamName,
-                    dimensionKeyValues,
-                    dimensionKeys,
-                    touchedEntries
-                );
-            } else {
-                dimensionKeys.add(key);
-                dimensionKeyValues.put(key, value == null ? null : value.toString());
+            if (fieldInfo == null) {
+                if (value instanceof Map<?, ?> nested) {
+                    collectFields(
+                        (Map<String, Object>) nested,
+                        key,
+                        indexName,
+                        dataStreamName,
+                        dimensionKeyValues,
+                        dimensionKeys,
+                        touchedEntries
+                    );
+                } else {
+                    dimensionKeys.add(key);
+                    dimensionKeyValues.put(key, value == null ? null : value.toString());
+                }
             }
         }
 

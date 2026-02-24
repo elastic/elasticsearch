@@ -46,15 +46,6 @@ class BenchmarkUtils {
         }
     }
 
-    static void randomFloatVector(Random random, float[] vector, VectorSimilarityFunction vectorSimilarityFunction) {
-        for (int i = 0; i < vector.length; i++) {
-            vector[i] = random.nextFloat();
-        }
-        if (vectorSimilarityFunction != VectorSimilarityFunction.EUCLIDEAN) {
-            VectorUtil.l2normalize(vector);
-        }
-    }
-
     static void writeInt7VectorData(Directory dir, byte[][] vectors, float[] offsets) throws IOException {
         try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
             for (int v = 0; v < vectors.length; v++) {

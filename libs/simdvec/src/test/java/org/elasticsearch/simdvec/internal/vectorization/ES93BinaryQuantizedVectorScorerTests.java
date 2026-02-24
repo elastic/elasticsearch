@@ -63,7 +63,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
     ) throws IOException {
         try (IndexOutput out = dir.createOutput("testScore.bin", IOContext.DEFAULT)) {
             for (int i = 0; i < numVectors; i++) {
-                randomVector(vectorValues, similarityFunction);
+                VectorScorerTestUtils.randomVector(random(), vectorValues, similarityFunction);
                 var indexData = createBinarizedIndexData(vectorValues, centroid, quantizer, dims);
                 writeBinarizedVectorData(out, indexData);
             }
@@ -75,7 +75,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
         final int numVectors = random().nextInt(10, 50);
 
         final float[] centroid = new float[dims];
-        randomVector(centroid, similarityFunction);
+        VectorScorerTestUtils.randomVector(random(), centroid, similarityFunction);
         final float centroidDp = VectorUtil.dotProduct(centroid, centroid);
 
         float[] vectorValues = new float[dims];
@@ -84,7 +84,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
         try (Directory dir = newParametrizedDirectory()) {
             createTestFile(dir, numVectors, vectorValues, centroid, quantizer, dims);
 
-            randomVector(vectorValues, similarityFunction);
+            VectorScorerTestUtils.randomVector(random(), vectorValues, similarityFunction);
             var queryData = createBinarizedQueryData(vectorValues, centroid, quantizer, dims);
 
             try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {
@@ -128,7 +128,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
         final int numVectors = random().nextInt(10, 50);
 
         final float[] centroid = new float[dims];
-        randomVector(centroid, similarityFunction);
+        VectorScorerTestUtils.randomVector(random(), centroid, similarityFunction);
         final float centroidDp = VectorUtil.dotProduct(centroid, centroid);
 
         float[] vectorValues = new float[dims];
@@ -137,7 +137,7 @@ public class ES93BinaryQuantizedVectorScorerTests extends BaseVectorizationTests
         try (Directory dir = newParametrizedDirectory()) {
             createTestFile(dir, numVectors, vectorValues, centroid, quantizer, dims);
 
-            randomVector(vectorValues, similarityFunction);
+            VectorScorerTestUtils.randomVector(random(), vectorValues, similarityFunction);
             var queryData = createBinarizedQueryData(vectorValues, centroid, quantizer, dims);
 
             try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {

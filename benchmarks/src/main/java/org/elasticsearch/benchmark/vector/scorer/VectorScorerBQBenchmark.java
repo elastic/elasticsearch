@@ -42,9 +42,9 @@ import java.util.Random;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.randomFloatVector;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createBinarizedIndexData;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createBinarizedQueryData;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomVector;
 import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeBinarizedVectorData;
 
 @BenchmarkMode(Mode.Throughput)
@@ -118,7 +118,7 @@ public class VectorScorerBQBenchmark {
     ) throws IOException {
         try (IndexOutput out = dir.createOutput("vectors", IOContext.DEFAULT)) {
             for (int i = 0; i < numVectors; i++) {
-                randomFloatVector(random, vectorValues, similarityFunction);
+                randomVector(random, vectorValues, similarityFunction);
                 var indexData = createBinarizedIndexData(vectorValues, centroid, quantizer, dims);
                 writeBinarizedVectorData(out, indexData);
             }
@@ -134,7 +134,7 @@ public class VectorScorerBQBenchmark {
         };
 
         final float[] centroid = new float[dims];
-        randomFloatVector(random, centroid, similarityFunction);
+        randomVector(random, centroid, similarityFunction);
         centroidDp = VectorUtil.dotProduct(centroid, centroid);
 
         float[] vectorValues = new float[dims];
@@ -143,7 +143,7 @@ public class VectorScorerBQBenchmark {
         createTestFile(random, directory, numVectors, vectorValues, centroid, quantizer, dims);
         queries = new VectorScorerTestUtils.VectorData[numQueries];
         for (int i = 0; i < numQueries; i++) {
-            randomFloatVector(random, vectorValues, similarityFunction);
+            randomVector(random, vectorValues, similarityFunction);
             queries[i] = createBinarizedQueryData(vectorValues, centroid, quantizer, dims);
         }
 

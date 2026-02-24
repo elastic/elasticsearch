@@ -88,12 +88,12 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
         final byte[] qVector = new byte[dimensions];
         final float[] centroid = new float[dimensions];
         VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
-        randomVector(centroid, similarityFunction);
+        VectorScorerTestUtils.randomVector(random(), centroid, similarityFunction);
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         try (Directory dir = new MMapDirectory(createTempDir())) {
             try (IndexOutput out = dir.createOutput("tests.bin", IOContext.DEFAULT)) {
                 for (float[] vector : vectors) {
-                    randomVector(vector, similarityFunction);
+                    VectorScorerTestUtils.randomVector(random(), vector, similarityFunction);
                     OptimizedScalarQuantizer.QuantizationResult result = quantizer.scalarQuantize(
                         vector,
                         residualScratch,
@@ -112,7 +112,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 }
             }
             final float[] query = new float[dimensions];
-            randomVector(query, similarityFunction);
+            VectorScorerTestUtils.randomVector(random(), query, similarityFunction);
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
                 query,
                 residualScratch,
@@ -177,7 +177,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
         final float[] residualScratch = new float[dimensions];
         final float[] centroid = new float[dimensions];
         VectorSimilarityFunction similarityFunction = randomFrom(VectorSimilarityFunction.values());
-        randomVector(centroid, similarityFunction);
+        VectorScorerTestUtils.randomVector(random(), centroid, similarityFunction);
 
         OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(similarityFunction);
         try (Directory dir = new MMapDirectory(createTempDir())) {
@@ -185,7 +185,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 OptimizedScalarQuantizer.QuantizationResult[] results = new OptimizedScalarQuantizer.QuantizationResult[bulkSize];
                 for (int i = 0; i < numVectors; i += bulkSize) {
                     for (int j = 0; j < bulkSize; j++) {
-                        randomVector(vectors[i + j], similarityFunction);
+                        VectorScorerTestUtils.randomVector(random(), vectors[i + j], similarityFunction);
                         results[j] = quantizer.scalarQuantize(vectors[i + j], residualScratch, quantizedScratch, (byte) 7, centroid);
                         for (int k = 0; k < dimensions; k++) {
                             quantizeVector[k] = (byte) quantizedScratch[k];
@@ -197,7 +197,7 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
             }
             final float[] query = new float[dimensions];
             final byte[] quantizeQuery = new byte[dimensions];
-            randomVector(query, similarityFunction);
+            VectorScorerTestUtils.randomVector(random(), query, similarityFunction);
             OptimizedScalarQuantizer.QuantizationResult queryCorrections = quantizer.scalarQuantize(
                 query,
                 residualScratch,

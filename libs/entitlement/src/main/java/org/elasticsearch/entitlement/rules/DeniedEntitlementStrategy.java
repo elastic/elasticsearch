@@ -47,6 +47,10 @@ public abstract sealed class DeniedEntitlementStrategy permits DeniedEntitlement
      * @param <T> the type of the default value
      */
     public static final class DefaultValueDeniedEntitlementStrategy<T> extends DeniedEntitlementStrategy {
+        public static final Object EMPTY_MAP = new Object();
+        public static final Object EMPTY_LIST = new Object();
+        public static final Object EMPTY_SET = new Object();
+
         private final T defaultValue;
 
         /**

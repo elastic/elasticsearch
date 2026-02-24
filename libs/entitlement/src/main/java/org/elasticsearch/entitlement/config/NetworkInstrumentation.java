@@ -106,7 +106,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
                 .elseThrowNotEntitled();
             rule.callingVoidStatic(URL::setURLStreamHandlerFactory, URLStreamHandlerFactory.class)
                 .enforce(Policies::changeNetworkHandling)
-                .elseReturnEarly();
+                .elseThrowNotEntitled();
             rule.calling(URL::openConnection).enforce(Policies::entitlementForUrl).elseThrow(e -> new IOException(e));
             rule.calling(URL::openConnection, Proxy.class).enforce((url, proxy) -> {
                 if (proxy.type() != Proxy.Type.DIRECT) {
@@ -123,7 +123,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.callingVoid(URLConnection::connect).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
             rule.callingVoidStatic(URLConnection::setContentHandlerFactory, ContentHandlerFactory.class)
                 .enforce(Policies::changeNetworkHandling)
-                .elseReturnEarly();
+                .elseThrowNotEntitled();
             rule.callingVoidStatic(URLConnection::setFileNameMap, FileNameMap.class)
                 .enforce(Policies::changeNetworkHandling)
                 .elseReturnEarly();
@@ -131,18 +131,18 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.calling(URLConnection::getContentLengthLong).enforce(Policies::entitlementForUrlConnection).elseReturn(-1L);
             rule.calling(URLConnection::getContentType).enforce(Policies::entitlementForUrlConnection).elseReturn(null);
             rule.calling(URLConnection::getContentEncoding).enforce(Policies::entitlementForUrlConnection).elseReturn(null);
-            rule.calling(URLConnection::getExpiration).enforce(Policies::entitlementForUrlConnection).elseReturn(-1L);
-            rule.calling(URLConnection::getDate).enforce(Policies::entitlementForUrlConnection).elseReturn(-1L);
-            rule.calling(URLConnection::getLastModified).enforce(Policies::entitlementForUrlConnection).elseReturn(-1L);
+            rule.calling(URLConnection::getExpiration).enforce(Policies::entitlementForUrlConnection).elseReturn(0L);
+            rule.calling(URLConnection::getDate).enforce(Policies::entitlementForUrlConnection).elseReturn(0L);
+            rule.calling(URLConnection::getLastModified).enforce(Policies::entitlementForUrlConnection).elseReturn(0L);
             rule.calling(URLConnection::getHeaderFieldInt, String.class, Integer.class)
                 .enforce(Policies::entitlementForUrlConnection)
-                .elseReturn(-1);
+                .elseReturnArg(1);
             rule.calling(URLConnection::getHeaderFieldLong, String.class, Long.class)
                 .enforce(Policies::entitlementForUrlConnection)
-                .elseReturn(-1L);
+                .elseReturnArg(1);
             rule.calling(URLConnection::getHeaderFieldDate, String.class, Long.class)
                 .enforce(Policies::entitlementForUrlConnection)
-                .elseReturn(-1L);
+                .elseReturnArg(1);
             rule.calling(URLConnection::getContent).enforce(Policies::entitlementForUrlConnection).elseThrow(e -> new IOException(e));
             rule.calling(URLConnection::getContent, Class[].class)
                 .enforce(Policies::entitlementForUrlConnection)
@@ -157,7 +157,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.calling(HttpURLConnection::getResponseMessage).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
             rule.calling(HttpURLConnection::getHeaderFieldDate, String.class, Long.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseReturn(-1L);
+                .elseReturnArg(1);
         });
 
         builder.on(Socket.class, rule -> {
@@ -452,7 +452,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.calling(sun.net.www.URLConnection::getHeaderField, Integer.class)
                 .enforce(Policies::entitlementForUrlConnection)
                 .elseReturn(null);
-            rule.calling(sun.net.www.URLConnection::getHeaderFields).enforce(Policies::entitlementForUrlConnection).elseReturn(null);
+            rule.calling(sun.net.www.URLConnection::getHeaderFields).enforce(Policies::entitlementForUrlConnection).elseReturnEmptyMap();
             rule.calling(sun.net.www.URLConnection::getHeaderFieldKey, Integer.class)
                 .enforce(Policies::entitlementForUrlConnection)
                 .elseReturn(null);
@@ -488,7 +488,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
                 .elseReturn(null);
             rule.calling(sun.net.www.protocol.http.HttpURLConnection::getHeaderFields)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseReturn(null);
+                .elseReturnEmptyMap();
             rule.calling(sun.net.www.protocol.http.HttpURLConnection::getHeaderField, Integer.class)
                 .enforce(Policies::outboundNetworkAccess)
                 .elseReturn(null);
@@ -511,7 +511,7 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.calling(HttpsURLConnectionImpl::getHeaderFieldKey, Integer.class)
                 .enforce(Policies::outboundNetworkAccess)
                 .elseReturn(null);
-            rule.calling(HttpsURLConnectionImpl::getHeaderFields).enforce(Policies::outboundNetworkAccess).elseReturn(null);
+            rule.calling(HttpsURLConnectionImpl::getHeaderFields).enforce(Policies::outboundNetworkAccess).elseReturnEmptyMap();
             rule.calling(HttpsURLConnectionImpl::getResponseCode)
                 .enforce(Policies::outboundNetworkAccess)
                 .elseThrow(e -> new IOException(e));
@@ -522,18 +522,18 @@ public class NetworkInstrumentation implements InstrumentationConfig {
             rule.calling(HttpsURLConnectionImpl::getContentLengthLong).enforce(Policies::outboundNetworkAccess).elseReturn(-1L);
             rule.calling(HttpsURLConnectionImpl::getContentType).enforce(Policies::outboundNetworkAccess).elseReturn(null);
             rule.calling(HttpsURLConnectionImpl::getContentEncoding).enforce(Policies::outboundNetworkAccess).elseReturn(null);
-            rule.calling(HttpsURLConnectionImpl::getDate).enforce(Policies::outboundNetworkAccess).elseReturn(-1L);
-            rule.calling(HttpsURLConnectionImpl::getExpiration).enforce(Policies::outboundNetworkAccess).elseReturn(-1L);
-            rule.calling(HttpsURLConnectionImpl::getLastModified).enforce(Policies::outboundNetworkAccess).elseReturn(-1L);
+            rule.calling(HttpsURLConnectionImpl::getDate).enforce(Policies::outboundNetworkAccess).elseReturn(0L);
+            rule.calling(HttpsURLConnectionImpl::getExpiration).enforce(Policies::outboundNetworkAccess).elseReturn(0L);
+            rule.calling(HttpsURLConnectionImpl::getLastModified).enforce(Policies::outboundNetworkAccess).elseReturn(0L);
             rule.calling(HttpsURLConnectionImpl::getHeaderFieldDate, String.class, Long.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseReturn(-1L);
+                .elseReturnArg(1);
             rule.calling(HttpsURLConnectionImpl::getHeaderFieldInt, String.class, Integer.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseReturn(-1);
+                .elseReturnArg(1);
             rule.calling(HttpsURLConnectionImpl::getHeaderFieldLong, String.class, Long.class)
                 .enforce(Policies::outboundNetworkAccess)
-                .elseReturn(-1L);
+                .elseReturnArg(1);
             rule.calling(HttpsURLConnectionImpl::getContent).enforce(Policies::outboundNetworkAccess).elseThrow(e -> new IOException(e));
             rule.calling(HttpsURLConnectionImpl::getContent, Class[].class)
                 .enforce(Policies::outboundNetworkAccess)

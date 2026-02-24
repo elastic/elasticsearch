@@ -379,10 +379,9 @@ class NetworkAccessCheckActions {
         Socket.setSocketImplFactory(() -> { throw new IllegalStateException(); });
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
-    static String url$$setURLStreamHandlerFactory() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void url$$setURLStreamHandlerFactory() {
         URL.setURLStreamHandlerFactory(__ -> { throw new IllegalStateException(); });
-        return "true";
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
@@ -391,10 +390,9 @@ class NetworkAccessCheckActions {
         return "true";
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
-    static String urlConnection$$setContentHandlerFactory() {
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
+    static void urlConnection$$setContentHandlerFactory() {
         URLConnection.setContentHandlerFactory(__ -> { throw new IllegalStateException(); });
-        return "true";
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

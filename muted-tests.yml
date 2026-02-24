@@ -377,7 +377,7 @@ tests:
 - class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
   methods:
     - testFatalFailureDuringFetch
-    - testWithFetchFailures                                                                                                                                                                                                                                                                            │
+    - testWithFetchFailures
     - testAddCompletionListenerScheduleErrorWaitForInitListener
   issue: https://github.com/elastic/elasticsearch/issues/142626
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT

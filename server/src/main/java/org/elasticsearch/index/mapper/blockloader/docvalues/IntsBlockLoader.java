@@ -9,9 +9,8 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 /**
  * Loads {@code int}s from doc values.
@@ -22,13 +21,13 @@ public class IntsBlockLoader extends AbstractIntsFromDocValuesBlockLoader {
     }
 
     @Override
-    protected AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues) {
-        return new Singleton(breaker, docValues);
+    protected AllReader singletonReader(TrackingNumericDocValues docValues) {
+        return new Singleton(docValues);
     }
 
     @Override
-    protected AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues) {
-        return new Sorted(breaker, docValues);
+    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues) {
+        return new Sorted(docValues);
     }
 
     @Override

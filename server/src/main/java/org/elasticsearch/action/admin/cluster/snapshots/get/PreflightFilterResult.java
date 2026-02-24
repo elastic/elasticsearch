@@ -32,8 +32,11 @@ enum PreflightFilterResult {
     @FunctionalInterface
     interface RepositoryDataFilter {
         /**
-         * @return an accurate result for {@link SnapshotSortKey#NAME} and {@link SnapshotSortKey#INDICES}, and
-         * {@link PreflightFilterResult#INCONCLUSIVE} otherwise.
+         * @return an accurate result for {@link SnapshotSortKey#NAME}, {@link SnapshotSortKey#INDICES} and
+         * {@link SnapshotSortKey#REPOSITORY} (the latter because {@code GetSnapshotsOperation#skipRepository} handles this case even
+         * earlier). Also accurate for {@link SnapshotSortKey#START_TIME} and {@link SnapshotSortKey#DURATION} if and only if the
+         * corresponding values are available in {@link RepositoryData.SnapshotDetails}; returns {@link PreflightFilterResult#INCONCLUSIVE}
+         * otherwise.
          */
         PreflightFilterResult test(SnapshotId snapshotId, RepositoryData repositoryData);
     }

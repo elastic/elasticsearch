@@ -653,7 +653,10 @@ public class AzureBlobContainerRetriesTests extends AbstractBlobContainerRetries
             }
         });
 
-        assertThrows(AlreadyClosedException.class, () -> blobContainer.readBlob(randomRetryingPurpose(), "read_blob_while_store_closes"));
+        assertThrows(
+            AlreadyClosedException.class,
+            () -> Streams.readFully(blobContainer.readBlob(randomRetryingPurpose(), "read_blob_while_store_closes"))
+        );
     }
 
     private BlobContainer createBlobContainer(int maxRetries, String secondaryHost, LocationMode locationMode) {

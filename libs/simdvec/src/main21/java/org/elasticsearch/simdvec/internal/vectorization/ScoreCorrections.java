@@ -92,7 +92,7 @@ class ScoreCorrections {
         MemorySegment corrections,
         int bulkSize,
         int vectorSizeInBytes,
-		int pitchInBytes,
+        int pitchInBytes,
         int dimensions,
         float queryLowerInterval,
         float queryUpperInterval,

@@ -35,6 +35,7 @@ public class SampledAggregateExec extends AggregateExec {
 
     private final List<? extends NamedExpression> originalAggregates;
     private final Expression sampleProbability;
+    private final List<Attribute> originalIntermediateAttributes;
 
     public SampledAggregateExec(
         Source source,
@@ -45,17 +46,20 @@ public class SampledAggregateExec extends AggregateExec {
         Expression sampleProbability,
         AggregatorMode mode,
         List<Attribute> intermediateAttributes,
+        List<Attribute> originalIntermediateAttributes,
         Integer estimatedRowSize
     ) {
         super(source, child, groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
         this.originalAggregates = originalAggregates;
         this.sampleProbability = sampleProbability;
+        this.originalIntermediateAttributes = originalIntermediateAttributes;
     }
 
     private SampledAggregateExec(StreamInput in) throws IOException {
         super(in);
         this.originalAggregates = in.readNamedWriteableCollectionAsList(NamedExpression.class);
         this.sampleProbability = in.readNamedWriteable(Expression.class);
+        this.originalIntermediateAttributes = in.readNamedWriteableCollectionAsList(Attribute.class);
     }
 
     @Override
@@ -63,6 +67,7 @@ public class SampledAggregateExec extends AggregateExec {
         super.writeTo(out);
         out.writeNamedWriteableCollection(originalAggregates);
         out.writeNamedWriteable(sampleProbability);
+        out.writeNamedWriteableCollection(originalIntermediateAttributes);
     }
 
     @Override
@@ -82,6 +87,7 @@ public class SampledAggregateExec extends AggregateExec {
             sampleProbability,
             getMode(),
             intermediateAttributes(),
+            originalIntermediateAttributes,
             estimatedRowSize()
         );
     }
@@ -97,6 +103,7 @@ public class SampledAggregateExec extends AggregateExec {
             sampleProbability,
             getMode(),
             intermediateAttributes(),
+            originalIntermediateAttributes,
             estimatedRowSize()
         );
     }
@@ -117,6 +124,7 @@ public class SampledAggregateExec extends AggregateExec {
             sampleProbability,
             newMode,
             intermediateAttributes(),
+            originalIntermediateAttributes,
             estimatedRowSize()
         );
     }
@@ -132,6 +140,7 @@ public class SampledAggregateExec extends AggregateExec {
             sampleProbability,
             getMode(),
             intermediateAttributes(),
+            originalIntermediateAttributes,
             estimatedRowSize
         );
     }
@@ -142,6 +151,10 @@ public class SampledAggregateExec extends AggregateExec {
 
     public Expression sampleProbability() {
         return sampleProbability;
+    }
+
+    public List<Attribute> originalIntermediateAttributes() {
+        return originalIntermediateAttributes;
     }
 
     @Override
@@ -155,11 +168,12 @@ public class SampledAggregateExec extends AggregateExec {
         SampledAggregateExec other = (SampledAggregateExec) obj;
         return super.equals(other)
             && Objects.equals(originalAggregates, other.originalAggregates)
-            && Objects.equals(sampleProbability, other.sampleProbability);
+            && Objects.equals(sampleProbability, other.sampleProbability)
+            && Objects.equals(originalIntermediateAttributes, other.originalIntermediateAttributes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), originalAggregates, sampleProbability);
+        return Objects.hash(super.hashCode(), originalAggregates, sampleProbability, originalIntermediateAttributes);
     }
 }

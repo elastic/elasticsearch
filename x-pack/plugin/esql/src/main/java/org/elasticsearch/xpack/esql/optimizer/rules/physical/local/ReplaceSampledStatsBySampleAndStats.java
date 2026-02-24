@@ -16,16 +16,31 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 
+/**
+ * If the original aggregate wrapped by the sampled aggregate cannot be
+ * pushed down to Lucene (which would execute exact and fast), sampling
+ * should be used to speed up the aggregation.
+ * <p>
+ * In that case, this rule replaces the sampled aggregate by a regular
+ * aggregate on top of a sample. The plan:
+ * <pre>
+ * {@code FROM data | commands | SAMPLED_STATS[prob] aggs}
+ * </pre>
+ * is transformed into:
+ * <pre>
+ * {@code FROM data | SAMPLE prob | commands | STATS aggs}
+ * </pre>
+ */
 public class ReplaceSampledStatsBySampleAndStats extends PhysicalOptimizerRules.OptimizerRule<SampledAggregateExec> {
 
     @Override
     protected PhysicalPlan rule(SampledAggregateExec plan) {
         double sampleProbability = (double) Foldables.literalValueOf(plan.sampleProbability());
-
-        // TODO: push sample to the source command
         return new AggregateExec(
             plan.source(),
-            sampleProbability == 1.0 ? plan.child() : plan.child().transformUp(LeafExec.class, leaf -> new SampleExec(Source.EMPTY, leaf, plan.sampleProbability())),
+            sampleProbability == 1.0
+                ? plan.child()
+                : plan.child().transformUp(LeafExec.class, leaf -> new SampleExec(Source.EMPTY, leaf, plan.sampleProbability())),
             plan.groupings(),
             plan.aggregates(),
             plan.getMode(),

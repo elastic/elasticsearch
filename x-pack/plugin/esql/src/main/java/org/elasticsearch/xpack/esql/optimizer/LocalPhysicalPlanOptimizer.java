@@ -22,8 +22,8 @@ import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushSampleToS
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushStatsToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushTopNToSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceRoundToWithQueryAndTags;
-import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsByExactStats;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ReplaceSourceAttributes;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialDocValuesExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.SpatialShapeBoundsExtraction;
@@ -75,29 +75,21 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             esSourceRules.add(new PushTopNToSource());
             esSourceRules.add(new PushLimitToSource());
             esSourceRules.add(new PushFiltersToSource());
+            esSourceRules.add(new PushSampleToSource());
+            esSourceRules.add(new EnableSpatialDistancePushdown());
         }
         esSourceRules.add(new ReplaceSampledStatsByExactStats());
         if (optimizeForEsSource) {
-            esSourceRules.add(new PushSampleToSource());
             esSourceRules.add(new PushStatsToSource());
-            esSourceRules.add(new EnableSpatialDistancePushdown());
+        }
+        esSourceRules.add(new ReplaceSampledStatsBySampleAndStats());
+        if (optimizeForEsSource) {
+            esSourceRules.add(new PushSampleToSource());
         }
 
         // execute the rules multiple times to improve the chances of things being pushed down
         @SuppressWarnings("unchecked")
         var pushdown = new Batch<PhysicalPlan>("Push to ES", esSourceRules.toArray(Rule[]::new));
-
-        List<Rule<?, PhysicalPlan>> approximationRules = new ArrayList<>(2);
-        approximationRules.add(new ReplaceSampledStatsBySampleAndStats());
-        if (optimizeForEsSource) {
-            approximationRules.add(new PushSampleToSource());
-        }
-        @SuppressWarnings("unchecked")
-        var approximation = new Batch<PhysicalPlan>(
-            "Query approximation",
-            Limiter.ONCE,
-            approximationRules.toArray(Rule[]::new)
-        );
 
         // execute the SubstituteRoundToWithQueryAndTags rule once after all the other pushdown rules are applied, as this rule generate
         // multiple QueryBuilders according the number of RoundTo points, it should be applied after all the other eligible pushdowns are
@@ -120,6 +112,6 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new SpatialShapeBoundsExtraction()
         );
 
-        return optimizeForEsSource ? List.of(pushdown, approximation, substitutionRules, fieldExtraction) : List.of(pushdown, approximation, fieldExtraction);
+        return optimizeForEsSource ? List.of(pushdown, substitutionRules, fieldExtraction) : List.of(pushdown, fieldExtraction);
     }
 }

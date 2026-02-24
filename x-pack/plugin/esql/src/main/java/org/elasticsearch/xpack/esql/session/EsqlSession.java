@@ -341,7 +341,9 @@ public class EsqlSession {
                                 p,
                                 configuration,
                                 foldContext,
-                                configuration.approximationSettings() != null ? new Approximation(p, configuration.approximationSettings()) : null,
+                                configuration.approximationSettings() != null
+                                    ? new Approximation(p, configuration.approximationSettings())
+                                    : null,
                                 minimumVersion,
                                 planTimeProfile,
                                 l
@@ -458,8 +460,6 @@ public class EsqlSession {
                 ActionListener.runAfter(listener, executionInfo::finishSubPlans)
             );
         } else {
-            System.out.println("*** Final optimized logical plan:\n" + optimizedPlan);
-
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
             // execute main plan
             runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener);
@@ -511,7 +511,6 @@ public class EsqlSession {
 
         executionInfo.startSubPlans();
 
-        System.out.println("Executing subplan: " + subPlan.subPlan);
         runner.run(physicalSubPlan, configuration, foldContext, planTimeProfile, listener.delegateFailureAndWrap((next, result) -> {
             completionInfoAccumulator.accumulate(result.completionInfo());
             try {
@@ -523,7 +522,6 @@ public class EsqlSession {
 
                 if (newSubPlan == null) {// run the final "main" plan
                     executionInfo.finishSubPlans();
-                    System.out.println("Executing main plan: " + newMainPlan);
                     var newPhysicalPlan = logicalPlanToPhysicalPlan(newMainPlan, request, physicalPlanOptimizer, planTimeProfile);
                     runner.run(
                         newPhysicalPlan,

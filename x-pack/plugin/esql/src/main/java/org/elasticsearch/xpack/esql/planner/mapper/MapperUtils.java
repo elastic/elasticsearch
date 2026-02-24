@@ -221,6 +221,7 @@ public class MapperUtils {
                 sample.sampleProbability(),
                 aggMode,
                 intermediateAttributes,
+                AbstractPhysicalOperationProviders.intermediateAttributes(sample.originalAggregates(), sample.groupings()),
                 null
             );
             default -> new AggregateExec(

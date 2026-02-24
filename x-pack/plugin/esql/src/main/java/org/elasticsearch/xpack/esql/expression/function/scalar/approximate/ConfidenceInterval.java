@@ -277,7 +277,6 @@ public class ConfidenceInterval extends EsqlScalarFunction {
                 allNaNs = false;
             }
         }
-        System.out.println("bestEstimate: " + bestEstimate + " estimates: " + java.util.Arrays.toString(estimates));
 
         if (allNaNs) {
             resultBuilder.beginPositionEntry();

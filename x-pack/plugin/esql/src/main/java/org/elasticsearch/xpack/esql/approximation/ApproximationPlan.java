@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.LeafExpression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
@@ -37,6 +38,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvAppe
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSlice;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
+import org.elasticsearch.xpack.esql.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
@@ -55,12 +57,17 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class ApproximationPlan {
+
+    /**
+     * The column name for the bucket ID in the sampled aggregate. This is used
+     * to assign each sampled row to a bucket, to compute confidence intervals.
+     */
+    public static final String BUCKET_ID_COLUMN_NAME = "$bucket_id";
 
     /**
      * The number of times (trials) the sampled rows are divided into buckets.
@@ -110,13 +117,10 @@ public class ApproximationPlan {
      * A placeholder expression in the main approximation plan, that is replaced
      * by the actual value after subplan execution.
      */
-    private static class PlaceHolder extends LeafExpression {
+    private static class SampleProbabilityPlaceHolder extends LeafExpression {
 
-        private final String name;
-
-        PlaceHolder(String name) {
+        SampleProbabilityPlaceHolder() {
             super(Source.EMPTY);
-            this.name = name;
         }
 
         @Override
@@ -146,29 +150,17 @@ public class ApproximationPlan {
 
         @Override
         public String toString() {
-            return "PlaceHolder[" + name + "]";
+            return "SampleProbabilityPlaceHolder";
         }
 
         @Override
         public boolean equals(Object obj) {
-            return obj != null && getClass() == obj.getClass() && Objects.equals(name, ((PlaceHolder) obj).name);
+            return obj != null && getClass() == obj.getClass();
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(name);
-        }
-    }
-
-    static class SampleProbability extends PlaceHolder {
-        SampleProbability() {
-            super("SampleProbability");
-        }
-    }
-
-    static class SampleSizeThreshold extends PlaceHolder {
-        SampleSizeThreshold() {
-            super("SampleSizeThreshold");
+            return 0;
         }
     }
 
@@ -179,7 +171,7 @@ public class ApproximationPlan {
      * This approximation query consists of the following:
      * <ul>
      *     <li> Source command
-     *     <li> {@code SAMPLE} with a {@link ApproximationPlan.PlaceHolder} for the sample probability
+     *     <li> {@code SAMPLE} with a {@link ApproximationPlan.SampleProbabilityPlaceHolder} for the sample probability
      *     <li> All commands before the {@code STATS} command
      *     <li> {@code EVAL} adding a new column with random bucket IDs for each trial
      *     <li> {@code STATS} command with:
@@ -309,7 +301,7 @@ public class ApproximationPlan {
         Map<NameId, List<Alias>> fieldBuckets,
         Map<NameId, NamedExpression> uncorrectedExpressions
     ) {
-        Expression sampleProbability = new SampleProbability();
+        Expression sampleProbability = new SampleProbabilityPlaceHolder();
         Expression bucketSampleProbability = new Div(Source.EMPTY, sampleProbability, Literal.integer(Source.EMPTY, BUCKET_COUNT));
 
         Expression randomBucketId = new Random(Source.EMPTY, Literal.integer(Source.EMPTY, BUCKET_COUNT));
@@ -318,7 +310,7 @@ public class ApproximationPlan {
             bucketIds = new MvAppend(Source.EMPTY, bucketIds, randomBucketId);
         }
         // TODO: use theoretically non-conflicting names.
-        Alias bucketIdField = new Alias(Source.EMPTY, "$bucket_id", bucketIds);
+        Alias bucketIdField = new Alias(Source.EMPTY, BUCKET_ID_COLUMN_NAME, bucketIds);
 
         // The aggregate functions in the approximation plan.
         List<NamedExpression> bucketAggregates = new ArrayList<>();
@@ -420,7 +412,8 @@ public class ApproximationPlan {
             }
         }
 
-        List<NamedExpression> aggregates = Stream.concat(originalAggregates.stream(), bucketAggregates.stream()).collect(Collectors.toList());
+        List<NamedExpression> aggregates = Stream.concat(originalAggregates.stream(), bucketAggregates.stream())
+            .collect(Collectors.toList());
 
         Alias sampleSize = null;
         if (aggregate.groupings().isEmpty() == false) {
@@ -437,10 +430,19 @@ public class ApproximationPlan {
         plan = new SampledAggregate(aggregate.source(), plan, aggregate.groupings(), aggregates, originalAggregates, sampleProbability);
 
         if (sampleSize != null) {
+            List<Attribute> allBuckets = Expressions.asAttributes(bucketAggregates);
             plan = new Filter(
                 Source.EMPTY,
                 plan,
-                new GreaterThanOrEqual(Source.EMPTY, sampleSize.toAttribute(), new SampleSizeThreshold())
+                new Or(
+                    Source.EMPTY,
+                    new IsNull(Source.EMPTY, new Coalesce(Source.EMPTY, allBuckets.getFirst(), allBuckets.subList(1, allBuckets.size()))),
+                    new GreaterThanOrEqual(
+                        Source.EMPTY,
+                        sampleSize.toAttribute(),
+                        Literal.integer(Source.EMPTY, MIN_ROW_COUNT_FOR_RESULT_INCLUSION)
+                    )
+                )
             );
         }
 
@@ -517,8 +519,8 @@ public class ApproximationPlan {
                     Expression bucket = field.child()
                         .transformDown(
                             e -> e instanceof NamedExpression ne && fieldBuckets.containsKey(ne.id())
-                                 ? fieldBuckets.get(ne.id()).get(finalBucketId).toAttribute()
-                                 : e
+                                ? fieldBuckets.get(ne.id()).get(finalBucketId).toAttribute()
+                                : e
                         );
                     buckets.add(new Alias(Source.EMPTY, field.name() + "$" + bucketId, bucket));
                 }
@@ -603,7 +605,11 @@ public class ApproximationPlan {
      * for each field {@code s} that has buckets. The output of {@code CONFIDENCE_INTERVAL}
      * is separated into two fields: the confidence interval itself, and a certified field.
      */
-    private static List<Alias> getConfidenceIntervals(LogicalPlan logicalPlan, Map<NameId, List<Alias>> fieldBuckets, double confidenceLevel) {
+    private static List<Alias> getConfidenceIntervals(
+        LogicalPlan logicalPlan,
+        Map<NameId, List<Alias>> fieldBuckets,
+        double confidenceLevel
+    ) {
         Expression constNaN = new Literal(Source.EMPTY, Double.NaN, DataType.DOUBLE);
         Expression trialCount = Literal.integer(Source.EMPTY, TRIAL_COUNT);
         Expression bucketCount = Literal.integer(Source.EMPTY, BUCKET_COUNT);
@@ -680,7 +686,7 @@ public class ApproximationPlan {
 
     public static LogicalPlan substituteSampleProbability(LogicalPlan logicalPlan, double sampleProbability) {
         logicalPlan = logicalPlan.transformExpressionsDown(
-            ApproximationPlan.SampleProbability.class,
+            ApproximationPlan.SampleProbabilityPlaceHolder.class,
             prob -> Literal.fromDouble(Source.EMPTY, sampleProbability)
         );
         if (sampleProbability == 1.0) {
@@ -689,10 +695,7 @@ public class ApproximationPlan {
                 Set<String> originalAggs = agg.originalAggregates().stream().map(NamedExpression::name).collect(Collectors.toSet());
                 for (Attribute attr : agg.outputSet()) {
                     if (originalAggs.contains(attr.name()) == false) {
-                        System.out.println(" *** NULLIFY: " + attr);
                         nullBuckets.add(new Alias(Source.EMPTY, attr.name(), Literal.NULL, attr.id()));
-                    } else {
-                        System.out.println(" *** KEEP   : " + attr);
                     }
                 }
 
@@ -701,10 +704,6 @@ public class ApproximationPlan {
                 return plan;
             });
         }
-        logicalPlan = logicalPlan.transformExpressionsDown(
-            ApproximationPlan.SampleSizeThreshold.class,
-            prob -> Literal.integer(Source.EMPTY, sampleProbability == 1.0 ? 1 : MIN_ROW_COUNT_FOR_RESULT_INCLUSION)
-        );
         logicalPlan.setOptimized();
         return logicalPlan;
     }

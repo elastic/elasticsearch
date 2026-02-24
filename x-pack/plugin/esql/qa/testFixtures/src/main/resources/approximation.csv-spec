@@ -14,7 +14,7 @@
 // which would make the tests flaky.
 
 
-total count
+exact total count
 required_capability: approximation
 
 SET approximation={"rows":10000}\;

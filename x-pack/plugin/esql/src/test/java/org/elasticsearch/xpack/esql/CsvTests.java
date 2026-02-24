@@ -226,7 +226,7 @@ public class CsvTests extends ESTestCase {
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s")
     public static List<Object[]> readScriptSpec() throws Exception {
-        List<URL> urls = classpathResources("/approx*.csv-spec");
+        List<URL> urls = classpathResources("/*.csv-spec");
         assertThat("Not enough specs found " + urls, urls, hasSize(greaterThan(0)));
         return SpecReader.readScriptSpec(urls, specParser());
     }
@@ -796,7 +796,9 @@ public class CsvTests extends ESTestCase {
                 optimizedPlan,
                 configuration,
                 foldCtx,
-                configuration.approximationSettings() != null ? new Approximation(optimizedPlan, configuration.approximationSettings()) : null,
+                configuration.approximationSettings() != null
+                    ? new Approximation(optimizedPlan, configuration.approximationSettings())
+                    : null,
                 minimumVersion,
                 planTimeProfile,
                 listener.delegateFailureAndWrap(

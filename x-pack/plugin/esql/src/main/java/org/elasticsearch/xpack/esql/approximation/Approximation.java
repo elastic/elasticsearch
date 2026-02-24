@@ -451,53 +451,53 @@ public class Approximation {
         return countPlan;
     }
 
-     /**
-      * Receives the sampled number of rows reaching the STATS function and determines
-      * whether the next iteration should run the main approximation plan (if a good
-      * sample probability is found), or another {@link Approximation#countSubPlan}
-      * with higher sample probability,
-      * <p>
-      * The first iteration uses a probability of
-      * <pre>
-      * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / {@link Approximation#sourceRowCount}
-      * </pre>
-      * which is set by the {@link Approximation#processSourceCount}.
-      * <p>
-      * If the sampled row count is high enough, the approximation plan is run next.
-      * <p>
-      * If the sampled row count is low the probability is multiplied by
-      * <pre>
-      * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / Math.max(1, rowCount)
-      * </pre>
-      * and the count plan is run again.
-      * <p>
-      * For positive rowCount this means the next iteration aims for
-      * approximately {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} rows.
-      * The iteration stops when a rowCount larger than {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / 2
-      * is encountered. The division by 2 is to stop when the random sampling
-      * returns a few less rows than aimed for.
-      * <p>
-      * For zero rowCount the sample probability is multiplied by
-      * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION}. That means the next
-      * iteration can sample a number of rows between 0 and the target count,
-      * but can never overshoot by much.
-      * <p>
-      * Regarding the iteration count: in the worst case (very large index, very few
-      * matching docs), the first few iterations return zero rows, and the sample probability
-      * is multiplied by {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} each time.
-      * Next, there's one iteration that returns a positive small row count, and the
-      * probability is scaled up the correct value. Next, there's one final iteration
-      * with approximately {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} rows.
-      * <p>
-      * This result in a maximum iteration count of about:
-      * <pre>
-      * log(sourceRowCount, {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION}) + 2
-      * </pre>
-      * which is at most 7 when sourceRowCount=MAX_LONG (huge!) and
-      * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} = 10000.
-      * To be safe, the maximum iteration count is capped at 10, and an exception is thrown
-      * when this count is exceeded.
-      */
+    /**
+     * Receives the sampled number of rows reaching the STATS function and determines
+     * whether the next iteration should run the main approximation plan (if a good
+     * sample probability is found), or another {@link Approximation#countSubPlan}
+     * with higher sample probability,
+     * <p>
+     * The first iteration uses a probability of
+     * <pre>
+     * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / {@link Approximation#sourceRowCount}
+     * </pre>
+     * which is set by the {@link Approximation#processSourceCount}.
+     * <p>
+     * If the sampled row count is high enough, the approximation plan is run next.
+     * <p>
+     * If the sampled row count is low the probability is multiplied by
+     * <pre>
+     * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / Math.max(1, rowCount)
+     * </pre>
+     * and the count plan is run again.
+     * <p>
+     * For positive rowCount this means the next iteration aims for
+     * approximately {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} rows.
+     * The iteration stops when a rowCount larger than {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} / 2
+     * is encountered. The division by 2 is to stop when the random sampling
+     * returns a few less rows than aimed for.
+     * <p>
+     * For zero rowCount the sample probability is multiplied by
+     * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION}. That means the next
+     * iteration can sample a number of rows between 0 and the target count,
+     * but can never overshoot by much.
+     * <p>
+     * Regarding the iteration count: in the worst case (very large index, very few
+     * matching docs), the first few iterations return zero rows, and the sample probability
+     * is multiplied by {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} each time.
+     * Next, there's one iteration that returns a positive small row count, and the
+     * probability is scaled up the correct value. Next, there's one final iteration
+     * with approximately {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} rows.
+     * <p>
+     * This result in a maximum iteration count of about:
+     * <pre>
+     * log(sourceRowCount, {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION}) + 2
+     * </pre>
+     * which is at most 7 when sourceRowCount=MAX_LONG (huge!) and
+     * {@link Approximation#ROW_COUNT_FOR_COUNT_ESTIMATION} = 10000.
+     * To be safe, the maximum iteration count is capped at 10, and an exception is thrown
+     * when this count is exceeded.
+     */
     private LogicalPlan processCount(long rowCount) {
         subPlanIterationCount += 1;
         if (subPlanIterationCount > 10) {
@@ -505,10 +505,7 @@ public class Approximation {
         }
         double sampleProbability = nextSubPlanSampleProbability;
         logger.debug("estimated number of rows reaching STATS (p=[{}]): [{}] rows", sampleProbability, rowCount);
-        double newSampleProbability = Math.min(
-            1.0,
-            sampleProbability * sampleRowCount() / Math.max(1, rowCount)
-        );
+        double newSampleProbability = Math.min(1.0, sampleProbability * sampleRowCount() / Math.max(1, rowCount));
         if (newSampleProbability > SAMPLE_PROBABILITY_THRESHOLD) {
             // If the new sample probability is large, run the original query.
             logger.debug("using original plan (too few rows)");
@@ -516,7 +513,7 @@ public class Approximation {
             return ApproximationPlan.substituteSampleProbability(logicalPlan, 1.0);
         } else if (rowCount <= ROW_COUNT_FOR_COUNT_ESTIMATION / 2) {
             // Not enough rows are sampled yet; increase the sample probability and try again.
-            nextSubPlanSampleProbability = Math.min(1.0, sampleProbability * ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount));;
+            nextSubPlanSampleProbability = Math.min(1.0, sampleProbability * ROW_COUNT_FOR_COUNT_ESTIMATION / Math.max(1, rowCount));
             return logicalPlan;
         } else {
             // A good sample probability is found; run the approximation plan.

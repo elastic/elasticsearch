@@ -1050,6 +1050,7 @@ public class IndexSettingsTests extends ESTestCase {
             )
         );
     }
+
     public void testBloomFilterOptimizedMergeSettingRequiresSyntheticId() {
         assumeTrue("Only when synthetic id feature flag is enabled", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
 

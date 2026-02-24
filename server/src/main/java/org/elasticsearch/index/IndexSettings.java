@@ -757,27 +757,28 @@ public final class IndexSettings {
         }
     }, Property.IndexScope, Property.Final);
 
-    public static final Setting<Boolean> BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED = Setting.boolSetting(
+    public static final Setting<Boolean> BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED = new Setting<>(
         "index.bloom_filter_doc_values.optimized_merge.enabled",
-        true,
+        SYNTHETIC_ID,
+        Booleans::parseBoolean,
         new Setting.Validator<>() {
             @Override
             public void validate(Boolean enabled) {}
 
             @Override
             public void validate(Boolean enabled, Map<Setting<?>, Object> settings) {
-                if (enabled == false) {
-                    var syntheticIdEnabled = (Boolean) settings.get(SYNTHETIC_ID);
-                    if (syntheticIdEnabled == false) {
-                        throw new IllegalArgumentException(
-                            String.format(
-                                Locale.ROOT,
-                                "The setting [%s] is only permitted when [%s] is set to [true].",
-                                BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED.getKey(),
-                                SYNTHETIC_ID.getKey()
-                            )
-                        );
-                    }
+                boolean syntheticIdEnabled = (boolean) settings.get(SYNTHETIC_ID);
+                if (syntheticIdEnabled == false) {
+                    throw new IllegalArgumentException(
+                        String.format(
+                            Locale.ROOT,
+                            "The setting [%s] is only permitted when [%s] is set to [%s].",
+                            BLOOM_FILTER_DOC_VALUES_OPTIMIZED_MERGE_ENABLED.getKey(),
+                            SYNTHETIC_ID.getKey(),
+                            true
+                        )
+                    );
+
                 }
             }
 

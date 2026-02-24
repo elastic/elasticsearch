@@ -746,7 +746,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         scalerWithMetrics.getRecommendedReplicas(state, context, topology, false, new PlainActionFuture<>());
         recordingMeterRegistry.getRecorder().collect();
         List<Measurement> measurements = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.indices_stats_errors.total");
+            .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasLoadBalancingScaler.METRIC_INDICES_STATS_ERRORS);
         assertThat(measurements.size(), is(1));
         assertThat(measurements.get(0).getLong(), is(1L));
 
@@ -754,7 +754,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         scalerWithMetrics.getRecommendedReplicas(state, context, topology, false, new PlainActionFuture<>());
         recordingMeterRegistry.getRecorder().collect();
         measurements = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.indices_stats_errors.total");
+            .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasLoadBalancingScaler.METRIC_INDICES_STATS_ERRORS);
         assertThat(measurements.size(), is(2));
         assertThat(measurements.get(1).getLong(), is(1L));
 
@@ -765,7 +765,7 @@ public class ReplicasLoadBalancingScalerTests extends ESTestCase {
         scalerWithMetrics.getRecommendedReplicas(state, context, topology, false, new PlainActionFuture<>());
         recordingMeterRegistry.getRecorder().collect();
         measurements = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.indices_stats_errors.total");
+            .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasLoadBalancingScaler.METRIC_INDICES_STATS_ERRORS);
         assertThat(measurements.size(), is(2));
     }
 

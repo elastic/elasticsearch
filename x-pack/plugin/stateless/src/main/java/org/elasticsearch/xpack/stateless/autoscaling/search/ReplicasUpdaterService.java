@@ -220,6 +220,17 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
      */
     public static final int SEARCH_POWER_MIN_FULL_REPLICATION = 250;
 
+    static final String METRIC_TOTAL_REPLICAS = "es.autoscaling.search.total_replicas.current";
+    static final String METRIC_TOTAL_DESIRED_REPLICAS = "es.autoscaling.search.total_desired_replicas.current";
+    static final String METRIC_BLOCKED_REPLICAS_INCREASES = "es.autoscaling.search.blocked.replicas_increases.current";
+    static final String METRIC_SUCCESSFUL_REPLICAS_INCREASES = "es.autoscaling.search.successful.replicas_increases_events.total";
+    static final String METRIC_REPLICAS_ADDED = "es.autoscaling.search.replicas_added.total";
+    static final String METRIC_SUCCESSFUL_REPLICAS_DECREASES = "es.autoscaling.search.successful.replicas_decreases_events.total";
+    static final String METRIC_REPLICAS_REMOVED = "es.autoscaling.search.replicas_removed.total";
+    static final String METRIC_FAILED_REPLICAS_UPDATES = "es.autoscaling.search.failed.replicas_update_events.total";
+    static final String METRIC_REPLICA_INCREASE_HISTOGRAM = "es.autoscaling.search.replica_increase.histogram";
+    static final String METRIC_REPLICA_DECREASE_HISTOGRAM = "es.autoscaling.search.replica_decrease.histogram";
+
     private final NodeClient client;
     private final ClusterService clusterService;
     private final SearchMetricsService searchMetricsService;
@@ -318,58 +329,58 @@ public class ReplicasUpdaterService extends AbstractLifecycleComponent implement
         this.listener = listener;
         this.meterRegistry = meterRegistry;
         meterRegistry.registerLongGauge(
-            "es.autoscaling.search.total_replicas.current",
+            METRIC_TOTAL_REPLICAS,
             "The current total number of replica shards (over all indices in a project) before a replicas updater run.",
             "replicas",
             () -> new LongWithAttributes(this.totalReplicas)
         );
         meterRegistry.registerLongGauge(
-            "es.autoscaling.search.total_desired_replicas.current",
+            METRIC_TOTAL_DESIRED_REPLICAS,
             "The desired total number of replica shards (over all indices in a project) after a replicas updater run.",
             "replicas",
             () -> new LongWithAttributes(this.totalDesiredReplicas)
         );
         meterRegistry.registerLongGauge(
-            "es.autoscaling.search.blocked.replicas_increases.current",
+            METRIC_BLOCKED_REPLICAS_INCREASES,
             "The number of indices blocked from increasing replicas in the latest replicas updater run "
                 + "(either due to in-progress search node shutdowns or cache budget exceeded).",
             "indices",
             () -> new LongWithAttributes(this.indicesBlockedFromScaleUp)
         );
         this.successfulScaleUps = meterRegistry.registerLongCounter(
-            "es.autoscaling.search.successful.replicas_increases_events.total",
+            METRIC_SUCCESSFUL_REPLICAS_INCREASES,
             "The number of successful replica increases to an index.",
             "events"
         );
         this.replicasAdded = meterRegistry.registerLongCounter(
-            "es.autoscaling.search.replicas_added.total",
+            METRIC_REPLICAS_ADDED,
             "The number of replicas added by the updater.",
             "replicas"
         );
         this.successfulScaleDowns = meterRegistry.registerLongCounter(
-            "es.autoscaling.search.successful.replicas_decreases_events.total",
+            METRIC_SUCCESSFUL_REPLICAS_DECREASES,
             "The number of successful replica decreases to an index.",
             "events"
         );
         this.replicasRemoved = meterRegistry.registerLongCounter(
-            "es.autoscaling.search.replicas_removed.total",
+            METRIC_REPLICAS_REMOVED,
             "The number of replicas removed by the updater.",
             "replicas"
         );
         this.failedScalingEvents = meterRegistry.registerLongCounter(
-            "es.autoscaling.search.failed.replicas_update_events.total",
+            METRIC_FAILED_REPLICAS_UPDATES,
             "The number of failed replica increases/decreases to an index.",
             "events"
         );
         // Unless the metrics published by the below histograms are deemed useful, we should remove them.
         // The data is in part captured by the above counters anyway.
         this.replicaIncreaseHistogram = meterRegistry.registerLongHistogram(
-            "es.autoscaling.search.replica_increase.histogram",
+            METRIC_REPLICA_INCREASE_HISTOGRAM,
             "Histogram of replica count increases per index",
             "replicas"
         );
         this.replicaDecreaseHistogram = meterRegistry.registerLongHistogram(
-            "es.autoscaling.search.replica_decrease.histogram",
+            METRIC_REPLICA_DECREASE_HISTOGRAM,
             "Histogram of replica count decreases per index",
             "replicas"
         );

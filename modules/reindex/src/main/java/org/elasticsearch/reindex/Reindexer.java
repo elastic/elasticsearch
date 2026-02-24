@@ -161,6 +161,8 @@ public class Reindexer {
 
     /**
      * Looks up the remote cluster version when reindexing from a remote source, then runs the sliced action with that version.
+     * The RestClient used for the lookup is closed after the callback; closing must happen on a thread other than the
+     * RestClient's own thread pool to avoid shutdown failures.
      */
     private void lookupRemoteVersionAndExecute(
         BulkByScrollTask task,
@@ -174,7 +176,7 @@ public class Reindexer {
         RejectAwareActionListener<Version> rejectAwareListener = new RejectAwareActionListener<>() {
             @Override
             public void onResponse(Version version) {
-                BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
+                closeRestClientAndRun(restClient, () -> BulkByPaginatedSearchParallelizationHelper.executeSlicedAction(
                     task,
                     request,
                     ReindexAction.INSTANCE,
@@ -183,20 +185,35 @@ public class Reindexer {
                     clusterService.localNode(),
                     version,
                     workerAction
-                );
+                ));
             }
 
             @Override
             public void onFailure(Exception e) {
-                listener.onFailure(e);
+                closeRestClientAndRun(restClient, () -> listener.onFailure(e));
             }
 
             @Override
             public void onRejection(Exception e) {
-                listener.onFailure(e);
+                closeRestClientAndRun(restClient, () -> listener.onFailure(e));
             }
         };
         RemoteReindexingUtils.lookupRemoteVersion(rejectAwareListener, threadPool, restClient);
+    }
+
+    /**
+     * Closes the RestClient on the generic thread pool (to avoid closing from the client's own thread), then runs the given action.
+     */
+    private void closeRestClientAndRun(RestClient restClient, Runnable onCompletion) {
+        threadPool.generic().submit(() -> {
+            try {
+                restClient.close();
+            } catch (IOException e) {
+                logger.warn("Failed to close RestClient after version lookup", e);
+            } finally {
+                onCompletion.run();
+            }
+        });
     }
 
     // Visible for testing

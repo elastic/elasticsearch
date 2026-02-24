@@ -12,6 +12,7 @@ module org.elasticsearch.entitlement.qa.test {
     requires org.elasticsearch.base;
     requires org.elasticsearch.logging;
     requires org.elasticsearch.entitlement;
+    requires static org.elasticsearch.entitlement.bridge;
     requires org.elasticsearch.entitlement.qa.entitled;
 
     // Modules we'll attempt to use in order to exercise entitlements

@@ -17,9 +17,12 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.InputFile;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.work.ChangeType;
 import org.gradle.work.Incremental;
@@ -46,6 +49,7 @@ import java.util.stream.StreamSupport;
  * `delete` is an operator in JavaScript, but it isn't in the keywords list for JavaScript or
  * TypeScript because it's OK to use `delete` as a method name.
  */
+@CacheableTask
 public class ValidateJsonNoKeywordsTask extends DefaultTask {
 
     private File jsonKeywords;
@@ -54,6 +58,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
 
     @Incremental
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     public FileCollection getInputFiles() {
         return inputFiles;
     }
@@ -63,6 +68,7 @@ public class ValidateJsonNoKeywordsTask extends DefaultTask {
     }
 
     @InputFile
+    @PathSensitive(PathSensitivity.RELATIVE)
     public File getJsonKeywords() {
         return jsonKeywords;
     }

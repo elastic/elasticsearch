@@ -103,7 +103,7 @@ public class Reindexer {
     private final ReindexSslConfig reindexSslConfig;
     private final ReindexMetrics reindexMetrics;
     private final TransportService transportService;
-    @Nullable // might be null for tests which don't load Reindex module, but load modules which depend on it, e.g. enrich
+    @Nullable // might be null for modules which use reindex but don't currently have relocations, as of writing: enrich module
     private final ReindexRelocationNodePicker relocationNodePicker;
 
     Reindexer(

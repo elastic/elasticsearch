@@ -16,11 +16,9 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.reindex.ReindexRelocationNodePicker;
 import org.elasticsearch.reindex.ReindexSslConfig;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.script.ScriptService;
@@ -52,8 +50,7 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
         Client client,
         TransportService transportService,
         Environment environment,
-        ResourceWatcherService watcherService,
-        @Nullable ReindexRelocationNodePicker relocationNodePicker
+        ResourceWatcherService watcherService
     ) {
         super(
             EnrichReindexAction.NAME,
@@ -69,7 +66,11 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             transportService,
             new ReindexSslConfig(settings, environment, watcherService),
             null,
-            relocationNodePicker
+            // no relocation support as of now. to do so, create a ReindexRelocationNodePicker instance here, similar to Reindex plugin.
+            // same idea as SSL config above, you can't inject into constructor because (my understanding) classloader isolation between the
+            // enrich plugin and reindex module means Guice bindings registered by ReindexPlugin won't match the Class identity seen here.
+            // also, if you add relocation support here, remove `@Nullable` annotations from reindex on ReindexRelocationNodePicker.
+            null
         );
         this.bulkClient = new OriginSettingClient(client, ENRICH_ORIGIN);
     }

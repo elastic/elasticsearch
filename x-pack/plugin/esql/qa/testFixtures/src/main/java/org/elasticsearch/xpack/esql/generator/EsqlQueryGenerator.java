@@ -46,6 +46,7 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.COMMONLY_SUPPORTED_TYPES;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.areUnmappedFieldsAllowed;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.binaryMathFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.caseFunction;
@@ -70,6 +71,7 @@ import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.splitFunc
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.stringFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.stringToBoolFunction;
 import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.stringToIntFunction;
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.typeSafeExpression;
 import static org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator.randomUnmappedFieldName;
 
 public class EsqlQueryGenerator {
@@ -214,15 +216,6 @@ public class EsqlQueryGenerator {
                 break;
             }
         }
-    }
-
-    /**
-     * Generates a boolean expression.
-     * @deprecated Use {@link #booleanExpression(List, List)} instead to properly handle unmapped fields
-     */
-    @Deprecated
-    public static String booleanExpression(List<Column> previousOutput) {
-        return booleanExpression(previousOutput, null);
     }
 
     /**
@@ -501,14 +494,14 @@ public class EsqlQueryGenerator {
             case 6, 7 -> {
                 // top() accepts: boolean, double, integer, long, date, ip, keyword, text
                 Set<String> topTypes = Set.of("boolean", "double", "integer", "long", "date", "datetime", "ip", "keyword", "text");
-                String topField = FunctionGenerator.typeSafeExpression(previousOutput, topTypes, allowUnmapped);
+                String topField = typeSafeExpression(previousOutput, topTypes, allowUnmapped);
                 if (topField == null) topField = anyName;
                 String order = randomIntBetween(0, 1) == 0 ? "asc" : "desc";
                 yield "top(" + topField + ", " + randomIntBetween(1, 5) + ", \"" + order + "\")";
             }
             case 8 -> {
                 // sample() - use a commonly supported field to avoid type issues
-                String sampleField = randomName(previousOutput, FunctionGenerator.COMMONLY_SUPPORTED_TYPES);
+                String sampleField = randomName(previousOutput, COMMONLY_SUPPORTED_TYPES);
                 if (sampleField == null) sampleField = anyName;
                 yield "sample(" + sampleField + ", " + randomIntBetween(1, 10) + ")";
             }

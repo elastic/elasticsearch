@@ -10,13 +10,13 @@ package org.elasticsearch.xpack.esql.generator.command;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
 import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.EsqlQueryGenerator;
-import org.elasticsearch.xpack.esql.generator.FunctionGenerator;
 import org.elasticsearch.xpack.esql.generator.LookupIdx;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.generator.FunctionGenerator.isUnmappedFieldsEnabled;
 /**
  * Implement this if you want to your command to be tested by the random query generator.
  * Then add it to the right list in {@link EsqlQueryGenerator}
@@ -126,7 +126,7 @@ public interface CommandGenerator {
         List<Column> columns
     ) {
 
-        if (FunctionGenerator.isUnmappedFieldsEnabled(previousCommands)) {
+        if (isUnmappedFieldsEnabled(previousCommands)) {
             return VALIDATION_OK;
         }
 

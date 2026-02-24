@@ -118,6 +118,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         .map(x -> Pattern.compile(x, Pattern.DOTALL))
         .collect(Collectors.toSet());
 
+    private static final Pattern FULL_TEXT_AFTER_SORT_PATTERN = Pattern.compile(
+        ".*\\[(KQL|QSTR)] function cannot be used after SORT.*",
+        Pattern.DOTALL
+    );
     /**
      * Matches "Unknown column [X]" errors, optionally followed by ", did you mean [Y]?".
      * This error is expected when an unmapped field is used after a schema-fixing command (KEEP, DROP, STATS)
@@ -389,12 +393,14 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     /**
      * Checks if the error is a known unmapped field error. This covers:
      * <ul>
+     *   <li>"[KQL|QSTR] function cannot be used after SORT" (https://github.com/elastic/elasticsearch/issues/142959)</li>
+     *   <li>"Rule execution limit [100] reached" - can happen with complex plans involving "nullify" unmapped fields
+     *       (https://github.com/elastic/elasticsearch/issues/142390)</li>
      *   <li>"Unknown column [X], did you mean [Y]?" - both X and Y must be unmapped field names</li>
      *   <li>"Unknown column [X]" (no suggestion) - X must be an unmapped field name</li>
      *   <li>"first argument of [X] is [null] so second argument must also be [null] but was [Y]" -
      *       the expression X must contain an unmapped field name (https://github.com/elastic/elasticsearch/issues/142115)</li>
-     *   <li>"Rule execution limit [100] reached" - can happen with complex plans involving "nullify" unmapped fields
-     *       (https://github.com/elastic/elasticsearch/issues/142390)</li>
+     *
      * </ul>
      */
     private static boolean isUnmappedFieldError(String errorMessage, String query) {
@@ -402,7 +408,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return false;
         }
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
-        Matcher matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
+        if (errorWithoutLineBreaks.contains("Rule execution limit [100] reached")) {
+            return true;
+        }
+
+        Matcher matcher = FULL_TEXT_AFTER_SORT_PATTERN.matcher(errorWithoutLineBreaks);
+        if (matcher.matches()) {
+            return true;
+        }
+
+        matcher = UNKNOWN_COLUMN_WITH_SUGGESTION_PATTERN.matcher(errorWithoutLineBreaks);
         if (matcher.matches()) {
             String unknownColumn = matcher.group(1);
             String suggestedColumn = matcher.group(2);
@@ -426,10 +441,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             String expression = matcher.group(1);
             return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
         }
-        // https://github.com/elastic/elasticsearch/issues/142390
-        if (errorWithoutLineBreaks.contains("Rule execution limit [100] reached")) {
-            return true;
-        }
+
         return false;
     }
 

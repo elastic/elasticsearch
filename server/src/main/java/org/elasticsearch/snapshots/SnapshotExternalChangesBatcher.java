@@ -125,29 +125,16 @@ final class SnapshotExternalChangesBatcher {
         if (changedNodes == false && changedShards == false) {
             return;
         }
-        final boolean enqueueTask;
         synchronized (this) {
-            enqueueTask = state == State.IDLE;
-            if (changedNodes || state == State.NODE_CHANGES) {
-                state = State.NODE_CHANGES;
-            } else {
-                state = State.SHARD_ONLY_CHANGES;
+            if (state != State.IDLE) {
+                // Task already enqueued, just record changes and return
+                state = (changedNodes || state == State.NODE_CHANGES) ? State.NODE_CHANGES : State.SHARD_ONLY_CHANGES;
+                return;
             }
+            // Send external changes in the queue right away.
+            state = State.NO_CHANGES;
         }
-        if (enqueueTask) {
-            taskQueue.submitTask("update snapshot after external changes", new Task(), null);
-        }
-    }
-
-    /**
-     * @return true if node changes are pending (both {@code STARTED} and {@code ABORTED} snapshots need updating)
-     *         false if only shard-routing changes are pending (only need to update {@code STARTED} snapshots)
-     */
-    synchronized boolean acquireChangesToExecute() {
-        assert state.hasPendingChanges() : "unexpected changes acquired " + state;
-        final boolean nodeChanges = state == State.NODE_CHANGES;
-        state = State.NO_CHANGES;
-        return nodeChanges;
+        taskQueue.submitTask("update snapshot after external changes", new Task(changedNodes), null);
     }
 
     /**
@@ -155,25 +142,22 @@ final class SnapshotExternalChangesBatcher {
      * {@link State#IDLE} if no new changes arrived during execution, re-enqueues a new task otherwise.
      */
     void onTaskCompletion() {
+        final boolean nodeChanges;
         synchronized (this) {
             if (state == State.NO_CHANGES) {
                 state = State.IDLE;
                 return;
             }
+            // New changes since we last created this task -> enqueue them
             assert state.hasPendingChanges() : "unexpected state found on task completion: " + state;
+            nodeChanges = state == State.NODE_CHANGES;
+            state = State.NO_CHANGES;
         }
-        taskQueue.submitTask("update snapshot after external changes", new Task(), null);
+        taskQueue.submitTask("update snapshot after external changes", new Task(nodeChanges), null);
     }
 
     private void onTaskFailure(Exception e) {
-        // No way of distinguishing whether master threw before or after processing the changes. Abort.
-        if (e instanceof NotMasterException) {
-            synchronized (this) {
-                state = State.IDLE;
-            }
-            return;
-        }
-        if (e instanceof FailedToCommitClusterStateException == false) {
+        if (e instanceof FailedToCommitClusterStateException == false && e instanceof NotMasterException == false) {
             assert false;
             logger.error("Failed to update snapshot state after shards or node configuration changed", e);
         }
@@ -184,6 +168,12 @@ final class SnapshotExternalChangesBatcher {
      * Task submitted to the master service queue. There should always be at most such task in the master queue.
      */
     final class Task implements ClusterStateTaskListener {
+        final boolean nodeChanges;
+
+        Task(boolean nodeChanges) {
+            this.nodeChanges = nodeChanges;
+        }
+
         @Override
         public void onFailure(Exception e) {
             onTaskFailure(e);
@@ -197,15 +187,13 @@ final class SnapshotExternalChangesBatcher {
             assert numberOfTasksInBatch == 1 : "Expected single task in the queue, but was " + numberOfTasksInBatch;
 
             final TaskContext<Task> taskContext = batchExecutionContext.taskContexts().getFirst();
-            final boolean nodesChanged = acquireChangesToExecute();
-
             final ClusterState currentState = batchExecutionContext.initialState();
             final SnapshotsInProgress snapshotsInProgress = SnapshotsInProgress.get(currentState);
             final SnapshotDeletionsInProgress deletesInProgress = SnapshotDeletionsInProgress.get(currentState);
             final DiscoveryNodes nodes = currentState.nodes();
 
             final EnumSet<SnapshotsInProgress.State> statesToUpdate;
-            if (nodesChanged) {
+            if (taskContext.getTask().nodeChanges) {
                 // If we are reacting to a change in the cluster node configuration we have to update the shard states of both started
                 // and aborted snapshots to potentially fail shards running on the removed nodes
                 statesToUpdate = EnumSet.of(SnapshotsInProgress.State.STARTED, SnapshotsInProgress.State.ABORTED);

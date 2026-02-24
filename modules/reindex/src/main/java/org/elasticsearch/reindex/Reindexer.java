@@ -270,8 +270,7 @@ public class Reindexer {
                 return;
             }
             assert task.isWorker() : "relocation only supports non-sliced for now";
-            final Supplier<Optional<String>> nodeToRelocateToSupplier = task.getWorkerState().getNodeToRelocateToSupplier();
-            final String nodeToRelocateTo = nodeToRelocateToSupplier.get().orElse(null);
+            final String nodeToRelocateTo = task.getWorkerState().getNodeToRelocateTo().orElse(null);
             assert nodeToRelocateTo != null : "node to relocate to should be set if taskResumeInfo is present";
             final DiscoveryNode nodeToRelocateToNode = clusterService.state().nodes().get(nodeToRelocateTo);
             if (nodeToRelocateToNode == null) {

@@ -558,7 +558,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
             return;
         }
         if (task.isRelocationRequested() && task.isWorker() && task.getParentTaskId().isSet() == false) {
-            final Optional<String> nodeToRelocateTo = worker.getNodeToRelocateToSupplier().get();
+            final Optional<String> nodeToRelocateTo = worker.getNodeToRelocateTo();
             if (nodeToRelocateTo.isPresent()) {
                 final String scrollId = asyncResponse.response().getScrollId();
                 final Version remoteVersion = paginatedHitSource instanceof RemoteScrollablePaginatedHitSource s

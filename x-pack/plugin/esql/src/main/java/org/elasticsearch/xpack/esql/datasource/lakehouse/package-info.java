@@ -98,11 +98,14 @@
  *
  * <h2>Registries</h2>
  *
+ * <p>Both registries use lazy factory-based creation — heavy dependencies (S3 client,
+ * Parquet reader) are only loaded when a query first targets that backend.
+ *
  * <ul>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.StorageProviderRegistry} —
- *       Scheme-keyed lookup for StorageProvider instances</li>
+ *       Scheme-keyed lazy lookup: stores factories, creates providers on first access</li>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.FormatReaderRegistry} —
- *       Name-keyed and extension-keyed lookup for FormatReader instances</li>
+ *       Name-keyed lazy lookup: stores factories, creates readers on first access</li>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.StorageManager} —
  *       Facade over StorageProviderRegistry for creating StorageObject from paths</li>
  * </ul>
@@ -118,6 +121,8 @@
  *       Thread-safe buffer with backpressure for cross-thread page transfer</li>
  *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.ExternalSourceOperatorFactory} —
  *       Synchronous factory for simple format readers</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.lakehouse.ExternalSourceDrainUtils} —
+ *       Backpressure-aware page draining using PlainActionFuture blocking</li>
  * </ul>
  *
  * <h2>Relationship to LakehouseDataSource</h2>
@@ -131,5 +136,15 @@
  * {@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi.StoragePlugin},
  * {@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi.FormatPlugin}, and
  * {@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi.CatalogPlugin} implementations.
+ *
+ * <h2>Related Packages</h2>
+ *
+ * <ul>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.connector connector} —
+ *       Connection-oriented data sources (Flight, JDBC). The connector package
+ *       reuses async infrastructure from this package
+ *       ({@link org.elasticsearch.xpack.esql.datasource.lakehouse.AsyncExternalSourceBuffer},
+ *       {@link org.elasticsearch.xpack.esql.datasource.lakehouse.ExternalSourceDrainUtils}).</li>
+ * </ul>
  */
 package org.elasticsearch.xpack.esql.datasource.lakehouse;

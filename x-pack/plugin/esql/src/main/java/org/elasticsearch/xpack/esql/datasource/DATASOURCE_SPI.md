@@ -181,37 +181,58 @@ and the existing plan nodes.
 
 **Mirrored lakehouse SPI** — same types, moved from `datasources/spi/` to `datasource/lakehouse/spi/`:
 
-| `datasource/lakehouse/spi/` | `datasources/spi/` |
-|------|------|
-| StorageProvider | StorageProvider |
-| StorageObject | StorageObject |
-| StoragePath | StoragePath |
-| FormatReader | FormatReader |
-| FormatReaderFactory | FormatReaderFactory |
-| StorageProviderFactory | StorageProviderFactory |
-| SourceMetadata | SourceMetadata |
-| SimpleSourceMetadata | SimpleSourceMetadata |
-| SourceStatistics | SourceStatistics |
-| FilterPushdownSupport | FilterPushdownSupport |
-| TableCatalog, TableCatalogFactory | TableCatalog, TableCatalogFactory |
-| SourceOperatorFactoryProvider | SourceOperatorFactoryProvider |
-| SourceOperatorContext | SourceOperatorContext |
+| `datasource/lakehouse/spi/` | `datasources/spi/` | Sync status |
+|------|------|------|
+| StorageProvider | StorageProvider | Identical |
+| StorageObject | StorageObject | Identical |
+| StoragePath | StoragePath | Synced (added `fileUri(Path)`) |
+| FormatReader | FormatReader | Identical |
+| FormatReaderFactory | FormatReaderFactory | Identical |
+| StorageProviderFactory | StorageProviderFactory | Identical |
+| SourceMetadata | SourceMetadata | Identical |
+| SimpleSourceMetadata | SimpleSourceMetadata | Identical |
+| SourceStatistics | SourceStatistics | Identical |
+| FilterPushdownSupport | FilterPushdownSupport | Identical |
+| TableCatalog | TableCatalog | **Deliberate divergence**: main extends `ExternalSourceFactory`; ours is standalone (our `DataSource` replaces that role) |
+| TableCatalogFactory | TableCatalogFactory | Identical |
+| SourceOperatorFactoryProvider | SourceOperatorFactoryProvider | Identical |
+| SourceOperatorContext | SourceOperatorContext | Identical |
 
-Also mirrored: StorageEntry, StorageIterator, FileSet (`datasources/` → `datasource/lakehouse/spi/`), CloseableIterator (`datasources/` → `datasource/spi/`).
+Also mirrored: StorageEntry, StorageIterator (identical), FileSet (synced: sentinel-aware equals/hashCode), CloseableIterator (identical).
 
 **Mirrored lakehouse internals** — same types, moved from `datasources/` to `datasource/lakehouse/`:
 
-| `datasource/lakehouse/` | `datasources/` |
-|------|------|
-| StorageProviderRegistry | StorageProviderRegistry |
-| FormatReaderRegistry | FormatReaderRegistry |
-| StorageManager | StorageManager |
-| AsyncExternalSourceOperator | AsyncExternalSourceOperator |
-| AsyncExternalSourceBuffer | AsyncExternalSourceBuffer |
-| AsyncExternalSourceOperatorFactory | AsyncExternalSourceOperatorFactory |
-| ExternalSourceOperatorFactory | ExternalSourceOperatorFactory |
-| GlobExpander | GlobExpander |
-| GlobMatcher | GlobMatcher |
+| `datasource/lakehouse/` | `datasources/` | Sync status |
+|------|------|------|
+| StorageProviderRegistry | StorageProviderRegistry | Synced (lazy factory-based) |
+| FormatReaderRegistry | FormatReaderRegistry | Synced (lazy factory-based) |
+| StorageManager | StorageManager | Synced (GCS scheme) |
+| AsyncExternalSourceOperator | AsyncExternalSourceOperator | Identical |
+| AsyncExternalSourceBuffer | AsyncExternalSourceBuffer | Synced (notifyNotFull fix) |
+| AsyncExternalSourceOperatorFactory | AsyncExternalSourceOperatorFactory | Synced (drain utils) |
+| ExternalSourceDrainUtils | ExternalSourceDrainUtils | Synced |
+| ExternalSourceOperatorFactory | ExternalSourceOperatorFactory | Identical |
+| GlobExpander | GlobExpander | Synced (sorted results) |
+| GlobMatcher | GlobMatcher | Identical |
+
+**Connector SPI** — mirrored from main (PR #142667) for connection-oriented sources (Flight, JDBC):
+
+| `datasource/connector/spi/` | `datasources/spi/` | Sync status |
+|------|------|------|
+| [Split](connector/spi/Split.java) | Split | Identical (package change only) |
+| [QueryRequest](connector/spi/QueryRequest.java) | QueryRequest | Identical (package change only) |
+| [ResultCursor](connector/spi/ResultCursor.java) | ResultCursor | Package change; imports `CloseableIterator` from `datasource.spi` |
+| [Connector](connector/spi/Connector.java) | Connector | Identical (package change only) |
+| [ConnectorFactory](connector/spi/ConnectorFactory.java) | ConnectorFactory | **Standalone** — removed `extends ExternalSourceFactory`; `DataSource` handles filter pushdown and operator creation |
+| [ConnectorPlugin](connector/spi/ConnectorPlugin.java) | *(extracted from DataSourcePlugin)* | Follows `StoragePlugin`/`FormatPlugin`/`CatalogPlugin` pattern |
+
+**Connector infrastructure** — mirrored internal helpers:
+
+| `datasource/connector/` | `datasources/` | Sync status |
+|------|------|------|
+| [AsyncConnectorSourceOperatorFactory](connector/AsyncConnectorSourceOperatorFactory.java) | AsyncConnectorSourceOperatorFactory | Identical (package + import changes only) |
+
+**`ExternalSourceFactory`** is NOT mirrored — replaced by `DataSource` + `DataSourceFactory` in our architecture.
 
 **`datasources/` types replaced by DataSource lifecycle** — deleted in Phase 3:
 
@@ -291,7 +312,7 @@ SOURCE postgres "SELECT * FROM users" WITH {"host": "db.example.com", "port": 54
 | `stringOrParameter` | `expression` | Quoted string or parameter reference |
 | `WITH {...}` | `configuration` | JSON-style map expression, optional |
 | *(not present)* | `settings` | Empty for now (ES-controlled, future) |
-| *(not present)* | `dataSourceName` | null (always inline — no registry yet) |
+| *(not present)* | *(Registered variant)* | Always Specified — no registry yet |
 | parser source location | `source` | For error reporting |
 
 ### Future: FROM Integration
@@ -320,7 +341,7 @@ These are the types that define the DataSource SPI contract. Every data source m
 |------|-------------|
 | [DataSource](spi/DataSource.java) | Main SPI interface with all lifecycle hooks (including `capabilities()`) |
 | [DataSourcePlan](spi/DataSourcePlan.java) | Abstract base class for data source plan leaves (extends LeafPlan) |
-| [DataSourceDescriptor](spi/DataSourceDescriptor.java) | Parsed data source reference (type, configuration, settings, expression) |
+| [DataSourceDescriptor](spi/DataSourceDescriptor.java) | Sealed interface: Specified (type, config, settings, expression) or Registered (name, expression) |
 | [DataSourcePartition](spi/DataSourcePartition.java) | Interface for units of work in distributed execution |
 | [DataSourceCapabilities](spi/DataSourceCapabilities.java) | Execution mode flag (distributed vs coordinator-only), returned by `DataSource.capabilities()` |
 | [DataSourceExec](spi/DataSourceExec.java) | Physical plan node for all data sources (wraps DataSourcePlan) |
@@ -437,11 +458,13 @@ Plugin interfaces for lakehouse infrastructure. Discovered by `LakehouseRegistry
 ### Lakehouse Registries
 
 Internal registries for scheme-based provider lookup and format-based reader lookup.
+Both registries use **lazy factory-based creation** — heavy dependencies (S3 client, Parquet reader)
+are only loaded when a query first targets that backend.
 
 | Type | Description |
 |------|-------------|
-| [StorageProviderRegistry](lakehouse/StorageProviderRegistry.java) | Scheme-keyed lookup for StorageProvider instances |
-| [FormatReaderRegistry](lakehouse/FormatReaderRegistry.java) | Name-keyed and extension-keyed lookup for FormatReader instances |
+| [StorageProviderRegistry](lakehouse/StorageProviderRegistry.java) | Scheme-keyed lazy lookup: stores `StorageProviderFactory` per scheme, creates providers on first access via double-checked locking |
+| [FormatReaderRegistry](lakehouse/FormatReaderRegistry.java) | Name-keyed lazy lookup: stores `FormatReaderFactory` per format, creates readers on first access; extension pre-registration via `registerExtension()` |
 | [StorageManager](lakehouse/StorageManager.java) | Facade over StorageProviderRegistry for creating StorageObject from paths |
 
 ### Lakehouse Async Operators
@@ -455,6 +478,7 @@ via buffer and dual-mode (sync wrapper / native async) operation.
 | [AsyncExternalSourceOperator](lakehouse/AsyncExternalSourceOperator.java) | SourceOperator that polls from AsyncExternalSourceBuffer |
 | [AsyncExternalSourceBuffer](lakehouse/AsyncExternalSourceBuffer.java) | Thread-safe ConcurrentLinkedQueue-based buffer with backpressure |
 | [ExternalSourceOperatorFactory](lakehouse/ExternalSourceOperatorFactory.java) | Synchronous factory for simple format readers |
+| [ExternalSourceDrainUtils](lakehouse/ExternalSourceDrainUtils.java) | Backpressure-aware page draining using `PlainActionFuture` blocking (5-min timeout) |
 
 ### Lakehouse Glob Expansion
 
@@ -464,6 +488,32 @@ Internal utilities for expanding glob patterns into resolved file sets.
 |------|-------------|
 | [GlobExpander](lakehouse/GlobExpander.java) | Expands glob patterns and comma-separated path lists into FileSet instances |
 | [GlobMatcher](lakehouse/GlobMatcher.java) | Converts glob patterns to Java regex and matches relative paths |
+
+### Connector SPI
+
+Connection-oriented data source types for protocol-based sources (Flight, JDBC, gRPC).
+While the lakehouse SPI handles file-based storage, the connector SPI handles sources
+that require live connections.
+
+| Type | Description |
+|------|-------------|
+| [ConnectorFactory](connector/spi/ConnectorFactory.java) | Factory for creating connectors; handles schema resolution and connection creation |
+| [Connector](connector/spi/Connector.java) | Live connection to an external data source; discovers splits and executes queries |
+| [QueryRequest](connector/spi/QueryRequest.java) | Immutable query descriptor with target, projected columns, config, and batch size |
+| [ResultCursor](connector/spi/ResultCursor.java) | Streaming cursor over query results (extends CloseableIterator) |
+| [Split](connector/spi/Split.java) | Unit of parallel work; simple connectors use `Split.SINGLE` |
+
+### Connector Plugin Discovery
+
+| Type | Description |
+|------|-------------|
+| [ConnectorPlugin](connector/spi/ConnectorPlugin.java) | Extension point: `connectors(Settings)` returns `Map<String, ConnectorFactory>` keyed by connector type |
+
+### Connector Infrastructure
+
+| Type | Description |
+|------|-------------|
+| [AsyncConnectorSourceOperatorFactory](connector/AsyncConnectorSourceOperatorFactory.java) | Single-split source operator factory; executes connector query on background thread, feeds pages into AsyncExternalSourceBuffer |
 
 ### Core SPI: Component Composition
 

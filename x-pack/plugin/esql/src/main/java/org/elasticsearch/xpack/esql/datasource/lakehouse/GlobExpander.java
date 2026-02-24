@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasource.lakehouse.spi.StorageProvider;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 
 /**
@@ -90,6 +91,7 @@ final class GlobExpander {
             return FileSet.EMPTY;
         }
 
+        matched.sort(Comparator.comparing(e -> e.path().toString()));
         return new FileSet(matched, pattern);
     }
 
@@ -108,7 +110,6 @@ final class GlobExpander {
 
         String[] segments = pathList.split(",");
         List<StorageEntry> allEntries = new ArrayList<>();
-        List<String> originalPatterns = new ArrayList<>();
 
         for (String segment : segments) {
             String trimmed = segment.trim();
@@ -118,20 +119,16 @@ final class GlobExpander {
 
             StoragePath segmentPath = StoragePath.of(trimmed);
             if (segmentPath.isPattern()) {
-                // Expand glob
                 FileSet expanded = expandGlob(trimmed, provider);
                 if (expanded.isResolved()) {
                     allEntries.addAll(expanded.files());
                 }
-                originalPatterns.add(trimmed);
             } else {
-                // Literal path — verify existence
+                // Literal path -- verify existence
                 if (provider.exists(segmentPath)) {
-                    // Create a StorageEntry; use the provider's newObject to get metadata
                     var obj = provider.newObject(segmentPath);
                     allEntries.add(new StorageEntry(segmentPath, obj.length(), obj.lastModified()));
                 }
-                originalPatterns.add(trimmed);
             }
         }
 
@@ -139,6 +136,7 @@ final class GlobExpander {
             return FileSet.EMPTY;
         }
 
+        allEntries.sort(Comparator.comparing(e -> e.path().toString()));
         return new FileSet(allEntries, pathList);
     }
 }

@@ -12,11 +12,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.esql.datasource.lakehouse.spi.CatalogPlugin;
 import org.elasticsearch.xpack.esql.datasource.lakehouse.spi.FormatPlugin;
-import org.elasticsearch.xpack.esql.datasource.lakehouse.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasource.lakehouse.spi.FormatReaderFactory;
 import org.elasticsearch.xpack.esql.datasource.lakehouse.spi.LakehouseDataSource;
 import org.elasticsearch.xpack.esql.datasource.lakehouse.spi.StoragePlugin;
-import org.elasticsearch.xpack.esql.datasource.lakehouse.spi.StorageProvider;
 import org.elasticsearch.xpack.esql.datasource.lakehouse.spi.StorageProviderFactory;
 
 import java.io.Closeable;
@@ -70,26 +68,22 @@ public final class LakehouseRegistry implements Closeable {
     ) {
         this.settings = settings;
         this.blockFactory = blockFactory;
-        this.storageProviderRegistry = new StorageProviderRegistry();
+        this.storageProviderRegistry = new StorageProviderRegistry(settings);
         this.formatReaderRegistry = new FormatReaderRegistry();
 
-        // Collect storage provider factories from all storage plugins
+        // Register storage provider factories (lazily created on first access)
         for (StoragePlugin plugin : storagePlugins) {
             Map<String, StorageProviderFactory> factories = plugin.storageProviders(settings);
-            storageProviderRegistry.setSpiFactories(factories);
-            // Create default providers for each scheme
             for (Map.Entry<String, StorageProviderFactory> entry : factories.entrySet()) {
-                StorageProvider provider = entry.getValue().create(settings);
-                storageProviderRegistry.registerWithProvider(entry.getKey(), provider);
+                storageProviderRegistry.registerFactory(entry.getKey(), entry.getValue());
             }
         }
 
-        // Collect format reader factories from all format plugins
+        // Register format reader factories (lazily created on first access)
         for (FormatPlugin plugin : formatPlugins) {
             Map<String, FormatReaderFactory> factories = plugin.formatReaders(settings);
             for (Map.Entry<String, FormatReaderFactory> entry : factories.entrySet()) {
-                FormatReader reader = entry.getValue().create(settings, blockFactory);
-                formatReaderRegistry.register(reader);
+                formatReaderRegistry.registerLazy(entry.getKey(), entry.getValue(), settings, blockFactory);
             }
         }
 

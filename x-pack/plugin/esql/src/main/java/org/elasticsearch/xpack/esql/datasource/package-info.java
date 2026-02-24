@@ -78,6 +78,10 @@
  *       SPI contracts in {@link org.elasticsearch.xpack.esql.datasource.lakehouse.spi lakehouse/spi}
  *       (including {@link org.elasticsearch.xpack.esql.datasource.spi.partitioning partitioning}),
  *       helpers (registries, operators, glob) at package root.</li>
+ *   <li>{@link org.elasticsearch.xpack.esql.datasource.connector connector} - Connection-oriented
+ *       data sources (Flight, JDBC, gRPC). SPI contracts in
+ *       {@link org.elasticsearch.xpack.esql.datasource.connector.spi connector/spi},
+ *       async operator infrastructure at package root.</li>
  * </ul>
  *
  * <h2>Design Principles</h2>

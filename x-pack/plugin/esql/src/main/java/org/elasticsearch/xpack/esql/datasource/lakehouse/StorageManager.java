@@ -27,9 +27,10 @@ import java.util.Map;
  * knowledge of specific file formats (Parquet, CSV, etc.). It routes requests
  * to appropriate StorageProvider implementations based on the URI scheme:
  * <ul>
- *   <li>{@code s3://}, {@code s3a://}, {@code s3n://} - S3StorageProvider</li>
- *   <li>{@code http://}, {@code https://} - HttpStorageProvider</li>
- *   <li>{@code file://} - LocalStorageProvider</li>
+ *   <li>{@code s3://}, {@code s3a://}, {@code s3n://} &mdash; S3StorageProvider</li>
+ *   <li>{@code gs://} &mdash; GcsStorageProvider</li>
+ *   <li>{@code http://}, {@code https://} &mdash; HttpStorageProvider</li>
+ *   <li>{@code file://} &mdash; LocalStorageProvider</li>
  * </ul>
  *
  * <p>The manager uses a StorageProviderRegistry for scheme-based provider lookup,
@@ -102,7 +103,7 @@ public class StorageManager implements Closeable {
                     + ". "
                     + "No storage provider registered for this scheme. "
                     + "Install the appropriate data source plugin (e.g., esql-datasource-http for http/https/file, "
-                    + "esql-datasource-s3 for s3)."
+                    + "esql-datasource-s3 for s3, esql-datasource-gcs for gs)."
             );
         }
 

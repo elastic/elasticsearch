@@ -62,4 +62,10 @@ public class FileSetTests extends ESTestCase {
     public void testNullFilesThrows() {
         expectThrows(IllegalArgumentException.class, () -> new FileSet(null, "pattern"));
     }
+
+    public void testSentinelsNotEqual() {
+        assertNotEquals(FileSet.UNRESOLVED, FileSet.EMPTY);
+        assertNotEquals(FileSet.EMPTY, FileSet.UNRESOLVED);
+        assertNotEquals(FileSet.UNRESOLVED.hashCode(), FileSet.EMPTY.hashCode());
+    }
 }

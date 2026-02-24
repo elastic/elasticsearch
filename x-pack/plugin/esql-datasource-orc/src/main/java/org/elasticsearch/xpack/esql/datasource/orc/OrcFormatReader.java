@@ -120,6 +120,8 @@ public class OrcFormatReader implements FormatReader {
                         TypeDescription child = schema.getChildren().get(idx);
                         include[child.getId()] = true;
                     }
+                } else {
+                    projectedAttributes.add(new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL));
                 }
             }
         }

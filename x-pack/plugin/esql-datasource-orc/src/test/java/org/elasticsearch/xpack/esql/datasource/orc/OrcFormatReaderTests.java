@@ -201,6 +201,47 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testProjectedColumnMissingFromFileReturnsNullBlock() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("name", TypeDescription.createString())
+            .addField("score", TypeDescription.createDouble());
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 2;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            BytesColumnVector nameCol = (BytesColumnVector) batch.cols[1];
+            DoubleColumnVector scoreCol = (DoubleColumnVector) batch.cols[2];
+
+            idCol.vector[0] = 1L;
+            nameCol.setVal(0, "Alice".getBytes(StandardCharsets.UTF_8));
+            scoreCol.vector[0] = 95.5;
+
+            idCol.vector[1] = 2L;
+            nameCol.setVal(1, "Bob".getBytes(StandardCharsets.UTF_8));
+            scoreCol.vector[1] = 87.3;
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of("id", "nonexistent", "score"), 1024)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+
+            assertEquals(2, page.getPositionCount());
+            assertEquals(3, page.getBlockCount());
+
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertTrue(page.getBlock(1).isNull(0));
+            assertEquals(95.5, ((DoubleBlock) page.getBlock(2)).getDouble(0), 0.001);
+
+            assertEquals(2L, ((LongBlock) page.getBlock(0)).getLong(1));
+            assertTrue(page.getBlock(1).isNull(1));
+            assertEquals(87.3, ((DoubleBlock) page.getBlock(2)).getDouble(1), 0.001);
+        }
+    }
+
     public void testReadWithBatching() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("id", TypeDescription.createLong())

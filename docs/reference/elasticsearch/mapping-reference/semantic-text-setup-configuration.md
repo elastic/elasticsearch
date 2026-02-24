@@ -214,7 +214,6 @@ PUT my-index-000003
   }
 }
 ```
-% TEST[skip:Requires {{infer}} endpoint]
 
 ## Set `index_options` for `sparse_vectors` [index-options-sparse_vectors]
 

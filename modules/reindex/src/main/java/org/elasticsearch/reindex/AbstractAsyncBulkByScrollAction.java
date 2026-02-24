@@ -56,7 +56,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiFunction;
@@ -67,7 +66,7 @@ import static java.lang.Math.min;
 import static java.util.Collections.emptyList;
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.common.BackoffPolicy.exponentialBackoff;
-import static org.elasticsearch.core.TimeValue.timeValueNanos;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES;
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
@@ -93,7 +92,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
      */
     protected final Request mainRequest;
 
-    private final AtomicLong startTimeEpochNanos = new AtomicLong(-1);
+    private final AtomicLong startTimeEpochMillis = new AtomicLong(-1);
     private final Set<String> destinationIndices = ConcurrentCollections.newConcurrentSet();
 
     private final ParentTaskAssigningClient searchClient;
@@ -337,11 +336,11 @@ public abstract class AbstractAsyncBulkByScrollAction<
                 // At this point only worker task can be started, leader task would have split slices into worker tasks
                 assert resumeInfo.getWorker().isPresent() : "Resume info for worker task must have worker resume info";
                 WorkerResumeInfo workerResumeInfo = resumeInfo.getWorker().get();
-                startTimeEpochNanos.set(workerResumeInfo.startTime());
+                startTimeEpochMillis.set(workerResumeInfo.startTimeEpochMillis());
                 worker.restoreState(workerResumeInfo.status());
                 paginatedHitSource.resume(workerResumeInfo);
             } else {
-                startTimeEpochNanos.set(TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis()));
+                startTimeEpochMillis.set(System.currentTimeMillis());
                 paginatedHitSource.start();
             }
         } catch (Exception e) {
@@ -615,7 +614,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
         paginatedHitSource.close(threadPool.getThreadContext().preserveContext(() -> {
             if (failure == null) {
                 BulkByScrollResponse response = buildResponse(
-                    timeValueNanos(TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis()) - startTimeEpochNanos.get()),
+                    timeValueMillis(System.currentTimeMillis() - startTimeEpochMillis.get()),
                     indexingFailures,
                     searchFailures,
                     timedOut

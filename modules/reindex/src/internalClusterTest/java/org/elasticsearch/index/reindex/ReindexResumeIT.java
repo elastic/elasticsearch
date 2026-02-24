@@ -695,6 +695,6 @@ public class ReindexResumeIT extends ESIntegTestCase {
     }
 
     private static long timeAgo(TimeValue period) {
-        return TimeUnit.MILLISECONDS.toNanos(System.currentTimeMillis()) - period.nanos();
+        return System.currentTimeMillis() - period.millis();
     }
 }

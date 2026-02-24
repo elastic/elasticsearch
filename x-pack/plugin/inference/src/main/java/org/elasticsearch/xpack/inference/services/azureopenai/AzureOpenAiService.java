@@ -142,7 +142,7 @@ public class AzureOpenAiService extends SenderService {
 
             throwIfNotEmptyMap(config, NAME);
             throwIfNotEmptyMap(serviceSettingsMap, NAME);
-            // The new approach is to leverage an ConstructingObjectParser to parse the task settings, this does not mutate the original map
+            // The new approach is to leverage a ConstructingObjectParser to parse the task settings, this does not mutate the original map
             // so we don't need to check if it's empty after parsing. The ConstructingObjectParser will throw an exception if there are any
             // unrecognized fields in the task settings
 

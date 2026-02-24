@@ -10,11 +10,11 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits.Relation;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
@@ -191,10 +191,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                     // Preserve the shard's formatted values for BytesRef fields (e.g. version, keyword)
                     // so we don't format them with RAW, which assumes UTF-8 and fails on version encoding.
                     hit.sortValues(
-                        SearchSortValues.fromFormattedAndRaw(
-                            buildFormattedSortValues(fieldDoc.fields, existingFormatted),
-                            fieldDoc.fields
-                        )
+                        SearchSortValues.fromFormattedAndRaw(buildFormattedSortValues(fieldDoc.fields, existingFormatted), fieldDoc.fields)
                     );
                 } else {
                     DocValueFormat[] formats = new DocValueFormat[fieldDoc.fields.length];

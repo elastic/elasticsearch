@@ -7,22 +7,8 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli.ApiKeySecurityConfig;
-import org.junit.After;
-import org.junit.ClassRule;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 
 import static org.elasticsearch.xpack.sql.qa.security.RestSqlIT.SSL_ENABLED;
 import static org.hamcrest.Matchers.containsString;
@@ -30,44 +16,10 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * Integration tests for CLI connections using API key authentication.
  */
-public class CliApiKeyIT extends ESRestTestCase {
-
-    @ClassRule
-    public static ElasticsearchCluster cluster = SqlSecurityTestCluster.getCluster();
-
-    private final List<String> createdApiKeyIds = new ArrayList<>();
-
-    @After
-    public void cleanupApiKeys() throws IOException {
-        for (String apiKeyId : createdApiKeyIds) {
-            try {
-                Request deleteApiKey = new Request("DELETE", "/_security/api_key");
-                deleteApiKey.setJsonEntity("{\"ids\": [\"" + apiKeyId + "\"]}");
-                client().performRequest(deleteApiKey);
-            } catch (Exception e) {
-                logger.warn("Failed to delete API key [{}]: {}", apiKeyId, e.getMessage());
-            }
-        }
-        createdApiKeyIds.clear();
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        return RestSqlIT.securitySettings();
-    }
-
-    @Override
-    protected String getProtocol() {
-        return SSL_ENABLED ? "https" : "http";
-    }
+public class CliApiKeyIT extends SqlApiKeyTestCase {
 
     public void testCliConnectionWithApiKey() throws Exception {
-        String encodedApiKey = createApiKey("cli_test_key", """
+        String encodedApiKey = createApiKey("""
             {
                 "name": "cli_test_key",
                 "role_descriptors": {
@@ -161,7 +113,7 @@ public class CliApiKeyIT extends ESRestTestCase {
             """);
         client().performRequest(indexRestrictedDoc);
 
-        String encodedApiKey = createApiKey("cli_limited_key", """
+        String encodedApiKey = createApiKey("""
             {
                 "name": "cli_limited_key",
                 "role_descriptors": {
@@ -184,24 +136,6 @@ public class CliApiKeyIT extends ESRestTestCase {
             String result = cli.command("SELECT * FROM cli_restricted_index");
             String errorLine = cli.readLine();
             assertThat(errorLine, containsString("Unknown index [cli_restricted_index]"));
-        }
-    }
-
-    private String elasticsearchAddress() {
-        String cluster = getTestRestCluster();
-        return cluster.split(",")[0];
-    }
-
-    private String createApiKey(String name, String body) throws IOException {
-        Request createApiKey = new Request("POST", "/_security/api_key");
-        createApiKey.setJsonEntity(body);
-        Response response = client().performRequest(createApiKey);
-
-        try (InputStream content = response.getEntity().getContent()) {
-            Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
-            String apiKeyId = (String) responseMap.get("id");
-            createdApiKeyIds.add(apiKeyId);
-            return (String) responseMap.get("encoded");
         }
     }
 

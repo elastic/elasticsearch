@@ -7,70 +7,24 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.Response;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.After;
-import org.junit.ClassRule;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import java.util.Properties;
 
 import static org.elasticsearch.xpack.sql.qa.security.RestSqlIT.SSL_ENABLED;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Integration tests for JDBC connections using API key authentication.
  */
-public class JdbcApiKeyIT extends ESRestTestCase {
-
-    @ClassRule
-    public static ElasticsearchCluster cluster = SqlSecurityTestCluster.getCluster();
-
-    private final List<String> createdApiKeyIds = new ArrayList<>();
-
-    @After
-    public void cleanupApiKeys() throws IOException {
-        for (String apiKeyId : createdApiKeyIds) {
-            try {
-                Request deleteApiKey = new Request("DELETE", "/_security/api_key");
-                deleteApiKey.setJsonEntity("{\"ids\": [\"" + apiKeyId + "\"]}");
-                client().performRequest(deleteApiKey);
-            } catch (Exception e) {
-                logger.warn("Failed to delete API key [{}]: {}", apiKeyId, e.getMessage());
-            }
-        }
-        createdApiKeyIds.clear();
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        return RestSqlIT.securitySettings();
-    }
-
-    @Override
-    protected String getProtocol() {
-        return SSL_ENABLED ? "https" : "http";
-    }
+public class JdbcApiKeyIT extends SqlApiKeyTestCase {
 
     public void testJdbcConnectionWithApiKey() throws Exception {
-        String encodedApiKey = createApiKey("jdbc_test_key", """
+        String encodedApiKey = createApiKey("""
             {
                 "name": "jdbc_test_key",
                 "role_descriptors": {
@@ -108,12 +62,8 @@ public class JdbcApiKeyIT extends ESRestTestCase {
             """);
         client().performRequest(indexDoc);
 
-        Properties props = new Properties();
-        props.setProperty("apiKey", encodedApiKey);
-        props.setProperty("timezone", "UTC");
-        addSslPropertiesIfNeeded(props);
-
-        String jdbcUrl = "jdbc:es://" + getProtocol() + "://" + getTestRestCluster().split(",")[0];
+        Properties props = createJdbcPropertiesWithApiKey(encodedApiKey);
+        String jdbcUrl = jdbcUrl();
 
         try (Connection connection = DriverManager.getConnection(jdbcUrl, props)) {
             try (Statement statement = connection.createStatement()) {
@@ -127,19 +77,15 @@ public class JdbcApiKeyIT extends ESRestTestCase {
     }
 
     public void testJdbcConnectionWithInvalidApiKey() throws Exception {
-        Properties props = new Properties();
-        props.setProperty("apiKey", "invalid_api_key_value");
-        props.setProperty("timezone", "UTC");
-        addSslPropertiesIfNeeded(props);
-
-        String jdbcUrl = "jdbc:es://" + getProtocol() + "://" + getTestRestCluster().split(",")[0];
+        Properties props = createJdbcPropertiesWithApiKey("invalid_api_key_value");
+        String jdbcUrl = jdbcUrl();
 
         SQLException e = expectThrows(SQLException.class, () -> {
             try (Connection connection = DriverManager.getConnection(jdbcUrl, props)) {
                 connection.createStatement().executeQuery("SELECT 1");
             }
         });
-        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("security_exception"));
+        assertThat(e.getMessage(), containsString("security_exception"));
     }
 
     public void testJdbcConnectionWithLimitedApiKey() throws Exception {
@@ -164,7 +110,7 @@ public class JdbcApiKeyIT extends ESRestTestCase {
             """);
         client().performRequest(indexRestrictedDoc);
 
-        String encodedApiKey = createApiKey("limited_key", """
+        String encodedApiKey = createApiKey("""
             {
                 "name": "limited_key",
                 "role_descriptors": {
@@ -181,32 +127,27 @@ public class JdbcApiKeyIT extends ESRestTestCase {
             }
             """);
 
-        Properties props = new Properties();
-        props.setProperty("apiKey", encodedApiKey);
-        props.setProperty("timezone", "UTC");
-        addSslPropertiesIfNeeded(props);
-
-        String jdbcUrl = "jdbc:es://" + getProtocol() + "://" + getTestRestCluster().split(",")[0];
+        Properties props = createJdbcPropertiesWithApiKey(encodedApiKey);
+        String jdbcUrl = jdbcUrl();
 
         try (Connection connection = DriverManager.getConnection(jdbcUrl, props)) {
             try (Statement statement = connection.createStatement()) {
                 SQLException e = expectThrows(SQLException.class, () -> statement.executeQuery("SELECT * FROM restricted_index"));
-                assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("Unknown index [restricted_index]"));
+                assertThat(e.getMessage(), containsString("Unknown index [restricted_index]"));
             }
         }
     }
 
-    private String createApiKey(String name, String body) throws IOException {
-        Request createApiKey = new Request("POST", "/_security/api_key");
-        createApiKey.setJsonEntity(body);
-        Response response = client().performRequest(createApiKey);
+    private String jdbcUrl() {
+        return "jdbc:es://" + getProtocol() + "://" + elasticsearchAddress();
+    }
 
-        try (InputStream content = response.getEntity().getContent()) {
-            Map<String, Object> responseMap = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
-            String apiKeyId = (String) responseMap.get("id");
-            createdApiKeyIds.add(apiKeyId);
-            return (String) responseMap.get("encoded");
-        }
+    private Properties createJdbcPropertiesWithApiKey(String apiKey) {
+        Properties props = new Properties();
+        props.setProperty("apiKey", apiKey);
+        props.setProperty("timezone", "UTC");
+        addSslPropertiesIfNeeded(props);
+        return props;
     }
 
     private void addSslPropertiesIfNeeded(Properties properties) {

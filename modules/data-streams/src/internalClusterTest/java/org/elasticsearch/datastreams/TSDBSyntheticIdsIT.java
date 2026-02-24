@@ -9,6 +9,8 @@
 
 package org.elasticsearch.datastreams;
 
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.DocWriteRequest;
@@ -23,11 +25,13 @@ import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -39,6 +43,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
+import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdStoredFieldsReader;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
@@ -68,6 +74,7 @@ import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -83,6 +90,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_SETTING;
@@ -93,13 +101,16 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertCheckedResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -391,6 +402,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat("_id field should not have postings on disk", diskUsageIdField.getInvertedIndexBytes(), equalTo(0L));
             assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
         }
+
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
     }
 
     public void testGetFromTranslogBySyntheticId() throws Exception {
@@ -495,6 +508,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat(asInstanceOf(Integer.class, source.get("value")), equalTo(metricOffset + doc.getItemId()));
         }
 
+        assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
+
         // Check that synthetic _id field have no postings on disk but has bloom filter usage
         var indices = new HashSet<>(docs.values());
         for (var index : indices) {
@@ -504,7 +519,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
             assertThat("_id field should have bloom filter usage", diskUsageIdField.getBloomFilterBytes(), greaterThan(0L));
         }
 
-        assertHitCount(client().prepareSearch(dataStreamName).setSize(0), 10L);
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
     }
 
     public void testRecoveredOperations() throws Exception {
@@ -1108,6 +1123,56 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         assertThat(documentSourcesAfterRestore, equalTo(documentSourcesBeforeSnapshot));
     }
 
+    public void testMerge() throws Exception {
+        assumeTrue("Test should only run with feature flag", IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG);
+
+        final var dataStreamName = randomIdentifier();
+        putDataStreamTemplate(dataStreamName, 1, 0);
+
+        final var docsIndexByIds = new ConcurrentHashMap<String, String>();
+        var timestamp = Instant.now();
+
+        final int nbBulks = randomIntBetween(12, 20);
+        final int nbDocs = randomIntBetween(100, 1_000);
+
+        for (int i = 0; i < nbBulks; i++) {
+            var client = client();
+            var bulkRequest = client.prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            for (int j = 0; j < nbDocs; j++) {
+                bulkRequest.add(
+                    client.prepareIndex(dataStreamName).setOpType(DocWriteRequest.OpType.CREATE).setSource(String.format(Locale.ROOT, """
+                        {"@timestamp": "%s", "hostname": "%s", "metric": {"field": "metric_%d", "value": %d}}
+                        """, timestamp, "vm-test-" + randomIntBetween(0, 4), randomIntBetween(0, 1), randomInt()), XContentType.JSON)
+                );
+                timestamp = timestamp.plusMillis(10);
+            }
+
+            var bulkResponse = bulkRequest.get();
+            assertNoFailures(bulkResponse);
+            for (var result : bulkResponse.getItems()) {
+                assertThat(result.getResponse().getResult(), equalTo(DocWriteResponse.Result.CREATED));
+                assertThat(result.getVersion(), equalTo(1L));
+                docsIndexByIds.put(result.getId(), result.getIndex());
+            }
+        }
+
+        var indices = new HashSet<>(docsIndexByIds.values());
+        for (var index : indices) {
+            long segmentsCount = indicesAdmin().prepareStats(index).clear().setSegments(true).get().getPrimaries().getSegments().getCount();
+            assertThat("index [" + index + "] has " + segmentsCount + " segments", segmentsCount, greaterThan(1L));
+        }
+
+        var forceMerge = indicesAdmin().prepareForceMerge(docsIndexByIds.values().toArray(String[]::new)).setMaxNumSegments(1).get();
+        assertThat(forceMerge.getFailedShards(), equalTo(0));
+
+        for (var index : indices) {
+            long segmentsCount = indicesAdmin().prepareStats(index).clear().setSegments(true).get().getPrimaries().getSegments().getCount();
+            assertThat("index [" + index + "] has " + segmentsCount + " segments", segmentsCount, equalTo(1L));
+        }
+
+        assertShardsHaveNoIdStoredFieldValuesOnDisk(indices);
+    }
+
     private static long documentCount(String dataStreamName) {
         return indicesAdmin().prepareStats(dataStreamName).setDocs(true).get().getTotal().docs.getCount();
     }
@@ -1270,5 +1335,79 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         var indexDiskUsageStats = AnalyzeIndexDiskUsageTestUtils.getIndexStats(diskUsageResponse, indexName);
         assertNotNull(indexDiskUsageStats);
         return indexDiskUsageStats;
+    }
+
+    private static void assertShardsHaveNoIdStoredFieldValuesOnDisk(Set<String> indices) {
+        int nbVisitedShards = 0;
+        for (var indicesServices :  internalCluster().getDataNodeInstances(IndicesService.class)) {
+            for (var indexService : indicesServices)       {
+                if (indices.contains(indexService.index().getName())) {
+                    for (var indexShard : indexService) {
+                        long size = indexShard.withEngineOrNull(engine -> {
+                            if (engine != null) {
+                                try (var searcher = engine.acquireSearcher("assert_no_id_stored_field")) {
+                                    long segmentsTotalSize = 0L;
+
+                                    for (var leaf : searcher.getLeafContexts()) {
+                                        var leafReader = leaf.reader();
+                                        // Get the underlying stored fields reader
+                                        var tsdbStoredFieldsReader = asInstanceOf(
+                                            TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class,
+                                            Lucene.segmentReader(leafReader).getFieldsReader()
+                                        );
+
+                                        // Extract the real (ie, non-synthetic id) stored field reader
+                                        final var defaultStoredFields = tsdbStoredFieldsReader.getStoredFieldsReader();
+                                        assertThat(defaultStoredFields, not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
+
+                                        final var fieldInfo = leafReader.getFieldInfos().fieldInfo(IdFieldMapper.NAME);
+                                        assertThat(fieldInfo, notNullValue());
+
+                                        // Visit the "_id" field and compute its total size accross all documents
+                                        final var visitor = new StoredFieldVisitor() {
+                                            long segmentSize = 0L;
+                                            int visitedDocs = -1;
+
+                                            @Override
+                                            public Status needsField(FieldInfo fieldInfo) throws IOException {
+                                                return IdFieldMapper.NAME.equals(fieldInfo.getName()) ? Status.YES : Status.NO;
+                                            }
+
+                                            @Override
+                                            public void binaryField(FieldInfo fieldInfo, byte[] value) throws IOException {
+                                                segmentSize += value.length;
+                                                if (visitedDocs == -1) {
+                                                    visitedDocs = 1;
+                                                } else {
+                                                    visitedDocs++;
+                                                }
+                                            }
+                                        };
+
+                                        for (int docID = 0; docID < leafReader.maxDoc(); docID++) {
+                                            defaultStoredFields.document(docID, visitor);
+                                        }
+                                        assertThat(visitor.visitedDocs, anyOf(equalTo(leafReader.maxDoc() - 1), equalTo(-1)));
+                                        segmentsTotalSize += visitor.segmentSize;
+                                    }
+                                    return segmentsTotalSize;
+                                } catch (IOException ioe) {
+                                    throw new AssertionError(ioe);
+                                }
+                            }
+                            return 0L;
+                        });
+
+                        assertThat(
+                            "Found non-zero total size for [_id] stored field values on shard " + indexShard.routingEntry(),
+                            size,
+                            equalTo(0L)
+                        );
+                        nbVisitedShards++;
+                    }
+                }
+            }
+        }
+        assertThat("Expect at least 1 shard per index to be verified", nbVisitedShards, greaterThanOrEqualTo(indices.size()));
     }
 }

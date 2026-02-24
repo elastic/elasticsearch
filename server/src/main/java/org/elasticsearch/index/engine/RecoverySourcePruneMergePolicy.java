@@ -30,6 +30,7 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.FilterDocValuesProducer;
+import org.elasticsearch.index.codec.storedfields.TSDBStoredFieldsFormat;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.search.internal.FilterStoredFieldVisitor;
 
@@ -70,40 +71,44 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         Supplier<Query> retainSourceQuerySupplier,
         boolean useSyntheticId
     ) throws IOException {
-        CodecReader finalReader;
-        if (useSyntheticId) {
-            // Wraps the codec reader to avoid reading synthetic id stored field values during merges. This is important to avoid synthetic
-            // ids to be materialized from doc values for every document during merges and to avoid synthetic id to be stored back on disk
-            // in merged segments.
-            finalReader = new SkipSyntheticIdFilterCodecReader(reader);
-        } else {
-            finalReader = reader;
-        }
-
-        NumericDocValues recoverySource = finalReader.getNumericDocValues(pruneNumericDVFieldName);
+        NumericDocValues recoverySource = reader.getNumericDocValues(pruneNumericDVFieldName);
         if (recoverySource == null || recoverySource.nextDoc() == DocIdSetIterator.NO_MORE_DOCS) {
-            return finalReader; // early terminate - nothing to do here since none of the docs has a recovery source anymore.
+            if (useSyntheticId == false) {
+                return reader;  // early terminate - nothing to do here since none of the docs has a recovery source anymore.
+            }
+            return unwrapSyntheticIdStoredFieldsReader(reader);
         }
-        IndexSearcher s = new IndexSearcher(finalReader);
+        IndexSearcher s = new IndexSearcher(reader);
         s.setQueryCache(null);
         Weight weight = s.createWeight(s.rewrite(retainSourceQuerySupplier.get()), ScoreMode.COMPLETE_NO_SCORES, 1.0f);
-        Scorer scorer = weight.scorer(finalReader.getContext());
+        Scorer scorer = weight.scorer(reader.getContext());
         if (scorer != null) {
-            BitSet recoverySourceToKeep = BitSet.of(scorer.iterator(), finalReader.maxDoc());
+            BitSet recoverySourceToKeep = BitSet.of(scorer.iterator(), reader.maxDoc());
             // calculating the cardinality is significantly cheaper than skipping all bulk-merging we might do
             // if retentions are high we keep most of it
-            if (recoverySourceToKeep.cardinality() == finalReader.maxDoc()) {
-                return finalReader; // keep all source
+            if (recoverySourceToKeep.cardinality() == reader.maxDoc()) {
+                if (useSyntheticId == false) {
+                    return reader; // keep all source
+                }
+                return unwrapSyntheticIdStoredFieldsReader(reader);
             }
             return new SourcePruningFilterCodecReader(
                 pruneStoredFieldName,
                 pruneNumericDVFieldName,
                 pruneIdField,
-                finalReader,
-                recoverySourceToKeep
+                reader,
+                recoverySourceToKeep,
+                useSyntheticId
             );
         } else {
-            return new SourcePruningFilterCodecReader(pruneStoredFieldName, pruneNumericDVFieldName, pruneIdField, finalReader, null);
+            return new SourcePruningFilterCodecReader(
+                pruneStoredFieldName,
+                pruneNumericDVFieldName,
+                pruneIdField,
+                reader,
+                null,
+                useSyntheticId
+            );
         }
     }
 
@@ -112,19 +117,22 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
         private final String pruneStoredFieldName;
         private final String pruneNumericDVFieldName;
         private final boolean pruneIdField;
+        private final boolean useSyntheticId;
 
         SourcePruningFilterCodecReader(
             @Nullable String pruneStoredFieldName,
             String pruneNumericDVFieldName,
             boolean pruneIdField,
             CodecReader reader,
-            BitSet recoverySourceToKeep
+            BitSet recoverySourceToKeep,
+            boolean useSyntheticId
         ) {
             super(reader);
             this.pruneStoredFieldName = pruneStoredFieldName;
             this.recoverySourceToKeep = recoverySourceToKeep;
             this.pruneNumericDVFieldName = pruneNumericDVFieldName;
             this.pruneIdField = pruneIdField;
+            this.useSyntheticId = useSyntheticId;
         }
 
         @Override
@@ -170,15 +178,19 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
 
         @Override
         public StoredFieldsReader getFieldsReader() {
-            if (pruneStoredFieldName == null && pruneIdField == false) {
-                // nothing to prune, we can use the original fields reader
-                return super.getFieldsReader();
+            StoredFieldsReader fieldsReader = super.getFieldsReader();
+            if (useSyntheticId && fieldsReader instanceof TSDBStoredFieldsFormat.TSDBStoredFieldsReader tsdbReader) {
+                fieldsReader = tsdbReader.getStoredFieldsReader();
+            }
+            if (pruneStoredFieldName == null && pruneIdField == false && useSyntheticId == false) {
+                return fieldsReader;
             }
             return new RecoverySourcePruningStoredFieldsReader(
-                super.getFieldsReader(),
+                fieldsReader,
                 recoverySourceToKeep,
                 pruneStoredFieldName,
-                pruneIdField
+                pruneIdField,
+                useSyntheticId
             );
         }
 
@@ -197,24 +209,40 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
             private final BitSet recoverySourceToKeep;
             private final String recoverySourceField;
             private final boolean pruneIdField;
+            private final boolean useSyntheticId;
 
             RecoverySourcePruningStoredFieldsReader(
                 StoredFieldsReader in,
                 BitSet recoverySourceToKeep,
                 @Nullable String recoverySourceField,
-                boolean pruneIdField
+                boolean pruneIdField,
+                boolean useSyntheticId
             ) {
                 super(in);
-                assert recoverySourceField != null || pruneIdField : "nothing to prune";
+                assert recoverySourceField != null || pruneIdField || useSyntheticId : "nothing to prune";
                 this.recoverySourceToKeep = recoverySourceToKeep;
                 this.recoverySourceField = recoverySourceField;
                 this.pruneIdField = pruneIdField;
+                this.useSyntheticId = useSyntheticId;
             }
 
             @Override
             public void document(int docID, StoredFieldVisitor visitor) throws IOException {
                 if (recoverySourceToKeep != null && recoverySourceToKeep.get(docID)) {
-                    super.document(docID, visitor);
+                    if (useSyntheticId) {
+                        // Makes sure the synthetic _id field is not materialized again during merges
+                        super.document(docID, new FilterStoredFieldVisitor(visitor) {
+                            @Override
+                            public Status needsField(FieldInfo fieldInfo) throws IOException {
+                                if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
+                                    return Status.NO;
+                                }
+                                return super.needsField(fieldInfo);
+                            }
+                        });
+                    } else {
+                        super.document(docID, visitor);
+                    }
                 } else {
                     super.document(docID, new FilterStoredFieldVisitor(visitor) {
                         @Override
@@ -222,7 +250,7 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                             if (fieldInfo.name.equals(recoverySourceField)) {
                                 return Status.NO;
                             }
-                            if (pruneIdField && IdFieldMapper.NAME.equals(fieldInfo.name)) {
+                            if ((pruneIdField || useSyntheticId) && IdFieldMapper.NAME.equals(fieldInfo.name)) {
                                 return Status.NO;
                             }
                             return super.needsField(fieldInfo);
@@ -237,15 +265,21 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                     in.getMergeInstance(),
                     recoverySourceToKeep,
                     recoverySourceField,
-                    pruneIdField
+                    pruneIdField,
+                    useSyntheticId
                 );
             }
 
             @Override
             public StoredFieldsReader clone() {
-                return new RecoverySourcePruningStoredFieldsReader(in.clone(), recoverySourceToKeep, recoverySourceField, pruneIdField);
+                return new RecoverySourcePruningStoredFieldsReader(
+                    in.clone(),
+                    recoverySourceToKeep,
+                    recoverySourceField,
+                    pruneIdField,
+                    useSyntheticId
+                );
             }
-
         }
     }
 
@@ -277,48 +311,53 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
     }
 
     /**
-     * A {@link FilterCodecReader} that wraps a default {@link StoredFieldsReader} into a {@link SkipSyntheticIdFilterStoredFieldsReader}.
+     * When synthetic _id is used, the codec wraps the stored fields reader with a {@link TSDBStoredFieldsFormat.TSDBStoredFieldsReader}
+     * that materializes synthetic _id values from doc values. During merges, synthetic _id values should not be materialized, so we
+     * unwrap the stored fields reader to return the inner (non-synthetic) reader. This also allows Lucene to use optimized bulk-merges.
+     * If the stored fields reader cannot be unwrapped (e.g. when wrapped by an intermediate layer), we fall back to a reader that
+     * skips the _id field via a {@link FilterStoredFieldVisitor} to prevent materialization on merge threads.
      */
-    private static class SkipSyntheticIdFilterCodecReader extends FilterCodecReader {
+    private static CodecReader unwrapSyntheticIdStoredFieldsReader(CodecReader reader) {
+        return new FilterCodecReader(reader) {
+            @Override
+            public StoredFieldsReader getFieldsReader() {
+                StoredFieldsReader fieldsReader = super.getFieldsReader();
+                if (fieldsReader instanceof TSDBStoredFieldsFormat.TSDBStoredFieldsReader tsdbReader) {
+                    return tsdbReader.getStoredFieldsReader();
+                }
+                // The TSDBStoredFieldsReader is hidden behind an intermediate wrapper: bulk merging is already impossible in this case so
+                // we fall back to skipping _id via a visitor filter.
+                return new SkipSyntheticIdFilterStoredFieldsReader(fieldsReader);
+            }
 
-        private SkipSyntheticIdFilterCodecReader(CodecReader in) {
+            @Override
+            public CacheHelper getCoreCacheHelper() {
+                return null;
+            }
+
+            @Override
+            public CacheHelper getReaderCacheHelper() {
+                return null;
+            }
+        };
+    }
+
+    /**
+     * A {@link StoredFieldsReader} that filters out the synthetic {@code _id} field during document reads.
+     *
+     * Used as a fallback when the {@link TSDBStoredFieldsFormat.TSDBStoredFieldsReader} cannot be unwrapped
+     * (e.g. when an intermediate wrapper like {@code SlowCodecReaderWrapper} hides it). In such cases bulk merging
+     * is already impossible, so this wrapper ensures that the synthetic {@code _id} is not materialized on merge threads.
+     */
+    private static class SkipSyntheticIdFilterStoredFieldsReader extends FilterStoredFieldsReader {
+
+        SkipSyntheticIdFilterStoredFieldsReader(StoredFieldsReader in) {
             super(in);
         }
 
         @Override
-        public StoredFieldsReader getFieldsReader() {
-            return new SkipSyntheticIdFilterStoredFieldsReader(super.getFieldsReader());
-        }
-
-        @Override
-        public CacheHelper getCoreCacheHelper() {
-            return null;
-        }
-
-        @Override
-        public CacheHelper getReaderCacheHelper() {
-            return null;
-        }
-    }
-
-    /**
-     * A {@link FilterStoredFieldsReader} that prevents {@link StoredFieldVisitor} from accessing synthetic id stored fields during merges.
-     * This is useful to avoid synthetic ids to be materialized from doc values unnecessarily.
-     */
-    private static class SkipSyntheticIdFilterStoredFieldsReader extends FilterStoredFieldsReader {
-
-        SkipSyntheticIdFilterStoredFieldsReader(StoredFieldsReader fieldsReader) {
-            super(fieldsReader);
-        }
-
-        @Override
-        public StoredFieldsReader clone() {
-            return new SkipSyntheticIdFilterStoredFieldsReader(in.clone());
-        }
-
-        @Override
         public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-            in.document(docID, new FilterStoredFieldVisitor(visitor) {
+            super.document(docID, new FilterStoredFieldVisitor(visitor) {
                 @Override
                 public Status needsField(FieldInfo fieldInfo) throws IOException {
                     if (IdFieldMapper.NAME.equals(fieldInfo.name)) {
@@ -328,5 +367,16 @@ final class RecoverySourcePruneMergePolicy extends OneMergeWrappingMergePolicy {
                 }
             });
         }
+
+        @Override
+        public StoredFieldsReader getMergeInstance() {
+            return new SkipSyntheticIdFilterStoredFieldsReader(in.getMergeInstance());
+        }
+
+        @Override
+        public StoredFieldsReader clone() {
+            return new SkipSyntheticIdFilterStoredFieldsReader(in.clone());
+        }
     }
+
 }

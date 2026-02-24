@@ -72,7 +72,6 @@ import java.time.Instant;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -343,23 +342,9 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
         final boolean syntheticRecoverySource
     ) throws IOException {
         try (var dir = newDirectory()) {
-            // Checking the index on close requires to support Terms#getMin()/getMax() methods on invalid (or incomplete) terms,
-            // something that is not supported in TSDBSyntheticIdFieldsProducer today.
-            //
-            // TODO would be nice to enable check-index-on-close
             dir.setCheckIndexOnClose(false);
 
-            IndexWriterConfig iwc = newIndexWriterConfig();
-            var sortOnTsId = new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING);
-            sortOnTsId.setMissingValue(SortField.STRING_LAST);
-            var sortOnTimestamp = new SortedNumericSortField(
-                DataStreamTimestampFieldMapper.DEFAULT_PATH,
-                SortField.Type.LONG,
-                true,
-                SortedNumericSelector.Type.MAX
-            );
-            sortOnTimestamp.setMissingValue(Long.MIN_VALUE);
-            iwc.setIndexSort(new Sort(sortOnTsId, sortOnTimestamp));
+            var iwc = createIndexWriterConfig(useSyntheticId);
             iwc.setMergePolicy(
                 new RecoverySourcePruneMergePolicy(
                     syntheticRecoverySource ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME,
@@ -370,83 +355,16 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                     useSyntheticId
                 )
             );
-            final var indexSettings = new IndexSettings(
-                IndexMetadata.builder(randomIdentifier())
-                    .settings(
-                        indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
-                            // SYNTHETIC_ID here is only used to have the correct postings format selected by the codec
-                            .put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId)
-                            // Dimensions are not used, only added to make settings validation pass
-                            .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), List.of("retained"))
-                            .build()
-                    )
-                    .build(),
-                Settings.EMPTY
-            );
-            final var mapperService = MapperTestUtils.newMapperService(
-                new NamedXContentRegistry(
-                    CollectionUtils.concatLists(ClusterModule.getNamedXWriteables(), IndicesModule.getNamedXContents())
-                ),
-                createTempFile(),
-                indexSettings.getSettings(),
-                indexSettings.getIndex().getName()
-            );
-            if (useSyntheticId) {
-                iwc.setCodec(
-                    new ES93TSDBDefaultCompressionLucene103Codec(
-                        new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
-                    )
-                );
-            }
-
-            // Disable merged segment warmer, otherwise it reads synthetic ids from a merge thread and triggers the assertion
-            iwc.setMergedSegmentWarmer(reader -> {});
 
             try (IndexWriter writer = new IndexWriter(dir, iwc)) {
                 final int routingHash = randomIntBetween(0, 10);
-                final var routingHashBytes = Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash));
                 final Instant now = Instant.now();
 
                 for (int i = 0; i < 100; i++) {
                     if (i > 0 && randomBoolean()) {
                         writer.flush();
                     }
-
-                    Document doc = new Document();
-
-                    var hostname = "prod-" + randomInt(4);
-                    var metricField = randomFrom("uptime", "load");
-                    var metricValue = randomLongBetween(0, 1_000L);
-                    long timestamp = now.plusMillis(i).toEpochMilli();
-
-                    // Compute the _tsid
-                    var tsid = new TsidBuilder().addStringDimension("hostname", hostname)
-                        .addStringDimension("metric.field", metricField)
-                        .addLongDimension("metric.value", metricValue)
-                        .buildTsid();
-
-                    // Add time-series document fields
-                    doc.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, tsid));
-                    doc.add(SortedNumericDocValuesField.indexedField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
-                    doc.add(new SortedDocValuesField(TimeSeriesRoutingHashFieldMapper.NAME, routingHashBytes));
-                    if (useSyntheticId) {
-                        doc.add(syntheticIdField(TsidExtractingIdFieldMapper.createSyntheticId(tsid, timestamp, routingHash)));
-                    } else {
-                        doc.add(standardIdField(TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp)));
-                    }
-
-                    // Time-series documents always have a synthetic source field, so it's not stored at all in _source but it
-                    // may be retained and stored in _recovery_source until it is not necessary anymore for recoveries.
-                    var source = String.format(Locale.ROOT, """
-                        {"@timestamp": "%s", "hostname": "%s", "metric": {"field": "%s", "value": %d}}
-                        """, now.plusMillis(i), hostname, metricField, metricValue);
-                    if (syntheticRecoverySource) {
-                        doc.add(new NumericDocValuesField(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME, source.length()));
-                    } else {
-                        doc.add(new StoredField(SourceFieldMapper.RECOVERY_SOURCE_NAME, source));
-                        doc.add(new NumericDocValuesField(SourceFieldMapper.RECOVERY_SOURCE_NAME, 1 /* default value */));
-                    }
-                    // Indicate that the doc is retained in the test
+                    var doc = newDocument(useSyntheticId, syntheticRecoverySource, routingHash, now.plusMillis(i).toEpochMilli());
                     doc.add(new NumericDocValuesField("retained", randomInt(1)));
                     writer.addDocument(doc);
                 }
@@ -553,5 +471,206 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                 }
             }
         }
+    }
+
+    public void testWrapForMergeUnwrapsSyntheticIdStoredFieldsReader() throws IOException {
+        boolean syntheticRecoverySource = randomBoolean();
+        boolean pruneIdField = randomBoolean();
+        String pruneStoredFieldName = syntheticRecoverySource ? null : SourceFieldMapper.RECOVERY_SOURCE_NAME;
+        String pruneNumericDVFieldName = syntheticRecoverySource
+            ? SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME
+            : SourceFieldMapper.RECOVERY_SOURCE_NAME;
+
+        try (var dir = newDirectory()) {
+            dir.setCheckIndexOnClose(false);
+
+            var iwc = createIndexWriterConfig(true);
+            iwc.setMergePolicy(
+                new RecoverySourcePruneMergePolicy(
+                    pruneStoredFieldName,
+                    pruneNumericDVFieldName,
+                    pruneIdField,
+                    () -> Queries.ALL_DOCS_INSTANCE, // Use ALL_DOCS so that all recovery source DV are retained during merges
+                    iwc.getMergePolicy(),
+                    true
+                )
+            );
+
+            try (IndexWriter writer = new IndexWriter(dir, iwc)) {
+                final int routingHash = randomIntBetween(0, 10);
+                final Instant now = Instant.now();
+
+                for (int i = 0; i < 100; i++) {
+                    if (i > 0 && randomBoolean()) {
+                        writer.flush();
+                    }
+                    writer.addDocument(newDocument(true, syntheticRecoverySource, routingHash, now.plusMillis(i).toEpochMilli()));
+                }
+                writer.forceMerge(1);
+                writer.commit();
+
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    assertEquals(1, reader.leaves().size());
+                    final var leafReader = reader.leaves().getFirst().reader();
+                    assertTrue(leafReader instanceof CodecReader);
+                    final var codecReader = (CodecReader) leafReader;
+
+                    // The segment has recovery source DV for all docs since we used ALL_DOCS as the retain query.
+                    // A new merge policy with ALL_DOCS hits the "keep all source" early-return (cardinality == maxDoc).
+                    {
+                        var mp = new RecoverySourcePruneMergePolicy(
+                            pruneStoredFieldName,
+                            pruneNumericDVFieldName,
+                            pruneIdField,
+                            () -> Queries.ALL_DOCS_INSTANCE,
+                            newLogMergePolicy(),
+                            true
+                        );
+                        var forcedMerges = mp.findForcedDeletesMerges(Lucene.readSegmentInfos(reader.getIndexCommit()), newMergeContext());
+                        var wrappedForMerge = forcedMerges.merges.get(0).wrapForMerge(codecReader);
+                        // Should Lucene90CompressingStoredFieldsReader or newer
+                        assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class)));
+                        assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
+                    }
+
+                }
+            }
+
+            // To test the "no recovery source DV" early-return, we need a segment where DV have already been
+            // pruned. Re-open the writer with a NO_DOCS policy and force merge again to produce that.
+            var iwc2 = createIndexWriterConfig(true);
+            iwc2.setMergePolicy(
+                new RecoverySourcePruneMergePolicy(
+                    pruneStoredFieldName,
+                    pruneNumericDVFieldName,
+                    pruneIdField,
+                    () -> Queries.NO_DOCS_INSTANCE,
+                    iwc2.getMergePolicy(),
+                    true
+                )
+            );
+            try (IndexWriter writer2 = new IndexWriter(dir, iwc2)) {
+                writer2.addDocument(newDocument(true, syntheticRecoverySource, 0, Instant.now().plusMillis(200).toEpochMilli()));
+                writer2.forceMerge(1);
+                writer2.commit();
+            }
+
+            // The merged segment now has no recovery source DV (all pruned by NO_DOCS policy).
+            // A new merge policy hits the "no recovery source DV" early-return.
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                assertEquals(1, reader.leaves().size());
+                final var leafReader = reader.leaves().getFirst().reader();
+                assertTrue(leafReader instanceof CodecReader);
+                final var codecReader = (CodecReader) leafReader;
+
+                var mp = new RecoverySourcePruneMergePolicy(
+                    pruneStoredFieldName,
+                    pruneNumericDVFieldName,
+                    pruneIdField,
+                    () -> Queries.ALL_DOCS_INSTANCE,
+                    newLogMergePolicy(),
+                    true
+                );
+                var forcedMerges = mp.findForcedDeletesMerges(Lucene.readSegmentInfos(reader.getIndexCommit()), newMergeContext());
+                var wrappedForMerge = forcedMerges.merges.get(0).wrapForMerge(codecReader);
+                assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBStoredFieldsFormat.TSDBStoredFieldsReader.class)));
+                assertThat(wrappedForMerge.getFieldsReader(), not(instanceOf(TSDBSyntheticIdStoredFieldsReader.class)));
+            }
+        }
+    }
+
+    /**
+     * Creates an {@link IndexWriterConfig} configured for TSDB indices with the appropriate index sort, codec, and no-op segment warmer.
+     * The caller is responsible for setting the merge policy.
+     */
+    private static IndexWriterConfig createIndexWriterConfig(boolean useSyntheticId) throws IOException {
+        final var iwc = newIndexWriterConfig();
+        final var indexSettings = new IndexSettings(
+            IndexMetadata.builder(randomIdentifier())
+                .settings(
+                    indexSettings(IndexVersion.current(), 1, 0).put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES.getName())
+                        .put(IndexSettings.SYNTHETIC_ID.getKey(), useSyntheticId)
+                        .putList(IndexMetadata.INDEX_DIMENSIONS.getKey(), List.of("retained"))
+                        .build()
+                )
+                .build(),
+            Settings.EMPTY
+        );
+        final var mapperService = MapperTestUtils.newMapperService(
+            new NamedXContentRegistry(CollectionUtils.concatLists(ClusterModule.getNamedXWriteables(), IndicesModule.getNamedXContents())),
+            createTempFile(),
+            indexSettings.getSettings(),
+            indexSettings.getIndex().getName()
+        );
+        if (useSyntheticId) {
+            iwc.setCodec(
+                new ES93TSDBDefaultCompressionLucene103Codec(
+                    new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
+                )
+            );
+        }
+        var sortOnTsId = new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING);
+        sortOnTsId.setMissingValue(SortField.STRING_LAST);
+        var sortOnTimestamp = new SortedNumericSortField(
+            DataStreamTimestampFieldMapper.DEFAULT_PATH,
+            SortField.Type.LONG,
+            true,
+            SortedNumericSelector.Type.MAX
+        );
+        sortOnTimestamp.setMissingValue(Long.MIN_VALUE);
+        iwc.setIndexSort(new Sort(sortOnTsId, sortOnTimestamp));
+        iwc.setMergedSegmentWarmer(reader -> {});
+        return iwc;
+    }
+
+    private static Document newDocument(boolean useSyntheticId, boolean syntheticRecoverySource, int routingHash, long timestamp) {
+        Document doc = new Document();
+        var hostname = "prod-" + randomInt(4);
+        var metricField = randomFrom("uptime", "load");
+        var metricValue = randomLongBetween(0, 1_000L);
+        var tsid = new TsidBuilder().addStringDimension("hostname", hostname)
+            .addStringDimension("metric.field", metricField)
+            .addLongDimension("metric.value", metricValue)
+            .buildTsid();
+        var routingHashBytes = Uid.encodeId(TimeSeriesRoutingHashFieldMapper.encode(routingHash));
+        doc.add(SortedDocValuesField.indexedField(TimeSeriesIdFieldMapper.NAME, tsid));
+        doc.add(SortedNumericDocValuesField.indexedField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
+        doc.add(new SortedDocValuesField(TimeSeriesRoutingHashFieldMapper.NAME, routingHashBytes));
+        if (useSyntheticId) {
+            doc.add(syntheticIdField(TsidExtractingIdFieldMapper.createSyntheticId(tsid, timestamp, routingHash)));
+        } else {
+            doc.add(standardIdField(TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp)));
+        }
+        if (syntheticRecoverySource) {
+            doc.add(new NumericDocValuesField(SourceFieldMapper.RECOVERY_SOURCE_SIZE_NAME, randomIntBetween(101, 10000)));
+        } else {
+            doc.add(new StoredField(SourceFieldMapper.RECOVERY_SOURCE_NAME, "test"));
+            doc.add(new NumericDocValuesField(SourceFieldMapper.RECOVERY_SOURCE_NAME, 1));
+        }
+        return doc;
+    }
+
+    private static MergePolicy.MergeContext newMergeContext() {
+        return new MergePolicy.MergeContext() {
+            @Override
+            public int numDeletesToMerge(SegmentCommitInfo info) {
+                return info.info.maxDoc() - 1;
+            }
+
+            @Override
+            public int numDeletedDocs(SegmentCommitInfo info) {
+                return info.info.maxDoc() - 1;
+            }
+
+            @Override
+            public InfoStream getInfoStream() {
+                return new NullInfoStream();
+            }
+
+            @Override
+            public Set<SegmentCommitInfo> getMergingSegments() {
+                return Collections.emptySet();
+            }
+        };
     }
 }

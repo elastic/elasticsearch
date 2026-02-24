@@ -83,6 +83,20 @@ public class FormatReaderRegistry {
         return supplier.get();
     }
 
+    public void registerExtension(String extension, String formatName) {
+        String normalizedExt = extension.toLowerCase(Locale.ROOT);
+        if (normalizedExt.startsWith(".") == false) {
+            normalizedExt = "." + normalizedExt;
+        }
+        Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
+        if (supplier == null) {
+            throw new IllegalArgumentException(
+                "Cannot register extension [" + extension + "] -- format [" + formatName + "] not registered"
+            );
+        }
+        byExtension.put(normalizedExt, supplier);
+    }
+
     public FormatReader byExtension(String objectName) {
         if (Strings.isNullOrEmpty(objectName)) {
             throw new IllegalArgumentException("Object name cannot be null or empty");
@@ -96,14 +110,9 @@ public class FormatReaderRegistry {
         String extension = objectName.substring(lastDot).toLowerCase(Locale.ROOT);
         Supplier<FormatReader> supplier = byExtension.get(extension);
         if (supplier == null) {
-            // Extension not yet registered -- try triggering lazy init of all registered formats
-            for (Supplier<FormatReader> s : byName.values()) {
-                s.get();
-            }
-            supplier = byExtension.get(extension);
-            if (supplier == null) {
-                throw new IllegalArgumentException("No format reader registered for extension: " + extension);
-            }
+            throw new IllegalArgumentException(
+                "No format reader registered for extension: " + extension + ". Supported: " + byExtension.keySet()
+            );
         }
         return supplier.get();
     }

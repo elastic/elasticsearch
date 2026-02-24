@@ -240,13 +240,13 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             throw new IllegalArgumentException("Unknown QuantEncoding id: " + id);
         }
 
-        private static void packAsBytes(int[] quantized, byte[] destination) {
-            if (destination.length < quantized.length) {
-                throw new IllegalArgumentException("packed array is too small: " + destination.length + " < " + quantized.length);
-            }
-            for (int i = 0; i < quantized.length; i++) {
-                destination[i] = (byte) quantized[i];
-            }
+        public static QuantEncoding fromBits(byte bits) {
+            return switch (bits) {
+                case 1 -> ONE_BIT_4BIT_QUERY;
+                case 2 -> TWO_BIT_4BIT_QUERY;
+                case 4 -> FOUR_BIT_SYMMETRIC;
+                default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
+            };
         }
     }
 

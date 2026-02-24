@@ -103,7 +103,6 @@ public class Reindexer {
     private final ReindexSslConfig reindexSslConfig;
     private final ReindexMetrics reindexMetrics;
     private final TransportService transportService;
-    @Nullable
     private final ReindexRelocationNodePicker relocationNodePicker;
 
     Reindexer(
@@ -300,7 +299,7 @@ public class Reindexer {
     private void initTaskForRelocationIfEnabled(final BulkByScrollTask task) {
         // todo: move initialization to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
-        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false || relocationNodePicker == null) {
+        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false) {
             return;
         }
         final boolean nonSlicedThereforeSetupRelocation = task.isWorker() && task.getParentTaskId().isSet() == false;

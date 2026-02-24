@@ -462,7 +462,7 @@ public class ComputeService {
                         })
                     )
                 ) {
-                    if (hasGroupedFinalAgg(coordinatorPlan)) {
+                    if (hasGroupedFinalAgg(coordinatorPlan) && HashAggregationOperator.computeFinalDriverCount() > 1) {
                         runPartitionedCoordinatorCompute(
                             rootTask,
                             sessionId,

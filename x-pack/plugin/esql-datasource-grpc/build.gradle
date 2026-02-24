@@ -27,6 +27,9 @@ dependencies {
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
 
+  implementation project(path: xpackModule('esql:arrow'))
+  implementation project(":libs:arrow")
+
   // Arrow Flight (gRPC-based columnar data transport)
   implementation('org.apache.arrow:flight-core:18.3.0') {
     exclude group: 'org.slf4j', module: 'slf4j-api'
@@ -36,15 +39,6 @@ dependencies {
     exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
     exclude group: 'com.google.guava', module: 'guava'
   }
-  implementation('org.apache.arrow:arrow-vector:18.3.0') {
-    exclude group: 'org.slf4j', module: 'slf4j-api'
-    exclude group: 'org.checkerframework', module: 'checker-qual'
-    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-core'
-    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
-    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-annotations'
-  }
-  implementation('org.apache.arrow:arrow-memory-core:18.3.0')
-  runtimeOnly('org.apache.arrow:arrow-memory-unsafe:18.3.0')
 
   // Align Netty to the version used by Elasticsearch to address CVEs in older transitive versions
   implementation "io.netty:netty-buffer:${versions.netty}"
@@ -65,13 +59,6 @@ dependencies {
   implementation('io.grpc:grpc-netty:1.78.0') { exclude group: 'com.google.guava', module: 'guava' }
   implementation('io.grpc:grpc-protobuf:1.78.0') { exclude group: 'com.google.guava', module: 'guava' }
   implementation('io.grpc:grpc-stub:1.78.0') { exclude group: 'com.google.guava', module: 'guava' }
-
-  compileOnly 'org.checkerframework:checker-qual:3.42.0'
-  compileOnly 'com.fasterxml.jackson.core:jackson-annotations:2.19.2'
-  compileOnly 'com.fasterxml.jackson.core:jackson-databind:2.19.2'
-
-  runtimeOnly "org.slf4j:slf4j-api:${versions.slf4j}"
-  runtimeOnly "org.apache.logging.log4j:log4j-slf4j2-impl:${versions.log4j}"
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
@@ -98,9 +85,6 @@ tasks.named("dependencyLicenses").configure {
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
   ignoreViolations(
-    // Arrow memory uses sun.misc.Unsafe
-    'org.apache.arrow.memory.util.MemoryUtil',
-    'org.apache.arrow.memory.util.MemoryUtil$1',
     // Netty uses sun.misc.Unsafe internally
     'io.netty.util.internal.PlatformDependent0',
     'io.netty.util.internal.PlatformDependent0$1',

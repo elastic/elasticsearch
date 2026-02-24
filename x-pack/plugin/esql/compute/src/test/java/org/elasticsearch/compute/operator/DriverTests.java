@@ -129,11 +129,11 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().started(), equalTo(startEpoch));
         assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
-        assertThat(driver.status().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.status().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
 
         logger.info("profile {}", driver.profile());
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + tickTime * (nowSupplier.callCount - 1)));
-        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 
@@ -168,11 +168,11 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().started(), equalTo(startEpoch));
         assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
-        assertThat(driver.status().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.status().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
 
         logger.info("profile {}", driver.profile());
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + tickTime * (nowSupplier.callCount - 1)));
-        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 
@@ -206,11 +206,11 @@ public class DriverTests extends ESTestCase {
         assertThat(driver.status().status(), equalTo(DriverStatus.Status.DONE));
         assertThat(driver.status().started(), equalTo(startEpoch));
         assertThat(driver.status().iterations(), equalTo((long) inPages.size()));
-        assertThat(driver.status().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.status().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
 
         logger.info("profile {}", driver.profile());
         assertThat(driver.profile().tookNanos(), equalTo(waitTime + tickTime * (nowSupplier.callCount - 1)));
-        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * inPages.size()));
+        assertThat(driver.profile().cpuNanos(), equalTo(tickTime * (inPages.size() + 1)));
         assertThat(driver.profile().iterations(), equalTo((long) inPages.size()));
     }
 

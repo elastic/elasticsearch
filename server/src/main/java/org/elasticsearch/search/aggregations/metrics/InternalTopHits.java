@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.SearchSortValues;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -135,12 +137,12 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
                     try {
                         reducedTopDocs = TopDocs.merge(sort, from, size, (TopFieldDocs[]) shardDocs);
                     } catch (ClassCastException e) {
-                        // This can happen during upgrades when sort field types are incompatible across shards
-                        // even after validation. Wrap in a more descriptive error message.
+                        // This can happen when sort field types are incompatible across shards even after validation,
+                        // e.g. during upgrades or when aggregating across indices with different field mappings.
                         throw new IllegalArgumentException(
                             "Failed to merge top_hits aggregation results from different shards due to incompatible "
-                                + "sort field types. This can occur during upgrades when field mappings differ across shards. "
-                                + "Original error: "
+                                + "sort field types. This can occur during upgrades or when aggregating across indices "
+                                + "whose field mappings differ. Original error: "
                                 + e.getMessage(),
                             e
                         );
@@ -183,14 +185,43 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             } while (topDocsForShard.scoreDocs[position] != scoreDoc);
             SearchHit hit = aggregations.get(shardIndex).searchHits.getAt(position);
             if (scoreDoc instanceof FieldDoc fieldDoc && fieldDoc.fields != null && fieldDoc.fields.length > 0) {
-                DocValueFormat[] formats = new DocValueFormat[fieldDoc.fields.length];
-                Arrays.fill(formats, DocValueFormat.RAW);
-                hit.sortValues(fieldDoc.fields, formats);
+                Object[] existingFormatted = hit.getSortValues();
+                boolean hasBytesRef = Arrays.stream(fieldDoc.fields).anyMatch(f -> f instanceof BytesRef);
+                if (hasBytesRef && existingFormatted != null && existingFormatted.length == fieldDoc.fields.length) {
+                    // Preserve the shard's formatted values for BytesRef fields (e.g. version, keyword)
+                    // so we don't format them with RAW, which assumes UTF-8 and fails on version encoding.
+                    hit.sortValues(
+                        SearchSortValues.fromFormattedAndRaw(
+                            buildFormattedSortValues(fieldDoc.fields, existingFormatted),
+                            fieldDoc.fields
+                        )
+                    );
+                } else {
+                    DocValueFormat[] formats = new DocValueFormat[fieldDoc.fields.length];
+                    Arrays.fill(formats, DocValueFormat.RAW);
+                    hit.sortValues(fieldDoc.fields, formats);
+                }
             }
             hits[i] = hit;
             assert hits[i].isPooled() == false;
         }
         return SearchHits.unpooled(hits, reducedTopDocs.totalHits, maxScore);
+    }
+
+    /**
+     * Build formatted sort values: use existing formatted value for BytesRef (e.g. version) fields
+     * to avoid re-formatting with RAW (UTF-8), and use RAW for numeric types.
+     */
+    private static Object[] buildFormattedSortValues(Object[] rawValues, Object[] existingFormatted) {
+        Object[] formatted = new Object[rawValues.length];
+        for (int i = 0; i < rawValues.length; i++) {
+            if (rawValues[i] instanceof BytesRef && existingFormatted != null && i < existingFormatted.length) {
+                formatted[i] = existingFormatted[i];
+            } else {
+                formatted[i] = DocValueFormat.RAW.formatSortValue(rawValues[i]);
+            }
+        }
+        return formatted;
     }
 
     private static float reduceAndFindMaxScore(List<InternalTopHits> aggregations, TopDocs[] shardDocs) {

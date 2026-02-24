@@ -719,6 +719,10 @@ public class StatelessCommitServiceTests extends ESTestCase {
         }
     }
 
+    @TestIssueLogging(
+        value = "org.elasticsearch.xpack.stateless.commits.StatelessCommitService:TRACE",
+        issueUrl = "https://github.com/elastic/elasticsearch-serverless/issues/5520"
+    )
     public void testCommitsTrackingTakesIntoAccountSearchNodeUsage() throws Exception {
         Set<PrimaryTermAndGeneration> uploadedCommits = Collections.newSetFromMap(new ConcurrentHashMap<>());
         Set<StaleCompoundCommit> deletedCommits = ConcurrentCollections.newConcurrentSet();
@@ -795,7 +799,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
             assertThat(deletedCommits, empty());
 
             PrimaryTermAndGeneration mergePTG = new PrimaryTermAndGeneration(mergedCommit.getPrimaryTerm(), mergedCommit.getGeneration());
+            logger.info("Before response with merge commit use");
             fakeSearchNode.respondWithUsedCommitsToUploadNotify(mergePTG, mergePTG);
+            logger.info("After response with merge commit use");
 
             var expectedDeletedCommits = uploadedCommits.stream()
                 .filter(ptg -> mergePTG.equals(ptg) == false)

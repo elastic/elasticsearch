@@ -11,7 +11,7 @@ package org.elasticsearch.entitlement.qa.test;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.logging.LogManager;
@@ -43,10 +43,9 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
     private static final Logger logger = LogManager.getLogger(RestEntitlementsCheckAction.class);
 
     record CheckAction(
-        CheckedFunction<Environment, String, Exception> action,
+        CheckedConsumer<Environment, Exception> action,
         EntitlementTest.ExpectedAccess expectedAccess,
         Class<? extends Exception> expectedExceptionIfDenied,
-        String expectedDefaultIfDenied,
         Integer fromJavaVersion
     ) {}
 
@@ -102,15 +101,10 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             if (Modifier.isPrivate(method.getModifiers())) {
                 throw new AssertionError("Entitlement test method [" + method + "] must not be private");
             }
-            String expectedDefault = testAnnotation.expectedDefaultIfDenied();
-            if (expectedDefault.isEmpty() == false && method.getReturnType() != String.class) {
-                throw new AssertionError("Entitlement test method [" + method + "] must return String when expectedDefaultIfDenied is set");
-            }
-            final CheckedFunction<Environment, Object, Exception> call = createFunctionForMethod(method);
-            CheckedFunction<Environment, String, Exception> action = env -> {
+            final CheckedConsumer<Environment, Exception> call = createConsumerForMethod(method);
+            CheckedConsumer<Environment, Exception> runnable = env -> {
                 try {
-                    Object result = call.apply(env);
-                    return result == null ? null : result.toString();
+                    call.accept(env);
                 } catch (IllegalAccessException e) {
                     throw new AssertionError(e);
                 } catch (InvocationTargetException e) {
@@ -123,10 +117,9 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             };
             Integer fromJavaVersion = testAnnotation.fromJavaVersion() == -1 ? null : testAnnotation.fromJavaVersion();
             var checkAction = new CheckAction(
-                action,
+                runnable,
                 testAnnotation.expectedAccess(),
                 testAnnotation.expectedExceptionIfDenied(),
-                expectedDefault,
                 fromJavaVersion
             );
             if (filter.test(checkAction)) {
@@ -135,7 +128,7 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
         }
     }
 
-    private static CheckedFunction<Environment, Object, Exception> createFunctionForMethod(Method method) {
+    private static CheckedConsumer<Environment, Exception> createConsumerForMethod(Method method) {
         Class<?>[] parameters = method.getParameterTypes();
         if (parameters.length == 0) {
             return env -> method.invoke(null);
@@ -178,6 +171,17 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             .collect(Collectors.toSet());
     }
 
+    private static final String NOT_ENTITLED_EXCEPTION_NAME = "org.elasticsearch.entitlement.bridge.NotEntitledException";
+
+    private static boolean hasCause(Throwable e, String className) {
+        for (Throwable cause = e; cause != null; cause = cause.getCause()) {
+            if (cause.getClass().getName().equals(className)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/_entitlement_check"));
@@ -204,20 +208,17 @@ public class RestEntitlementsCheckAction extends BaseRestHandler {
             logger.info("Calling check action [{}]", actionName);
             RestResponse response;
             try {
-                String result = checkAction.action().apply(environment);
+                checkAction.action().accept(environment);
                 response = new RestResponse(RestStatus.OK, Strings.format("Succesfully executed action [%s]", actionName));
-                if (result != null) {
-                    response.addHeader("resultValue", result);
-                }
-                if (checkAction.expectedDefaultIfDenied().isEmpty() == false) {
-                    response.addHeader("expectedDefaultIfDenied", checkAction.expectedDefaultIfDenied());
-                }
             } catch (Exception e) {
                 var statusCode = checkAction.expectedExceptionIfDenied.isInstance(e)
                     ? RestStatus.FORBIDDEN
                     : RestStatus.INTERNAL_SERVER_ERROR;
                 response = new RestResponse(channel, statusCode, e);
                 response.addHeader("expectedException", checkAction.expectedExceptionIfDenied.getName());
+                if (statusCode == RestStatus.FORBIDDEN && e.getCause() != null) {
+                    response.addHeader("notEntitledCause", String.valueOf(hasCause(e, NOT_ENTITLED_EXCEPTION_NAME)));
+                }
             }
             logger.debug("Check action [{}] returned status [{}]", actionName, response.status().getStatus());
             channel.sendResponse(response);

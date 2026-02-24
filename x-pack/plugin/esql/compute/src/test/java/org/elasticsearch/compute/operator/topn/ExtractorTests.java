@@ -321,9 +321,7 @@ public class ExtractorTests extends ESTestCase {
     private static LongRangeBlockBuilder.LongRange randomDateRange(boolean haveNulls) {
         var from = randomMillisUpToYear9999();
         var to = randomLongBetween(from + 1, MAX_MILLIS_BEFORE_9999);
-        return haveNulls
-            ? new LongRangeBlockBuilder.LongRange(randomBoolean() ? from : null, randomBoolean() ? to : null)
-            : new LongRangeBlockBuilder.LongRange(from, to);
+        return new LongRangeBlockBuilder.LongRange(from, to);
     }
 
     private static DocVector.Config docVectorConfig() {

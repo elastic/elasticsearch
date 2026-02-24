@@ -345,6 +345,9 @@ public final class BlockUtils {
                 LongRangeBlock b = (LongRangeBlock) block;
                 LongBlock fromBlock = b.getFromBlock();
                 LongBlock toBlock = b.getToBlock();
+                if (fromBlock.isNull(offset) || toBlock.isNull(offset)) {
+                    yield null;
+                }
                 yield new LongRangeBlockBuilder.LongRange(fromBlock.getLong(offset), toBlock.getLong(offset));
             }
             case UNKNOWN -> throw new IllegalArgumentException("can't read values from [" + block + "]");

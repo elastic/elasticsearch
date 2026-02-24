@@ -124,12 +124,13 @@ toc:
                   - file: esql/commands/limit.md
                   - file: esql/commands/lookup-join.md
                   - file: esql/commands/mv_expand.md
+                  - hidden: esql/commands/registered-domain.md
                   - file: esql/commands/rename.md
                   - file: esql/commands/rerank.md
                   - file: esql/commands/sample.md
                   - file: esql/commands/sort.md
                   - file: esql/commands/stats-by.md
-                  - file: esql/commands/uri-parts.md
+                  - hidden: esql/commands/uri-parts.md
                   - file: esql/commands/where.md
           - file: esql/esql-functions-operators.md
             children:

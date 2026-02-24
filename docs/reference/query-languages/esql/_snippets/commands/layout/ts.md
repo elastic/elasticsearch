@@ -62,7 +62,7 @@ However, using a time series aggregation function in combination with an inner t
   is null, the entire result becomes null for those dimensions. Additionally, queries that aggregate a single metric
   can filter out null values more efficiently.
 - Use the `TS` command for aggregations on time series data, rather than `FROM`. The `FROM` command is still available
-  (for example, for listing document contents), but it's not optimized for procesing time series data and may produce
+  (for example, for listing document contents), but it's not optimized for processing time series data and may produce
   unexpected results.
 - The `TS` command can't be combined with certain operations (such as
   [`FORK`](/reference/query-languages/esql/commands/fork.md)) before the `STATS` command is applied. Once `STATS` is

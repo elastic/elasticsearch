@@ -19,7 +19,9 @@ package org.elasticsearch.xpack.stateless.allocation;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.EstimatedHeapUsageCollector;
+import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xpack.stateless.StatelessPlugin;
 import org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService;
 
@@ -42,5 +44,10 @@ public class StatelessHeapUsageCollector implements EstimatedHeapUsageCollector 
         MemoryMetricsService memoryMetricsService = stateless.getMemoryMetricsService();
         ClusterService clusterService = stateless.getClusterService();
         ActionListener.completeWith(listener, () -> memoryMetricsService.getPerNodeMemoryMetrics(clusterService.state().nodes()));
+    }
+
+    @Override
+    public void collectShardHeapUsage(ActionListener<Map<ShardId, ShardAndIndexHeapUsage>> listener) {
+        ActionListener.completeWith(listener, () -> stateless.getMemoryMetricsService().getShardHeapUsages());
     }
 }

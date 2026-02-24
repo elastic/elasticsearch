@@ -38,10 +38,10 @@ import org.elasticsearch.cluster.routing.RoutingTableGenerator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -59,9 +59,11 @@ import org.junit.BeforeClass;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
@@ -72,6 +74,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.ADAPTIVE_FIELD_MEMORY_OVERHEAD;
@@ -82,11 +85,15 @@ import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetrics
 import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_DEFAULT;
 import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.FIXED_SHARD_MEMORY_OVERHEAD_SETTING;
 import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING;
+import static org.elasticsearch.xpack.stateless.autoscaling.memory.MemoryMetricsService.WORKLOAD_MEMORY_OVERHEAD;
 import static org.elasticsearch.xpack.stateless.autoscaling.memory.ShardMappingSize.UNDEFINED_SHARD_MEMORY_OVERHEAD_BYTES;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class MemoryMetricsServiceTests extends ESTestCase {
 
@@ -96,6 +103,8 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
     private ClusterSettings clusterSettings;
     private MemoryMetricsService service;
+
+    private static Set<Setting<?>> extraSettings;
 
     @BeforeClass
     public static void setupThreadPool() {
@@ -109,10 +118,9 @@ public class MemoryMetricsServiceTests extends ESTestCase {
 
     @Before
     public void init() {
-        clusterSettings = new ClusterSettings(
-            Settings.EMPTY,
-            Sets.addToCopy(
-                ClusterSettings.BUILT_IN_CLUSTER_SETTINGS,
+        extraSettings = Stream.concat(
+            ClusterSettings.BUILT_IN_CLUSTER_SETTINGS.stream(),
+            Stream.of(
                 MemoryMetricsService.STALE_METRICS_CHECK_DURATION_SETTING,
                 MemoryMetricsService.STALE_METRICS_CHECK_INTERVAL_SETTING,
                 FIXED_SHARD_MEMORY_OVERHEAD_SETTING,
@@ -124,7 +132,9 @@ public class MemoryMetricsServiceTests extends ESTestCase {
                 ADAPTIVE_SHARD_MEMORY_ESTIMATION_MIN_THRESHOLD_ENABLED_SETTING,
                 SETTING_CLUSTER_MAX_SHARDS_PER_NODE
             )
-        );
+        ).collect(Collectors.toSet());
+
+        clusterSettings = new ClusterSettings(Settings.EMPTY, extraSettings);
         service = new MemoryMetricsService(
             System::nanoTime,
             clusterSettings,
@@ -342,6 +352,49 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         }
     }
 
+    public void testGetShardHeapUsages() {
+        // Set up shard memory metrics
+        var shardMemoryMetrics1 = new MemoryMetricsService.ShardMemoryMetrics(
+            // Limit the range of values for the metrics, so that adding and multiplying doesn't cause type overflow results.
+            randomLongBetween(100, 10_000),
+            randomIntBetween(100, 10_000),
+            randomIntBetween(100, 10_000),
+            randomLongBetween(100, 10_000),
+            randomLongBetween(100, 10_000),
+            randomLongBetween(1, Long.MAX_VALUE),
+            randomLongBetween(100, 10_000),
+            MetricQuality.EXACT,
+            "node-0",
+            System.nanoTime()
+        );
+        var shardMemoryMetrics2 = new MemoryMetricsService.ShardMemoryMetrics(
+            // Limit the range of values for the metrics, so that adding and multiplying doesn't cause type overflow results.
+            randomLongBetween(100, 10_000),
+            randomIntBetween(100, 10_000),
+            randomIntBetween(100, 10_000),
+            randomLongBetween(100, 10_000),
+            randomLongBetween(100, 10_000),
+            randomLongBetween(1, Long.MAX_VALUE),
+            randomLongBetween(100, 10_000),
+            MetricQuality.EXACT,
+            "node-0",
+            System.nanoTime()
+        );
+        var shardId1 = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 2));
+        var shardId2 = new ShardId(new Index(randomIdentifier(), randomUUID()), between(0, 2));
+
+        // Add the shard memory metrics to the memory service.
+        service.getShardMemoryMetrics().put(shardId1, shardMemoryMetrics1);
+        service.getShardMemoryMetrics().put(shardId2, shardMemoryMetrics2);
+
+        // Verify that the memory service correctly returns all the per shard memory metrics.
+        var shardHeapUsages = service.getShardHeapUsages();
+        assertThat(shardHeapUsages.get(shardId1).shardHeapUsageBytes(), equalTo(service.computeShardHeapUsage(shardMemoryMetrics1)));
+        assertThat(shardHeapUsages.get(shardId1).indexHeapUsageBytes(), equalTo(service.computeIndexHeapUsage(shardMemoryMetrics1)));
+        assertThat(shardHeapUsages.get(shardId2).shardHeapUsageBytes(), equalTo(service.computeShardHeapUsage(shardMemoryMetrics2)));
+        assertThat(shardHeapUsages.get(shardId2).indexHeapUsageBytes(), equalTo(service.computeIndexHeapUsage(shardMemoryMetrics2)));
+    }
+
     public void testNoStaleMetricsInTotalIndicesMappingSize() throws Exception {
         for (int i = 0; i < randomIntBetween(10, 20); i++) {
             service.getShardMemoryMetrics()
@@ -550,10 +603,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
             );
 
         MemoryMetrics memoryMetrics = service.getSearchTierMemoryMetrics();
-        assertThat(
-            memoryMetrics.nodeMemoryInBytes(),
-            equalTo((MemoryMetricsService.INDEX_MEMORY_OVERHEAD + MemoryMetricsService.WORKLOAD_MEMORY_OVERHEAD) * 2)
-        );
+        assertThat(memoryMetrics.nodeMemoryInBytes(), equalTo((MemoryMetricsService.INDEX_MEMORY_OVERHEAD + WORKLOAD_MEMORY_OVERHEAD) * 2));
         long estimateBytes = size + service.fixedShardMemoryOverhead.getBytes();
         assertThat(
             memoryMetrics.totalMemoryInBytes(),
@@ -721,6 +771,50 @@ public class MemoryMetricsServiceTests extends ESTestCase {
     public void testEstimateMethods() {
         executeTestEstimateMethodsParameterized(ByteSizeValue.of(randomLongBetween(1, 100), ByteSizeUnit.MB));
         executeTestEstimateMethodsParameterized(ByteSizeValue.MINUS_ONE);
+    }
+
+    public void testConsistentShardHeapUsageValuesAcrossMethods() {
+        MemoryMetricsService service = new MemoryMetricsService(
+            System::nanoTime,
+            new ClusterSettings(
+                Settings.builder().put(SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING.getKey(), false).build(),
+                extraSettings
+            ),
+            ProjectType.values()[randomIntBetween(0, ProjectType.values().length - 1)],
+            MeterRegistry.NOOP
+        );
+
+        MemoryMetricsService.ShardMemoryMetrics shardMemoryMetrics = new MemoryMetricsService.ShardMemoryMetrics(
+            // Limit the range of values for the metrics, so that adding and multiplying doesn't cause type overflow results.
+            randomLongBetween(100, 10_000),
+            randomIntBetween(100, 10_000),
+            randomIntBetween(100, 10_000),
+            randomLongBetween(100, 10_000),
+            randomLongBetween(100, 10_000),
+            randomLongBetween(1, Long.MAX_VALUE),
+            randomLongBetween(100, 10_000),
+            MetricQuality.EXACT,
+            "node-0",
+            System.nanoTime()
+        );
+
+        long singleShardHeap = service.estimateShardMemoryUsageInBytes(shardMemoryMetrics);
+        long computedShardHeap = service.computeShardHeapUsage(shardMemoryMetrics);
+        assertThat(computedShardHeap, equalTo(singleShardHeap + shardMemoryMetrics.getPostingsInMemoryBytes()));
+
+        MemoryMetricsService serviceSelfReportedMemoryEnabled = new MemoryMetricsService(
+            System::nanoTime,
+            new ClusterSettings(
+                Settings.builder().put(SELF_REPORTED_SHARD_MEMORY_OVERHEAD_ENABLED_SETTING.getKey(), true).build(),
+                extraSettings
+            ),
+            ProjectType.ELASTICSEARCH_GENERAL_PURPOSE,
+            MeterRegistry.NOOP
+        );
+        assertThat(
+            serviceSelfReportedMemoryEnabled.computeShardHeapUsage(shardMemoryMetrics),
+            equalTo(shardMemoryMetrics.getShardMemoryOverheadBytes())
+        );
     }
 
     public void testAdaptiveEstimateValues() {
@@ -1061,6 +1155,67 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         assertFalse(service.getMaxShardMergeMemoryEstimatePerNode().get(node0EphemeralId).hasNodeLeft());
     }
 
+    /**
+     * Verifies that {@link MemoryMetricsService#computeIndexHeapUsage} and {@link MemoryMetricsService#computeShardHeapUsage} do not
+     * diverge from what is used internally in the {@link MemoryMetricsService}'s node-level heap usage calculations.
+     */
+    private void compareAgainstSumOfIndividualShards(MemoryMetricsService service, DiscoveryNodes nodes) {
+        final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(nodes);
+        final Map<String, Long> perNodeOnlyIndexAndShardMemoryUsage = new HashMap<>(perNodeMemoryMetrics.size());
+        final Map<String, Set<String>> perNodeSeenIndices = new HashMap<>(perNodeMemoryMetrics.size());
+
+        // Use the shard/index heap usage methods to find the heap usage sum
+        for (var shardMemoryMetricsEntry : service.getShardMemoryMetrics().entrySet()) {
+            final var shardId = shardMemoryMetricsEntry.getKey();
+            final var shardMemoryMetrics = shardMemoryMetricsEntry.getValue();
+            final String shardNodeId = shardMemoryMetrics.getMetricShardNodeId();
+            final long shardHeap = service.computeShardHeapUsage(shardMemoryMetrics);
+            final var seenIndices = perNodeSeenIndices.computeIfAbsent(shardNodeId, key -> new HashSet<>());
+
+            long indexHeap = 0L;
+            if (seenIndices.add(shardId.getIndexName())) {
+                indexHeap = service.computeIndexHeapUsage(shardMemoryMetrics);
+            }
+
+            // Might as well check individual shard heap reports, too, since we can.
+            assertThat(service.getShardHeapUsages().get(shardId).shardHeapUsageBytes(), equalTo(shardHeap));
+            assertThat(
+                service.getShardHeapUsages().get(shardId).indexHeapUsageBytes(),
+                equalTo(service.computeIndexHeapUsage(shardMemoryMetrics))
+            );
+
+            perNodeOnlyIndexAndShardMemoryUsage.merge(shardNodeId, shardHeap + indexHeap, Long::sum);
+        }
+
+        for (var nodeMetrics : perNodeMemoryMetrics.entrySet()) {
+            final long mergeMemoryEstimate = service.mergeMemoryEstimation();
+            final long minimumRequiredHeapForHandlingLargeIndexingOps = service.minimumRequiredHeapForAcceptingLargeIndexingOps();
+            final long indicesAndWorkloadOverheads = service.getNodeBaseHeapEstimateInBytes();
+            final long miscNodeUsage = mergeMemoryEstimate + minimumRequiredHeapForHandlingLargeIndexingOps + indicesAndWorkloadOverheads;
+            final long indexAndShardOnly = perNodeOnlyIndexAndShardMemoryUsage.get(nodeMetrics.getKey());
+            assertThat(
+                "Heap usage for node "
+                    + nodeMetrics.getKey()
+                    + " is "
+                    + nodeMetrics.getValue()
+                    + "; misc heap usage for the node is "
+                    + miscNodeUsage
+                    + "; summed index and shard heap usage for the node is: "
+                    + indexAndShardOnly
+                    + "; postings overhead per node is: "
+                    + service.lastMaxTotalPostingsInMemoryBytes,
+                nodeMetrics.getValue(),
+                allOf(
+                    greaterThanOrEqualTo(indexAndShardOnly + miscNodeUsage),
+                    // The reported total postings per node is actually the max across all nodes, so there is no way to account for that
+                    // in the sum of shards+indices per node heap calculation. Therefore, here we ensure the two calculated values are
+                    // within a difference of the max total postings per node.
+                    lessThanOrEqualTo(indexAndShardOnly + miscNodeUsage + service.lastMaxTotalPostingsInMemoryBytes)
+                )
+            );
+        }
+    }
+
     public void testEstimatedHeapMemoryCalculations() {
         ClusterState clusterState1 = randomInitialTwoNodeClusterState(4);
         var discoveryNodes = clusterState1.getNodes();
@@ -1073,6 +1228,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         // Record the baseline heap usage for node 0 and 1, before any additional information is received
         {
             Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
+            compareAgainstSumOfIndividualShards(service, clusterState1.nodes());
             assertThat(perNodeMemoryMetrics.size(), equalTo(2));
             node0EstimateBeforeUpdate = perNodeMemoryMetrics.get(node0.getId());
             node1EstimateBeforeUpdate = perNodeMemoryMetrics.get(node1.getId());
@@ -1088,6 +1244,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         long node0EstimateAfterUpdate;
         {
             final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
+            compareAgainstSumOfIndividualShards(service, clusterState1.nodes());
             assertThat(perNodeMemoryMetrics.size(), equalTo(2));
             node0EstimateAfterUpdate = perNodeMemoryMetrics.get(node0.getId());
             assertThat(node0EstimateAfterUpdate, greaterThan(node0EstimateBeforeUpdate));
@@ -1104,6 +1261,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         final long node1EstimateAfterUpdate;
         {
             final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
+            compareAgainstSumOfIndividualShards(service, clusterState1.nodes());
             assertThat(perNodeMemoryMetrics.size(), equalTo(2));
             // PostingsMemorySize is the max across all nodes so that node0's estimate can increase if node1 has larger postings size
             if (node0PostingsSize < node1PostingsSize) {
@@ -1128,6 +1286,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         final long node0EstimateAfterMergeEstimate, node1EstimateAfterMergeEstimate;
         {
             final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
+            compareAgainstSumOfIndividualShards(service, clusterState1.nodes());
             assertThat(perNodeMemoryMetrics.size(), equalTo(2));
 
             node0EstimateAfterMergeEstimate = perNodeMemoryMetrics.get(node0.getId());
@@ -1144,6 +1303,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         // All nodes' heap estimate should have increased
         {
             final Map<String, Long> perNodeMemoryMetrics = service.getPerNodeMemoryMetrics(clusterState1.nodes());
+            compareAgainstSumOfIndividualShards(service, clusterState1.nodes());
             assertThat(perNodeMemoryMetrics.size(), equalTo(2));
             assertThat(
                 perNodeMemoryMetrics.get(node0.getId()) - node0EstimateAfterMergeEstimate,

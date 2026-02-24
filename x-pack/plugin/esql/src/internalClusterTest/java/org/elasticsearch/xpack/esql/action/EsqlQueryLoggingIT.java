@@ -74,6 +74,7 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
         client().admin().indices().prepareRefresh("index-1", "index-2").get();
 
         assertQuery("FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100", 2);
+        assertQuery("FROM index-* | LIMIT 100", numDocs1 + numDocs2);
         assertFailedQuery(
             "FROM index-* | EVAL a = count(*) | LIMIT 100",
             "aggregate function [count(*)] not allowed outside STATS command",

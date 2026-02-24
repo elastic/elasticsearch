@@ -93,32 +93,32 @@ str:keyword                                          | range:date_range
 ;
 
 ###############################################
-# IN_RANGE tests
+# RANGE_CONTAINS tests
 ###############################################
 
-inRangeWithEmployees
+rangeContainsWithEmployees
 required_capability: date_range_field_type
 
-// tag::inRange[]
+// tag::rangeContains[]
 FROM employees
-| WHERE IN_RANGE(hire_date, TO_DATE_RANGE("1985-02-01..1985-03-01"))
+| WHERE RANGE_CONTAINS(hire_date, TO_DATE_RANGE("1985-02-01..1985-03-01"))
 | KEEP emp_no, hire_date
 | SORT emp_no
-// end::inRange[]
+// end::rangeContains[]
 ;
 
-// tag::inRange-result[]
+// tag::rangeContains-result[]
 emp_no:integer | hire_date:date
 10009          | 1985-02-18T00:00:00.000Z
 10048          | 1985-02-24T00:00:00.000Z
-// end::inRange-result[]
+// end::rangeContains-result[]
 ;
 
-inRangeWithDateRangesTable
+rangeContainsWithDateRangesTable
 required_capability: date_range_field_type
 
 FROM date_ranges
-| WHERE IN_RANGE(TO_DATETIME("1955-06-15"), date_range)
+| WHERE RANGE_CONTAINS(TO_DATETIME("1955-06-15"), date_range)
 | KEEP decade, description
 ;
 
@@ -126,11 +126,11 @@ decade:integer | description:keyword
 1950           | Nifty Fifties
 ;
 
-inRangeAtBoundaryStart
+rangeContainsAtBoundaryStart
 required_capability: date_range_field_type
 
 FROM date_ranges
-| WHERE IN_RANGE(TO_DATETIME("1950-01-01"), date_range)
+| WHERE RANGE_CONTAINS(TO_DATETIME("1950-01-01"), date_range)
 | KEEP decade, description
 ;
 
@@ -138,11 +138,11 @@ decade:integer | description:keyword
 1950           | Nifty Fifties
 ;
 
-inRangeAtBoundaryEnd
+rangeContainsAtBoundaryEnd
 required_capability: date_range_field_type
 
 FROM date_ranges
-| WHERE IN_RANGE(TO_DATETIME("1959-12-31T23:59:59.999Z"), date_range)
+| WHERE RANGE_CONTAINS(TO_DATETIME("1959-12-31T23:59:59.999Z"), date_range)
 | KEEP decade, description
 ;
 
@@ -150,23 +150,23 @@ decade:integer | description:keyword
 1950           | Nifty Fifties
 ;
 
-inRangeOutsideRange
+rangeContainsOutsideRange
 required_capability: date_range_field_type
 
 FROM date_ranges
-| WHERE IN_RANGE(TO_DATETIME("2050-01-01"), date_range)
+| WHERE RANGE_CONTAINS(TO_DATETIME("2050-01-01"), date_range)
 | KEEP decade, description
 ;
 
 decade:integer | description:keyword
 ;
 
-inRangeWithEval
+rangeContainsWithEval
 required_capability: date_range_field_type
 
 FROM date_ranges
 | EVAL test_date = TO_DATETIME("1965-07-20")
-| EVAL in_range = IN_RANGE(test_date, date_range)
+| EVAL in_range = RANGE_CONTAINS(test_date, date_range)
 | WHERE in_range
 | KEEP decade, description, in_range
 ;
@@ -175,11 +175,11 @@ decade:integer | description:keyword | in_range:boolean
 1960           | Swinging Sixties    | true
 ;
 
-inRangeMultipleMatches#[skip:-9.4.0,reason:date_range_field_type capability added after 9.4.0]
+rangeContainsMultipleMatches#[skip:-9.4.0,reason:date_range_field_type capability added after 9.4.0]
 required_capability: date_range_field_type
 
 FROM employees
-| WHERE IN_RANGE(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
+| WHERE RANGE_CONTAINS(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
 | STATS count = COUNT(*)
 ;
 
@@ -187,12 +187,12 @@ count:long
 11
 ;
 
-inRangeWithNull
+rangeContainsWithNull
 required_capability: date_range_field_type
 
 FROM employees
 | WHERE emp_no == 10040
-| EVAL in_range = IN_RANGE(birth_date, TO_DATE_RANGE("1960-01-01..1970-01-01"))
+| EVAL in_range = RANGE_CONTAINS(birth_date, TO_DATE_RANGE("1960-01-01..1970-01-01"))
 | KEEP emp_no, birth_date, in_range
 ;
 
@@ -200,11 +200,11 @@ emp_no:integer | birth_date:date | in_range:boolean
 10040          | null            | null
 ;
 
-inRangeWithStats
+rangeContainsWithStats
 required_capability: date_range_field_type
 
 FROM employees
-| EVAL in_1985 = IN_RANGE(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
+| EVAL in_1985 = RANGE_CONTAINS(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
 | STATS count_in_1985 = COUNT(*) WHERE in_1985, total = COUNT(*)
 ;
 
@@ -212,34 +212,34 @@ count_in_1985:long | total:long
 11                  | 100
 ;
 
-inRangeBeforeStart
+rangeContainsBeforeStart
 required_capability: date_range_field_type
 
 FROM date_ranges
-| WHERE IN_RANGE(TO_DATETIME("1899-12-31T23:59:59.999Z"), date_range)
+| WHERE RANGE_CONTAINS(TO_DATETIME("1899-12-31T23:59:59.999Z"), date_range)
 | KEEP decade, description
 ;
 
 decade:integer | description:keyword
 ;
 
-inRangeAfterEnd
+rangeContainsAfterEnd
 required_capability: date_range_field_type
 
 FROM date_ranges
-| WHERE IN_RANGE(TO_DATETIME("2030-01-01T00:00:00.000Z"), date_range)
+| WHERE RANGE_CONTAINS(TO_DATETIME("2030-01-01T00:00:00.000Z"), date_range)
 | KEEP decade, description
 ;
 
 decade:integer | description:keyword
 ;
 
-inRangeWithLiteralRange
+rangeContainsWithLiteralRange
 required_capability: date_range_field_type
 
 ROW date = TO_DATETIME("2024-06-15T12:00:00.000Z")
-| EVAL in_june = IN_RANGE(date, TO_DATE_RANGE("2024-06-01..2024-07-01"))
-| EVAL in_july = IN_RANGE(date, TO_DATE_RANGE("2024-07-01..2024-08-01"))
+| EVAL in_june = RANGE_CONTAINS(date, TO_DATE_RANGE("2024-06-01..2024-07-01"))
+| EVAL in_july = RANGE_CONTAINS(date, TO_DATE_RANGE("2024-07-01..2024-08-01"))
 | KEEP date, in_june, in_july
 ;
 

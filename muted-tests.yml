@@ -440,6 +440,9 @@ tests:
 - class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
   method: testAccumulateSearchLoad
   issue: https://github.com/elastic/elasticsearch/issues/142986
+- class: org.elasticsearch.xpack.rank.rrf.RRFRankClientYamlTestSuiteIT
+  method: test {yaml=rrf/700_rrf_retriever_search_api_compatibility/nested compound retrievers with min_score correctly compute total_hits}
+  issue: https://github.com/elastic/elasticsearch/issues/142997
 
 # Examples:
 #

@@ -48,21 +48,13 @@ import static java.util.stream.Collectors.joining;
 
 public class HashAggregationOperator implements Operator {
 
-    public static final int DEFAULT_NUM_PARTITIONS = 256;
-
     /**
-     * Computes the number of FINAL-stage drivers for partitioned hash aggregation.
-     * Returns the smallest power of 2 that is greater than or equal to the number of
-     * available processors, capped at {@link #DEFAULT_NUM_PARTITIONS} (256).
+     * Computes the number of FINAL-stage drivers (and partitions) for partitioned hash
+     * aggregation. Returns {@code availableProcessors - 2} (reserving threads for the
+     * router and output drivers), with a minimum of 1.
      */
     public static int computeFinalDriverCount() {
-        int cpus = Runtime.getRuntime().availableProcessors();
-        // Smallest power of 2 >= cpus
-        int pow2 = Integer.highestOneBit(cpus);
-        if (pow2 < cpus) {
-            pow2 <<= 1;
-        }
-        return Math.min(pow2, DEFAULT_NUM_PARTITIONS);
+        return Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
     }
 
     public record HashAggregationOperatorFactory(
@@ -76,7 +68,7 @@ public class HashAggregationOperator implements Operator {
         int numPartitions
     ) implements OperatorFactory {
         /**
-         * Backward-compatible constructor that defaults to 1 partition (no partitioning).
+         * Backward-compatible constructor that defaults to {@link #computeFinalDriverCount()} partitions.
          */
         public HashAggregationOperatorFactory(
             List<BlockHash.GroupSpec> groups,
@@ -95,7 +87,7 @@ public class HashAggregationOperator implements Operator {
                 partialEmitKeysThreshold,
                 partialEmitUniquenessThreshold,
                 analysisRegistry,
-                DEFAULT_NUM_PARTITIONS
+                computeFinalDriverCount()
             );
         }
 

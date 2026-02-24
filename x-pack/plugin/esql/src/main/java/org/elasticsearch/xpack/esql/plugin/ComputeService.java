@@ -1013,8 +1013,8 @@ public class ComputeService {
         PhysicalPlan finalPlan = split.v1();   // ExchangeSinkExec wrapping ProjectExec -> AggregateExec(FINAL) -> ExchangeSourceExec
         PhysicalPlan outputPlan = split.v2();  // OutputExec/ExchangeSinkExec wrapping ExchangeSourceExec
 
-        int numPartitions = HashAggregationOperator.DEFAULT_NUM_PARTITIONS;
         int numFinalDrivers = HashAggregationOperator.computeFinalDriverCount();
+        int numPartitions = numFinalDrivers;
         QueryPragmas pragmas = configuration.pragmas();
         var searchExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
 

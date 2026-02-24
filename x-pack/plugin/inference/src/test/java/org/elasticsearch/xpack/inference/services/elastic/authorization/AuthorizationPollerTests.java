@@ -11,18 +11,19 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.EmptySecretSettings;
-import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.StatusHeuristic;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.inference.InferenceFeatures;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
-import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
@@ -41,6 +42,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.elastic.authorization.EndpointSchemaMigration.ENDPOINT_SCHEMA_VERSION;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeatureTests.createMockCCMFeature;
 import static org.elasticsearch.xpack.inference.services.elastic.ccm.CCMServiceTests.createMockCCMService;
 import static org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceAuthorizationResponseEntityTests.createAuthorizedEndpoint;
@@ -57,11 +59,23 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class AuthorizationPollerTests extends ESTestCase {
+    private static final AuthorizationPoller.TaskFields TASK_FIELDS = new AuthorizationPoller.TaskFields(
+        0,
+        "abc",
+        "abc",
+        "abc",
+        new TaskId("abc", 0),
+        Map.of()
+    );
+
     private DeterministicTaskQueue taskQueue;
+    private InferenceFeatureService inferenceFeatureServiceMock;
 
     @Before
     public void init() throws Exception {
         taskQueue = new DeterministicTaskQueue();
+        inferenceFeatureServiceMock = mock(InferenceFeatureService.class);
+        when(inferenceFeatureServiceMock.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(true);
     }
 
     public void testDoesNotSendAuthorizationRequest_WhenModelRegistryIsNotReady() {
@@ -80,7 +94,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mock(Client.class),
             createMockCCMFeature(false),
             createMockCCMService(false),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         var persistentTaskId = "id";
@@ -109,7 +124,7 @@ public class AuthorizationPollerTests extends ESTestCase {
         var authorizationRequestHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
 
         var poller = new AuthorizationPoller(
-            new AuthorizationPoller.TaskFields(0, "abc", "abc", "abc", new TaskId("abc", 0), Map.of()),
+            TASK_FIELDS,
             createWithEmptySettings(taskQueue.getThreadPool()),
             authorizationRequestHandler,
             mock(Sender.class),
@@ -118,7 +133,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mock(Client.class),
             createMockCCMFeature(true),
             createMockCCMService(false),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         var persistentTaskId = "id";
@@ -131,6 +147,48 @@ public class AuthorizationPollerTests extends ESTestCase {
 
         verify(authorizationRequestHandler, never()).getAuthorization(any(), any());
         verify(mockPersistentTasksService, times(1)).sendCompletionRequest(
+            eq(persistentTaskId),
+            eq(allocationId),
+            isNull(),
+            isNull(),
+            any(),
+            any()
+        );
+    }
+
+    public void testDoesNotSendAuthorizationRequest_WhenClusterDoesNotIncludeMetadata_MappingUpdate() {
+        var mockRegistry = mock(ModelRegistry.class);
+        when(mockRegistry.isReady()).thenReturn(true);
+
+        var inferenceFeatureService = mock(InferenceFeatureService.class);
+        when(inferenceFeatureService.hasFeature(InferenceFeatures.ENDPOINT_METADATA_FIELD)).thenReturn(false);
+
+        var authorizationRequestHandler = mock(ElasticInferenceServiceAuthorizationRequestHandler.class);
+
+        var poller = new AuthorizationPoller(
+            TASK_FIELDS,
+            createWithEmptySettings(taskQueue.getThreadPool()),
+            authorizationRequestHandler,
+            mock(Sender.class),
+            ElasticInferenceServiceSettingsTests.create("", TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+            mockRegistry,
+            mock(Client.class),
+            createMockCCMFeature(true),
+            createMockCCMService(true),
+            null,
+            inferenceFeatureService
+        );
+
+        var persistentTaskId = "id";
+        var allocationId = 0L;
+
+        var mockPersistentTasksService = mock(PersistentTasksService.class);
+        poller.init(mockPersistentTasksService, mock(TaskManager.class), persistentTaskId, allocationId);
+
+        poller.sendAuthorizationRequest();
+
+        verify(authorizationRequestHandler, never()).getAuthorization(any(), any());
+        verify(mockPersistentTasksService, never()).sendCompletionRequest(
             eq(persistentTaskId),
             eq(allocationId),
             isNull(),
@@ -156,7 +214,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mock(Client.class),
             createMockCCMFeature(true),
             createMockCCMService(false),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         var persistentTaskId = "id";
@@ -211,7 +270,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mockClient,
             createMockCCMFeature(true),
             createMockCCMService(true),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         var persistentTaskId = "id";
@@ -225,7 +285,28 @@ public class AuthorizationPollerTests extends ESTestCase {
         poller.sendAuthorizationRequest();
         verify(mockClient).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
         var capturedRequest = requestArgCaptor.getValue();
-        assertThat(capturedRequest.getModels(), is(List.of(createSparseEndpoint(sparseModel.id(), sparseModel.modelName(), url))));
+        assertThat(
+            capturedRequest.getModels(),
+            is(
+                List.of(
+                    createSparseEndpoint(
+                        sparseModel.id(),
+                        sparseModel.modelName(),
+                        url,
+                        new EndpointMetadata(
+                            new EndpointMetadata.Heuristics(
+                                List.of(),
+                                StatusHeuristic.fromString(sparseModel.status()),
+                                sparseModel.releaseDate(),
+                                sparseModel.endOfLifeDate()
+                            ),
+                            new EndpointMetadata.Internal(sparseModel.fingerprint(), ENDPOINT_SCHEMA_VERSION),
+                            sparseModel.displayName() != null ? new EndpointMetadata.Display(sparseModel.displayName()) : null
+                        )
+                    )
+                )
+            )
+        );
 
         verify(mockPersistentTasksService, never()).sendCompletionRequest(
             eq(persistentTaskId),
@@ -237,16 +318,19 @@ public class AuthorizationPollerTests extends ESTestCase {
         );
     }
 
-    private ElasticInferenceServiceSparseEmbeddingsModel createSparseEndpoint(String endpointId, String modelName, String url) {
+    private ElasticInferenceServiceSparseEmbeddingsModel createSparseEndpoint(
+        String endpointId,
+        String modelName,
+        String url,
+        EndpointMetadata endpointMetadata
+    ) {
         return new ElasticInferenceServiceSparseEmbeddingsModel(
             endpointId,
             TaskType.SPARSE_EMBEDDING,
-            ElasticInferenceService.NAME,
             new ElasticInferenceServiceSparseEmbeddingsServiceSettings(modelName, null, null),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             new ElasticInferenceServiceComponents(url),
-            ChunkingSettingsBuilder.DEFAULT_SETTINGS
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS,
+            endpointMetadata
         );
     }
 
@@ -284,7 +368,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             // CCM is not configurable so we should send the request because it doesn't depend on an api key
             createMockCCMFeature(false),
             createMockCCMService(false),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         var persistentTaskId = "id";
@@ -298,7 +383,29 @@ public class AuthorizationPollerTests extends ESTestCase {
         poller.sendAuthorizationRequest();
         verify(mockClient).execute(eq(StoreInferenceEndpointsAction.INSTANCE), requestArgCaptor.capture(), any());
         var capturedRequest = requestArgCaptor.getValue();
-        assertThat(capturedRequest.getModels(), is(List.of(createSparseEndpoint(sparseModel.id(), sparseModel.modelName(), url))));
+
+        assertThat(
+            capturedRequest.getModels(),
+            is(
+                List.of(
+                    createSparseEndpoint(
+                        sparseModel.id(),
+                        sparseModel.modelName(),
+                        url,
+                        new EndpointMetadata(
+                            new EndpointMetadata.Heuristics(
+                                List.of(),
+                                StatusHeuristic.fromString(sparseModel.status()),
+                                sparseModel.releaseDate(),
+                                sparseModel.endOfLifeDate()
+                            ),
+                            new EndpointMetadata.Internal(sparseModel.fingerprint(), ENDPOINT_SCHEMA_VERSION),
+                            sparseModel.displayName() != null ? new EndpointMetadata.Display(sparseModel.displayName()) : null
+                        )
+                    )
+                )
+            )
+        );
 
         verify(mockPersistentTasksService, never()).sendCompletionRequest(
             eq(persistentTaskId),
@@ -343,7 +450,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mockClient,
             createMockCCMFeature(true),
             createMockCCMService(true),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         poller.sendAuthorizationRequest();
@@ -383,7 +491,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mockClient,
             createMockCCMFeature(true),
             createMockCCMService(true),
-            null
+            null,
+            inferenceFeatureServiceMock
         );
 
         poller.sendAuthorizationRequest();
@@ -441,7 +550,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mockClient,
             createMockCCMFeature(true),
             createMockCCMService(true),
-            callback
+            callback,
+            inferenceFeatureServiceMock
         );
         pollerRef.set(poller);
         poller.start();
@@ -500,7 +610,8 @@ public class AuthorizationPollerTests extends ESTestCase {
             mockClient,
             createMockCCMFeature(true),
             createMockCCMService(true),
-            callback
+            callback,
+            inferenceFeatureServiceMock
         );
 
         var persistentTaskId = "id";

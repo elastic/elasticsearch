@@ -13,8 +13,15 @@ The `dense_vector` field type stores dense vectors of numeric values. Dense vect
 
 The `dense_vector` type does not support aggregations or sorting.
 
-You add a `dense_vector` field as an array of numeric values based on [`element_type`](#dense-vector-params) with `float` by default:
+You can provide vectors in two different input formats:
 
+- Array of floats: A JSON array of numeric values representing each vector dimension.
+- Base64-encoded string: A Base64-encoded binary representation of the vector. More compact than float arrays, reducing payload size and improving efficiency for large vectors and bulk indexing.
+
+The following example creates an index with a `dense_vector` field (using default [`element_type`](#dense-vector-params) `float`) and indexes documents using each format:
+
+::::{tab-set}
+:::{tab-item} Array of floats
 ```console
 PUT my-index
 {
@@ -46,6 +53,38 @@ PUT my-index/_doc/2
   "my_vector" : [-0.5, 10, 10]
 }
 ```
+:::
+:::{tab-item} Base64-encoded string
+```console
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 3
+      },
+      "my_text" : {
+        "type" : "keyword"
+      }
+    }
+  }
+}
+
+PUT my-index/_doc/1
+{
+  "my_text" : "text1",
+  "my_vector" : "PwAAAEEgAABAwAAA"
+}
+
+PUT my-index/_doc/2
+{
+  "my_text" : "text2",
+  "my_vector" : "vwAAAEEgAABBIAAA"
+}
+```
+:::
+::::
 
 1. (Optional) Controls how vectors are indexed internally for kNN search. In this example, `bbq_disk` enables [disk-based binary quantization](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk), which can significantly reduce memory usage for large vector datasets. If you don’t specify `index_options`, {{es}} automatically selects a default indexing strategy based on the vector type and dimensions. To learn more about the available index options and how they affect vector quantization, refer to [Automatically quantize vectors for kNN search](#dense-vector-quantization).
 
@@ -620,7 +659,7 @@ POST /my-bit-vectors/_bulk?refresh
 % TEST[continued]
 
 1. 5 bytes representing the 40 bit dimensioned vector
-2. A hexidecimal string representing the 40 bit dimensioned vector
+2. A hexadecimal string representing the 40 bit dimensioned vector
 
 
 Then, when searching, you can use the `knn` query to search for similar bit vectors:

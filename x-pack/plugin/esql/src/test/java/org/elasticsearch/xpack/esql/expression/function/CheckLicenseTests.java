@@ -97,7 +97,7 @@ public class CheckLicenseTests extends ESTestCase {
                 defaultEnrichResolution(),
                 emptyInferenceResolution()
             ),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()), getLicenseState(operationMode))
+            new Verifier(new Metrics(new EsqlFunctionRegistry(), true, true), getLicenseState(operationMode))
         );
     }
 

@@ -182,7 +182,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         globalModelRegistry.putDefaultIdIfAbsent(
             new InferenceService.DefaultConfigId(
                 DEFAULT_EIS_JINA_V5_INFERENCE_ID,
-                MinimalServiceSettings.textEmbedding(ElasticInferenceService.NAME, 1024, SimilarityMeasure.DOT_PRODUCT, DenseVectorFieldMapper.ElementType.FLOAT),
+                MinimalServiceSettings.textEmbedding(
+                    ElasticInferenceService.NAME,
+                    1024,
+                    SimilarityMeasure.DOT_PRODUCT,
+                    DenseVectorFieldMapper.ElementType.FLOAT
+                ),
                 mock(InferenceService.class)
             )
         );

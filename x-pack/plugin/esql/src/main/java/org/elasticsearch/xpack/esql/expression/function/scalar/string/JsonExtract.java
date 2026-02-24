@@ -70,7 +70,8 @@ public class JsonExtract extends EsqlScalarFunction {
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.PREVIEW, version = "9.4.0") },
         description = """
             Extracts a value from a JSON string using a subset of
-            https://datatracker.ietf.org/doc/rfc9535/[JSONPath] syntax.
+            [JSONPath](https://datatracker.ietf.org/doc/rfc9535) syntax.""",
+        detailedDescription = """
             Paths can use dot notation (`user.address.city`), bracket
             notation (`['user']['address']['city']`), or a mix of both
             (`user['address'].city`). For simple keys, dot notation and

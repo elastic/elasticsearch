@@ -137,3 +137,40 @@ total:dense_vector  | primary:boolean
 [255.0, 128.0, 255.0] | true
 ;
 
+# INLINE STATS tests for SUM with dense_vector
+inlineStatsSumDenseVectorGroupByBoolean
+required_capability: dense_vector_sum_function
+required_capability: inline_stats
+
+FROM colors
+| WHERE id < 5
+| KEEP id, color, rgb_vector, primary
+| INLINE STATS total = SUM(rgb_vector) BY primary
+| SORT id
+;
+
+id:integer | color:text | rgb_vector:dense_vector | total:dense_vector    | primary:boolean
+0          | maroon     | [128.0, 0.0, 0.0]      | [691.0, 96.0, 136.0]  | false
+1          | brown      | [165.0, 42.0, 42.0]    | [691.0, 96.0, 136.0]  | false
+2          | firebrick  | [178.0, 34.0, 34.0]    | [691.0, 96.0, 136.0]  | false
+3          | crimson    | [220.0, 20.0, 60.0]    | [691.0, 96.0, 136.0]  | false
+4          | red        | [255.0, 0.0, 0.0]      | [255.0, 0.0, 0.0]     | true
+;
+
+inlineStatsSumDenseVectorNoGrouping
+required_capability: dense_vector_sum_function
+required_capability: inline_stats
+
+FROM colors
+| WHERE color IN ("red", "green", "blue")
+| KEEP color, rgb_vector
+| INLINE STATS total = SUM(rgb_vector)
+| SORT color
+;
+
+color:text | rgb_vector:dense_vector | total:dense_vector
+blue       | [0.0, 0.0, 255.0]       | [255.0, 128.0, 255.0]
+green      | [0.0, 128.0, 0.0]       | [255.0, 128.0, 255.0]
+red        | [255.0, 0.0, 0.0]       | [255.0, 128.0, 255.0]
+;
+

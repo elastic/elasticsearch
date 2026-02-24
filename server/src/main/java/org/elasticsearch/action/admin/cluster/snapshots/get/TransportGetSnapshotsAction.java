@@ -741,9 +741,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
          */
         PreflightFilterResult test(SnapshotId snapshotId, RepositoryData repositoryData) {
             if (this == MATCH_ALL) {
+                // no ?from_sort_value parameter, or sorting by REPOSITORY
                 return INCLUDE;
             }
             if (preflightPredicate == null) {
+                // ?from_sort_value specified, and we are sorting by SHARDS or FAILED_SHARDS that requires the full SnapshotInfo
                 return INCONCLUSIVE;
             }
             return preflightPredicate.test(snapshotId, repositoryData);

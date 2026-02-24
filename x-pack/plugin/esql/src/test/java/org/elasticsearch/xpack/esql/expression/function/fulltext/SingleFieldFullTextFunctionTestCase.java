@@ -30,6 +30,10 @@ import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Base test class for full-text functions that operate on a single field, such as Match and KNN. It provides utilities for
+ * building test cases with string parameters and for adding null-field test cases.
+ */
 public abstract class SingleFieldFullTextFunctionTestCase extends AbstractFunctionTestCase {
 
     /**

@@ -18,6 +18,10 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Bese class for testing full-text functions that don't operate on a field, such as KQL.
+ * It provides utilities for building test cases with string parameters.
+ */
 public abstract class NoneFieldFullTextFunctionTestCase extends SingleFieldFullTextFunctionTestCase {
 
     public NoneFieldFullTextFunctionTestCase(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {

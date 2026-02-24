@@ -54,10 +54,6 @@ id:l | new_vector:dense_vector
 
 coalesceBitVectorWithFallback
 required_capability: coalesce_dense_vector
-required_capability: dense_vector_field_type_bit_elements
-required_capability: dense_vector_agg_metric_double_if_version
-required_capability: l2_norm_vector_similarity_function
-required_capability: to_dense_vector_function
 
 FROM dense_vector
 | EVAL v = COALESCE(bit_vector, to_dense_vector([0, 0]))
@@ -76,9 +72,6 @@ id:l | v:dense_vector
 coalesceBitVectorTwoColumns
 
 required_capability: coalesce_dense_vector
-required_capability: dense_vector_field_type_bit_elements
-required_capability: dense_vector_agg_metric_double_if_version
-required_capability: l2_norm_vector_similarity_function
 
 FROM dense_vector_coalesce
 | EVAL v = COALESCE(bit_vector, bit_vector_2)

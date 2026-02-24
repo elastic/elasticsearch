@@ -119,6 +119,7 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
     private abstract static class AbstractVectorValuesReader<T extends KnnVectorValues, B extends BlockLoader.Builder> extends
         BlockDocValuesReader {
 
+        private final CircuitBreaker breaker;
         protected final T vectorValues;
         protected final KnnVectorValues.DocIndexIterator iterator;
         protected final DenseVectorBlockLoaderProcessor<B> processor;
@@ -130,7 +131,8 @@ public class DenseVectorBlockLoader<B extends BlockLoader.Builder> extends Block
             DenseVectorBlockLoaderProcessor<B> processor,
             int dimensions
         ) {
-            super(breaker);
+            super(null);
+            this.breaker = breaker;
             this.vectorValues = vectorValues;
             this.iterator = vectorValues.iterator();
             this.processor = processor;

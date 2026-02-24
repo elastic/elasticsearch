@@ -115,7 +115,7 @@ public class Reindexer {
         ReindexSslConfig reindexSslConfig,
         @Nullable ReindexMetrics reindexMetrics,
         TransportService transportService,
-        @Nullable ReindexRelocationNodePicker relocationNodePicker
+        ReindexRelocationNodePicker relocationNodePicker
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
@@ -125,7 +125,7 @@ public class Reindexer {
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
         this.transportService = Objects.requireNonNull(transportService);
-        this.relocationNodePicker = relocationNodePicker;
+        this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {

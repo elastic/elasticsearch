@@ -19,6 +19,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.reindex.ReindexRelocationNodePicker;
 import org.elasticsearch.reindex.ReindexSslConfig;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.script.ScriptService;
@@ -50,7 +51,8 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
         Client client,
         TransportService transportService,
         Environment environment,
-        ResourceWatcherService watcherService
+        ResourceWatcherService watcherService,
+        ReindexRelocationNodePicker relocationNodePicker
     ) {
         super(
             EnrichReindexAction.NAME,
@@ -66,7 +68,7 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
             transportService,
             new ReindexSslConfig(settings, environment, watcherService),
             null,
-            null // no relocation support as of now
+            relocationNodePicker
         );
         this.bulkClient = new OriginSettingClient(client, ENRICH_ORIGIN);
     }

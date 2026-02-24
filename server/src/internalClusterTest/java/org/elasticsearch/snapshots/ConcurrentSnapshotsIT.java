@@ -2424,7 +2424,7 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             snapshotInfoRetrievedLatch.countDown();
         });
         final var cloneFailureListener = ClusterServiceUtils.addTemporaryStateListener(clusterService, state -> {
-            final var entries = SnapshotsInProgress.get(state).forRepo(repoName);
+            final var entries = SnapshotsInProgress.get(state).forRepo(ProjectId.DEFAULT, repoName);
             for (SnapshotsInProgress.Entry entry : entries) {
                 if (entry.isClone()
                     && entry.shardSnapshotStatusByRepoShardId()

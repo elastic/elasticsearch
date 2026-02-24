@@ -386,7 +386,7 @@ public class PatternTextFieldMapper extends FieldMapper {
             fullPath(),
             new PatternTextSyntheticFieldLoaderLayer(
                 fieldType().name(),
-                leafReader -> PatternTextFallbackDocValues.from(leafReader, fieldType())
+                leafReader -> PatternTextFallbackDocValues.fromEnabledPatternText(leafReader, fieldType())
             )
         );
     }

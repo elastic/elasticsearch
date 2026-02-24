@@ -27,10 +27,10 @@ import java.io.IOException;
  */
 public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
 
-    private final IOFunction<LeafReader, BinaryDocValues> docValuesSupplier;
+    private final IOFunction<LeafReaderContext, BinaryDocValues> docValuesSupplier;
 
     public BytesRefsFromBinaryBlockLoader(String fieldName) {
-        this(leafReader -> leafReader.getBinaryDocValues(fieldName));
+        this(context -> context.reader().getBinaryDocValues(fieldName));
     }
 
     /**
@@ -38,7 +38,7 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
      * This is useful when the doc values are not directly stored in a single field
      * but are composed of multiple sources, as is the case for Pattern Text.
      */
-    public BytesRefsFromBinaryBlockLoader(IOFunction<LeafReader, BinaryDocValues> docValuesSupplier) {
+    public BytesRefsFromBinaryBlockLoader(IOFunction<LeafReaderContext, BinaryDocValues> docValuesSupplier) {
         this.docValuesSupplier = docValuesSupplier;
     }
 
@@ -49,7 +49,7 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
 
     @Override
     public AllReader reader(LeafReaderContext context) throws IOException {
-        BinaryDocValues docValues = docValuesSupplier.apply(context.reader());
+        BinaryDocValues docValues = docValuesSupplier.apply(context);
         return createReader(docValues);
     }
 

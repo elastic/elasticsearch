@@ -48,7 +48,7 @@ public class DenseVectorFromBinaryBlockLoader extends BlockDocValuesReader.DocVa
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, fieldName);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         return switch (elementType) {
             case FLOAT -> new FloatDenseVectorFromBinary(dv, dims, indexVersion);

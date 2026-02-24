@@ -40,7 +40,7 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, fieldName);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         return new BytesRefsFromCustomBinary(dv);
     }

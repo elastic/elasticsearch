@@ -42,7 +42,7 @@ public class MvMinBytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.Do
     public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
         if (bc == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         if (bc.counts() == null) {
             return new BytesRefsFromBinaryBlockLoader.BytesRefsFromBinary(bc.binary());

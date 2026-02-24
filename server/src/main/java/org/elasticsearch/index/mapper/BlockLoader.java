@@ -146,14 +146,12 @@ import java.util.Map;
  *     but to disable {@code _source} and {@code doc_values}. Nothing's perfect. Especially
  *     code.
  * </p>
- * <h2>Why is {@link AllReader}?</h2>
+ * <h2>Column-at-a-time vs row-stride</h2>
  * <p>
- *     When we described how to read from {@code doc_values} we said we <strong>prefer</strong>
- *     to use {@link ColumnAtATimeReader}. But some callers don't support reading column-at-a-time
- *     and need to read row-by-row. So we also need an implementation of {@link RowStrideReader}
- *     that reads from {@code doc_values}. Usually it's most convenient to implement both of those
- *     in the same {@code class}. {@link AllReader} is an interface for those sorts of classes, and
- *     you'll see it in the {@code doc_values} code frequently.
+ *     Readers that load from {@code doc_values} only need to implement {@link ColumnAtATimeReader}.
+ *     Readers that load from {@code stored} fields or {@code _source} implement
+ *     {@link RowStrideReader}. A few constant loaders (like {@link ConstantNull} and
+ *     {@link ConstantBytes}) implement both because they are trivially usable from either path.
  * </p>
  * <h2>Why is {@link #rowStrideStoredFieldSpec}?</h2>
  * <p>
@@ -293,13 +291,6 @@ public interface BlockLoader {
          */
         void read(int docId, StoredFields storedFields, Builder builder) throws IOException;
     }
-
-    /**
-     * @deprecated we no longer need to implement {@link RowStrideReader} when
-     *             storage prefers column-at-a-time
-     */
-    @Deprecated
-    interface AllReader extends ColumnAtATimeReader, RowStrideReader {}
 
     interface StoredFields {
         /**

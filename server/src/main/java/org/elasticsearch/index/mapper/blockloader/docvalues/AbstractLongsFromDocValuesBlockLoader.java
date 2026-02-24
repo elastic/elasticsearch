@@ -38,7 +38,7 @@ public abstract class AbstractLongsFromDocValuesBlockLoader extends BlockDocValu
     public final ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         NumericDvSingletonOrSorted dv = NumericDvSingletonOrSorted.get(breaker, context, fieldName);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         if (dv.singleton() != null) {
             return singletonReader(dv.singleton());

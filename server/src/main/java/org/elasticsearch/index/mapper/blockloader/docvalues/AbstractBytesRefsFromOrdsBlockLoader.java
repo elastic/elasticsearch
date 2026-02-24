@@ -41,7 +41,7 @@ public abstract class AbstractBytesRefsFromOrdsBlockLoader extends BlockDocValue
     public final ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
         SortedDvSingletonOrSet dv = SortedDvSingletonOrSet.get(breaker, size, context, fieldName);
         if (dv == null) {
-            return ConstantNull.READER;
+            return ConstantNull.COLUMN_READER;
         }
         if (dv.singleton() != null) {
             return singletonReader(dv.singleton());

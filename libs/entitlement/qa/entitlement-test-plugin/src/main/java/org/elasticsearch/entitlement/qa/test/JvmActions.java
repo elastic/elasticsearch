@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Locale;
+import java.util.Properties;
 import java.util.TimeZone;
 
 import javax.xml.parsers.SAXParserFactory;
@@ -28,26 +29,33 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 @SuppressWarnings({ "unused" /* called via reflection */ })
 class JvmActions {
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void setSystemProperty() {
-        System.setProperty("es.entitlements.checkSetSystemProperty", "true");
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "null")
+    static String setSystemProperty() {
+        String result = System.setProperty("es.entitlements.checkSetSystemProperty", "true");
         try {
             System.clearProperty("es.entitlements.checkSetSystemProperty");
         } catch (RuntimeException e) {
             // ignore for this test case
         }
-
+        return String.valueOf(result);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void clearSystemProperty() {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "null")
+    static String clearSystemProperty() {
         EntitledPlugin.selfTest(); // TODO: find a better home
-        System.clearProperty("es.entitlements.checkClearSystemProperty");
+        String result = System.clearProperty("es.entitlements.checkClearSystemProperty");
+        return String.valueOf(result);
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void setSystemProperties() {
-        System.setProperties(System.getProperties()); // no side effect in case if allowed (but shouldn't)
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
+    static String setSystemProperties() {
+        Properties original = System.getProperties();
+        System.setProperties(new Properties(original));
+        boolean unchanged = System.getProperties() == original;
+        if (unchanged == false) {
+            System.setProperties(original);
+        }
+        return String.valueOf(unchanged);
     }
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)

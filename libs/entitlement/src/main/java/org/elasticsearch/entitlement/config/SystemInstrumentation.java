@@ -47,7 +47,7 @@ public class SystemInstrumentation implements InstrumentationConfig {
             rule.callingVoid(Runtime::exit, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();
             rule.callingVoid(Runtime::halt, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();
             rule.callingVoid(Runtime::addShutdownHook, Thread.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();
-            rule.callingVoid(Runtime::removeShutdownHook, Thread.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();
+            rule.calling(Runtime::removeShutdownHook, Thread.class).enforce(Policies::changeJvmGlobalState).elseReturn(false);
             rule.callingVoid(Runtime::load, String.class)
                 .enforce((_, path) -> Policies.fileRead(Path.of(path)).and(Policies.loadingNativeLibraries()))
                 .elseThrowNotEntitled();
@@ -56,9 +56,9 @@ public class SystemInstrumentation implements InstrumentationConfig {
 
         builder.on(System.class, rule -> {
             rule.callingVoidStatic(System::exit, Integer.class).enforce(Policies::exitVM).elseThrowNotEntitled();
-            rule.callingVoidStatic(System::setProperty, String.class, String.class).enforce(Policies::writeProperty).elseReturnEarly();
+            rule.callingStatic(System::setProperty, String.class, String.class).enforce(Policies::writeProperty).elseReturn(null);
             rule.callingVoidStatic(System::setProperties, Properties.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();
-            rule.callingVoidStatic(System::clearProperty, String.class).enforce(Policies::writeProperty).elseReturnEarly();
+            rule.callingStatic(System::clearProperty, String.class).enforce(Policies::writeProperty).elseReturn(null);
             rule.callingVoidStatic(System::setIn, InputStream.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();
             rule.callingVoidStatic(System::setOut, PrintStream.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();
             rule.callingVoidStatic(System::setErr, PrintStream.class).enforce(Policies::changeJvmGlobalState).elseReturnEarly();

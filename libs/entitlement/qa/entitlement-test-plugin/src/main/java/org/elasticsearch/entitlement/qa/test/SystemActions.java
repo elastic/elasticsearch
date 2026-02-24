@@ -35,33 +35,53 @@ class SystemActions {
         System.exit(123);
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void systemSetIn() {
-        System.setIn(System.in);
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
+    static String systemSetIn() {
+        var original = System.in;
+        System.setIn(new java.io.ByteArrayInputStream(new byte[0]));
+        boolean unchanged = System.in == original;
+        if (unchanged == false) {
+            System.setIn(original);
+        }
+        return String.valueOf(unchanged);
     }
 
     @SuppressForbidden(reason = "This should be a no-op so we don't interfere with system streams")
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void systemSetOut() {
-        System.setOut(System.out);
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
+    static String systemSetOut() {
+        var original = System.out;
+        System.setOut(new java.io.PrintStream(java.io.OutputStream.nullOutputStream()));
+        boolean unchanged = System.out == original;
+        if (unchanged == false) {
+            System.setOut(original);
+        }
+        return String.valueOf(unchanged);
     }
 
     @SuppressForbidden(reason = "This should be a no-op so we don't interfere with system streams")
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void systemSetErr() {
-        System.setErr(System.err);
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
+    static String systemSetErr() {
+        var original = System.err;
+        System.setErr(new java.io.PrintStream(java.io.OutputStream.nullOutputStream()));
+        boolean unchanged = System.err == original;
+        if (unchanged == false) {
+            System.setErr(original);
+        }
+        return String.valueOf(unchanged);
     }
 
     private static final Thread NO_OP_SHUTDOWN_HOOK = new Thread(() -> {}, "Shutdown hook for testing");
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void runtimeAddShutdownHook() {
-        Runtime.getRuntime().addShutdownHook(NO_OP_SHUTDOWN_HOOK);
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "true")
+    static String runtimeAddShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {}, "Test shutdown hook"));
+        return "true";
     }
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void runtimeRemoveShutdownHook() {
-        Runtime.getRuntime().removeShutdownHook(NO_OP_SHUTDOWN_HOOK);
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "false")
+    static String runtimeRemoveShutdownHook() {
+        boolean result = Runtime.getRuntime().removeShutdownHook(NO_OP_SHUTDOWN_HOOK);
+        return String.valueOf(result);
     }
 
     private SystemActions() {}

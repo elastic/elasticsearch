@@ -1,0 +1,144 @@
+version: 9.2.6
+released: false
+generated: 2026-02-23T17:45:08.403124777Z
+changelogs:
+  - pr: 141242
+    summary: Deep copy `BytesRef` when creating a constant vector block
+    area: ES|QL
+    type: bug
+    issues:
+      - 140615
+      - 140809
+      - 140621
+  - pr: 141408
+    summary: Ensure paused shard snapshot can be deleted
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 141519
+    summary: Reduce locking when persisting ML job statistics
+    area: Machine Learning
+    type: bug
+    issues:
+      - 140511
+  - pr: 141539
+    summary: Reindexing older indices with percolator fields clears migration assistant errors
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 141549
+    summary: Allow shadowing time series metrics and dimension in non time series indexing
+    area: Mapping
+    type: bug
+    issues:
+      - 140882
+  - pr: 141692
+    summary: "[Inference API] Prevent trailing slashes from being included in URLs"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 141711
+    summary: Avoid a possible NPE by throwing an EIAE instead with more info
+    area: ES|QL
+    type: bug
+    issues:
+      - 141267
+  - pr: 141747
+    summary: Reduce cancellation check interval in `CancellableBulkScorer` for better responsiveness
+    area: Search
+    type: bug
+    issues: []
+  - pr: 141776
+    summary: ESQL fix TO_IP leading_zeros=octal parsing
+    area: ES|QL
+    type: bug
+    issues:
+      - 141627
+  - pr: 141792
+    summary: Fix cluster name in ECS upgrade
+    area: Infra/Logging
+    type: bug
+    issues: []
+  - pr: 141815
+    summary: Prevent large CancelTasksRequest descriptions by truncating nodes and actions
+    area: Search
+    type: bug
+    issues: []
+  - pr: 141904
+    summary: Ensure Rewriteable.rewriteAndFetch listeners are not executed on transport threads
+    area: Search
+    type: bug
+    issues: []
+  - pr: 141940
+    summary: Fix IP_PREFIX function leaking data in scratch
+    area: ES|QL
+    type: bug
+    issues:
+      - 141628
+  - pr: 141973
+    summary: Fix handling empty collapse construct
+    area: Search
+    type: bug
+    issues:
+      - 139299
+  - pr: 142039
+    summary: Implement comprehensive top N parameter handling for text similarity reranker
+    area: Ranking
+    type: bug
+    issues: []
+  - pr: 142042
+    summary: Suppress success callback when failing master task
+    area: Cluster Coordination
+    type: bug
+    issues: []
+  - pr: 142046
+    summary: Fix Top Hits Incompatible Field Types on Sort Across Indices
+    area: Search
+    type: bug
+    issues:
+      - 141906
+  - pr: 142047
+    summary: Dynamically grow hash in linear counting in HLL
+    area: ES|QL
+    type: bug
+    issues:
+      - 41847
+  - pr: 142181
+    summary: "[Inference API] Do not write \"task\" field in Jina embedding request if unsupported"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 142238
+    summary: "[Inference API] Fix `ChunkingSettings` field missing from `ModelConfigurations` equals method"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 142328
+    summary: Fix NPE with null field parameter
+    area: ES|QL
+    type: bug
+    issues:
+      - 142281
+  - pr: 142332
+    summary: Fix bug with multiple spatial aggs filtering in ES|QL
+    area: ES|QL
+    type: bug
+    issues:
+      - 142329
+  - pr: 142403
+    summary: Fix transform validation to reject PUT and `_start` when user lacks remote index permissions
+    area: Transform
+    type: bug
+    issues:
+      - 95367
+  - pr: 142479
+    summary: Fixing for NPE when there is no query specified for the standard retriever
+    area: Ranking
+    type: bug
+    issues:
+      - 142336
+  - pr: 142500
+    summary: Updating bundled jdk version to 25.0.2+10
+    area: Packaging
+    type: upgrade
+    issues: []

@@ -23,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests for Snappy block decoding behavior, including chunked and truncated input.
@@ -97,7 +98,8 @@ public class SnappyBlockDecoderTests extends ESTestCase {
 
         EmbeddedChannel channel = new EmbeddedChannel(new SnappyBlockDecoder(MAX_UNCOMPRESSED_SIZE));
         try {
-            assertFalse(channel.writeInbound(Unpooled.wrappedBuffer(truncated)));
+            // Partial output may be produced incrementally before truncation is detected
+            channel.writeInbound(Unpooled.wrappedBuffer(truncated));
             DecompressionException exception = expectThrows(DecompressionException.class, channel::finish);
             assertThat(exception.getMessage(), containsString("truncated snappy block"));
         } finally {
@@ -161,6 +163,48 @@ public class SnappyBlockDecoderTests extends ESTestCase {
                 () -> channel.writeInbound(Unpooled.wrappedBuffer(malformed))
             );
             assertThat(exception.getMessage(), containsString("trailing bytes after decompression completed"));
+        } finally {
+            channel.finishAndReleaseAll();
+        }
+    }
+
+    public void testProducesIncrementalOutputForCompressibleData() {
+        // Compressible data produces many small Snappy elements (literals + copies).
+        // Netty's Snappy processes complete elements per decode() call, so splitting the
+        // compressed stream across chunks yields incremental output at element boundaries.
+        byte[] pattern = randomAlphanumericOfLength(64).getBytes(StandardCharsets.UTF_8);
+        int repetitions = MAX_UNCOMPRESSED_SIZE / pattern.length;
+        byte[] original = new byte[pattern.length * repetitions];
+        for (int i = 0; i < repetitions; i++) {
+            System.arraycopy(pattern, 0, original, i * pattern.length, pattern.length);
+        }
+        byte[] compressed = snappyBlockCompress(original);
+        assertTrue("expected compressible data to compress well", compressed.length < original.length / 2);
+
+        int splitPoint = randomIntBetween(compressed.length / 4, compressed.length * 3 / 4);
+
+        EmbeddedChannel channel = new EmbeddedChannel(new SnappyBlockDecoder(MAX_UNCOMPRESSED_SIZE));
+        try {
+            channel.writeInbound(Unpooled.wrappedBuffer(compressed, 0, splitPoint));
+            channel.writeInbound(Unpooled.wrappedBuffer(compressed, splitPoint, compressed.length - splitPoint));
+
+            int messageCount = 0;
+            ByteBuf combined = Unpooled.buffer();
+            try {
+                Object message;
+                while ((message = channel.readInbound()) != null) {
+                    try {
+                        messageCount++;
+                        combined.writeBytes((ByteBuf) message);
+                    } finally {
+                        ReferenceCountUtil.release(message);
+                    }
+                }
+                assertArrayEquals(original, ByteBufUtil.getBytes(combined));
+            } finally {
+                combined.release();
+            }
+            assertThat("expected incremental output across chunks", messageCount, greaterThanOrEqualTo(2));
         } finally {
             channel.finishAndReleaseAll();
         }

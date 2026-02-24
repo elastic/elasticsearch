@@ -19,6 +19,11 @@ import java.util.List;
 
 /**
  * A Netty {@link ByteToMessageDecoder} that decodes Snappy block format compressed data.
+ * <p>
+ * Publishes partially decompressed output to the pipeline as it becomes available,
+ * allowing downstream handlers to start processing while decompression continues.
+ * Output granularity depends on how Netty's {@link Snappy} decoder processes elements:
+ * each complete literal or copy element produces output that is published immediately.
  */
 final class SnappyBlockDecoder extends ByteToMessageDecoder {
     private static final int INCOMPLETE_PREAMBLE = -1;
@@ -38,6 +43,7 @@ final class SnappyBlockDecoder extends ByteToMessageDecoder {
     private int expectedUncompressedSize;
     private ByteBuf decompressed;
     private boolean sawInput;
+    private int publishedUpTo;
 
     SnappyBlockDecoder(int maxUncompressedSize) {
         this.maxUncompressedSize = maxUncompressedSize;
@@ -124,26 +130,29 @@ final class SnappyBlockDecoder extends ByteToMessageDecoder {
         }
 
         snappy.decode(in, decompressed);
-        int produced = decompressed.writerIndex();
+        publishNewOutput(out);
 
-        if (produced == expectedUncompressedSize) {
+        if (decompressed.writerIndex() == expectedUncompressedSize) {
             if (in.isReadable()) {
                 throw new DecompressionException("snappy block has trailing bytes after decompression completed");
             }
-            finish(out);
+            finish();
         }
     }
 
-    private void finish(List<Object> out) {
-        ByteBuf output = decompressed;
+    private void publishNewOutput(List<Object> out) {
+        int writerIndex = decompressed.writerIndex();
+        if (writerIndex > publishedUpTo) {
+            out.add(decompressed.retainedSlice(publishedUpTo, writerIndex - publishedUpTo));
+            publishedUpTo = writerIndex;
+        }
+    }
+
+    private void finish() {
+        decompressed.release();
         decompressed = null;
         state = State.DONE;
         snappy.reset();
-        if (output.isReadable()) {
-            out.add(output);
-        } else {
-            output.release();
-        }
     }
 
     private void releaseDecompressedBuffer() {

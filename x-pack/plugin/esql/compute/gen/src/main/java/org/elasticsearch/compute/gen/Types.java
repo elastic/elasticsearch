@@ -140,6 +140,7 @@ public class Types {
     public static final ClassName BYTES_REF = ClassName.get("org.apache.lucene.util", "BytesRef");
     public static final ClassName EXPONENTIAL_HISTOGRAM = ClassName.get("org.elasticsearch.exponentialhistogram", "ExponentialHistogram");
     public static final ClassName TDIGEST = ClassName.get("org.elasticsearch.compute.data", "TDigestHolder");
+
     public static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
     public static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
 

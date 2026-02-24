@@ -27,7 +27,7 @@ public class AzureOpenAiRequestTests extends ESTestCase {
     public void testDecorateWithAuthHeader_apiKeyPresent() {
         var apiKey = randomSecureStringOfLength(10);
         var httpPost = new HttpPost();
-        var secretSettings = new AzureOpenAiSecretSettings(apiKey, null);
+        var secretSettings = new AzureOpenAiSecretSettings(apiKey, null, null, null, null);
 
         AzureOpenAiRequest.decorateWithAuthHeader(httpPost, secretSettings);
         var apiKeyHeader = httpPost.getFirstHeader(API_KEY_HEADER);
@@ -38,7 +38,7 @@ public class AzureOpenAiRequestTests extends ESTestCase {
     public void testDecorateWithAuthHeader_entraIdPresent() {
         var entraId = randomSecureStringOfLength(10);
         var httpPost = new HttpPost();
-        var secretSettings = new AzureOpenAiSecretSettings(null, entraId);
+        var secretSettings = new AzureOpenAiSecretSettings(null, entraId, null, null, null);
 
         AzureOpenAiRequest.decorateWithAuthHeader(httpPost, secretSettings);
         var authHeader = httpPost.getFirstHeader(HttpHeaders.AUTHORIZATION);

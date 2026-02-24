@@ -172,7 +172,7 @@ public class AzureOpenAiCompletionModelTests extends ESTestCase {
             "service",
             new AzureOpenAiCompletionServiceSettings(resourceName, deploymentId, apiVersion, null),
             new AzureOpenAiCompletionTaskSettings(user),
-            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId)
+            new AzureOpenAiSecretSettings(secureApiKey, secureEntraId, null, null, null)
         );
     }
 

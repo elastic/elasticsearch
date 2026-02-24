@@ -437,9 +437,6 @@ PUT my-byte-quantized-index
 `bbq` quantization only supports vector dimensions that are greater than 64.
 ::::
 
-
-
-
 ## Parameters for dense vector fields [dense-vector-params]
 
 The following mapping parameters are accepted:

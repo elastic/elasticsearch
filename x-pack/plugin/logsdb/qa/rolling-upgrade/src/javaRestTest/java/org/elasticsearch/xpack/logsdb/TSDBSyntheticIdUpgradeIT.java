@@ -129,7 +129,6 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractLogsdbRollingUpgradeTestCa
         );
 
         ResponseException e = assertThrows(ResponseException.class, () -> createSyntheticIdIndex(indexName));
-        assertThat(e.getMessage(), Matchers.either(Matchers.containsString(unknownSetting)).or(Matchers.containsString(versionTooLow)));
         String reason = ObjectPath.createFromResponse(e.getResponse()).evaluate("error.reason");
 
         assertThat(reason, Matchers.either(Matchers.containsString(unknownSetting)).or(Matchers.containsString(versionTooLow)));

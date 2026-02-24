@@ -2240,6 +2240,75 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
+    public void testTryReadReturnsNullWithMayContainDuplicates() throws Exception {
+        final String timestampField = "@timestamp";
+        final String denseNumericField = "dense_numeric";
+        final String binaryFixedField = "binary_fixed";
+        final String binaryVariableField = "binary_variable";
+        final String sortedField = "sorted_field";
+        final int binaryFixedLength = randomIntBetween(1, 20);
+        final int binaryVariableMaxLength = randomIntBetween(1, 20);
+        long currentTimestamp = 1704067200000L;
+
+        var config = getTimeSeriesIndexWriterConfig(null, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            int numDocs = 256 + random().nextInt(256);
+
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(timestampField, currentTimestamp));
+                d.add(new SortedNumericDocValuesField(denseNumericField, random().nextLong()));
+                d.add(new BinaryDocValuesField(binaryFixedField, new BytesRef(randomAlphaOfLength(binaryFixedLength))));
+                d.add(new BinaryDocValuesField(binaryVariableField, new BytesRef(randomAlphaOfLengthBetween(0, binaryVariableMaxLength))));
+                d.add(new SortedDocValuesField(sortedField, new BytesRef(randomAlphaOfLengthBetween(1, 10))));
+                iw.addDocument(d);
+                currentTimestamp += 1000L;
+            }
+            iw.commit();
+            iw.forceMerge(1);
+
+            var factory = TestBlock.factory();
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leafReader = reader.leaves().get(0).reader();
+                int maxDoc = leafReader.maxDoc();
+                var docs = TestBlock.docs(IntStream.range(0, maxDoc).toArray());
+                var docsWithDups = TestBlock.docs(
+                    IntStream.concat(IntStream.range(0, maxDoc), IntStream.of(between(0, maxDoc - 1))).sorted().toArray()
+                );
+
+                {
+                    // Dense numeric
+                    var dv = getBaseDenseNumericValues(leafReader, denseNumericField);
+                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false));
+                    dv = getBaseDenseNumericValues(leafReader, denseNumericField);
+                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false));
+                }
+                {
+                    // Dense binary fixed-length
+                    var dv = getES819BinaryValues(leafReader, binaryFixedField);
+                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false));
+                    dv = getES819BinaryValues(leafReader, binaryFixedField);
+                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false));
+                }
+                {
+                    // Dense binary variable-length
+                    var dv = getES819BinaryValues(leafReader, binaryVariableField);
+                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false));
+                    dv = getES819BinaryValues(leafReader, binaryVariableField);
+                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false));
+                }
+                {
+                    // Sorted doc values
+                    var dv = getBaseSortedDocValues(leafReader, sortedField);
+                    assertNotNull(dv.tryRead(factory, docs, 0, false, null, false, false));
+                    dv = getBaseSortedDocValues(leafReader, sortedField);
+                    assertNull(dv.tryRead(factory, docsWithDups, 0, false, null, false, false));
+                }
+            }
+        }
+    }
+
     private static ES819BinaryDocValues getES819BinaryValues(LeafReader leafReader, String field) throws IOException {
         return (ES819BinaryDocValues) leafReader.getBinaryDocValues(field);
     }

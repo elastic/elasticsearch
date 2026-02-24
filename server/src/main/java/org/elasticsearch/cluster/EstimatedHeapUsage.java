@@ -16,13 +16,20 @@ import org.elasticsearch.common.io.stream.Writeable;
 import java.io.IOException;
 
 /**
- * Record representing an estimate of the heap used by allocated shards and ongoing merges on a particular node
+ * Represents an estimate of the heap used by allocated shards and ongoing merges on a particular node
  */
-public record EstimatedHeapUsage(String nodeId, long totalBytes, long estimatedUsageBytes) implements Writeable {
+public class EstimatedHeapUsage implements Writeable {
 
-    public EstimatedHeapUsage {
+    private String nodeId;
+    private long totalBytes;
+    private long estimatedUsageBytes;
+
+    public EstimatedHeapUsage(String nodeId, long totalBytes, long estimatedUsageBytes) {
         assert totalBytes >= 0;
         assert estimatedUsageBytes >= 0;
+        this.nodeId = nodeId;
+        this.totalBytes = totalBytes;
+        this.estimatedUsageBytes = estimatedUsageBytes;
     }
 
     public EstimatedHeapUsage(StreamInput in) throws IOException {
@@ -50,5 +57,9 @@ public record EstimatedHeapUsage(String nodeId, long totalBytes, long estimatedU
 
     public double estimatedUsageAsRatio() {
         return estimatedUsageBytes / (double) totalBytes;
+    }
+
+    public void updateEstimatedUsage(long bytes) {
+        estimatedUsageBytes += bytes;
     }
 }

@@ -283,6 +283,15 @@ public class RoutingNode implements Iterable<ShardRouting> {
         }
     }
 
+    /**
+     * Counts all shards for the given index on this node, including those in the process of being relocated to this node.
+     * TODO: what about those relocating away?
+     */
+    public int numberOfShardsForIndex(final Index index) {
+        final Set<ShardRouting> shardRoutings = shardsByIndex.get(index);
+        return shardRoutings == null ? 0 : shardRoutings.size();
+    }
+
     public String prettyPrint() {
         StringBuilder sb = new StringBuilder();
         sb.append("-----node_id[").append(nodeId).append("][").append(node == null ? "X" : "V").append("]\n");

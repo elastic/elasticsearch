@@ -13,10 +13,11 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class NodeGpuStatsResponseTests extends ESTestCase {
 
-    // Reproduces #142936: GPUSupport previously returned -1 for totalGpuMemoryInBytes when no GPU
-    // is present, and writeVLong does not support negative values, causing an IllegalStateException.
+    // GPUSupport returns 0L for totalGpuMemoryInBytes when no GPU is present.
     public void testSerializationWithNoGpu() throws IOException {
         var node = DiscoveryNodeUtils.create("node1");
         var response = new NodeGpuStatsResponse(node, false, false, 0, 0L, null);
@@ -51,5 +52,19 @@ public class NodeGpuStatsResponseTests extends ESTestCase {
             assertEquals(24_000_000_000L, deserialized.getTotalGpuMemoryInBytes());
             assertEquals("NVIDIA L4", deserialized.getGpuName());
         }
+    }
+
+    // Verifies that negative gpuUsageCount is rejected at construction time.
+    public void testNegativeGpuUsageCountRejected() {
+        var node = DiscoveryNodeUtils.create("node1");
+        var e = expectThrows(IllegalArgumentException.class, () -> new NodeGpuStatsResponse(node, true, true, -1, 24_000_000_000L, "GPU"));
+        assertThat(e.getMessage(), containsString("gpuUsageCount must be non-negative"));
+    }
+
+    // Verifies that negative totalGpuMemoryInBytes is rejected at construction time.
+    public void testNegativeTotalGpuMemoryRejected() {
+        var node = DiscoveryNodeUtils.create("node1");
+        var e = expectThrows(IllegalArgumentException.class, () -> new NodeGpuStatsResponse(node, true, true, 0, -1L, "GPU"));
+        assertThat(e.getMessage(), containsString("totalGpuMemoryInBytes must be non-negative"));
     }
 }

@@ -29,7 +29,19 @@ public class GPUSupport {
     private static final AtomicLong GPU_USAGE_COUNT = new AtomicLong();
 
     private record GpuInfo(long totalMemory, String name) {
+
         static final GpuInfo UNSUPPORTED = new GpuInfo(0L, null);
+
+        GpuInfo {
+            checkNonNegative(totalMemory, "totalMemory");
+        }
+    }
+
+    static long checkNonNegative(long value, String name) {
+        if (value < 0) {
+            throw new IllegalArgumentException(name + " must be non-negative, got [" + value + "]");
+        }
+        return value;
     }
 
     private static class Holder {

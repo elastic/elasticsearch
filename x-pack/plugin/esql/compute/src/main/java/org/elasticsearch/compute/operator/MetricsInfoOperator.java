@@ -199,7 +199,7 @@ public class MetricsInfoOperator implements Operator {
     /**
      * Creates an INITIAL-mode operator (data nodes).
      */
-    public MetricsInfoOperator(BlockFactory blockFactory, MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel) {
+    private MetricsInfoOperator(BlockFactory blockFactory, MetricFieldLookup fieldLookup, int metadataSourceChannel, int indexChannel) {
         this.mode = Mode.INITIAL;
         this.blockFactory = blockFactory;
         this.breaker = blockFactory.breaker();
@@ -215,7 +215,7 @@ public class MetricsInfoOperator implements Operator {
      * @param channels the 6 input channel indices mapping to
      *                 [metric_name, data_stream, unit, metric_type, field_type, dimension_fields]
      */
-    public MetricsInfoOperator(BlockFactory blockFactory, int[] channels) {
+    private MetricsInfoOperator(BlockFactory blockFactory, int[] channels) {
         this.mode = Mode.FINAL;
         this.blockFactory = blockFactory;
         this.breaker = blockFactory.breaker();
@@ -246,6 +246,7 @@ public class MetricsInfoOperator implements Operator {
             BytesRefBlock indexBlock = page.getBlock(indexChannel);
 
             BytesRef indexScratch = new BytesRef();
+            BytesRef sourceScratch = new BytesRef();
 
             for (int p = 0; p < page.getPositionCount(); p++) {
                 if (metadataSource.isNull(p)) {
@@ -257,7 +258,7 @@ public class MetricsInfoOperator implements Operator {
 
                 String indexName = indexBlock.getBytesRef(p, indexScratch).utf8ToString();
                 String dataStreamName = resolveDataStreamName(indexName);
-                Map<String, Object> metadata = parseMetadataSource(metadataSource, p);
+                Map<String, Object> metadata = parseMetadataSource(metadataSource, p, sourceScratch);
                 if (metadata == null) {
                     continue;
                 }
@@ -530,11 +531,11 @@ public class MetricsInfoOperator implements Operator {
         }
     }
 
-    private Map<String, Object> parseMetadataSource(BytesRefBlock metadataSource, int position) {
+    private Map<String, Object> parseMetadataSource(BytesRefBlock metadataSource, int position, BytesRef sourceScratch) {
         if (metadataSource == null || metadataSource.isNull(position)) {
             return null;
         }
-        BytesRef bytes = metadataSource.getBytesRef(position, new BytesRef());
+        BytesRef bytes = metadataSource.getBytesRef(position, sourceScratch);
         try (
             var parser = XContentType.JSON.xContent()
                 .createParser(XContentParserConfiguration.EMPTY, bytes.bytes, bytes.offset, bytes.length)

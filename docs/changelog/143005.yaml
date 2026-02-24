@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 142996
+pr: 143005
+summary: "Add split SPI, partition detection, and filter hint extraction"
+type: feature

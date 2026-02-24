@@ -13,6 +13,8 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
+import org.apache.lucene.queries.intervals.IntervalQuery;
+import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
@@ -21,6 +23,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.CannedTokenStream;
 import org.apache.lucene.tests.analysis.Token;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -129,6 +132,27 @@ public class PatternTextFieldMapperTests extends MapperTestCase {
                 assertThat(docs.totalHits.value(), equalTo(1L));
                 assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
                 assertThat(docs.scoreDocs[0].doc, equalTo(0));
+            }
+        }
+    }
+
+    public void testIntervalsQueryWithDisabledTemplating() throws IOException {
+        MapperService mapperService = createMapperService(
+            fieldMapping(b -> b.field("type", "pattern_text").field("disable_templating", true))
+        );
+        try (Directory directory = newDirectory()) {
+            RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
+            LuceneDocument doc = mapperService.documentMapper().parse(source(b -> b.field("field", "the quick brown fox 1"))).rootDoc();
+            iw.addDocument(doc);
+            iw.close();
+            try (DirectoryReader reader = DirectoryReader.open(directory)) {
+                SearchExecutionContext context = createSearchExecutionContext(mapperService, newSearcher(reader));
+                PatternTextFieldType ft = (PatternTextFieldType) mapperService.fieldType("field");
+                IntervalsSource intervalsSource = ft.termIntervals(new BytesRef("brown"), context);
+                Query query = new IntervalQuery("field", intervalsSource);
+                TopDocs docs = context.searcher().search(query, 1);
+                assertThat(docs.totalHits.value(), equalTo(1L));
+                assertThat(docs.totalHits.relation(), equalTo(TotalHits.Relation.EQUAL_TO));
             }
         }
     }

@@ -153,7 +153,7 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(response);
 
         verify(original).onResponse(response);
-        verify(original).delegateFailure(any());
+        verify(original).delegateFailureAndWrap(any());
         verifyNoMoreInteractions(original);
     }
 
@@ -173,7 +173,7 @@ public class ReindexerTests extends ESTestCase {
         wrapped.onResponse(response);
 
         verify(original).onResponse(response);
-        verify(original).delegateFailure(any());
+        verify(original).delegateFailureAndWrap(any());
         verifyNoMoreInteractions(original);
     }
 

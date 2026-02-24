@@ -1491,18 +1491,18 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             recordingMeterRegistry.getRecorder().collect();
 
             Measurement currentReplicasMeasurement = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, "es.autoscaling.search.total_replicas.current")
+                .getMeasurements(InstrumentType.LONG_GAUGE, ReplicasUpdaterService.METRIC_TOTAL_REPLICAS)
                 .getLast();
             Measurement desiredReplicasMeasurement = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, "es.autoscaling.search.total_desired_replicas.current")
+                .getMeasurements(InstrumentType.LONG_GAUGE, ReplicasUpdaterService.METRIC_TOTAL_DESIRED_REPLICAS)
                 .getLast();
             assertEquals(2, currentReplicasMeasurement.getLong());
             assertEquals(4, desiredReplicasMeasurement.getLong());
 
             List<Measurement> increaseHistogram = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.autoscaling.search.replica_increase.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ReplicasUpdaterService.METRIC_REPLICA_INCREASE_HISTOGRAM);
             List<Measurement> decreaseHistogram = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.autoscaling.search.replica_decrease.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ReplicasUpdaterService.METRIC_REPLICA_DECREASE_HISTOGRAM);
             assertEquals(2, increaseHistogram.size());
             assertThat(increaseHistogram.stream().map(Measurement::getLong).sorted().toList(), equalTo(List.of(1L, 1L)));
             assertTrue(decreaseHistogram.isEmpty());
@@ -1528,18 +1528,18 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             recordingMeterRegistry.getRecorder().collect();
 
             Measurement currentReplicasMeasurement = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, "es.autoscaling.search.total_replicas.current")
+                .getMeasurements(InstrumentType.LONG_GAUGE, ReplicasUpdaterService.METRIC_TOTAL_REPLICAS)
                 .getLast();
             Measurement desiredReplicasMeasurement = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, "es.autoscaling.search.total_desired_replicas.current")
+                .getMeasurements(InstrumentType.LONG_GAUGE, ReplicasUpdaterService.METRIC_TOTAL_DESIRED_REPLICAS)
                 .getLast();
             assertEquals(4, currentReplicasMeasurement.getLong());
             assertEquals(7, desiredReplicasMeasurement.getLong());
 
             List<Measurement> increaseHistogram = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.autoscaling.search.replica_increase.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ReplicasUpdaterService.METRIC_REPLICA_INCREASE_HISTOGRAM);
             List<Measurement> decreaseHistogram = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.autoscaling.search.replica_decrease.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ReplicasUpdaterService.METRIC_REPLICA_DECREASE_HISTOGRAM);
             assertEquals(3, increaseHistogram.size());
             assertThat(increaseHistogram.stream().map(Measurement::getLong).sorted().toList(), equalTo(List.of(1L, 1L, 3L)));
             assertTrue(decreaseHistogram.isEmpty());
@@ -1565,18 +1565,18 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             recordingMeterRegistry.getRecorder().collect();
 
             Measurement currentReplicasMeasurement = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, "es.autoscaling.search.total_replicas.current")
+                .getMeasurements(InstrumentType.LONG_GAUGE, ReplicasUpdaterService.METRIC_TOTAL_REPLICAS)
                 .getLast();
             Measurement desiredReplicasMeasurement = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, "es.autoscaling.search.total_desired_replicas.current")
+                .getMeasurements(InstrumentType.LONG_GAUGE, ReplicasUpdaterService.METRIC_TOTAL_DESIRED_REPLICAS)
                 .getLast();
             assertEquals(7, currentReplicasMeasurement.getLong());
             assertEquals(4, desiredReplicasMeasurement.getLong());
 
             List<Measurement> increaseHistogram = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.autoscaling.search.replica_increase.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ReplicasUpdaterService.METRIC_REPLICA_INCREASE_HISTOGRAM);
             List<Measurement> decreaseHistogram = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.autoscaling.search.replica_decrease.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ReplicasUpdaterService.METRIC_REPLICA_DECREASE_HISTOGRAM);
             assertEquals(3, increaseHistogram.size());
             assertThat(increaseHistogram.stream().map(Measurement::getLong).sorted().toList(), equalTo(List.of(1L, 1L, 3L)));
             assertEquals(1, decreaseHistogram.size());
@@ -1604,18 +1604,18 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
             recordingMeterRegistry.getRecorder().collect();
 
             Measurement currentReplicasMeasurement = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, "es.autoscaling.search.total_replicas.current")
+                .getMeasurements(InstrumentType.LONG_GAUGE, ReplicasUpdaterService.METRIC_TOTAL_REPLICAS)
                 .getLast();
             Measurement desiredReplicasMeasurement = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_GAUGE, "es.autoscaling.search.total_desired_replicas.current")
+                .getMeasurements(InstrumentType.LONG_GAUGE, ReplicasUpdaterService.METRIC_TOTAL_DESIRED_REPLICAS)
                 .getLast();
             assertEquals(4, currentReplicasMeasurement.getLong());
             assertEquals(2, desiredReplicasMeasurement.getLong());
 
             List<Measurement> increaseHistogram = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.autoscaling.search.replica_increase.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ReplicasUpdaterService.METRIC_REPLICA_INCREASE_HISTOGRAM);
             List<Measurement> decreaseHistogram = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.autoscaling.search.replica_decrease.histogram");
+                .getMeasurements(InstrumentType.LONG_HISTOGRAM, ReplicasUpdaterService.METRIC_REPLICA_DECREASE_HISTOGRAM);
             assertEquals(3, increaseHistogram.size());
             assertThat(increaseHistogram.stream().map(Measurement::getLong).sorted().toList(), equalTo(List.of(1L, 1L, 3L)));
             assertEquals(3, decreaseHistogram.size());
@@ -1666,7 +1666,7 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
         recordingMeterRegistry.getRecorder().collect();
         Measurement indicesBlockedScalingUp = recordingMeterRegistry.getRecorder()
-            .getMeasurements(InstrumentType.LONG_GAUGE, "es.autoscaling.search.blocked.replicas_increases.current")
+            .getMeasurements(InstrumentType.LONG_GAUGE, ReplicasUpdaterService.METRIC_BLOCKED_REPLICAS_INCREASES)
             .getLast();
         assertEquals(2, indicesBlockedScalingUp.getLong());
     }
@@ -1710,27 +1710,27 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
             recordingMeterRegistry.getRecorder().collect();
             long successfulScaleUps = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_increases_events.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_SUCCESSFUL_REPLICAS_INCREASES)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long replicasAdded = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_added.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_REPLICAS_ADDED)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long successfulScaleDowns = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_decreases_events.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_SUCCESSFUL_REPLICAS_DECREASES)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long replicasRemoved = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_removed.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_REPLICAS_REMOVED)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long failedScalingEvents = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.failed.replicas_update_events.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_FAILED_REPLICAS_UPDATES)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
@@ -1750,27 +1750,27 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
             recordingMeterRegistry.getRecorder().collect();
             long successfulScaleUps = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_increases_events.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_SUCCESSFUL_REPLICAS_INCREASES)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long replicasAdded = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_added.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_REPLICAS_ADDED)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long successfulScaleDowns = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_decreases_events.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_SUCCESSFUL_REPLICAS_DECREASES)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long replicasRemoved = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_removed.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_REPLICAS_REMOVED)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long failedScalingEvents = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.failed.replicas_update_events.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_FAILED_REPLICAS_UPDATES)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
@@ -1790,27 +1790,27 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
             recordingMeterRegistry.getRecorder().collect();
             long successfulScaleUps = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_increases_events.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_SUCCESSFUL_REPLICAS_INCREASES)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long replicasAdded = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_added.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_REPLICAS_ADDED)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long successfulScaleDowns = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_decreases_events.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_SUCCESSFUL_REPLICAS_DECREASES)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long replicasRemoved = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_removed.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_REPLICAS_REMOVED)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long failedScalingEvents = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.failed.replicas_update_events.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_FAILED_REPLICAS_UPDATES)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
@@ -1842,27 +1842,27 @@ public class ReplicasUpdaterServiceTests extends ESTestCase {
 
             recordingMeterRegistry.getRecorder().collect();
             long successfulScaleUps = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_increases_events.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_SUCCESSFUL_REPLICAS_INCREASES)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long replicasAdded = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_added.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_REPLICAS_ADDED)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long successfulScaleDowns = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.successful.replicas_decreases_events.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_SUCCESSFUL_REPLICAS_DECREASES)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long replicasRemoved = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.replicas_removed.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_REPLICAS_REMOVED)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();
             long failedScalingEvents = recordingMeterRegistry.getRecorder()
-                .getMeasurements(InstrumentType.LONG_COUNTER, "es.autoscaling.search.failed.replicas_update_events.total")
+                .getMeasurements(InstrumentType.LONG_COUNTER, ReplicasUpdaterService.METRIC_FAILED_REPLICAS_UPDATES)
                 .stream()
                 .mapToLong(Measurement::getLong)
                 .sum();

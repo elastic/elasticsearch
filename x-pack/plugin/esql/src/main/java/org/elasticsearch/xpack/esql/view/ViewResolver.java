@@ -255,9 +255,11 @@ public class ViewResolver {
             chain.andThenApply(ignored -> {
                 var unresolvedPatterns = buildUnresolvedPatterns(response, seenViews);
                 if (unresolvedPatterns.isEmpty() && subqueries.size() == 1) {
+                    // only one view, no need for UnionAll, return view plan directly
                     return subqueries.getFirst().plan();
                 }
                 if (unresolvedPatterns.isEmpty() == false) {
+                    // We have non-view indexes, so we need an UnresolvedRelation for them too
                     subqueries.addFirst(createUnresolvedRelationPlan(unresolvedRelation, unresolvedPatterns));
                 }
                 return buildPlanFromBranches(unresolvedRelation, subqueries, depth);

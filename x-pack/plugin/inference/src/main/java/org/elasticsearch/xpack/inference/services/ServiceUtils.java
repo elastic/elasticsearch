@@ -641,7 +641,7 @@ public final class ServiceUtils {
                         settingName,
                         entry.getKey(),
                         entry.getValue(),
-                        entry.getValue(),
+                        entry.getValue().getClass().getSimpleName(),
                         String.join(", ", validTypesAsStrings)
                     );
                 }

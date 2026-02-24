@@ -70,7 +70,7 @@ public class CustomTaskSettingsTests extends AbstractBWCWireSerializationTestCas
             exception.getMessage(),
             is(
                 "Validation Failed: 1: Map field [parameters] has an entry that is not valid, [key => {another_key=value}]. "
-                    + "Value type of [{another_key=value}] is not one of [Boolean, Double, Float, Integer, String].;"
+                    + "Value type of [Map1] is not one of [Boolean, Double, Float, Integer, String].;"
             )
         );
     }

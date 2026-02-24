@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.common.parser;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -37,7 +38,7 @@ public record Headers(Map<String, String> headersMap) implements ToXContentFragm
     }
 
     @SuppressWarnings("unchecked")
-    public static Headers create(Object arg) {
+    public static Headers create(Object arg, String path) {
         if (arg == null) {
             return null;
         }
@@ -48,7 +49,7 @@ public record Headers(Map<String, String> headersMap) implements ToXContentFragm
 
         var stringHeaders = validateMapStringValues(
             (Map<String, String>) arg,
-            HEADERS.getPreferredName(),
+            Strings.format("%s.%s", path, HEADERS.getPreferredName()),
             validationException,
             false,
             Map.of()
@@ -66,7 +67,7 @@ public record Headers(Map<String, String> headersMap) implements ToXContentFragm
     }
 
     public Headers {
-        Objects.requireNonNull(headersMap, "headers map is required");
+        Objects.requireNonNull(headersMap);
     }
 
     public Headers(StreamInput in) throws IOException {

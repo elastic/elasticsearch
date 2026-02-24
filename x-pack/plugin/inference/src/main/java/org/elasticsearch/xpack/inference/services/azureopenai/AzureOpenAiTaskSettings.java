@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -18,6 +20,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.inference.InferenceUtils;
@@ -30,6 +33,7 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xpack.inference.common.parser.ParseExceptionUtils.unwrapXContentParseException;
 
 /**
  * Base class for Azure OpenAI task settings. Holds optional user and optional
@@ -37,6 +41,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
  */
 public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<T>> implements TaskSettings {
 
+    private static final Logger logger = LogManager.getLogger(AzureOpenAiTaskSettings.class);
     private static final Settings EMPTY_SETTINGS = new Settings(null, null);
 
     protected static final TransportVersion INFERENCE_AZURE_OPENAI_TASK_SETTINGS_HEADERS = TransportVersion.fromName(
@@ -52,7 +57,7 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
         ConstructingObjectParser<Settings, Void> constructingObjectParser = new ConstructingObjectParser<>(
             "azure_openai_task_settings_parser",
             ignoreUnknownFields,
-            args -> createSettings((String) args[0], Headers.create(args[1]))
+            args -> createSettings((String) args[0], Headers.create(args[1], ModelConfigurations.TASK_SETTINGS))
         );
 
         constructingObjectParser.declareString(optionalConstructorArg(), new ParseField(AzureOpenAiServiceFields.USER));
@@ -114,6 +119,8 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
             }
         } catch (IOException e) {
             throw new IllegalArgumentException("Failed to parse Azure OpenAI task settings", e);
+        } catch (XContentParseException e) {
+            throw unwrapXContentParseException(e);
         }
     }
 

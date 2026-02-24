@@ -145,7 +145,28 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
         assertThat(exception.getCause().getMessage(), containsString("Failed to build [headers_parser] after last required field arrived"));
         assertThat(
             exception.getCause().getCause().getMessage(),
-            containsString("Map field [headers] has an entry that is not valid, [key => 1]. Value type of [1] is not one of [String].;")
+            containsString(
+                "Map field [root.headers] has an entry that is not valid, [key => 1]. Value type of [Integer] is not one of [String].;"
+            )
+        );
+    }
+
+    public void testParse_ThrowsWhenValueIsAnObject() {
+        var json = """
+            {
+              "headers": {
+                "key": {}
+              }
+            }
+            """;
+        var exception = expectThrows(XContentParseException.class, () -> parseJson(json, parsed -> {}));
+        assertThat(exception.getMessage(), containsString("[headers_parser] failed to parse field [headers]"));
+        assertThat(exception.getCause().getMessage(), containsString("Failed to build [headers_parser] after last required field arrived"));
+        assertThat(
+            exception.getCause().getCause().getMessage(),
+            containsString(
+                "Map field [root.headers] has an entry that is not valid, [key => {}]. Value type of [LinkedHashMap] is not one of [String].;"
+            )
         );
     }
 
@@ -159,7 +180,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
         ConstructingObjectParser<Headers, Void> constructingObjectParser = new ConstructingObjectParser<>(
             "headers_parser",
             false,
-            args -> Headers.create(args[0])
+            args -> Headers.create(args[0], "root")
         );
         Headers.initParser(constructingObjectParser);
 

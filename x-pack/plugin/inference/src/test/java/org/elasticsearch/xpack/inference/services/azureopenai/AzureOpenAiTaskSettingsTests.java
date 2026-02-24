@@ -14,7 +14,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.common.parser.Headers;
@@ -198,18 +197,16 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     public void testFromMap_ThrowsException_WhenHeadersContainsAnInteger() {
         var exception = expectThrows(
-            XContentParseException.class,
+            ValidationException.class,
             () -> createFromMap(
                 new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, Headers.HEADERS_FIELD, new HashMap<>(Map.of("key", 1)))),
                 ConfigurationParseContext.REQUEST
             )
         );
 
-        assertThat(exception.getMessage(), containsString("[azure_openai_task_settings_parser] failed to parse field"));
-        assertThat(exception.getCause().getMessage(), containsString("after last required field arrived"));
         assertThat(
-            exception.getCause().getCause().getMessage(),
-            containsString("Map field [headers] has an entry that is not valid, [key => 1]. Value type of [1] is not one of [String].")
+            exception.getMessage(),
+            containsString("Map field [task_settings.headers] has an entry that is not valid, [key => 1]. Value type of [Integer] is not one of [String].")
         );
     }
 

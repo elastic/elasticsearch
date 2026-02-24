@@ -68,6 +68,7 @@ import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInfe
 import org.elasticsearch.xpack.inference.services.elastic.completion.ElasticInferenceServiceCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.services.elastic.denseembeddings.ElasticInferenceServiceDenseEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModel;
 import org.elasticsearch.xpack.inference.services.elastic.rerank.ElasticInferenceServiceRerankModelTests;
 import org.elasticsearch.xpack.inference.services.elastic.sparseembeddings.ElasticInferenceServiceSparseEmbeddingsModel;
@@ -1560,6 +1561,64 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             assertThat(batches, hasSize(2));
             assertThatBatchContains(batches.getFirst(), List.of(List.of("hello"), List.of(" world")));
             assertThatBatchContains(batches.get(1), List.of(List.of(" plus")));
+        }
+    }
+
+    public void testBatching_GivenDenseAndNullMaxBatchSize_UsesDefault() throws IOException {
+        // When maxBatchSize is null in service settings, the chunker should fall back to DEFAULT_DENSE_TEXT_EMBEDDINGS_MAX_BATCH_SIZE (16).
+        var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
+            "my-dense-model-id",
+            SimilarityMeasure.COSINE,
+            null,
+            null,
+            null
+        );
+        var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(
+            getUrl(webServer),
+            serviceSettings,
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world plus"))
+            );
+            // Default batch size is 16, so all 3 chunks fit in a single batch.
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(1));
+            assertThatBatchContains(batches.getFirst(), List.of(List.of("hello"), List.of(" world"), List.of(" plus")));
+        }
+    }
+
+    public void testBatching_GivenDenseAndExplicitMaxBatchSizeOfOne() throws IOException {
+        var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
+            "my-dense-model-id",
+            SimilarityMeasure.COSINE,
+            null,
+            null,
+            1
+        );
+        var model = ElasticInferenceServiceDenseEmbeddingsModelTests.createTextEmbeddingModel(
+            getUrl(webServer),
+            serviceSettings,
+            new WordBoundaryChunkingSettings(1, 0)
+        );
+
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+
+        try (var service = createService(senderFactory, getUrl(webServer))) {
+            EmbeddingRequestChunker<?> embeddingRequestChunker = service.createEmbeddingRequestChunker(
+                model,
+                List.of(new ChunkInferenceInput("hello world"))
+            );
+            // maxBatchSize=1 means each chunk is in its own batch.
+            List<EmbeddingRequestChunker.BatchRequestAndListener> batches = embeddingRequestChunker.batchRequestsWithListeners(null);
+            assertThat(batches, hasSize(2));
+            assertThatBatchContains(batches.getFirst(), List.of(List.of("hello")));
+            assertThatBatchContains(batches.get(1), List.of(List.of(" world")));
         }
     }
 

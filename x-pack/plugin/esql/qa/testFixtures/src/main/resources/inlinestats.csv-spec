@@ -5481,15 +5481,15 @@ required_capability: inline_stats_with_constants
 FROM employees
 | KEEP emp_no, languages
 | INLINE STATS x = MIN(123) + MAX(123), y = MAX(languages)
-| KEEP x
+| KEEP x, emp_no
 | SORT emp_no
 | LIMIT 3
 ;
 
-x:integer
-246
-246
-246
+x:i | emp_no:i
+246 | 10001
+246 | 10002
+246 | 10003
 ;
 
 constantSurrogateAggAndFieldAgg_ByConstantAndLanguageAlias_WithExpression
@@ -5584,7 +5584,6 @@ required_capability: fix_agg_on_null_by_replacing_with_eval
 
 SET unmapped_fields="nullify"\;
 FROM employees
-| KEEP emp_no, languages
 | INLINE STATS x = MIN(foobar) + MEDIAN(foobar), y = PRESENT(languages)
 | KEEP emp_no, x
 | SORT emp_no
@@ -5703,4 +5702,34 @@ ROW y = 5
 
 c:integer | k:integer | s:long
 6         | 6         | 5
+;
+
+rowInlineStats_FoldableAggs_WithMVs
+required_capability: inline_stats_with_constants
+
+ROW x = [1,2,3], y = [100,101,102]
+| INLINE STATS minX = MV_MIN(x) BY x
+;
+
+       y:i     |     minX:i    |  x:i
+[100, 101, 102]|[1, 2, 3]      |[1, 2, 3]      
+;
+
+inlineStats_FoldableAggs_WithMVs
+required_capability: inline_stats_with_constants
+
+from employees
+| eval w = [1, 2, 3]
+| keep languages, emp_no, gender, w
+| inline stats w_avg = weighted_avg(mv_min(w), languages) by w
+| sort emp_no
+| limit 5
+;
+
+   languages:i |    emp_no:i   |    gender:s   |     w_avg:d   |   w:i       
+2              |10001          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]      
+5              |10002          |F              |[1.0, 1.0, 1.0]|[1, 2, 3]      
+4              |10003          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]      
+5              |10004          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]      
+1              |10005          |M              |[1.0, 1.0, 1.0]|[1, 2, 3]      
 ;

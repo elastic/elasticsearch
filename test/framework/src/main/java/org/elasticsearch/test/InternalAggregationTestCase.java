@@ -254,6 +254,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
         BuilderAndToReduce<T> inputs = randomResultsToReduce(name, size);
         assertThat(inputs.toReduce(), hasSize(size));
         List<InternalAggregation> toReduce = new ArrayList<>();
+        List<SearchHits> topHitsToRelease = new ArrayList<>();
         toReduce.addAll(inputs.toReduce());
         ScriptService mockScriptService = mockScriptService();
         MockBigArrays bigArrays = new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
@@ -270,7 +271,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
                 () -> false,
                 inputs.builder(),
                 b -> {},
-                null
+                topHitsToRelease
             );
             @SuppressWarnings("unchecked")
             T reduced = (T) reduce(toPartialReduce, context);
@@ -303,7 +304,7 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             inputs.builder(),
             bucketConsumer,
             PipelineTree.EMPTY,
-            null
+            topHitsToRelease
         );
         @SuppressWarnings("unchecked")
         T reduced = (T) reduce(toReduce, context);
@@ -318,6 +319,9 @@ public abstract class InternalAggregationTestCase<T extends InternalAggregation>
             @SuppressWarnings("unchecked")
             T sampled = (T) reduced.finalizeSampling(randomContext);
             assertSampled(sampled, reduced, randomContext);
+        }
+        for (SearchHits h : topHitsToRelease) {
+            h.decRef();
         }
     }
 

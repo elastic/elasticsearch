@@ -104,7 +104,6 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
      */
     public final void registerTopHitsForRelease(SearchHits searchHits) {
         if (topHitsToRelease != null) {
-            searchHits.incRef();
             topHitsToRelease.add(searchHits);
         }
     }

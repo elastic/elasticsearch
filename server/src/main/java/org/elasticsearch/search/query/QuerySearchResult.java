@@ -24,6 +24,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.SimpleRefCounted;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.RescoreDocIds;
+import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -38,6 +39,8 @@ import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.transport.LeakTracker;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.common.lucene.Lucene.readTopDocs;
 import static org.elasticsearch.common.lucene.Lucene.writeTopDocs;
@@ -81,6 +84,9 @@ public final class QuerySearchResult extends SearchPhaseResult {
 
     @Nullable
     private Long timeRangeFilterFromMillis;
+
+    @Nullable
+    private List<SearchHits> topHitsToRelease;
 
     public QuerySearchResult() {
         this(false);
@@ -555,10 +561,26 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return super.tryIncRef();
     }
 
+    /**
+     * Register SearchHits from a top_hits aggregation so they are released when this result is released.
+     */
+    public void registerTopHitsForRelease(SearchHits searchHits) {
+        if (topHitsToRelease == null) {
+            topHitsToRelease = new ArrayList<>();
+        }
+        topHitsToRelease.add(searchHits);
+    }
+
     @Override
     public boolean decRef() {
         if (refCounted != null) {
             if (refCounted.decRef()) {
+                if (topHitsToRelease != null) {
+                    for (SearchHits h : topHitsToRelease) {
+                        h.decRef();
+                    }
+                    topHitsToRelease = null;
+                }
                 aggsContextReleased.onResponse(null);
                 return true;
             }

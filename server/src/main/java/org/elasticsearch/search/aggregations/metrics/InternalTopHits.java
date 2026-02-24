@@ -56,7 +56,7 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
         this.from = from;
         this.size = size;
         this.topDocs = topDocs;
-        this.searchHits = searchHits.asUnpooled();
+        this.searchHits = searchHits;
     }
 
     /**
@@ -170,10 +170,11 @@ public class InternalTopHits extends InternalAggregation implements TopHits {
             do {
                 position = tracker[shardIndex]++;
             } while (topDocsForShard.scoreDocs[position] != scoreDoc);
-            hits[i] = aggregations.get(shardIndex).searchHits.getAt(position);
-            assert hits[i].isPooled() == false;
+            SearchHit hit = aggregations.get(shardIndex).searchHits.getAt(position);
+            hit.incRef();
+            hits[i] = hit;
         }
-        return SearchHits.unpooled(hits, reducedTopDocs.totalHits, maxScore);
+        return new SearchHits(hits, reducedTopDocs.totalHits, maxScore);
     }
 
     private static float reduceAndFindMaxScore(List<InternalTopHits> aggregations, TopDocs[] shardDocs) {

@@ -2193,6 +2193,11 @@ public class EsqlCapabilities {
          */
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
+        /**
+         * https://github.com/elastic/elasticsearch/issues/142219
+         */
+        INLINE_STATS_WITH_CONSTANTS(INLINE_STATS.enabled),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

@@ -35,6 +35,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +45,7 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public abstract class LuceneOperator extends SourceOperator {
     private static final Logger logger = LogManager.getLogger(LuceneOperator.class);
@@ -76,6 +78,24 @@ public abstract class LuceneOperator extends SourceOperator {
      */
     long rowsEmitted;
 
+    /**
+     * Time spent per shard since the last {@link #shardLoadDelta(long)} call.
+     * Indexed by {@link ShardContext#index()}.
+     */
+    final long[] shardProcessNanos;
+    final long[] shardRowsEmitted;
+
+    /**
+     * Start time for the current shard timing interval (System.nanoTime()).
+     * -1 means "not currently timing".
+     */
+    private long shardClockStartNanos = -1;
+
+    /**
+     * Shard index currently being timed, or -1 if not timing.
+     */
+    private int shardClockShardIndex = -1;
+
     protected LuceneOperator(
         IndexedByShardId<? extends RefCounted> refCounteds,
         BlockFactory blockFactory,
@@ -87,6 +107,9 @@ public abstract class LuceneOperator extends SourceOperator {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.sliceQueue = sliceQueue;
+
+        this.shardProcessNanos = new long[sliceQueue.maxShardIndex() + 1];
+        this.shardRowsEmitted = new long[shardProcessNanos.length];
     }
 
     public abstract static class Factory implements SourceOperator.SourceOperatorFactory {
@@ -142,6 +165,7 @@ public abstract class LuceneOperator extends SourceOperator {
                 pagesEmitted++;
                 rowsEmitted += page.getPositionCount();
             }
+            stopShardClock(System.nanoTime());
             return page;
         } catch (IOException ioe) {
             throw new UncheckedIOException(ioe);
@@ -188,7 +212,63 @@ public abstract class LuceneOperator extends SourceOperator {
         if (Thread.currentThread() != currentScorer.executingThread) {
             currentScorer.reinitialize();
         }
+        maybeStartShardClock(currentScorer);
         return currentScorer;
+    }
+
+    protected LuceneSliceQueue getSliceQueue() {
+        return sliceQueue;
+    }
+
+    @Override
+    protected List<ShardLoad> shardLoadDelta(long now) {
+        stopShardClock(now);
+        var ret = IntStream.range(0, shardRowsEmitted.length)
+            .filter(index -> shardProcessNanos[index] > 0 || shardRowsEmitted[index] > 0)
+            .mapToObj(index -> new ShardLoad(sliceQueue.shardContext(index), shardProcessNanos[index], shardRowsEmitted[index]))
+            .toList();
+
+        Arrays.fill(shardRowsEmitted, 0);
+        Arrays.fill(shardProcessNanos, 0);
+        return ret;
+    }
+
+    private void maybeStartShardClock(LuceneScorer scorer) {
+        final int newShardIndex = scorer.shardContext().index();
+        if (shardClockStartNanos == -1L) {
+            // first timing interval since last loop
+            shardClockShardIndex = newShardIndex;
+            shardClockStartNanos = System.nanoTime();
+            return;
+        }
+
+        if (newShardIndex != shardClockShardIndex) {
+            // shard changed: record previous shard time and start timing the new shard
+            long now = System.nanoTime();
+            recordShardTimeUntil(shardClockShardIndex, shardClockStartNanos, now);
+            shardClockShardIndex = newShardIndex;
+            shardClockStartNanos = now;
+        }
+        // else: same shard, keep clock running
+    }
+
+    /**
+     * Stop timing (record up to now), but keep accumulated totals (no clearing).
+     * Useful when collection is finished.
+     */
+    private void stopShardClock(long now) {
+        if (shardClockStartNanos != -1L) {
+            recordShardTimeUntil(shardClockShardIndex, shardClockStartNanos, now);
+            shardClockStartNanos = -1;
+        }
+    }
+
+    private void recordShardTimeUntil(int shardIndex, long shardStartNanos, long nowNanos) {
+        assert shardStartNanos >= 0L && shardIndex >= 0;
+        long delta = nowNanos - shardStartNanos;
+        if (delta > 0L) {
+            shardProcessNanos[shardIndex] += delta;
+        }
     }
 
     /**
@@ -523,9 +603,5 @@ public abstract class LuceneOperator extends SourceOperator {
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.minimumCompatible();
         }
-    }
-
-    LuceneSliceQueue getSliceQueue() {
-        return sliceQueue;
     }
 }

@@ -25,7 +25,7 @@ import java.util.List;
 import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Objects.requireNonNull;
-import static org.elasticsearch.core.TimeValue.timeValueNanos;
+import static org.elasticsearch.core.TimeValue.timeValueMillis;
 
 /**
  * Response used for actions that index many documents using a scroll request.
@@ -69,13 +69,13 @@ public class BulkByScrollResponse extends ActionResponse implements ToXContentFr
         bulkFailures = new ArrayList<>();
         searchFailures = new ArrayList<>();
         for (BulkByScrollResponse response : toMerge) {
-            mergedTook = max(mergedTook, response.getTook().nanos());
+            mergedTook = max(mergedTook, response.getTook().millis());
             statuses.add(new BulkByScrollTask.StatusOrException(response.status));
             bulkFailures.addAll(response.getBulkFailures());
             searchFailures.addAll(response.getSearchFailures());
             timedOut |= response.isTimedOut();
         }
-        took = timeValueNanos(mergedTook);
+        took = timeValueMillis(mergedTook);
         status = new BulkByScrollTask.Status(statuses, reasonCancelled);
     }
 

@@ -44,9 +44,7 @@ import java.util.TreeMap;
  */
 public final class AnalysisStats implements ToXContentFragment, Writeable {
 
-    static final NodeFeature MULTIPLE_SYNONYM_GRAPH_FILTERS_FEATURE = new NodeFeature(
-        "cluster.stats.multiple_synonym_graph_filters"
-    );
+    static final NodeFeature MULTIPLE_SYNONYM_GRAPH_FILTERS_FEATURE = new NodeFeature("cluster.stats.multiple_synonym_graph_filters");
 
     static final TransportVersion MULTIPLE_SYNONYM_GRAPH_FILTERS_VERSION = TransportVersion.fromName(
         "cluster_stats_multiple_synonym_graph_filters"
@@ -61,9 +59,12 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     private static final String SYNONYMS_PATH_CONFIG = "synonyms_path";
 
     static final Map<String, String> SYNONYM_STATS_KEYS_FOR_CONFIG = Map.of(
-        SYNONYMS_INLINE_CONFIG, "inline",
-        SYNONYMS_SET_CONFIG, "sets",
-        SYNONYMS_PATH_CONFIG, "paths"
+        SYNONYMS_INLINE_CONFIG,
+        "inline",
+        SYNONYMS_SET_CONFIG,
+        "sets",
+        SYNONYMS_PATH_CONFIG,
+        "paths"
     );
 
     /**

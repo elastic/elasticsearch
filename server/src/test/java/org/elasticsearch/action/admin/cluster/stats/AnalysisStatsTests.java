@@ -468,11 +468,7 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                 }
               }
             }
-            """.formatted(
-            randomSynonymGraphFilter("sg_a", 1),
-            randomSynonymGraphFilter("sg_b", 2),
-            randomSynonymGraphFilter("sg_c", 3)
-        );
+            """.formatted(randomSynonymGraphFilter("sg_a", 1), randomSynonymGraphFilter("sg_b", 2), randomSynonymGraphFilter("sg_c", 3));
         Settings settings3 = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsWithTwoAnalyzers, XContentType.JSON)
             .build();
         IndexMetadata index3 = new IndexMetadata.Builder("idx_two_analyzers").settings(settings3).build();

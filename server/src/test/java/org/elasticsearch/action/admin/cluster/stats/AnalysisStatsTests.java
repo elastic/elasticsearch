@@ -11,6 +11,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
@@ -387,19 +388,19 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
      */
     private static String randomSynonymGraphFilter(String filterName, int idx) {
         return switch (randomIntBetween(0, 2)) {
-            case 0 -> """
-                "%s": { "type": "synonym_graph", "synonyms_set": "set-%d", "updateable": true }""".formatted(filterName, idx);
-            case 1 -> """
-                "%s": { "type": "synonym_graph", "synonyms": ["foo%d, bar%d"] }""".formatted(filterName, idx, idx);
-            case 2 -> """
-                "%s": { "type": "synonym_graph", "synonyms_path": "synonyms%d.txt" }""".formatted(filterName, idx);
+            case 0 -> Strings.format("""
+                "%s": { "type": "synonym_graph", "synonyms_set": "set-%d", "updateable": true }""", filterName, idx);
+            case 1 -> Strings.format("""
+                "%s": { "type": "synonym_graph", "synonyms": ["foo%d, bar%d"] }""", filterName, idx, idx);
+            case 2 -> Strings.format("""
+                "%s": { "type": "synonym_graph", "synonyms_path": "synonyms%d.txt" }""", filterName, idx);
             default -> throw new AssertionError();
         };
     }
 
     public void testMultipleSynonymGraphFiltersStats() {
         // Index with an analyzer that has two synonym_graph filters (synonym source randomized)
-        String settingsWithMultiple = """
+        String settingsWithMultiple = Strings.format("""
             {
               "index": {
                 "analysis": {
@@ -417,12 +418,12 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                 }
               }
             }
-            """.formatted(randomSynonymGraphFilter("syn_graph_1", 1), randomSynonymGraphFilter("syn_graph_2", 2));
+            """, randomSynonymGraphFilter("syn_graph_1", 1), randomSynonymGraphFilter("syn_graph_2", 2));
         Settings settings1 = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsWithMultiple, XContentType.JSON).build();
         IndexMetadata index1 = new IndexMetadata.Builder("idx_multiple").settings(settings1).build();
 
         // Index with a single synonym_graph filter (should not count)
-        String settingsWithSingle = """
+        String settingsWithSingle = Strings.format("""
             {
               "index": {
                 "analysis": {
@@ -439,12 +440,12 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                 }
               }
             }
-            """.formatted(randomSynonymGraphFilter("syn_graph_only", 1));
+            """, randomSynonymGraphFilter("syn_graph_only", 1));
         Settings settings2 = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsWithSingle, XContentType.JSON).build();
         IndexMetadata index2 = new IndexMetadata.Builder("idx_single").settings(settings2).build();
 
         // Index with two analyzers, each having multiple synonym_graph filters (synonym source randomized per filter)
-        String settingsWithTwoAnalyzers = """
+        String settingsWithTwoAnalyzers = Strings.format("""
             {
               "index": {
                 "analysis": {
@@ -468,7 +469,11 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                 }
               }
             }
-            """.formatted(randomSynonymGraphFilter("sg_a", 1), randomSynonymGraphFilter("sg_b", 2), randomSynonymGraphFilter("sg_c", 3));
+            """,
+            randomSynonymGraphFilter("sg_a", 1),
+            randomSynonymGraphFilter("sg_b", 2),
+            randomSynonymGraphFilter("sg_c", 3)
+        );
         Settings settings3 = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsWithTwoAnalyzers, XContentType.JSON)
             .build();
         IndexMetadata index3 = new IndexMetadata.Builder("idx_two_analyzers").settings(settings3).build();

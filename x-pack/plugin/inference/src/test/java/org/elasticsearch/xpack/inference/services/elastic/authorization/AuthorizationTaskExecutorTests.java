@@ -23,6 +23,7 @@ import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.features.InferenceFeatureService;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMEnablementService;
@@ -30,6 +31,9 @@ import org.elasticsearch.xpack.inference.services.elastic.ccm.CCMFeature;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
+
+import java.time.Clock;
+import java.time.Duration;
 
 import static org.elasticsearch.cluster.metadata.Metadata.EMPTY_METADATA;
 import static org.elasticsearch.persistent.PersistentTasksExecutor.NO_NODE_FOUND;
@@ -48,11 +52,14 @@ import static org.mockito.Mockito.when;
 
 public class AuthorizationTaskExecutorTests extends ESTestCase {
 
+    private static final String EIS_FAKE_URL = "abc";
+
     private ThreadPool threadPool;
     private ClusterService clusterService;
     private PersistentTasksService persistentTasksService;
     private String localNodeId;
     private FeatureService enabledFeatureServiceMock;
+    private InferenceFeatureService inferenceFeatureService;
     private CCMFeature unsupportedEnvironmentCcmFeatureMock;
     private CCMEnablementService ccmEnablementServiceMock;
 
@@ -65,6 +72,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         localNodeId = clusterService.localNode().getId();
         enabledFeatureServiceMock = mock(FeatureService.class);
         when(enabledFeatureServiceMock.clusterHasFeature(any(), any())).thenReturn(true);
+        inferenceFeatureService = new InferenceFeatureService(clusterService, enabledFeatureServiceMock);
         unsupportedEnvironmentCcmFeatureMock = mock(CCMFeature.class);
         when(unsupportedEnvironmentCcmFeatureMock.isCcmSupportedEnvironment()).thenReturn(false);
         ccmEnablementServiceMock = mock(CCMEnablementService.class);
@@ -77,8 +85,7 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    public void testStartLazy_OnlyRegistersOnce_NeverCallsPersistentTaskService() {
-        var eisUrl = "abc";
+    public void testStartLazy_OnlyRegistersClusterStateListenerOnce() {
         var mockClusterService = createMockEmptyClusterService();
         var executor = new AuthorizationTaskExecutor(
             mockClusterService,
@@ -90,18 +97,49 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
                 mock(Sender.class),
-                ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
-            )
+                createMockCCMService(false),
+                inferenceFeatureService
+            ),
+            Clock.systemUTC()
         );
         executor.startAndLazilyCreateTask();
         executor.startAndLazilyCreateTask();
 
         verify(mockClusterService, times(1)).addListener(executor);
-        verify(persistentTasksService, never()).sendClusterStartRequest(
+    }
+
+    public void testStartLazy_AttemptsToCreateTask_WhenNotInCCMSupportedEnvironment_OnlyOnce() {
+        var executor = new AuthorizationTaskExecutor(
+            clusterService,
+            persistentTasksService,
+            enabledFeatureServiceMock,
+            ccmEnablementServiceMock,
+            unsupportedEnvironmentCcmFeatureMock,
+            new AuthorizationPoller.Parameters(
+                createWithEmptySettings(threadPool),
+                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
+                mock(Sender.class),
+                ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                mock(ModelRegistry.class),
+                mock(Client.class),
+                createMockCCMFeature(false),
+                createMockCCMService(false),
+                inferenceFeatureService
+            ),
+            Clock.systemUTC()
+        );
+        executor.startAndLazilyCreateTask();
+        executor.startAndLazilyCreateTask();
+
+        var listener = new PlainActionFuture<Void>();
+        clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener);
+        listener.actionGet(TimeValue.THIRTY_SECONDS);
+
+        verify(persistentTasksService, times(1)).sendClusterStartRequest(
             eq(AuthorizationPoller.TASK_NAME),
             eq(AuthorizationPoller.TASK_NAME),
             eq(AuthorizationTaskParams.INSTANCE),
@@ -133,14 +171,129 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
-            )
+                createMockCCMService(false),
+                inferenceFeatureService
+            ),
+            Clock.systemUTC()
         );
         executor.startAndLazilyCreateTask();
         executor.startAndLazilyCreateTask();
 
         verify(mockClusterService, never()).addListener(executor);
         verify(persistentTasksService, never()).sendClusterStartRequest(
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationTaskParams.INSTANCE),
+            any(),
+            any()
+        );
+    }
+
+    public void testMultipleCallsToStart_OnlyCallsSendClusterStartRequestOnce_WhenRateLimited() {
+        var now = Clock.systemUTC().instant();
+        var clock = mock(Clock.class);
+        when(clock.instant()).thenReturn(now);
+
+        var executor = new AuthorizationTaskExecutor(
+            clusterService,
+            persistentTasksService,
+            enabledFeatureServiceMock,
+            ccmEnablementServiceMock,
+            unsupportedEnvironmentCcmFeatureMock,
+            new AuthorizationPoller.Parameters(
+                createWithEmptySettings(threadPool),
+                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
+                mock(Sender.class),
+                ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                mock(ModelRegistry.class),
+                mock(Client.class),
+                createMockCCMFeature(false),
+                createMockCCMService(false),
+                inferenceFeatureService
+            ),
+            clock
+        );
+
+        executor.startAndLazilyCreateTask();
+        executor.startAndLazilyCreateTask();
+
+        var listener = new PlainActionFuture<Void>();
+        clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener);
+        listener.actionGet(TimeValue.THIRTY_SECONDS);
+
+        verify(persistentTasksService, times(1)).sendClusterStartRequest(
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationTaskParams.INSTANCE),
+            any(),
+            any()
+        );
+
+        Mockito.clearInvocations(persistentTasksService);
+
+        executor.sendStartRequestWithCurrentClusterState();
+        // No additional calls because time hasn't advanced to allow another task creation call
+        verify(persistentTasksService, never()).sendClusterStartRequest(
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationTaskParams.INSTANCE),
+            any(),
+            any()
+        );
+    }
+
+    public void testMultipleCallsToStart_OnlyCallsSendClusterStartRequestOnce_WhenRateLimitExpired() {
+        var now = Clock.systemUTC().instant();
+        var oneDayInFuture = now.plus(Duration.ofDays(1));
+        var clock = mock(Clock.class);
+        // The AuthorizationTaskExecutor does these calls:
+        // 1. Check if the last create task time is expired (first call to instant()),
+        // this will pass so a call to create the task will occur
+        // 2. Then it will update the last create task time (second call to instant())
+        // 3. On the next cluster state change, it will check if the last create task time is expired (third call to instant()),
+        // we'll return now + 1 day to ensure that it is expired and allows another call to create the task
+        when(clock.instant()).thenReturn(now).thenReturn(now).thenReturn(oneDayInFuture);
+
+        var executor = new AuthorizationTaskExecutor(
+            clusterService,
+            persistentTasksService,
+            enabledFeatureServiceMock,
+            ccmEnablementServiceMock,
+            unsupportedEnvironmentCcmFeatureMock,
+            new AuthorizationPoller.Parameters(
+                createWithEmptySettings(threadPool),
+                mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
+                mock(Sender.class),
+                ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                mock(ModelRegistry.class),
+                mock(Client.class),
+                createMockCCMFeature(false),
+                createMockCCMService(false),
+                inferenceFeatureService
+            ),
+            clock
+        );
+
+        executor.startAndLazilyCreateTask();
+        executor.startAndLazilyCreateTask();
+
+        var listener = new PlainActionFuture<Void>();
+        clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener);
+        listener.actionGet(TimeValue.THIRTY_SECONDS);
+
+        verify(persistentTasksService, times(1)).sendClusterStartRequest(
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationPoller.TASK_NAME),
+            eq(AuthorizationTaskParams.INSTANCE),
+            any(),
+            any()
+        );
+
+        Mockito.clearInvocations(persistentTasksService);
+
+        executor.sendStartRequestWithCurrentClusterState();
+        // Time has advanced so we should have another call
+        verify(persistentTasksService, times(1)).sendClusterStartRequest(
             eq(AuthorizationPoller.TASK_NAME),
             eq(AuthorizationPoller.TASK_NAME),
             eq(AuthorizationTaskParams.INSTANCE),
@@ -171,7 +324,6 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         var mockClusterService = mock(ClusterService.class);
         when(mockClusterService.state()).thenReturn(state);
 
-        var eisUrl = "abc";
         var executor = new AuthorizationTaskExecutor(
             mockClusterService,
             persistentTasksService,
@@ -182,12 +334,14 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
                 mock(Sender.class),
-                ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
-            )
+                createMockCCMService(false),
+                inferenceFeatureService
+            ),
+            Clock.systemUTC()
         );
         executor.startAndLazilyCreateTask();
 
@@ -202,7 +356,16 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
     }
 
     public void testCreatesTask_WhenItDoesNotExistOnClusterStateChange() {
-        var eisUrl = "abc";
+        var now = Clock.systemUTC().instant();
+        var oneDayInFuture = now.plus(Duration.ofDays(1));
+        var clock = mock(Clock.class);
+        // The AuthorizationTaskExecutor does these calls:
+        // 1. Check if the last create task time is expired (first call to instant()),
+        // this will pass so a call to create the task will occur
+        // 2. Then it will update the last create task time (second call to instant())
+        // 3. On the next cluster state change, it will check if the last create task time is expired (third call to instant()),
+        // we'll return now + 1 day to ensure that it is expired and allows another call to create the task
+        when(clock.instant()).thenReturn(now).thenReturn(now).thenReturn(oneDayInFuture);
 
         var executor = new AuthorizationTaskExecutor(
             clusterService,
@@ -214,12 +377,14 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
                 mock(Sender.class),
-                ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
-            )
+                createMockCCMService(false),
+                inferenceFeatureService
+            ),
+            clock
         );
         executor.startAndLazilyCreateTask();
 
@@ -235,6 +400,9 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         );
 
         Mockito.clearInvocations(persistentTasksService);
+        Mockito.clearInvocations(clock);
+        when(clock.instant()).thenReturn(oneDayInFuture.plus(Duration.ofDays(1)));
+
         // Ensure that if the task is gone, it will be recreated.
         var listener2 = new PlainActionFuture<Void>();
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener2);
@@ -258,7 +426,16 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
     }
 
     public void testCreatesTask_WhenItDoesNotExistOnClusterStateChange_CcmSupportedAndConfigured() {
-        var eisUrl = "abc";
+        var now = Clock.systemUTC().instant();
+        var oneDayInFuture = now.plus(Duration.ofDays(1));
+        var clock = mock(Clock.class);
+        // The AuthorizationTaskExecutor does these calls:
+        // 1. Check if the last create task time is expired (first call to instant()),
+        // this will pass so a call to create the task will occur
+        // 2. Then it will update the last create task time (second call to instant())
+        // 3. On the next cluster state change, it will check if the last create task time is expired (third call to instant()),
+        // we'll return now + 1 day to ensure that it is expired and allows another call to create the task
+        when(clock.instant()).thenReturn(now).thenReturn(now).thenReturn(oneDayInFuture);
 
         var supportedEnvironmentCcmFeatureMock = mock(CCMFeature.class);
         when(supportedEnvironmentCcmFeatureMock.isCcmSupportedEnvironment()).thenReturn(true);
@@ -274,12 +451,14 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
                 mock(Sender.class),
-                ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
-            )
+                createMockCCMService(false),
+                inferenceFeatureService
+            ),
+            clock
         );
         executor.startAndLazilyCreateTask();
 
@@ -295,10 +474,12 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         );
 
         Mockito.clearInvocations(persistentTasksService);
+
         // Ensure that if the task is gone, it will be recreated.
         var listener2 = new PlainActionFuture<Void>();
         clusterService.getClusterApplierService().onNewClusterState("initialization", this::initialState, listener2);
         listener2.actionGet(TimeValue.THIRTY_SECONDS);
+
         verify(persistentTasksService, times(1)).sendClusterStartRequest(
             eq(AuthorizationPoller.TASK_NAME),
             eq(AuthorizationPoller.TASK_NAME),
@@ -309,8 +490,6 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
     }
 
     public void testDoesNotCreateTask_WhenCcmIsSupportedButNotEnabled() {
-        var eisUrl = "abc";
-
         var supportedEnvironmentCcmFeatureMock = mock(CCMFeature.class);
         when(supportedEnvironmentCcmFeatureMock.isCcmSupportedEnvironment()).thenReturn(true);
         // CCM is supported but not enabled
@@ -326,12 +505,14 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
                 mock(Sender.class),
-                ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
-            )
+                createMockCCMService(false),
+                inferenceFeatureService
+            ),
+            Clock.systemUTC()
         );
         executor.startAndLazilyCreateTask();
 
@@ -350,7 +531,6 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
     }
 
     public void testDoesNotCreateTask_WhenFeatureIsNotSupported() {
-        var eisUrl = "abc";
         var disabledFeatureServiceMock = mock(FeatureService.class);
         when(disabledFeatureServiceMock.clusterHasFeature(any(), any())).thenReturn(false);
 
@@ -364,12 +544,14 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
                 mock(Sender.class),
-                ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
-            )
+                createMockCCMService(false),
+                inferenceFeatureService
+            ),
+            Clock.systemUTC()
         );
         executor.startAndLazilyCreateTask();
 
@@ -401,8 +583,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
-            )
+                createMockCCMService(false),
+                inferenceFeatureService
+            ),
+            Clock.systemUTC()
         );
         executor.startAndLazilyCreateTask();
 
@@ -433,8 +617,10 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
-            )
+                createMockCCMService(false),
+                inferenceFeatureService
+            ),
+            Clock.systemUTC()
         );
         executor.startAndLazilyCreateTask();
 
@@ -473,7 +659,6 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
         var mockClusterService = mock(ClusterService.class);
         when(mockClusterService.state()).thenReturn(state);
 
-        var eisUrl = "abc";
         var executor = new AuthorizationTaskExecutor(
             mockClusterService,
             persistentTasksService,
@@ -484,12 +669,14 @@ public class AuthorizationTaskExecutorTests extends ESTestCase {
                 createWithEmptySettings(threadPool),
                 mock(ElasticInferenceServiceAuthorizationRequestHandler.class),
                 mock(Sender.class),
-                ElasticInferenceServiceSettingsTests.create(eisUrl, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
+                ElasticInferenceServiceSettingsTests.create(EIS_FAKE_URL, TimeValue.timeValueMillis(1), TimeValue.timeValueMillis(1), true),
                 mock(ModelRegistry.class),
                 mock(Client.class),
                 createMockCCMFeature(false),
-                createMockCCMService(false)
-            )
+                createMockCCMService(false),
+                inferenceFeatureService
+            ),
+            Clock.systemUTC()
         );
         executor.startAndLazilyCreateTask();
 

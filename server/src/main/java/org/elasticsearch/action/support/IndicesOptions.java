@@ -10,7 +10,6 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -98,19 +97,21 @@ public record IndicesOptions(
      * @param resolveAliases, aliases will be included in the result, if false we treat them like they do not exist
      * @param allowEmptyExpressions, when an expression does not result in any indices, if false it throws an error if true it treats it as
      *                               an empty result
+     * @param resolveViews, views will be included in the result, if false we treat them like they do not exist
      */
     public record WildcardOptions(
         boolean matchOpen,
         boolean matchClosed,
         boolean includeHidden,
         boolean resolveAliases,
-        boolean allowEmptyExpressions
+        boolean allowEmptyExpressions,
+        boolean resolveViews
     ) implements ToXContentFragment {
 
         public static final String EXPAND_WILDCARDS = "expand_wildcards";
         public static final String ALLOW_NO_INDICES = "allow_no_indices";
 
-        public static final WildcardOptions DEFAULT = new WildcardOptions(true, false, false, true, true);
+        public static final WildcardOptions DEFAULT = new WildcardOptions(true, false, false, true, true, false);
 
         public static WildcardOptions parseParameters(Object expandWildcards, Object allowNoIndices, WildcardOptions defaultOptions) {
             if (expandWildcards == null && allowNoIndices == null) {
@@ -179,6 +180,7 @@ public record IndicesOptions(
             private boolean includeHidden;
             private boolean resolveAliases;
             private boolean allowEmptyExpressions;
+            private boolean resolveViews;
 
             Builder() {
                 this(DEFAULT);
@@ -190,6 +192,7 @@ public record IndicesOptions(
                 includeHidden = options.includeHidden;
                 resolveAliases = options.resolveAliases;
                 allowEmptyExpressions = options.allowEmptyExpressions;
+                resolveViews = options.resolveViews;
             }
 
             /**
@@ -246,6 +249,14 @@ public record IndicesOptions(
             }
 
             /**
+             * Resolve views. Defaults to false
+             */
+            public Builder resolveViews(boolean resolveViews) {
+                this.resolveViews = resolveViews;
+                return this;
+            }
+
+            /**
              * Maximises the resolution of indices, we will match open, closed and hidden targets.
              */
             public Builder all() {
@@ -282,7 +293,7 @@ public record IndicesOptions(
             }
 
             public WildcardOptions build() {
-                return new WildcardOptions(matchOpen, matchClosed, includeHidden, resolveAliases, allowEmptyExpressions);
+                return new WildcardOptions(matchOpen, matchClosed, includeHidden, resolveAliases, allowEmptyExpressions, resolveViews);
             }
         }
 
@@ -961,10 +972,6 @@ public record IndicesOptions(
             states.add(WildcardStates.HIDDEN);
         }
         out.writeEnumSet(states);
-        if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
-            out.writeBoolean(true);
-            out.writeBoolean(false);
-        }
         out.writeWriteable(crossProjectModeOptions);
     }
 
@@ -984,11 +991,6 @@ public record IndicesOptions(
             .includeFailureIndices(includeFailureIndices)
             .ignoreThrottled(options.contains(Option.IGNORE_THROTTLED))
             .build();
-        if (in.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
-            // Reading from an older node, which will be sending two booleans that we must read out and ignore.
-            in.readBoolean();
-            in.readBoolean();
-        }
         return new IndicesOptions(
             options.contains(Option.ALLOW_UNAVAILABLE_CONCRETE_TARGETS)
                 ? ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS

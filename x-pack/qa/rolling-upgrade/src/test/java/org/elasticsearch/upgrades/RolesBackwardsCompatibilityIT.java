@@ -9,7 +9,6 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.test.XContentTestUtils;
@@ -26,6 +25,7 @@ import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelp
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomManageRolesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRoleDescriptorMetadata;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.MANAGE_ROLES_PRIVILEGE;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -35,7 +35,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
     public void testRolesWithDescription() throws Exception {
         assumeTrue(
             "The role description is supported after transport version: " + SECURITY_ROLE_DESCRIPTION,
-            minimumTransportVersion().before(SECURITY_ROLE_DESCRIPTION)
+            minimumTransportVersion().supports(SECURITY_ROLE_DESCRIPTION) == false
         );
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -149,8 +149,8 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
 
     public void testRolesWithManageRoles() throws Exception {
         assumeTrue(
-            "The manage roles privilege is supported after transport version: " + TransportVersions.V_8_16_0,
-            minimumTransportVersion().before(TransportVersions.V_8_16_0)
+            "The manage roles privilege is supported after transport version: " + MANAGE_ROLES_PRIVILEGE,
+            minimumTransportVersion().supports(MANAGE_ROLES_PRIVILEGE) == false
         );
         switch (CLUSTER_TYPE) {
             case OLD -> {
@@ -181,7 +181,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             }
             case MIXED -> {
                 try {
-                    this.createClientsByCapability(node -> nodeSupportTransportVersion(node, TransportVersions.V_8_16_0));
+                    this.createClientsByCapability(node -> nodeSupportTransportVersion(node, MANAGE_ROLES_PRIVILEGE));
                     // succeed when role manage roles is not provided
                     final String initialRole = randomRoleDescriptorSerialized();
                     createRole(client(), "my-valid-mixed-role", initialRole);
@@ -223,7 +223,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have version ["
-                                    + TransportVersions.V_8_16_0.toReleaseVersion()
+                                    + MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
                                     + "] or higher to support the manage roles privilege"
                             )
                         );
@@ -237,7 +237,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
                             e.getMessage(),
                             containsString(
                                 "all nodes must have version ["
-                                    + TransportVersions.V_8_16_0.toReleaseVersion()
+                                    + MANAGE_ROLES_PRIVILEGE.toReleaseVersion()
                                     + "] or higher to support the manage roles privilege"
                             )
                         );
@@ -311,7 +311,7 @@ public class RolesBackwardsCompatibilityIT extends AbstractUpgradeTestCase {
             assertTrue(nodeIsCurrent);
             return true;
         }
-        return testNodeInfo.transportVersion().onOrAfter(transportVersion);
+        return testNodeInfo.transportVersion().supports(transportVersion);
     }
 
     private static RoleDescriptor randomRoleDescriptor(boolean includeDescription, boolean includeManageRoles) {

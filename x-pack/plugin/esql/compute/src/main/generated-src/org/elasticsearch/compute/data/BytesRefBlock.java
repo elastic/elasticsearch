@@ -9,7 +9,6 @@ package org.elasticsearch.compute.data;
 
 // begin generated imports
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -68,7 +67,7 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     OrdinalBytesRefBlock asOrdinals();
 
     @Override
-    BytesRefBlock filter(int... positions);
+    BytesRefBlock filter(boolean mayContainDuplicates, int... positions);
 
     /**
      * Make a deep copy of this {@link Block} using the provided {@link BlockFactory},

@@ -201,6 +201,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.io;
     exports org.elasticsearch.common.io.stream;
     exports org.elasticsearch.common.logging;
+    exports org.elasticsearch.common.logging.activity;
     exports org.elasticsearch.common.lucene;
     exports org.elasticsearch.common.lucene.index;
     exports org.elasticsearch.common.lucene.search;
@@ -245,6 +246,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.codec;
     exports org.elasticsearch.index.codec.tsdb;
     exports org.elasticsearch.index.codec.bloomfilter;
+    exports org.elasticsearch.index.codec.storedfields;
     exports org.elasticsearch.index.codec.zstd;
     exports org.elasticsearch.index.engine;
     exports org.elasticsearch.index.fielddata;
@@ -403,7 +405,8 @@ module org.elasticsearch.server {
             org.elasticsearch.internal.security,
             org.elasticsearch.xpack.core,
             org.elasticsearch.xpack.gpu,
-            org.elasticsearch.xpack.diskbbq;
+            org.elasticsearch.xpack.diskbbq,
+            org.elasticsearch.xpack.stateless;
 
     exports org.elasticsearch.telemetry.tracing;
     exports org.elasticsearch.telemetry;
@@ -454,7 +457,8 @@ module org.elasticsearch.server {
     provides org.apache.lucene.codecs.DocValuesFormat
         with
             org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat,
-            org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
+            org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat,
+            org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
     provides org.apache.lucene.codecs.KnnVectorsFormat
         with
             org.elasticsearch.index.codec.vectors.ES813FlatVectorFormat,
@@ -481,14 +485,15 @@ module org.elasticsearch.server {
             org.elasticsearch.index.codec.Elasticsearch816Codec,
             org.elasticsearch.index.codec.Elasticsearch900Codec,
             org.elasticsearch.index.codec.Elasticsearch900Lucene101Codec,
-            org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec;
+            org.elasticsearch.index.codec.Elasticsearch92Lucene103Codec,
+            org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
 
     provides org.apache.logging.log4j.core.util.ContextDataProvider with org.elasticsearch.common.logging.DynamicContextDataProvider;
 
     exports org.elasticsearch.cluster.routing.allocation.shards
         to
             org.elasticsearch.shardhealth,
-            org.elasticsearch.serverless.shardhealth,
+            org.elasticsearch.xpack.stateless.shardhealth,
             org.elasticsearch.serverless.apifiltering;
     exports org.elasticsearch.lucene.spatial;
     exports org.elasticsearch.inference.configuration;
@@ -510,4 +515,8 @@ module org.elasticsearch.server {
     exports org.elasticsearch.index.mapper.blockloader;
     exports org.elasticsearch.index.mapper.blockloader.docvalues;
     exports org.elasticsearch.index.mapper.blockloader.docvalues.fn;
+    exports org.elasticsearch.index.mapper.blockloader.script;
+    exports org.elasticsearch.readiness to org.elasticsearch.internal.sigterm;
+    exports org.elasticsearch.inference.metadata;
+    exports org.elasticsearch.search.diversification.mmr;
 }

@@ -76,6 +76,20 @@ a:integer | b:integer | c:integer
 1 | 2 | 3
 ;
 
+rowWithArithmeticOperators
+row a = 1 + 4;
+
+a:integer
+5
+;
+
+rowWithComparisonOperators
+row a = 1 < 4;
+
+a:boolean
+true
+;
+
 evalRowWithNull
 row a = 1, b = 2, c = null | eval z = c+b+a;
 

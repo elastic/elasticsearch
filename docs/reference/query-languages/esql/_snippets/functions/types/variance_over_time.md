@@ -2,9 +2,9 @@
 
 **Supported types**
 
-| number | window | result |
+| field | window | result |
 | --- | --- | --- |
-| double | | double |
-| integer | | double |
-| long | | double |
+| double | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| integer | time_duration {applies_to}`stack: preview 9.3.0` | double |
+| long | time_duration {applies_to}`stack: preview 9.3.0` | double |
 

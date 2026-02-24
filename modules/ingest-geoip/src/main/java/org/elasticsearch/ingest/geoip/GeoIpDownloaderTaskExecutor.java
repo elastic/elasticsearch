@@ -541,7 +541,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             ActionListener.wrap(r -> logger.debug("Started geoip downloader task"), e -> {
                 Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
                 if (t instanceof ResourceAlreadyExistsException == false) {
-                    logger.error("failed to create geoip downloader task", e);
+                    logger.warn("failed to create geoip downloader task", e);
                     onFailure.run();
                 }
             })
@@ -555,7 +555,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
             e -> {
                 Throwable t = e instanceof RemoteTransportException ? ExceptionsHelper.unwrapCause(e) : e;
                 if (t instanceof ResourceNotFoundException == false) {
-                    logger.error("failed to remove geoip downloader task", e);
+                    logger.warn("failed to remove geoip downloader task", e);
                     onFailure.run();
                 }
             }

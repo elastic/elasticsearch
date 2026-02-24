@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +39,6 @@ import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
 
@@ -122,10 +122,12 @@ public class RequestExecutorService implements RequestExecutor {
     private static final TimeValue RATE_LIMIT_GROUP_CLEANUP_INTERVAL = TimeValue.timeValueDays(1);
 
     private final ConcurrentMap<Object, RateLimitingEndpointHandler> rateLimitGroupings = new ConcurrentHashMap<>();
-    private final AtomicInteger rateLimitDivisor = new AtomicInteger(1);
     private final ThreadPool threadPool;
     private final CountDownLatch startupLatch;
-    private final CountDownLatch terminationLatch = new CountDownLatch(1);
+    // Two latches because we have two threads of execution, one thread blocking on a queue for items to be sent immediately, and
+    // another threads that is scheduled on an interval that checks items that can be rate limited
+    private final CountDownLatch immediateRequestQueueTerminationLatch = new CountDownLatch(1);
+    private final CountDownLatch rateLimitedTerminationLatch = new CountDownLatch(1);
     private final RequestSender requestSender;
     private final RequestExecutorServiceSettings settings;
     private final Clock clock;
@@ -165,6 +167,7 @@ public class RequestExecutorService implements RequestExecutor {
         this.requestQueue = new AdjustableCapacityBlockingQueue<>(queueCreator, settings.getQueueCapacity());
     }
 
+    @Override
     public void shutdown() {
         if (shutdown.compareAndSet(false, true)) {
             if (requestQueueTask != null) {
@@ -179,16 +182,33 @@ public class RequestExecutorService implements RequestExecutor {
         }
     }
 
+    @Override
     public boolean isShutdown() {
         return shutdown.get();
     }
 
-    public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
-        return terminationLatch.await(timeout, unit);
+    // visible for testing
+    boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
+        var totalWait = Duration.ofMillis(unit.toMillis(timeout));
+
+        var firstAwaitStart = Instant.now();
+        var firstLatchResult = immediateRequestQueueTerminationLatch.await(timeout, unit);
+        var firstAwaitEnd = Instant.now();
+
+        var remainingWaitTime = totalWait.minus(Duration.between(firstAwaitStart, firstAwaitEnd));
+
+        // If the first latch await returns false, we've run out of time
+        // If the remaining wait time is negative or zero, we've run out of time
+        if (firstLatchResult == false || remainingWaitTime.isNegative() || remainingWaitTime.isZero()) {
+            return false;
+        }
+
+        return rateLimitedTerminationLatch.await(remainingWaitTime.toMillis(), TimeUnit.MILLISECONDS);
     }
 
-    public boolean isTerminated() {
-        return terminationLatch.getCount() == 0;
+    // visible for testing
+    boolean isTerminated() {
+        return immediateRequestQueueTerminationLatch.getCount() == 0 && rateLimitedTerminationLatch.getCount() == 0;
     }
 
     public int queueSize() {
@@ -201,6 +221,7 @@ public class RequestExecutorService implements RequestExecutor {
      * <b>Note: This should only be called once for the life of the object.</b>
      * </p>
      */
+    @Override
     public void start() {
         try {
             assert started.get() == false : "start() can only be called once";
@@ -213,6 +234,7 @@ public class RequestExecutorService implements RequestExecutor {
         } catch (Exception e) {
             logger.warn("Failed to start request executor", e);
             cleanup(CleanupStrategy.RATE_LIMITED_REQUEST_QUEUES_ONLY);
+            cleanup(CleanupStrategy.REQUEST_QUEUE_ONLY);
         }
     }
 
@@ -326,8 +348,7 @@ public class RequestExecutorService implements RequestExecutor {
                 clock,
                 requestManager.rateLimitSettings(),
                 this::isShutdown,
-                rateLimiterCreator,
-                rateLimitDivisor.get()
+                rateLimiterCreator
             );
 
             endpointHandler.init();
@@ -350,12 +371,16 @@ public class RequestExecutorService implements RequestExecutor {
             shutdown();
 
             switch (cleanupStrategy) {
-                case RATE_LIMITED_REQUEST_QUEUES_ONLY -> notifyRateLimitedRequestsOfShutdown();
-                case REQUEST_QUEUE_ONLY -> rejectRequestsInRequestQueue();
+                case RATE_LIMITED_REQUEST_QUEUES_ONLY -> {
+                    notifyRateLimitedRequestsOfShutdown();
+                    rateLimitedTerminationLatch.countDown();
+                }
+                case REQUEST_QUEUE_ONLY -> {
+                    rejectRequestsInRequestQueue();
+                    immediateRequestQueueTerminationLatch.countDown();
+                }
                 default -> logger.error(Strings.format("Unknown clean up strategy for request executor: [%s]", cleanupStrategy.toString()));
             }
-
-            terminationLatch.countDown();
         } catch (Exception e) {
             logger.warn("Encountered an error while cleaning up", e);
         }
@@ -454,6 +479,7 @@ public class RequestExecutorService implements RequestExecutor {
      *                If null, then the request will wait forever
      * @param listener an {@link ActionListener<InferenceServiceResults>} for the response or failure
      */
+    @Override
     public void execute(
         RequestManager requestManager,
         InferenceInputs inferenceInputs,
@@ -520,7 +546,6 @@ public class RequestExecutorService implements RequestExecutor {
         private final RateLimiter rateLimiter;
         private final RequestExecutorServiceSettings requestExecutorServiceSettings;
         private final RateLimitSettings rateLimitSettings;
-        private final Long originalRequestsPerTimeUnit;
 
         RateLimitingEndpointHandler(
             String rateLimitGroupingId,
@@ -530,8 +555,7 @@ public class RequestExecutorService implements RequestExecutor {
             Clock clock,
             RateLimitSettings rateLimitSettings,
             Supplier<Boolean> isShutdownMethod,
-            RateLimiterCreator rateLimiterCreator,
-            Integer rateLimitDivisor
+            RateLimiterCreator rateLimiterCreator
         ) {
             this.requestExecutorServiceSettings = Objects.requireNonNull(settings);
             this.rateLimitGroupingId = Objects.requireNonNull(rateLimitGroupingId);
@@ -540,7 +564,6 @@ public class RequestExecutorService implements RequestExecutor {
             this.clock = Objects.requireNonNull(clock);
             this.isShutdownMethod = Objects.requireNonNull(isShutdownMethod);
             this.rateLimitSettings = Objects.requireNonNull(rateLimitSettings);
-            this.originalRequestsPerTimeUnit = rateLimitSettings.requestsPerTimeUnit();
 
             Objects.requireNonNull(rateLimitSettings);
             Objects.requireNonNull(rateLimiterCreator);

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
@@ -35,6 +34,7 @@ import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.SearchService;
@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -148,7 +149,8 @@ public class ComputeService {
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
-    private final PlannerSettings plannerSettings;
+    private final PlannerSettings.Holder plannerSettings;
+    private final OperatorFactoryRegistry operatorFactoryRegistry;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -157,7 +159,8 @@ public class ComputeService {
         LookupFromIndexService lookupFromIndexService,
         ThreadPool threadPool,
         BigArrays bigArrays,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        OperatorFactoryRegistry operatorFactoryRegistry
     ) {
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
@@ -188,9 +191,10 @@ public class ComputeService {
             dataNodeComputeHandler
         );
         this.plannerSettings = transportActionServices.plannerSettings();
+        this.operatorFactoryRegistry = operatorFactoryRegistry;
     }
 
-    PlannerSettings plannerSettings() {
+    PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
     }
 
@@ -206,7 +210,7 @@ public class ComputeService {
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
-            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+            ESQL_WORKER_THREAD_POOL_NAME,
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION
@@ -280,11 +284,19 @@ public class ComputeService {
                     cancelQueryOnFailure,
                     finalListener.map(profiles -> {
                         execInfo.markEndQuery();
-                        return new Result(mainPlan.output(), collectedPages, profiles, execInfo);
+                        return new Result(mainPlan.output(), collectedPages, configuration, profiles, execInfo);
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, mainPlan, planTimeProfile, localListener.acquireCompute());
+                runCompute(
+                    rootTask,
+                    computeContext,
+                    mainPlan,
+                    plannerSettings.get(),
+                    LocalPhysicalOptimization.ENABLED,
+                    planTimeProfile,
+                    localListener.acquireCompute()
+                );
 
                 for (int i = 0; i < subplans.size(); i++) {
                     var subplan = subplans.get(i);
@@ -383,11 +395,19 @@ public class ComputeService {
                     cancelQueryOnFailure,
                     listener.map(completionInfo -> {
                         updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
-                        return new Result(physicalPlan.output(), collectedPages, completionInfo, execInfo);
+                        return new Result(physicalPlan.output(), collectedPages, configuration, completionInfo, execInfo);
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, planTimeProfile, computeListener.acquireCompute());
+                runCompute(
+                    rootTask,
+                    computeContext,
+                    coordinatorPlan,
+                    plannerSettings.get(),
+                    LocalPhysicalOptimization.ENABLED,
+                    planTimeProfile,
+                    computeListener.acquireCompute()
+                );
                 return;
             }
         } else {
@@ -420,7 +440,7 @@ public class ComputeService {
                 listener.delegateFailureAndWrap((l, completionInfo) -> {
                     failIfAllShardsFailed(execInfo, collectedPages);
                     execInfo.markEndQuery();
-                    l.onResponse(new Result(outputAttributes, collectedPages, completionInfo, execInfo));
+                    l.onResponse(new Result(outputAttributes, collectedPages, configuration, completionInfo, execInfo));
                 })
             )
         ) {
@@ -434,7 +454,7 @@ public class ComputeService {
                         computeListener.acquireCompute().delegateFailure((l, completionInfo) -> {
                             if (execInfo.clusterInfo.containsKey(LOCAL_CLUSTER)) {
                                 execInfo.swapCluster(LOCAL_CLUSTER, (k, v) -> {
-                                    var tookTime = execInfo.tookSoFar();
+                                    var tookTime = execInfo.queryProfile().total().timeSinceStarted();
                                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(tookTime);
                                     if (execInfo.isMainPlan() && v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                                         final Integer failedShards = execInfo.getCluster(LOCAL_CLUSTER).getFailedShards();
@@ -468,6 +488,8 @@ public class ComputeService {
                             exchangeSinkSupplier
                         ),
                         coordinatorPlan,
+                        plannerSettings.get(),
+                        LocalPhysicalOptimization.ENABLED,
                         planTimeProfile,
                         localListener.acquireCompute()
                     );
@@ -518,8 +540,8 @@ public class ComputeService {
                 for (ClusterComputeHandler.RemoteCluster cluster : remoteClusters) {
                     String clusterAlias = cluster.clusterAlias();
                     // Check the initial cluster status set by planning phase before executing the data node plan on remote clusters,
-                    // only if it is behind a snapshot build and this is a fork or subquery branch (exchangeSinkSupplier is not null).
-                    EsqlExecutionInfo.Cluster.Status clusterStatus = Build.current().isSnapshot() && exchangeSinkSupplier != null
+                    // only if this is a fork or subquery branch (exchangeSinkSupplier is not null).
+                    EsqlExecutionInfo.Cluster.Status clusterStatus = exchangeSinkSupplier != null
                         ? initialClusterStatuses.get(clusterAlias)
                         : execInfo.getCluster(clusterAlias).getStatus();
                     if (clusterStatus != EsqlExecutionInfo.Cluster.Status.RUNNING) {
@@ -583,7 +605,8 @@ public class ComputeService {
     private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
         execInfo.markEndQuery();
         if ((execInfo.isCrossClusterSearch() || execInfo.includeExecutionMetadata() == ALWAYS) && execInfo.isMainPlan()) {
-            assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
+            assert execInfo.queryProfile().planning().timeTook() != null
+                : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(clusterAlias, (k, v) -> {
                     var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook());
@@ -641,6 +664,8 @@ public class ComputeService {
         CancellableTask task,
         ComputeContext context,
         PhysicalPlan plan,
+        PlannerSettings plannerSettings,
+        LocalPhysicalOptimization localPhysicalOptimization,
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
@@ -666,20 +691,26 @@ public class ComputeService {
                 enrichLookupService,
                 lookupFromIndexService,
                 inferenceService,
-                physicalOperationProviders
+                physicalOperationProviders,
+                operatorFactoryRegistry
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
 
-            var localPlan = PlannerUtils.localPlan(
-                plannerSettings,
-                context.flags(),
-                new ArrayList<>(context.searchExecutionContexts().collection()),
-                context.configuration(),
-                context.foldCtx(),
-                plan,
-                planTimeProfile
-            );
+            List<SearchExecutionContext> localContexts = new ArrayList<>();
+            context.searchExecutionContexts().iterable().forEach(localContexts::add);
+            var localPlan = switch (localPhysicalOptimization) {
+                case ENABLED -> PlannerUtils.localPlan(
+                    plannerSettings,
+                    context.flags(),
+                    localContexts,
+                    context.configuration(),
+                    context.foldCtx(),
+                    plan,
+                    planTimeProfile
+                );
+                case DISABLED -> plan;
+            };
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
             }
@@ -697,7 +728,7 @@ public class ComputeService {
             // safely decrement the reference count so only the source operators and doc vectors control when these will be released.
             // Note that only the data drivers will increment the reference count when created, hence the if below.
             if (context.description().equals(DATA_DESCRIPTION)) {
-                shardContexts.collection().forEach(RefCounted::decRef);
+                shardContexts.iterable().forEach(RefCounted::decRef);
             }
             if (drivers.isEmpty()) {
                 throw new IllegalStateException("no drivers created");
@@ -711,7 +742,7 @@ public class ComputeService {
                 ActionListener.releaseAfter(driverListener, () -> Releasables.close(drivers))
             );
         } catch (Exception e) {
-            Releasables.close(context.searchContexts().collection());
+            Releasables.close(context.searchContexts().iterable());
             LOGGER.debug("Error in ComputeService.runCompute for : " + context.description());
             listener.onFailure(e);
         }
@@ -755,7 +786,8 @@ public class ComputeService {
         });
     }
 
-    static ReductionPlan reductionPlan(
+    // public for testing
+    public static ReductionPlan reductionPlan(
         PlannerSettings plannerSettings,
         EsqlFlags flags,
         Configuration configuration,
@@ -767,21 +799,22 @@ public class ComputeService {
     ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
-        ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
+        ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan, LocalPhysicalOptimization.ENABLED);
         if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return defaultResult;
         }
 
         Function<PhysicalPlan, ReductionPlan> placePlanBetweenExchanges = p -> new ReductionPlan(
             originalPlan.replaceChild(p.replaceChildren(List.of(source))),
-            originalPlan
+            originalPlan,
+            LocalPhysicalOptimization.ENABLED
         );
         // The default plan is just the exchange source piped directly into the exchange sink.
         ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
             case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
-                // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
-                // we also need the original plan, since we add the project in the reduction node.
+                // so essentially we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other
+                // aggregations, we also need the original plan, since we add the project in the reduction node.
                 LateMaterializationPlanner.planReduceDriverTopN(
                     stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
                     originalPlan

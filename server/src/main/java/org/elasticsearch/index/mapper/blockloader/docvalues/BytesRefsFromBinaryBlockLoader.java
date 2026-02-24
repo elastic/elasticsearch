@@ -10,19 +10,36 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
 import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.Nullable;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
 
 import java.io.IOException;
 
+/**
+ * This block loader should be used for fields that are directly encoded as binary values but are always single valued, such as the
+ * histogram fields.  See also {@link BytesRefsFromCustomBinaryBlockLoader} for multivalued binary fields, and
+ * {@link BytesRefsFromOrdsBlockLoader} for ordinals-based binary values
+ */
 public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValuesBlockLoader {
-
-    private final String fieldName;
+    private final IOFunction<LeafReader, BinaryDocValues> docValuesSupplier;
 
     public BytesRefsFromBinaryBlockLoader(String fieldName) {
-        this.fieldName = fieldName;
+        this(leafReader -> leafReader.getBinaryDocValues(fieldName));
+    }
+
+    /**
+     * Create a block loader from a {@link BinaryDocValues} supplier.
+     * This is useful when the doc values are not directly stored in a single field
+     * but are composed of multiple sources, as is the case for Pattern Text.
+     */
+    public BytesRefsFromBinaryBlockLoader(IOFunction<LeafReader, BinaryDocValues> docValuesSupplier) {
+        this.docValuesSupplier = docValuesSupplier;
     }
 
     @Override
@@ -31,32 +48,27 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
     }
 
     @Override
-    public AllReader reader(LeafReaderContext context) throws IOException {
-        BinaryDocValues docValues = context.reader().getBinaryDocValues(fieldName);
-        return createReader(docValues);
-    }
-
-    public static AllReader createReader(@Nullable BinaryDocValues docValues) {
-        if (docValues == null) {
-            return new ConstantNullsReader();
+    public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        TrackingBinaryDocValues dv = TrackingBinaryDocValues.get(breaker, context, docValuesSupplier);
+        if (dv == null) {
+            return ConstantNull.READER;
         }
-        return new BytesRefsFromBinary(docValues);
+        return new BytesRefsFromBinary(dv);
     }
 
     /**
      * Read BinaryDocValues with no additional structure in the BytesRefs.
      * Each BytesRef from the doc values maps directly to a value in the block loader.
      */
-    static class BytesRefsFromBinary extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
-
-        BytesRefsFromBinary(BinaryDocValues docValues) {
+    public static class BytesRefsFromBinary extends BytesRefsFromCustomBinaryBlockLoader.AbstractBytesRefsFromBinary {
+        public BytesRefsFromBinary(TrackingBinaryDocValues docValues) {
             super(docValues);
         }
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            if (docValues instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
-                BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false);
+            if (docValues.docValues() instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
+                BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, false);
                 if (block != null) {
                     return block;
                 }
@@ -66,11 +78,11 @@ public class BytesRefsFromBinaryBlockLoader extends BlockDocValuesReader.DocValu
 
         @Override
         public void read(int doc, BytesRefBuilder builder) throws IOException {
-            if (false == docValues.advanceExact(doc)) {
+            if (false == docValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            BytesRef bytes = docValues.binaryValue();
+            BytesRef bytes = docValues.docValues().binaryValue();
             builder.appendBytesRef(bytes);
         }
 

@@ -28,7 +28,7 @@ import static org.elasticsearch.core.Strings.format;
 
 class ApiKeyAuthenticator implements Authenticator {
 
-    public static final String ATTRIBUTE_API_KEY_TYPE = "es.security.api_key_type";
+    public static final String ATTRIBUTE_API_KEY_TYPE = "es_security_api_key_type";
 
     private static final Logger logger = LogManager.getLogger(ApiKeyAuthenticator.class);
 

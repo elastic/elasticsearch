@@ -212,6 +212,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_LARGE_BLOCK_SIZE,
                 InferenceMetadataFieldsMapper.USE_LEGACY_SEMANTIC_TEXT_FORMAT,
                 IndexSettings.USE_ES_812_POSTINGS_FORMAT,
+                IndexSettings.USE_DOC_VALUES_SKIPPER,
+                IndexSettings.INTRA_MERGE_PARALLELISM_ENABLED_SETTING,
 
                 // validate that built-in similarities don't get redefined
                 Setting.groupSetting("index.similarity.", (s) -> {
@@ -248,11 +250,8 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
             )
         );
 
-        if (IndexSettings.DOC_VALUES_SKIPPER) {
-            settings.add(IndexSettings.USE_DOC_VALUES_SKIPPER);
-        }
         if (IndexSettings.TSDB_SYNTHETIC_ID_FEATURE_FLAG) {
-            settings.add(IndexSettings.USE_SYNTHETIC_ID);
+            settings.add(IndexSettings.SYNTHETIC_ID);
         }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);

@@ -31,8 +31,8 @@ import org.elasticsearch.core.Releasables;
  *
  * The delegate action is completed when execution leaves the try-with-resources block and every acquired reference is released. Unlike a
  * {@link CountDown} there is no need to declare the number of subsidiary actions up front (refs can be acquired dynamically as needed) nor
- * does the caller need to check for completion each time a reference is released. Moreover even outside the try-with-resources block you
- * can continue to acquire additional references, even in a separate thread, as long as there's at least one reference outstanding:
+ * does the caller need to check for completion each time a reference is released. You can continue to acquire additional references
+ * outside the try-with-resources block, even using different threads, as long as you ensure there's at least one reference outstanding:
  *
  * <pre>
  * try (var refs = new RefCountingRunnable(finalRunnable)) {
@@ -48,7 +48,7 @@ import org.elasticsearch.core.Releasables;
  *     for (var item : otherCollection) {
  *         var itemRef = refs.acquire(); // delays completion while the background action is pending
  *         executorService.execute(() -> {
- *             try (var ignored = itemRef) {
+ *             try (itemRef) {
  *                 if (condition(item)) {
  *                     runOtherAsyncAction(item, refs.acquire());
  *                 }
@@ -60,6 +60,12 @@ import org.elasticsearch.core.Releasables;
  *
  * In particular (and also unlike a {@link CountDown}) this works even if you don't acquire any extra refs at all: in that case, the
  * delegate action executes at the end of the try-with-resources block.
+ * <p>
+ * The delegate action runs on the thread that releases the last reference, or the thread that closes the try-with-resources block if there
+ * are no unreleased references when this happens.
+ * <p>
+ * See also {@link RefCountingListener}, which fulfils a similar role in situations where the subsidiary actions might fail, and you want
+ * such failures to propagate automatically to the final action.
  */
 public final class RefCountingRunnable implements Releasable {
 
@@ -77,11 +83,11 @@ public final class RefCountingRunnable implements Releasable {
 
     /**
      * Acquire a reference to this object and return an action which releases it. The delegate {@link Runnable} is called when all its
-     * references have been released.
-     *
+     * references have been released, on the thread that releases the last reference.
+     * <p>
      * It is invalid to call this method once all references are released. Doing so will trip an assertion if assertions are enabled, and
      * will throw an {@link IllegalStateException} otherwise.
-     *
+     * <p>
      * It is also invalid to release the acquired resource more than once. Doing so will trip an assertion if assertions are enabled, but
      * will be ignored otherwise. This deviates from the contract of {@link java.io.Closeable}.
      */
@@ -95,7 +101,10 @@ public final class RefCountingRunnable implements Releasable {
 
     /**
      * Acquire a reference to this object and return a listener which releases it when notified. The delegate {@link Runnable} is called
-     * when all its references have been released.
+     * when all its references have been released, on the thread that releases the last reference.
+     * <p>
+     * If the returned listener is completed exceptionally then the exception is ignored. Use {@link RefCountingListener} in situations
+     * where you want to keep track of exceptions from subsidiary actions.
      */
     public ActionListener<Void> acquireListener() {
         return ActionListener.releasing(acquire());
@@ -103,7 +112,7 @@ public final class RefCountingRunnable implements Releasable {
 
     /**
      * Release the original reference to this object, which executes the delegate {@link Runnable} if there are no other references.
-     *
+     * <p>
      * It is invalid to call this method more than once. Doing so will trip an assertion if assertions are enabled, but will be ignored
      * otherwise. This deviates from the contract of {@link java.io.Closeable}.
      */

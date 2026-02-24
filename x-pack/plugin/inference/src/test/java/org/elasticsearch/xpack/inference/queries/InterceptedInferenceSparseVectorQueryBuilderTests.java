@@ -15,6 +15,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
@@ -178,6 +179,11 @@ public class InterceptedInferenceSparseVectorQueryBuilderTests extends AbstractI
             textExpansionResults.getWeightedTokens()
         );
         assertThat(dataRewrittenTestIndex2, equalTo(expectedDataRewrittenTestIndex2));
+    }
+
+    @Override
+    public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
+        ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.SPARSE_EMBEDDING, SparseVectorQueryBuilder.NAME);
     }
 
     private static NestedQueryBuilder buildExpectedNestedQuery(

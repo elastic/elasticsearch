@@ -12,7 +12,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
@@ -56,6 +55,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.TimeValue;
@@ -1344,7 +1344,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
      */
     public void testMaxDocvalueFieldsSearch() throws IOException {
         final Settings settings = Settings.builder().put(IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey(), 1).build();
-        createIndex("index", settings, null, "field1", "keyword", "field2", "keyword");
+        createIndex("index", settings);
         prepareIndex("index").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
 
         final SearchService service = getInstanceFromNode(SearchService.class);
@@ -1398,7 +1398,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testDeduplicateDocValuesFields() throws Exception {
-        createIndex("index", Settings.EMPTY, "_doc", "field1", "type=date", "field2", "type=date");
+        createIndex("index", Settings.EMPTY, "field1", "type=date", "field2", "type=date");
         prepareIndex("index").setId("1").setSource("field1", "2022-08-03", "field2", "2022-08-04").setRefreshPolicy(IMMEDIATE).get();
         SearchService service = getInstanceFromNode(SearchService.class);
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -1866,7 +1866,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testAggContextGetsMatchAll() throws IOException {
         createIndex("test");
-        withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
+        withAggregationContext("test", context -> assertThat(context.query(), equalTo(Queries.ALL_DOCS_INSTANCE)));
     }
 
     public void testAggContextGetsNestedFilter() throws IOException {
@@ -1875,7 +1875,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
         mapping.endObject().endObject();
 
         createIndex("test", Settings.EMPTY, mapping);
-        withAggregationContext("test", context -> assertThat(context.query(), equalTo(new MatchAllDocsQuery())));
+        withAggregationContext("test", context -> assertThat(context.query(), equalTo(Queries.ALL_DOCS_INSTANCE)));
     }
 
     /**
@@ -2949,7 +2949,7 @@ public class SearchServiceSingleNodeTests extends ESSingleNodeTestCase {
 
         @Override
         protected Query doToQuery(SearchExecutionContext context) throws IOException {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override

@@ -167,6 +167,8 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
     }
 
     private static void makePrefix(BytesRef ip, BytesRef scratch, int fullBytes, int remainingBits) {
+        int filledBytes = fullBytes;
+
         // Copy the first full bytes
         System.arraycopy(ip.bytes, ip.offset, scratch.bytes, 0, fullBytes);
 
@@ -174,11 +176,12 @@ public class IpPrefix extends EsqlScalarFunction implements OptionalArgument {
         if (remainingBits > 0) {
             byte lastByteMask = (byte) (0xFF << (8 - remainingBits));
             scratch.bytes[fullBytes] = (byte) (ip.bytes[ip.offset + fullBytes] & lastByteMask);
+            filledBytes++;
         }
 
-        // Copy the last empty bytes
-        if (fullBytes < 16) {
-            Arrays.fill(scratch.bytes, fullBytes + 1, 16, (byte) 0);
+        // Fill the last untouched bytes with zeroes
+        if (filledBytes < 16) {
+            Arrays.fill(scratch.bytes, filledBytes, 16, (byte) 0);
         }
     }
 

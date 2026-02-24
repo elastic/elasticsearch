@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.embeddings;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,9 +26,9 @@ import static org.elasticsearch.xpack.inference.services.azureopenai.AzureOpenAi
 
 /**
  * Defines the task settings for the openai service.
- *
+ * <p>
  * User is an optional unique identifier representing the end-user, which can help OpenAI to monitor and detect abuse
- *  <a href="https://platform.openai.com/docs/api-reference/embeddings/create">see the openai docs for more details</a>
+ * <a href="https://platform.openai.com/docs/api-reference/embeddings/create">see the openai docs for more details</a>
  */
 public class AzureOpenAiEmbeddingsTaskSettings implements TaskSettings {
 
@@ -49,8 +48,9 @@ public class AzureOpenAiEmbeddingsTaskSettings implements TaskSettings {
     /**
      * Creates a new {@link AzureOpenAiEmbeddingsTaskSettings} object by overriding the values in originalSettings with the ones
      * passed in via requestSettings if the fields are not null.
+     *
      * @param originalSettings the original {@link AzureOpenAiEmbeddingsTaskSettings} from the inference entity configuration from storage
-     * @param requestSettings the {@link AzureOpenAiEmbeddingsTaskSettings} from the request
+     * @param requestSettings  the {@link AzureOpenAiEmbeddingsTaskSettings} from the request
      * @return a new {@link AzureOpenAiEmbeddingsTaskSettings}
      */
     public static AzureOpenAiEmbeddingsTaskSettings of(
@@ -97,7 +97,7 @@ public class AzureOpenAiEmbeddingsTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_14_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override

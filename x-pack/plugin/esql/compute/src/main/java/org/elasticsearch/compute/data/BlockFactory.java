@@ -415,15 +415,13 @@ public class BlockFactory {
     }
 
     public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
-        var b = new ConstantBytesRefVector(value, positions, this).asBlock();
-        adjustBreaker(b.ramBytesUsed());
-        return b;
+        return newConstantBytesRefVector(value, positions).asBlock();
     }
 
     public BytesRefVector newConstantBytesRefVector(BytesRef value, int positions) {
-        long preadjusted = ConstantBytesRefVector.ramBytesUsed(value);
+        long preadjusted = ConstantBytesRefVector.ramBytesUsedWithLength(value);
         adjustBreaker(preadjusted);
-        var v = new ConstantBytesRefVector(value, positions, this);
+        var v = new ConstantBytesRefVector(BytesRef.deepCopyOf(value), positions, this);
         assert v.ramBytesUsed() == preadjusted;
         return v;
     }
@@ -432,6 +430,15 @@ public class BlockFactory {
         var b = new ConstantNullBlock(positions, this);
         adjustBreaker(b.ramBytesUsed());
         return b;
+    }
+
+    /**
+     * Create a {@link IntVector} that includes a range of integers from startInclusive (inclusive) to endExclusive (exclusive).
+     */
+    public IntVector newIntRangeVector(int startInclusive, int endExclusive) {
+        IntRangeVector v = new IntRangeVector(this, startInclusive, endExclusive);
+        adjustBreaker(v.ramBytesUsed());
+        return v;
     }
 
     public AggregateMetricDoubleBlockBuilder newAggregateMetricDoubleBlockBuilder(int estimatedSize) {
@@ -508,6 +515,11 @@ public class BlockFactory {
         return TDigestArrayBlock.createConstant(value, positions, this);
     }
 
+    public final TDigestBlock newConstantTDigestBlockWith(TDigestHolder value, int positions) {
+        // TODO: how is the "with" variant meant to be different?
+        return TDigestArrayBlock.createConstant(value, positions, this);
+    }
+
     public BlockLoader.Block newExponentialHistogramBlockFromDocValues(
         DoubleBlock minima,
         DoubleBlock maxima,
@@ -541,6 +553,28 @@ public class BlockFactory {
         DoubleBlock sum = newDoubleArrayVector(sumValues, positions).asBlock();
         IntBlock count = newIntArrayVector(countValues, positions).asBlock();
         return new AggregateMetricDoubleArrayBlock(min, max, sum, count);
+    }
+
+    public LongRangeBlockBuilder newLongRangeBlockBuilder(int estimatedSize) {
+        return new LongRangeBlockBuilder(estimatedSize, this);
+    }
+
+    public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
+        try (var builder = newLongRangeBlockBuilder(positions)) {
+            for (int i = 0; i < positions; i++) {
+                if (value.from() == null) {
+                    builder.from().appendNull();
+                } else {
+                    builder.from().appendLong(value.from());
+                }
+                if (value.to() == null) {
+                    builder.to().appendNull();
+                } else {
+                    builder.to().appendLong(value.to());
+                }
+            }
+            return builder.build();
+        }
     }
 
     /**

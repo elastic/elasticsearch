@@ -23,8 +23,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.elasticsearch.xpack.analytics.mapper.ExponentialHistogramParser;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -40,22 +38,14 @@ public class ExponentialHistogramFieldBlockLoaderTests extends BlockLoaderTestCa
         super(ExponentialHistogramFieldMapper.CONTENT_TYPE, List.of(DATA_SOURCE_HANDLER), params);
     }
 
-    @Before
-    public void setup() {
-        assumeTrue(
-            "Only when exponential_histogram feature flag is enabled",
-            ExponentialHistogramParser.EXPONENTIAL_HISTOGRAM_FEATURE.isEnabled()
-        );
-    }
-
     @Override
     protected Collection<? extends Plugin> getPlugins() {
         return Collections.singletonList(new ExponentialHistogramMapperPlugin());
     }
 
     @Override
-    public void testBlockLoaderOfMultiField() throws IOException {
-        // Multi fields are not supported
+    protected boolean supportsMultiField() {
+        return false;
     }
 
     private static DataSourceHandler DATA_SOURCE_HANDLER = new DataSourceHandler() {

@@ -311,7 +311,7 @@ public class DeduplicateAggsTests extends AbstractLogicalPlanOptimizerTests {
     /**
      * Expects
      * <pre>{@code
-     * EsqlProject[[a{r}#5, c{r}#8]]
+     * Project[[a{r}#5, c{r}#8]]
      * \_Eval[[null[INTEGER] AS x]]
      *   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, g..]
      * }</pre>

@@ -8,13 +8,11 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.ErrorsForCasesWithoutExamplesTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
-import org.junit.Before;
 
 import java.util.List;
 import java.util.Set;
@@ -22,14 +20,6 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExtractHistogramComponentErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
-
-    @Before
-    public void setup() {
-        assumeTrue(
-            "Only when esql_exponential_histogram feature flag is enabled",
-            EsqlCorePlugin.EXPONENTIAL_HISTOGRAM_FEATURE_FLAG.isEnabled()
-        );
-    }
 
     @Override
     protected List<TestCaseSupplier> cases() {
@@ -44,7 +34,7 @@ public class ExtractHistogramComponentErrorTests extends ErrorsForCasesWithoutEx
     @Override
     protected Matcher<String> expectedTypeErrorMatcher(List<Set<DataType>> validPerPosition, List<DataType> signature) {
         return equalTo(typeErrorMessage(true, validPerPosition, signature, (v, p) -> switch (p) {
-            case 0 -> "exponential_histogram";
+            case 0 -> "exponential_histogram or tdigest";
             case 1 -> "integer";
             default -> throw new IllegalStateException("Unexpected value: " + p);
         }));

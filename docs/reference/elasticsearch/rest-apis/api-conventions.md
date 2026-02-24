@@ -289,7 +289,8 @@ An exclusion affects targets listed _before_ it and has no impact on targets lis
 For example, `test3*,-test3,test*` resolves to all resources that start with `test`, including `test3`, because it is included
 by the last `test*` pattern.
 
-{applies_to}`stack: ga 9.3` A dash-prefixed (`-`) expression is always treated as an exclusion.
+{applies_to}`stack: ga 9.3` A dash-prefixed (`-`) expression is always treated as an exclusion. The dash character must be
+followed by a concrete name or wildcard pattern. It is invalid to use the dash character on its own.
 
 In previous versions, dash-prefixed expressions were sometimes not treated as exclusions due to a bug. For example:
 - `test,-test` threw an `IndexNotFoundException` instead of excluding `test`

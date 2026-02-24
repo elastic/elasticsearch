@@ -14,7 +14,6 @@ import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -27,7 +26,6 @@ import java.util.function.Supplier;
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-@ThreadLeakScope(ThreadLeakScope.Scope.NONE) // https://github.com/elastic/elasticsearch/issues/102482
 public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
 
     private static final String PREFIX = getIdentifierPrefix("RepositoryS3BasicCredentialsRestIT");
@@ -52,6 +50,9 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
+        .systemProperty("es.insecure_network_trace_enabled", "true")
+        .setting("logger.org.apache.http.headers", "TRACE")
+        .setting("s3.client." + CLIENT + ".disable_chunked_encoding", () -> randomFrom("true", "false"), ignored -> randomBoolean())
         .build();
 
     @ClassRule

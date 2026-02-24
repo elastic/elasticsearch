@@ -11,11 +11,13 @@ import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.vectors.BFloat16RankVectorsDocValuesField;
 import org.elasticsearch.script.field.vectors.BitRankVectorsDocValuesField;
 import org.elasticsearch.script.field.vectors.ByteRankVectorsDocValuesField;
 import org.elasticsearch.script.field.vectors.FloatRankVectorsDocValuesField;
@@ -128,7 +130,46 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
                     return vectors;
                 }
             };
-            case BFLOAT16 -> throw new IllegalArgumentException("Unsupported element type: bfloat16");
+            case BFLOAT16 -> new FormattedDocValues() {
+                private final float[] vector = new float[dims];
+                private BytesRef ref = null;
+                private int numVecs = -1;
+                private final BinaryDocValues binary;
+                {
+                    try {
+                        binary = DocValues.getBinary(reader, field);
+                    } catch (IOException e) {
+                        throw new IllegalStateException("Cannot load doc values", e);
+                    }
+                }
+
+                @Override
+                public boolean advanceExact(int docId) throws IOException {
+                    if (binary == null || binary.advanceExact(docId) == false) {
+                        return false;
+                    }
+                    ref = binary.binaryValue();
+                    assert ref.length % (BFloat16.BYTES * dims) == 0;
+                    numVecs = ref.length / (BFloat16.BYTES * dims);
+                    return true;
+                }
+
+                @Override
+                public int docValueCount() {
+                    return 1;
+                }
+
+                @Override
+                public Object nextValue() {
+                    List<float[]> vectors = new ArrayList<>(numVecs);
+                    VectorIterator<float[]> iterator = new BFloat16RankVectorsDocValuesField.BFloat16VectorIterator(ref, vector, numVecs);
+                    while (iterator.hasNext()) {
+                        float[] v = iterator.next();
+                        vectors.add(Arrays.copyOf(v, v.length));
+                    }
+                    return vectors;
+                }
+            };
         };
     }
 
@@ -140,8 +181,8 @@ final class RankVectorsDVLeafFieldData implements LeafFieldData {
             return switch (elementType) {
                 case BYTE -> new ByteRankVectorsDocValuesField(values, magnitudeValues, name, elementType, dims);
                 case FLOAT -> new FloatRankVectorsDocValuesField(values, magnitudeValues, name, elementType, dims);
+                case BFLOAT16 -> new BFloat16RankVectorsDocValuesField(values, magnitudeValues, name, elementType, dims);
                 case BIT -> new BitRankVectorsDocValuesField(values, magnitudeValues, name, elementType, dims);
-                case BFLOAT16 -> throw new IllegalArgumentException("Unsupported element type: bfloat16");
             };
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values for multi-vector field!", e);

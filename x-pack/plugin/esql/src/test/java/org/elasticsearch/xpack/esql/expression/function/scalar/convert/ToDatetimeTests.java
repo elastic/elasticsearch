@@ -15,19 +15,24 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractConfigurationFunctionTestCase;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.math.BigInteger;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.test.ReadableMatchers.matchesDateMillis;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 
-public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
+public class ToDatetimeTests extends AbstractConfigurationFunctionTestCase {
     public ToDatetimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -35,7 +40,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         final String read = "Attribute[channel=0]";
-        final List<TestCaseSupplier> suppliers = new ArrayList<>();
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
 
         TestCaseSupplier.unary(
             suppliers,
@@ -111,7 +116,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.forUnaryStrings(
             suppliers,
-            "ToDatetimeFromStringEvaluator[in=" + read + "]",
+            "ToDatetimeFromStringEvaluator[in=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
             DataType.DATETIME,
             bytesRef -> null,
             bytesRef -> List.of(
@@ -124,7 +129,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            "ToDatetimeFromStringEvaluator[in=" + read + "]",
+            "ToDatetimeFromStringEvaluator[in=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<date string>",
@@ -139,7 +144,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            "ToDatetimeFromStringEvaluator[in=" + read + "]",
+            "ToDatetimeFromStringEvaluator[in=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<date string before -9999-12-31T23:59:59.999Z>",
@@ -159,7 +164,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
         );
         TestCaseSupplier.unary(
             suppliers,
-            "ToDatetimeFromStringEvaluator[in=" + read + "]",
+            "ToDatetimeFromStringEvaluator[in=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
                     "<date string after 9999-12-31T23:59:59.999Z>",
@@ -177,8 +182,37 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
                     + "] with format [strict_date_optional_time]"
             )
         );
+        suppliers = TestCaseSupplier.mapTestCases(
+            suppliers,
+            tc -> tc.withConfiguration(TEST_SOURCE, configurationForTimezone(ZoneOffset.UTC))
+        );
+
+        suppliers.addAll(casesFor("2020-05-07T02:03:04.123Z", "America/New_York", "2020-05-07T02:03:04.123Z"));
+        suppliers.addAll(casesFor("2020-05-07T02:03:04.123", "America/New_York", "2020-05-07T02:03:04.123-04:00"));
+        suppliers.addAll(casesFor("2010-12-31", "Z", "2010-12-31T00:00:00.000Z"));
+        suppliers.addAll(casesFor("2010-12-31", "America/New_York", "2010-12-31T00:00:00.000-05:00"));
 
         return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
+    }
+
+    private static List<TestCaseSupplier> casesFor(String dateString, String zoneIdString, String expectedDate) {
+        ZoneId zoneId = ZoneId.of(zoneIdString);
+
+        return DataType.stringTypes()
+            .stream()
+            .map(
+                inputType -> new TestCaseSupplier(
+                    inputType + ": " + dateString + ", " + zoneIdString + ", " + expectedDate,
+                    List.of(inputType),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(new TestCaseSupplier.TypedData(dateString, inputType, "date")),
+                        "ToDatetimeFromStringEvaluator[in=Attribute[channel=0], formatter=format[strict_date_optional_time] locale[]]",
+                        DataType.DATETIME,
+                        matchesDateMillis(expectedDate)
+                    ).withConfiguration(TEST_SOURCE, configurationForTimezone(zoneId))
+                )
+            )
+            .toList();
     }
 
     private static String randomDateString(long from, long to) {
@@ -186,7 +220,7 @@ public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
     }
 
     @Override
-    protected Expression build(Source source, List<Expression> args) {
-        return new ToDatetime(source, args.get(0));
+    protected Expression buildWithConfiguration(Source source, List<Expression> args, Configuration configuration) {
+        return new ToDatetime(source, args.get(0), configuration);
     }
 }

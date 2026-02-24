@@ -36,19 +36,13 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ToIpTests extends AbstractScalarFunctionTestCase {
-    private final ToIp.LeadingZeros leadingZeros;
-
-    public ToIpTests(
-        @Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier,
-        @Name("leading_zeros") ToIp.LeadingZeros leadingZeros
-    ) {
+    public ToIpTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
-        this.leadingZeros = leadingZeros;
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        List<Object[]> parameters = new ArrayList<>();
+        List<TestCaseSupplier> allSuppliers = new ArrayList<>();
         for (ToIp.LeadingZeros leadingZeros : new ToIp.LeadingZeros[] { null, REJECT, OCTAL, DECIMAL }) {
             List<TestCaseSupplier> suppliers = new ArrayList<>();
             // convert from IP to IP
@@ -75,28 +69,52 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
                 bytesRef -> parseIP(((BytesRef) bytesRef).utf8ToString()),
                 emptyList()
             );
-            suppliers = anyNullIsNull(true, randomizeBytesRefsOffset(suppliers));
-            for (TestCaseSupplier supplier : suppliers) {
-                parameters.add(new Object[] { supplier, leadingZeros });
+
+            // Inject the options param
+            if (leadingZeros != null) {
+                suppliers = TestCaseSupplier.mapTestCases(
+                    suppliers,
+                    tc -> tc.withData(List.of(tc.getData().getFirst(), options(leadingZeros))),
+                    supplier -> List.of(supplier.types().getFirst(), DataType.UNSUPPORTED)
+                );
             }
+
+            // Add nulls cases, only for the first parameter
+            suppliers.add(
+                new TestCaseSupplier(
+                    leadingZeros != null ? List.of(DataType.NULL, DataType.UNSUPPORTED) : List.of(DataType.NULL),
+                    () -> new TestCaseSupplier.TestCase(
+                        leadingZeros != null
+                            ? List.of(TestCaseSupplier.TypedData.NULL, options(leadingZeros))
+                            : List.of(TestCaseSupplier.TypedData.NULL),
+                        "LiteralsEvaluator[lit=null]",
+                        DataType.IP,
+                        nullValue()
+                    )
+                )
+            );
+
+            allSuppliers.addAll(suppliers);
         }
 
-        parameters.add(new Object[] { exampleRejectingLeadingZeros(stringEvaluator(null)), null });
-        parameters.add(new Object[] { exampleRejectingLeadingZeros(stringEvaluator(REJECT)), REJECT });
-        parameters.add(new Object[] { exampleParsingLeadingZerosAsDecimal(stringEvaluator(DECIMAL)), DECIMAL });
-        parameters.add(new Object[] { exampleParsingLeadingZerosAsOctal(stringEvaluator(OCTAL)), OCTAL });
-        return parameters;
+        allSuppliers.add(exampleRejectingLeadingZeros(stringEvaluator(null), true));
+        allSuppliers.add(exampleRejectingLeadingZeros(stringEvaluator(REJECT), false));
+        allSuppliers.add(exampleParsingLeadingZerosAsDecimal(stringEvaluator(DECIMAL)));
+        allSuppliers.add(exampleParsingLeadingZerosAsOctal(stringEvaluator(OCTAL)));
+
+        return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(allSuppliers));
     }
 
-    private static TestCaseSupplier exampleRejectingLeadingZeros(String stringEvaluator) {
-        return new TestCaseSupplier("<ip> with leading 0s", List.of(DataType.KEYWORD), () -> {
+    private static TestCaseSupplier exampleRejectingLeadingZeros(String stringEvaluator, boolean useDefault) {
+        List<DataType> inputTypes = useDefault ? List.of(DataType.KEYWORD) : List.of(DataType.KEYWORD, DataType.UNSUPPORTED);
+        return new TestCaseSupplier("<ip> with leading 0s", inputTypes, () -> {
             BytesRef withLeadingZeros = new BytesRef(randomIpWithLeadingZeros());
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(withLeadingZeros, DataType.KEYWORD, "ip")),
-                stringEvaluator,
-                DataType.IP,
-                nullValue()
-            ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+            List<TestCaseSupplier.TypedData> data = useDefault
+                ? List.of(new TestCaseSupplier.TypedData(withLeadingZeros, DataType.KEYWORD, "ip"))
+                : List.of(new TestCaseSupplier.TypedData(withLeadingZeros, DataType.KEYWORD, "ip"), options(REJECT));
+            return new TestCaseSupplier.TestCase(data, stringEvaluator, DataType.IP, nullValue()).withWarning(
+                "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
+            )
                 .withWarning(
                     "Line 1:1: java.lang.IllegalArgumentException: '" + withLeadingZeros.utf8ToString() + "' is not an IP string literal."
                 );
@@ -104,12 +122,12 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
     }
 
     private static TestCaseSupplier exampleParsingLeadingZerosAsDecimal(String stringEvaluator) {
-        return new TestCaseSupplier("<ip> with leading 0s", List.of(DataType.KEYWORD), () -> {
+        return new TestCaseSupplier("<ip> with leading 0s", List.of(DataType.KEYWORD, DataType.UNSUPPORTED), () -> {
             String ip = randomIpWithLeadingZeros();
             BytesRef withLeadingZeros = new BytesRef(ip);
             String withoutLeadingZeros = ParseIpTests.leadingZerosAreDecimalToIp(ip);
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(withLeadingZeros, DataType.KEYWORD, "ip")),
+                List.of(new TestCaseSupplier.TypedData(withLeadingZeros, DataType.KEYWORD, "ip"), options(DECIMAL)),
                 stringEvaluator,
                 DataType.IP,
                 equalTo(EsqlDataTypeConverter.stringToIP(withoutLeadingZeros))
@@ -118,12 +136,12 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
     }
 
     private static TestCaseSupplier exampleParsingLeadingZerosAsOctal(String stringEvaluator) {
-        return new TestCaseSupplier("<ip> with leading 0s", List.of(DataType.KEYWORD), () -> {
+        return new TestCaseSupplier("<ip> with leading 0s", List.of(DataType.KEYWORD, DataType.UNSUPPORTED), () -> {
             String ip = randomIpWithLeadingZerosOctal();
             BytesRef withLeadingZeros = new BytesRef(ip);
             String withoutLeadingZeros = ParseIpTests.leadingZerosAreOctalToIp(ip);
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(withLeadingZeros, DataType.KEYWORD, "ip")),
+                List.of(new TestCaseSupplier.TypedData(withLeadingZeros, DataType.KEYWORD, "ip"), options(OCTAL)),
                 stringEvaluator,
                 DataType.IP,
                 equalTo(EsqlDataTypeConverter.stringToIP(withoutLeadingZeros))
@@ -133,20 +151,21 @@ public class ToIpTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new ToIp(source, args.getFirst(), options());
+        return new ToIp(source, args.getFirst(), args.size() == 2 ? args.get(1) : null);
     }
 
-    private MapExpression options() {
-        if (leadingZeros == null) {
-            return null;
-        }
-        return new MapExpression(
-            Source.EMPTY,
-            List.of(
-                Literal.keyword(Source.EMPTY, "leading_zeros"),
-                Literal.keyword(Source.EMPTY, leadingZeros.toString().toLowerCase(Locale.ROOT))
-            )
-        );
+    private static TestCaseSupplier.TypedData options(ToIp.LeadingZeros leadingZeros) {
+        return new TestCaseSupplier.TypedData(
+            new MapExpression(
+                Source.EMPTY,
+                List.of(
+                    Literal.keyword(Source.EMPTY, "leading_zeros"),
+                    Literal.keyword(Source.EMPTY, leadingZeros.toString().toLowerCase(Locale.ROOT))
+                )
+            ),
+            DataType.UNSUPPORTED,
+            "options"
+        ).forceLiteral();
     }
 
     private static List<TestCaseSupplier.TypedDataSupplier> validIPsAsStrings() {

@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -135,7 +136,7 @@ public class OptimizerRulesTests extends ESTestCase {
 
         var literal = new Literal(new Source(1, 25, "1"), 1, DataType.INTEGER);
         var attribute = new UnresolvedAttribute(new Source(1, 20, "f1"), "f1");
-        var add = new Add(new Source(1, 20, "f1+1"), attribute, literal);
+        var add = new Add(new Source(1, 20, "f1+1"), attribute, literal, ConfigurationAware.CONFIGURATION_MARKER);
         var alias = new Alias(new Source(1, 18, "x=f1+1"), "x", add);
 
         // contains expressions only from EVAL

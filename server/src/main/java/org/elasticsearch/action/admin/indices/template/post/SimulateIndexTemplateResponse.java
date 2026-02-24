@@ -9,7 +9,6 @@
 
 package org.elasticsearch.action.admin.indices.template.post;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.metadata.ResettableValue;
@@ -69,7 +68,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalWriteable(resolvedTemplate);
@@ -84,9 +83,6 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
             out.writeBoolean(false);
         }
         out.writeOptionalWriteable(rolloverConfiguration);
-        if (out.getTransportVersion().between(TransportVersions.V_8_14_0, TransportVersions.V_8_16_0)) {
-            out.writeOptionalWriteable(null);
-        }
     }
 
     @Override

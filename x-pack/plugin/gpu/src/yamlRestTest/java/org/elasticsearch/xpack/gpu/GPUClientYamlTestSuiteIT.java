@@ -8,26 +8,23 @@ package org.elasticsearch.xpack.gpu;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.gpu.GPUSupport;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
+import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
+import org.junit.rules.RuleChain;
+import org.junit.rules.TestRule;
 
 public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
-    @BeforeClass
-    public static void setup() {
-        assumeTrue("cuvs not supported", GPUSupport.isSupported());
-    }
-
-    @ClassRule
     public static ElasticsearchCluster cluster = createCluster();
+
+    public static GPUSupportedRule gpuSupportedRule = new GPUSupportedRule();
 
     private static ElasticsearchCluster createCluster() {
         var builder = ElasticsearchCluster.local()
+            .distribution(DistributionType.DEFAULT)
             .nodes(1)
             .module("gpu")
             .setting("xpack.license.self_generated.type", "trial")
@@ -36,8 +33,7 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             // Needed to get access to raw vectors from Lucene scorers
             .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.lucene99=org.elasticsearch.server")
             .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.codecs.hnsw=org.elasticsearch.server")
-            .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server")
-            .feature(FeatureFlag.GPU_FORMAT);
+            .jvmArg("--add-opens=org.apache.lucene.core/org.apache.lucene.internal.vectorization=org.elasticsearch.server");
 
         var libraryPath = System.getenv("LD_LIBRARY_PATH");
         if (libraryPath != null) {
@@ -45,6 +41,9 @@ public class GPUClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         }
         return builder.build();
     }
+
+    @ClassRule
+    public static TestRule ruleChain = RuleChain.outerRule(gpuSupportedRule).around(cluster);
 
     public GPUClientYamlTestSuiteIT(final ClientYamlTestCandidate testCandidate) {
         super(testCandidate);

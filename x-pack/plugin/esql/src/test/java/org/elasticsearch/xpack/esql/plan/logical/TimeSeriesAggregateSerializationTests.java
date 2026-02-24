@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.AbstractExpressionSerializationTests;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketSerializationTests;
 
@@ -24,7 +25,14 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
         List<Expression> groupings = randomFieldAttributes(0, 5, false).stream().map(a -> (Expression) a).toList();
         List<? extends NamedExpression> aggregates = AggregateSerializationTests.randomAggregates();
         Bucket timeBucket = BucketSerializationTests.createRandomBucket(configuration());
-        return new TimeSeriesAggregate(source, child, groupings, aggregates, timeBucket);
+        return new TimeSeriesAggregate(
+            source,
+            child,
+            groupings,
+            aggregates,
+            timeBucket,
+            AbstractExpressionSerializationTests.randomChild()
+        );
     }
 
     @Override
@@ -42,7 +50,7 @@ public class TimeSeriesAggregateSerializationTests extends AbstractLogicalPlanSe
             case 2 -> aggregates = randomValueOtherThan(aggregates, AggregateSerializationTests::randomAggregates);
             case 3 -> timeBucket = randomValueOtherThan(timeBucket, () -> BucketSerializationTests.createRandomBucket(configuration()));
         }
-        return new TimeSeriesAggregate(instance.source(), child, groupings, aggregates, timeBucket);
+        return new TimeSeriesAggregate(instance.source(), child, groupings, aggregates, timeBucket, instance.timestamp());
     }
 
     @Override

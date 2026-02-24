@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.tasks.BaseTasksRequest;
@@ -127,16 +126,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             inferenceTimeout = in.readOptionalTimeValue();
             highPriority = in.readBoolean();
             textInput = in.readOptionalStringCollectionAsList();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
-            } else {
-                prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                chunkResults = in.readBoolean();
-            } else {
-                chunkResults = false;
-            }
+            prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
+            chunkResults = in.readBoolean();
         }
 
         public String getId() {
@@ -219,12 +210,8 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
             out.writeOptionalTimeValue(inferenceTimeout);
             out.writeBoolean(highPriority);
             out.writeOptionalStringCollection(textInput);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeEnum(prefixType);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
-                out.writeBoolean(chunkResults);
-            }
+            out.writeEnum(prefixType);
+            out.writeBoolean(chunkResults);
         }
 
         @Override

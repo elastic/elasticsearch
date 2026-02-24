@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -44,9 +45,11 @@ import org.elasticsearch.xpack.esql.querydsl.query.SpatialRelatesQuery;
 import java.io.IOException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.esql.expression.Foldables.valueOf;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometry;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asGeometryDocValueReader;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.asLuceneComponent2D;
+import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
 
 public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     implements
@@ -84,6 +87,41 @@ public abstract class SpatialRelatesFunction extends BinarySpatialFunction
     @Override
     public DataType dataType() {
         return DataType.BOOLEAN;
+    }
+
+    /** Spatial relates functions always use Lucene GeometryDocValueReader and Component2D instead of geometries */
+    @Override
+    protected Object fold(Geometry leftGeom, Geometry rightGeom) {
+        throw new UnsupportedOperationException("spatial relation [" + this.queryRelation() + "] does not support geometry folding");
+    }
+
+    protected Object foldGeoGrid(FoldContext ctx, Expression spatialExp, Expression gridExp, DataType gridType) {
+        long gridId = (Long) valueOf(ctx, gridExp);
+        return getSpatialRelations().compareGeometryAndGrid(makeGeometryFromLiteral(ctx, spatialExp), gridId, gridType);
+    }
+
+    /** This exposes class-level static information within objects and should only be used for folding optimizations */
+    protected abstract SpatialRelations getSpatialRelations();
+
+    @Override
+    public Object fold(FoldContext ctx) {
+        try {
+            if (this.spatialTypeResolver.supportsGrid) {
+                if (DataType.isGeoGrid(left().dataType())) {
+                    return foldGeoGrid(ctx, right(), left(), left().dataType());
+                } else if (DataType.isGeoGrid(right().dataType())) {
+                    return foldGeoGrid(ctx, left(), right(), right().dataType());
+                }
+            }
+            GeometryDocValueReader docValueReader = asGeometryDocValueReader(ctx, crsType(), left());
+            Component2D component2D = asLuceneComponent2D(ctx, crsType(), right());
+            if (docValueReader == null || component2D == null) {
+                return null;
+            }
+            return getSpatialRelations().geometryRelatesGeometry(docValueReader, component2D);
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Failed to fold constant fields: " + e.getMessage(), e);
+        }
     }
 
     /**

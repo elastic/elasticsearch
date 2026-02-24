@@ -61,8 +61,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     }
 
     public static TimeSeriesIdFieldMapper getInstance(MappingParserContext context) {
-        boolean useDocValuesSkipper = context.indexVersionCreated().onOrAfter(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT)
-            && context.getIndexSettings().useDocValuesSkipper();
+        boolean useDocValuesSkipper = context.getIndexSettings().useDocValuesSkipper();
         return TimeSeriesIdFieldMapper.getInstance(useDocValuesSkipper);
     }
 
@@ -83,6 +82,11 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         @Override
         protected Parameter<?>[] getParameters() {
             return EMPTY_PARAMETERS;
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -151,7 +155,7 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
-            return new BytesRefsFromOrdsBlockLoader(name());
+            return new BytesRefsFromOrdsBlockLoader(name(), blContext.ordinalsByteSize());
         }
     }
 

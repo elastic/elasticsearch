@@ -20,8 +20,8 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
 
     private static final boolean NATIVE_SUPPORTED = NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
 
-    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, MemorySegment memorySegment) {
-        super(in, dimensions, memorySegment);
+    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize, MemorySegment memorySegment) {
+        super(in, dimensions, bulkSize, memorySegment);
     }
 
     @Override
@@ -43,7 +43,7 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
     private long nativeInt7DotProduct(byte[] q) throws IOException {
         final MemorySegment segment = memorySegment.asSlice(in.getFilePointer(), dimensions);
         final MemorySegment querySegment = MemorySegment.ofArray(q);
-        final long res = Similarities.dotProduct7u(segment, querySegment, dimensions);
+        final long res = Similarities.dotProductI7u(segment, querySegment, dimensions);
         in.skipBytes(dimensions);
         return res;
     }
@@ -52,7 +52,7 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
         final MemorySegment segment = memorySegment.asSlice(in.getFilePointer(), dimensions * count);
         final MemorySegment querySegment = MemorySegment.ofArray(q);
-        Similarities.dotProduct7uBulk(segment, querySegment, dimensions, count, scoresSegment);
+        Similarities.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
         in.skipBytes(dimensions * count);
     }
 
@@ -75,9 +75,10 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         float queryAdditionalCorrection,
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
-        float[] scores
+        float[] scores,
+        int bulkSize
     ) throws IOException {
-        int7DotProductBulk(q, BULK_SIZE, scores);
+        int7DotProductBulk(q, bulkSize, scores);
         applyCorrectionsBulk(
             queryLowerInterval,
             queryUpperInterval,
@@ -85,7 +86,8 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
             queryAdditionalCorrection,
             similarityFunction,
             centroidDp,
-            scores
+            scores,
+            bulkSize
         );
     }
 }

@@ -53,7 +53,7 @@ public class ElasticInferenceServiceSettings {
     );
 
     private static final TimeValue DEFAULT_AUTH_REQUEST_INTERVAL = TimeValue.timeValueMinutes(10);
-    static final Setting<TimeValue> AUTHORIZATION_REQUEST_INTERVAL = Setting.timeSetting(
+    public static final Setting<TimeValue> AUTHORIZATION_REQUEST_INTERVAL = Setting.timeSetting(
         "xpack.inference.elastic.authorization_request_interval",
         DEFAULT_AUTH_REQUEST_INTERVAL,
         Setting.Property.NodeScope,
@@ -61,7 +61,7 @@ public class ElasticInferenceServiceSettings {
     );
 
     private static final TimeValue DEFAULT_AUTH_REQUEST_JITTER = TimeValue.timeValueMinutes(5);
-    static final Setting<TimeValue> MAX_AUTHORIZATION_REQUEST_JITTER = Setting.timeSetting(
+    public static final Setting<TimeValue> MAX_AUTHORIZATION_REQUEST_JITTER = Setting.timeSetting(
         "xpack.inference.elastic.max_authorization_request_jitter",
         DEFAULT_AUTH_REQUEST_JITTER,
         Setting.Property.NodeScope,

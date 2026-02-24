@@ -9,12 +9,12 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.search.RandomApproximationQuery;
 import org.apache.lucene.tests.search.SearchEquivalenceTestBase;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
 
 public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
@@ -43,7 +43,7 @@ public class FunctionScoreEquivalenceTests extends SearchEquivalenceTestBase {
         Query query = new TermQuery(term);
 
         FunctionScoreQuery fsq = new FunctionScoreQuery(query, Float.POSITIVE_INFINITY, Float.POSITIVE_INFINITY);
-        assertSameScores(new MatchNoDocsQuery(), fsq);
+        assertSameScores(Queries.NO_DOCS_INSTANCE, fsq);
     }
 
     public void testTwoPhaseMinScore() throws Exception {

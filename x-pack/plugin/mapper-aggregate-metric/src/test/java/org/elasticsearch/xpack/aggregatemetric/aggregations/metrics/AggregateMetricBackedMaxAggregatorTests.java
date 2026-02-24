@@ -10,10 +10,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -44,7 +44,7 @@ public class AggregateMetricBackedMaxAggregatorTests extends AggregatorTestCase 
     private static final String FIELD_NAME = "aggregate_metric_field";
 
     public void testMatchesNumericDocValues() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(
                 List.of(
                     new NumericDocValuesField(subfieldName(FIELD_NAME, Metric.max), Double.doubleToLongBits(10)),
@@ -65,7 +65,7 @@ public class AggregateMetricBackedMaxAggregatorTests extends AggregatorTestCase 
     }
 
     public void testNoDocs() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             // Intentionally not writing any docs
         }, max -> {
             assertEquals(Double.NEGATIVE_INFINITY, max.value(), 0d);
@@ -74,7 +74,7 @@ public class AggregateMetricBackedMaxAggregatorTests extends AggregatorTestCase 
     }
 
     public void testNoMatchingField() throws IOException {
-        testCase(new MatchAllDocsQuery(), iw -> {
+        testCase(Queries.ALL_DOCS_INSTANCE, iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("wrong_number", 1)));
         }, max -> {
@@ -128,7 +128,7 @@ public class AggregateMetricBackedMaxAggregatorTests extends AggregatorTestCase 
             );
             metricFields.put(m, subfield);
         }
-        return new AggregateMetricDoubleFieldType(fieldName, null, Metric.min, metricFields, Map.of());
+        return new AggregateMetricDoubleFieldType(fieldName, null, metricFields, Map.of());
     }
 
     private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Max> verify)

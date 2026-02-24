@@ -65,14 +65,18 @@ public class ClusterSettingsLinkedProjectConfigService extends AbstractLinkedPro
     public Collection<LinkedProjectConfig> getInitialLinkedProjectConfigs() {
         return RemoteClusterSettings.getRemoteClusters(settings)
             .stream()
+            .filter(alias -> RemoteClusterSettings.isConnectionEnabled(alias, settings))
             .map(alias -> RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, alias, settings))
             .toList();
     }
 
+    @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
     private void settingsChangedCallback(String clusterAlias, Settings newSettings) {
         final var mergedSettings = Settings.builder().put(settings, false).put(newSettings, false).build();
-        @FixForMultiProject(description = "Refactor to add the linked project ID associated with the alias.")
-        final var config = RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias, mergedSettings);
-        handleUpdate(config);
+        if (RemoteClusterSettings.isConnectionEnabled(clusterAlias, mergedSettings)) {
+            handleUpdate(RemoteClusterSettings.toConfig(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias, mergedSettings));
+        } else {
+            handleRemoved(projectResolver.getProjectId(), ProjectId.DEFAULT, clusterAlias);
+        }
     }
 }

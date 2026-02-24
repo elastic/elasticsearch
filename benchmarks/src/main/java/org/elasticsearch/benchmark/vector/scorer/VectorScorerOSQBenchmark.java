@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.benchmark.vector.scorer;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -15,13 +16,14 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
-import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
+import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -34,12 +36,17 @@ import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.TearDown;
 import org.openjdk.jmh.annotations.Warmup;
-import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQIndexData;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQQueryData;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomVector;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeBulkOSQVectorData;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -49,94 +56,100 @@ import java.util.concurrent.TimeUnit;
 // real iterations. not useful to spend tons of time here, better to fork more
 @Measurement(iterations = 5, time = 1)
 // engage some noise reduction
-@Fork(value = 1)
+@Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 public class VectorScorerOSQBenchmark {
 
     static {
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
+    public enum DirectoryType {
+        NIO,
+        MMAP,
+        SNAP
+    }
+
+    public enum VectorImplementation {
+        SCALAR,
+        VECTORIZED
+    }
+
     @Param({ "384", "768", "1024" })
-    int dims;
+    public int dims;
 
     @Param({ "1", "2", "4" })
-    int bits;
+    public byte bits;
+
+    int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
+
+    @Param
+    public VectorImplementation implementation;
+
+    @Param
+    public DirectoryType directoryType;
+
+    @Param
+    public VectorSimilarityFunction similarityFunction;
+
+    public int numVectors = ESNextOSQVectorsScorer.BULK_SIZE * 10;
+    int numQueries = 10;
 
     int length;
 
-    int numVectors = ES91OSQVectorsScorer.BULK_SIZE * 10;
-    int numQueries = 10;
-
-    byte[][] binaryVectors;
-    byte[][] binaryQueries;
-    OptimizedScalarQuantizer.QuantizationResult result;
+    VectorScorerTestUtils.OSQVectorData[] binaryQueries;
     float centroidDp;
 
     byte[] scratch;
-    ESNextOSQVectorsScorer scorerMmap;
-    ESNextOSQVectorsScorer scorerNfios;
+    ESNextOSQVectorsScorer scorer;
 
-    Directory dirMmap;
-    IndexInput inMmap;
-
-    Directory dirNiofs;
-    IndexInput inNiofs;
+    Path tempDir;
+    Directory directory;
+    IndexInput input;
 
     float[] scratchScores;
     float[] corrections;
 
     @Setup
     public void setup() throws IOException {
-        Random random = new Random(123);
+        setup(new Random(123));
+    }
 
-        this.length = switch (bits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dims);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dims);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
+    void setup(Random random) throws IOException {
+        this.length = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getDocPackedLength(dims);
+
+        final float[] centroid = new float[dims];
+        randomVector(random, centroid, similarityFunction);
+
+        var quantizer = new org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer(similarityFunction);
+
+        directory = switch (directoryType) {
+            case MMAP -> new MMapDirectory(createTempDirectory("vectorDataMmap"));
+            case NIO -> new NIOFSDirectory(createTempDirectory("vectorDataNFIOS"));
+            case SNAP -> SearchableSnapshotDirectoryFactory.newDirectory(createTempDirectory("vectorDataSNAP"));
         };
 
-        binaryVectors = new byte[numVectors][length];
-        for (byte[] binaryVector : binaryVectors) {
-            random.nextBytes(binaryVector);
-        }
-
-        dirMmap = new MMapDirectory(Files.createTempDirectory("vectorDataMmap"));
-        dirNiofs = new NIOFSDirectory(Files.createTempDirectory("vectorDataNFIOS"));
-        IndexOutput outMmap = dirMmap.createOutput("vectors", IOContext.DEFAULT);
-        IndexOutput outNfios = dirNiofs.createOutput("vectors", IOContext.DEFAULT);
-        byte[] correctionBytes = new byte[14 * ES91OSQVectorsScorer.BULK_SIZE];
-        for (int i = 0; i < numVectors; i += ES91OSQVectorsScorer.BULK_SIZE) {
-            for (int j = 0; j < ES91OSQVectorsScorer.BULK_SIZE; j++) {
-                outMmap.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
-                outNfios.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
+        try (IndexOutput output = directory.createOutput("vectors", IOContext.DEFAULT)) {
+            VectorScorerTestUtils.OSQVectorData[] vectors = new VectorScorerTestUtils.OSQVectorData[bulkSize];
+            for (int i = 0; i < numVectors; i += bulkSize) {
+                for (int j = 0; j < bulkSize; j++) {
+                    var vector = new float[dims];
+                    randomVector(random, vector, similarityFunction);
+                    vectors[j] = createOSQIndexData(vector, centroid, quantizer, dims, bits, length);
+                }
+                writeBulkOSQVectorData(bulkSize, output, vectors);
             }
-            random.nextBytes(correctionBytes);
-            outMmap.writeBytes(correctionBytes, 0, correctionBytes.length);
-            outNfios.writeBytes(correctionBytes, 0, correctionBytes.length);
+            CodecUtil.writeFooter(output);
         }
-        outMmap.close();
-        outNfios.close();
-        inMmap = dirMmap.openInput("vectors", IOContext.DEFAULT);
-        inNiofs = dirNiofs.openInput("vectors", IOContext.DEFAULT);
-        int binaryQueryLength = switch (bits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getQueryPackedLength(dims);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getQueryPackedLength(dims);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getQueryPackedLength(dims);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
-        };
+        input = directory.openInput("vectors", IOContext.DEFAULT);
+        int binaryQueryLength = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getQueryPackedLength(dims);
 
-        binaryQueries = new byte[numVectors][binaryQueryLength];
-        for (byte[] binaryVector : binaryVectors) {
-            random.nextBytes(binaryVector);
+        binaryQueries = new VectorScorerTestUtils.OSQVectorData[numVectors];
+        var query = new float[dims];
+        for (int i = 0; i < numVectors; ++i) {
+            randomVector(random, query, similarityFunction);
+            binaryQueries[i] = createOSQQueryData(query, centroid, quantizer, dims, (byte) 4, binaryQueryLength);
         }
-        result = new OptimizedScalarQuantizer.QuantizationResult(
-            random.nextFloat(),
-            random.nextFloat(),
-            random.nextFloat(),
-            Short.toUnsignedInt((short) random.nextInt())
-        );
-        centroidDp = random.nextFloat();
+        centroidDp = VectorUtil.dotProduct(centroid, centroid);
 
         scratch = new byte[length];
         final int docBits;
@@ -155,54 +168,40 @@ public class VectorScorerOSQBenchmark {
             }
             default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
         };
-        scorerMmap = ESVectorizationProvider.getInstance()
-            .newESNextOSQVectorsScorer(inMmap, (byte) queryBits, (byte) docBits, dims, length);
-        scorerNfios = ESVectorizationProvider.getInstance()
-            .newESNextOSQVectorsScorer(inNiofs, (byte) queryBits, (byte) docBits, dims, length);
-        scratchScores = new float[16];
+        scorer = switch (implementation) {
+            case SCALAR -> new ESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length);
+            case VECTORIZED -> ESVectorizationProvider.getInstance()
+                .newESNextOSQVectorsScorer(input, (byte) queryBits, (byte) docBits, dims, length, bulkSize);
+        };
+        scratchScores = new float[bulkSize];
         corrections = new float[3];
+    }
+
+    Path createTempDirectory(String name) throws IOException {
+        tempDir = Files.createTempDirectory(name);
+        return tempDir;
     }
 
     @TearDown
     public void teardown() throws IOException {
-        IOUtils.close(dirMmap, inMmap, dirNiofs, inNiofs);
-    }
-
-    // @Benchmark
-    public void scoreFromMemorySegmentOnlyVectorMmapScalar(Blackhole bh) throws IOException {
-        scoreFromMemorySegmentOnlyVector(bh, inMmap, scorerMmap);
+        IOUtils.close(directory, input);
     }
 
     @Benchmark
-    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void scoreFromMemorySegmentOnlyVectorMmapVect(Blackhole bh) throws IOException {
-        scoreFromMemorySegmentOnlyVector(bh, inMmap, scorerMmap);
-    }
-
-    // @Benchmark
-    public void scoreFromMemorySegmentOnlyVectorNiofsScalar(Blackhole bh) throws IOException {
-        scoreFromMemorySegmentOnlyVector(bh, inNiofs, scorerNfios);
-    }
-
-    @Benchmark
-    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void scoreFromMemorySegmentOnlyVectorNiofsVect(Blackhole bh) throws IOException {
-        scoreFromMemorySegmentOnlyVector(bh, inNiofs, scorerNfios);
-    }
-
-    private void scoreFromMemorySegmentOnlyVector(Blackhole bh, IndexInput in, ESNextOSQVectorsScorer scorer) throws IOException {
+    public float[] score() throws IOException {
+        float[] results = new float[numQueries * numVectors];
         for (int j = 0; j < numQueries; j++) {
-            in.seek(0);
+            input.seek(0);
             for (int i = 0; i < numVectors; i++) {
-                float qDist = scorer.quantizeScore(binaryQueries[j]);
-                in.readFloats(corrections, 0, corrections.length);
-                int addition = Short.toUnsignedInt(in.readShort());
+                float qDist = scorer.quantizeScore(binaryQueries[j].quantizedVector());
+                input.readFloats(corrections, 0, corrections.length);
+                int addition = Short.toUnsignedInt(input.readShort());
                 float score = scorer.score(
-                    result.lowerInterval(),
-                    result.upperInterval(),
-                    result.quantizedComponentSum(),
-                    result.additionalCorrection(),
-                    VectorSimilarityFunction.EUCLIDEAN,
+                    binaryQueries[j].lowerInterval(),
+                    binaryQueries[j].upperInterval(),
+                    binaryQueries[j].quantizedComponentSum(),
+                    binaryQueries[j].additionalCorrection(),
+                    similarityFunction,
                     centroidDp,
                     corrections[0],
                     corrections[1],
@@ -210,49 +209,31 @@ public class VectorScorerOSQBenchmark {
                     corrections[2],
                     qDist
                 );
-                bh.consume(score);
+                results[j * numVectors + i] = score;
             }
         }
-    }
-
-    // @Benchmark
-    public void scoreFromMemorySegmentAllBulkMmapScalar(Blackhole bh) throws IOException {
-        scoreFromMemorySegmentAllBulk(bh, inMmap, scorerMmap);
+        return results;
     }
 
     @Benchmark
-    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void scoreFromMemorySegmentAllBulkMmapVect(Blackhole bh) throws IOException {
-        scoreFromMemorySegmentAllBulk(bh, inMmap, scorerMmap);
-    }
-
-    // @Benchmark
-    public void scoreFromMemorySegmentAllBulkNiofsScalar(Blackhole bh) throws IOException {
-        scoreFromMemorySegmentAllBulk(bh, inNiofs, scorerNfios);
-    }
-
-    @Benchmark
-    @Fork(jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
-    public void scoreFromMemorySegmentAllBulkNiofsVect(Blackhole bh) throws IOException {
-        scoreFromMemorySegmentAllBulk(bh, inNiofs, scorerNfios);
-    }
-
-    private void scoreFromMemorySegmentAllBulk(Blackhole bh, IndexInput in, ESNextOSQVectorsScorer scorer) throws IOException {
+    public float[] bulkScore() throws IOException {
+        float[] results = new float[numQueries * numVectors];
         for (int j = 0; j < numQueries; j++) {
-            in.seek(0);
-            for (int i = 0; i < numVectors; i += 16) {
+            input.seek(0);
+            for (int i = 0; i < numVectors; i += scratchScores.length) {
                 scorer.scoreBulk(
-                    binaryQueries[j],
-                    result.lowerInterval(),
-                    result.upperInterval(),
-                    result.quantizedComponentSum(),
-                    result.additionalCorrection(),
-                    VectorSimilarityFunction.EUCLIDEAN,
+                    binaryQueries[j].quantizedVector(),
+                    binaryQueries[j].lowerInterval(),
+                    binaryQueries[j].upperInterval(),
+                    binaryQueries[j].quantizedComponentSum(),
+                    binaryQueries[j].additionalCorrection(),
+                    similarityFunction,
                     centroidDp,
                     scratchScores
                 );
-                bh.consume(scratchScores);
+                System.arraycopy(scratchScores, 0, results, j * numVectors + i, scratchScores.length);
             }
         }
+        return results;
     }
 }

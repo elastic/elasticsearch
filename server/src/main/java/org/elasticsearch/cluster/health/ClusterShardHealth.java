@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.health;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -96,11 +95,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         initializingShards = in.readVInt();
         unassignedShards = in.readVInt();
         primaryActive = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            unassignedPrimaryShards = in.readVInt();
-        } else {
-            unassignedPrimaryShards = 0;
-        }
+        unassignedPrimaryShards = in.readVInt();
     }
 
     /**
@@ -167,9 +162,7 @@ public final class ClusterShardHealth implements Writeable, ToXContentFragment {
         out.writeVInt(initializingShards);
         out.writeVInt(unassignedShards);
         out.writeBoolean(primaryActive);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeVInt(unassignedPrimaryShards);
-        }
+        out.writeVInt(unassignedPrimaryShards);
     }
 
     /**

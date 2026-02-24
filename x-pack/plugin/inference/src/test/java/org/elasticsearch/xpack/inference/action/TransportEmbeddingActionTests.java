@@ -90,7 +90,7 @@ public class TransportEmbeddingActionTests extends BaseTransportInferenceActionT
             assertThat(attributes.get("task_type"), is(modelTaskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
-            assertThat(attributes.get("error.type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
+            assertThat(attributes.get("error_type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
         }));
     }
 
@@ -115,7 +115,7 @@ public class TransportEmbeddingActionTests extends BaseTransportInferenceActionT
             assertThat(attributes.get("task_type"), is(modelTaskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(RestStatus.BAD_REQUEST.getStatus()));
-            assertThat(attributes.get("error.type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
+            assertThat(attributes.get("error_type"), is(String.valueOf(RestStatus.BAD_REQUEST.getStatus())));
         }));
     }
 
@@ -131,7 +131,7 @@ public class TransportEmbeddingActionTests extends BaseTransportInferenceActionT
             assertThat(attributes.get("task_type"), is(taskType.toString()));
             assertThat(attributes.get("model_id"), nullValue());
             assertThat(attributes.get("status_code"), is(200));
-            assertThat(attributes.get("error.type"), nullValue());
+            assertThat(attributes.get("error_type"), nullValue());
         }));
     }
 }

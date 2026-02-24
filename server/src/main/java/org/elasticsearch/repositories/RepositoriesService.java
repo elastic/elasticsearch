@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
@@ -111,6 +112,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         Setting.Property.NodeScope
     );
 
+    /**
+     * Setting that specifies the default repository to use for snapshot and restore operations when no repository is explicitly
+     * specified. If not set, some snapshot and restore operations may require an explicit repository name.
+     */
+    public static final Setting<String> DEFAULT_REPOSITORY_SETTING = Setting.simpleString(
+        "repositories.default_repository",
+        RepositoriesService::validateDefaultRepositoryName,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     private final Map<String, Repository.Factory> typesRegistry;
     private final Map<String, Repository.Factory> internalTypesRegistry;
 
@@ -124,6 +136,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     private final RepositoriesStatsArchive repositoriesStatsArchive;
 
     private final List<BiConsumer<Snapshot, IndexVersion>> preRestoreChecks;
+
+    private volatile String defaultRepository;
 
     @SuppressWarnings("this-escape")
     public RepositoriesService(
@@ -154,7 +168,76 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             threadPool.relativeTimeInMillisSupplier()
         );
         this.preRestoreChecks = preRestoreChecks;
+        this.defaultRepository = DEFAULT_REPOSITORY_SETTING.get(settings);
+        clusterService.getClusterSettings()
+            .addSettingsUpdateConsumer(DEFAULT_REPOSITORY_SETTING, this::setDefaultRepository, this::validateDefaultRepository);
         snapshotMetrics.createSnapshotShardsInProgressMetric(this::getShardSnapshotsInProgress);
+    }
+
+    /**
+     * Gets the configured default repository.
+     *
+     * @return the default repository name, or an empty string if not configured
+     */
+    public String getDefaultRepository() {
+        return defaultRepository;
+    }
+
+    /**
+     * Sets the default repository value.
+     * This is called by the settings update consumer when the setting changes.
+     *
+     * @param repositoryName the new default repository name
+     */
+    private void setDefaultRepository(String repositoryName) {
+        this.defaultRepository = repositoryName;
+        logger.debug("Default repository set to [{}]", repositoryName);
+    }
+
+    /**
+     * Validates that the default repository is registered and not read-only.
+     * This validator is called when the default repository setting is updated.
+     * Empty strings are allowed to clear the default repository setting.
+     *
+     * Only runs on master node/master update thread to avoid issues at node start time
+     *
+     * @param repositoryName the repository name to validate
+     * @throws IllegalArgumentException if the repository name is not empty and the repository doesn't exist or is not empty and read-only
+     */
+    private void validateDefaultRepository(String repositoryName) {
+        if (Objects.equals(defaultRepository, repositoryName)) {
+            return;
+        }
+        // Only validate on the master update thread to avoid validation issues at node start time
+        // when repositories may not be initialized yet.
+        if (MasterService.isMasterUpdateThread() == false) {
+            logger.debug("Skipping validation of default repository [{}] outside master update thread", repositoryName);
+            return;
+        }
+        if (Strings.isEmpty(repositoryName)) {
+            logger.debug("Default repository cleared");
+            return;
+        }
+        validateDefaultRepositoryName(repositoryName);
+        Repository repository = repositories.getOrDefault(ProjectId.DEFAULT, Map.of()).get(repositoryName);
+        if (repository == null) {
+            throw new IllegalArgumentException(
+                "Repository ["
+                    + repositoryName
+                    + "] is not registered. "
+                    + "Cannot set as default repository. Please register the repository prior to setting as default using PUT /_snapshot/"
+                    + repositoryName
+            );
+        }
+
+        if (isReadOnly(repository.getMetadata().settings())) {
+            throw new IllegalArgumentException(
+                "Repository ["
+                    + repositoryName
+                    + "] is marked as read-only. "
+                    + "Cannot set a read-only repository as the default repository."
+            );
+        }
     }
 
     /**
@@ -315,7 +398,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
             for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                 if (repositoryMetadata.name().equals(request.name())) {
-                    rejectInvalidReadonlyFlagChange(repositoryMetadata, request.settings());
+                    rejectInvalidReadonlyFlagChange(repositoryMetadata, request.settings(), repositoriesService.getDefaultRepository());
                     final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
                         request.name(),
                         // Copy the UUID from the existing instance rather than resetting it back to MISSING_UUID which would force us to
@@ -364,6 +447,16 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 }
             }
             if (found == false) {
+                // Check if creating a read-only repository that is the default repository
+                if (isReadOnly(request.settings()) && request.name().equals(repositoriesService.getDefaultRepository())) {
+                    throw new IllegalArgumentException(
+                        "Repository ["
+                            + request.name()
+                            + "] is the default repository. "
+                            + "Cannot create the default repository as read-only. "
+                            + "Please change the default repository setting before creating this repository as read-only."
+                    );
+                }
                 repositoriesMetadata.add(new RepositoryMetadata(request.name(), request.type(), request.settings()));
             }
             repositories = new RepositoriesMetadata(repositoriesMetadata);
@@ -568,6 +661,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
                     if (Regex.simpleMatch(request.name(), repositoryMetadata.name())) {
                         ensureRepositoryNotInUse(projectState, repositoryMetadata.name());
+                        ensureRepositoryNotDefault(currentState, repositoryMetadata.name());
                         ensureNoSearchableSnapshotsIndicesInUse(currentState, repositoryMetadata);
                         deletedRepositories.add(repositoryMetadata.name());
                         changed = true;
@@ -1109,6 +1203,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
+    public static void validateDefaultRepositoryName(final String repositoryName) {
+        if (Strings.isEmpty(repositoryName)) {
+            return;
+        }
+        validateRepositoryName(repositoryName);
+    }
+
     private static void ensureRepositoryNotInUseForWrites(ProjectState projectState, String repository) {
         final ProjectId projectId = projectState.projectId();
         if (SnapshotsInProgress.get(projectState.cluster()).forRepo(projectId, repository).isEmpty() == false) {
@@ -1135,6 +1236,24 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
+    /**
+     * Ensures that the repository being deleted is not currently set as the default repository.
+     *
+     * @param currentState the current cluster state
+     * @param repository the repository name to check
+     * @throws RepositoryException if the repository is the default repository
+     */
+    private static void ensureRepositoryNotDefault(ClusterState currentState, String repository) {
+        String defaultRepository = DEFAULT_REPOSITORY_SETTING.get(currentState.metadata().settings());
+        if (Strings.isEmpty(defaultRepository) == false && repository.equals(defaultRepository)) {
+            throw newRepositoryConflictException(
+                repository,
+                "cannot delete the default repository. Please change the default repository cluster setting "
+                    + "repositories.default_repository before deleting this repository."
+            );
+        }
+    }
+
     public static boolean isReadOnly(Settings repositorySettings) {
         return Boolean.TRUE.equals(repositorySettings.getAsBoolean(BlobStoreRepository.READONLY_SETTING_KEY, null));
     }
@@ -1158,21 +1277,34 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
     /**
      * Reject a change to the {@code readonly} setting if there is a pending generation change in progress, i.e. some node somewhere is
-     * updating the root {@link RepositoryData} blob.
+     * updating the root {@link RepositoryData} blob, or if the repository is the default repository.
      */
-    private static void rejectInvalidReadonlyFlagChange(RepositoryMetadata existingRepositoryMetadata, Settings newSettings) {
-        if (isReadOnly(newSettings)
-            && isReadOnly(existingRepositoryMetadata.settings()) == false
-            && existingRepositoryMetadata.generation() >= RepositoryData.EMPTY_REPO_GEN
-            && existingRepositoryMetadata.generation() != existingRepositoryMetadata.pendingGeneration()) {
-            throw newRepositoryConflictException(
-                existingRepositoryMetadata.name(),
-                Strings.format(
-                    "currently updating root blob generation from [%d] to [%d], cannot update readonly flag",
-                    existingRepositoryMetadata.generation(),
-                    existingRepositoryMetadata.pendingGeneration()
-                )
-            );
+    private static void rejectInvalidReadonlyFlagChange(
+        RepositoryMetadata existingRepositoryMetadata,
+        Settings newSettings,
+        String defaultRepository
+    ) {
+        if (isReadOnly(newSettings) && isReadOnly(existingRepositoryMetadata.settings()) == false) {
+            if (existingRepositoryMetadata.name().equals(defaultRepository)) {
+                throw new IllegalArgumentException(
+                    "Repository ["
+                        + existingRepositoryMetadata.name()
+                        + "] is the default repository. "
+                        + "Cannot mark the default repository as read-only. "
+                        + "Please change the default repository setting before marking this repository as read-only."
+                );
+            }
+            if (existingRepositoryMetadata.generation() >= RepositoryData.EMPTY_REPO_GEN
+                && existingRepositoryMetadata.generation() != existingRepositoryMetadata.pendingGeneration()) {
+                throw newRepositoryConflictException(
+                    existingRepositoryMetadata.name(),
+                    Strings.format(
+                        "currently updating root blob generation from [%d] to [%d], cannot update readonly flag",
+                        existingRepositoryMetadata.generation(),
+                        existingRepositoryMetadata.pendingGeneration()
+                    )
+                );
+            }
         }
     }
 

@@ -82,6 +82,9 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseTopLevelQu
 
 public class PercolatorFieldMapper extends FieldMapper {
 
+    private static final MatchNoDocsQuery MULTIPLE_OR_NESTED_DOCS_QUERY = new MatchNoDocsQuery(
+        "multiple or nested docs or CoveringQuery could not be used"
+    );
     static final Setting<Boolean> INDEX_MAP_UNMAPPED_FIELDS_AS_TEXT_SETTING = Setting.boolSetting(
         "index.percolator.map_unmapped_fields_as_text",
         false,
@@ -132,6 +135,11 @@ public class PercolatorFieldMapper extends FieldMapper {
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { meta };
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -267,7 +275,7 @@ public class PercolatorFieldMapper extends FieldMapper {
             if (canUseMinimumShouldMatchField && indexReader.maxDoc() == 1) {
                 verifiedMatchesQuery = new TermQuery(new Term(extractionResultField.name(), EXTRACTION_COMPLETE));
             } else {
-                verifiedMatchesQuery = new MatchNoDocsQuery("multiple or nested docs or CoveringQuery could not be used");
+                verifiedMatchesQuery = MULTIPLE_OR_NESTED_DOCS_QUERY;
             }
             Query filter = null;
             if (excludeNestedDocuments) {

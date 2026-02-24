@@ -318,6 +318,13 @@ public class TestBlock implements BlockLoader.Block {
                     }
 
                     @Override
+                    public BlockLoader.SingletonIntBuilder appendInts(int[] newValues, int from, int length) {
+                        System.arraycopy(newValues, from, values, count, length);
+                        count += length;
+                        return this;
+                    }
+
+                    @Override
                     public BlockLoader.Builder appendNull() {
                         throw new UnsupportedOperationException();
                     }
@@ -480,6 +487,11 @@ public class TestBlock implements BlockLoader.Block {
             }
 
             @Override
+            public BlockLoader.LongRangeBuilder longRangeBuilder(int expectedSize) {
+                return new LongRangeBuilder(expectedSize);
+            }
+
+            @Override
             public BlockLoader.Block buildAggregateMetricDoubleDirect(
                 BlockLoader.Block minBlock,
                 BlockLoader.Block maxBlock,
@@ -553,10 +565,17 @@ public class TestBlock implements BlockLoader.Block {
 
                 return new TestBlock(values);
             }
+
+            @Override
+            public BlockLoader.TDigestBuilder tdigestBlockBuilder(int count) {
+                // TODO: implement when needed
+                throw new UnsupportedOperationException();
+            }
         };
     }
 
-    public static final BlockLoader.Docs docs(int... docs) {
+    public static BlockLoader.Docs docs(int... docs) {
+        boolean containsDupes = containsDupes(docs);
         return new BlockLoader.Docs() {
             @Override
             public int count() {
@@ -567,10 +586,20 @@ public class TestBlock implements BlockLoader.Block {
             public int get(int i) {
                 return docs[i];
             }
+
+            @Override
+            public boolean mayContainDuplicates() {
+                return containsDupes;
+            }
+
+            @Override
+            public String toString() {
+                return "docs " + Arrays.toString(docs);
+            }
         };
     }
 
-    public static final BlockLoader.Docs docs(LeafReaderContext ctx) {
+    public static BlockLoader.Docs docs(LeafReaderContext ctx) {
         return new BlockLoader.Docs() {
             @Override
             public int count() {
@@ -580,6 +609,40 @@ public class TestBlock implements BlockLoader.Block {
             @Override
             public int get(int i) {
                 return i;
+            }
+
+            @Override
+            public boolean mayContainDuplicates() {
+                return false;
+            }
+
+            @Override
+            public String toString() {
+                return "docs for " + ctx;
+            }
+        };
+    }
+
+    public static BlockLoader.Docs docsUpTo(int end) {
+        return new BlockLoader.Docs() {
+            @Override
+            public int count() {
+                return end;
+            }
+
+            @Override
+            public int get(int i) {
+                return i;
+            }
+
+            @Override
+            public boolean mayContainDuplicates() {
+                return false;
+            }
+
+            @Override
+            public String toString() {
+                return "range to " + end;
             }
         };
     }
@@ -900,5 +963,82 @@ public class TestBlock implements BlockLoader.Block {
         public BlockLoader.BytesRefBuilder encodedHistograms() {
             return encodedHistograms;
         }
+    }
+
+    public static class LongRangeBuilder implements BlockLoader.LongRangeBuilder {
+        private final LongBuilder from;
+        private final LongBuilder to;
+
+        LongRangeBuilder(int expectedSize) {
+            from = new LongBuilder(expectedSize);
+            to = new LongBuilder(expectedSize);
+        }
+
+        @Override
+        public BlockLoader.LongBuilder from() {
+            return from;
+        }
+
+        @Override
+        public BlockLoader.LongBuilder to() {
+            return to;
+        }
+
+        @Override
+        public BlockLoader.Block build() {
+            var fromBlock = from.build();
+            var toBlock = to.build();
+            assert fromBlock.size() == toBlock.size();
+            var values = new ArrayList<>(fromBlock.size());
+            for (int i = 0; i < fromBlock.size(); i++) {
+                values.add(List.of(fromBlock.values.get(i), toBlock.values.get(i)));
+            }
+            return new TestBlock(values);
+        }
+
+        @Override
+        public BlockLoader.Builder appendNull() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder beginPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public BlockLoader.Builder endPositionEntry() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public void close() {
+
+        }
+
+        private static class LongBuilder extends TestBlock.Builder implements BlockLoader.LongBuilder {
+            private LongBuilder(int expectedSize) {
+                super(expectedSize);
+            }
+
+            @Override
+            public BlockLoader.LongBuilder appendLong(long value) {
+                add(value);
+                return this;
+            }
+        }
+    }
+
+    static boolean containsDupes(int[] docs) {
+        int[] sorted = Arrays.copyOf(docs, docs.length);
+        int prev = sorted[0];
+        for (int i = 1; i < docs.length; i++) {
+            int v = sorted[i];
+            if (prev == v) {
+                return true;
+            }
+            prev = v;
+        }
+        return false;
     }
 }

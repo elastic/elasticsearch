@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.constantkeyword.mapper;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
@@ -25,6 +23,7 @@ import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.BytesRefs;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -39,12 +38,13 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
+import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -96,9 +96,19 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             value.setMergeValidator((previous, current, c) -> previous == null || Objects.equals(previous, current));
         }
 
+        public Builder setValue(String v) {
+            this.value.setValue(v);
+            return this;
+        }
+
         @Override
         protected Parameter<?>[] getParameters() {
             return new Parameter<?>[] { value, meta };
+        }
+
+        @Override
+        public String contentType() {
+            return CONTENT_TYPE;
         }
 
         @Override
@@ -151,9 +161,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
             if (value == null) {
-                return BlockLoader.CONSTANT_NULLS;
+                return ConstantNull.INSTANCE;
             }
-            return BlockLoader.constantBytes(new BytesRef(value));
+            return new ConstantBytes(new BytesRef(value));
         }
 
         @Override
@@ -219,7 +229,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public Query existsQuery(SearchExecutionContext context) {
-            return value != null ? new MatchAllDocsQuery() : new MatchNoDocsQuery();
+            return value != null ? Queries.ALL_DOCS_INSTANCE : Queries.NO_DOCS_INSTANCE;
         }
 
         @Override
@@ -234,17 +244,17 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             if (this.value == null) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
 
             final BytesRef valueAsBytesRef = new BytesRef(value);
             if (lowerTerm != null && BytesRefs.toBytesRef(lowerTerm).compareTo(valueAsBytesRef) >= (includeLower ? 1 : 0)) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
             if (upperTerm != null && valueAsBytesRef.compareTo(BytesRefs.toBytesRef(upperTerm)) >= (includeUpper ? 1 : 0)) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
 
         @Override
@@ -258,7 +268,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             @Nullable MultiTermQuery.RewriteMethod rewriteMethod
         ) {
             if (this.value == null) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
 
             final String termAsString = BytesRefs.toString(term);
@@ -278,9 +288,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
-                return new MatchAllDocsQuery();
+                return Queries.ALL_DOCS_INSTANCE;
             } else {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
         }
 
@@ -294,7 +304,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             SearchExecutionContext context
         ) {
             if (this.value == null) {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
 
             final Automaton automaton = Operations.determinize(
@@ -303,9 +313,9 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             );
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
-                return new MatchAllDocsQuery();
+                return Queries.ALL_DOCS_INSTANCE;
             } else {
-                return new MatchNoDocsQuery();
+                return Queries.NO_DOCS_INSTANCE;
             }
         }
 
@@ -330,9 +340,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         if (fieldType().value == null) {
-            ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
-            Mapper update = new ConstantKeywordFieldMapper(leafName(), newFieldType, builderParams);
-            boolean dynamicMapperAdded = context.addDynamicMapper(update);
+            Builder builder = new Builder(leafName()).setValue(value);
+            boolean dynamicMapperAdded = context.addDynamicMapper(builder, fullPath());
             // the mapper is already part of the mapping, we're just updating it with the new value
             assert dynamicMapperAdded;
         } else if (Objects.equals(fieldType().value, value) == false) {

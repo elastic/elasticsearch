@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
@@ -198,9 +197,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         includeExclude = in.readOptionalWriteable(IncludeExclude::new);
         order = InternalOrder.Streams.readOrder(in);
         showTermDocCountError = in.readBoolean();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            excludeDeletedDocs = in.readBoolean();
-        }
+        excludeDeletedDocs = in.readBoolean();
     }
 
     @Override
@@ -216,9 +213,7 @@ public class TermsAggregationBuilder extends ValuesSourceAggregationBuilder<Term
         out.writeOptionalWriteable(includeExclude);
         order.writeTo(out);
         out.writeBoolean(showTermDocCountError);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeBoolean(excludeDeletedDocs);
-        }
+        out.writeBoolean(excludeDeletedDocs);
     }
 
     /**

@@ -9,21 +9,19 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.TopNProvider;
 import org.elasticsearch.search.rank.context.RankFeaturePhaseRankCoordinatorContext;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
-import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
-import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
-import org.elasticsearch.xpack.inference.services.huggingface.rerank.HuggingFaceRerankTaskSettings;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -40,7 +38,6 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     protected final String inferenceId;
     protected final String inferenceText;
     protected final Float minScore;
-    protected final ChunkScorerConfig chunkScorerConfig;
 
     public TextSimilarityRankFeaturePhaseRankCoordinatorContext(
         int size,
@@ -50,74 +47,39 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         String inferenceId,
         String inferenceText,
         Float minScore,
-        boolean failuresAllowed,
-        @Nullable ChunkScorerConfig chunkScorerConfig
+        boolean failuresAllowed
     ) {
         super(size, from, rankWindowSize, failuresAllowed);
         this.client = client;
         this.inferenceId = inferenceId;
         this.inferenceText = inferenceText;
         this.minScore = minScore;
-        this.chunkScorerConfig = chunkScorerConfig;
     }
 
     @Override
     protected void computeScores(RankFeatureDoc[] featureDocs, ActionListener<float[]> scoreListener) {
+        // This method relies on callers filtering out feature docs with null feature data
+        assert Arrays.stream(featureDocs).noneMatch(featureDoc -> featureDoc.featureData == null);
 
-        // Wrap the provided rankListener to an ActionListener that would handle the response from the inference service
-        // and then pass the results
-        final ActionListener<InferenceAction.Response> inferenceListener = scoreListener.delegateFailureAndWrap((l, r) -> {
+        ActionListener<InferenceAction.Response> inferenceListener = scoreListener.delegateFailureAndWrap((l, r) -> {
             InferenceServiceResults results = r.getResults();
-            assert results instanceof RankedDocsResults;
-
-            // If we have an empty list of ranked docs, simply return the original scores
-            List<RankedDocsResults.RankedDoc> rankedDocs = ((RankedDocsResults) results).getRankedDocs();
-            if (rankedDocs.isEmpty()) {
-                float[] originalScores = new float[featureDocs.length];
-                for (int i = 0; i < featureDocs.length; i++) {
-                    originalScores[i] = featureDocs[i].score;
-                }
-                l.onResponse(originalScores);
+            if (results instanceof RankedDocsResults rankedDocsResults) {
+                l.onResponse(extractScoresFromRankedDocs(rankedDocsResults.getRankedDocs(), featureDocs));
             } else {
-                final float[] scores;
-                if (this.chunkScorerConfig != null) {
-                    scores = extractScoresFromRankedChunks(rankedDocs, featureDocs);
-                } else {
-                    scores = extractScoresFromRankedDocs(rankedDocs);
-                }
-
-                // Ensure we get exactly as many final scores as the number of docs we passed, otherwise we may return incorrect results
-                if (scores.length != featureDocs.length) {
-                    l.onFailure(
-                        new IllegalStateException(
-                            "Reranker input document count and returned score count mismatch: ["
-                                + featureDocs.length
-                                + "] vs ["
-                                + scores.length
-                                + "]"
-                        )
-                    );
-                } else {
-                    l.onResponse(scores);
-                }
+                throw new IllegalStateException(
+                    "Expected results to be of type [" + RankedDocsResults.class + "], got [" + results.getClass() + "]"
+                );
             }
         });
 
-        // top N listener
         ActionListener<GetInferenceModelAction.Response> topNListener = scoreListener.delegateFailureAndWrap((l, r) -> {
-            // The rerank inference endpoint may have an override to return top N documents only, in that case let's fail fast to avoid
-            // assigning scores to the wrong input
             Integer configuredTopN = null;
-            if (r.getEndpoints().isEmpty() == false
-                && r.getEndpoints().get(0).getTaskSettings() instanceof CohereRerankTaskSettings cohereTaskSettings) {
-                configuredTopN = cohereTaskSettings.getTopNDocumentsOnly();
-            } else if (r.getEndpoints().isEmpty() == false
-                && r.getEndpoints().get(0).getTaskSettings() instanceof GoogleVertexAiRerankTaskSettings googleVertexAiTaskSettings) {
-                    configuredTopN = googleVertexAiTaskSettings.topN();
-                } else if (r.getEndpoints().isEmpty() == false
-                    && r.getEndpoints().get(0).getTaskSettings() instanceof HuggingFaceRerankTaskSettings huggingFaceRerankTaskSettings) {
-                        configuredTopN = huggingFaceRerankTaskSettings.getTopNDocumentsOnly();
-                    }
+            if (r.getEndpoints().isEmpty() == false) {
+                var taskSettings = r.getEndpoints().get(0).getTaskSettings();
+                if (taskSettings instanceof TopNProvider topNProvider) {
+                    configuredTopN = topNProvider.getTopN();
+                }
+            }
             if (configuredTopN != null && configuredTopN < rankWindowSize) {
                 l.onFailure(
                     new IllegalArgumentException(
@@ -133,14 +95,11 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 return;
             }
 
-            // Short circuit on empty results after request validation
+            // Short circuit on no docs to rerank
             if (featureDocs.length == 0) {
                 inferenceListener.onResponse(new InferenceAction.Response(new RankedDocsResults(List.of())));
             } else {
-                List<String> inferenceInputs = Arrays.stream(featureDocs)
-                    .filter(featureDoc -> featureDoc.featureData != null)
-                    .flatMap(featureDoc -> featureDoc.featureData.stream())
-                    .toList();
+                List<String> inferenceInputs = Arrays.stream(featureDocs).flatMap(featureDoc -> featureDoc.featureData.stream()).toList();
                 InferenceAction.Request inferenceRequest = generateRequest(inferenceInputs);
                 try {
                     executeAsyncWithOrigin(client, INFERENCE_ORIGIN, InferenceAction.INSTANCE, inferenceRequest, inferenceListener);
@@ -149,7 +108,6 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
                 }
             }
         });
-
         GetInferenceModelAction.Request getModelRequest = new GetInferenceModelAction.Request(inferenceId, TaskType.RERANK);
         client.execute(GetInferenceModelAction.INSTANCE, getModelRequest, topNListener);
     }
@@ -192,36 +150,44 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
         );
     }
 
-    float[] extractScoresFromRankedDocs(List<RankedDocsResults.RankedDoc> rankedDocs) {
-        float[] scores = new float[rankedDocs.size()];
-        for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
-            scores[rankedDoc.index()] = rankedDoc.relevanceScore();
+    static float[] extractScoresFromRankedDocs(List<RankedDocsResults.RankedDoc> rankedDocs, RankFeatureDoc[] featureDocs) {
+        Map<Integer, Float> scores = new HashMap<>();
+
+        // Feature docs can be composed of multiple features (when chunking is applied, for instance), each of which is transformed into a
+        // separate ranked doc by the reranker service. Build a data structure that allows us to map the ranked doc index to the feature
+        // doc index. An array-backed list works for this purpose. The list index serves as the ranked doc index and the value serves as the
+        // feature doc index.
+        List<Integer> rankedDocToFeatureDoc = new ArrayList<>();
+        for (int i = 0; i < featureDocs.length; i++) {
+            RankFeatureDoc featureDoc = featureDocs[i];
+            if (featureDoc.featureData.isEmpty()) {
+                throw new IllegalStateException("Feature doc at index " + i + " does not have any features");
+            }
+
+            for (int j = 0; j < featureDoc.featureData.size(); j++) {
+                rankedDocToFeatureDoc.add(i);
+            }
         }
-        return scores;
-    }
 
-    float[] extractScoresFromRankedChunks(List<RankedDocsResults.RankedDoc> rankedDocs, RankFeatureDoc[] featureDocs) {
-        float[] scores = new float[featureDocs.length];
-        boolean[] hasScore = new boolean[featureDocs.length];
-
-        // We need to correlate the index/doc values of each RankedDoc in correlation with its associated RankFeatureDoc.
-        int[] rankedDocToFeatureDoc = Arrays.stream(featureDocs)
-            .flatMapToInt(
-                doc -> java.util.stream.IntStream.generate(() -> Arrays.asList(featureDocs).indexOf(doc)).limit(doc.featureData.size())
-            )
-            .limit(rankedDocs.size())
-            .toArray();
+        if (rankedDocToFeatureDoc.size() != rankedDocs.size()) {
+            throw new IllegalStateException(
+                "Expected ranked doc size to be "
+                    + rankedDocToFeatureDoc.size()
+                    + ", got "
+                    + rankedDocs.size()
+                    + ". Is the reranker service using an unreported top N task setting?"
+            );
+        }
 
         for (RankedDocsResults.RankedDoc rankedDoc : rankedDocs) {
-            int docId = rankedDocToFeatureDoc[rankedDoc.index()];
+            int featureDocIndex = rankedDocToFeatureDoc.get(rankedDoc.index());
             float score = rankedDoc.relevanceScore();
-            scores[docId] = hasScore[docId] == false ? score : Math.max(scores[docId], score);
-            hasScore[docId] = true;
+            scores.compute(featureDocIndex, (k, v) -> v == null ? score : Math.max(v, score));
         }
 
         float[] result = new float[featureDocs.length];
         for (int i = 0; i < featureDocs.length; i++) {
-            result[i] = hasScore[i] ? scores[i] : 0f;
+            result[i] = scores.get(i);
         }
 
         return result;

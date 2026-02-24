@@ -129,7 +129,11 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
         }
     }
 
-    public record QueryBuilderAndTags(QueryBuilder query, List<Object> tags) {};
+    public record QueryBuilderAndTags(QueryBuilder query, List<Object> tags) {
+        public QueryBuilderAndTags withQuery(QueryBuilder query) {
+            return new QueryBuilderAndTags(query, tags);
+        }
+    };
 
     public EsQueryExec(
         Source source,
@@ -343,7 +347,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     }
 
     @Override
-    public String nodeString() {
+    public String nodeString(NodeStringFormat format) {
         return nodeName()
             + "["
             + indexPattern
@@ -351,9 +355,9 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             + "indexMode["
             + indexMode
             + "], "
-            + NodeUtils.limitedToString(attrs)
+            + NodeUtils.toString(attrs, format)
             + ", limit["
-            + (limit != null ? limit.toString() : "")
+            + (limit != null ? limit.toString(format) : "")
             + "], sort["
             + (sorts != null ? sorts.toString() : "")
             + "] estimatedRowSize["

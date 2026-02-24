@@ -1,0 +1,5 @@
+area: Performance
+issues: []
+pr: 142303
+summary: Correctly reference non-main branches in benchmark script
+type: enhancement

@@ -47,3 +47,14 @@ Any merge task scheduled *before* the limit is reached continues execution, even
 Defaults to `100GB` when `indices.merge.disk.watermark.high` is not explicitly set.
 This caps the amount of free disk space before merge scheduling is blocked.
 
+## Merge multi-threading [merge-multithreading]
+
+In general, merges are completed concurrently using multiple threads. Generally, each individual merge is single-threaded, but multiple merges can be run in parallel.
+There are some exceptions and certain merges can utilize multiple threads within the merging operation itself. These threads will be assigned from the same pool as the background merge threads.
+
+The following *dynamic* settings control multithreaded merging:
+
+$$$intra-merge-parallelism-enabled-setting$$$
+
+`index.merge.intra_merge_parallelism_enabled` {applies_to}`stack: preview`
+:   Enables or disables intra-merge parallelism for data types that support it (e.g. `dense_vector`). Defaults to `false`.

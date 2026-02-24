@@ -64,7 +64,7 @@ public class LastOverTime extends TimeSeriesAggregateFunction implements Optiona
         @Param(
             name = "field",
             type = { "counter_long", "counter_integer", "counter_double", "long", "integer", "double", "_tsid", "exponential_histogram" },
-            description = "the field to calculate the latest value for"
+            description = "the metric field to calculate the latest value for"
         ) Expression field,
         @Param(
             name = "window",

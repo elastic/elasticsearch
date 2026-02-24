@@ -21,7 +21,7 @@ public abstract class BytesStream extends StreamOutput {
     public void writeWithSizePrefix(Writeable writeable) throws IOException {
         long pos = position();
         seek(pos + Integer.BYTES);
-        try (var out = new OutputStreamStreamOutput(CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.noCloseStream(this)))) {
+        try (var out = CompressorFactory.COMPRESSOR.threadLocalStreamOutput(Streams.noCloseStream(this))) {
             out.setTransportVersion(getTransportVersion());
             writeable.writeTo(out);
         }

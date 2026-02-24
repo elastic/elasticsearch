@@ -78,9 +78,9 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 recheck.set(false);
                 p = switch (p) {
                     case Aggregate agg -> pruneColumnsInAggregate(agg, used, inlineJoin);
-                    case InlineJoin inj -> pruneColumnsInInlineJoinRight(inj, used, recheck);
+                    case InlineJoin inj -> pruneColumnsInInlineJoin(inj, used, recheck);
                     case Eval eval -> pruneColumnsInEval(eval, used, recheck);
-                    case Project project -> inlineJoin ? pruneColumnsInProject(project, used) : p;
+                    case Project project -> pruneColumnsInProject(project, used, recheck);
                     case EsRelation esr -> pruneColumnsInEsRelation(esr, used);
                     case Fork fork -> {
                         forkPresent.set(true);
@@ -99,16 +99,15 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     private static LogicalPlan pruneColumnsInAggregate(Aggregate aggregate, AttributeSet.Builder used, boolean inlineJoin) {
         LogicalPlan p = aggregate;
-
         var remaining = pruneUnusedAndAddReferences(aggregate.aggregates(), used);
 
         if (remaining == null) {
             return p;
         }
-
         if (remaining.isEmpty()) {
             if (inlineJoin) {
-                p = emptyLocalRelation(aggregate);
+                // all aggregates are pruned, delegate to child plan
+                p = aggregate.child();
             } else if (aggregate.groupings().isEmpty()) {
                 // We still need to have a plan that produces 1 row per group.
                 p = new LocalRelation(
@@ -124,38 +123,44 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
                 p = aggregate.with(aggregate.groupings(), remaining);
             }
         } else {
-            // not expecting high groups cardinality, nested loops in lists should be fine, no need for a HashSet
-            if (inlineJoin && aggregate.groupings().containsAll(remaining)) {
+            if (inlineJoin) {
                 // An InlineJoin right-hand side aggregation output had everything pruned, except for (some of the) groupings, which are
                 // already part of the IJ output (from the left-hand side): the agg can just be dropped entirely.
-                p = emptyLocalRelation(aggregate);
+                if (aggregate.groupings().containsAll(remaining)) {
+                    p = aggregate.child();
+                }
+                // TODO: deal with prunning partial groupings in InlineJoin right side
             } else { // not an INLINEJOIN or there are actually aggregates to compute
                 p = aggregate.with(aggregate.groupings(), remaining);
             }
+        }
+        return p;
+    }
+
+    private static LogicalPlan pruneColumnsInInlineJoin(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
+        LogicalPlan p = ij;
+        used.addAll(ij.references());
+        var right = pruneColumns(ij.right(), used, true);
+
+        if (right.outputSet().subtract(ij.references()).isEmpty() || isLocalEmptyRelation(right)) {
+            // ij.references() are the join keys and if the output of the inline join doesn't contain anything else except the join keys,
+            // then the inline join doesn't add any new columns. Since it preserves rows, it doesn't do anything and can be pruned.
+            p = pruneRightSideAndProject(ij);
+            recheck.set(true);
         }
 
         return p;
     }
 
-    private static LogicalPlan pruneColumnsInInlineJoinRight(InlineJoin ij, AttributeSet.Builder used, Holder<Boolean> recheck) {
-        LogicalPlan p = ij;
-
-        used.addAll(ij.references());
-        var right = pruneColumns(ij.right(), used, true);
-        if (right.output().isEmpty() || isLocalEmptyRelation(right)) {
-            // InlineJoin updates the order of the output, so even if the computation is dropped, the groups need to be pulled to the end.
-            // So we keep just the left side of the join (i.e. drop the computations), but place a Project on top to keep the right order.
-            List<Attribute> newOutput = new ArrayList<>(ij.output());
-            AttributeSet leftOutputSet = ij.left().outputSet();
-            newOutput.removeIf(attr -> leftOutputSet.contains(attr) == false);
-            p = new Project(ij.source(), ij.left(), newOutput);
-            recheck.set(true);
-        } else if (right != ij.right()) {
-            // if the right side has been updated, replace it
-            p = ij.replaceRight(right);
-        }
-
-        return p;
+    /*
+     * InlineJoin updates the order of the output, so even if the right side is dropped, the groups need to be pulled to the end.
+     * So we keep just the left side of the join (i.e. drop the right agg), but place a Project on top to keep the correct columns order.
+     */
+    private static LogicalPlan pruneRightSideAndProject(InlineJoin ij) {
+        List<Attribute> newOutput = new ArrayList<>(ij.output());
+        AttributeSet leftOutputSet = ij.left().outputSet();
+        newOutput.removeIf(attr -> leftOutputSet.contains(attr) == false);
+        return new Project(ij.source(), ij.left(), newOutput);
     }
 
     private static LogicalPlan pruneColumnsInEval(Eval eval, AttributeSet.Builder used, Holder<Boolean> recheck) {
@@ -175,13 +180,13 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
-    // Note: only run when the Project is a descendent of an InlineJoin.
-    private static LogicalPlan pruneColumnsInProject(Project project, AttributeSet.Builder used) {
+    private static LogicalPlan pruneColumnsInProject(Project project, AttributeSet.Builder used, Holder<Boolean> recheck) {
         LogicalPlan p = project;
 
         var remaining = pruneUnusedAndAddReferences(project.projections(), used);
         if (remaining != null) {
-            p = remaining.isEmpty() ? emptyLocalRelation(project) : new Project(project.source(), project.child(), remaining);
+            p = new Project(project.source(), project.child(), remaining);
+            recheck.set(true);
         }
 
         return p;
@@ -203,6 +208,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
         return p;
     }
 
+    // TODO: see ResolveUnmapped#patchFork comment
     private static LogicalPlan pruneColumnsInFork(Fork fork, AttributeSet.Builder used) {
 
         // exit early for UnionAll

@@ -56,6 +56,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.SearchExecutionContextHelper;
 import org.elasticsearch.index.query.support.NestedScope;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -338,7 +339,9 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 indexSettings.getMode().buildIdFieldMapper(idFieldDataEnabled),
                 scriptCompiler,
                 bitsetFilterCache::getBitSetProducer,
-                mapperMetrics
+                mapperMetrics,
+                null,
+                null
             );
 
             if (applyDefaultMapping && indexSettings.getMode().getDefaultMapping(indexSettings) != null) {
@@ -401,10 +404,10 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         IndexSortConfig sortConfig = new IndexSortConfig(mapperService.getIndexSettings());
         Sort indexSort = sortConfig.buildIndexSort(
             mapperService::fieldType,
-            (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("")).build(null, null)
+            (ft, s) -> ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "")).build(null, null)
         );
         IndexWriterConfig iwc = new IndexWriterConfig(IndexShard.buildIndexAnalyzer(mapperService)).setCodec(
-            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE)
+            new PerFieldMapperCodec(Zstd814StoredFieldsFormat.Mode.BEST_SPEED, mapperService, BigArrays.NON_RECYCLING_INSTANCE, null)
         );
         if (indexSort != null) {
             iwc.setIndexSort(indexSort);
@@ -663,7 +666,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
             @Override
             protected IndexFieldData<?> buildFieldData(MappedFieldType ft) {
-                return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("test"))
+                return ft.fielddataBuilder(FieldDataContext.noRuntimeFields("index", "test"))
                     .build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService());
             }
 
@@ -850,7 +853,9 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             () -> true,
             null,
             Collections.emptyMap(),
-            MapperMetrics.NOOP
+            null,
+            MapperMetrics.NOOP,
+            SearchExecutionContextHelper.SHARD_SEARCH_STATS
         );
     }
 

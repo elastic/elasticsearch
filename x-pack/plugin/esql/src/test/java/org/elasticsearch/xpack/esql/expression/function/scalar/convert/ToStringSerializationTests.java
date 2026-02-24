@@ -14,6 +14,6 @@ import org.elasticsearch.xpack.esql.expression.AbstractUnaryScalarSerializationT
 public class ToStringSerializationTests extends AbstractUnaryScalarSerializationTests<ToString> {
     @Override
     protected ToString create(Source source, Expression child) {
-        return new ToString(source, child);
+        return new ToString(source, child, configuration());
     }
 }

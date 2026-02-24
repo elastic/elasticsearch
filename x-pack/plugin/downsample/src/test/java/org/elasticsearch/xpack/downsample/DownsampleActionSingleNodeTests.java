@@ -180,7 +180,7 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         sourceIndex = randomAlphaOfLength(14).toLowerCase(Locale.ROOT);
         downsampleIndex = "downsample-" + sourceIndex;
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
-        docCount = randomIntBetween(1000, 9000);
+        docCount = randomIntBetween(1000, 7000);
         numOfShards = randomIntBetween(1, 1);
         numOfReplicas = randomIntBetween(0, 0);
 
@@ -241,7 +241,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
             .field("type", "aggregate_metric_double")
             .field("time_series_metric", "gauge")
             .array("metrics", new String[] { "min", "max", "sum", "value_count" })
-            .field("default_metric", "value_count")
             .endObject();
         mapping.startObject(FIELD_METRIC_LABEL_DOUBLE)
             .field("type", "double") /* numeric label indexed as a metric */
@@ -262,7 +261,6 @@ public class DownsampleActionSingleNodeTests extends ESSingleNodeTestCase {
         mapping.startObject(FIELD_LABEL_AGG_METRIC)
             .field("type", "aggregate_metric_double")
             .array("metrics", new String[] { "min", "max", "sum", "value_count" })
-            .field("default_metric", "value_count")
             .endObject();
 
         mapping.endObject().endObject().endObject();

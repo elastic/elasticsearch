@@ -1,0 +1,6 @@
+area: Mapping
+issues:
+ - 140882
+pr: 141549
+summary: Allow shadowing time series metrics and dimension in non time series indexing
+type: bug

@@ -3,7 +3,11 @@
 ###############################################################################################################
 
 setup:
+  - requires:
+      test_runner_features: [ allowed_warnings ]
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.create:
         index:  aggregate_metric_test
         body:
@@ -31,10 +35,6 @@ setup:
           - '{"metric": {"min": -100, "max": -40} }'
 ---
 "Test min_max aggs":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       search:
         index: aggregate_metric_test
@@ -55,10 +55,6 @@ setup:
 
 ---
 "Test min_max aggs with query":
-  - requires:
-      cluster_features: ["gte_v7.11.0"]
-      reason: "Aggregate metric fields have been added in 7.11"
-
   - do:
       search:
         index: aggregate_metric_test

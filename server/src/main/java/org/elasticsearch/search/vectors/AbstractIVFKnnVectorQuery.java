@@ -33,6 +33,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
@@ -54,8 +55,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     protected final int numCands;
     protected final Query filter;
     protected int vectorOpsCount;
+    protected boolean doPrecondition;
 
-    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter) {
+    protected AbstractIVFKnnVectorQuery(String field, float visitRatio, int k, int numCands, Query filter, boolean doPrecondition) {
         if (k < 1) {
             throw new IllegalArgumentException("k must be at least 1, got: " + k);
         }
@@ -70,6 +72,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         this.k = k;
         this.filter = filter;
         this.numCands = numCands;
+        this.doPrecondition = doPrecondition;
     }
 
     @Override
@@ -145,6 +148,9 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (LeafReaderContext context : leafReaderContexts) {
+            if (doPrecondition) {
+                preconditionQuery(context);
+            }
             tasks.add(() -> searchLeaf(context, filterWeight, knnCollectorManager, visitRatio));
         }
         TopDocs[] perLeafResults = taskExecutor.invokeAll(tasks).toArray(TopDocs[]::new);
@@ -153,7 +159,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         TopDocs topK = TopDocs.merge(k, perLeafResults);
         vectorOpsCount = (int) topK.totalHits.value();
         if (topK.scoreDocs.length == 0) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         }
         return new KnnScoreDocQuery(topK.scoreDocs, reader);
     }
@@ -209,6 +215,8 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
             visitRatio
         );
     }
+
+    abstract void preconditionQuery(LeafReaderContext context) throws IOException;
 
     abstract TopDocs approximateSearch(
         LeafReaderContext context,

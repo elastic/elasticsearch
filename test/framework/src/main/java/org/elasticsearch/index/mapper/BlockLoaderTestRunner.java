@@ -14,12 +14,11 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fieldvisitor.StoredFieldLoader;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
-import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.BaseMatcher;
@@ -31,47 +30,174 @@ import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.newDirectory;
 import static org.apache.lucene.tests.util.LuceneTestCase.random;
-import static org.elasticsearch.index.mapper.BlockLoaderTestRunner.PrettyEqual.prettyEqualTo;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
+/**
+ * Test helper for {@link BlockLoader}. Run it like:
+ * <pre>{@code
+ *  BlockLoaderTestRunner runner = new BlockLoaderTestRunner(params);
+ *  runner.mapperService(createMapperService...);
+ *  runner.fieldName("field").document(Map.of("field", 1));
+ *  runner.run(1);
+ * }</pre>
+ */
 public class BlockLoaderTestRunner {
+    public interface ResultMatcher {
+        void match(Object expected, Object actual);
+    }
+
     private final BlockLoaderTestCase.Params params;
+    private boolean allowDummyDocs;
+    private MapperService mapperService;
+    private CircuitBreaker breaker;
+    private String fieldName;
+    private ParsedDocument doc;
+    private Map<String, Object> mapDoc;
+    private ResultMatcher matcher = (expected, actual) -> assertThat(actual, PrettyEqual.prettyEqualTo(expected));
 
     public BlockLoaderTestRunner(BlockLoaderTestCase.Params params) {
         this.params = params;
     }
 
-    public void runTest(MapperService mapperService, Map<String, Object> document, Object expected, String blockLoaderFieldName)
-        throws IOException {
-        var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(document);
-
-        Object blockLoaderResult = setupAndInvokeBlockLoader(mapperService, documentXContent, blockLoaderFieldName);
-        assertThat(blockLoaderResult, prettyEqualTo(expected));
+    /**
+     * Allow dummy documents in test index. This defaults to {@code false} but many callers
+     * are fine with these and call this.
+     */
+    public BlockLoaderTestRunner allowDummyDocs() {
+        this.allowDummyDocs = true;
+        return this;
     }
 
-    private Object setupAndInvokeBlockLoader(MapperService mapperService, XContentBuilder document, String fieldName) throws IOException {
+    /**
+     * Set the {@link MapperService} to use for the test. This must be provided before
+     * calling {@link #run}.
+     */
+    public BlockLoaderTestRunner mapperService(MapperService mapperService) {
+        this.mapperService = mapperService;
+        return this;
+    }
+
+    /**
+     * Set the {@link CircuitBreaker} used for the test. This must be provided before
+     * calling {@link #run}.
+     */
+    public BlockLoaderTestRunner breaker(CircuitBreaker breaker) {
+        this.breaker = breaker;
+        return this;
+    }
+
+    /**
+     * The name of the field to load. The test sends this to {@link MapperService#fieldType}.
+     */
+    public String fieldName() {
+        return fieldName;
+    }
+
+    /**
+     * Set the name of the field to load. The test sends this to {@link MapperService#fieldType}.
+     * This is required before calling {@link #run}
+     */
+    public BlockLoaderTestRunner fieldName(String fieldName) {
+        this.fieldName = fieldName;
+        return this;
+    }
+
+    /**
+     * Configuration a non-standard matcher. The default matcher is usually fine, and
+     * you often don't have to call this.
+     */
+    public BlockLoaderTestRunner matcher(ResultMatcher matcher) {
+        this.matcher = matcher;
+        return this;
+    }
+
+    /**
+     * The document being parsed.
+     */
+    public ParsedDocument document() {
+        if (doc != null) {
+            return doc;
+        }
+        if (mapDoc != null) {
+            if (mapperService == null) {
+                throw new IllegalStateException("need to set mapperService");
+            }
+            try {
+                var documentXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapDoc);
+                var source = new SourceToParse(
+                    "1",
+                    BytesReference.bytes(documentXContent),
+                    XContentType.JSON,
+                    null,
+                    Map.of(),
+                    Map.of(),
+                    true,
+                    XContentMeteringParserDecorator.NOOP,
+                    null
+                );
+                doc = mapperService.documentMapper().parse(source);
+                return doc;
+            } catch (IOException e) {
+                throw new RuntimeException("shouldn't be possible", e);
+            }
+        }
+        throw new IllegalStateException("need to set doc");
+    }
+
+    /**
+     * The document to be parsed as a {@link Map}. This will only work if the document
+     * was set with {@link #document(Map)}.
+     */
+    public Map<String, Object> mapDoc() {
+        if (mapDoc == null) {
+            throw new IllegalStateException("need to set doc to a map");
+        }
+        return mapDoc;
+    }
+
+    /**
+     * Set the document to be parsed. A method with this name must be called before
+     * calling {@link #run}.
+     */
+    public void document(Map<String, Object> doc) throws IOException {
+        this.mapDoc = doc;
+    }
+
+    /**
+     * Set the document to be parsed. A method with this name must be called before
+     * calling {@link #run}.
+     */
+    public void document(ParsedDocument doc) throws IOException {
+        this.doc = doc;
+    }
+
+    /**
+     * Run the test and compare to {@code expected}.
+     */
+    public void run(Object expected) throws IOException {
+        matcher.match(expected, setupAndInvokeBlockLoader());
+    }
+
+    private Object setupAndInvokeBlockLoader() throws IOException {
+        if (mapperService == null) {
+            throw new IllegalStateException("need to set mapperService");
+        }
+        if (breaker == null) {
+            throw new IllegalStateException("need to set breaker");
+        }
+        if (fieldName == null) {
+            throw new IllegalStateException("need to set fieldName");
+        }
         try (Directory directory = newDirectory()) {
             RandomIndexWriter iw = new RandomIndexWriter(random(), directory);
 
-            var source = new SourceToParse(
-                "1",
-                BytesReference.bytes(document),
-                XContentType.JSON,
-                null,
-                Map.of(),
-                Map.of(),
-                true,
-                XContentMeteringParserDecorator.NOOP,
-                null
-            );
-            LuceneDocument doc = mapperService.documentMapper().parse(source).rootDoc();
+            LuceneDocument doc = this.document().rootDoc();
 
             /*
              * Add three documents with doc id 0, 1, 2. The real document is 1.
@@ -81,16 +207,16 @@ public class BlockLoaderTestRunner {
             iw.close();
 
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
-                LeafReaderContext context = reader.leaves().get(0);
-                return load(createBlockLoader(mapperService, fieldName), context, mapperService);
+                LeafReaderContext context = reader.leaves().getFirst();
+                return load(createBlockLoader(fieldName), context);
             }
         }
     }
 
-    private Object load(BlockLoader blockLoader, LeafReaderContext context, MapperService mapperService) throws IOException {
+    private Object load(BlockLoader blockLoader, LeafReaderContext context) throws IOException {
         // `columnAtATimeReader` is tried first, we mimic `ValuesSourceReaderOperator`
-        var columnAtATimeReader = blockLoader.columnAtATimeReader(context);
-        if (columnAtATimeReader != null) {
+        var columnAtATimeReaderSource = blockLoader.columnAtATimeReader(context);
+        if (columnAtATimeReaderSource != null) {
             int[] docArray;
             int offset;
             if (randomBoolean()) {
@@ -110,14 +236,16 @@ public class BlockLoaderTestRunner {
                     } else if (i == offset) {
                         docArray[i] = 1;
                     } else {
-                        docArray[i] = 2;
+                        docArray[i] = allowDummyDocs ? 2 : 1;
                     }
                 }
             }
             BlockLoader.Docs docs = TestBlock.docs(docArray);
-            var block = (TestBlock) columnAtATimeReader.read(TestBlock.factory(), docs, offset, false);
-            assertThat(block.size(), equalTo(docArray.length - offset));
-            return block.get(0);
+            try (BlockLoader.ColumnAtATimeReader reader = columnAtATimeReaderSource.apply(breaker)) {
+                var block = (TestBlock) reader.read(TestBlock.factory(), docs, offset, false);
+                assertThat(block.size(), equalTo(docArray.length - offset));
+                return block.get(0);
+            }
         }
 
         StoredFieldsSpec storedFieldsSpec = blockLoader.rowStrideStoredFieldSpec();
@@ -136,50 +264,19 @@ public class BlockLoaderTestRunner {
         storedFieldsLoader.advanceTo(1);
 
         BlockLoader.Builder builder = blockLoader.builder(TestBlock.factory(), 1);
-        blockLoader.rowStrideReader(context).read(1, storedFieldsLoader, builder);
-        var block = (TestBlock) builder.build();
-        assertThat(block.size(), equalTo(1));
-
-        return block.get(0);
+        try (BlockLoader.RowStrideReader reader = blockLoader.rowStrideReader(breaker, context)) {
+            reader.read(1, storedFieldsLoader, builder);
+            var block = (TestBlock) builder.build();
+            assertThat(block.size(), equalTo(1));
+            return block.get(0);
+        }
     }
 
-    private BlockLoader createBlockLoader(MapperService mapperService, String fieldName) {
-        SearchLookup searchLookup = new SearchLookup(mapperService.mappingLookup().fieldTypesLookup()::get, null, null);
-
-        return mapperService.fieldType(fieldName).blockLoader(new MappedFieldType.BlockLoaderContext() {
-            @Override
-            public String indexName() {
-                return mapperService.getIndexSettings().getIndex().getName();
-            }
-
-            @Override
-            public IndexSettings indexSettings() {
-                return mapperService.getIndexSettings();
-            }
-
+    private BlockLoader createBlockLoader(String fieldName) {
+        return mapperService.fieldType(fieldName).blockLoader(new DummyBlockLoaderContext.MapperServiceBlockLoaderContext(mapperService) {
             @Override
             public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
                 return params.preference();
-            }
-
-            @Override
-            public SearchLookup lookup() {
-                return searchLookup;
-            }
-
-            @Override
-            public Set<String> sourcePaths(String name) {
-                return mapperService.mappingLookup().sourcePaths(name);
-            }
-
-            @Override
-            public String parentField(String field) {
-                return mapperService.mappingLookup().parentField(field);
-            }
-
-            @Override
-            public FieldNamesFieldMapper.FieldNamesFieldType fieldNames() {
-                return (FieldNamesFieldMapper.FieldNamesFieldType) mapperService.fieldType(FieldNamesFieldMapper.NAME);
             }
         });
     }

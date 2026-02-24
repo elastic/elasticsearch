@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldTypeTests;
 import org.elasticsearch.index.mapper.vectors.VectorsFormatProvider;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -33,6 +34,12 @@ public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
         public TestGPUPlugin() {
             super(Settings.EMPTY);
         }
+
+        @Override
+        public List<ActionPlugin.ActionHandler> getActions() {
+            // Skip registering xpack usage/info actions in this test as they require XPackLicenseState
+            return List.of();
+        }
     }
 
     @Override
@@ -41,8 +48,6 @@ public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
     }
 
     public void testAutoModeWithUnavailableGPU() {
-        assumeTrue("GPU_FORMAT feature flag enabled", GPUPlugin.GPU_FORMAT.isEnabled());
-
         TestGPUPlugin gpuPlugin = internalCluster().getInstance(TestGPUPlugin.class);
         VectorsFormatProvider vectorsFormatProvider = gpuPlugin.getVectorsFormatProvider();
 
@@ -55,8 +60,9 @@ public class GPUPluginInitializationUnsupportedIT extends ESIntegTestCase {
             settings,
             indexOptions,
             randomGPUSupportedSimilarity(indexOptions.getType()),
-            // TODO add other type support
-            DenseVectorFieldMapper.ElementType.FLOAT
+            DenseVectorFieldMapper.ElementType.FLOAT,
+            null,
+            1
         );
         assertNull(format);
     }

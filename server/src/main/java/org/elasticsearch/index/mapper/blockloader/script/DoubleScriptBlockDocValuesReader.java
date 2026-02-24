@@ -21,12 +21,13 @@ import java.io.IOException;
 /**
  * {@link BlockDocValuesReader} implementation for {@code double} scripts.
  */
-public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
-    public static class DoubleScriptBlockLoader extends DocValuesBlockLoader {
+public class DoubleScriptBlockDocValuesReader extends BlockScriptReader {
+    public static class DoubleScriptBlockLoader extends ScriptBlockLoader {
         private final DoubleFieldScript.LeafFactory factory;
         private final long byteSize;
 
         public DoubleScriptBlockLoader(DoubleFieldScript.LeafFactory factory, ByteSizeValue byteSize) {
+            super(byteSize);
             this.factory = factory;
             this.byteSize = byteSize.getBytes();
         }
@@ -37,29 +38,17 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public ColumnAtATimeReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
-            DoubleFieldScript script = null;
-            try {
-                script = factory.newInstance(context);
-                return new DoubleScriptBlockDocValuesReader(breaker, script, byteSize);
-            } finally {
-                if (script == null) {
-                    breaker.addWithoutBreaking(-byteSize);
-                }
-            }
+        public BlockScriptReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            return new DoubleScriptBlockDocValuesReader(breaker, factory.newInstance(context), byteSize);
         }
     }
 
     private final DoubleFieldScript script;
-    private final long byteSize;
     private int docId;
 
     DoubleScriptBlockDocValuesReader(CircuitBreaker breaker, DoubleFieldScript script, long byteSize) {
-        super(breaker);
+        super(breaker, byteSize);
         this.script = script;
-        this.byteSize = byteSize;
-
     }
 
     @Override
@@ -68,18 +57,8 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-        throws IOException {
-        // Note that we don't sort the values sort, so we can't use factory.doublesFromDocValues
-        try (BlockLoader.DoubleBuilder builder = factory.doubles(docs.count() - offset)) {
-            for (int i = offset; i < docs.count(); i++) {
-                read(docs.get(i), builder);
-            }
-            return builder.build();
-        }
-    }
-
-    private void read(int docId, BlockLoader.DoubleBuilder builder) {
+    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder b) throws IOException {
+        BlockLoader.DoubleBuilder builder = (BlockLoader.DoubleBuilder) b;
         this.docId = docId;
         script.runForDoc(docId);
         switch (script.count()) {
@@ -98,10 +77,5 @@ public class DoubleScriptBlockDocValuesReader extends BlockDocValuesReader {
     @Override
     public String toString() {
         return "ScriptDoubles";
-    }
-
-    @Override
-    public void close() {
-        breaker.addWithoutBreaking(-byteSize);
     }
 }

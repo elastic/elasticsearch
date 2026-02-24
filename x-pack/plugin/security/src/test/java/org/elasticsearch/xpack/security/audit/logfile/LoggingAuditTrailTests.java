@@ -797,9 +797,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
             cloneKeyName,
             cloneExpiration != null ? "\"" + cloneExpiration + "\"" : "null",
             sourceKeyId,
-            cloneRequest.getMetadata() == null || cloneRequest.getMetadata().isEmpty()
-                ? ""
-                : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
+            cloneRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
         );
         output = CapturingLogger.output(logger.getName(), Level.INFO);
         assertThat(output.size(), is(2));

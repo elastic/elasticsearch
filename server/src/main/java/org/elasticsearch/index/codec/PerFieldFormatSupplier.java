@@ -22,8 +22,7 @@ import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.bloomfilter.ES94BloomFilterDocValuesFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.TSDBSyntheticIdPostingsFormat;
-import org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat;
-import org.elasticsearch.index.codec.tsdb.es819.ES819Version3TSDBDocValuesFormat;
+import org.elasticsearch.index.codec.tsdb.es819.TSDBDocValuesFormatFactory;
 import org.elasticsearch.index.codec.vectors.es93.ES93HnswVectorsFormat;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
@@ -198,11 +197,7 @@ public class PerFieldFormatSupplier {
         if (useTSDBDocValuesFormat(field)) {
             var indexCreatedVersion = mapperService.getIndexSettings().getIndexVersionCreated();
             boolean useLargeBlockSize = mapperService.getIndexSettings().isUseTimeSeriesDocValuesFormatLargeBlockSize();
-            if (indexCreatedVersion.onOrAfter(IndexVersions.TIME_SERIES_DOC_VALUES_FORMAT_VERSION_3)) {
-                return new ES819Version3TSDBDocValuesFormat(useLargeBlockSize);
-            } else {
-                return useLargeBlockSize ? ES819TSDBDocValuesFormat.getInstance(true) : ES819TSDBDocValuesFormat.getInstance(false);
-            }
+            return TSDBDocValuesFormatFactory.createDocValuesFormat(indexCreatedVersion, useLargeBlockSize);
         }
 
         return docValuesFormat;

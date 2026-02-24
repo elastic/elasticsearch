@@ -146,8 +146,8 @@ public class TsdbDocValueBwcTests extends ESTestCase {
 
     void assertVersion819Version3(DirectoryReader reader) throws IOException, NoSuchFieldException, ClassNotFoundException,
         IllegalAccessException {
-        assert819DocValuesFormatVersion(reader, "ES819Version3TSDB_0");
-        assertFieldInfoDocValuesFormat(reader, "0", "ES819Version3TSDB");
+        assert819DocValuesFormatVersion(reader, "ES8193TSDB_0");
+        assertFieldInfoDocValuesFormat(reader, "0", "ES8193TSDB");
     }
 
     void testMixedIndex(Codec oldCodec, Codec newCodec) throws IOException, NoSuchFieldException, IllegalAccessException,

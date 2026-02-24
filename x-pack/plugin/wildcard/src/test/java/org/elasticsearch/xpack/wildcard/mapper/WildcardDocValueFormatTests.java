@@ -61,7 +61,7 @@ public class WildcardDocValueFormatTests extends ESSingleNodeTestCase {
                 FieldInfo fieldInfo = fieldInfos.fieldInfo(fieldName);
                 assertNotNull(fieldInfo);
                 Map<String, String> attributes = fieldInfo.attributes();
-                assertThat(attributes, hasEntry("PerFieldDocValuesFormat.format", "ES819Version3TSDB"));
+                assertThat(attributes, hasEntry("PerFieldDocValuesFormat.format", "ES8193TSDB"));
             }
         }
     }

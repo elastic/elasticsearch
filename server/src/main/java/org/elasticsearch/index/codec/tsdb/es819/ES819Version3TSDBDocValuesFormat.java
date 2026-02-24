@@ -24,7 +24,7 @@ import org.elasticsearch.index.codec.tsdb.BinaryDVCompressionMode;
  */
 public class ES819Version3TSDBDocValuesFormat extends ES819TSDBDocValuesFormat {
 
-    static final String CODEC_NAME = "ES819Version3TSDB";
+    static final String CODEC_NAME = "ES8193TSDB";
 
     public ES819Version3TSDBDocValuesFormat() {
         super(

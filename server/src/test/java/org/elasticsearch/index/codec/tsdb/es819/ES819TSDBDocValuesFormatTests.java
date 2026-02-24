@@ -73,6 +73,7 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_BYTES_THRESHOLD;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_COUNT_THRESHOLD;
+import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT;
 import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
@@ -87,18 +88,22 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
 
     protected final Codec codec = new Elasticsearch92Lucene103Codec() {
 
-        final DocValuesFormat docValuesFormat = new ES819Version3TSDBDocValuesFormat(
-            ESTestCase.randomIntBetween(2, 4096),
-            ESTestCase.randomIntBetween(1, 512),
-            random().nextBoolean(),
-            randomBinaryCompressionMode(),
-            true,
-            NUMERIC_LARGE_BLOCK_SHIFT
-        );
+        final DocValuesFormat docValuesFormat = randomBinaryCompressionMode();
 
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
             return docValuesFormat;
+        }
+
+        static DocValuesFormat randomBinaryCompressionMode() {
+            return new ES819Version3TSDBDocValuesFormat(
+                ESTestCase.randomIntBetween(2, 4096),
+                ESTestCase.randomIntBetween(1, 512),
+                random().nextBoolean(),
+                BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+                true,
+                randomFrom(NUMERIC_LARGE_BLOCK_SHIFT, NUMERIC_BLOCK_SHIFT)
+            );
         }
     };
 

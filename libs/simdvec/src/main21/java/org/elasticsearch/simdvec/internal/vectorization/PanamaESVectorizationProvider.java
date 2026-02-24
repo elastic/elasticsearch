@@ -11,7 +11,6 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
-import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
@@ -19,7 +18,6 @@ import org.elasticsearch.simdvec.MemorySegmentAccessInputAccess;
 import org.elasticsearch.simdvec.internal.MemorySegmentES92Int7VectorsScorer;
 
 import java.io.IOException;
-import java.lang.foreign.MemorySegment;
 
 final class PanamaESVectorizationProvider extends ESVectorizationProvider {
 
@@ -53,13 +51,10 @@ final class PanamaESVectorizationProvider extends ESVectorizationProvider {
 
     @Override
     public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
-        IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
-        unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
-        if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS && unwrappedInput instanceof MemorySegmentAccessInput msai) {
-            MemorySegment ms = msai.segmentSliceOrNull(0, unwrappedInput.length());
-            if (ms != null) {
-                return new MemorySegmentES91OSQVectorsScorer(unwrappedInput, dimension, bulkSize, ms);
-            }
+        if (PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
+            IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
+            unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
+            return new MemorySegmentES91OSQVectorsScorer(unwrappedInput, dimension, bulkSize);
         }
         return new OnHeapES91OSQVectorsScorer(input, dimension, bulkSize);
     }

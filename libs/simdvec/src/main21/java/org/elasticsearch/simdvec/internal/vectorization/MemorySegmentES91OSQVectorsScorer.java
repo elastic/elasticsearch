@@ -21,9 +21,11 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
+import org.elasticsearch.simdvec.internal.IndexInputUtils;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
+import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
@@ -46,11 +48,11 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
     private static final VectorSpecies<Float> FLOAT_SPECIES_128 = FloatVector.SPECIES_128;
     private static final VectorSpecies<Float> FLOAT_SPECIES_256 = FloatVector.SPECIES_256;
 
-    private final MemorySegment memorySegment;
+    static final ValueLayout.OfLong LAYOUT_LE_LONG = ValueLayout.JAVA_LONG_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
+    static final ValueLayout.OfInt LAYOUT_LE_INT = ValueLayout.JAVA_INT_UNALIGNED.withOrder(ByteOrder.LITTLE_ENDIAN);
 
-    public MemorySegmentES91OSQVectorsScorer(IndexInput in, int dimensions, int bulkSize, MemorySegment memorySegment) {
+    public MemorySegmentES91OSQVectorsScorer(IndexInput in, int dimensions, int bulkSize) {
         super(in, dimensions, bulkSize);
-        this.memorySegment = memorySegment;
     }
 
     @Override
@@ -68,24 +70,27 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
     }
 
     private long quantizeScore256(byte[] q) throws IOException {
+        return IndexInputUtils.withSlice(in, length, segment -> quantizeScore256Impl(q, segment, length));
+    }
+
+    private static long quantizeScore256Impl(byte[] q, MemorySegment memorySegment, int length) {
         long subRet0 = 0;
         long subRet1 = 0;
         long subRet2 = 0;
         long subRet3 = 0;
         int i = 0;
-        long offset = in.getFilePointer();
         if (length >= ByteVector.SPECIES_256.vectorByteSize() * 2) {
             int limit = ByteVector.SPECIES_256.loopBound(length);
             var sum0 = LongVector.zero(LONG_SPECIES_256);
             var sum1 = LongVector.zero(LONG_SPECIES_256);
             var sum2 = LongVector.zero(LONG_SPECIES_256);
             var sum3 = LongVector.zero(LONG_SPECIES_256);
-            for (; i < limit; i += ByteVector.SPECIES_256.length(), offset += LONG_SPECIES_256.vectorByteSize()) {
+            for (; i < limit; i += ByteVector.SPECIES_256.length()) {
                 var vq0 = ByteVector.fromArray(BYTE_SPECIES_256, q, i).reinterpretAsLongs();
                 var vq1 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length).reinterpretAsLongs();
                 var vq2 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 2).reinterpretAsLongs();
                 var vq3 = ByteVector.fromArray(BYTE_SPECIES_256, q, i + length * 3).reinterpretAsLongs();
-                var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+                var vd = LongVector.fromMemorySegment(LONG_SPECIES_256, memorySegment, i, ByteOrder.LITTLE_ENDIAN);
                 sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
                 sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
                 sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
@@ -103,12 +108,12 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             var sum2 = LongVector.zero(LONG_SPECIES_128);
             var sum3 = LongVector.zero(LONG_SPECIES_128);
             int limit = ByteVector.SPECIES_128.loopBound(length);
-            for (; i < limit; i += ByteVector.SPECIES_128.length(), offset += LONG_SPECIES_128.vectorByteSize()) {
+            for (; i < limit; i += ByteVector.SPECIES_128.length()) {
                 var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsLongs();
                 var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsLongs();
                 var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsLongs();
                 var vq3 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 3).reinterpretAsLongs();
-                var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+                var vd = LongVector.fromMemorySegment(LONG_SPECIES_128, memorySegment, i, ByteOrder.LITTLE_ENDIAN);
                 sum0 = sum0.add(vq0.and(vd).lanewise(VectorOperators.BIT_COUNT));
                 sum1 = sum1.add(vq1.and(vd).lanewise(VectorOperators.BIT_COUNT));
                 sum2 = sum2.add(vq2.and(vd).lanewise(VectorOperators.BIT_COUNT));
@@ -120,23 +125,22 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             subRet3 += sum3.reduceLanes(VectorOperators.ADD);
         }
         // process scalar tail
-        in.seek(offset);
         for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-            final long value = in.readLong();
+            final long value = memorySegment.get(LAYOUT_LE_LONG, i);
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
             subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
             subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
             subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
         }
         for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-            final int value = in.readInt();
+            final int value = memorySegment.get(LAYOUT_LE_INT, i);
             subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
             subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
             subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
             subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
         }
         for (; i < length; i++) {
-            int dValue = in.readByte() & 0xFF;
+            int dValue = memorySegment.get(ValueLayout.JAVA_BYTE, i) & 0xFF;
             subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
             subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
             subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
@@ -146,20 +150,23 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
     }
 
     private long quantizeScore128(byte[] q) throws IOException {
+        return IndexInputUtils.withSlice(in, length, segment -> quantizeScore128Impl(q, segment, length));
+    }
+
+    private static long quantizeScore128Impl(byte[] q, MemorySegment memorySegment, int length) {
         long subRet0 = 0;
         long subRet1 = 0;
         long subRet2 = 0;
         long subRet3 = 0;
         int i = 0;
-        long offset = in.getFilePointer();
 
         var sum0 = IntVector.zero(INT_SPECIES_128);
         var sum1 = IntVector.zero(INT_SPECIES_128);
         var sum2 = IntVector.zero(INT_SPECIES_128);
         var sum3 = IntVector.zero(INT_SPECIES_128);
         int limit = ByteVector.SPECIES_128.loopBound(length);
-        for (; i < limit; i += ByteVector.SPECIES_128.length(), offset += INT_SPECIES_128.vectorByteSize()) {
-            var vd = IntVector.fromMemorySegment(INT_SPECIES_128, memorySegment, offset, ByteOrder.LITTLE_ENDIAN);
+        for (; i < limit; i += ByteVector.SPECIES_128.length()) {
+            var vd = IntVector.fromMemorySegment(INT_SPECIES_128, memorySegment, i, ByteOrder.LITTLE_ENDIAN);
             var vq0 = ByteVector.fromArray(BYTE_SPECIES_128, q, i).reinterpretAsInts();
             var vq1 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length).reinterpretAsInts();
             var vq2 = ByteVector.fromArray(BYTE_SPECIES_128, q, i + length * 2).reinterpretAsInts();
@@ -174,23 +181,22 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         subRet2 += sum2.reduceLanes(VectorOperators.ADD);
         subRet3 += sum3.reduceLanes(VectorOperators.ADD);
         // process scalar tail
-        in.seek(offset);
         for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-            final long value = in.readLong();
+            final long value = memorySegment.get(LAYOUT_LE_LONG, i);
             subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
             subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
             subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
             subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
         }
         for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-            final int value = in.readInt();
+            final int value = memorySegment.get(LAYOUT_LE_INT, i);
             subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
             subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
             subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
             subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
         }
         for (; i < length; i++) {
-            int dValue = in.readByte() & 0xFF;
+            int dValue = memorySegment.get(ValueLayout.JAVA_BYTE, i) & 0xFF;
             subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
             subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
             subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
@@ -216,13 +222,21 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
     }
 
     private void quantizeScore128Bulk(byte[] q, int count, float[] scores) throws IOException {
+        var datasetLengthInBytes = (long) length * count;
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, segment -> {
+            quantizeScore128BulkImpl(q, count, scores, segment, length);
+            return null;
+        });
+    }
+
+    private static void quantizeScore128BulkImpl(byte[] q, int count, float[] scores, MemorySegment memorySegment, int length) {
+        long offset = 0L;
         for (int iter = 0; iter < count; iter++) {
             long subRet0 = 0;
             long subRet1 = 0;
             long subRet2 = 0;
             long subRet3 = 0;
             int i = 0;
-            long offset = in.getFilePointer();
 
             var sum0 = IntVector.zero(INT_SPECIES_128);
             var sum1 = IntVector.zero(INT_SPECIES_128);
@@ -245,23 +259,22 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
             subRet2 += sum2.reduceLanes(VectorOperators.ADD);
             subRet3 += sum3.reduceLanes(VectorOperators.ADD);
             // process scalar tail
-            in.seek(offset);
-            for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-                final long value = in.readLong();
+            for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES, offset += Long.BYTES) {
+                final long value = memorySegment.get(LAYOUT_LE_LONG, offset);
                 subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
                 subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
                 subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
                 subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
             }
-            for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-                final int value = in.readInt();
+            for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES, offset += Integer.BYTES) {
+                final int value = memorySegment.get(LAYOUT_LE_INT, offset);
                 subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
                 subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
                 subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
                 subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
             }
-            for (; i < length; i++) {
-                int dValue = in.readByte() & 0xFF;
+            for (; i < length; i++, offset++) {
+                int dValue = memorySegment.get(ValueLayout.JAVA_BYTE, offset) & 0xFF;
                 subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
                 subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
                 subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
@@ -272,13 +285,21 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
     }
 
     private void quantizeScore256Bulk(byte[] q, int count, float[] scores) throws IOException {
+        var datasetLengthInBytes = (long) length * count;
+        IndexInputUtils.withSlice(in, datasetLengthInBytes, segment -> {
+            quantizeScore256BulkImpl(q, count, scores, segment, length);
+            return null;
+        });
+    }
+
+    private static void quantizeScore256BulkImpl(byte[] q, int count, float[] scores, MemorySegment memorySegment, int length) {
+        long offset = 0L;
         for (int iter = 0; iter < count; iter++) {
             long subRet0 = 0;
             long subRet1 = 0;
             long subRet2 = 0;
             long subRet3 = 0;
             int i = 0;
-            long offset = in.getFilePointer();
             if (length >= ByteVector.SPECIES_256.vectorByteSize() * 2) {
                 int limit = ByteVector.SPECIES_256.loopBound(length);
                 var sum0 = LongVector.zero(LONG_SPECIES_256);
@@ -325,23 +346,22 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 subRet3 += sum3.reduceLanes(VectorOperators.ADD);
             }
             // process scalar tail
-            in.seek(offset);
-            for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES) {
-                final long value = in.readLong();
+            for (final int upperBound = length & -Long.BYTES; i < upperBound; i += Long.BYTES, offset += Long.BYTES) {
+                final long value = memorySegment.get(LAYOUT_LE_LONG, offset);
                 subRet0 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i) & value);
                 subRet1 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + length) & value);
                 subRet2 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 2 * length) & value);
                 subRet3 += Long.bitCount((long) BitUtil.VH_LE_LONG.get(q, i + 3 * length) & value);
             }
-            for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES) {
-                final int value = in.readInt();
+            for (final int upperBound = length & -Integer.BYTES; i < upperBound; i += Integer.BYTES, offset += Integer.BYTES) {
+                final int value = memorySegment.get(LAYOUT_LE_INT, offset);
                 subRet0 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i) & value);
                 subRet1 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + length) & value);
                 subRet2 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 2 * length) & value);
                 subRet3 += Integer.bitCount((int) BitUtil.VH_LE_INT.get(q, i + 3 * length) & value);
             }
-            for (; i < length; i++) {
-                int dValue = in.readByte() & 0xFF;
+            for (; i < length; i++, offset++) {
+                int dValue = memorySegment.get(ValueLayout.JAVA_BYTE, offset) & 0xFF;
                 subRet0 += Integer.bitCount((q[i] & dValue) & 0xFF);
                 subRet1 += Integer.bitCount((q[i + length] & dValue) & 0xFF);
                 subRet2 += Integer.bitCount((q[i + 2 * length] & dValue) & 0xFF);
@@ -366,26 +386,36 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         // 128 / 8 == 16
         if (length >= 16 && PanamaESVectorUtilSupport.HAS_FAST_INTEGER_VECTORS) {
             if (PanamaESVectorUtilSupport.VECTOR_BITSIZE >= 256) {
-                return score256Bulk(
-                    q,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    similarityFunction,
-                    centroidDp,
-                    scores
+                return IndexInputUtils.withSlice(
+                    in,
+                    (14L + length) * this.bulkSize,
+                    segment -> score256Bulk(
+                        segment,
+                        q,
+                        queryLowerInterval,
+                        queryUpperInterval,
+                        queryComponentSum,
+                        queryAdditionalCorrection,
+                        similarityFunction,
+                        centroidDp,
+                        scores
+                    )
                 );
             } else if (PanamaESVectorUtilSupport.VECTOR_BITSIZE == 128) {
-                return score128Bulk(
-                    q,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    similarityFunction,
-                    centroidDp,
-                    scores
+                return IndexInputUtils.withSlice(
+                    in,
+                    (14L + length) * this.bulkSize,
+                    segment -> score128Bulk(
+                        segment,
+                        q,
+                        queryLowerInterval,
+                        queryUpperInterval,
+                        queryComponentSum,
+                        queryAdditionalCorrection,
+                        similarityFunction,
+                        centroidDp,
+                        scores
+                    )
                 );
             }
         }
@@ -402,6 +432,7 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
     }
 
     private float score128Bulk(
+        MemorySegment memorySegment,
         byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
@@ -410,11 +441,11 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
         float[] scores
-    ) throws IOException {
-        quantizeScore128Bulk(q, this.bulkSize, scores);
+    ) {
+        quantizeScore128BulkImpl(q, this.bulkSize, scores, memorySegment, length);
         int limit = FLOAT_SPECIES_128.loopBound(this.bulkSize);
         int i = 0;
-        long offset = in.getFilePointer();
+        long offset = (long) length * this.bulkSize;
         float ay = queryLowerInterval;
         float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
         float y1 = queryComponentSum;
@@ -472,11 +503,11 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 }
             }
         }
-        in.seek(offset + 14L * this.bulkSize);
         return maxScore;
     }
 
     private float score256Bulk(
+        MemorySegment memorySegment,
         byte[] q,
         float queryLowerInterval,
         float queryUpperInterval,
@@ -485,11 +516,11 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
         VectorSimilarityFunction similarityFunction,
         float centroidDp,
         float[] scores
-    ) throws IOException {
-        quantizeScore256Bulk(q, this.bulkSize, scores);
+    ) {
+        quantizeScore256BulkImpl(q, this.bulkSize, scores, memorySegment, length);
         int limit = FLOAT_SPECIES_256.loopBound(this.bulkSize);
         int i = 0;
-        long offset = in.getFilePointer();
+        long offset = (long) length * this.bulkSize;
         float ay = queryLowerInterval;
         float ly = (queryUpperInterval - ay) * FOUR_BIT_SCALE;
         float y1 = queryComponentSum;
@@ -547,7 +578,6 @@ public final class MemorySegmentES91OSQVectorsScorer extends ES91OSQVectorsScore
                 }
             }
         }
-        in.seek(offset + 14L * this.bulkSize);
         return maxScore;
     }
 }

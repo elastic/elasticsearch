@@ -300,26 +300,40 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             : esAcceptDocs.approximateCost());
         float percentFiltered = Math.max(0f, Math.min(1f, approximateCost / numVectors));
         float visitRatio = dynamicVisitRatio;
+        int numCands = 0;
+        int k = knnCollector.k();
         // Search strategy may be null if this is being called from checkIndex (e.g. from a test)
         if (knnCollector.getSearchStrategy() instanceof IVFKnnSearchStrategy ivfSearchStrategy) {
             visitRatio = ivfSearchStrategy.getVisitRatio();
+            numCands = ivfSearchStrategy.getNumCands();
+            k = ivfSearchStrategy.getK();
         }
 
         FieldEntry entry = fields.get(fieldInfo.number);
         if (visitRatio == dynamicVisitRatio) {
-            // empirically based, and a good dynamic to get decent recall while scaling a la "efSearch"
-            // scaling by the number of vectors vs. the nearest neighbors requested
-            // not perfect, but a comparative heuristic.
-            // TODO: we might want to consider the density of the centroids as experiments shows that for fewer vectors per centroid,
-            // the least vectors we need to score to get a good recall.
-            float estimated = Math.round(Math.log10(numVectors) * Math.log10(numVectors) * (knnCollector.k()));
-            // clip so we visit at least one vector
-            visitRatio = estimated / numVectors;
+            if (numCands > 0) {
+                // Sublinear mapping: numCands * ln(1 + N/numCands)^1.5 / N
+                // The ln(1 + N/numCands)^1.5 term provides a log-like boost at low numCands
+                // (similar to main's log10(N)^2) while approaching linear at high numCands.
+                // The 1.5 exponent gives more aggressive visiting at low numCands for better recall,
+                // while still staying well below main's visit count.
+                // This ensures numCands remains a meaningful tuning knob at every value and scales
+                // well even on very large segments where numCands (max 10K) would otherwise be too small.
+                int effectiveNumCands = Math.min(10_000, Math.max(numCands, 5 * k));
+                double logTerm = Math.log(1.0 + (double) numVectors / effectiveNumCands);
+                visitRatio = Math.min(
+                    1.0f,
+                    (float) (effectiveNumCands * Math.pow(logTerm, 1.5) / numVectors)
+                );
+            } else {
+                // Fallback when called without IVFKnnSearchStrategy (e.g. checkIndex).
+                // Use the original k-based heuristic for reasonable default behavior.
+                float estimated = Math.round(Math.log10(numVectors) * Math.log10(numVectors) * k);
+                visitRatio = estimated / numVectors;
+            }
         }
-        // maxExpectedTraversed controls how many posting list entries we traverse (pre-filter).
-        // The collector's visitedCount is post-filter (scored vectors only), which may be lower with selective filters.
-        // We account for soar vectors here. We can potentially visit a vector twice so we multiply by 2.
-        long maxExpectedTraversed = (long) (2.0 * visitRatio * numVectors);
+        // we account for soar vectors here. We can potentially visit a vector twice so we multiply by 2 here.
+        long maxVectorVisited = (long) (2.0 * visitRatio * numVectors);
         IndexInput postListSlice = entry.postingListSlice(ivfClusters);
         CentroidIterator centroidPrefetchingIterator = getCentroidIterator(
             fieldInfo,
@@ -341,7 +355,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         // TODO do we need to handle nested doc counts similarly to how we handle
         // filtering? E.g. keep exploring until we hit an expected number of parent documents vs. child vectors?
         while (centroidPrefetchingIterator.hasNext()
-            && (maxExpectedTraversed > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
+            && (maxVectorVisited > expectedDocs || knnCollector.minCompetitiveSimilarity() == Float.NEGATIVE_INFINITY)) {
             PostingMetadata postingMetadata = centroidPrefetchingIterator.nextPosting();
             expectedDocs += scorer.resetPostingsScorer(postingMetadata);
             actualDocs += scorer.visit(knnCollector);
@@ -494,4 +508,5 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
         /** returns the number of scored documents */
         int visit(KnnCollector collector) throws IOException;
     }
+
 }

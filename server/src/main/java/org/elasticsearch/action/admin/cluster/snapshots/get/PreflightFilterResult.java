@@ -37,13 +37,4 @@ enum PreflightFilterResult {
          */
         PreflightFilterResult test(SnapshotId snapshotId, RepositoryData repositoryData);
     }
-
-    @FunctionalInterface
-    interface SnapshotDetailsFilter {
-        /**
-         * @return an accurate result for {@link SnapshotSortKey#START_TIME} and {@link SnapshotSortKey#DURATION} if the corresponding
-         * values are available, and {@link PreflightFilterResult#INCONCLUSIVE} otherwise.
-         */
-        PreflightFilterResult test(RepositoryData.SnapshotDetails details);
-    }
 }

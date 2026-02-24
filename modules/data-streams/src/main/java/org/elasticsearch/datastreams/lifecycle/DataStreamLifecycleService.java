@@ -568,7 +568,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
 
             for (Index index : indicesEligibleForAction) {
                 long findStepStartTime = nowSupplier.getAsLong();
-                DlmStep stepToExecute = findFirstIncompleteStep(projectState, dataStream, action, index);
+                int stepToExecuteIndex = findFirstIncompleteStepIndex(projectState, dataStream, action, index);
                 if (logger.isTraceEnabled()) {
                     long findStepDuration = nowSupplier.getAsLong() - findStepStartTime;
                     logger.trace(
@@ -580,7 +580,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                     );
                 }
 
-                if (stepToExecute != null) {
+                if (stepToExecuteIndex >= 0) {
+                    DlmStep stepToExecute = action.steps().get(stepToExecuteIndex);
                     try {
                         logger.trace(
                             "Executing step [{}] for action [{}] on datastream [{}] index [{}]",
@@ -590,7 +591,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             index.getName()
                         );
                         long stepStartTime = nowSupplier.getAsLong();
-                        DlmStepContext dlmStepContext = actionContext.stepContextFor(index);
+                        Index indexForExecution = resolveIndexForStepExecution(stepToExecuteIndex, index, action, projectState);
+                        DlmStepContext dlmStepContext = actionContext.stepContextFor(indexForExecution);
                         stepToExecute.execute(dlmStepContext);
                         if (logger.isTraceEnabled()) {
                             long stepDuration = nowSupplier.getAsLong() - stepStartTime;
@@ -633,13 +635,14 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
         return indicesProcessed;
     }
 
-    private DlmStep findFirstIncompleteStep(ProjectState projectState, DataStream dataStream, DlmAction action, Index index) {
-        DlmStep stepToExecute = null;
-        for (DlmStep step : action.steps().reversed()) {
+    private int findFirstIncompleteStepIndex(ProjectState projectState, DataStream dataStream, DlmAction action, Index index) {
+        int stepToExecute = -1;
+        for (int i = action.steps().size() - 1; i >= 0; i--) {
+            DlmStep step = action.steps().get(i);
             try {
                 long checkStartTime = nowSupplier.getAsLong();
                 if (step.stepCompleted(index, projectState) == false) {
-                    stepToExecute = step;
+                    stepToExecute = i;
                     if (logger.isTraceEnabled()) {
                         logger.trace(
                             "Step [{}] for action [{}] on datastream [{}] index [{}] is not complete, checked in [{}]",
@@ -678,6 +681,32 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
         }
         return stepToExecute;
+    }
+
+    // visible for testing
+    Index resolveIndexForStepExecution(int stepToExecuteIndex, Index index, DlmAction action, ProjectState projectState) {
+        if (stepToExecuteIndex < 1) {
+            return index;
+        }
+
+        DlmStep previousStep = action.steps().get(stepToExecuteIndex - 1);
+        List<Function<String, String>> possibleOutputIndexNamePatterns = previousStep.possibleOutputIndexNamePatterns();
+
+        for (Function<String, String> possibleOutputIndexNamePattern : possibleOutputIndexNamePatterns) {
+            String candidateIndexName = possibleOutputIndexNamePattern.apply(index.getName());
+            if (projectState.metadata().hasIndex(candidateIndexName)) {
+                return projectState.metadata().index(candidateIndexName).getIndex();
+            }
+        }
+
+        logger.warn(
+            "Unable to resolve index name for executing step [{}] for action [{}] with index [{}], defaulting to original index name",
+            action.steps().get(stepToExecuteIndex).stepName(),
+            action.name(),
+            index.getName()
+        );
+
+        return index;
     }
 
     // visible for testing

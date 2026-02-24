@@ -148,10 +148,12 @@ import java.util.Map;
  * </p>
  * <h2>Column-at-a-time vs row-stride</h2>
  * <p>
- *     Readers that load from {@code doc_values} only need to implement {@link ColumnAtATimeReader}.
- *     Readers that load from {@code stored} fields or {@code _source} implement
- *     {@link RowStrideReader}. A few constant loaders (like {@link ConstantNull} and
- *     {@link ConstantBytes}) implement both because they are trivially usable from either path.
+ *     Readers may load {@link ColumnAtATimeReader column-at-a-time} or {@link RowStrideReader row-by-row}.
+ *     They need only return non-null from {@link #columnAtATimeReader} or {@link #rowStrideReader}.
+ *     {@link ColumnAtATimeReader}s have the lowest overhead and get access to a large batch of document
+ *     ids to load at once, making them must faster for loading dense on disk structures like doc values
+ *     or vector distances. {@link RowStrideReader}s can use {@link StoredFields} to access Lucene's
+ *     compressed {@code stored} fields, include Elasticsearch's {@code _source}.
  * </p>
  * <h2>Why is {@link #rowStrideStoredFieldSpec}?</h2>
  * <p>

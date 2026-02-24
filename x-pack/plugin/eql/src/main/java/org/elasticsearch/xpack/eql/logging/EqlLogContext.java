@@ -44,6 +44,11 @@ public class EqlLogContext extends ActivityLoggerContext {
         return Strings.join(request.indices(), ",");
     }
 
+    @Override
+    public boolean isTimedOut() {
+        return response != null && response.isTimeout();
+    }
+
     long getHits() {
         if (response == null || response.hits() == null || response.hits().totalHits() == null) {
             return 0;

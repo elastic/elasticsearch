@@ -96,8 +96,17 @@ public class SearchLogContext extends ActivityLoggerContext {
         return isSystemSearch;
     }
 
+    @Override
+    public boolean isTimedOut() {
+        return response != null && response.isTimedOut();
+    }
+
     public String getIndices() {
         return Strings.join(getIndexNames(), ",");
+    }
+
+    public boolean hasAggregations() {
+        return response != null && response.hasAggregations();
     }
 
     public Optional<ShardInfo> shardInfo() {

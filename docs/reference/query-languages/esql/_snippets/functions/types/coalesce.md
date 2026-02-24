@@ -16,6 +16,7 @@
 | geohash | geohash | geohash |
 | geohex | geohex | geohex |
 | geotile | geotile | geotile |
+| histogram | histogram | histogram |
 | integer | integer | integer |
 | integer | | integer |
 | ip | ip | ip |
@@ -23,6 +24,7 @@
 | keyword | | keyword |
 | long | long | long |
 | long | | long |
+| tdigest | tdigest | tdigest |
 | text | text | keyword |
 | text | | keyword |
 | version | version | version |

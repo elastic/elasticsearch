@@ -42,7 +42,7 @@ public class CloseIndexRequestTests extends ESTestCase {
         {
             final CloseIndexRequest request = randomRequest();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
-                out.setTransportVersion(TransportVersionUtils.randomCompatibleVersion(random()));
+                out.setTransportVersion(TransportVersionUtils.randomCompatibleVersion());
                 request.writeTo(out);
 
                 try (StreamInput in = out.bytes().streamInput()) {
@@ -60,7 +60,7 @@ public class CloseIndexRequestTests extends ESTestCase {
         }
         {
             final CloseIndexRequest sample = randomRequest();
-            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+            final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setTransportVersion(version);
                 sample.getParentTask().writeTo(out);

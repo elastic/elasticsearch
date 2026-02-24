@@ -33,21 +33,6 @@ public class DefaultMachineLearningExtension implements MachineLearningExtension
     }
 
     @Override
-    public boolean isAnomalyDetectionEnabled() {
-        return true;
-    }
-
-    @Override
-    public boolean isDataFrameAnalyticsEnabled() {
-        return true;
-    }
-
-    @Override
-    public boolean isNlpEnabled() {
-        return true;
-    }
-
-    @Override
     public String[] getAnalyticsDestIndexAllowedSettings() {
         return ANALYTICS_DEST_INDEX_ALLOWED_SETTINGS;
     }

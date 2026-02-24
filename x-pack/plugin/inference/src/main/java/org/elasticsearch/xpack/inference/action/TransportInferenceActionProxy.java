@@ -37,6 +37,10 @@ import java.io.IOException;
 import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 
 public class TransportInferenceActionProxy extends HandledTransportAction<InferenceActionProxy.Request, InferenceAction.Response> {
+    public static final ElasticsearchStatusException CHAT_COMPLETION_STREAMING_ONLY_EXCEPTION = new ElasticsearchStatusException(
+        "The [chat_completion] task type only supports streaming, please try again with the _stream API",
+        RestStatus.BAD_REQUEST
+    );
     private final ModelRegistry modelRegistry;
     private final Client client;
 
@@ -87,10 +91,7 @@ public class TransportInferenceActionProxy extends HandledTransportAction<Infere
 
         try {
             if (request.isStreaming() == false) {
-                throw new ElasticsearchStatusException(
-                    "The [chat_completion] task type only supports streaming, please try again with the _stream API",
-                    RestStatus.BAD_REQUEST
-                );
+                throw CHAT_COMPLETION_STREAMING_ONLY_EXCEPTION;
             }
 
             UnifiedCompletionAction.Request unifiedRequest;

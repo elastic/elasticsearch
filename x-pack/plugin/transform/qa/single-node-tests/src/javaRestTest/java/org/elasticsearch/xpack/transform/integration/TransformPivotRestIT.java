@@ -3051,4 +3051,55 @@ public class TransformPivotRestIT extends TransformRestTestCase {
         bulkRequest.setJsonEntity(bulk.toString());
         client().performRequest(bulkRequest);
     }
+
+    public void testTransformWithProjectRoutingThrowsException() throws Exception {
+        var transformSrc = "failing_project_routing";
+        createReviewsIndex(transformSrc);
+
+        var transformId = "failing_transform_project_routing";
+        var transformDest = transformId;
+
+        var createTransformRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
+        var config = org.elasticsearch.core.Strings.format("""
+            {
+              "dest": {
+                "index": "%s"
+              },
+              "source": {
+                "index": "%s",
+                "project_routing": "_alias:_origin"
+              },
+              "frequency": "1s",
+              "sync": {
+                "time": {
+                  "field": "timestamp",
+                  "delay": "1s"
+                }
+              },
+              "pivot": {
+                "group_by": {
+                  "reviewer": {
+                    "terms": {
+                      "field": "user_id"
+                    }
+                  }
+                },
+                "aggregations": {
+                  "avg_rating": {
+                    "avg": {
+                      "field": "stars"
+                    }
+                  }
+                }
+              }
+            }""", transformDest, transformSrc);
+
+        createTransformRequest.setJsonEntity(config);
+
+        ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(createTransformRequest));
+        assertThat(
+            e.getMessage(),
+            containsString("Cross-project calls are not supported, but project_routing was requested: _alias:_origin")
+        );
+    }
 }

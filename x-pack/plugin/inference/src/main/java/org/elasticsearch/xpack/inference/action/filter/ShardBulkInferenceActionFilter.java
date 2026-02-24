@@ -78,7 +78,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
@@ -236,8 +236,12 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private record FieldInferenceResponseAccumulator(
         int id,
         Map<String, List<FieldInferenceResponse>> responses,
-        List<Exception> failures
+        AtomicReference<Exception> failure
     ) {
+        private FieldInferenceResponseAccumulator(int id) {
+            this(id, new HashMap<>(), new AtomicReference<>(null));
+        }
+
         void addOrUpdateResponse(FieldInferenceResponse response) {
             synchronized (this) {
                 var list = responses.computeIfAbsent(response.field, k -> new ArrayList<>());
@@ -245,10 +249,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
         }
 
-        void addFailure(Exception exc) {
-            synchronized (this) {
-                failures.add(exc);
-            }
+        void setFailure(Exception exc) {
+            // Only keep the first failure and discard all others
+            failure.compareAndSet(null, exc);
         }
     }
 
@@ -259,7 +262,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private final Runnable onCompletion;
         private final AtomicArray<FieldInferenceResponseAccumulator> inferenceResults;
         private final IndexingPressure.Coordinating coordinatingIndexingPressure;
-        private final Map<FailureSignature, Exception> deduplicatedFailures;
 
         private AsyncBulkShardInferenceAction(
             boolean useLegacyFormat,
@@ -274,7 +276,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             this.inferenceResults = new AtomicArray<>(bulkShardRequest.items().length);
             this.onCompletion = onCompletion;
             this.coordinatingIndexingPressure = coordinatingIndexingPressure;
-            this.deduplicatedFailures = new HashMap<>();
         }
 
         @Override
@@ -350,13 +351,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     } else {
                         try (onFinish) {
                             for (FieldInferenceRequest request : requests) {
-                                inferenceResults.get(request.bulkItemIndex).failures.add(
-                                    new ResourceNotFoundException(
-                                        "Inference service [{}] not found for field [{}]",
-                                        unparsedModel.service(),
-                                        request.field
-                                    )
-                                );
+                                inferenceResults.get(request.bulkItemIndex)
+                                    .setFailure(
+                                        new ResourceNotFoundException(
+                                            "Inference service [{}] not found for field [{}]",
+                                            unparsedModel.service(),
+                                            request.field
+                                        )
+                                    );
                             }
                         }
                     }
@@ -378,7 +380,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                     request.field
                                 );
                             }
-                            inferenceResults.get(request.bulkItemIndex).failures.add(failure);
+                            inferenceResults.get(request.bulkItemIndex).setFailure(failure);
                         }
 
                         if (ExceptionsHelper.status(exc).getStatus() >= 500) {
@@ -395,7 +397,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 try (onFinish) {
                     var complianceException = InferenceLicenceCheck.complianceException(inferenceProvider.service.name());
                     for (FieldInferenceRequest request : requests) {
-                        addInferenceResponseFailure(request.bulkItemIndex, complianceException);
+                        setInferenceResponseFailure(request.bulkItemIndex, complianceException);
                     }
                     return;
                 }
@@ -420,7 +422,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         var acc = inferenceResults.get(request.bulkItemIndex);
                         if (result instanceof ChunkedInferenceError error) {
                             recordRequestCountMetrics(inferenceProvider.model, 1, error.exception());
-                            acc.addFailure(
+                            acc.setFailure(
                                 new InferenceException(
                                     "Exception when running inference id [{}] on field [{}]",
                                     error.exception(),
@@ -451,7 +453,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 try (onFinish) {
                     recordRequestCountMetrics(inferenceProvider.model, requests.size(), exc);
                     for (FieldInferenceRequest request : requests) {
-                        addInferenceResponseFailure(
+                        setInferenceResponseFailure(
                             request.bulkItemIndex,
                             new InferenceException(
                                 "Exception when running inference id [{}] on field [{}]",
@@ -513,7 +515,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             } else if (item.request() instanceof UpdateRequest updateRequest) {
                 isUpdateRequest = true;
                 if (updateRequest.script() != null) {
-                    addInferenceResponseFailure(
+                    setInferenceResponseFailure(
                         itemIndex,
                         new ElasticsearchStatusException(
                             "Cannot apply update with a script on indices that contain [{}] field(s)",
@@ -577,7 +579,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     }
                     if (valueObj == null || valueObj == EXPLICIT_NULL) {
                         if (isUpdateRequest && useLegacyFormat) {
-                            addInferenceResponseFailure(
+                            setInferenceResponseFailure(
                                 itemIndex,
                                 new ElasticsearchStatusException(
                                     "Field [{}] must be specified on an update request to calculate inference for field [{}]",
@@ -596,7 +598,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     try {
                         values = SemanticTextUtils.nodeStringValues(field, valueObj);
                     } catch (Exception exc) {
-                        addInferenceResponseFailure(itemIndex, exc);
+                        setInferenceResponseFailure(itemIndex, exc);
                         break;
                     }
 
@@ -659,7 +661,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     coordinatingIndexingPressure.increment(1, indexRequest.getIndexRequest().indexSource().byteLength());
                     indexRequest.setIndexingPressureIncremented();
                 } catch (EsRejectedExecutionException e) {
-                    addInferenceResponseFailure(
+                    setInferenceResponseFailure(
                         itemIndex,
                         new InferenceException(
                             "Unable to insert inference results into document ["
@@ -678,15 +680,15 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         private FieldInferenceResponseAccumulator ensureResponseAccumulatorSlot(int id) {
             FieldInferenceResponseAccumulator acc = inferenceResults.get(id);
             if (acc == null) {
-                acc = new FieldInferenceResponseAccumulator(id, new HashMap<>(), new ArrayList<>());
+                acc = new FieldInferenceResponseAccumulator(id);
                 inferenceResults.set(id, acc);
             }
             return acc;
         }
 
-        private void addInferenceResponseFailure(int id, Exception failure) {
+        private void setInferenceResponseFailure(int id, Exception failure) {
             var acc = ensureResponseAccumulatorSlot(id);
-            acc.addFailure(failure);
+            acc.setFailure(failure);
         }
 
         /**
@@ -695,8 +697,9 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          * Otherwise, the source of the request is augmented with the field inference results.
          */
         private void applyInferenceResponses(BulkItemRequest item, FieldInferenceResponseAccumulator response) throws IOException {
-            if (response.failures().isEmpty() == false) {
-                handleInferenceFailures(item, response.failures());
+            Exception failure = response.failure().get();
+            if (failure != null) {
+                item.abort(item.index(), failure);
                 return;
             }
 
@@ -750,16 +753,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
             }
 
             updateIndexSource(item, inferenceFieldsMap);
-        }
-
-        private void handleInferenceFailures(BulkItemRequest item, List<Exception> failures) {
-            for (Exception failure : failures) {
-                // Generate a signature for the failure to deduplicate on the most important properties
-                FailureSignature failureSignature = new FailureSignature(failure);
-
-                Exception deduplicatedFailure = deduplicatedFailures.computeIfAbsent(failureSignature, k -> failure);
-                item.abort(item.index(), deduplicatedFailure);
-            }
         }
 
         private void updateIndexSource(BulkItemRequest item, Map<String, Object> inferenceFieldsMap) throws IOException {
@@ -845,34 +838,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         @Override
         public Iterator<Chunk> chunksAsByteReference(XContent xcontent) {
             return Collections.emptyIterator();
-        }
-    }
-
-    static class FailureSignature {
-        private final Class<? extends Throwable> failureClass;
-        private final String failureMessage;
-        private final FailureSignature failureCauseSignature;
-
-        FailureSignature(Throwable failure) {
-            failureClass = failure.getClass();
-            failureMessage = failure.getMessage();
-            failureCauseSignature = failure.getCause() != null ? new FailureSignature(failure.getCause()) : null;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            FailureSignature that = (FailureSignature) o;
-
-            return Objects.equals(failureClass, that.failureClass)
-                && Objects.equals(failureMessage, that.failureMessage)
-                && Objects.equals(failureCauseSignature, that.failureCauseSignature);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(failureClass, failureMessage, failureCauseSignature);
         }
     }
 }

@@ -2,7 +2,7 @@
 
 ### `ST_GEOHEX` [esql-st_geohex]
 ```{applies_to}
-stack: preview
+stack: preview 9.2.0
 serverless: preview
 ```
 

@@ -612,7 +612,12 @@ public class CoordinatorTests extends AbstractCoordinatorTestCase {
             Cluster cluster = new Cluster(
                 3,
                 true,
-                Settings.builder().put(LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.getKey(), "1000d").build()
+                Settings.builder()
+                    .put(
+                        LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.getKey(),
+                        randomFrom(TimeValue.timeValueDays(1000), TimeValue.ZERO, TimeValue.MINUS_ONE)
+                    )
+                    .build()
             )
         ) {
             cluster.runRandomly();

@@ -21,6 +21,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -177,13 +178,8 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfoFailureReason(
-                executionInfo,
-                REMOTE_CLUSTER_1,
-                "no valid indices found in any subquery in remote cluster [cluster-a]"
-            );
         }
 
         // Multiple subqueries on remote cluster 1 do not have any index matching the index pattern,
@@ -207,13 +203,8 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfoFailureReason(
-                executionInfo,
-                REMOTE_CLUSTER_1,
-                "no valid indices found in any subquery in remote cluster [cluster-a]"
-            );
         }
 
         // Some subqueries on remote cluster 1 have indexes matching the index pattern, some don't
@@ -238,9 +229,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                 List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
             );
             assertEquals(expected, values);
-
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -262,50 +251,41 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
                 List.of(5L, REMOTE_CLUSTER_2 + ":remote_idx")
             );
             assertEquals(expected, values);
-
-            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertCCSExecutionInfoDetails(executionInfo);
+            assertCCSExecutionInfoDetails(resp.getExecutionInfo());
         }
 
-        // If there is no subquery with matching index pattern, Analyzer's verifier fails on the query.
-        var ex = expectThrows(VerificationException.class, () -> runQuery("""
-            FROM (FROM c*:remote* metadata _index),(FROM c*:missing* metadata _index) metadata _index
-            | STATS c = count(*) by _index
-            | SORT _index
-            """, randomBoolean()));
-        String errorMessage = ex.getMessage();
-        assertThat(errorMessage, containsString("Unknown index [c*:remote*]"));
-        assertThat(errorMessage, containsString("Unknown index [c*:missing*]"));
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM missing*,
+                (FROM c*:missing* metadata _index),
+                (FROM r*:missing* metadata _index)
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), hasSize(0));
+        }
 
-        ex = expectThrows(VerificationException.class, () -> runQuery("""
-            FROM missing*, (FROM c*:remote* metadata _index),(FROM c*:missing* metadata _index) metadata _index
-            | STATS c = count(*) by _index
-            | SORT _index
-            """, randomBoolean()));
-        errorMessage = ex.getMessage();
-        assertThat(errorMessage, containsString("Unknown index [c*:remote*]"));
-        assertThat(errorMessage, containsString("Unknown index [c*:missing*]"));
-        assertThat(errorMessage, containsString("Unknown index [missing*]"));
+        try (EsqlQueryResponse resp = runQuery("""
+            FROM
+                (FROM c*:missing* metadata _index),
+                (FROM r*:missing* metadata _index)
+            """, randomBoolean())) {
+            assertThat(getValuesList(resp), hasSize(0));
+        }
 
-        ex = expectThrows(VerificationException.class, () -> runQuery("""
-            FROM missing, (FROM c*:remote metadata _index),(FROM c*:missing metadata _index) metadata _index
+        // If there is no subquery with a valid index pattern, the query should fail.
+        expectThrows(VerificationException.class, containsString("Unknown index [cluster-a:missing,cluster-a:remote]"), () -> runQuery("""
+            FROM (FROM c*:remote metadata _index),(FROM c*:missing metadata _index) metadata _index
             | STATS c = count(*) by _index
             | SORT _index
             """, randomBoolean()));
-        errorMessage = ex.getMessage();
-        assertThat(errorMessage, containsString("Unknown index [c*:remote]"));
-        assertThat(errorMessage, containsString("Unknown index [c*:missing]"));
-        assertThat(errorMessage, containsString("Unknown index [missing]"));
 
-        ex = expectThrows(VerificationException.class, () -> runQuery("""
-            FROM missing, (FROM c*:remote* metadata _index),(FROM c*:missing metadata _index) metadata _index
-            | STATS c = count(*) by _index
-            | SORT _index
-            """, randomBoolean()));
-        errorMessage = ex.getMessage();
-        assertThat(errorMessage, containsString("Unknown index [c*:remote*]"));
-        assertThat(errorMessage, containsString("Unknown index [c*:missing]"));
-        assertThat(errorMessage, containsString("Unknown index [missing]"));
+        expectThrows(
+            VerificationException.class,
+            allOf(containsString("Unknown index [missing]"), containsString("Unknown index [cluster-a:missing,cluster-a:remote]")),
+            () -> runQuery("""
+                FROM missing, (FROM c*:remote metadata _index),(FROM c*:missing metadata _index) metadata _index
+                | STATS c = count(*) by _index
+                | SORT _index
+                """, randomBoolean())
+        );
     }
 
     /*
@@ -316,7 +296,7 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
         populateIndex(REMOTE_CLUSTER_2, "remote_idx", randomIntBetween(1, 5), 5);
 
         try (EsqlQueryResponse resp = runQuery("""
-            FROM  missing, (FROM *:remote* metadata _index) metadata _index
+            FROM missing*, (FROM *:remote* metadata _index) metadata _index
              | STATS c = count(*) by _index
              | SORT _index
             """, randomBoolean())) {
@@ -332,14 +312,9 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfoFailureReason(
-                executionInfo,
-                LOCAL_CLUSTER,
-                "no valid indices found in any subquery in local cluster"
-            );
         }
 
         try (EsqlQueryResponse resp = runQuery("""
@@ -359,14 +334,9 @@ public class CrossClusterSubqueryIT extends AbstractCrossClusterTestCase {
             assertEquals(expected, values);
 
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SKIPPED);
+            assertClusterEsqlExecutionInfo(executionInfo, LOCAL_CLUSTER, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_1, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
             assertClusterEsqlExecutionInfo(executionInfo, REMOTE_CLUSTER_2, EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
-            assertClusterEsqlExecutionInfoFailureReason(
-                executionInfo,
-                LOCAL_CLUSTER,
-                "no valid indices found in any subquery in local cluster"
-            );
         }
 
         try (EsqlQueryResponse resp = runQuery("""

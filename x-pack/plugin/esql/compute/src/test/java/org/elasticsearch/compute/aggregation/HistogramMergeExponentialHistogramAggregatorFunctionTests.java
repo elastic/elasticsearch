@@ -12,9 +12,9 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.ExponentialHistogramBlock;
 import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.operator.SequenceExponentialHistogramSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.compute.test.BlockTestUtils;
+import org.elasticsearch.compute.test.operator.blocksource.SequenceExponentialHistogramBlockSourceOperator;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
@@ -51,7 +51,7 @@ public class HistogramMergeExponentialHistogramAggregatorFunctionTests extends A
 
     @Override
     protected SourceOperator simpleInput(BlockFactory blockFactory, int size) {
-        return new SequenceExponentialHistogramSourceOperator(
+        return new SequenceExponentialHistogramBlockSourceOperator(
             blockFactory,
             LongStream.range(0, size).mapToObj(i -> BlockTestUtils.randomExponentialHistogram())
         );

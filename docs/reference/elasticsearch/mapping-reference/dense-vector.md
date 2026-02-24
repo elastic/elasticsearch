@@ -13,8 +13,15 @@ The `dense_vector` field type stores dense vectors of numeric values. Dense vect
 
 The `dense_vector` type does not support aggregations or sorting.
 
-You add a `dense_vector` field as an array of numeric values based on [`element_type`](#dense-vector-params) with `float` by default:
+You can provide vectors in two different input formats:
 
+- Array of floats: A JSON array of numeric values representing each vector dimension.
+- Base64-encoded string: A Base64-encoded binary representation of the vector. More compact than float arrays, reducing payload size and improving efficiency for large vectors and bulk indexing.
+
+The following example creates an index with a `dense_vector` field (using default [`element_type`](#dense-vector-params) `float`) and indexes documents using each format:
+
+::::{tab-set}
+:::{tab-item} Array of floats
 ```console
 PUT my-index
 {
@@ -43,6 +50,38 @@ PUT my-index/_doc/2
   "my_vector" : [-0.5, 10, 10]
 }
 ```
+:::
+:::{tab-item} Base64-encoded string
+```console
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 3
+      },
+      "my_text" : {
+        "type" : "keyword"
+      }
+    }
+  }
+}
+
+PUT my-index/_doc/1
+{
+  "my_text" : "text1",
+  "my_vector" : "PwAAAEEgAABAwAAA"
+}
+
+PUT my-index/_doc/2
+{
+  "my_text" : "text2",
+  "my_vector" : "vwAAAEEgAABBIAAA"
+}
+```
+:::
+::::
 
 ::::{note}
 Unlike most other data types, dense vectors are always single-valued. It is not possible to store multiple values in one `dense_vector` field.
@@ -141,6 +180,117 @@ To retrieve vector values explicitly, you can use:
 :::{tip}
 For more context about the decision to exclude vectors from `_source` by default, read the [blog post](https://www.elastic.co/search-labs/blog/elasticsearch-exclude-vectors-from-source).
 :::
+
+### Docvalue output formats [dense-vector-docvalue-formats]
+
+```{applies_to}
+stack: ga 9.4
+serverless: ga
+```
+
+You can return dense vector doc values using the `docvalue_fields` search option. The response format can be controlled per field:
+
+- `format: array` (default) returns the decoded vector values as a JSON array.
+- `format: binary` returns the raw vector bytes encoded as base64. This works whether the vector was originally indexed from an array or from a binary string. Numeric element types (`float`, `bfloat16`) are emitted in big-endian order; `byte` and `bit` vectors are returned exactly as stored.
+
+Example: retrieve dense vector doc values as arrays or base64-encoded bytes
+
+```console
+PUT dv-format
+{
+  "mappings": {
+    "properties": {
+      "vec_float": {
+        "type": "dense_vector",
+        "element_type": "float",
+        "dims": 3,
+        "index": false
+      }
+    }
+  }
+}
+
+POST dv-format/_bulk?refresh
+{"index":{"_id":"1"}}
+{"vec_float":[1.5, 2.0, -3.25]}
+{"index":{"_id":"2"}}
+{"vec_float":[1.25, -2.5, 4.0]}
+
+POST dv-format/_search
+{
+  "_source": false,
+  "query": { "match_all": {} },
+  "docvalue_fields": ["vec_float"],
+  "sort": "_id"
+}
+```
+
+Sample response (array format):
+
+```console-result
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "1",
+        "fields": {
+          "vec_float": [
+            [1.5, 2.0, -3.25]
+          ]
+        }
+      },
+      {
+        "_id": "2",
+        "fields": {
+          "vec_float": [
+            [1.25, -2.5, 4.0]
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+To retrieve the same vectors as base64-encoded bytes, request only the binary format:
+
+```console
+POST dv-format/_search
+{
+  "_source": false,
+  "query": { "match_all": {} },
+  "docvalue_fields": [ { "field": "vec_float", "format": "binary" } ],
+  "sort": "_id"
+}
+```
+
+Sample response (binary format):
+
+```console-result
+{
+  "hits": {
+    "hits": [
+      {
+        "_id": "1",
+        "fields": {
+          "vec_float": [
+            "P8AAAEAAAADAUAAA"
+          ]
+        }
+      },
+      {
+        "_id": "2",
+        "fields": {
+          "vec_float": [
+            "P+AAAAAAAP+QEA=="
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
 
 ### Storage behavior and `_source`
 
@@ -459,7 +609,7 @@ POST /my-bit-vectors/_bulk?refresh
 % TEST[continued]
 
 1. 5 bytes representing the 40 bit dimensioned vector
-2. A hexidecimal string representing the 40 bit dimensioned vector
+2. A hexadecimal string representing the 40 bit dimensioned vector
 
 
 Then, when searching, you can use the `knn` query to search for similar bit vectors:

@@ -1,13 +1,16 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/painless/current/painless-operators-reference.html
+applies_to:
+  stack: ga
+  serverless: ga
 products:
   - id: painless
 ---
 
 # Operators: Reference [painless-operators-reference]
 
-## Method Call [method-call-operator]
+## Method call [method-call-operator]
 
 Use the `method call operator '()'` to call a member method on a [reference type](/reference/scripting-languages/painless/painless-types.md#reference-types) value. Implicit [boxing/unboxing](/reference/scripting-languages/painless/painless-casting.md#boxing-unboxing) is evaluated as necessary per argument during the method call. When a method call is made on a target `def` type value, the parameters and return type value are considered to also be of the `def` type and are evaluated at run-time.
 
@@ -29,7 +32,7 @@ arguments: '(' (expression (',' expression)*)? ')';
 
 **Examples**
 
-* Method calls on different reference types.
+* Method calls on different reference types
 
     ```painless
     Map m = new HashMap();                         <1>
@@ -49,7 +52,7 @@ arguments: '(' (expression (',' expression)*)? ')';
 
 
 
-## Field Access [field-access-operator]
+## Field access [field-access-operator]
 
 Use the `field access operator '.'` to store a value to or load a value from a [reference type](/reference/scripting-languages/painless/painless-types.md#reference-types) member field.
 
@@ -78,7 +81,7 @@ non-static member fields:
   * List z
 ```
 
-* Field access with the `Example` type.
+* Field access with the `Example` type
 
     ```painless
     Example example = new Example(); <1>
@@ -98,7 +101,7 @@ non-static member fields:
 
 
 
-## Null Safe [null-safe-operator]
+## Null safe [null-safe-operator]
 
 Use the `null safe operator '?.'` instead of the method call operator or field access operator to ensure a reference type value is `non-null` before a method call or field access. A `null` value will be returned if the reference type value is `null`, otherwise the method call or field access is evaluated.
 
@@ -134,7 +137,7 @@ non-static member fields:
   * List x
 ```
 
-* Null safe without a `null` value.
+* Null safe without a `null` value
 
     ```painless
     Example example = new Example(); <1>
@@ -144,7 +147,7 @@ non-static member fields:
     1. declare `Example example`; allocate `Example` instance → `Example reference`; store `Example reference` to `example`
     2. declare `List x`; load from `example` → `Example reference`; null safe call `factory` on `Example reference` → `List reference`; store `List reference` to `x`;
 
-* Null safe with a `null` value;
+* Null safe with a `null` value
 
     ```painless
     Example example = null; <1>
@@ -156,7 +159,7 @@ non-static member fields:
 
 
 
-## List Initialization [list-initialization-operator]
+## List initialization [list-initialization-operator]
 
 Use the `list initialization operator '[]'` to allocate an `List` type instance to the heap with a set of pre-defined values. Each value used to initialize the `List` type instance is cast to a `def` type value upon insertion into the `List` type instance using the `add` method. The order of the specified values is maintained.
 
@@ -169,7 +172,7 @@ list_initialization: '[' expression (',' expression)* ']'
 
 **Examples**
 
-* List initialization of an empty `List` type value.
+* List initialization of an empty `List` type value
 
     ```painless
     List empty = []; <1>
@@ -177,7 +180,7 @@ list_initialization: '[' expression (',' expression)* ']'
 
     1. declare `List empty`; allocate `ArrayList` instance → `ArrayList reference`; implicit cast `ArrayList reference` to `List reference` → `List reference`; store `List reference` to `empty`
 
-* List initialization with static values.
+* List initialization with static values
 
     ```painless
     List list = [1, 2, 3]; <1>
@@ -185,7 +188,7 @@ list_initialization: '[' expression (',' expression)* ']'
 
     1. declare `List list`; allocate `ArrayList` instance → `ArrayList reference`; call `add` on `ArrayList reference` with arguments(`int 1`); call `add` on `ArrayList reference` with arguments(`int 2`); call `add` on `ArrayList reference` with arguments(`int 3`); implicit cast `ArrayList reference` to `List reference` → `List reference`; store `List reference` to `list`
 
-* List initialization with non-static values.
+* List initialization with non-static values
 
     ```painless
     int i = 1;                  <1>
@@ -205,7 +208,7 @@ list_initialization: '[' expression (',' expression)* ']'
 
 
 
-## List Access [list-access-operator]
+## List access [list-access-operator]
 
 Use the `list access operator '[]'` as a shortcut for a `set` method call or `get` method call made on a `List` type value.
 
@@ -222,7 +225,7 @@ list_access: '[' expression ']'
 
 **Examples**
 
-* List access with the `List` type.
+* List access with the `List` type
 
     ```painless
     List list = new ArrayList(); <1>
@@ -246,7 +249,7 @@ list_access: '[' expression ']'
     8. declare `int y`; store `int 1` int `y`
     9. declare `int z`; load from `list` → `List reference`; load from `y` → `int 1`; call `get` on `List reference` with arguments(`int 1`) → `def`; implicit cast `def` to `int 5` → `int 5`; store `int 5` to `z`
 
-* List access with the `def` type.
+* List access with the `def` type
 
     ```painless
     def d = new ArrayList(); <1>
@@ -272,7 +275,7 @@ list_access: '[' expression ']'
 
 
 
-## Map Initialization [map-initialization-operator]
+## Map initialization [map-initialization-operator]
 
 Use the `map initialization operator '[:]'` to allocate a `Map` type instance to the heap with a set of pre-defined values. Each pair of values used to initialize the `Map` type instance are cast to `def` type values upon insertion into the `Map` type instance using the `put` method.
 
@@ -286,7 +289,7 @@ key_pair: expression ':' expression
 
 **Examples**
 
-* Map initialization of an empty `Map` type value.
+* Map initialization of an empty `Map` type value
 
     ```painless
     Map empty = [:]; <1>
@@ -294,7 +297,7 @@ key_pair: expression ':' expression
 
     1. declare `Map empty`; allocate `HashMap` instance → `HashMap reference`; implicit cast `HashMap reference` to `Map reference` → `Map reference`; store `Map reference` to `empty`
 
-* Map initialization with static values.
+* Map initialization with static values
 
     ```painless
     Map map = [1:2, 3:4, 5:6]; <1>
@@ -302,7 +305,7 @@ key_pair: expression ':' expression
 
     1. declare `Map map`; allocate `HashMap` instance → `HashMap reference`; call `put` on `HashMap reference` with arguments(`int 1`, `int 2`); call `put` on `HashMap reference` with arguments(`int 3`, `int 4`); call `put` on `HashMap reference` with arguments(`int 5`, `int 6`); implicit cast `HashMap reference` to `Map reference` → `Map reference`; store `Map reference` to `map`
 
-* Map initialization with non-static values.
+* Map initialization with non-static values
 
     ```painless
     byte b = 0;                  <1>
@@ -324,7 +327,7 @@ key_pair: expression ':' expression
 
 
 
-## Map Access [map-access-operator]
+## Map access [map-access-operator]
 
 Use the `map access operator '[]'` as a shortcut for a `put` method call or `get` method call made on a `Map` type value.
 
@@ -340,7 +343,7 @@ map_access: '[' expression ']'
 
 **Examples**
 
-* Map access with the `Map` type.
+* Map access with the `Map` type
 
     ```painless
     Map map = new HashMap();               <1>
@@ -358,7 +361,7 @@ map_access: '[' expression ']'
     5. declare `String y`; store `String 'value5'` to `y`
     6. declare `int z`; load from `map` → `Map reference`; load from `y` → `String 'value5'`; call `get` on `Map reference` with arguments(`String 'value5'`) → `def`; implicit cast `def` to `int 5` → `int 5`; store `int 5` to `z`
 
-* Map access with the `def` type.
+* Map access with the `def` type
 
     ```painless
     def d = new HashMap();             <1>
@@ -378,7 +381,7 @@ map_access: '[' expression ']'
 
 
 
-## New Instance [new-instance-operator]
+## New instance [new-instance-operator]
 
 Use the `new instance operator 'new ()'` to allocate a [reference type](/reference/scripting-languages/painless/painless-types.md#reference-types) instance to the heap and call a specified constructor. Implicit [boxing/unboxing](/reference/scripting-languages/painless/painless-casting.md#boxing-unboxing) is evaluated as necessary per argument during the constructor call.
 
@@ -398,7 +401,7 @@ new_instance: 'new' TYPE '(' (expression (',' expression)*)? ')';
 
 **Examples**
 
-* Allocation of new instances with different types.
+* Allocation of new instances with different types
 
 ```painless
 Map m = new HashMap();   <1>
@@ -412,7 +415,7 @@ def e = new HashMap(m);  <3>
 
 
 
-## String Concatenation [string-concatenation-operator]
+## String concatenation [string-concatenation-operator]
 
 Use the `string concatenation operator '+'` to concatenate two values together where at least one of the values is a [`String` type](/reference/scripting-languages/painless/painless-types.md#string-type).
 
@@ -424,7 +427,7 @@ concatenate: expression '+' expression;
 
 **Examples**
 
-* String concatenation with different primitive types.
+* String concatenation with different primitive types
 
     ```painless
     String x = "con";     <1>
@@ -464,7 +467,7 @@ elvis: expression '?:' expression;
 
 **Examples**
 
-* Elvis with different reference types.
+* Elvis with different reference types
 
     ```painless
     List x = new ArrayList();      <1>

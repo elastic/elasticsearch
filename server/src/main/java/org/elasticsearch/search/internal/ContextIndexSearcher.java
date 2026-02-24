@@ -22,7 +22,9 @@ import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
 import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
@@ -621,12 +623,24 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         query.visit(new QueryVisitor() {
             @Override
             public QueryVisitor getSubVisitor(BooleanClause.Occur occur, Query parent) {
+                if (parent instanceof IndexOrDocValuesQuery) {
+                    if (numClauses[0] > maxClauseCount) {
+                        throw new TooManyNestedClauses();
+                    }
+                    ++numClauses[0];
+                    // ignore the subqueries inside IndexOrDocValuesQuery
+                    return QueryVisitor.EMPTY_VISITOR;
+                }
                 // Return this instance even for MUST_NOT and not an empty QueryVisitor
                 return this;
             }
 
             @Override
             public void visitLeaf(Query query) {
+                if (query instanceof IndexSortSortedNumericDocValuesRangeQuery) {
+                    // ignore so we only count the fallback query
+                    return;
+                }
                 if (numClauses[0] > maxClauseCount) {
                     throw new TooManyNestedClauses();
                 }

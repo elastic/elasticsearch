@@ -10,11 +10,9 @@ package org.elasticsearch.xpack.esql.evaluator;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.Vector;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -255,7 +253,7 @@ public final class EvalMapper {
 
                 @Override
                 public Block eval(Page page) {
-                    return block(lit, context.blockFactory(), page.getPositionCount());
+                    return BlockUtils.constantBlock(context.blockFactory(), lit.value(), page.getPositionCount());
                 }
 
                 @Override
@@ -288,25 +286,6 @@ public final class EvalMapper {
                 }
             }
             return new LiteralsEvaluatorFactory(lit);
-        }
-
-        private static Block block(Literal lit, BlockFactory blockFactory, int positions) {
-            var value = lit.value();
-            if (value == null) {
-                return blockFactory.newConstantNullBlock(positions);
-            }
-
-            if (value instanceof List<?> multiValue) {
-                if (multiValue.isEmpty()) {
-                    return blockFactory.newConstantNullBlock(positions);
-                }
-                var wrapper = BlockUtils.wrapperFor(blockFactory, ElementType.fromJava(multiValue.get(0).getClass()), positions);
-                for (int i = 0; i < positions; i++) {
-                    wrapper.accept(multiValue);
-                }
-                return wrapper.builder().build();
-            }
-            return BlockUtils.constantBlock(blockFactory, value, positions);
         }
     }
 }

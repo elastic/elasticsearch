@@ -24,7 +24,10 @@ import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
+import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
 import org.elasticsearch.datageneration.datasource.MultifieldAddonHandler;
+import org.elasticsearch.datageneration.fields.PredefinedField;
+import org.elasticsearch.datageneration.fields.leaf.FlattenedFieldDataGenerator;
 import org.elasticsearch.datageneration.matchers.MatchResult;
 import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.index.IndexSettings;
@@ -38,11 +41,9 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -72,18 +73,32 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
         var specification = DataGeneratorSpecification.builder()
             .withMaxObjectDepth(2)
             .withMaxFieldCountPerLevel(6)
+            .withPredefinedFields(
+                List.of(
+                    new PredefinedField.WithGeneratorProvider(
+                        "flattened",
+                        FieldType.FLATTENED,
+                        Map.of("type", "flattened"),
+                        FlattenedFieldDataGenerator::new
+                    )
+                )
+            )
+            // 9.0.x: do not generate counted_keyword (object array + counted_keyword triggers indexing bug)
             .withDataSourceHandlers(List.of(new DataSourceHandler() {
                 @Override
                 public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-                    return new DataSourceResponse.FieldTypeGenerator(() -> {
-                        var options = Arrays.stream(FieldType.values())
-                            .filter(ft -> ft != FieldType.PASSTHROUGH)
-                            .map(FieldType::toString)
-                            .collect(Collectors.toSet());
-                        return new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(options));
-                    });
+                    if (System.getProperty("tests.old_cluster_version", "").startsWith("9.0.") == false) {
+                        return null;
+                    }
+                    var allowed = DefaultObjectGenerationHandler.ALLOWED_FIELD_TYPES.stream()
+                        .filter(ft -> ft != FieldType.COUNTED_KEYWORD)
+                        .toList();
+                    return new DataSourceResponse.FieldTypeGenerator(
+                        () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(ESTestCase.randomFrom(allowed).toString())
+                    );
                 }
-            }, new DefaultMappingParametersHandler() {
+            }))
+            .withDataSourceHandlers(List.of(new DefaultMappingParametersHandler() {
                 @Override
                 protected Object extendedDocValuesParams() {
                     if (oldClusterHasFeature("mapper.keyword.store_high_cardinality_in_binary_doc_values")) {

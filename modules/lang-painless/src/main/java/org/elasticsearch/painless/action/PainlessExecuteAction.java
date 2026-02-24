@@ -881,7 +881,9 @@ public class PainlessExecuteAction {
                             searcher,
                             () -> absoluteStartMillis,
                             null,
-                            emptyMap()
+                            emptyMap(),
+                            null,
+                            null
                         );
                         return handler.apply(context, indexReader.leaves().get(0));
                     }

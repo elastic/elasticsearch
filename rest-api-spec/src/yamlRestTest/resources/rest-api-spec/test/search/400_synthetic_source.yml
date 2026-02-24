@@ -455,3 +455,82 @@ _doc_count:
       hits.hits.1._source:
         foo: baz
 
+---
+text with doc_values:
+  - requires:
+      cluster_features: ["mapper.text.doc_values"]
+      reason: "text doc_values support required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              text:
+                type: text
+                index: false
+                doc_values: true
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          text: the quick brown fox
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+  - is_false: hits.hits.0.fields
+  - match:
+      hits.hits.0._source:
+        text: the quick brown fox
+
+---
+text with doc_values multi-value:
+  - requires:
+      cluster_features: ["mapper.text.doc_values"]
+      reason: "text doc_values support required"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              text:
+                type: text
+                index: false
+                doc_values: true
+
+  - do:
+      index:
+        index: test
+        id: 1
+        refresh: true
+        body:
+          text: [ "value one", "value two" ]
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            ids:
+              values: [1]
+  - is_false: hits.hits.0.fields
+  - match:
+      hits.hits.0._source:
+        text: [ "value one", "value two" ]

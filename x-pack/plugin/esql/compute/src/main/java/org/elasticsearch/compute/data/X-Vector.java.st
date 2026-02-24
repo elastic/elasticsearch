@@ -29,6 +29,9 @@ public sealed interface BytesRefVector extends Vector permits ConstantBytesRefVe
 $elseif(boolean)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
     ConstantNullVector {
+$elseif(int)$
+public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector, $Type$RangeVector,
+    ConstantNullVector {
 $elseif(double)$
 public sealed interface $Type$Vector extends Vector permits Constant$Type$Vector, $Type$ArrayVector, $Type$BigArrayVector,
     ConstantNullVector {
@@ -55,7 +58,7 @@ $if(BytesRef)$
 
 $endif$
     @Override
-    $Type$Vector filter(int... positions);
+    $Type$Vector filter(boolean mayContainDuplicates, int... positions);
 
     @Override
     $Type$Block keepMask(BooleanVector mask);
@@ -233,17 +236,6 @@ $else$
 $endif$
         }
     }
-
-$if(int)$
-    /** Create a vector for a range of ints. */
-    static IntVector range(int startInclusive, int endExclusive, BlockFactory blockFactory) {
-        int[] values = new int[endExclusive - startInclusive];
-        for (int i = 0; i < values.length; i++) {
-            values[i] = startInclusive + i;
-        }
-        return blockFactory.newIntArrayVector(values, values.length);
-    }
-$endif$
 
     /**
      * A builder that grows as needed.

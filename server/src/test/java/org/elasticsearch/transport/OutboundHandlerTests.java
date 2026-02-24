@@ -142,7 +142,7 @@ public class OutboundHandlerTests extends ESTestCase {
         boolean isHandshake = randomBoolean();
         TransportVersion version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
-            : TransportVersionUtils.randomCompatibleVersion(random());
+            : TransportVersionUtils.randomCompatibleVersion();
         boolean compress = randomBoolean();
         String value = "message";
         threadContext.putHeader("header", "header_value");
@@ -215,7 +215,7 @@ public class OutboundHandlerTests extends ESTestCase {
         boolean isHandshake = randomBoolean();
         TransportVersion version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
-            : TransportVersionUtils.randomCompatibleVersion(random());
+            : TransportVersionUtils.randomCompatibleVersion();
         boolean compress = randomBoolean();
 
         String value = "message";
@@ -274,7 +274,7 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testErrorResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         String action = "not-a-handshake";
         long requestId = randomLongBetween(0, 300);
         threadContext.putHeader("header", "header_value");
@@ -327,7 +327,7 @@ public class OutboundHandlerTests extends ESTestCase {
     }
 
     public void testSendErrorAfterFailToSendResponse() throws Exception {
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         String action = randomAlphaOfLength(10);
         long requestId = randomLongBetween(0, 300);
         var response = new ReleasbleTestResponse(randomAlphaOfLength(10)) {

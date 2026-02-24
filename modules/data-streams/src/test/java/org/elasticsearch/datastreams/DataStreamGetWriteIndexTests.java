@@ -38,6 +38,7 @@ import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
@@ -253,7 +254,12 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
                 new MetadataFieldMapper[] { dtfm },
                 Collections.emptyMap()
             );
-            MappingLookup mappingLookup = MappingLookup.fromMappers(mapping, List.of(dtfm, dateFieldMapper), List.of());
+            MappingLookup mappingLookup = MappingLookup.fromMappers(
+                mapping,
+                List.of(dtfm, dateFieldMapper),
+                List.of(),
+                randomFrom(IndexMode.values())
+            );
             indicesService = DataStreamTestHelper.mockIndicesServices(mappingLookup);
         }
 

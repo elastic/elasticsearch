@@ -318,7 +318,6 @@ public class JdbcConfigurationTests extends ESTestCase {
     }
 
     @SuppressForbidden(reason = "JDBC drivers allows logging to Sys.out")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/41557")
     public void testDriverConfigurationWithSSLInURL() {
         Map<String, String> urlPropMap = sslProperties();
         String sslUrlProps = urlPropMap.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining("&"));

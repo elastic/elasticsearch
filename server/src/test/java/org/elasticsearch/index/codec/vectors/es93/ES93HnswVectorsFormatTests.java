@@ -46,9 +46,10 @@ public class ES93HnswVectorsFormatTests extends BaseHnswVectorsFormatTestCase {
     public void testToString() {
         String expected = "ES93HnswVectorsFormat(name=ES93HnswVectorsFormat, maxConn=10, beamWidth=20, flatVectorFormat=%s)";
         expected = format(Locale.ROOT, expected, "ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format=%s)");
-        expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=%s())");
-        String defaultScorer = format(Locale.ROOT, expected, "DefaultFlatVectorScorer");
-        String memSegScorer = format(Locale.ROOT, expected, "Lucene99MemorySegmentFlatVectorsScorer");
+        expected = format(Locale.ROOT, expected, "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer=%s)");
+        expected = format(Locale.ROOT, expected, "ES93FlatVectorScorer(delegate=%s)");
+        String defaultScorer = format(Locale.ROOT, expected, "DefaultFlatVectorScorer()");
+        String memSegScorer = format(Locale.ROOT, expected, "Lucene99MemorySegmentFlatVectorsScorer()");
 
         KnnVectorsFormat format = createFormat(10, 20, 1, null);
         assertThat(format, hasToString(is(oneOf(defaultScorer, memSegScorer))));

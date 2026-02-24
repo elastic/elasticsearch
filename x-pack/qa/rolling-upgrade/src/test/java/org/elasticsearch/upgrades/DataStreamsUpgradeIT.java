@@ -171,6 +171,11 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
                     request.addParameter("wait_for_status", "yellow");
                 }));
             } else if (CLUSTER_TYPE == ClusterType.UPGRADED) {
+                // Wait for the cluster to recover to yellow at least before checking index status
+                ensureHealth((request -> {
+                    request.addParameter("timeout", "30s");
+                    request.addParameter("wait_for_status", "yellow");
+                }));
                 ensureHealth("logs-barbaz", (request -> {
                     request.addParameter("wait_for_nodes", "3");
                     request.addParameter("wait_for_status", "green");

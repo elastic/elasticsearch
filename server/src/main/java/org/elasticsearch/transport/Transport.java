@@ -163,7 +163,8 @@ public interface Transport extends LifecycleComponent {
     ) {};
 
     /**
-     * This class is a registry that allows
+     * A registry of response handlers for in-flight transport requests. Keeps a map of request IDs to their
+     * relevant {@link Transport.ResponseContext} so that when a peer response is received, the appropriate handler can be invoked.
      */
     final class ResponseHandlers {
         private final Map<Long, ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections

@@ -9,7 +9,7 @@ lexer grammar Promql;
 //
 // PromQL command with optional parameters and query text
 //
-DEV_PROMQL : {this.isDevVersion()}? 'promql' -> pushMode(PROMQL_MODE);
+PROMQL : 'promql' -> pushMode(PROMQL_MODE);
 
 mode PROMQL_MODE;
 

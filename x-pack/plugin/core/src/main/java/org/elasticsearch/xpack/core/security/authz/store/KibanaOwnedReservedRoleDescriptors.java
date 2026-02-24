@@ -109,7 +109,7 @@ class KibanaOwnedReservedRoleDescriptors {
             new RoleDescriptor.IndicesPrivileges[] {
                 // System indices defined in KibanaPlugin
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".kibana*", ".reporting-*", ".chat-*", ".workflows-*")
+                    .indices(".kibana*", ".reindexed-v8-kibana*", ".reporting-*", ".chat-*", ".workflows-*")
                     .privileges("all")
                     .allowRestrictedIndices(true)
                     .build(),
@@ -573,6 +573,7 @@ class KibanaOwnedReservedRoleDescriptors {
                         "logs-qualys_gav.asset-*",
                         "logs-sentinel_one.application-*",
                         "logs-sentinel_one.threat_event-*",
+                        "logs-sentinel_one.unified_alert-*",
                         "logs-island_browser.user-*",
                         "logs-island_browser.device-*",
                         "logs-cyera.classification-*",

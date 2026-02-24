@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -36,25 +37,56 @@ import static org.elasticsearch.xpack.esql.expression.predicate.operator.arithme
 
 public class Add extends DateTimeArithmeticOperation implements BinaryComparisonInversible {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Add", Add::new);
+    public static final String OP_NAME = "Add";
 
     private final Configuration configuration;
 
     @FunctionInfo(
         operator = "+",
-        returnType = { "double", "integer", "long", "date_nanos", "date_period", "datetime", "time_duration", "unsigned_long" },
-        description = "Add two numbers together. If either field is <<esql-multivalued-fields,multivalued>> then the result is `null`."
+        returnType = {
+            "double",
+            "integer",
+            "long",
+            "date_nanos",
+            "date_period",
+            "datetime",
+            "time_duration",
+            "unsigned_long",
+            "dense_vector" },
+        description = """
+            Add two values. In case of numeric fields, if either field is <<esql-multivalued-fields,multivalued>> then the result is `null`.
+            For dense_vector operations, both arguments should be dense_vectors. Inequal vector dimensions generate null result.
+            """
     )
     public Add(
         Source source,
         @Param(
             name = "lhs",
-            description = "A numeric value or a date time value.",
-            type = { "double", "integer", "long", "date_nanos", "date_period", "datetime", "time_duration", "unsigned_long" }
+            description = "A numeric value, dense_vector or a date time value.",
+            type = {
+                "double",
+                "integer",
+                "long",
+                "date_nanos",
+                "date_period",
+                "datetime",
+                "time_duration",
+                "unsigned_long",
+                "dense_vector" }
         ) Expression left,
         @Param(
             name = "rhs",
-            description = "A numeric value or a date time value.",
-            type = { "double", "integer", "long", "date_nanos", "date_period", "datetime", "time_duration", "unsigned_long" }
+            description = "A numeric value, dense_vector or a date time value.",
+            type = {
+                "double",
+                "integer",
+                "long",
+                "date_nanos",
+                "date_period",
+                "datetime",
+                "time_duration",
+                "unsigned_long",
+                "dense_vector" }
         ) Expression right,
         Configuration configuration
     ) {
@@ -67,6 +99,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddLongsEvaluator.Factory::new,
             AddUnsignedLongsEvaluator.Factory::new,
             AddDoublesEvaluator.Factory::new,
+            ADD_DENSE_VECTOR_EVALUATOR,
             AddDatetimesEvaluator.Factory::new,
             AddDateNanosEvaluator.Factory::new
         );
@@ -81,6 +114,7 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
             AddLongsEvaluator.Factory::new,
             AddUnsignedLongsEvaluator.Factory::new,
             AddDoublesEvaluator.Factory::new,
+            ADD_DENSE_VECTOR_EVALUATOR,
             AddDatetimesEvaluator.Factory::new,
             AddDateNanosEvaluator.Factory::new
         );
@@ -176,4 +210,37 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     public Add withConfiguration(Configuration configuration) {
         return new Add(source(), left(), right(), configuration);
     }
+
+    private static float addDenseVectorElements(float lhs, float rhs) {
+        return NumericUtils.asFiniteNumber(lhs + rhs);
+    }
+
+    private static final DenseVectorBinaryEvaluator ADD_DENSE_VECTOR_EVALUATOR = new DenseVectorBinaryEvaluator() {
+        @Override
+        public EvalOperator.ExpressionEvaluator.Factory vectorsOperation(
+            Source source,
+            EvalOperator.ExpressionEvaluator.Factory lhs,
+            EvalOperator.ExpressionEvaluator.Factory rhs
+        ) {
+            return new DenseVectorsEvaluator.Factory(source, lhs, rhs, Add::addDenseVectorElements, OP_NAME);
+        }
+
+        @Override
+        public EvalOperator.ExpressionEvaluator.Factory scalarVectorOperation(
+            Source source,
+            float lhs,
+            EvalOperator.ExpressionEvaluator.Factory rhs
+        ) {
+            return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Add::addDenseVectorElements, OP_NAME);
+        }
+
+        @Override
+        public EvalOperator.ExpressionEvaluator.Factory vectorScalarOperation(
+            Source source,
+            EvalOperator.ExpressionEvaluator.Factory lhs,
+            float rhs
+        ) {
+            return new DenseVectorScalarEvaluator.Factory(source, lhs, rhs, Add::addDenseVectorElements, OP_NAME);
+        }
+    };
 }

@@ -1339,8 +1339,8 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     private static void assertShardsHaveNoIdStoredFieldValuesOnDisk(Set<String> indices) {
         int nbVisitedShards = 0;
-        for (var indicesServices :  internalCluster().getDataNodeInstances(IndicesService.class)) {
-            for (var indexService : indicesServices)       {
+        for (var indicesServices : internalCluster().getDataNodeInstances(IndicesService.class)) {
+            for (var indexService : indicesServices) {
                 if (indices.contains(indexService.index().getName())) {
                     for (var indexShard : indexService) {
                         long size = indexShard.withEngineOrNull(engine -> {

@@ -464,35 +464,29 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
                 entry.version(),
                 entry.startTime()
             );
-            if (snapshotShardContextFactory.isSnapshotDecoupledFromShardLifecycle()) {
-                shardSnapshotTask.run();
-            } else {
-                snapshotStatus.updateStatusDescription("shard snapshot enqueuing to start");
-                startShardSnapshotTaskRunner.enqueueTask(new ActionListener<>() {
-                    @Override
-                    public void onResponse(Releasable releasable) {
-                        try (releasable) {
-                            shardSnapshotTask.run();
-                        }
+            snapshotStatus.updateStatusDescription("shard snapshot enqueuing to start");
+            startShardSnapshotTaskRunner.enqueueTask(new ActionListener<>() {
+                @Override
+                public void onResponse(Releasable releasable) {
+                    try (releasable) {
+                        shardSnapshotTask.run();
                     }
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        final var wrapperException = new IllegalStateException(
-                            "impossible failure starting shard snapshot for " + shardId + " in " + snapshot,
-                            e
-                        );
-                        logger.error(wrapperException.getMessage(), wrapperException);
-                        assert false : wrapperException; // impossible
-                    }
-                });
-            }
+                @Override
+                public void onFailure(Exception e) {
+                    final var wrapperException = new IllegalStateException(
+                        "impossible failure starting shard snapshot for " + shardId + " in " + snapshot,
+                        e
+                    );
+                    logger.error(wrapperException.getMessage(), wrapperException);
+                    assert false : wrapperException; // impossible
+                }
+            });
         }
 
-        if (snapshotShardContextFactory.isSnapshotDecoupledFromShardLifecycle() == false) {
-            // apply some backpressure by reserving one SNAPSHOT thread for the startup work
-            startShardSnapshotTaskRunner.runSyncTasksEagerly(threadPool.executor(ThreadPool.Names.SNAPSHOT));
-        }
+        // apply some backpressure by reserving one SNAPSHOT thread for the startup work
+        startShardSnapshotTaskRunner.runSyncTasksEagerly(threadPool.executor(ThreadPool.Names.SNAPSHOT));
     }
 
     /**

@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -191,6 +192,132 @@ public class AbstractThrottledTaskRunnerTests extends ESTestCase {
         safeAwait(executedCountDown);
         assertTrue(queue.isEmpty());
         assertNoRunningTasks(taskRunner);
+    }
+
+    public void testRunSyncTasksEagerlyWithPermit() {
+        final int maxTasks = randomIntBetween(1, maxThreads);
+        final int taskCount = between(maxTasks, maxTasks * 2);
+        final var barrier = new CyclicBarrier(maxTasks + 1);
+        final var executedCountDown = new CountDownLatch(taskCount);
+        final var testThread = Thread.currentThread();
+        final var permitReleased = new AtomicBoolean(false);
+
+        class TestTask implements ActionListener<Releasable> {
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                try (releasable) {
+                    if (Thread.currentThread() != testThread) {
+                        safeAwait(barrier);
+                        safeAwait(barrier);
+                    }
+                } finally {
+                    executedCountDown.countDown();
+                }
+            }
+        }
+
+        final BlockingQueue<TestTask> queue = ConcurrentCollections.newBlockingQueue();
+        final AbstractThrottledTaskRunner<TestTask> taskRunner = new AbstractThrottledTaskRunner<>("test", maxTasks, executor, queue);
+        for (int i = 0; i < taskCount; i++) {
+            taskRunner.enqueueTask(new TestTask());
+        }
+
+        safeAwait(barrier);
+        assertThat(taskRunner.runningTasks(), equalTo(maxTasks));
+        assertEquals(taskCount - maxTasks, queue.size());
+
+        final var capturedTask = new AtomicReference<Runnable>();
+        taskRunner.runSyncTasksEagerlyWithPermit(
+            t -> assertTrue(capturedTask.compareAndSet(null, t)),
+            () -> (Releasable) () -> permitReleased.set(true)
+        );
+        assertEquals(taskCount - maxTasks, queue.size());
+        assertFalse(permitReleased.get());
+
+        capturedTask.get().run();
+        assertTrue(queue.isEmpty());
+        assertTrue(permitReleased.get());
+
+        safeAwait(barrier);
+        safeAwait(executedCountDown);
+        assertTrue(queue.isEmpty());
+        assertNoRunningTasks(taskRunner);
+    }
+
+    public void testRunSyncTasksEagerlyWithPermitSkipsWhenPermitNotAcquired() {
+        final int taskCount = between(1, 10);
+
+        class TestTask implements ActionListener<Releasable> {
+
+            @Override
+            public void onFailure(Exception e) {
+                throw new AssertionError(e);
+            }
+
+            @Override
+            public void onResponse(Releasable releasable) {
+                releasable.close();
+                fail("task should not be executed");
+            }
+        }
+
+        final BlockingQueue<TestTask> queue = ConcurrentCollections.newBlockingQueue();
+        final AbstractThrottledTaskRunner<TestTask> taskRunner = new AbstractThrottledTaskRunner<>("test", maxThreads, executor, queue);
+
+        for (int i = 0; i < taskCount; i++) {
+            queue.add(new TestTask());
+        }
+
+        taskRunner.runSyncTasksEagerlyWithPermit(t -> fail("should not submit any task to the executor"), () -> null);
+
+        assertThat(queue.size(), equalTo(taskCount));
+    }
+
+    public void testRunSyncTasksEagerlyWithPermitConcurrentInvocations() {
+        final int racingThreads = between(10, 50);
+        final var executedCount = new CountDownLatch(racingThreads);
+
+        final BlockingQueue<ActionListener<Releasable>> queue = ConcurrentCollections.newBlockingQueue();
+        final AbstractThrottledTaskRunner<ActionListener<Releasable>> taskRunner = new AbstractThrottledTaskRunner<>(
+            "test",
+            maxThreads,
+            executor,
+            queue
+        );
+
+        // Single permit: only one eager runner active at a time
+        final var permitHolder = new AtomicBoolean(false);
+
+        startInParallel(racingThreads, i -> {
+            // Add directly to queue (bypassing pollAndSpawn) so only the eager runner can process tasks
+            queue.add(new ActionListener<>() {
+                @Override
+                public void onFailure(Exception e) {
+                    throw new AssertionError(e);
+                }
+
+                @Override
+                public void onResponse(Releasable releasable) {
+                    releasable.close();
+                    executedCount.countDown();
+                }
+            });
+            taskRunner.runSyncTasksEagerlyWithPermit(executor, () -> {
+                if (permitHolder.compareAndSet(false, true)) {
+                    return () -> permitHolder.set(false);
+                }
+                return null;
+            });
+        });
+
+        safeAwait(executedCount);
+        assertTrue(queue.isEmpty());
     }
 
     public void testFailsTasksOnRejectionOrShutdown() throws Exception {

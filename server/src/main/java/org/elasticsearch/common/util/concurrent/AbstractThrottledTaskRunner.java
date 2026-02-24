@@ -20,6 +20,7 @@ import java.util.Queue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 /**
  * {@link AbstractThrottledTaskRunner} runs the enqueued tasks using the given executor, limiting the number of tasks that are submitted to
@@ -171,7 +172,55 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
      * tasks in the queue are all synchronous, i.e. they release their ref before returning from {@code onResponse()}.
      */
     public void runSyncTasksEagerly(Executor executor) {
-        executor.execute(new AbstractRunnable() {
+        final AbstractRunnable createEagerlyRunnable = createEagerlyRunnable();
+        executor.execute(createEagerlyRunnable);
+    }
+
+    /**
+     * Like {@link #runSyncTasksEagerly}, submits a task to the given executor that eagerly drains synchronous tasks from the queue.
+     * However, unlike {@code runSyncTasksEagerly}, submission is gated by a permit: the {@code permitAcquirer} is called first, and the
+     * eager runner is only submitted if a non-null {@link Releasable} permit is returned. The permit is released after the eager runner
+     * finishes draining the queue.
+     * <p>
+     * This is designed for use by multiple concurrent callers that each enqueue a task and then call this method. The
+     * {@code permitAcquirer} controls how many eager runners may be active concurrently — it returns {@code null} to deny a permit when
+     * the desired limit is reached. After draining the queue, each eager runner checks whether new tasks were enqueued in the meantime
+     * and, if so, re-invokes this method to ensure they are processed. This guarantees that tasks enqueued concurrently by a caller whose
+     * permit acquisition failed are still picked up promptly.
+     * <p>
+     * As with {@link #runSyncTasksEagerly}, this must only be used if the tasks in the queue are all synchronous, i.e. they release their
+     * ref before returning from {@code onResponse()}.
+     */
+    public void runSyncTasksEagerlyWithPermit(Executor executor, Supplier<Releasable> permitAcquirer) {
+        final var permitReleasable = permitAcquirer.get();
+        if (permitReleasable != null) {
+            final var delegate = createEagerlyRunnable();
+            executor.execute(new AbstractRunnable() {
+
+                @Override
+                protected void doRun() throws Exception {
+                    delegate.run();
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    delegate.onFailure(e);
+                }
+
+                @Override
+                public void onAfter() {
+                    permitReleasable.close();
+                    if (tasks.peek() != null) {
+                        // Submit again if the tasks get queued right after this runnable completes
+                        runSyncTasksEagerlyWithPermit(executor, permitAcquirer);
+                    }
+                }
+            });
+        }
+    }
+
+    private AbstractRunnable createEagerlyRunnable() {
+        return new AbstractRunnable() {
             @Override
             protected void doRun() {
                 final AtomicBoolean isDone = new AtomicBoolean(true);
@@ -214,6 +263,6 @@ public class AbstractThrottledTaskRunner<T extends ActionListener<Releasable>> {
                     onFailure(e);
                 }
             }
-        });
+        };
     }
 }

@@ -245,7 +245,11 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
         // Foldable: convert to double directly
         if (childResult.expression().foldable()) {
-            return new TranslationResult(childResult.plan(), new ToDouble(scalarFunc.source(), childResult.expression()));
+            return new TranslationResult(
+                childResult.plan(),
+                new ToDouble(scalarFunc.source(), childResult.expression()),
+                childResult.selectorFilter()
+            );
         }
 
         // Child aggregated: grouping by step
@@ -261,11 +265,11 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
                 List.of(stepAttr),
                 List.of(aggAlias, stepAttr)
             );
-            return new TranslationResult(aggregate, getValueOutput(aggregate));
+            return new TranslationResult(aggregate, getValueOutput(aggregate), childResult.selectorFilter());
         }
 
         LogicalPlan timeSeriesAgg = createInnerAggregate(ctx, childResult.plan(), scalarFunc.output(), scalarExpr);
-        return new TranslationResult(timeSeriesAgg, getValueOutput(timeSeriesAgg));
+        return new TranslationResult(timeSeriesAgg, getValueOutput(timeSeriesAgg), childResult.selectorFilter());
     }
 
     /**
@@ -322,7 +326,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         if (containsAggregation(childResult.plan())) {
             Alias evalAlias = new Alias(function.source(), ctx.promqlCommand().valueColumnName(), function);
             LogicalPlan evalPlan = new Eval(ctx.promqlCommand().source(), childResult.plan(), List.of(evalAlias));
-            return new TranslationResult(evalPlan, evalAlias.toAttribute());
+            return new TranslationResult(evalPlan, evalAlias.toAttribute(), childResult.selectorFilter());
         }
 
         return new TranslationResult(childResult.plan(), function, childResult.selectorFilter());

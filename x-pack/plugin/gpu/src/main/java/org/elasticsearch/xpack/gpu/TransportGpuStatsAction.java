@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.gpu;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,7 +24,10 @@ import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Fans out to all data nodes to collect local GPU information (availability,
@@ -57,6 +61,15 @@ public class TransportGpuStatsAction extends TransportNodesAction<
         );
         GPUPlugin.GpuMode gpuMode = GPUPlugin.VECTORS_INDEXING_USE_GPU_NODE_SETTING.get(settings);
         this.gpuSettingEnabled = gpuMode != GPUPlugin.GpuMode.FALSE && GPUSupport.isSupported();
+    }
+
+    @Override
+    protected DiscoveryNode[] resolveRequest(GpuStatsRequest request, ClusterState clusterState) {
+        Map<String, Set<String>> nodeFeatures = clusterState.clusterFeatures().nodeFeatures();
+        String featureId = GPUFeatures.VECTORS_INDEXING_GPU_MONITORING.id();
+        return Arrays.stream(super.resolveRequest(request, clusterState))
+            .filter(node -> nodeFeatures.getOrDefault(node.getId(), Set.of()).contains(featureId))
+            .toArray(DiscoveryNode[]::new);
     }
 
     @Override

@@ -19,11 +19,11 @@ public class GPUFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of();
+        return Set.of(VECTORS_INDEXING_GPU_MONITORING);
     }
 
     @Override
     public Set<NodeFeature> getTestFeatures() {
-        return Set.of(VECTORS_INDEXING_USE_GPU, VECTORS_INDEXING_GPU_MONITORING);
+        return Set.of(VECTORS_INDEXING_USE_GPU);
     }
 }

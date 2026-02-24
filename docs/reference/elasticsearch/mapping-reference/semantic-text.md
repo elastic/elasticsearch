@@ -9,19 +9,19 @@ applies_to:
 
 # Semantic text field type [semantic-text]
 
+:::::{warning}
+The `semantic_text` field mapping can be added regardless of license state. However, it typically calls the [{{infer-cap}} API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-inference), which requires an [appropriate license](https://www.elastic.co/subscriptions). In these cases, using `semantic_text` in a cluster without the appropriate license causes operations such as indexing and reindexing to fail.
+:::::
+
 The `semantic_text` field type simplifies [semantic search](docs-content://solutions/search/semantic-search.md) by providing sensible defaults that automate most of the manual work typically required for vector search. Using `semantic_text`, you don't have to manually configure mappings, set up ingestion pipelines, or handle chunking. The field type automatically:
 
 - Configures index mappings: Chooses the correct field type (`sparse_vector` or `dense_vector`), dimensions, similarity functions, and storage optimizations based on the {{infer}} endpoint.
 - Generates embeddings during indexing: Automatically generates embeddings when you index documents, without requiring ingestion pipelines or {{infer}} processors.
 - Handles chunking: Automatically chunks long text documents during indexing.
 
-:::::{warning}
-The `semantic_text` field mapping can be added regardless of license state. However, it typically calls the [{{infer-cap}} API](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-inference), which requires an [appropriate license](https://www.elastic.co/subscriptions). In these cases, using `semantic_text` in a cluster without the appropriate license causes operations such as indexing and reindexing to fail.
-:::::
-
 ## Basic `semantic_text` mapping example
 
-The following example creates an index mapping with a `semantic_text` field:
+The following example creates an index mapping with a `semantic_text` field, using default values:
 
 ```console
 PUT semantic-embeddings 
@@ -29,15 +29,46 @@ PUT semantic-embeddings
   "mappings": { 
     "properties": {
       "content": { 
-        "type": "semantic_text" <1>
+        "type": "semantic_text"
       }
     }
   }
 }
 ```
-% TEST[skip:Requires {{infer}} endpoint]
 
-1. In this example, the `semantic_text` field uses a [default {{infer}} endpoint](./semantic-text-setup-configuration.md#default-and-preconfigured-endpoints) because the `inference_id` parameter isn't specified.
+## Extended `semantic_text` mapping example
+
+The following example creates an index mapping with a `semantic_text` field that uses dense vectors:
+
+```console
+PUT semantic-embeddings
+{
+  "mappings": {
+    "properties": {
+      "content": {
+        "type": "semantic_text",
+        "inference_id": "my-inference-endpoint", <1>
+        "search_inference_id": "my-search-inference-endpoint", <2>
+        "index_options": { <3>
+          "dense_vector": {
+            "type": "bbq_disk"
+          }
+        },
+        "chunking_settings": { <4>
+          "strategy": "word",
+          "max_chunk_size": 120,
+          "overlap": 40
+        }
+      }
+    }
+  }
+}
+```
+
+1. (Optional) Specifies the [{{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-reference.md#configuring-inference-endpoints) used to generate embeddings at index time. If you don’t specify an `inference_id`, the `semantic_text` field uses a [default {{infer}} endpoint](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#default-and-preconfigured-endpoints).
+2. (Optional) The {{infer}} endpoint used to generate embeddings at query time. If not specified, the endpoint defined by `inference_id` is used at both index and query time.
+3. (Optional) Configures how the underlying vector representation is indexed. In this example, [`bbq_disk`](/reference/elasticsearch/mapping-reference/bbq.md#bbq-disk) is selected for dense vectors. You can configure different index options depending on whether the field uses dense or sparse vectors. Learn how to [set `index_options` for `sparse_vectors`](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#index-options-sparse_vectors) and how to [set `index_options` for `dense_vectors`](/reference/elasticsearch/mapping-reference/semantic-text-setup-configuration.md#index-options-dense_vectors).
+4. (Optional) Overrides the [chunking settings](/reference/elasticsearch/mapping-reference/semantic-text-reference.md#chunking-behavior) from the {{infer}} endpoint. In this example, the `word` strategy splits text on individual words with a maximum of 120 words per chunk and an overlap of 40 words between chunks. The default chunking strategy is `sentence`.
 
 :::{tip}
 For a complete example, refer to the [Semantic search with `semantic_text`](docs-content://solutions/search/semantic-search/semantic-search-semantic-text.md) tutorial.

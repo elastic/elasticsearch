@@ -1,0 +1,5 @@
+area: Infra/Entitlements
+issues: []
+pr: 142967
+summary: Fix JDK-26-EA build by removing entitlement for removed method
+type: bug

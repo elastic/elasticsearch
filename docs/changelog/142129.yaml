@@ -1,5 +1,5 @@
 area: ES|QL
 issues: []
 pr: 142129
-summary: ESQL - Add `dense_vector` SUM function
+summary: ESQL - Add `dense_vector` field type to SUM function
 type: enhancement

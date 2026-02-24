@@ -375,7 +375,10 @@ tests:
   method: testRecursiveDoubleStarAllFiles
   issue: https://github.com/elastic/elasticsearch/issues/142576
 - class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
-  method: testFatalFailureDuringFetch
+  methods:
+    - testFatalFailureDuringFetch
+    - testWithFetchFailures
+    - testAddCompletionListenerScheduleErrorWaitForInitListener
   issue: https://github.com/elastic/elasticsearch/issues/142626
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/suggested_type}

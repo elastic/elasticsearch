@@ -399,7 +399,13 @@ allprojects {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
         splitForCI(project, "Part4")
-      } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") || project.path.contains("smoke-test")) {
+      } else if (project.path.contains("smoke-test")) {
+        splitForCI(project, "Part6")
+      } else if (project.path == ":x-pack:plugin") {
+        splitForCI(project, "Part6")
+      } else if (project.path.contains(":eql") || project.path.contains(":sql")) {
+        splitForCI(project, "Part5")
+      } else if (project.path.contains("ql")) {
         splitForCI(project, "Part3")
       } else if (project.path.contains("multi-node")) {
         splitForCI(project, "Part5")

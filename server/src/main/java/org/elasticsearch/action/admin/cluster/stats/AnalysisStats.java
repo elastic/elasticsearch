@@ -49,7 +49,7 @@ public final class AnalysisStats implements ToXContentFragment, Writeable {
     );
 
     static final TransportVersion MULTIPLE_SYNONYM_GRAPH_FILTERS_VERSION = TransportVersion.fromName(
-        "cluster.stats.multiple_synonym_graph_filters"
+        "cluster_stats_multiple_synonym_graph_filters"
     );
 
     private static final String SYNONYM_FILTER_TYPE = "synonym";

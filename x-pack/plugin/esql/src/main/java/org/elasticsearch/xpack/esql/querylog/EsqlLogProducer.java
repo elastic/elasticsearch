@@ -24,8 +24,7 @@ public class EsqlLogProducer implements ActivityLogProducer<EsqlLogContext> {
     public Optional<ESLogMessage> produce(EsqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
         msg.field(ES_FIELDS_PREFIX + "query", context.getQuery());
-        Optional<EsqlQueryProfile> esqlQueryProfile = context.getQueryProfile();
-        esqlQueryProfile.ifPresent(profile -> {
+        context.getQueryProfile().ifPresent(profile -> {
             for (TimeSpanMarker timeSpanMarker : profile.timeSpanMarkers()) {
                 TimeValue timeTook = timeSpanMarker.timeTook();
                 if (timeTook != null) {

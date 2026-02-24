@@ -316,7 +316,7 @@ public class PropagateInlineEvalsTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var inline = as(limit.child(), InlineJoin.class);
         assertThat(inline.config().leftFields().isEmpty(), is(false));
-        assertThat(inline.left() instanceof Project, is(true));
+        assertThat(inline.left() instanceof EsqlProject, is(true));
         assertThat(inline.right().anyMatch(p -> p instanceof StubRelation), is(true));
     }
 

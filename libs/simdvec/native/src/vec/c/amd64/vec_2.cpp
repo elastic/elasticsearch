@@ -530,36 +530,28 @@ static inline void dotd2q4_inner_bulk(
     int c = 0;
 
     const int8_t* a0 = safe_mapper_offset<int8_t, 0, mapper>(a, pitch, offsets, count);
-    const int8_t* a1 = safe_mapper_offset<int8_t, 1, mapper>(a, pitch, offsets, count);
 
-    // Process a batch of 2 vectors at a time, after instructing the CPU to
-    // prefetch the next batch.
-    // Prefetching multiple memory locations while computing keeps the CPU
-    // execution units busy.
-    for (; c + 3 < count; c += 2) {
-        const int8_t* next_a0 = a + mapper(c + 2, offsets) * pitch;
-        const int8_t* next_a1 = a + mapper(c + 3, offsets) * pitch;
+    // Process 1 vector at a time, after instructing the CPU to
+    // prefetch the next vector (both stripes).
+    for (; c + 1 < count; c++) {
+        const int8_t* next_a0 = a + mapper(c + 1, offsets) * pitch;
 
         prefetch(next_a0, lines_to_fetch);
-        prefetch(next_a1, lines_to_fetch);
+        prefetch(next_a0 + bit_length, lines_to_fetch);
 
-        int64_t lower0 = dotd1q4_inner(a0, query, bit_length);
-        int64_t lower1 = dotd1q4_inner(a1, query, bit_length);
-        int64_t upper0 = dotd1q4_inner(a0 + bit_length, query, bit_length);
-        int64_t upper1 = dotd1q4_inner(a1 + bit_length, query, bit_length);
+        int64_t lower = dotd1q4_inner(a0, query, bit_length);
+        int64_t upper = dotd1q4_inner(a0 + bit_length, query, bit_length);
 
-        results[c + 0] = (f32_t)(lower0 + (upper0 << 1));
-        results[c + 1] = (f32_t)(lower1 + (upper1 << 1));
+        results[c] = (f32_t)(lower + (upper << 1));
 
         a0 = next_a0;
-        a1 = next_a1;
     }
 
-    // Tail-handling: remaining vectors
+    // Tail-handling: last vector
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
-        int64_t lower = dotd1q4_inner(a0, query, length/2);
-        int64_t upper = dotd1q4_inner(a0 + length/2, query, length/2);
+        int64_t lower = dotd1q4_inner(a0, query, bit_length);
+        int64_t upper = dotd1q4_inner(a0 + bit_length, query, bit_length);
         results[c] = (f32_t)(lower + (upper << 1));
     }
 }
@@ -586,8 +578,8 @@ EXPORT void vec_dotd2q4_bulk_offsets_2(
 
 EXPORT int64_t vec_dotd4q4_2(const int8_t* a, const int8_t* query, const int32_t length) {
     const int32_t bit_length = length / 4;
-    int64_t p0 = dotd1q4_inner(a + 0 * bit_length, query, bit_length);
-    int64_t p1 = dotd1q4_inner(a + 1 * bit_length, query, bit_length);
+    int64_t p0 = dotd1q4_inner(a, query, bit_length);
+    int64_t p1 = dotd1q4_inner(a + bit_length, query, bit_length);
     int64_t p2 = dotd1q4_inner(a + 2 * bit_length, query, bit_length);
     int64_t p3 = dotd1q4_inner(a + 3 * bit_length, query, bit_length);
     return p0 + (p1 << 1) + (p2 << 2) + (p3 << 3);
@@ -613,10 +605,17 @@ static inline void dotd4q4_inner_bulk(
     for (; c + 1 < count; c++) {
         const int8_t* next_a0 = a + mapper(c + 1, offsets) * pitch;
 
-        prefetch(next_a0, lines_to_fetch);
+        // prefetch stripes 2 and 3 now
+        prefetch(a0 + 2 * bit_length, lines_to_fetch);
+        prefetch(a0 + 3 * bit_length, lines_to_fetch);
 
-        int64_t p0 = dotd1q4_inner(a0 + 0 * bit_length, query, bit_length);
-        int64_t p1 = dotd1q4_inner(a0 + 1 * bit_length, query, bit_length);
+        int64_t p0 = dotd1q4_inner(a0, query, bit_length);
+        int64_t p1 = dotd1q4_inner(a0 + bit_length, query, bit_length);
+
+        // and 0 and 1 of the next vector
+        prefetch(next_a0, lines_to_fetch);
+        prefetch(next_a0 + bit_length, lines_to_fetch);
+
         int64_t p2 = dotd1q4_inner(a0 + 2 * bit_length, query, bit_length);
         int64_t p3 = dotd1q4_inner(a0 + 3 * bit_length, query, bit_length);
 
@@ -629,8 +628,8 @@ static inline void dotd4q4_inner_bulk(
     for (; c < count; c++) {
         const int8_t* a0 = a + mapper(c, offsets) * pitch;
 
-        int64_t p0 = dotd1q4_inner(a0 + 0 * bit_length, query, bit_length);
-        int64_t p1 = dotd1q4_inner(a0 + 1 * bit_length, query, bit_length);
+        int64_t p0 = dotd1q4_inner(a0, query, bit_length);
+        int64_t p1 = dotd1q4_inner(a0 + bit_length, query, bit_length);
         int64_t p2 = dotd1q4_inner(a0 + 2 * bit_length, query, bit_length);
         int64_t p3 = dotd1q4_inner(a0 + 3 * bit_length, query, bit_length);
 

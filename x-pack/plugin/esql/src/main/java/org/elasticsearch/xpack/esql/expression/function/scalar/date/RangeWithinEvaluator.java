@@ -19,12 +19,12 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 /**
- * Evaluator for RANGE_CONTAINS(left, right) -> boolean.
+ * Evaluator for RANGE_WITHIN(left, right) -> boolean.
  * Supports (date_range, date), (date, date_range), (date_range, date_range), (date, date)
- * with Lucene CONTAINS semantics: left contains right.
+ * with Lucene CONTAINS semantics: left contains right (value within range).
  */
-public class RangeContainsEvaluator implements EvalOperator.ExpressionEvaluator {
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RangeContainsEvaluator.class);
+public class RangeWithinEvaluator implements EvalOperator.ExpressionEvaluator {
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RangeWithinEvaluator.class);
 
     @SuppressWarnings("unused")  // reserved for error reporting
     private final Source source;
@@ -34,7 +34,7 @@ public class RangeContainsEvaluator implements EvalOperator.ExpressionEvaluator 
     private final EvalOperator.ExpressionEvaluator rightEvaluator;
     private final DriverContext driverContext;
 
-    public RangeContainsEvaluator(
+    public RangeWithinEvaluator(
         Source source,
         DataType leftType,
         DataType rightType,
@@ -118,7 +118,7 @@ public class RangeContainsEvaluator implements EvalOperator.ExpressionEvaluator 
 
     @Override
     public String toString() {
-        return "RangeContainsEvaluator[left=" + leftEvaluator + ", right=" + rightEvaluator + "]";
+        return "RangeWithinEvaluator[left=" + leftEvaluator + ", right=" + rightEvaluator + "]";
     }
 
     public static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
@@ -144,12 +144,12 @@ public class RangeContainsEvaluator implements EvalOperator.ExpressionEvaluator 
 
         @Override
         public EvalOperator.ExpressionEvaluator get(DriverContext context) {
-            return new RangeContainsEvaluator(source, leftType, rightType, left.get(context), right.get(context), context);
+            return new RangeWithinEvaluator(source, leftType, rightType, left.get(context), right.get(context), context);
         }
 
         @Override
         public String toString() {
-            return "RangeContainsEvaluator[left=" + left + ", right=" + right + "]";
+            return "RangeWithinEvaluator[left=" + left + ", right=" + right + "]";
         }
     }
 }

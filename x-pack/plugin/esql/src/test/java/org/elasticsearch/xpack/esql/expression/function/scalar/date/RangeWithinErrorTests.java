@@ -20,18 +20,18 @@ import java.util.Set;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Error tests for RANGE_CONTAINS(left, right).
+ * Error tests for RANGE_WITHIN(left, right).
  * Both arguments must be date, date_nanos, or date_range.
  */
-public class RangeContainsErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
+public class RangeWithinErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
     @Override
     protected List<TestCaseSupplier> cases() {
-        return paramsToSuppliers(RangeContainsTests.parameters());
+        return paramsToSuppliers(RangeWithinTests.parameters());
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new RangeContains(source, args.get(0), args.get(1));
+        return new RangeWithin(source, args.get(0), args.get(1));
     }
 
     @Override

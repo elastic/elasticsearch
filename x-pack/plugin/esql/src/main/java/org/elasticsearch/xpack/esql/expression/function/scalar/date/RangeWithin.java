@@ -33,8 +33,8 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 
 /**
- * RANGE_CONTAINS(left, right) -> boolean
- * Returns true if the first value "contains" the second, following Lucene CONTAINS semantics:
+ * RANGE_WITHIN(left, right) -> boolean
+ * Returns true if the first value "contains" the second, following Lucene CONTAINS semantics (value within range):
  * <ul>
  *   <li>(date_range, date): range contains the point (point within [from, to])</li>
  *   <li>(date, date_range): range contains the point (point within [from, to])</li>
@@ -42,11 +42,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
  *   <li>(date, date): equality</li>
  * </ul>
  */
-public class RangeContains extends EsqlScalarFunction {
+public class RangeWithin extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "RangeContains",
-        RangeContains::new
+        "RangeWithin",
+        RangeWithin::new
     );
 
     private final Expression left;
@@ -54,11 +54,13 @@ public class RangeContains extends EsqlScalarFunction {
 
     @FunctionInfo(
         returnType = "boolean",
-        description = "Returns true if the first value contains the second (Lucene CONTAINS semantics). "
+        description = "Returns true if the value is within the range (Lucene CONTAINS semantics). "
             + "Supports (date_range, date), (date, date_range), (date_range, date_range), (date, date).",
-        examples = @Example(file = "date_range", tag = "rangeContains", explanation = "Filter events within a specific date range")
+        appendix = "RANGE_WITHIN supports all four combinations of date and date_range with Lucene CONTAINS semantics. "
+            + "Lucene pushdown is not implemented for this function yet.",
+        examples = @Example(file = "date_range", tag = "rangeWithin", explanation = "Filter events within a specific date range")
     )
-    public RangeContains(
+    public RangeWithin(
         Source source,
         @Param(name = "left", type = { "date", "date_nanos", "date_range" }, description = "Container (range or point).") Expression left,
         @Param(
@@ -72,7 +74,7 @@ public class RangeContains extends EsqlScalarFunction {
         this.right = right;
     }
 
-    private RangeContains(StreamInput in) throws IOException {
+    private RangeWithin(StreamInput in) throws IOException {
         this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class));
     }
 
@@ -180,16 +182,16 @@ public class RangeContains extends EsqlScalarFunction {
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var leftEvaluator = toEvaluator.apply(left);
         var rangeEvaluator = toEvaluator.apply(right);
-        return new RangeContainsEvaluator.Factory(source(), left.dataType(), right.dataType(), leftEvaluator, rangeEvaluator);
+        return new RangeWithinEvaluator.Factory(source(), left.dataType(), right.dataType(), leftEvaluator, rangeEvaluator);
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new RangeContains(source(), newChildren.get(0), newChildren.get(1));
+        return new RangeWithin(source(), newChildren.get(0), newChildren.get(1));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, RangeContains::new, left, right);
+        return NodeInfo.create(this, RangeWithin::new, left, right);
     }
 }

@@ -122,7 +122,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
@@ -473,7 +473,7 @@ public class EsqlFunctionRegistry {
                 def(DateParse.class, DateParse::new, "date_parse"),
                 def(DateTrunc.class, DateTrunc::new, "date_trunc"),
                 def(DayName.class, DayName::new, "day_name"),
-                def(RangeContains.class, RangeContains::new, "range_contains"),
+                def(RangeWithin.class, RangeWithin::new, "range_within"),
                 def(MonthName.class, MonthName::new, "month_name"),
                 def(Now.class, Now::new, "now"),
                 def(RangeMax.class, RangeMax::new, "range_max"),

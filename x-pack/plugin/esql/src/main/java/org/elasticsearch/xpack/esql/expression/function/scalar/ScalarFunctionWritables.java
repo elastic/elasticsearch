@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DayName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.MonthName;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.Now;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeContains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeWithin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMax;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.RangeMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
@@ -101,7 +101,7 @@ public class ScalarFunctionWritables {
         entries.add(DateParse.ENTRY);
         entries.add(DateTrunc.ENTRY);
         entries.add(DayName.ENTRY);
-        entries.add(RangeContains.ENTRY);
+        entries.add(RangeWithin.ENTRY);
         entries.add(MonthName.ENTRY);
         entries.add(RangeMax.ENTRY);
         entries.add(RangeMin.ENTRY);

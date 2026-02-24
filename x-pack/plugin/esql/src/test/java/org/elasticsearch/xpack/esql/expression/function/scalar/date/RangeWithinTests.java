@@ -25,11 +25,11 @@ import java.util.function.Supplier;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
- * Tests for RANGE_CONTAINS(left, right) -> boolean for all four type combinations:
+ * Tests for RANGE_WITHIN(left, right) -> boolean for all four type combinations:
  * (date_range, date), (date, date_range), (date_range, date_range), (date, date).
  */
-public class RangeContainsTests extends AbstractScalarFunctionTestCase {
-    public RangeContainsTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class RangeWithinTests extends AbstractScalarFunctionTestCase {
+    public RangeWithinTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -85,24 +85,18 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
         // (date, date): equality
         suppliers.add(dateEqualsDate("dates equal", 1000L, 1000L, true));
         suppliers.add(dateEqualsDate("dates not equal", 1000L, 2000L, false));
-        suppliers.add(
-            new TestCaseSupplier(
-                "dates equal (date_nanos)",
-                List.of(DataType.DATE_NANOS, DataType.DATE_NANOS),
-                () -> {
-                    long t = DateUtils.toNanoSeconds(1000L);
-                    return new TestCaseSupplier.TestCase(
-                        List.of(
-                            new TestCaseSupplier.TypedData(t, DataType.DATE_NANOS, "a"),
-                            new TestCaseSupplier.TypedData(t, DataType.DATE_NANOS, "b")
-                        ),
-                        "RangeContainsEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
-                        DataType.BOOLEAN,
-                        equalTo(true)
-                    );
-                }
-            )
-        );
+        suppliers.add(new TestCaseSupplier("dates equal (date_nanos)", List.of(DataType.DATE_NANOS, DataType.DATE_NANOS), () -> {
+            long t = DateUtils.toNanoSeconds(1000L);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(t, DataType.DATE_NANOS, "a"),
+                    new TestCaseSupplier.TypedData(t, DataType.DATE_NANOS, "b")
+                ),
+                "RangeWithinEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                DataType.BOOLEAN,
+                equalTo(true)
+            );
+        }));
         // (datetime, date_nanos) and (date_nanos, datetime): cross-type equality; raw long comparison so different units => false
         suppliers.add(
             new TestCaseSupplier(
@@ -113,7 +107,7 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(1000L, DataType.DATETIME, "a"),
                         new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(1000L), DataType.DATE_NANOS, "b")
                     ),
-                    "RangeContainsEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                    "RangeWithinEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                     DataType.BOOLEAN,
                     equalTo(false)
                 )
@@ -128,7 +122,7 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
                         new TestCaseSupplier.TypedData(DateUtils.toNanoSeconds(1000L), DataType.DATE_NANOS, "a"),
                         new TestCaseSupplier.TypedData(1000L, DataType.DATETIME, "b")
                     ),
-                    "RangeContainsEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                    "RangeWithinEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                     DataType.BOOLEAN,
                     equalTo(false)
                 )
@@ -151,7 +145,7 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
             List.of(dateType, DataType.DATE_RANGE),
             () -> new TestCaseSupplier.TestCase(
                 List.of(new TestCaseSupplier.TypedData(dateVal, dateType, "date"), typedDateRange(rangeFrom, rangeTo)),
-                "RangeContainsEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "RangeWithinEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(expected)
             )
@@ -164,7 +158,7 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
             List.of(DataType.DATE_RANGE, DataType.DATETIME),
             () -> new TestCaseSupplier.TestCase(
                 List.of(typedDateRange(rangeFrom, rangeTo), new TestCaseSupplier.TypedData(point, DataType.DATETIME, "date")),
-                "RangeContainsEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "RangeWithinEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(expected)
             )
@@ -186,7 +180,7 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
                     typedDateRange(DateUtils.toNanoSeconds(rangeFrom), DateUtils.toNanoSeconds(rangeTo)),
                     new TestCaseSupplier.TypedData(pointNanos, DataType.DATE_NANOS, "date")
                 ),
-                "RangeContainsEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "RangeWithinEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(expected)
             )
@@ -199,7 +193,7 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
             List.of(DataType.DATE_RANGE, DataType.DATE_RANGE),
             () -> new TestCaseSupplier.TestCase(
                 List.of(typedDateRange(aFrom, aTo), typedDateRange(bFrom, bTo)),
-                "RangeContainsEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "RangeWithinEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(expected)
             )
@@ -215,7 +209,7 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(a, DataType.DATETIME, "a"),
                     new TestCaseSupplier.TypedData(b, DataType.DATETIME, "b")
                 ),
-                "RangeContainsEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
+                "RangeWithinEvaluator[left=Attribute[channel=0], right=Attribute[channel=1]]",
                 DataType.BOOLEAN,
                 equalTo(expected)
             )
@@ -228,6 +222,6 @@ public class RangeContainsTests extends AbstractScalarFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new RangeContains(source, args.get(0), args.get(1));
+        return new RangeWithin(source, args.get(0), args.get(1));
     }
 }

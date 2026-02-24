@@ -4,7 +4,7 @@
 
 ```esql
 FROM employees
-| WHERE RANGE_CONTAINS(hire_date, TO_DATE_RANGE("1985-02-01..1985-03-01"))
+| WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-02-01..1985-03-01"))
 | KEEP emp_no, hire_date
 | SORT emp_no
 ```

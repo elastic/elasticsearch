@@ -19,9 +19,9 @@ import static org.elasticsearch.entitlement.qa.test.EntitlementTest.ExpectedAcce
 @SuppressWarnings({ "unused" /* called via reflection */ })
 class FileStoreActions {
 
-    @EntitlementTest(expectedAccess = ALWAYS_DENIED)
-    static void checkGetFileStoreAttributeView() throws IOException {
-        Files.getFileStore(FileCheckActions.readWriteFile()).getFileStoreAttributeView(FileStoreAttributeView.class);
+    @EntitlementTest(expectedAccess = ALWAYS_DENIED, expectedDefaultIfDenied = "null")
+    static String checkGetFileStoreAttributeView() throws IOException {
+        return String.valueOf(Files.getFileStore(FileCheckActions.readWriteFile()).getFileStoreAttributeView(FileStoreAttributeView.class));
     }
 
     @EntitlementTest(expectedAccess = SERVER_ONLY)

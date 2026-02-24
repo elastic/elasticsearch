@@ -415,8 +415,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         docs.add(hits);
 
         try {
-            IllegalArgumentException docsWithNoValuesEx = assertThrows(
-                IllegalArgumentException.class,
+            ElasticsearchStatusException docsWithNoValuesEx = assertThrows(
+                ElasticsearchStatusException.class,
                 () -> retriever.combineInnerRetrieverResults(docs, false)
             );
             assertEquals(
@@ -449,8 +449,8 @@ public class DiversifyRetrieverBuilderTests extends ESTestCase {
         docs.add(hits);
 
         try {
-            IllegalArgumentException docsWithNoValuesEx = assertThrows(
-                IllegalArgumentException.class,
+            ElasticsearchStatusException docsWithNoValuesEx = assertThrows(
+                ElasticsearchStatusException.class,
                 () -> retriever.combineInnerRetrieverResults(docs, false)
             );
             assertEquals(

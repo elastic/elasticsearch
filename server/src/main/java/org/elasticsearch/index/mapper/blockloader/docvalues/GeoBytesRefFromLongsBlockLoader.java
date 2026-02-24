@@ -10,7 +10,6 @@
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -18,6 +17,8 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.NumericDvSingletonOrSorted;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 import java.io.IOException;
 import java.nio.ByteOrder;
@@ -44,41 +45,32 @@ public final class GeoBytesRefFromLongsBlockLoader extends BlockDocValuesReader.
 
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addEstimateBytesAndMaybeBreak(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE, "load blocks");
-        boolean release = true;
-        try {
-            SortedNumericDocValues docValues = context.reader().getSortedNumericDocValues(fieldName);
-            if (docValues != null) {
-                release = false;
-                return new BytesRefsFromLong(breaker, docValues, geoPointLong -> {
-                    GeoPoint gp = new GeoPoint().resetFromEncoded(geoPointLong);
-                    byte[] wkb = WellKnownBinary.toWKB(new Point(gp.getX(), gp.getY()), ByteOrder.LITTLE_ENDIAN);
-                    return new BytesRef(wkb);
-                });
-            }
-
+        NumericDvSingletonOrSorted dv = NumericDvSingletonOrSorted.get(breaker, context, fieldName);
+        if (dv == null) {
             return ConstantNull.READER;
-        } finally {
-            if (release) {
-                breaker.addWithoutBreaking(-AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE);
-            }
         }
+        TrackingSortedNumericDocValues sorted = dv.forceSorted();
+        return new BytesRefsFromLong(sorted, geoPointLong -> {
+            GeoPoint gp = new GeoPoint().resetFromEncoded(geoPointLong);
+            byte[] wkb = WellKnownBinary.toWKB(new Point(gp.getX(), gp.getY()), ByteOrder.LITTLE_ENDIAN);
+            return new BytesRef(wkb);
+        });
     }
 
     private static final class BytesRefsFromLong extends BlockDocValuesReader {
 
-        private final SortedNumericDocValues numericDocValues;
+        private final TrackingSortedNumericDocValues numericDocValues;
         private final Function<Long, BytesRef> longsToBytesRef;
 
-        BytesRefsFromLong(CircuitBreaker breaker, SortedNumericDocValues numericDocValues, Function<Long, BytesRef> longsToBytesRef) {
-            super(breaker);
+        BytesRefsFromLong(TrackingSortedNumericDocValues numericDocValues, Function<Long, BytesRef> longsToBytesRef) {
+            super(null);
             this.numericDocValues = numericDocValues;
             this.longsToBytesRef = longsToBytesRef;
         }
 
         @Override
         protected int docId() {
-            return numericDocValues.docID();
+            return numericDocValues.docValues().docID();
         }
 
         @Override
@@ -105,20 +97,19 @@ public final class GeoBytesRefFromLongsBlockLoader extends BlockDocValuesReader.
         }
 
         private void read(int doc, BlockLoader.BytesRefBuilder builder) throws IOException {
-            // no more values remaining
-            if (numericDocValues.advanceExact(doc) == false) {
+            if (numericDocValues.docValues().advanceExact(doc) == false) {
                 builder.appendNull();
                 return;
             }
-            int count = numericDocValues.docValueCount();
+            int count = numericDocValues.docValues().docValueCount();
             if (count == 1) {
-                BytesRef bytesRefValue = longsToBytesRef.apply(numericDocValues.nextValue());
+                BytesRef bytesRefValue = longsToBytesRef.apply(numericDocValues.docValues().nextValue());
                 builder.appendBytesRef(bytesRefValue);
                 return;
             }
             builder.beginPositionEntry();
             for (int v = 0; v < count; v++) {
-                BytesRef bytesRefValue = longsToBytesRef.apply(numericDocValues.nextValue());
+                BytesRef bytesRefValue = longsToBytesRef.apply(numericDocValues.docValues().nextValue());
                 builder.appendBytesRef(bytesRefValue);
             }
             builder.endPositionEntry();
@@ -126,7 +117,7 @@ public final class GeoBytesRefFromLongsBlockLoader extends BlockDocValuesReader.
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(-AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE);
+            numericDocValues.close();
         }
     }
 }

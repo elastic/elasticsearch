@@ -46,7 +46,7 @@ public final class CountDistinctBytesRefGroupingAggregatorFunction implements Gr
 
   public static CountDistinctBytesRefGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext, int precision) {
-    return new CountDistinctBytesRefGroupingAggregatorFunction(channels, CountDistinctBytesRefAggregator.initGrouping(driverContext.bigArrays(), precision), driverContext, precision);
+    return new CountDistinctBytesRefGroupingAggregatorFunction(channels, CountDistinctBytesRefAggregator.initGrouping(driverContext, precision), driverContext, precision);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

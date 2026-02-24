@@ -11,10 +11,26 @@ import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 
-public class ElasticInferenceServiceDenseTextEmbeddingsModelTests {
+import static org.elasticsearch.test.ESTestCase.assertThat;
+import static org.hamcrest.Matchers.is;
+
+public class ElasticInferenceServiceDenseTextEmbeddingsModelTests extends ESTestCase {
+
+    public void testUriCreation() {
+        var model = createModel("http://eis-gateway.com", "my-model-id");
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/embed/text/dense"));
+    }
+
+    public void testUriCreation_WithTrailingSlash() {
+        var model = createModel("http://eis-gateway.com/", "my-model-id");
+
+        assertThat(model.uri().toString(), is("http://eis-gateway.com/api/v1/embed/text/dense"));
+    }
 
     public static ElasticInferenceServiceDenseTextEmbeddingsModel createModel(String url, String modelId) {
         return new ElasticInferenceServiceDenseTextEmbeddingsModel(

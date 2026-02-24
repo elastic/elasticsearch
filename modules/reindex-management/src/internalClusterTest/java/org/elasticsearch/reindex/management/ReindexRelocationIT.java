@@ -111,9 +111,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertThat("reindex should start on nodeB", originalReindex.getTask().taskId().getNodeId(), equalTo(nodeBId));
         assertRunningReindexTaskExpectedState(originalReindex.getTask());
 
-        // Stop nodeB to trigger reindex relocation
-        internalCluster().getInstance(ShutdownPrepareService.class, nodeBName).prepareForShutdown();
-        internalCluster().stopNode(nodeBName);
+        shutdownNodeNameAndRelocate(nodeBName);
 
         // Assert the original task is in .tasks index and has expected content (including relocated taskId on nodeA)
         final TaskId relocatedTaskId = assertOriginalTaskEndStateInTasksIndexAndGetRelocatedTaskId(originalTaskId, nodeAId);
@@ -133,6 +131,21 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     }
     // todo(szy): add test for two reindex task hops
     // todo(szy): add test for remote reindex
+
+    private void shutdownNodeNameAndRelocate(final String nodeName) throws Exception {
+        // testing assumption: .tasks should not exist yet — it's created when the task result is stored during relocation
+        assertFalse(".tasks index should not exist before shutdown", indexExists(TaskResultsService.TASK_INDEX));
+
+        // trigger reindex relocation
+        internalCluster().getInstance(ShutdownPrepareService.class, nodeName).prepareForShutdown();
+
+        // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
+        // on nodeA is stale and can't be promoted to primary when nodeB leaves
+        assertBusy(() -> assertTrue(indexExists(TaskResultsService.TASK_INDEX)), 30, TimeUnit.SECONDS);
+        ensureGreen(TaskResultsService.TASK_INDEX);
+
+        internalCluster().stopNode(nodeName);
+    }
 
     private TaskId assertOriginalTaskExpectedEndStateAndGetRelocatedTaskId(
         final TaskResult originalResult,

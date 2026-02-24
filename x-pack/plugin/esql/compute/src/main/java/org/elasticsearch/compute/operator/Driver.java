@@ -191,9 +191,9 @@ public class Driver implements Releasable, Describable {
             IsBlockedResult isBlocked = Operator.NOT_BLOCKED;
             try {
                 assert driverContext.assertBeginRunLoop();
-                isBlocked = runSingleLoopIteration();
+                isBlocked = runSingleLoopIteration(nowSupplier, lastStatusUpdateTime);
             } catch (DriverEarlyTerminationException unused) {
-                closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
+                closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()), nowSupplier, lastStatusUpdateTime);
                 assert isFinished() : "not finished after early termination";
             } catch (TaskCancelledException e) {
                 LOGGER.debug("Cancelling running driver [{}]", shortDescription, e);
@@ -271,7 +271,7 @@ public class Driver implements Releasable, Describable {
         }
     }
 
-    private IsBlockedResult runSingleLoopIteration() {
+    private IsBlockedResult runSingleLoopIteration(LongSupplier nowSupplier, long lastStatusUpdate) {
         driverContext.checkForEarlyTermination();
         boolean movedPage = false;
 
@@ -314,14 +314,14 @@ public class Driver implements Releasable, Describable {
             if (op.isFinished()) {
                 driverContext.checkForEarlyTermination();
                 var originalIndex = iterator.previousIndex();
-                var index = closeEarlyFinishedOperators(iterator);
+                var index = closeEarlyFinishedOperators(iterator, nowSupplier, lastStatusUpdate);
                 if (index >= 0) {
                     iterator = new ArrayList<>(activeOperators).listIterator(originalIndex - index);
                 }
             }
         }
 
-        closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()));
+        closeEarlyFinishedOperators(activeOperators.listIterator(activeOperators.size()), nowSupplier, lastStatusUpdate);
 
         if (movedPage == false) {
             blockedResults.clear();
@@ -342,7 +342,7 @@ public class Driver implements Releasable, Describable {
     }
 
     // Returns the index of the last operator that was closed, -1 if no operator was closed.
-    protected int closeEarlyFinishedOperators(ListIterator<Operator> operators) {
+    protected int closeEarlyFinishedOperators(ListIterator<Operator> operators, LongSupplier nowSupplier, long lastStatusUpdate) {
         var iterator = activeOperators.listIterator(operators.nextIndex());
         while (iterator.hasPrevious()) {
             if (iterator.previous().isFinished()) {
@@ -357,6 +357,11 @@ public class Driver implements Releasable, Describable {
                 while (finishedOperators.hasNext()) {
                     Operator op = finishedOperators.next();
                     statusOfCompletedOperators.add(new OperatorStatus(op.toString(), op.status()));
+                    if (op instanceof SourceOperator sourceOperator) {
+                        long now = nowSupplier.getAsLong();
+                        // report one last time before closing
+                        sourceOperator.reportSearchLoad(now - lastStatusUpdate, now);
+                    }
                     op.close();
                     finishedOperators.remove();
                 }
@@ -551,6 +556,14 @@ public class Driver implements Releasable, Describable {
         );
     }
 
+    private void reportSearchLoad(long extraCpuNanos, long now) {
+        activeOperators.stream()
+            .filter(o -> o instanceof SourceOperator)
+            .map(o -> (SourceOperator) o)
+            .findFirst()
+            .ifPresent(sourceOperator -> sourceOperator.reportSearchLoad(extraCpuNanos, now));
+    }
+
     /**
      * Update the status.
      * @param extraCpuNanos how many cpu nanoseconds to add to the previous status
@@ -584,6 +597,7 @@ public class Driver implements Releasable, Describable {
                     }
                 }
             }
+            reportSearchLoad(extraCpuNanos, now);
 
             return new DriverStatus(
                 sessionId,

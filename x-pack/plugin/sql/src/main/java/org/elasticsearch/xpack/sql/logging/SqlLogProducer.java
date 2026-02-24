@@ -20,7 +20,7 @@ public class SqlLogProducer implements ActivityLogProducer<SqlLogContext> {
     @Override
     public Optional<ESLogMessage> produce(SqlLogContext context, ActionLoggingFields additionalFields) {
         ESLogMessage msg = produceCommon(context, additionalFields);
-        return Optional.of(msg.field(ES_FIELDS_PREFIX + "query", context.getQuery()).field(ES_FIELDS_PREFIX + "rows", context.getRows()));
+        return Optional.of(msg.field(ES_FIELDS_PREFIX + "query", context.getQuery()).field(ES_FIELDS_PREFIX + "hits", context.getRows()));
     }
 
     @Override

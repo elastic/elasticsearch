@@ -76,22 +76,11 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
     }
 
     public LongRangeBlockBuilder copyFrom(LongRangeBlock block, int pos) {
-        if (block.isNull(pos)) {
+        if (block.isNull(pos) || block.getFromBlock().isNull(pos) || block.getToBlock().isNull(pos)) {
             appendNull();
             return this;
         }
-
-        if (block.getFromBlock().isNull(pos)) {
-            from().appendNull();
-        } else {
-            from().appendLong(block.getFromBlock().getLong(pos));
-        }
-
-        if (block.getToBlock().isNull(pos)) {
-            to().appendNull();
-        } else {
-            to().appendLong(block.getToBlock().getLong(pos));
-        }
+        appendLongRange(block.getFromBlock().getLong(pos), block.getToBlock().getLong(pos));
         return this;
     }
 
@@ -109,16 +98,12 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
     }
 
     public LongRangeBlockBuilder appendLongRange(LongRange lit) {
-        if (lit.from == null) {
-            fromBuilder.appendNull();
-        } else {
-            fromBuilder.appendLong(lit.from);
+        if (lit == null || lit.from == null || lit.to == null) {
+            appendNull();
+            return this;
         }
-        if (lit.to == null) {
-            toBuilder.appendNull();
-        } else {
-            toBuilder.appendLong(lit.to);
-        }
+        fromBuilder.appendLong(lit.from);
+        toBuilder.appendLong(lit.to);
         return this;
     }
 
@@ -171,7 +156,7 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
         );
 
         public LongRange(StreamInput in) throws IOException {
-            this(in.readLong(), in.readLong());
+            this(Long.valueOf(in.readLong()), Long.valueOf(in.readLong()));
         }
 
         @Override
@@ -186,6 +171,9 @@ public class LongRangeBlockBuilder extends AbstractBlockBuilder implements Block
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
+            if (from == null || to == null) {
+                throw new IllegalArgumentException("LongRange with null bounds cannot be serialized");
+            }
             out.writeLong(from);
             out.writeLong(to);
         }

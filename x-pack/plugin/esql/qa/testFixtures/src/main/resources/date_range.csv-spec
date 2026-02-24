@@ -247,3 +247,41 @@ date:date                     | in_june:boolean | in_july:boolean
 2024-06-15T12:00:00.000Z      | true            | false
 ;
 
+###############################################
+# range_min / range_max tests
+###############################################
+
+rangeMin
+required_capability: date_range_field_type
+
+// tag::range_min[]
+FROM date_ranges
+| WHERE decade == 1900
+| EVAL min_bound = RANGE_MIN(date_range)
+| KEEP date_range, min_bound
+// end::range_min[]
+;
+
+// tag::range_min-result[]
+date_range:date_range  | min_bound:date
+1900-01-01..1910-01-01 | 1900-01-01T00:00:00.000Z
+// end::range_min-result[]
+;
+
+rangeMax
+required_capability: date_range_field_type
+
+// tag::range_max[]
+FROM date_ranges
+| WHERE decade == 1900
+| EVAL max_bound = RANGE_MAX(date_range)
+| KEEP date_range, max_bound
+// end::range_max[]
+;
+
+// tag::range_max-result[]
+date_range:date_range  | max_bound:date
+1900-01-01..1910-01-01 | 1909-12-31T23:59:59.999Z
+// end::range_max-result[]
+;
+

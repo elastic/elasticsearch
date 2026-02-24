@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
@@ -38,7 +37,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
 
         private final Map<String, String> headers;
 
-        HeadersDefinition(@Nullable Map<String, String> headers) {
+        HeadersDefinition(Map<String, String> headers) {
             this.headers = headers;
         }
     }

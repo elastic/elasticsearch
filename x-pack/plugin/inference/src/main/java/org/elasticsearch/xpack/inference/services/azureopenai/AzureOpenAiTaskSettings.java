@@ -32,7 +32,7 @@ import java.util.Objects;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * Base class for Azure OpenAI task settings (embeddings and completion). Holds optional user and optional
+ * Base class for Azure OpenAI task settings. Holds optional user and optional
  * custom HTTP headers via {@link Headers}.
  */
 public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<T>> implements TaskSettings {
@@ -121,7 +121,9 @@ public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<
         var validationException = new ValidationException();
 
         if (settings.user() != null && settings.user().isEmpty()) {
-            validationException.addValidationError(InferenceUtils.mustBeNonEmptyString(AzureOpenAiServiceFields.USER, ModelConfigurations.TASK_SETTINGS));
+            validationException.addValidationError(
+                InferenceUtils.mustBeNonEmptyString(AzureOpenAiServiceFields.USER, ModelConfigurations.TASK_SETTINGS)
+            );
             throw validationException;
         }
     }

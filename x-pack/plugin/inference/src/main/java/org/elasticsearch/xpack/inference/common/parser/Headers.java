@@ -26,7 +26,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.validateMa
 
 public record Headers(Map<String, String> headersMap) implements ToXContentFragment, Writeable {
 
-    private static final ParseField HEADERS = new ParseField("headers");
+    public static final String HEADERS_FIELD = "headers";
+
+    private static final ParseField HEADERS = new ParseField(HEADERS_FIELD);
 
     public static final Headers EMPTY_INSTANCE = new Headers(Map.of());
 

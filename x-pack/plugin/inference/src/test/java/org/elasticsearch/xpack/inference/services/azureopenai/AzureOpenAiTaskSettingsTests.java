@@ -88,7 +88,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
         }
 
         if (newSettings.headers() != null) {
-            newSettingsMap.put(AzureOpenAiServiceFields.HEADERS, newSettings.headers().headersMap());
+            newSettingsMap.put(Headers.HEADERS_FIELD, newSettings.headers().headersMap());
         }
 
         var updatedSettings = initialSettings.updatedTaskSettings(Collections.unmodifiableMap(newSettingsMap));
@@ -108,7 +108,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     public void testUpdatedTaskSettings_ApplyingEmptyHeaders() {
         var initialSettingsNullHeaders = create(USER, null);
-        Map<String, Object> newSettingsMap = Map.of(AzureOpenAiServiceFields.HEADERS, Map.of());
+        Map<String, Object> newSettingsMap = Map.of(Headers.HEADERS_FIELD, Map.of());
 
         var updatedSettings = initialSettingsNullHeaders.updatedTaskSettings(newSettingsMap);
         assertThat(updatedSettings, is(create(USER, new Headers(Map.of()))));
@@ -121,7 +121,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
     public void testFromMap_WithUserAndHeaders() {
         assertThat(
             createFromMap(
-                new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, AzureOpenAiServiceFields.HEADERS, HEADERS_MAP)),
+                new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, Headers.HEADERS_FIELD, HEADERS_MAP)),
                 ConfigurationParseContext.REQUEST
             ),
             is(create(USER, HEADERS))
@@ -158,7 +158,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     public void testFromMap_ParsesCorrectly_WhenUserIsNull() {
         var settings = createFromMap(
-            new HashMap<>(Map.of(AzureOpenAiServiceFields.HEADERS, new HashMap<>(HEADERS_MAP))),
+            new HashMap<>(Map.of(Headers.HEADERS_FIELD, new HashMap<>(HEADERS_MAP))),
             ConfigurationParseContext.REQUEST
         );
 
@@ -175,7 +175,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     public void testFromMap_ParsesCorrectly_WhenHeadersIsEmptyMap() {
         var settings = createFromMap(
-            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, AzureOpenAiServiceFields.HEADERS, Map.of())),
+            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, Headers.HEADERS_FIELD, Map.of())),
             ConfigurationParseContext.REQUEST
         );
 
@@ -188,7 +188,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
         headersMap.put("key1", null);
         headersMap.put("key2", null);
         var settings = createFromMap(
-            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, AzureOpenAiServiceFields.HEADERS, headersMap)),
+            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, Headers.HEADERS_FIELD, headersMap)),
             ConfigurationParseContext.REQUEST
         );
 
@@ -200,9 +200,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
         var exception = expectThrows(
             XContentParseException.class,
             () -> createFromMap(
-                new HashMap<>(
-                    Map.of(AzureOpenAiServiceFields.USER, USER, AzureOpenAiServiceFields.HEADERS, new HashMap<>(Map.of("key", 1)))
-                ),
+                new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, Headers.HEADERS_FIELD, new HashMap<>(Map.of("key", 1)))),
                 ConfigurationParseContext.REQUEST
             )
         );
@@ -232,7 +230,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     public void testUpdatedTaskSettings_KeepsOriginalValues_WhenOverridesAreEmpty() {
         var taskSettings = createFromMap(
-            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, AzureOpenAiServiceFields.HEADERS, HEADERS_MAP)),
+            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, Headers.HEADERS_FIELD, HEADERS_MAP)),
             ConfigurationParseContext.PERSISTENT
         );
 
@@ -260,9 +258,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
         var exception = expectThrows(
             IllegalArgumentException.class,
             () -> createFromMap(
-                new HashMap<>(
-                    Map.of(AzureOpenAiServiceFields.USER, USER, AzureOpenAiServiceFields.HEADERS, Map.of(), "extra_field", "value")
-                ),
+                new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, Headers.HEADERS_FIELD, Map.of(), "extra_field", "value")),
                 ConfigurationParseContext.REQUEST
             )
         );
@@ -272,7 +268,7 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
     public void testFromMap_DoesNotThrowException_WhenMapContainsExtraFields_ForPersistentContext() {
         var settings = createFromMap(
-            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, AzureOpenAiServiceFields.HEADERS, Map.of(), "extra_field", "value")),
+            new HashMap<>(Map.of(AzureOpenAiServiceFields.USER, USER, Headers.HEADERS_FIELD, Map.of(), "extra_field", "value")),
             ConfigurationParseContext.PERSISTENT
         );
 

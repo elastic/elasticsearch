@@ -98,11 +98,6 @@ public class AzureOpenAiEmbeddingsModel extends AzureOpenAiModel {
     }
 
     @Override
-    public AzureOpenAiSecretSettings getSecretSettings() {
-        return (AzureOpenAiSecretSettings) super.getSecretSettings();
-    }
-
-    @Override
     public ExecutableAction accept(AzureOpenAiActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
     }

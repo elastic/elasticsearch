@@ -380,23 +380,32 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         assertEquals(expectedSynonymStats, analysisStats.getUsedSynonyms());
     }
 
+    /**
+     * Builds a JSON fragment for a single synonym_graph filter entry, randomly choosing between
+     * synonyms_set, inline synonyms, and synonyms_path as the synonym source.
+     * This lets a single test cover all source types without three near-identical copies.
+     */
+    private static String randomSynonymGraphFilter(String filterName, int idx) {
+        return switch (randomIntBetween(0, 2)) {
+            case 0 -> """
+                "%s": { "type": "synonym_graph", "synonyms_set": "set-%d", "updateable": true }""".formatted(filterName, idx);
+            case 1 -> """
+                "%s": { "type": "synonym_graph", "synonyms": ["foo%d, bar%d"] }""".formatted(filterName, idx, idx);
+            case 2 -> """
+                "%s": { "type": "synonym_graph", "synonyms_path": "synonyms%d.txt" }""".formatted(filterName, idx);
+            default -> throw new AssertionError();
+        };
+    }
+
     public void testMultipleSynonymGraphFiltersStats() {
-        // Index with an analyzer that has two synonym_graph filters backed by synonyms_set
-        final String settingsWithMultiple = """
+        // Index with an analyzer that has two synonym_graph filters (synonym source randomized)
+        String settingsWithMultiple = """
             {
               "index": {
                 "analysis": {
                   "filter": {
-                    "syn_graph_1": {
-                      "type": "synonym_graph",
-                      "synonyms_set": "set-1",
-                      "updateable": true
-                    },
-                    "syn_graph_2": {
-                      "type": "synonym_graph",
-                      "synonyms_set": "set-2",
-                      "updateable": true
-                    }
+                    %s,
+                    %s
                   },
                   "analyzer": {
                     "my_analyzer": {
@@ -408,21 +417,17 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                 }
               }
             }
-            """;
+            """.formatted(randomSynonymGraphFilter("syn_graph_1", 1), randomSynonymGraphFilter("syn_graph_2", 2));
         Settings settings1 = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsWithMultiple, XContentType.JSON).build();
         IndexMetadata index1 = new IndexMetadata.Builder("idx_multiple").settings(settings1).build();
 
-        // Index with an analyzer that has only one synonym_graph filter backed by synonyms_set (should not count)
-        final String settingsWithSingle = """
+        // Index with a single synonym_graph filter (should not count)
+        String settingsWithSingle = """
             {
               "index": {
                 "analysis": {
                   "filter": {
-                    "syn_graph_only": {
-                      "type": "synonym_graph",
-                      "synonyms_set": "set-1",
-                      "updateable": true
-                    }
+                    %s
                   },
                   "analyzer": {
                     "single_syn_analyzer": {
@@ -434,31 +439,19 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                 }
               }
             }
-            """;
+            """.formatted(randomSynonymGraphFilter("syn_graph_only", 1));
         Settings settings2 = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsWithSingle, XContentType.JSON).build();
         IndexMetadata index2 = new IndexMetadata.Builder("idx_single").settings(settings2).build();
 
-        // Index with two analyzers, each having multiple synonym_graph filters backed by synonyms_set
-        final String settingsWithTwoAnalyzers = """
+        // Index with two analyzers, each having multiple synonym_graph filters (synonym source randomized per filter)
+        String settingsWithTwoAnalyzers = """
             {
               "index": {
                 "analysis": {
                   "filter": {
-                    "sg_a": {
-                      "type": "synonym_graph",
-                      "synonyms_set": "set-a",
-                      "updateable": true
-                    },
-                    "sg_b": {
-                      "type": "synonym_graph",
-                      "synonyms_set": "set-b",
-                      "updateable": true
-                    },
-                    "sg_c": {
-                      "type": "synonym_graph",
-                      "synonyms_set": "set-c",
-                      "updateable": true
-                    }
+                    %s,
+                    %s,
+                    %s
                   },
                   "analyzer": {
                     "analyzer_one": {
@@ -475,7 +468,11 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
                 }
               }
             }
-            """;
+            """.formatted(
+            randomSynonymGraphFilter("sg_a", 1),
+            randomSynonymGraphFilter("sg_b", 2),
+            randomSynonymGraphFilter("sg_c", 3)
+        );
         Settings settings3 = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsWithTwoAnalyzers, XContentType.JSON)
             .build();
         IndexMetadata index3 = new IndexMetadata.Builder("idx_two_analyzers").settings(settings3).build();
@@ -487,45 +484,6 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
         assertEquals(3, analysisStats.getAnalyzersWithMultipleSynonymGraphFilters());
         // 2 indices have at least one such analyzer: idx_multiple and idx_two_analyzers
         assertEquals(2, analysisStats.getIndicesWithMultipleSynonymGraphFilters());
-    }
-
-    public void testMultipleSynonymGraphFiltersCountsMixedSources() {
-        // An analyzer with two synonym_graph filters: one using synonyms_set, the other using inline synonyms.
-        // SHOULD be counted since both filters are synonym_graph type.
-        final String settingsSource = """
-            {
-              "index": {
-                "analysis": {
-                  "filter": {
-                    "syn_set_filter": {
-                      "type": "synonym_graph",
-                      "synonyms_set": "my-set",
-                      "updateable": true
-                    },
-                    "syn_inline_filter": {
-                      "type": "synonym_graph",
-                      "synonyms": ["foo, bar"]
-                    }
-                  },
-                  "analyzer": {
-                    "mixed_analyzer": {
-                      "type": "custom",
-                      "tokenizer": "standard",
-                      "filter": ["syn_set_filter", "syn_inline_filter"]
-                    }
-                  }
-                }
-              }
-            }
-            """;
-        Settings settings = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsSource, XContentType.JSON).build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder("idx_mixed").settings(settings).build();
-
-        Metadata metadata = new Metadata.Builder().build().withAddedIndex(indexMetadata);
-        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
-
-        assertEquals(1, analysisStats.getAnalyzersWithMultipleSynonymGraphFilters());
-        assertEquals(1, analysisStats.getIndicesWithMultipleSynonymGraphFilters());
     }
 
     public void testNoMultipleSynonymGraphFilters() {
@@ -553,80 +511,6 @@ public class AnalysisStatsTests extends AbstractWireSerializingTestCase<Analysis
 
         assertEquals(0, analysisStats.getAnalyzersWithMultipleSynonymGraphFilters());
         assertEquals(0, analysisStats.getIndicesWithMultipleSynonymGraphFilters());
-    }
-
-    public void testMultipleInlineSynonymGraphCounted() {
-        // An analyzer with two synonym_graph filters using inline synonyms SHOULD be counted
-        final String settingsSource = """
-            {
-              "index": {
-                "analysis": {
-                  "filter": {
-                    "sg_inline_1": {
-                      "type": "synonym_graph",
-                      "synonyms": ["foo, bar"]
-                    },
-                    "sg_inline_2": {
-                      "type": "synonym_graph",
-                      "synonyms": ["baz, qux"]
-                    }
-                  },
-                  "analyzer": {
-                    "double_inline_analyzer": {
-                      "type": "custom",
-                      "tokenizer": "standard",
-                      "filter": ["sg_inline_1", "sg_inline_2"]
-                    }
-                  }
-                }
-              }
-            }
-            """;
-        Settings settings = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsSource, XContentType.JSON).build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder("idx_inline_only").settings(settings).build();
-
-        Metadata metadata = new Metadata.Builder().build().withAddedIndex(indexMetadata);
-        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
-
-        assertEquals(1, analysisStats.getAnalyzersWithMultipleSynonymGraphFilters());
-        assertEquals(1, analysisStats.getIndicesWithMultipleSynonymGraphFilters());
-    }
-
-    public void testMultiplePathSynonymGraphCounted() {
-        // An analyzer with two synonym_graph filters using synonyms_path (file-based) SHOULD be counted
-        final String settingsSource = """
-            {
-              "index": {
-                "analysis": {
-                  "filter": {
-                    "sg_path_1": {
-                      "type": "synonym_graph",
-                      "synonyms_path": "synonyms1.txt"
-                    },
-                    "sg_path_2": {
-                      "type": "synonym_graph",
-                      "synonyms_path": "synonyms2.txt"
-                    }
-                  },
-                  "analyzer": {
-                    "double_path_analyzer": {
-                      "type": "custom",
-                      "tokenizer": "standard",
-                      "filter": ["sg_path_1", "sg_path_2"]
-                    }
-                  }
-                }
-              }
-            }
-            """;
-        Settings settings = indexSettings(IndexVersion.current(), 4, 1).loadFromSource(settingsSource, XContentType.JSON).build();
-        IndexMetadata indexMetadata = new IndexMetadata.Builder("idx_path_only").settings(settings).build();
-
-        Metadata metadata = new Metadata.Builder().build().withAddedIndex(indexMetadata);
-        AnalysisStats analysisStats = AnalysisStats.of(metadata, () -> {});
-
-        assertEquals(1, analysisStats.getAnalyzersWithMultipleSynonymGraphFilters());
-        assertEquals(1, analysisStats.getIndicesWithMultipleSynonymGraphFilters());
     }
 
     public void testSynonymTypeNotCountedAsMultipleSynonymGraph() {

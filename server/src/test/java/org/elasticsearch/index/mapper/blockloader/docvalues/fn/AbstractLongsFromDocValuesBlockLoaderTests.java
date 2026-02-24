@@ -27,8 +27,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 public abstract class AbstractLongsFromDocValuesBlockLoaderTests extends AbstractBlockLoaderTestCase {
-    public AbstractLongsFromDocValuesBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        super(blockAtATime, multiValues, missingValues);
+    public AbstractLongsFromDocValuesBlockLoaderTests(boolean multiValues, boolean missingValues) {
+        super(multiValues, missingValues);
     }
 
     protected abstract void innerTest(CircuitBreaker breaker, LeafReaderContext ctx, int mvCount) throws IOException;
@@ -58,13 +58,8 @@ public abstract class AbstractLongsFromDocValuesBlockLoaderTests extends Abstrac
         }
     }
 
-    protected final TestBlock read(BlockLoader loader, BlockLoader.AllReader reader, LeafReaderContext ctx, BlockLoader.Docs docs)
-        throws IOException {
-        BlockLoader.AllReader toUse = blockAtATime
-            ? reader
-            : new ForceDocAtATime(() -> loader.builder(TestBlock.factory(), docs.count()), reader);
-
-        return (TestBlock) toUse.read(TestBlock.factory(), docs, 0, false);
+    protected final TestBlock read(BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
+        return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
     }
 
     private static LongField field(int i) {

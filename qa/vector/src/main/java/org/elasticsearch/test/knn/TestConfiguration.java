@@ -746,7 +746,9 @@ record TestConfiguration(
             builder.field(INDEX_THREADS_FIELD.getPreferredName(), indexThreads);
             builder.field(REINDEX_FIELD.getPreferredName(), reindex);
             builder.field(FORCE_MERGE_FIELD.getPreferredName(), forceMerge);
-            builder.field(VECTOR_SPACE_FIELD.getPreferredName(), vectorSpace.name().toLowerCase(Locale.ROOT));
+            if (vectorSpace != null) {
+                builder.field(VECTOR_SPACE_FIELD.getPreferredName(), vectorSpace.name().toLowerCase(Locale.ROOT));
+            }
             if (quantizeBits != null) {
                 builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
             }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -28,6 +29,7 @@ import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.crossproject.CrossProjectIndexResolutionValidator;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -142,6 +144,17 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
      * fails.
      */
     protected void validate(ReindexRequest request) {
-        reindexValidator.initialValidation(request);
+        IndicesOptions indicesOptions = request.getSearchRequest().indicesOptions();
+        if (indicesOptions.resolveCrossProjectIndexExpression()) {
+            try {
+                request.getSearchRequest()
+                    .indicesOptions(CrossProjectIndexResolutionValidator.indicesOptionsForCrossProjectFanout(indicesOptions));
+                reindexValidator.initialValidation(request);
+            } finally {
+                request.getSearchRequest().indicesOptions(indicesOptions);
+            }
+        } else {
+            reindexValidator.initialValidation(request);
+        }
     }
 }

@@ -257,14 +257,13 @@ public class Reindexer {
         final ReindexRequest request,
         final ActionListener<BulkByScrollResponse> listener
     ) {
-        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false || relocationNodePicker == null) {
-            return listener;
-        }
         final boolean slicedThereforeNoRelocation = task.getParentTaskId().isSet() || task.isLeader();
         if (slicedThereforeNoRelocation) {
             return listener;
         }
-        return listener.delegateFailure((l, response) -> {
+        return listener.delegateFailureAndWrap((l, response) -> {
+            // note: isRelocationRequested will never be true if the entire cluster doesn't support relocations
+            // note: getTaskResumeInfo will only be populated if there's a suitable node to relocate to
             if (task.isRelocationRequested() == false || response.getTaskResumeInfo().isEmpty()) {
                 l.onResponse(response);
                 return;

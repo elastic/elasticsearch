@@ -11,7 +11,6 @@ package org.elasticsearch.search.vectors;
 
 import com.carrotsearch.hppc.IntHashSet;
 
-import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -127,21 +126,7 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         List<LeafReaderContext> leafReaderContexts = reader.leaves();
 
         assert this instanceof IVFKnnFloatVectorQuery;
-        int totalVectors = 0;
-        for (LeafReaderContext leafReaderContext : leafReaderContexts) {
-            LeafReader leafReader = leafReaderContext.reader();
-            FloatVectorValues floatVectorValues = leafReader.getFloatVectorValues(field);
-            if (floatVectorValues != null) {
-                totalVectors += floatVectorValues.size();
-            }
-        }
-
-        final float visitRatio;
-        if (providedVisitRatio == 0.0f) {
-            visitRatio = computeDynamicVisitRatio(totalVectors, numCands, k);
-        } else {
-            visitRatio = providedVisitRatio;
-        }
+        final float visitRatio = providedVisitRatio;
 
         List<Callable<TopDocs>> tasks = new ArrayList<>(leafReaderContexts.size());
         for (LeafReaderContext context : leafReaderContexts) {
@@ -222,32 +207,6 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
         IVFCollectorManager knnCollectorManager,
         float visitRatio
     ) throws IOException;
-
-    /**
-     * Computes a dynamic visit ratio using a simple linear mapping:
-     * {@code effectiveNumCands / totalVectors}, where effectiveNumCands is
-     * clamped to {@code [max(numCands, 5 * k), 10_000]}.
-     * <p>
-     * This makes {@code num_candidates} directly represent the number of
-     * vectors to traverse (pre-filter) across the shard, giving users a
-     * predictable, data-size-independent tuning knob.
-     * <p>
-     * Note: {@code k} here is the oversample-adjusted k (adjustedK), not
-     * the user's original k. {@code numCands >= k} is guaranteed by the
-     * constructor.
-     *
-     * @param totalVectors total vectors across all segments in this shard
-     * @param numCands     user-provided (or default) num_candidates
-     * @param k            oversample-adjusted k
-     * @return visit ratio in (0, 1.0]
-     */
-    static float computeDynamicVisitRatio(int totalVectors, int numCands, int k) {
-        if (totalVectors == 0) {
-            return 1.0f;
-        }
-        int effectiveNumCands = Math.min(10_000, Math.max(numCands, 5 * k));
-        return Math.min(1.0f, (float) effectiveNumCands / totalVectors);
-    }
 
     protected IVFCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
         return new IVFCollectorManager(k, searcher);

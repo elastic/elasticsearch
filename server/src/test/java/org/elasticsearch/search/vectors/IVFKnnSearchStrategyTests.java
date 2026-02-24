@@ -18,7 +18,7 @@ public class IVFKnnSearchStrategyTests extends ESTestCase {
 
     public void testMaxScorePropagation() {
         LongAccumulator accumulator = new LongAccumulator(Long::max, AbstractMaxScoreKnnCollector.LEAST_COMPETITIVE);
-        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, accumulator);
+        IVFKnnSearchStrategy strategy = new IVFKnnSearchStrategy(0.5f, 100, 10, accumulator);
         MaxScoreTopKnnCollector collector = new MaxScoreTopKnnCollector(2, 1000, strategy);
         strategy.setCollector(collector);
 

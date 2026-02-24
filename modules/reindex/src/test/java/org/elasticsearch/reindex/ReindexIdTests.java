@@ -110,6 +110,18 @@ public class ReindexIdTests extends AbstractAsyncBulkByScrollActionTestCase<Rein
     }
 
     private Reindexer.AsyncIndexBySearchAction action(ProjectState state) {
-        return new Reindexer.AsyncIndexBySearchAction(task, logger, null, null, threadPool, null, state, null, request(), listener(), randomBoolean() ? null : Version.CURRENT);
+        return new Reindexer.AsyncIndexBySearchAction(
+            task,
+            logger,
+            null,
+            null,
+            threadPool,
+            null,
+            state,
+            null,
+            request(),
+            listener(),
+            randomBoolean() ? null : Version.CURRENT
+        );
     }
 }

@@ -651,8 +651,8 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                 return EXCLUDE;
             }
 
-            if (fromSortValueResult == INCLUDE && matchAllCompletedStates && slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {
-                return INCLUDE;
+            if (matchAllCompletedStates && slmPolicyPredicate == SlmPolicyPredicate.MATCH_ALL_POLICIES) {
+                return fromSortValueResult;
             }
 
             final var details = repositoryData.getSnapshotDetails(snapshotId);

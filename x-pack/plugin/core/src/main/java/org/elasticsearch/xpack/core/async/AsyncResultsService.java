@@ -15,7 +15,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.QuadFunction;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
@@ -36,7 +36,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
     private final ClusterService clusterService;
     private final AsyncTaskIndexService<Response> store;
     private final boolean updateInitialResultsInStore;
-    private final TriFunction<Task, ActionListener<Response>, TimeValue, Boolean> addCompletionListener;
+    private final QuadFunction<Task, ActionListener<Response>, TimeValue, Boolean, Boolean> addCompletionListener;
 
     /**
      * Creates async results service
@@ -52,7 +52,7 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
         AsyncTaskIndexService<Response> store,
         boolean updateInitialResultsInStore,
         Class<? extends Task> asyncTaskClass,
-        TriFunction<Task, ActionListener<Response>, TimeValue, Boolean> addCompletionListener,
+        QuadFunction<Task, ActionListener<Response>, TimeValue, Boolean, Boolean> addCompletionListener,
         TaskManager taskManager,
         ClusterService clusterService
     ) {
@@ -120,7 +120,8 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             boolean added = addCompletionListener.apply(
                 task,
                 listener.delegateFailure((l, response) -> sendFinalResponse(request, response, nowInMillis, l)),
-                request.getWaitForCompletionTimeout()
+                request.getWaitForCompletionTimeout(),
+                request.getReturnIntermediateResults()
             );
             if (added == false) {
                 // the task must have completed, since we cannot add a completion listener
@@ -184,4 +185,5 @@ public class AsyncResultsService<Task extends AsyncTask, Response extends AsyncR
             }
         }));
     }
+
 }

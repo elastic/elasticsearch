@@ -120,7 +120,7 @@ public class JreHttpUrlConnection implements Closeable {
         // con.setRequestProperty("Accept-Encoding", GZIP);
 
         setupSSL(cfg);
-        setupBasicAuth(cfg);
+        setupAuth(cfg);
     }
 
     private void setupSSL(ConnectionConfiguration cfg) {
@@ -134,8 +134,12 @@ public class JreHttpUrlConnection implements Closeable {
         }
     }
 
-    private void setupBasicAuth(ConnectionConfiguration cfg) {
-        if (StringUtils.hasText(cfg.authUser())) {
+    private void setupAuth(ConnectionConfiguration cfg) {
+        if (StringUtils.hasText(cfg.apiKey())) {
+            // API key authentication: Authorization: ApiKey <encoded_api_key>
+            con.setRequestProperty("Authorization", "ApiKey " + cfg.apiKey());
+        } else if (StringUtils.hasText(cfg.authUser())) {
+            // Basic authentication: Authorization: Basic <base64(user:pass)>
             String basicValue = cfg.authUser() + ":" + cfg.authPass();
             String encoded = StringUtils.asUTFString(Base64.getEncoder().encode(StringUtils.toUTF(basicValue)));
             con.setRequestProperty("Authorization", "Basic " + encoded);

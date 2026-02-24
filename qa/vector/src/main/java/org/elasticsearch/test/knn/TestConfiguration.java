@@ -68,7 +68,8 @@ record TestConfiguration(
     int numMergeWorkers,
     boolean doPrecondition,
     int preconditioningBlockDims,
-    int secondaryClusterSize
+    int secondaryClusterSize,
+    int flatIndexThreshold
 ) {
 
     static final ParseField DATASET_FIELD = new ParseField("dataset");
@@ -108,6 +109,7 @@ record TestConfiguration(
     static final ParseField PRECONDITIONING_BLOCK_DIMS = new ParseField("preconditioning_block_dims");
     static final ParseField FILTER_CACHED = new ParseField("filter_cache");
     static final ParseField SEARCH_PARAMS = new ParseField("search_params");
+    static final ParseField FLAT_INDEX_THRESHOLD = new ParseField("flat_index_threshold");
 
     /** By default, in ES the default writer buffer size is 10% of the heap space
      * (see {@code IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING}).
@@ -171,6 +173,7 @@ record TestConfiguration(
         PARSER.declareObjectArray(Builder::setSearchParams, (p, c) -> SearchParameters.fromXContent(p), SEARCH_PARAMS);
         PARSER.declareInt(Builder::setMergeWorkers, MERGE_WORKERS_FIELD);
         PARSER.declareInt(Builder::setSecondaryClusterSize, SECONDARY_CLUSTER_SIZE);
+        PARSER.declareInt(Builder::setFlatIndexThreshold, FLAT_INDEX_THRESHOLD);
     }
 
     public int numberOfSearchRuns() {
@@ -299,6 +302,7 @@ record TestConfiguration(
         private List<SearchParameters.Builder> searchParams = null;
         private int numMergeWorkers = 1;
         private int secondaryClusterSize = -1;
+        private int flatIndexThreshold = -1; // use format's default threshold
 
         /**
          * Elasticsearch does not set this explicitly, and in Lucene this setting is
@@ -382,6 +386,11 @@ record TestConfiguration(
 
         public Builder setHnswEfConstruction(int hnswEfConstruction) {
             this.hnswEfConstruction = hnswEfConstruction;
+            return this;
+        }
+
+        public Builder setFlatIndexThreshold(int flatIndexThreshold) {
+            this.flatIndexThreshold = flatIndexThreshold;
             return this;
         }
 
@@ -711,7 +720,8 @@ record TestConfiguration(
                 numMergeWorkers,
                 doPrecondition,
                 preconditioningBlockDims,
-                secondaryClusterSize
+                secondaryClusterSize,
+                flatIndexThreshold
             );
         }
 
@@ -768,6 +778,7 @@ record TestConfiguration(
             if (searchParams != null) {
                 builder.field(SEARCH_PARAMS.getPreferredName(), searchParams);
             }
+            builder.field(FLAT_INDEX_THRESHOLD.getPreferredName(), flatIndexThreshold);
             return builder.endObject();
         }
 

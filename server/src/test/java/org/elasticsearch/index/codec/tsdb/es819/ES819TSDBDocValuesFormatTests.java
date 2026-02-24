@@ -2554,6 +2554,59 @@ public class ES819TSDBDocValuesFormatTests extends ES87TSDBDocValuesFormatTests 
         }
     }
 
+    public void testFsstTermsDictManyUniqueTermsMerge() throws Exception {
+        String timestampField = "@timestamp";
+        String hostnameField = "host.name";
+        String tagField = "tag";
+        long baseTimestamp = 1704067200000L;
+
+        // Must exceed DirectMonotonicWriter block size (1 << DIRECT_MONOTONIC_BLOCK_SHIFT = 65536)
+        // to trigger block-level metadata flushes during the term iteration loop.
+        int numUniqueTerms = 70_000;
+        String[] terms = new String[numUniqueTerms];
+        for (int i = 0; i < numUniqueTerms; i++) {
+            terms[i] = String.format(Locale.ROOT, "svc-%06d.example.com", i);
+        }
+        Arrays.sort(terms);
+
+        var config = getTimeSeriesIndexWriterConfig(hostnameField, timestampField);
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numUniqueTerms; i++) {
+                var d = new Document();
+                d.add(new SortedDocValuesField(hostnameField, new BytesRef("host-1")));
+                d.add(new SortedNumericDocValuesField(timestampField, baseTimestamp + (1000L * i)));
+                d.add(new SortedDocValuesField(tagField, new BytesRef(terms[i])));
+                iw.addDocument(d);
+                if (i == numUniqueTerms / 2) {
+                    iw.commit();
+                }
+            }
+            iw.commit();
+
+            // Force merge exercises OrdinalMap which iterates all terms via TermsDict.next()
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leaf = reader.leaves().get(0).reader();
+                var tagDV = leaf.getSortedDocValues(tagField);
+                assertNotNull(tagDV);
+                assertEquals(numUniqueTerms, tagDV.getValueCount());
+
+                for (int i = 0; i < numUniqueTerms; i++) {
+                    assertEquals(terms[i], tagDV.lookupOrd(i).utf8ToString());
+                }
+
+                // Also verify seekCeil on a sampling of terms
+                for (int i = 0; i < numUniqueTerms; i += 1000) {
+                    int foundOrd = tagDV.lookupTerm(new BytesRef(terms[i]));
+                    assertTrue(foundOrd >= 0);
+                    assertEquals(terms[i], tagDV.lookupOrd(foundOrd).utf8ToString());
+                }
+            }
+        }
+    }
+
     public void testFsstTermsDictSingleTerm() throws Exception {
         String timestampField = "@timestamp";
         String hostnameField = "host.name";

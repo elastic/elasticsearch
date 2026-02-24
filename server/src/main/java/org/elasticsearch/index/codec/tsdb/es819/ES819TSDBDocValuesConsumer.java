@@ -720,22 +720,29 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         FSST.SymbolTable symbolTable = FSST.SymbolTable.buildSymbolTable(sampler.getSample());
         byte[] symbolTableBytes = symbolTable.exportToBytes();
 
-        // Write meta that we know upfront: blockShift, suffix offsets DMW meta, prefix IDs DMW meta
+        // Write meta that we know upfront: blockShift
         meta.writeInt(DIRECT_MONOTONIC_BLOCK_SHIFT);
 
+        // Use temp buffers for DMW metadata to avoid interleaving on the shared meta stream.
+        // Both writers flush per-block metadata during add() calls, so writing to the real meta
+        // directly would interleave their blocks. We buffer each separately, then copy in order.
+        ByteBuffersDataOutput suffixOffsetsMetaBuffer = new ByteBuffersDataOutput();
+        ByteBuffersIndexOutput suffixOffsetsMetaOutput = new ByteBuffersIndexOutput(suffixOffsetsMetaBuffer, "temp", "temp");
         ByteBuffersDataOutput suffixOffsetsData = new ByteBuffersDataOutput();
         ByteBuffersIndexOutput suffixOffsetsOutput = new ByteBuffersIndexOutput(suffixOffsetsData, "temp", "temp");
         DirectMonotonicWriter suffixOffsetsWriter = DirectMonotonicWriter.getInstance(
-            meta,
+            suffixOffsetsMetaOutput,
             suffixOffsetsOutput,
             Math.max(size + 1, 1),
             DIRECT_MONOTONIC_BLOCK_SHIFT
         );
 
+        ByteBuffersDataOutput prefixIdsMetaBuffer = new ByteBuffersDataOutput();
+        ByteBuffersIndexOutput prefixIdsMetaOutput = new ByteBuffersIndexOutput(prefixIdsMetaBuffer, "temp", "temp");
         ByteBuffersDataOutput prefixIdsData = new ByteBuffersDataOutput();
         ByteBuffersIndexOutput prefixIdsOutput = new ByteBuffersIndexOutput(prefixIdsData, "temp", "temp");
         DirectMonotonicWriter prefixIdsWriter = DirectMonotonicWriter.getInstance(
-            meta,
+            prefixIdsMetaOutput,
             prefixIdsOutput,
             Math.max(size, 1),
             DIRECT_MONOTONIC_BLOCK_SHIFT
@@ -890,6 +897,10 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         }
         suffixOffsetsWriter.finish();
         prefixIdsWriter.finish();
+
+        // Write DMW metadata to the real meta stream in order (suffix offsets first, then prefix IDs)
+        suffixOffsetsMetaBuffer.copyTo(meta);
+        prefixIdsMetaBuffer.copyTo(meta);
 
         long suffixDataEnd = data.getFilePointer();
 

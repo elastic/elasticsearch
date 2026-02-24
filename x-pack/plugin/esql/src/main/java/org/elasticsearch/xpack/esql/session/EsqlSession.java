@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
@@ -94,6 +95,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.planner.premapper.PreMapper;
 import org.elasticsearch.xpack.esql.plugin.TransportActionServices;
+import org.elasticsearch.xpack.esql.telemetry.Metrics;
 import org.elasticsearch.xpack.esql.telemetry.PlanTelemetry;
 import org.elasticsearch.xpack.esql.view.ViewResolver;
 
@@ -159,6 +161,7 @@ public class EsqlSession {
 
     private final PreAnalyzer preAnalyzer;
     private final Verifier verifier;
+    private final Metrics metrics;
     private final EsqlFunctionRegistry functionRegistry;
     private final PreMapper preMapper;
 
@@ -189,6 +192,7 @@ public class EsqlSession {
         EsqlFunctionRegistry functionRegistry,
         Mapper mapper,
         Verifier verifier,
+        Metrics metrics,
         PlanTelemetry planTelemetry,
         IndicesExpressionGrouper indicesExpressionGrouper,
         ProjectMetadata projectMetadata,
@@ -204,6 +208,7 @@ public class EsqlSession {
         this.externalSourceResolver = externalSourceResolver;
         this.preAnalyzer = preAnalyzer;
         this.verifier = verifier;
+        this.metrics = metrics;
         this.functionRegistry = functionRegistry;
         this.mapper = mapper;
         this.planTelemetry = planTelemetry;
@@ -238,6 +243,7 @@ public class EsqlSession {
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         EsqlStatement statement = parse(request);
+        gatherSettingsMetrics(statement);
         var viewResolution = viewResolver.replaceViews(
             statement.plan(),
             (query, viewName) -> EsqlParser.INSTANCE.parseView(
@@ -610,6 +616,18 @@ public class EsqlSession {
             planTelemetry,
             inferenceService.inferenceSettings()
         );
+    }
+
+    private void gatherSettingsMetrics(EsqlStatement statement) {
+        if (metrics == null || statement.settings() == null) {
+            return;
+        }
+        // Deduplicate settings by name - if the same setting is SET multiple times in a query,
+        // we only count it once for telemetry purposes.
+        // The Metrics class only registers counters for settings applicable to the current environment
+        // (e.g., snapshot-only settings are not registered in non-snapshot builds).
+        // incSetting() silently ignores settings that don't have a registered counter.
+        statement.settings().stream().map(QuerySetting::name).distinct().forEach(metrics::incSetting);
     }
 
     /**

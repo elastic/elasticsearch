@@ -574,6 +574,18 @@ public final class QuerySearchResult extends SearchPhaseResult {
         topHitsToRelease.add(searchHits);
     }
 
+    /**
+     * Returns the list used to collect SearchHits that must be released when this result is released.
+     * Used when building the aggregation reduce context for partial reduction on the shard, so that
+     * merged top_hits from InternalTopHits.reduce are registered here and released in decRef().
+     */
+    public List<SearchHits> getOrCreateTopHitsToReleaseList() {
+        if (topHitsToRelease == null) {
+            topHitsToRelease = new ArrayList<>();
+        }
+        return topHitsToRelease;
+    }
+
     @Override
     public boolean decRef() {
         if (refCounted != null) {

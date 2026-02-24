@@ -39,7 +39,9 @@ public class AggregationPhase {
                 new AggregatorCollectorManager(
                     collectorSupplier,
                     internalAggregations -> context.queryResult().aggregations(internalAggregations),
-                    () -> context.aggregations().getAggregationReduceContextBuilder().forPartialReduction()
+                    () -> context.aggregations()
+                        .getAggregationReduceContextBuilder()
+                        .forPartialReduction(context.queryResult().getOrCreateTopHitsToReleaseList())
                 )
             );
     }

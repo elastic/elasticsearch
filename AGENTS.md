@@ -87,6 +87,7 @@ The repository is organized into several key directories:
 
 ## Best Practices for Automation Agents
 - Never edit unrelated files; keep diffs tightly scoped to the task at hand.
+- **Do not run Gradle in parallel with itself:** run `./gradlew` tasks one after another (sequentially); wait for each to finish before starting the next. Parallel Gradle invocations can cause build races and flaky failures.
 - Prefer Gradle tasks over ad-hoc scripts.
 - When scripting CLI sequences, leverage `gradlew` task.
 - Unrecognized changes: assume other agent; keep going; focus your changes. If it causes issues, stop + ask user.

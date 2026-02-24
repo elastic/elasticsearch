@@ -486,6 +486,15 @@ public final class InstrumenterImpl implements Instrumenter {
             if (constant == null) {
                 mv.visitInsn(Opcodes.ACONST_NULL);
                 mv.visitInsn(Opcodes.ARETURN);
+            } else if (constant == DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy.EMPTY_MAP) {
+                mv.visitMethodInsn(INVOKESTATIC, "java/util/Collections", "emptyMap", "()Ljava/util/Map;", false);
+                mv.visitInsn(Opcodes.ARETURN);
+            } else if (constant == DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy.EMPTY_LIST) {
+                mv.visitMethodInsn(INVOKESTATIC, "java/util/Collections", "emptyList", "()Ljava/util/List;", false);
+                mv.visitInsn(Opcodes.ARETURN);
+            } else if (constant == DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy.EMPTY_SET) {
+                mv.visitMethodInsn(INVOKESTATIC, "java/util/Collections", "emptySet", "()Ljava/util/Set;", false);
+                mv.visitInsn(Opcodes.ARETURN);
             } else {
                 mv.visitLdcInsn(constant);
                 if (constant instanceof String) {

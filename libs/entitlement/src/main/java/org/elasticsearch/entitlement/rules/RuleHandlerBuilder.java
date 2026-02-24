@@ -62,4 +62,19 @@ public class RuleHandlerBuilder<T, R> extends VoidRuleHandlerBuilder<T> {
         );
         return new ClassMethodBuilder<>(registry, clazz);
     }
+
+    @SuppressWarnings("unchecked")
+    public ClassMethodBuilder<T> elseReturnEmptyMap() {
+        return elseReturn((R) DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy.EMPTY_MAP);
+    }
+
+    @SuppressWarnings("unchecked")
+    public ClassMethodBuilder<T> elseReturnEmptyList() {
+        return elseReturn((R) DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy.EMPTY_LIST);
+    }
+
+    @SuppressWarnings("unchecked")
+    public ClassMethodBuilder<T> elseReturnEmptySet() {
+        return elseReturn((R) DeniedEntitlementStrategy.DefaultValueDeniedEntitlementStrategy.EMPTY_SET);
+    }
 }

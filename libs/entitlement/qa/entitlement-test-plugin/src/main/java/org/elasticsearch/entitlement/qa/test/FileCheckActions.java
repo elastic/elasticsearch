@@ -113,18 +113,16 @@ class FileCheckActions {
         File.createTempFile("prefix", "suffix", null);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileDelete() throws IOException {
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileDelete() throws IOException {
         var toDelete = EntitledActions.createTempFileForWrite();
         toDelete.toFile().delete();
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileDeleteOnExit() throws IOException {
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileDeleteOnExit() throws IOException {
         var toDelete = EntitledActions.createTempFileForWrite();
         toDelete.toFile().deleteOnExit();
-        return "true";
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
@@ -133,22 +131,19 @@ class FileCheckActions {
         return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileIsDirectory() {
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileIsDirectory() {
         readFile().toFile().isDirectory();
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileIsFile() {
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileIsFile() {
         readFile().toFile().isFile();
-        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
-    static String fileIsHidden() {
+    @EntitlementTest(expectedAccess = PLUGINS)
+    static void fileIsHidden() {
         readFile().toFile().isHidden();
-        return "true";
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
@@ -216,16 +211,14 @@ class FileCheckActions {
         return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false")
     static String fileSetExecutable() {
-        readWriteFile().toFile().setExecutable(false);
-        return "true";
+        return String.valueOf(readWriteFile().toFile().setExecutable(false));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "false")
     static String fileSetExecutableOwner() {
-        readWriteFile().toFile().setExecutable(false, false);
-        return "true";
+        return String.valueOf(readWriteFile().toFile().setExecutable(false, false));
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
@@ -236,14 +229,12 @@ class FileCheckActions {
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
     static String fileSetReadable() {
-        readWriteFile().toFile().setReadable(true);
-        return "true";
+        return String.valueOf(readWriteFile().toFile().setReadable(true));
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
     static String fileSetReadableOwner() {
-        readWriteFile().toFile().setReadable(true, false);
-        return "true";
+        return String.valueOf(readWriteFile().toFile().setReadable(true, false));
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
@@ -255,14 +246,12 @@ class FileCheckActions {
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
     static String fileSetWritable() {
-        readWriteFile().toFile().setWritable(true);
-        return "true";
+        return String.valueOf(readWriteFile().toFile().setWritable(true));
     }
 
     @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
     static String fileSetWritableOwner() {
-        readWriteFile().toFile().setWritable(true, false);
-        return "true";
+        return String.valueOf(readWriteFile().toFile().setWritable(true, false));
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

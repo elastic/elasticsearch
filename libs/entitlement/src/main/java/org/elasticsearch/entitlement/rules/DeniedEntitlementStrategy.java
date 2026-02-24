@@ -47,6 +47,16 @@ public abstract sealed class DeniedEntitlementStrategy permits DeniedEntitlement
      * @param <T> the type of the default value
      */
     public static final class DefaultValueDeniedEntitlementStrategy<T> extends DeniedEntitlementStrategy {
+
+        /**
+         * Sentinel objects representing empty collections as default return values.
+         * These cannot be loaded as JVM constants, so the bytecode emitter must
+         * recognize them and emit the appropriate static method call instead.
+         */
+        public static final Object EMPTY_MAP = new Object();
+        public static final Object EMPTY_LIST = new Object();
+        public static final Object EMPTY_SET = new Object();
+
         private final T defaultValue;
 
         /**

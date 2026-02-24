@@ -69,14 +69,14 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.calling(File::canRead).enforce(Policies::fileRead).elseReturn(false);
             rule.calling(File::canWrite).enforce(Policies::fileRead).elseReturn(false);
             rule.calling(File::createNewFile).enforce(Policies::fileWrite).elseThrow(e -> new IOException(e));
-            rule.calling(File::delete).enforce(Policies::fileWrite).elseReturn(false);
-            rule.callingVoid(File::deleteOnExit).enforce(Policies::fileWrite).elseReturnEarly();
+            rule.calling(File::delete).enforce(Policies::fileWrite).elseThrowNotEntitled();
+            rule.callingVoid(File::deleteOnExit).enforce(Policies::fileWrite).elseThrowNotEntitled();
             rule.calling(File::exists).enforce(Policies::fileRead).elseReturn(false);
-            rule.calling(File::isDirectory).enforce(Policies::fileRead).elseReturn(false);
-            rule.calling(File::isFile).enforce(Policies::fileRead).elseReturn(false);
-            rule.calling(File::isHidden).enforce(Policies::fileRead).elseReturn(false);
-            rule.calling(File::lastModified).enforce(Policies::fileRead).elseReturn(-1L);
-            rule.calling(File::length).enforce(Policies::fileRead).elseReturn(-1L);
+            rule.calling(File::isDirectory).enforce(Policies::fileRead).elseThrowNotEntitled();
+            rule.calling(File::isFile).enforce(Policies::fileRead).elseThrowNotEntitled();
+            rule.calling(File::isHidden).enforce(Policies::fileRead).elseThrowNotEntitled();
+            rule.calling(File::lastModified).enforce(Policies::fileRead).elseReturn(0L);
+            rule.calling(File::length).enforce(Policies::fileRead).elseReturn(0L);
             rule.calling(File::list).enforce(Policies::fileRead).elseReturn(null);
             rule.calling(File::list, FilenameFilter.class).enforce(Policies::fileRead).elseReturn(null);
             rule.calling(File::listFiles).enforce(Policies::fileRead).elseReturn(null);
@@ -87,14 +87,14 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.calling(File::renameTo, File.class)
                 .enforce((src, dest) -> Policies.fileRead(src).and(Policies.fileWrite(dest)))
                 .elseReturn(false);
-            rule.calling(File::setExecutable, Boolean.class).enforce(Policies::fileWrite).elseReturn(false);
-            rule.calling(File::setExecutable, Boolean.class, Boolean.class).enforce(Policies::fileWrite).elseReturn(false);
+            rule.calling(File::setExecutable, Boolean.class).enforce(Policies::fileWrite).elseReturnArg(0);
+            rule.calling(File::setExecutable, Boolean.class, Boolean.class).enforce(Policies::fileWrite).elseReturnArg(0);
             rule.calling(File::setLastModified, Long.class).enforce(Policies::fileWrite).elseReturn(false);
             rule.calling(File::setReadOnly).enforce(Policies::fileWrite).elseReturn(false);
-            rule.calling(File::setReadable, Boolean.class).enforce(Policies::fileWrite).elseReturn(false);
-            rule.calling(File::setReadable, Boolean.class, Boolean.class).enforce(Policies::fileWrite).elseReturn(false);
-            rule.calling(File::setWritable, Boolean.class).enforce(Policies::fileWrite).elseReturn(false);
-            rule.calling(File::setWritable, Boolean.class, Boolean.class).enforce(Policies::fileWrite).elseReturn(false);
+            rule.calling(File::setReadable, Boolean.class).enforce(Policies::fileWrite).elseReturnArg(0);
+            rule.calling(File::setReadable, Boolean.class, Boolean.class).enforce(Policies::fileWrite).elseReturnArg(0);
+            rule.calling(File::setWritable, Boolean.class).enforce(Policies::fileWrite).elseReturnArg(0);
+            rule.calling(File::setWritable, Boolean.class, Boolean.class).enforce(Policies::fileWrite).elseReturnArg(0);
             rule.callingStatic(File::createTempFile, String.class, String.class).enforce(Policies::createTempFile).elseThrowNotEntitled();
             rule.callingStatic(File::createTempFile, String.class, String.class, File.class).enforce((_, _, directory) -> {
                 if (directory == null) {
@@ -438,7 +438,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.callingStatic(FileHandler::new, String.class, Long.class, Integer.class, Boolean.class)
                 .enforce(Policies::loggingFileHandler)
                 .elseThrowNotEntitled();
-            rule.callingVoid(FileHandler::close).enforce(Policies::loggingFileHandler).elseReturnEarly();
+            rule.callingVoid(FileHandler::close).enforce(Policies::loggingFileHandler).elseThrowNotEntitled();
         });
 
         builder.on(BodyPublishers.class, rule -> {
@@ -460,7 +460,7 @@ public class FileInstrumentation implements InstrumentationConfig {
 
         builder.on(FileURLConnection.class, rule -> {
             rule.callingVoid(FileURLConnection::connect).enforce(f -> Policies.urlFileRead(f.getURL())).elseThrow(e -> new IOException(e));
-            rule.calling(FileURLConnection::getHeaderFields).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(null);
+            rule.calling(FileURLConnection::getHeaderFields).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturnEmptyMap();
             rule.calling(FileURLConnection::getHeaderField, String.class).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(null);
             rule.calling(FileURLConnection::getHeaderField, Integer.class).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(null);
             rule.calling(FileURLConnection::getContentLength).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(-1);
@@ -468,7 +468,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.calling(FileURLConnection::getHeaderFieldKey, Integer.class)
                 .enforce(f -> Policies.urlFileRead(f.getURL()))
                 .elseReturn(null);
-            rule.calling(FileURLConnection::getLastModified).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(-1L);
+            rule.calling(FileURLConnection::getLastModified).enforce(f -> Policies.urlFileRead(f.getURL())).elseReturn(0L);
             rule.calling(FileURLConnection::getInputStream)
                 .enforce(f -> Policies.urlFileRead(f.getURL()))
                 .elseThrow(e -> new IOException(e));
@@ -476,7 +476,7 @@ public class FileInstrumentation implements InstrumentationConfig {
 
         builder.on(JarURLConnection.class, rule -> {
             rule.callingVoid(JarURLConnection::connect).enforce(Policies::jarURLAccess).elseThrow(e -> new IOException(e));
-            rule.calling(JarURLConnection::getHeaderFields).enforce(Policies::jarURLAccess).elseReturn(null);
+            rule.calling(JarURLConnection::getHeaderFields).enforce(Policies::jarURLAccess).elseReturnEmptyMap();
             rule.calling(JarURLConnection::getHeaderField, String.class).enforce(Policies::jarURLAccess).elseReturn(null);
             rule.calling(JarURLConnection::getHeaderField, Integer.class).enforce(Policies::jarURLAccess).elseReturn(null);
             rule.calling(JarURLConnection::getContent).enforce(Policies::jarURLAccess).elseThrow(e -> new IOException(e));
@@ -484,7 +484,7 @@ public class FileInstrumentation implements InstrumentationConfig {
             rule.calling(JarURLConnection::getContentLengthLong).enforce(Policies::jarURLAccess).elseReturn(-1L);
             rule.calling(JarURLConnection::getContentType).enforce(Policies::jarURLAccess).elseReturn(null);
             rule.calling(JarURLConnection::getHeaderFieldKey, Integer.class).enforce(Policies::jarURLAccess).elseReturn(null);
-            rule.calling(JarURLConnection::getLastModified).enforce(Policies::jarURLAccess).elseReturn(-1L);
+            rule.calling(JarURLConnection::getLastModified).enforce(Policies::jarURLAccess).elseReturn(0L);
             rule.calling(JarURLConnection::getInputStream).enforce(Policies::jarURLAccess).elseThrow(e -> new IOException(e));
             rule.calling(JarURLConnection::getManifest).enforce(Policies::jarURLAccess).elseThrow(e -> new IOException(e));
             rule.calling(JarURLConnection::getJarEntry).enforce(Policies::jarURLAccess).elseThrow(e -> new IOException(e));

@@ -566,7 +566,7 @@ public abstract class AbstractAsyncBulkByScrollAction<
                     : null;
                 final var workerResumeInfo = new ResumeInfo.ScrollWorkerResumeInfo(
                     scrollId,
-                    startTime.get(),
+                    startTimeEpochMillis.get(),
                     worker.getStatus(),
                     remoteVersion
                 );

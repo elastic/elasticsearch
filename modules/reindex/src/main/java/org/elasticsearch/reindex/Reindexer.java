@@ -56,7 +56,6 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
-import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
@@ -137,12 +136,9 @@ public class Reindexer {
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
-        // todo(szy/sam): handle sliced
+        // todo(szy/sam): handle sliced and non-sliced
         // todo(szy/sam): bug, we send System::nanoTime across JVMs
-        final long startTime = request.getResumeInfo()
-            .flatMap(ResumeInfo::getWorker)
-            .map(ResumeInfo.WorkerResumeInfo::startTime)
-            .orElseGet(System::nanoTime);
+        final long startTime = System.nanoTime();
 
         // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query

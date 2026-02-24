@@ -361,8 +361,7 @@ public class Knn extends SingleFieldFullTextFunction implements OptionalArgument
         // ignore options when comparing two Knn functions
         if (o == null || getClass() != o.getClass()) return false;
         Knn knn = (Knn) o;
-        return super.equals(knn)
-            && Objects.equals(filterExpressions(), knn.filterExpressions());
+        return super.equals(knn) && Objects.equals(filterExpressions(), knn.filterExpressions());
     }
 
     @Override

@@ -39,12 +39,12 @@ import org.elasticsearch.h3.H3;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
-import org.elasticsearch.tdigest.parsing.TDigestParser;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.analytics.mapper.TDigestParser;
 import org.elasticsearch.xpack.esql.action.ResponseValueUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -55,9 +55,9 @@ import org.supercsv.prefs.CsvPreference;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.StringReader;
 import java.math.BigDecimal;
-import java.net.URL;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -160,7 +160,7 @@ public final class CsvTestUtils {
         return null;
     }
 
-    public static Tuple<Page, List<String>> loadPageFromCsv(URL source, Map<String, String> typeMapping) throws Exception {
+    public static Tuple<Page, List<String>> loadPageFromCsv(InputStream source, Map<String, String> typeMapping) throws Exception {
 
         record CsvColumn(String name, Type type, BuilderWrapper builderWrapper) implements Releasable {
             void append(String stringValue) {

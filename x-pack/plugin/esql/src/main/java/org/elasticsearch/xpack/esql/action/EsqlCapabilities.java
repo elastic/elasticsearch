@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperator;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
+import org.elasticsearch.xpack.core.esql.EsqlFeatureFlags;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceStatsFilteredOrNullAggWithEval;
 import org.elasticsearch.xpack.esql.plugin.EsqlFeatures;
 
@@ -434,6 +435,9 @@ public class EsqlCapabilities {
 
         /** Optimization of ST_EXTENT_AGG with doc-values as IntBlock. */
         ST_EXTENT_AGG_DOCVALUES,
+
+        /** Fix to bug with spatial aggregations not properly supporting the WHERE clause. Fixes #142329. */
+        SPATIAL_AGGS_FILTERING,
 
         /**
          * Fix determination of CRS types in spatial functions when folding.
@@ -1183,13 +1187,16 @@ public class EsqlCapabilities {
         /**
          * Support for views in cluster state (and REST API).
          */
-        VIEWS_IN_CLUSTER_STATE(EsqlFeatures.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
+        VIEWS_IN_CLUSTER_STATE(EsqlFeatureFlags.ESQL_VIEWS_FEATURE_FLAG.isEnabled()),
 
         /**
          * Basic Views with no branching (do not need subqueries or FORK).
          */
         VIEWS_WITH_NO_BRANCHING(VIEWS_IN_CLUSTER_STATE.isEnabled()),
-
+        /**
+         * Views crud actions as index actions
+         */
+        VIEWS_CRUD_AS_INDEX_ACTIONS(VIEWS_WITH_NO_BRANCHING.isEnabled()),
         /**
          * Views with branching (requires subqueries/FORK).
          */
@@ -1889,6 +1896,16 @@ public class EsqlCapabilities {
         ACOSH_FUNCTION,
 
         /**
+         * Support for the ASINH function.
+         */
+        ASINH_FUNCTION,
+
+        /**
+         * Support for the ATANH function.
+         */
+        ATANH_FUNCTION,
+
+        /**
          * Initial support for simple binary comparisons in PromQL.
          * Only top-level comparisons are supported where the right-hand side is a scalar.
          */
@@ -1904,6 +1921,22 @@ public class EsqlCapabilities {
          * Also filters out nulls from results.
          */
         PROMQL_UNMAPPED_FIELDS_FILTER_NULLS,
+
+        /**
+         * Support for nested across-series aggregates in PromQL.
+         * E.g., avg(sum by (cluster) (rate(foo[5m])))
+         */
+        PROMQL_NESTED_AGGREGATES(PROMQL_COMMAND_V0.isEnabled()),
+
+        /**
+         * Support post-processing STATS commands after PROMQL source commands.
+         */
+        PROMQL_POST_PROCESSING_STATS,
+
+        /**
+         * PromQL scalar() function support.
+         */
+        PROMQL_SCALAR,
 
         /**
          * KNN function adds support for k and visit_percentage options
@@ -1933,6 +1966,11 @@ public class EsqlCapabilities {
          * parameters like the other functions.
          */
         TOP_SNIPPETS_FUNCTION_STRING_CONFIG,
+
+        /**
+         * Does {@code TOP_SNIPPETS} process all field values?
+         */
+        TOP_SNIPPETS_MV,
 
         /**
          * Fix for multi-value constant propagation after GROUP BY.
@@ -2092,6 +2130,19 @@ public class EsqlCapabilities {
          * Implicit SORT @timestamp DESC for TS queries without STATS or explicit SORT.
          */
         TS_IMPLICIT_TIMESTAMP_SORT,
+
+        /**
+         * Fixes https://github.com/elastic/elasticsearch/issues/139359
+         */
+        INLINE_STATS_DROP_GROUPINGS_FIX(INLINE_STATS.enabled),
+
+        /**
+         * Temporary capability until the MMR operator is merged to pass the BWC CI tests
+         * Without this, the CSV tests for MMR will try and run (if just using the `mmr` capability)
+         * however, without the MMRExec to operator code in place, will fail on the snapshot
+         * TODO - remove this once the MMR operator is merged
+         */
+        MMR_V2(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

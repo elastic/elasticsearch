@@ -20,6 +20,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.prometheus.proto.RemoteWrite;
 import org.junit.ClassRule;
 
@@ -29,8 +30,8 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
@@ -76,19 +77,21 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
         sendAndAssertSuccess(writeRequest);
 
-        Map<String, Object> source = searchSingleDoc(metricName);
+        ObjectPath source = searchSingleDoc(metricName);
 
         // Verify document structure
-        assertThat(source, hasKey("@timestamp"));
-        assertThat(source.get(metricName), equalTo(42.5));
+        assertThat(source.evaluate("@timestamp"), notNullValue());
+        assertThat(source.evaluate("metrics." + metricName), equalTo(42.5));
 
         // Verify labels
-        assertLabel(source, "__name__", metricName);
-        assertLabel(source, "job", "test_job");
-        assertLabel(source, "instance", "localhost:9090");
+        assertThat(source.evaluate("labels.__name__"), equalTo(metricName));
+        assertThat(source.evaluate("labels.job"), equalTo("test_job"));
+        assertThat(source.evaluate("labels.instance"), equalTo("localhost:9090"));
 
         // Verify data_stream fields
-        assertDataStream(source, "metrics", "generic.prometheus", "default");
+        assertThat(source.evaluate("data_stream.type"), equalTo("metrics"));
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("generic.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("default"));
     }
 
     public void testRemoteWriteIndexesCounterMetric() throws Exception {
@@ -101,9 +104,9 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
         sendAndAssertSuccess(writeRequest);
 
-        Map<String, Object> source = searchSingleDoc(metricName);
-        assertThat(source.get(metricName), equalTo(1000.0));
-        assertLabel(source, "method", "GET");
+        ObjectPath source = searchSingleDoc(metricName);
+        assertThat(source.evaluate("metrics." + metricName), equalTo(1000.0));
+        assertThat(source.evaluate("labels.method"), equalTo("GET"));
     }
 
     public void testRemoteWriteWithMultipleTimeseriesAndSamples() throws Exception {
@@ -130,7 +133,7 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
 
         List<Map<String, Object>> hits2 = searchDocs(metric2);
         assertThat(hits2, hasSize(1));
-        assertThat(hits2.get(0), hasKey(metric2));
+        assertThat(new ObjectPath(hits2.getFirst()).evaluate("metrics." + metric2), equalTo(100.0));
     }
 
     public void testRemoteWriteMissingNameLabelReturns400() throws Exception {
@@ -150,16 +153,30 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
         String metricName = "custom_dataset_metric";
         sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/myapp/api/v1/write");
 
-        Map<String, Object> source = searchSingleDoc("metrics-myapp.prometheus-default", metricName);
-        assertDataStream(source, "metrics", "myapp.prometheus", "default");
+        ObjectPath source = searchSingleDoc("metrics-myapp.prometheus-default", metricName);
+        assertThat(source.evaluate("data_stream.type"), equalTo("metrics"));
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("myapp.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("default"));
     }
 
     public void testRemoteWriteWithCustomDatasetAndNamespace() throws Exception {
         String metricName = "custom_ns_metric";
         sendAndAssertSuccess(simpleWriteRequest(metricName), "/_prometheus/myapp/production/api/v1/write");
 
-        Map<String, Object> source = searchSingleDoc("metrics-myapp.prometheus-production", metricName);
-        assertDataStream(source, "metrics", "myapp.prometheus", "production");
+        ObjectPath source = searchSingleDoc("metrics-myapp.prometheus-production", metricName);
+        assertThat(source.evaluate("data_stream.type"), equalTo("metrics"));
+        assertThat(source.evaluate("data_stream.dataset"), equalTo("myapp.prometheus"));
+        assertThat(source.evaluate("data_stream.namespace"), equalTo("production"));
+    }
+
+    public void testRemoteWriteWithInvalidCustomDatasetReturns400() throws Exception {
+        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_dataset_metric"), "/_prometheus/my-app/api/v1/write");
+        assertThat(body, containsString("data stream dataset 'my-app' contains disallowed characters, must conform to regex ["));
+    }
+
+    public void testRemoteWriteWithInvalidCustomNamespaceReturns400() throws Exception {
+        String body = sendAndAssertBadRequest(simpleWriteRequest("invalid_namespace_metric"), "/_prometheus/myapp/foo:bar/api/v1/write");
+        assertThat(body, containsString("data stream namespace 'foo:bar' contains disallowed characters, must conform to regex ["));
     }
 
     // --- helpers ---
@@ -199,7 +216,11 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
     }
 
     private String sendAndAssertBadRequest(RemoteWrite.WriteRequest writeRequest) throws IOException {
-        Request request = new Request("POST", "/_prometheus/api/v1/write");
+        return sendAndAssertBadRequest(writeRequest, "/_prometheus/api/v1/write");
+    }
+
+    private String sendAndAssertBadRequest(RemoteWrite.WriteRequest writeRequest, String endpoint) throws IOException {
+        Request request = new Request("POST", endpoint);
         request.setEntity(new ByteArrayEntity(writeRequest.toByteArray(), ContentType.create("application/x-protobuf")));
         ResponseException e = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(e.getResponse().getStatusLine().getStatusCode(), equalTo(400));
@@ -245,27 +266,14 @@ public class PrometheusRemoteWriteRestIT extends ESRestTestCase {
     /**
      * Convenience method that asserts exactly one document was indexed for the given metric and returns its _source.
      */
-    private Map<String, Object> searchSingleDoc(String metricName) throws IOException {
+    private ObjectPath searchSingleDoc(String metricName) throws IOException {
         return searchSingleDoc(DEFAULT_DATA_STREAM, metricName);
     }
 
-    private Map<String, Object> searchSingleDoc(String dataStream, String metricName) throws IOException {
+    private ObjectPath searchSingleDoc(String dataStream, String metricName) throws IOException {
         List<Map<String, Object>> docs = searchDocs(dataStream, metricName);
         assertThat(docs, hasSize(1));
-        return docs.get(0);
+        return new ObjectPath(docs.getFirst());
     }
 
-    @SuppressWarnings("unchecked")
-    private static void assertDataStream(Map<String, Object> source, String type, String dataset, String namespace) {
-        Map<String, Object> dataStream = (Map<String, Object>) source.get("data_stream");
-        assertThat(dataStream.get("type"), equalTo(type));
-        assertThat(dataStream.get("dataset"), equalTo(dataset));
-        assertThat(dataStream.get("namespace"), equalTo(namespace));
-    }
-
-    @SuppressWarnings("unchecked")
-    private static void assertLabel(Map<String, Object> source, String labelName, String expectedValue) {
-        Map<String, Object> labels = (Map<String, Object>) source.get("labels");
-        assertThat(labels.get(labelName), equalTo(expectedValue));
-    }
 }

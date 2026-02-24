@@ -11,6 +11,7 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -39,7 +41,8 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
 
     public enum DirectoryType {
         NIOFS,
-        MMAP
+        MMAP,
+        SNAP
     }
 
     public ESNextOSQVectorsScorerTests(DirectoryType directoryType, byte indexBits, VectorSimilarityFunction similarityFunction) {
@@ -71,6 +74,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     random().nextBytes(vector);
                     out.writeBytes(vector, 0, length);
                 }
+                CodecUtil.writeFooter(out);
             }
             final byte[] query = new byte[queryBytes];
             random().nextBytes(query);
@@ -147,6 +151,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     out.writeInt(Float.floatToIntBits(result.additionalCorrection()));
                     out.writeInt(result.quantizedComponentSum());
                 }
+                CodecUtil.writeFooter(out);
             }
             final float[] query = new float[dimensions];
             randomVector(query, similarityFunction);
@@ -164,7 +169,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
             try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {
                 in.seek(padding);
                 final int perVectorBytes = length + 16;
-                assertEquals(in.length(), padding + (long) numVectors * perVectorBytes);
+                assertEquals(in.length(), padding + (long) numVectors * perVectorBytes + CodecUtil.footerLength());
                 final IndexInput slice = in.slice("test", in.getFilePointer(), (long) perVectorBytes * numVectors);
                 // Work on a slice that has just the right number of bytes to make the test fail with an
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
@@ -275,6 +280,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
                     }
                     writeCorrections(results, out);
                 }
+                CodecUtil.writeFooter(out);
             }
             final float[] query = new float[dimensions];
             randomVector(query, similarityFunction);
@@ -293,7 +299,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
             try (IndexInput in = dir.openInput("testScore.bin", IOContext.DEFAULT)) {
                 in.seek(padding);
                 final int perVectorBytes = length + 16;
-                assertEquals(in.length(), padding + (long) numVectors * perVectorBytes);
+                assertEquals(in.length(), padding + (long) numVectors * perVectorBytes + CodecUtil.footerLength());
                 // Work on a slice that has just the right number of bytes to make the test fail with an
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
@@ -376,6 +382,7 @@ public class ESNextOSQVectorsScorerTests extends BaseVectorizationTests {
         return switch (directoryType) {
             case NIOFS -> new NIOFSDirectory(createTempDir());
             case MMAP -> new MMapDirectory(createTempDir());
+            case SNAP -> SearchableSnapshotDirectoryFactory.newDirectory(createTempDir());
         };
     }
 

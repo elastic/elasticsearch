@@ -70,11 +70,11 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
         } else {
 
             if (isOldCluster()) {
-                assertNoWriteIndex("old-cluster-index");
+                assertNoWriteIndex("old-cluster-index", oldClusterIndexVersion);
             }
 
             if (isMixedCluster()) {
-                assertNoWriteIndex("mixed-cluster-index");
+                assertNoWriteIndex("mixed-cluster-index", oldClusterIndexVersion);
             }
 
             if (isUpgradedCluster()) {
@@ -140,10 +140,16 @@ public class TSDBSyntheticIdUpgradeIT extends AbstractRollingUpgradeTestCase {
             """, timestamp, randomByte()));
     }
 
-    private static void assertNoWriteIndex(String indexName) {
+    private static void assertNoWriteIndex(String indexName, IndexVersion oldClusterIndexVersion) {
         String setting = IndexSettings.SYNTHETIC_ID.getKey();
         String unknownSetting = "unknown setting [" + setting + "]";
-        String versionTooLow = "The setting [" + setting + "] is set to [true] but index metadata has a different value [false]";
+        String versionTooLow = String.format(
+            Locale.ROOT,
+            "The setting [%s] is only permitted for indexVersion [%s] or later. Current indexVersion: [%s].",
+            setting,
+            IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94,
+            oldClusterIndexVersion
+        );
 
         ResponseException e = assertThrows(ResponseException.class, () -> createSyntheticIdIndex(indexName));
         assertThat(e.getMessage(), Matchers.either(Matchers.containsString(unknownSetting)).or(Matchers.containsString(versionTooLow)));

@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarConversionFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ScalarFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.ValueTransformationFunction;
 import org.elasticsearch.xpack.esql.plan.logical.promql.VectorConversionFunction;
@@ -499,6 +500,7 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                 case WITHIN_SERIES_AGGREGATION -> new WithinSeriesAggregate(source, child, name, extraParams);
                 case VALUE_TRANSFORMATION -> new ValueTransformationFunction(source, child, name, extraParams);
                 case VECTOR_CONVERSION -> new VectorConversionFunction(source, child, name, extraParams);
+                case SCALAR_CONVERSION -> new ScalarConversionFunction(source, child, name, extraParams);
                 case SCALAR -> new ScalarFunction(source, name);
                 default -> throw new ParsingException(
                     source,

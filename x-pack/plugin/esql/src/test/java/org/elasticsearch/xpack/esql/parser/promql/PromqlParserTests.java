@@ -336,7 +336,7 @@ public class PromqlParserTests extends ESTestCase {
 
     public void testInstantVectorExpected() {
         ParsingException e = assertThrows(ParsingException.class, () -> parser.parseQuery("PROMQL index=test step=5m avg(foo[5m])"));
-        assertThat(e.getMessage(), containsString("expected type instant vector in call to function [avg], got range vector"));
+        assertThat(e.getMessage(), containsString("expected type instant_vector in call to function [avg], got range_vector"));
     }
 
     public void testInstantVectorExpectedWithGrouping() {
@@ -344,12 +344,12 @@ public class PromqlParserTests extends ESTestCase {
             ParsingException.class,
             () -> parser.parseQuery("PROMQL index=test step=5m avg by (pod) (foo[5m])")
         );
-        assertThat(e.getMessage(), containsString("expected type instant vector in call to function [avg], got range vector"));
+        assertThat(e.getMessage(), containsString("expected type instant_vector in call to function [avg], got range_vector"));
     }
 
     public void testRangeVectorExpected() {
         ParsingException e = assertThrows(ParsingException.class, () -> parser.parseQuery("PROMQL index=test step=5m rate(foo)"));
-        assertThat(e.getMessage(), containsString("expected type range vector in call to function [rate], got instant vector"));
+        assertThat(e.getMessage(), containsString("expected type range_vector in call to function [rate], got instant_vector"));
     }
 
     public void testCaseInsensitivityOperators() {

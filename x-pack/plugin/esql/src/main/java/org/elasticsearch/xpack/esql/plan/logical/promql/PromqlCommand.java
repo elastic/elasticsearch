@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
-import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -284,7 +283,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
         }
 
         // Validate entire plan
-        Holder<List<String>> groupingAttributes = new Holder<>();
         Holder<Boolean> root = new Holder<>(true);
         p.forEachDown(lp -> {
             switch (lp) {
@@ -306,18 +304,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, PostAnal
                 }
                 case PromqlFunctionCall functionCall -> {
                     if (functionCall instanceof AcrossSeriesAggregate asa) {
-                        var groupings = asa.groupings().stream().map(NamedExpression::name).toList();
-                        if (groupingAttributes.get() == null) {
-                            groupingAttributes.set(groupings);
-                        } else if (groupingAttributes.get().equals(groupings) == false) {
-                            failures.add(
-                                fail(
-                                    asa,
-                                    "all across-series aggregations must have the same grouping attributes at this time [{}]",
-                                    asa.sourceText()
-                                )
-                            );
-                        }
                         if (asa.grouping() == AcrossSeriesAggregate.Grouping.WITHOUT) {
                             failures.add(fail(asa, "'without' grouping is not supported at this time [{}]", asa.sourceText()));
                         }

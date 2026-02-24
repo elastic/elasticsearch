@@ -295,7 +295,7 @@ public class AsyncTaskManagementService<
                         Throwable cause = ExceptionsHelper.unwrapCause(exc);
                         if (cause instanceof DocumentMissingException == false
                             && cause instanceof VersionConflictEngineException == false) {
-                            logger.error(
+                            logger.warn(
                                 () -> format("failed to store ESQL search results for [%s]", searchTask.getExecutionId().getEncoded()),
                                 exc
                             );
@@ -309,7 +309,7 @@ public class AsyncTaskManagementService<
         } catch (Exception exc) {
             taskManager.unregister(searchTask);
             searchTask.onFailure(exc);
-            logger.error(() -> "failed to store ESQL search results for [" + searchTask.getExecutionId().getEncoded() + "]", exc);
+            logger.warn(() -> "failed to store ESQL search results for [" + searchTask.getExecutionId().getEncoded() + "]", exc);
         }
     }
 

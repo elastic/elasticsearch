@@ -27,6 +27,7 @@ import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ResumeInfo.ScrollWorkerResumeInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.WorkerResumeInfo;
+import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.UpdateByQueryAction;
 import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -63,6 +64,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
     public List<ActionHandler> getActions() {
         return Arrays.asList(
             new ActionHandler(ReindexAction.INSTANCE, TransportReindexAction.class),
+            new ActionHandler(ResumeReindexAction.INSTANCE, TransportResumeReindexAction.class),
             new ActionHandler(UpdateByQueryAction.INSTANCE, TransportUpdateByQueryAction.class),
             new ActionHandler(DeleteByQueryAction.INSTANCE, TransportDeleteByQueryAction.class),
             new ActionHandler(RETHROTTLE_ACTION, TransportRethrottleAction.class)

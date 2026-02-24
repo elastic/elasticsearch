@@ -49,7 +49,13 @@ public class EvalGenerator implements CommandGenerator {
                     name = EsqlQueryGenerator.randomIdentifier();
                 }
             }
-            String expression = EsqlQueryGenerator.expression(usablePrevious.values().stream().toList(), true);
+            // Occasionally generate a null field (EVAL field = null) to test NULL data type handling
+            String expression;
+            if (randomIntBetween(0, 100) < 10) {
+                expression = "null";
+            } else {
+                expression = EsqlQueryGenerator.expression(usablePrevious.values().stream().toList(), true, previousCommands);
+            }
             if (i > 0) {
                 cmd.append(",");
             }

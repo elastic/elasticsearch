@@ -76,6 +76,10 @@ tasks.register('generateOrcFixture', JavaExec) {
   args = [orcFixtureFile.absolutePath]
   inputs.file(orcFixtureCsv)
   outputs.file(orcFixtureFile)
+  // Route SLF4J (used by Hadoop) to the NOP provider to avoid Log4j2 initialization errors:
+  // the test classpath includes log4j2-test.properties referencing Elasticsearch's
+  // HeaderWarningAppender plugin, which is not loadable in this standalone JavaExec context.
+  systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
 }
 
 tasks.named('javaRestTest') {

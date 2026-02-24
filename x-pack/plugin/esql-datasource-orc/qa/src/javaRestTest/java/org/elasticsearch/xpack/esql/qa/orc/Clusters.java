@@ -60,6 +60,6 @@ public class Clusters {
                 throw new IllegalStateException("Failed to resolve fixtures path", e);
             }
         }
-        return "/tmp";
+        return System.getProperty("java.io.tmpdir");
     }
 }

@@ -22,10 +22,13 @@ import org.apache.orc.TypeDescription;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.CloseableIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
@@ -33,6 +36,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -55,6 +59,8 @@ import java.util.NoSuchElementException;
  */
 public class OrcFormatReader implements FormatReader {
 
+    private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
+
     private final BlockFactory blockFactory;
 
     public OrcFormatReader(BlockFactory blockFactory) {
@@ -67,7 +73,7 @@ public class OrcFormatReader implements FormatReader {
         return new SimpleSourceMetadata(schema, formatName(), object.path().toString());
     }
 
-    private List<Attribute> readSchema(StorageObject object) throws IOException {
+    private static List<Attribute> readSchema(StorageObject object) throws IOException {
         OrcStorageObjectAdapter fs = new OrcStorageObjectAdapter(object);
         Path path = new Path(object.path().toString());
         OrcFile.ReaderOptions options = OrcFile.readerOptions(new Configuration(false)).filesystem(fs);
@@ -142,7 +148,7 @@ public class OrcFormatReader implements FormatReader {
         // No resources to close at the reader level
     }
 
-    private List<Attribute> convertOrcSchemaToAttributes(TypeDescription schema) {
+    private static List<Attribute> convertOrcSchemaToAttributes(TypeDescription schema) {
         List<Attribute> attributes = new ArrayList<>();
         List<String> fieldNames = schema.getFieldNames();
         List<TypeDescription> children = schema.getChildren();
@@ -154,7 +160,7 @@ public class OrcFormatReader implements FormatReader {
         return attributes;
     }
 
-    private DataType convertOrcTypeToEsql(TypeDescription orcType) {
+    private static DataType convertOrcTypeToEsql(TypeDescription orcType) {
         return switch (orcType.getCategory()) {
             case BOOLEAN -> DataType.BOOLEAN;
             case BYTE, SHORT, INT -> DataType.INTEGER;
@@ -177,6 +183,7 @@ public class OrcFormatReader implements FormatReader {
         private final VectorizedRowBatch batch;
         private boolean exhausted = false;
         private boolean batchReady = false;
+        private final Map<String, Integer> fieldNameToIndex;
 
         OrcPageIterator(
             Reader reader,
@@ -192,6 +199,12 @@ public class OrcFormatReader implements FormatReader {
             this.attributes = attributes;
             this.blockFactory = blockFactory;
             this.batch = schema.createRowBatch(batchSize);
+
+            fieldNameToIndex = new HashMap<>(schema.getFieldNames().size());
+            int i = 0;
+            for (var fieldName : schema.getFieldNames()) {
+                fieldNameToIndex.put(fieldName, i++);
+            }
         }
 
         @Override
@@ -228,18 +241,22 @@ public class OrcFormatReader implements FormatReader {
             int rowCount = batch.size;
             Block[] blocks = new Block[attributes.size()];
 
-            List<String> fieldNames = schema.getFieldNames();
             for (int col = 0; col < attributes.size(); col++) {
                 Attribute attribute = attributes.get(col);
                 String fieldName = attribute.name();
                 DataType dataType = attribute.dataType();
 
-                int fieldIndex = fieldNames.indexOf(fieldName);
-                if (fieldIndex == -1) {
-                    blocks[col] = blockFactory.newConstantNullBlock(rowCount);
-                } else {
-                    ColumnVector vector = batch.cols[fieldIndex];
-                    blocks[col] = createBlock(vector, dataType, rowCount);
+                try {
+                    var fieldIndex = fieldNameToIndex.get(fieldName);
+                    if (fieldIndex == null) {
+                        blocks[col] = blockFactory.newConstantNullBlock(rowCount);
+                    } else {
+                        ColumnVector vector = batch.cols[fieldIndex];
+                        blocks[col] = createBlock(vector, dataType, rowCount);
+                    }
+                } catch (Exception e) {
+                    Releasables.closeExpectNoException(blocks);
+                    throw e;
                 }
             }
 
@@ -321,6 +338,8 @@ public class OrcFormatReader implements FormatReader {
                             builder.appendDouble(longVector.vector[idx]);
                         }
                     }
+                } else {
+                    throw new QlIllegalArgumentException("Unsupported column type: " + vector.getClass().getSimpleName());
                 }
                 return builder.build();
             }
@@ -328,6 +347,7 @@ public class OrcFormatReader implements FormatReader {
 
         private Block createBytesRefBlock(ColumnVector vector, int rowCount) {
             try (var builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
+                Check.isTrue(vector instanceof BytesColumnVector, "Unsupported column type: " + vector.getClass().getSimpleName());
                 BytesColumnVector bytesVector = (BytesColumnVector) vector;
                 for (int i = 0; i < rowCount; i++) {
                     if (bytesVector.noNulls == false && bytesVector.isNull[i]) {
@@ -362,7 +382,7 @@ public class OrcFormatReader implements FormatReader {
                             builder.appendNull();
                         } else {
                             int idx = longVector.isRepeating ? 0 : i;
-                            builder.appendLong(longVector.vector[idx] * 86400000L);
+                            builder.appendLong(longVector.vector[idx] * MILLIS_PER_DAY);
                         }
                     }
                 }

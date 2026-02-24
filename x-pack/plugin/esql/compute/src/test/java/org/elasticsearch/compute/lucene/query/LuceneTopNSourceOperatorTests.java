@@ -24,6 +24,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardIdFromList;
 import org.elasticsearch.compute.lucene.IndexedByShardIdFromSingleton;
 import org.elasticsearch.compute.lucene.ShardContext;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorTests;
@@ -53,6 +54,8 @@ import java.util.function.Function;
 
 import static org.elasticsearch.compute.lucene.query.LuceneSourceOperatorTests.assertAllRefCountedSameInstance;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.matchesRegex;
 
@@ -71,14 +74,9 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
         return simple(DataPartitioning.SHARD, 10_000, 100);
     }
 
-    private LuceneTopNSourceOperator.Factory simple(DataPartitioning dataPartitioning, int size, int limit) {
-        int commitEvery = Math.max(1, size / 10);
+    private static IndexReader simpleReader(Directory dir, int size, int commitEvery) {
         try (
-            RandomIndexWriter writer = new RandomIndexWriter(
-                random(),
-                directory,
-                newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE)
-            )
+            RandomIndexWriter writer = new RandomIndexWriter(random(), dir, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE))
         ) {
             for (int d = 0; d < size; d++) {
                 List<IndexableField> doc = new ArrayList<>();
@@ -88,11 +86,15 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
                     writer.commit();
                 }
             }
-            reader = writer.getReader();
+            return writer.getReader();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
+    }
 
+    private LuceneTopNSourceOperator.Factory simple(DataPartitioning dataPartitioning, int size, int limit) {
+        int commitEvery = Math.max(1, size / 10);
+        reader = simpleReader(directory, size, commitEvery);
         ShardContext ctx = new LuceneSourceOperatorTests.MockShardContext(reader, 0) {
             @Override
             public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) {
@@ -216,6 +218,73 @@ public class LuceneTopNSourceOperatorTests extends SourceOperatorTestCase {
         assertAllRefCountedSameInstance(results);
         int pages = (int) Math.ceil((float) Math.min(size, limit) / factory.maxPageSize());
         assertThat(results, hasSize(pages));
+    }
+
+    public void testAccumulateSearchLoad() throws IOException {
+        Directory dir0 = newDirectory();
+        Directory dirLarge = newDirectory();
+        IndexReader r0 = null;
+        IndexReader rLarge = null;
+        try {
+            r0 = simpleReader(dir0, 0, 1);
+            rLarge = simpleReader(dirLarge, 200, 10);
+
+            List<ShardContext> shardContexts = List.of(new LuceneSourceOperatorTests.MockShardContext(r0, 0) {
+                @Override
+                public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) {
+                    SortField field = new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN);
+                    return Optional.of(new SortAndFormats(new Sort(field), new DocValueFormat[] { null }));
+                }
+            }, new LuceneSourceOperatorTests.MockShardContext(rLarge, 1) {
+                @Override
+                public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) {
+                    SortField field = new SortedNumericSortField("s", SortField.Type.LONG, false, SortedNumericSelector.Type.MIN);
+                    return Optional.of(new SortAndFormats(new Sort(field), new DocValueFormat[] { null }));
+                }
+            });
+
+            Function<ShardContext, List<LuceneSliceQueue.QueryAndTags>> queryFunction = c -> List.of(
+                new LuceneSliceQueue.QueryAndTags(Queries.ALL_DOCS_INSTANCE, List.of())
+            );
+            int taskConcurrency = 0;
+            int maxPageSize = between(10, 100);
+            List<SortBuilder<?>> sorts = List.of(new FieldSortBuilder("s"));
+            long estimatedPerRowSortSize = 16;
+            LuceneTopNSourceOperator.Factory factory = new LuceneTopNSourceOperator.Factory(
+                new IndexedByShardIdFromList<>(shardContexts),
+                queryFunction,
+                DataPartitioning.SHARD,
+                taskConcurrency,
+                maxPageSize,
+                10,
+                sorts,
+                estimatedPerRowSortSize,
+                scoring
+            );
+            DriverContext ctx = driverContext();
+            LuceneTopNSourceOperator sourceOperator = (LuceneTopNSourceOperator) factory.get(ctx);
+            List<Page> results = new ArrayList<>();
+            new TestDriverRunner().run(
+                TestDriverFactory.create(ctx, sourceOperator, List.of(), new TestResultPageSinkOperator(results::add))
+            );
+
+            var res = sourceOperator.shardLoadDelta(System.nanoTime());
+            assertThat(res.size(), equalTo(0));
+
+            long totalPositions = results.stream().mapToInt(Page::getPositionCount).sum();
+            assertThat(totalPositions, equalTo(10L));
+
+            double load0 = shardContexts.get(0).stats().stats().getTotal().getSearchLoadRate();
+            double loadLarge = shardContexts.get(1).stats().stats().getTotal().getSearchLoadRate();
+
+            // Shard with no docs may still see minimal load from query rewrite, but should be <= others
+            assertThat(loadLarge, greaterThan(0d));
+            assertThat(loadLarge, greaterThanOrEqualTo(load0));
+
+            OperatorTestCase.assertDriverContext(ctx);
+        } finally {
+            IOUtils.close(r0, rLarge, dir0, dirLarge);
+        }
     }
 
     // Scores are not interesting to this test, but enabled conditionally and effectively ignored just for coverage.

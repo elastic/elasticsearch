@@ -54,7 +54,7 @@ public abstract sealed class Int7SQVectorScorerSupplier implements RandomVectorS
     }
 
     protected final void checkOrdinal(int ord) {
-        if (ord < 0 || ord > maxOrd) {
+        if (ord < 0 || ord >= maxOrd) {
             throw new IllegalArgumentException("illegal ordinal: " + ord);
         }
     }

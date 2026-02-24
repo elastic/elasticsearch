@@ -131,6 +131,6 @@ public class BlockBuilderCopyFromTests extends ESTestCase {
     private Block randomFilteredBlock() {
         int keepers = between(0, 4);
         Block orig = randomBlock();
-        return orig.filter(IntStream.range(0, orig.getPositionCount()).filter(i -> i % 5 == keepers).toArray());
+        return orig.filter(false, IntStream.range(0, orig.getPositionCount()).filter(i -> i % 5 == keepers).toArray());
     }
 }

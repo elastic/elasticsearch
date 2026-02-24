@@ -34,6 +34,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.inference.metadata.EndpointMetadata.INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -76,17 +77,22 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         @Nullable List<String> properties,
         String releaseDate,
         @Nullable String endOfLifeDate,
-        @Nullable Configuration configuration
+        @Nullable Configuration configuration,
+        @Nullable String displayName,
+        @Nullable String fingerprint
     ) implements Writeable, ToXContentObject {
+
+        public static final String RELEASE_DATE = "release_date";
+        public static final String END_OF_LIFE_DATE = "end_of_life_date";
 
         private static final String ID = "id";
         private static final String MODEL_NAME = "model_name";
         private static final String TASK_TYPE = "task_types";
         private static final String STATUS = "status";
         private static final String PROPERTIES = "properties";
-        private static final String RELEASE_DATE = "release_date";
-        private static final String END_OF_LIFE_DATE = "end_of_life_date";
         private static final String CONFIGURATION = "configuration";
+        private static final String DISPLAY_NAME = "display_name";
+        private static final String FINGERPRINT = "fingerprint";
 
         @SuppressWarnings("unchecked")
         public static ConstructingObjectParser<AuthorizedEndpoint, Void> AUTHORIZED_ENDPOINT_PARSER = new ConstructingObjectParser<>(
@@ -100,7 +106,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
                 (List<String>) args[4],
                 (String) args[5],
                 (String) args[6],
-                (Configuration) args[7]
+                (Configuration) args[7],
+                (String) args[8],
+                (String) args[9]
             )
         );
 
@@ -113,6 +121,8 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
             AUTHORIZED_ENDPOINT_PARSER.declareString(constructorArg(), new ParseField(RELEASE_DATE));
             AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(END_OF_LIFE_DATE));
             AUTHORIZED_ENDPOINT_PARSER.declareObject(optionalConstructorArg(), Configuration.PARSER::apply, new ParseField(CONFIGURATION));
+            AUTHORIZED_ENDPOINT_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(DISPLAY_NAME));
+            AUTHORIZED_ENDPOINT_PARSER.declareString(optionalConstructorArg(), new ParseField(FINGERPRINT));
         }
 
         public AuthorizedEndpoint(StreamInput in) throws IOException {
@@ -124,7 +134,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
                 in.readOptionalCollectionAsList(StreamInput::readString),
                 in.readString(),
                 in.readOptionalString(),
-                in.readOptionalWriteable(Configuration::new)
+                in.readOptionalWriteable(Configuration::new),
+                in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) ? in.readOptionalString() : null,
+                in.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED) ? in.readOptionalString() : null
             );
         }
 
@@ -138,13 +150,18 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
             out.writeString(releaseDate);
             out.writeOptionalString(endOfLifeDate);
             out.writeOptionalWriteable(configuration);
+
+            if (out.getTransportVersion().supports(INFERENCE_ENDPOINT_METADATA_FIELDS_ADDED)) {
+                out.writeOptionalString(displayName);
+                out.writeOptionalString(fingerprint);
+            }
         }
 
         @Override
         public String toString() {
             return Strings.format(
                 "AuthorizedEndpoint{id='%s', modelName='%s', taskType='%s', status='%s', "
-                    + "properties=%s, releaseDate='%s', endOfLifeDate='%s', configuration=%s}",
+                    + "properties=%s, releaseDate='%s', endOfLifeDate='%s', configuration=%s, displayName='%s', fingerprint='%s'}",
                 id,
                 modelName,
                 taskType,
@@ -152,7 +169,9 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
                 properties,
                 releaseDate,
                 endOfLifeDate,
-                configuration
+                configuration,
+                displayName,
+                fingerprint
             );
         }
 
@@ -173,6 +192,14 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
             }
             if (configuration != null) {
                 builder.field(CONFIGURATION, configuration);
+            }
+
+            if (displayName != null) {
+                builder.field(DISPLAY_NAME, displayName);
+            }
+
+            if (fingerprint != null) {
+                builder.field(FINGERPRINT, fingerprint);
             }
 
             builder.endObject();
@@ -215,9 +242,7 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
-            if (eisTaskType != null) {
-                builder.field(EIS_TASK_TYPE_FIELD, eisTaskType);
-            }
+            builder.field(EIS_TASK_TYPE_FIELD, eisTaskType);
             builder.field(ELASTICSEARCH_TASK_TYPE_FIELD, elasticsearchTaskType);
             builder.endObject();
             return builder;
@@ -303,13 +328,6 @@ public class ElasticInferenceServiceAuthorizationResponseEntity implements Infer
 
     public ElasticInferenceServiceAuthorizationResponseEntity(List<AuthorizedEndpoint> authorizedEndpoints) {
         this.authorizedEndpoints = Objects.requireNonNull(authorizedEndpoints);
-    }
-
-    /**
-     * Create an empty response
-     */
-    public ElasticInferenceServiceAuthorizationResponseEntity() {
-        this(List.of());
     }
 
     public ElasticInferenceServiceAuthorizationResponseEntity(StreamInput in) throws IOException {

@@ -94,8 +94,10 @@ import java.util.stream.Collectors;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.action.support.ActionTestUtils.assertNoSuccessListener;
 import static org.elasticsearch.cluster.service.MasterService.MAX_TASK_DESCRIPTION_CHARS;
+import static org.elasticsearch.cluster.service.MasterService.isInfiniteTaskTimeout;
 import static org.elasticsearch.cluster.service.MasterService.maybeLimitMasterNodeTimeout;
-import static org.elasticsearch.cluster.service.MasterService.priorityNonemptyTimeMetricName;
+import static org.elasticsearch.cluster.service.MasterService.pendingTasksMetricName;
+import static org.elasticsearch.cluster.service.MasterService.priorityPendingTasksMetricName;
 import static org.elasticsearch.telemetry.RecordingMeterRegistry.measures;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.contains;
@@ -889,6 +891,7 @@ public class MasterServiceTests extends ESTestCase {
         final ThreadContext threadContext = threadPool.getThreadContext();
         final int taskCount = between(1, 10);
         final CountDownLatch taskCountDown = new CountDownLatch(taskCount);
+        final String expectedExceptionMessage = randomIdentifier("simulated-exception-");
 
         class Task implements ClusterStateTaskListener {
 
@@ -901,18 +904,63 @@ public class MasterServiceTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertThat(e, instanceOf(RuntimeException.class));
-                assertThat(e.getMessage(), equalTo("simulated"));
+                assertThat(e.getMessage(), equalTo(expectedExceptionMessage));
                 assertThat(threadContext.getHeader(testContextHeaderName), equalTo(expectedHeaderValue));
                 taskCountDown.countDown();
             }
         }
 
+        final ClusterStateAckListener neverCalledAckListener = new ClusterStateAckListener() {
+            @Override
+            public boolean mustAck(DiscoveryNode discoveryNode) {
+                return fail(null, "should not call mustAck");
+            }
+
+            @Override
+            public void onAllNodesAcked() {
+                fail("should not call onAllNodesAcked");
+            }
+
+            @Override
+            public void onAckFailure(Exception e) {
+                fail("should not call onAckFailure");
+            }
+
+            @Override
+            public void onAckTimeout() {
+                fail("should not call onAckTimeout");
+            }
+
+            @Override
+            public TimeValue ackTimeout() {
+                return fail(null, "should not call ackTimeout");
+            }
+        };
+
         final ClusterStateTaskExecutor<Task> executor = batchExecutionContext -> {
             if (randomBoolean()) {
-                throw new RuntimeException("simulated");
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
+                    // might have marked some, but not necessarily all, tasks as complete, but none of that matters
+                    switch (between(1, 10)) {
+                        case 1 -> taskContext.success(() -> fail("should not call plain success callback"));
+                        case 2 -> taskContext.success(neverCalledAckListener);
+                        case 3 -> taskContext.success(ignoredClusterState -> fail("should not call success callback"));
+                        case 4 -> taskContext.success(() -> fail("should not call success callback"), neverCalledAckListener);
+                        case 5 -> taskContext.success(
+                            ignoredClusterState -> fail("should not call success callback"),
+                            neverCalledAckListener
+                        );
+                        case 6 -> taskContext.onFailure(
+                            new RuntimeException(randomValueOtherThan(expectedExceptionMessage, ESTestCase::randomIdentifier))
+                        );
+                        default -> {
+                        }
+                    }
+                }
+                throw new RuntimeException(expectedExceptionMessage);
             } else {
                 for (final var taskContext : batchExecutionContext.taskContexts()) {
-                    taskContext.onFailure(new RuntimeException("simulated"));
+                    taskContext.onFailure(new RuntimeException(expectedExceptionMessage));
                 }
                 return batchExecutionContext.initialState();
             }
@@ -1902,6 +1950,10 @@ public class MasterServiceTests extends ESTestCase {
         }
     }
 
+    /**
+     * Tests starvation metrics (nonempty.time and latency.time) following this step-by-step pattern:
+     * IMMEDIATE starves others, then HIGH starves NORMAL and LOW, then drain.
+     */
     public void testStarvationMetrics() {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         deterministicTaskQueue.setExecutionDelayVariabilityMillis(between(0, 10_000));
@@ -1919,30 +1971,35 @@ public class MasterServiceTests extends ESTestCase {
             )
         ) {
             threadPool.getThreadContext().markAsSystemContext();
-
             final var starvingPriority = new AtomicReference<>(Priority.IMMEDIATE);
             final var tasksExecuted = new AtomicInteger();
             final var lastTaskExecutionTime = new AtomicLong();
             final var firstTaskExecutionTime = new AtomicLong(Long.MIN_VALUE);
+            final var lastTaskInsertionTime = new AtomicLong();
+
+            final var oldestTaskInsertionTime = deterministicTaskQueue.getCurrentTimeMillis();
+            final var normalBatchQueue = masterService.createTaskQueue("batch-queue", Priority.NORMAL, new SuccessfulTasksExecutor());
+            normalBatchQueue.submitTask("batch-task", new ExpectSuccessTask(), null);
 
             for (final var priority : Priority.values()) {
                 if (priority == Priority.LANGUID) {
                     continue;
                 }
 
-                final var taskName = "starvation-causing task at " + priority;
+                final var starvationTaskName = "starvation-causing task at " + priority;
                 final var loopingTask = new ClusterStateUpdateTask(priority) {
                     int iteration;
 
                     @Override
                     public ClusterState execute(ClusterState currentState) {
-                        if (priority.sameOrAfter(starvingPriority.get())) {
-                            masterService.submitUnbatchedStateUpdateTask(taskName + " iteration " + (iteration++), this);
-                        }
-                        tasksExecuted.incrementAndGet();
                         final var nowMillis = deterministicTaskQueue.getCurrentTimeMillis();
+                        if (priority.sameOrAfter(starvingPriority.get())) {
+                            lastTaskInsertionTime.set(nowMillis);
+                            masterService.submitUnbatchedStateUpdateTask(starvationTaskName + " iteration " + (iteration++), this);
+                        }
                         lastTaskExecutionTime.set(nowMillis);
                         firstTaskExecutionTime.compareAndSet(Long.MIN_VALUE, nowMillis);
+                        tasksExecuted.incrementAndGet();
                         return currentState;
                     }
 
@@ -1951,7 +2008,7 @@ public class MasterServiceTests extends ESTestCase {
                         throw new AssertionError(e);
                     }
                 };
-                masterService.submitUnbatchedStateUpdateTask(taskName, loopingTask);
+                masterService.submitUnbatchedStateUpdateTask(starvationTaskName, loopingTask);
             }
 
             final IntConsumer someTasksRunner = targetCount -> {
@@ -1963,44 +2020,170 @@ public class MasterServiceTests extends ESTestCase {
             };
 
             someTasksRunner.accept(between(1, 5));
+
+            // Add a newer task to the pending batch; NORMAL queue latency should still reflect the oldest task
+            normalBatchQueue.submitTask("newer-task", new ExpectSuccessTask(), null);
+
             final var immediateStarvingDuration = deterministicTaskQueue.getCurrentTimeMillis() - firstTaskExecutionTime.get();
-            assertStarvationMetrics(meterRegistry, immediateStarvingDuration, ignored -> immediateStarvingDuration);
+            final var immediateMaxWaitTime = deterministicTaskQueue.getCurrentTimeMillis() - lastTaskInsertionTime.get();
+            final var immediateStarvingMaxWaitTime = deterministicTaskQueue.getCurrentTimeMillis() - oldestTaskInsertionTime;
+
+            assertMasterQueueMetrics(meterRegistry, "nonempty.time", immediateStarvingDuration, ignored -> immediateStarvingDuration);
+            assertMasterQueueMetrics(meterRegistry, "latency.time", immediateStarvingMaxWaitTime, priority -> {
+                if (priority == Priority.LANGUID) {
+                    return 0L;
+                }
+                if (priority == Priority.IMMEDIATE) {
+                    return immediateMaxWaitTime;
+                }
+                return immediateStarvingMaxWaitTime;
+            });
 
             starvingPriority.set(Priority.HIGH);
             someTasksRunner.accept(2 /* must run the IMMEDIATE and URGENT tasks first */ + between(1, 5));
+
+            // Add another newer task to the pending batch; NORMAL queue latency should still reflect the oldest task
+            normalBatchQueue.submitTask("another-newer-task", new ExpectSuccessTask(), null);
+
             final var highStarvingDuration = deterministicTaskQueue.getCurrentTimeMillis() - firstTaskExecutionTime.get();
             final var lastTaskDuration = deterministicTaskQueue.getCurrentTimeMillis() - lastTaskExecutionTime.get();
+            final var highMaxWaitTime = deterministicTaskQueue.getCurrentTimeMillis() - lastTaskInsertionTime.get();
+            final var highStarvingMaxWaitTime = deterministicTaskQueue.getCurrentTimeMillis() - oldestTaskInsertionTime;
 
-            assertStarvationMetrics(
+            assertMasterQueueMetrics(
                 meterRegistry,
+                "nonempty.time",
                 highStarvingDuration,
                 priority -> priority.sameOrAfter(Priority.HIGH) ? highStarvingDuration : lastTaskDuration
             );
+            assertMasterQueueMetrics(meterRegistry, "latency.time", highStarvingMaxWaitTime, priority -> {
+                if (priority == Priority.LANGUID || Priority.HIGH.after(priority)) {
+                    return 0L;
+                }
+                if (priority == Priority.HIGH) {
+                    return highMaxWaitTime;
+                }
+                return highStarvingMaxWaitTime;
+            });
 
             starvingPriority.set(Priority.LANGUID); // no more starvation
             deterministicTaskQueue.runAllTasks();
 
-            assertStarvationMetrics(meterRegistry, 0L, ignored -> 0L);
+            assertMasterQueueMetrics(meterRegistry, "nonempty.time", 0L, ignored -> 0L);
+            assertMasterQueueMetrics(meterRegistry, "latency.time", 0L, ignored -> 0L);
         }
     }
 
-    private static void assertStarvationMetrics(
+    /**
+     * Tests batch and task count metrics (tasks.current, batches.current).
+     * Inserts random numbers of tasks and batches for each priority and verifies that the metrics reflect the expected counts.
+     */
+    public void testTaskAndBatchCountMetrics() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        deterministicTaskQueue.setExecutionDelayVariabilityMillis(between(0, 10_000));
+        deterministicTaskQueue.scheduleAtAndRunUpTo(randomLongBetween(0, 100_000), () -> {});
+
+        final var meterRegistry = new RecordingMeterRegistry();
+        final var threadPool = deterministicTaskQueue.getThreadPool();
+        try (
+            var masterService = createMasterService(
+                true,
+                null,
+                threadPool,
+                new StoppableExecutorServiceWrapper(threadPool.generic()),
+                meterRegistry
+            )
+        ) {
+            threadPool.getThreadContext().markAsSystemContext();
+            final ClusterStateTaskExecutor<ClusterStateTaskListener> successExecutor = batchExecutionContext -> {
+                for (final var taskContext : batchExecutionContext.taskContexts()) {
+                    taskContext.success(() -> {});
+                }
+                return batchExecutionContext.initialState();
+            };
+
+            final var expectedTaskCount = new EnumMap<Priority, Long>(Priority.class);
+            final var expectedBatchCount = new EnumMap<Priority, Long>(Priority.class);
+            for (final var priority : Priority.values()) {
+                expectedTaskCount.put(priority, 0L);
+                expectedBatchCount.put(priority, 0L);
+            }
+            for (final var priority : Priority.values()) {
+                final int unbatchedCount = randomIntBetween(0, 5);
+                for (int u = 0; u < unbatchedCount; u++) {
+                    masterService.submitUnbatchedStateUpdateTask(priority + "-unbatched-" + u, new NoOpClusterStateUpdateTask(priority));
+                }
+                expectedTaskCount.merge(priority, (long) unbatchedCount, Long::sum);
+                expectedBatchCount.merge(priority, (long) unbatchedCount, Long::sum);
+
+                final int batchCount = randomIntBetween(0, 3);
+                for (int b = 0; b < batchCount; b++) {
+                    final int batchSize = randomIntBetween(1, 4);
+                    final var queue = masterService.createTaskQueue("batch-" + b + "-" + priority, priority, successExecutor);
+                    for (int t = 0; t < batchSize; t++) {
+                        queue.submitTask("batch-" + b + "-" + priority + "-task-" + t, new NoOpClusterStateUpdateTask(priority), null);
+                    }
+                    expectedTaskCount.merge(priority, (long) batchSize, Long::sum);
+                }
+                expectedBatchCount.merge(priority, (long) batchCount, Long::sum);
+            }
+
+            final long totalExpectedTasks = expectedTaskCount.values().stream().mapToLong(Long::longValue).sum();
+            final long totalExpectedBatches = expectedBatchCount.values().stream().mapToLong(Long::longValue).sum();
+            assertMasterQueueMetrics(meterRegistry, "tasks.current", totalExpectedTasks, expectedTaskCount::get);
+            assertMasterQueueMetrics(meterRegistry, "batches.current", totalExpectedBatches, expectedBatchCount::get);
+
+            deterministicTaskQueue.runAllTasks();
+            assertMasterQueueMetrics(meterRegistry, "tasks.current", 0L, ignored -> 0L);
+            assertMasterQueueMetrics(meterRegistry, "batches.current", 0L, ignored -> 0L);
+        }
+    }
+
+    private static void assertMasterQueueMetrics(
         RecordingMeterRegistry meterRegistry,
-        long overallNonemptyDuration,
-        ToLongFunction<Priority> perPriorityNonemptyDuration
+        String metricName,
+        long expectedValue,
+        ToLongFunction<Priority> expectedValuePerPriority
     ) {
         meterRegistry.getRecorder().resetCalls();
         meterRegistry.getRecorder().collect();
         assertThat(
-            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, "es.cluster.pending_tasks.nonempty.time"),
-            measures(overallNonemptyDuration)
+            meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, pendingTasksMetricName(metricName)),
+            measures(expectedValue)
         );
         for (final var priority : Priority.values()) {
             assertThat(
                 priority.toString(),
-                meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_GAUGE, priorityNonemptyTimeMetricName(priority)),
-                measures(perPriorityNonemptyDuration.applyAsLong(priority))
+                meterRegistry.getRecorder()
+                    .getMeasurements(InstrumentType.LONG_GAUGE, priorityPendingTasksMetricName(priority, metricName)),
+                measures(expectedValuePerPriority.applyAsLong(priority))
             );
+        }
+    }
+
+    private static class NoOpClusterStateUpdateTask extends ClusterStateUpdateTask {
+        NoOpClusterStateUpdateTask(Priority priority) {
+            super(priority);
+        }
+
+        @Override
+        public ClusterState execute(ClusterState currentState) {
+            return currentState;
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            fail();
+        }
+    }
+
+    private static class SuccessfulTasksExecutor implements ClusterStateTaskExecutor<ExpectSuccessTask> {
+        @Override
+        public ClusterState execute(BatchExecutionContext<ExpectSuccessTask> batchExecutionContext) {
+            for (final var taskContext : batchExecutionContext.taskContexts()) {
+                taskContext.success(() -> {});
+            }
+            return batchExecutionContext.initialState();
         }
     }
 
@@ -2901,5 +3084,17 @@ public class MasterServiceTests extends ESTestCase {
         // returns the smaller one when both specified
         assertSame(TimeValue.ONE_MINUTE, maybeLimitMasterNodeTimeout(TimeValue.ONE_HOUR, TimeValue.ONE_MINUTE));
         assertSame(TimeValue.THIRTY_SECONDS, maybeLimitMasterNodeTimeout(TimeValue.THIRTY_SECONDS, TimeValue.ONE_MINUTE));
+    }
+
+    public void testIsInfiniteTaskTimeout() {
+        assertTrue(isInfiniteTaskTimeout(null));
+        assertTrue(isInfiniteTaskTimeout(TimeValue.MINUS_ONE));
+        assertTrue(isInfiniteTaskTimeout(TimeValue.ZERO));
+        assertFalse(isInfiniteTaskTimeout(TimeValue.timeValueMillis(1)));
+        assertFalse(
+            isInfiniteTaskTimeout(
+                randomTimeValue(1, 100, TimeUnit.MILLISECONDS, TimeUnit.SECONDS, TimeUnit.MINUTES, TimeUnit.HOURS, TimeUnit.DAYS)
+            )
+        );
     }
 }

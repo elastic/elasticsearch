@@ -491,7 +491,7 @@ public class HashAggregationOperator implements Operator {
         try {
             // Filter key blocks to this partition's positions
             for (int k = 0; k < allKeys.length; k++) {
-                keyBlocks[k] = allKeys[k].filter(positions);
+                keyBlocks[k] = allKeys[k].filter(false, positions);
             }
 
             // Build selected vector: map positions back to global group IDs
@@ -559,6 +559,11 @@ public class HashAggregationOperator implements Operator {
     @Override
     public boolean isFinished() {
         return finished && outputPages.isEmpty();
+    }
+
+    @Override
+    public boolean canProduceMoreDataWithoutExtraInput() {
+        return outputPages.isEmpty() == false;
     }
 
     @Override

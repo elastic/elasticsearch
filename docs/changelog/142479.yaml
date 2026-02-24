@@ -1,0 +1,6 @@
+area: Ranking
+issues:
+ - 142336
+pr: 142479
+summary: Fixing for NPE when there is no query specified for the standard retriever
+type: bug

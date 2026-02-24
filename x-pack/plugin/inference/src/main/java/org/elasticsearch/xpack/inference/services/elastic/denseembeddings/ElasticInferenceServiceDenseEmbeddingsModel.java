@@ -7,19 +7,17 @@
 
 package org.elasticsearch.xpack.inference.services.elastic.denseembeddings;
 
-import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.SecretSettings;
-import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.metadata.EndpointMetadata;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceComponents;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceModel;
 
@@ -36,39 +34,51 @@ public class ElasticInferenceServiceDenseEmbeddingsModel extends ElasticInferenc
     public ElasticInferenceServiceDenseEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
-        String service,
         Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        Map<String, Object> secrets,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ConfigurationParseContext context,
-        ChunkingSettings chunkingSettings
+        ChunkingSettings chunkingSettings,
+        @Nullable EndpointMetadata endpointMetadata
     ) {
         this(
             inferenceEntityId,
             taskType,
-            service,
             ElasticInferenceServiceDenseEmbeddingsServiceSettings.fromMap(serviceSettings, context),
-            EmptyTaskSettings.INSTANCE,
-            EmptySecretSettings.INSTANCE,
             elasticInferenceServiceComponents,
-            chunkingSettings
+            chunkingSettings,
+            endpointMetadata
         );
     }
 
     public ElasticInferenceServiceDenseEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
-        String service,
         ElasticInferenceServiceDenseEmbeddingsServiceSettings serviceSettings,
-        @Nullable TaskSettings taskSettings,
-        @Nullable SecretSettings secretSettings,
         ElasticInferenceServiceComponents elasticInferenceServiceComponents,
         ChunkingSettings chunkingSettings
     ) {
+        this(inferenceEntityId, taskType, serviceSettings, elasticInferenceServiceComponents, chunkingSettings, null);
+    }
+
+    public ElasticInferenceServiceDenseEmbeddingsModel(
+        String inferenceEntityId,
+        TaskType taskType,
+        ElasticInferenceServiceDenseEmbeddingsServiceSettings serviceSettings,
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents,
+        ChunkingSettings chunkingSettings,
+        @Nullable EndpointMetadata endpointMetadata
+    ) {
         this(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secretSettings),
+            new ModelConfigurations(
+                inferenceEntityId,
+                taskType,
+                ElasticInferenceService.NAME,
+                serviceSettings,
+                EmptyTaskSettings.INSTANCE,
+                chunkingSettings,
+                endpointMetadata
+            ),
+            ModelSecrets.emptySecrets(),
             elasticInferenceServiceComponents
         );
     }
@@ -108,11 +118,9 @@ public class ElasticInferenceServiceDenseEmbeddingsModel extends ElasticInferenc
         try {
             // TODO, consider transforming the base URL into a URI for better error handling.
             if (getConfigurations().getTaskType().equals(TaskType.TEXT_EMBEDDING)) {
-                return new URIBuilder(elasticInferenceServiceComponents().elasticInferenceServiceUrl()).setPath(TEXT_EMBEDDING_PATH)
-                    .build();
+                return getBaseURIBuilder().setPath(TEXT_EMBEDDING_PATH).build();
             } else {
-                return new URIBuilder(elasticInferenceServiceComponents().elasticInferenceServiceUrl()).setPath(MULTIMODAL_EMBEDDING_PATH)
-                    .build();
+                return getBaseURIBuilder().setPath(MULTIMODAL_EMBEDDING_PATH).build();
             }
         } catch (URISyntaxException e) {
             throw new ElasticsearchStatusException(

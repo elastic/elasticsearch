@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
@@ -156,7 +157,8 @@ public class ComputeService {
     private final DataNodeComputeHandler dataNodeComputeHandler;
     private final ClusterComputeHandler clusterComputeHandler;
     private final ExchangeService exchangeService;
-    private final PlannerSettings plannerSettings;
+    private final PlannerSettings.Holder plannerSettings;
+    private final OperatorFactoryRegistry operatorFactoryRegistry;
 
     @SuppressWarnings("this-escape")
     public ComputeService(
@@ -165,7 +167,8 @@ public class ComputeService {
         LookupFromIndexService lookupFromIndexService,
         ThreadPool threadPool,
         BigArrays bigArrays,
-        BlockFactory blockFactory
+        BlockFactory blockFactory,
+        OperatorFactoryRegistry operatorFactoryRegistry
     ) {
         this.searchService = transportActionServices.searchService();
         this.transportService = transportActionServices.transportService();
@@ -196,9 +199,10 @@ public class ComputeService {
             dataNodeComputeHandler
         );
         this.plannerSettings = transportActionServices.plannerSettings();
+        this.operatorFactoryRegistry = operatorFactoryRegistry;
     }
 
-    PlannerSettings plannerSettings() {
+    PlannerSettings.Holder plannerSettings() {
         return plannerSettings;
     }
 
@@ -214,7 +218,7 @@ public class ComputeService {
         ActionListener<Result> listener
     ) {
         assert ThreadPool.assertCurrentThreadPool(
-            EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME,
+            ESQL_WORKER_THREAD_POOL_NAME,
             ThreadPool.Names.SYSTEM_READ,
             ThreadPool.Names.SEARCH,
             ThreadPool.Names.SEARCH_COORDINATION
@@ -292,7 +296,15 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, mainPlan, planTimeProfile, localListener.acquireCompute());
+                runCompute(
+                    rootTask,
+                    computeContext,
+                    mainPlan,
+                    plannerSettings.get(),
+                    LocalPhysicalOptimization.ENABLED,
+                    planTimeProfile,
+                    localListener.acquireCompute()
+                );
 
                 for (int i = 0; i < subplans.size(); i++) {
                     var subplan = subplans.get(i);
@@ -395,7 +407,15 @@ public class ComputeService {
                     })
                 )
             ) {
-                runCompute(rootTask, computeContext, coordinatorPlan, planTimeProfile, computeListener.acquireCompute());
+                runCompute(
+                    rootTask,
+                    computeContext,
+                    coordinatorPlan,
+                    plannerSettings.get(),
+                    LocalPhysicalOptimization.ENABLED,
+                    planTimeProfile,
+                    computeListener.acquireCompute()
+                );
                 return;
             }
         } else {
@@ -491,6 +511,8 @@ public class ComputeService {
                                 exchangeSinkSupplier
                             ),
                             coordinatorPlan,
+                            plannerSettings.get(),
+                            LocalPhysicalOptimization.ENABLED,
                             planTimeProfile,
                             localListener.acquireCompute()
                         );
@@ -666,6 +688,8 @@ public class ComputeService {
         CancellableTask task,
         ComputeContext context,
         PhysicalPlan plan,
+        PlannerSettings plannerSettings,
+        LocalPhysicalOptimization localPhysicalOptimization,
         PlanTimeProfile planTimeProfile,
         ActionListener<DriverCompletionInfo> listener
     ) {
@@ -691,22 +715,26 @@ public class ComputeService {
                 enrichLookupService,
                 lookupFromIndexService,
                 inferenceService,
-                physicalOperationProviders
+                physicalOperationProviders,
+                operatorFactoryRegistry
             );
 
             LOGGER.debug("Received physical plan for {}:\n{}", context.description(), plan);
 
             List<SearchExecutionContext> localContexts = new ArrayList<>();
             context.searchExecutionContexts().iterable().forEach(localContexts::add);
-            var localPlan = PlannerUtils.localPlan(
-                plannerSettings,
-                context.flags(),
-                localContexts,
-                context.configuration(),
-                context.foldCtx(),
-                plan,
-                planTimeProfile
-            );
+            var localPlan = switch (localPhysicalOptimization) {
+                case ENABLED -> PlannerUtils.localPlan(
+                    plannerSettings,
+                    context.flags(),
+                    localContexts,
+                    context.configuration(),
+                    context.foldCtx(),
+                    plan,
+                    planTimeProfile
+                );
+                case DISABLED -> plan;
+            };
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("Local plan for {}:\n{}", context.description(), localPlan);
             }
@@ -1004,6 +1032,8 @@ public class ComputeService {
                     outerExchangeSinkSupplier
                 ),
                 coordinatorPlan,
+                plannerSettings.get(),
+                LocalPhysicalOptimization.ENABLED,
                 planTimeProfile,
                 listener
             );
@@ -1057,6 +1087,8 @@ public class ComputeService {
                     outerExchangeSinkSupplier
                 ),
                 coordinatorPlan,
+                plannerSettings.get(),
+                LocalPhysicalOptimization.ENABLED,
                 planTimeProfile,
                 listener
             );
@@ -1089,6 +1121,8 @@ public class ComputeService {
                     () -> partitionedSinkHandler.createExchangeSink(() -> {})
                 ),
                 routerPlan,
+                plannerSettings.get(),
+                LocalPhysicalOptimization.ENABLED,
                 planTimeProfile,
                 computeListener.acquireCompute()
             );
@@ -1117,6 +1151,8 @@ public class ComputeService {
                         () -> sharedOutputSinkHandler.createExchangeSink(() -> {})
                     ),
                     finalPlan,
+                    plannerSettings.get(),
+                    LocalPhysicalOptimization.ENABLED,
                     planTimeProfile,
                     computeListener.acquireCompute()
                 );
@@ -1137,13 +1173,16 @@ public class ComputeService {
                     outerExchangeSinkSupplier
                 ),
                 outputPlan,
+                plannerSettings.get(),
+                LocalPhysicalOptimization.ENABLED,
                 planTimeProfile,
                 computeListener.acquireCompute()
             );
         }
     }
 
-    static ReductionPlan reductionPlan(
+    // public for testing
+    public static ReductionPlan reductionPlan(
         PlannerSettings plannerSettings,
         EsqlFlags flags,
         Configuration configuration,
@@ -1155,21 +1194,22 @@ public class ComputeService {
     ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
-        ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
+        ReductionPlan defaultResult = new ReductionPlan(originalPlan.replaceChild(source), originalPlan, LocalPhysicalOptimization.ENABLED);
         if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
             return defaultResult;
         }
 
         Function<PhysicalPlan, ReductionPlan> placePlanBetweenExchanges = p -> new ReductionPlan(
             originalPlan.replaceChild(p.replaceChildren(List.of(source))),
-            originalPlan
+            originalPlan,
+            LocalPhysicalOptimization.ENABLED
         );
         // The default plan is just the exchange source piped directly into the exchange sink.
         ReductionPlan reductionPlan = switch (PlannerUtils.reductionPlan(originalPlan)) {
             case PlannerUtils.TopNReduction topN when reduceNodeLateMaterialization ->
                 // In the case of TopN, the source output type is replaced since we're pulling the FieldExtractExec to the reduction node,
-                // so essential we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other aggregations,
-                // we also need the original plan, since we add the project in the reduction node.
+                // so essentially we are splitting the TopNExec into two parts, similar to other aggregations, but unlike other
+                // aggregations, we also need the original plan, since we add the project in the reduction node.
                 LateMaterializationPlanner.planReduceDriverTopN(
                     stats -> new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, stats),
                     originalPlan

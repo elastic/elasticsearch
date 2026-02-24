@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.KeepGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LimitGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.LookupJoinGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.MvExpandGenerator;
+import org.elasticsearch.xpack.esql.generator.command.pipe.RegisteredDomainGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.RenameGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.SampleGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.SortGenerator;
@@ -113,6 +114,7 @@ public class EsqlQueryGenerator {
         SortGenerator.INSTANCE,
         StatsGenerator.INSTANCE,
         UriPartsGenerator.INSTANCE,
+        RegisteredDomainGenerator.INSTANCE,
         WhereGenerator.INSTANCE
     );
 

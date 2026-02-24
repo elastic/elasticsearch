@@ -1314,6 +1314,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     modelSettings,
                     indexOptions,
                     useLegacyFormat,
+                    indexSettings.get(IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING),
                     vectorsFormatProviders
                 )
             );
@@ -1332,6 +1333,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         MinimalServiceSettings modelSettings,
         SemanticTextIndexOptions indexOptions,
         boolean useLegacyFormat,
+        boolean experimentalFeaturesEnabled,
         List<VectorsFormatProvider> vectorsFormatProviders
     ) {
         return switch (modelSettings.taskType()) {
@@ -1351,6 +1353,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     CHUNKED_EMBEDDINGS_FIELD,
                     indexVersionCreated,
                     false,
+                    experimentalFeaturesEnabled,
                     vectorsFormatProviders
                 );
 

@@ -833,6 +833,7 @@ public final class DocumentParser {
                 fieldName,
                 context.indexSettings().getIndexVersionCreated(),
                 IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING.get(context.indexSettings().getSettings()),
+                IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING.get(context.indexSettings().getSettings()),
                 context.getVectorFormatProviders()
             );
             builder.dimensions(builders.size());

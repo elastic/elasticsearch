@@ -38,49 +38,58 @@ class URLConnectionFileActions {
         connectionConsumer.accept((JarURLConnection) conn);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunFileURLConnectionConnect() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String sunFileURLConnectionConnect() throws Exception {
         withJdkFileConnection(URLConnection::connect);
+        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunFileURLConnectionGetHeaderFields() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String sunFileURLConnectionGetHeaderFields() throws Exception {
         withJdkFileConnection(URLConnection::getHeaderFields);
+        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunFileURLConnectionGetHeaderFieldWithName() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String sunFileURLConnectionGetHeaderFieldWithName() throws Exception {
         withJdkFileConnection(urlConnection -> urlConnection.getHeaderField("date"));
+        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunFileURLConnectionGetHeaderFieldWithIndex() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String sunFileURLConnectionGetHeaderFieldWithIndex() throws Exception {
         withJdkFileConnection(urlConnection -> urlConnection.getHeaderField(0));
+        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunFileURLConnectionGetContentLength() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String sunFileURLConnectionGetContentLength() throws Exception {
         withJdkFileConnection(URLConnection::getContentLength);
+        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunFileURLConnectionGetContentLengthLong() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String sunFileURLConnectionGetContentLengthLong() throws Exception {
         withJdkFileConnection(URLConnection::getContentLengthLong);
+        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunFileURLConnectionGetHeaderFieldKey() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String sunFileURLConnectionGetHeaderFieldKey() throws Exception {
         withJdkFileConnection(urlConnection -> urlConnection.getHeaderFieldKey(0));
+        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunFileURLConnectionGetLastModified() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String sunFileURLConnectionGetLastModified() throws Exception {
         withJdkFileConnection(URLConnection::getLastModified);
+        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunFileURLConnectionGetInputStream() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String sunFileURLConnectionGetInputStream() throws Exception {
         withJdkFileConnection(URLConnection::getInputStream);
+        return "true";
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)
@@ -123,74 +132,78 @@ class URLConnectionFileActions {
         withJdkFileConnection(conn -> conn.getContent(new Class<?>[] { String.class }));
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void netJarURLConnectionGetManifest() throws Exception {
         withJarConnection(JarURLConnection::getManifest);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void netJarURLConnectionGetJarEntry() throws Exception {
         withJarConnection(JarURLConnection::getJarEntry);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void netJarURLConnectionGetAttributes() throws Exception {
         withJarConnection(JarURLConnection::getAttributes);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void netJarURLConnectionGetMainAttributes() throws Exception {
         withJarConnection(JarURLConnection::getMainAttributes);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void netJarURLConnectionGetCertificates() throws Exception {
         withJarConnection(JarURLConnection::getCertificates);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunJarURLConnectionGetJarFile() throws Exception {
         withJarConnection(JarURLConnection::getJarFile);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunJarURLConnectionGetJarEntry() throws Exception {
         withJarConnection(JarURLConnection::getJarEntry);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunJarURLConnectionConnect() throws Exception {
         withJarConnection(JarURLConnection::connect);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunJarURLConnectionGetInputStream() throws Exception {
         withJarConnection(JarURLConnection::getInputStream);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunJarURLConnectionGetContentLength() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String sunJarURLConnectionGetContentLength() throws Exception {
         withJarConnection(JarURLConnection::getContentLength);
+        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunJarURLConnectionGetContentLengthLong() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String sunJarURLConnectionGetContentLengthLong() throws Exception {
         withJarConnection(JarURLConnection::getContentLengthLong);
+        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
+    @EntitlementTest(expectedAccess = PLUGINS, expectedExceptionIfDenied = IOException.class)
     static void sunJarURLConnectionGetContent() throws Exception {
         withJarConnection(JarURLConnection::getContent);
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunJarURLConnectionGetContentType() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String sunJarURLConnectionGetContentType() throws Exception {
         withJarConnection(JarURLConnection::getContentType);
+        return "true";
     }
 
-    @EntitlementTest(expectedAccess = PLUGINS)
-    static void sunJarURLConnectionGetHeaderFieldWithName() throws Exception {
+    @EntitlementTest(expectedAccess = PLUGINS, expectedDefaultIfDenied = "true")
+    static String sunJarURLConnectionGetHeaderFieldWithName() throws Exception {
         withJarConnection(conn -> conn.getHeaderField("field"));
+        return "true";
     }
 
     @EntitlementTest(expectedAccess = PLUGINS)

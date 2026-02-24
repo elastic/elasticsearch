@@ -9,6 +9,8 @@
 
 package org.elasticsearch.entitlement.qa.test;
 
+import org.elasticsearch.entitlement.qa.entitled.EntitledActions;
+
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.attribute.FileStoreAttributeView;
@@ -21,10 +23,10 @@ class FileStoreActions {
 
     @EntitlementTest(expectedAccess = ALWAYS_DENIED)
     static void checkGetFileStoreAttributeView() throws IOException {
-        Files.getFileStore(FileCheckActions.readWriteFile()).getFileStoreAttributeView(FileStoreAttributeView.class);
+        EntitledActions.getFileStore(FileCheckActions.readWriteFile()).getFileStoreAttributeView(FileStoreAttributeView.class);
     }
 
-    @EntitlementTest(expectedAccess = SERVER_ONLY)
+    @EntitlementTest(expectedAccess = SERVER_ONLY, expectedExceptionIfDenied = IOException.class)
     static void checkGetAttribute() throws IOException {
         try {
             Files.getFileStore(FileCheckActions.readFile()).getAttribute("zfs:compression");
@@ -33,37 +35,37 @@ class FileStoreActions {
         }
     }
 
-    @EntitlementTest(expectedAccess = SERVER_ONLY)
+    @EntitlementTest(expectedAccess = SERVER_ONLY, expectedExceptionIfDenied = IOException.class)
     static void checkGetBlockSize() throws IOException {
         Files.getFileStore(FileCheckActions.readWriteFile()).getBlockSize();
     }
 
-    @EntitlementTest(expectedAccess = SERVER_ONLY)
+    @EntitlementTest(expectedAccess = SERVER_ONLY, expectedExceptionIfDenied = IOException.class)
     static void checkGetTotalSpace() throws IOException {
         Files.getFileStore(FileCheckActions.readWriteFile()).getTotalSpace();
     }
 
-    @EntitlementTest(expectedAccess = SERVER_ONLY)
+    @EntitlementTest(expectedAccess = SERVER_ONLY, expectedExceptionIfDenied = IOException.class)
     static void checkGetUnallocatedSpace() throws IOException {
         Files.getFileStore(FileCheckActions.readWriteFile()).getUnallocatedSpace();
     }
 
-    @EntitlementTest(expectedAccess = SERVER_ONLY)
+    @EntitlementTest(expectedAccess = SERVER_ONLY, expectedExceptionIfDenied = IOException.class)
     static void checkGetUsableSpace() throws IOException {
         Files.getFileStore(FileCheckActions.readFile()).getUsableSpace();
     }
 
-    @EntitlementTest(expectedAccess = SERVER_ONLY)
+    @EntitlementTest(expectedAccess = SERVER_ONLY, expectedExceptionIfDenied = IOException.class)
     static void checkIsReadOnly() throws IOException {
         Files.getFileStore(FileCheckActions.readFile()).isReadOnly();
     }
 
-    @EntitlementTest(expectedAccess = SERVER_ONLY)
+    @EntitlementTest(expectedAccess = SERVER_ONLY, expectedExceptionIfDenied = IOException.class)
     static void checkName() throws IOException {
         Files.getFileStore(FileCheckActions.readFile()).name();
     }
 
-    @EntitlementTest(expectedAccess = SERVER_ONLY)
+    @EntitlementTest(expectedAccess = SERVER_ONLY, expectedExceptionIfDenied = IOException.class)
     static void checkType() throws IOException {
         Files.getFileStore(FileCheckActions.readFile()).type();
     }

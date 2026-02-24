@@ -16,6 +16,7 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
@@ -37,7 +38,7 @@ public final class TransportCloneApiKeyAction extends HandledTransportAction<Clo
 
     @Override
     protected void doExecute(Task task, CloneApiKeyRequest request, ActionListener<CreateApiKeyResponse> listener) {
-        final ApiKeyService.ApiKeyCredentials credentials;
+        final ApiKeyCredentials credentials;
         try {
             credentials = apiKeyService.parseCredentialsFromApiKeyString(request.getApiKey());
         } catch (IllegalArgumentException e) {

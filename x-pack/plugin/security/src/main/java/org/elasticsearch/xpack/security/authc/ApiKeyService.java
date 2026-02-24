@@ -86,6 +86,7 @@ import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheRequest;
 import org.elasticsearch.xpack.core.security.action.ClearSecurityCacheResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.AbstractCreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseBulkUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyResponse;
@@ -97,7 +98,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyRespo
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -124,7 +124,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -1572,12 +1571,12 @@ public class ApiKeyService implements Closeable {
         Clock clock,
         ActionListener<AuthenticationResult<User>> listener
     ) {
-        if (apiKeyDoc.type != credentials.expectedType) {
+        if (apiKeyDoc.type != credentials.getExpectedType()) {
             listener.onResponse(
                 AuthenticationResult.terminate(
                     Strings.format(
                         "authentication expected API key type of [%s], but API key [%s] has type [%s]",
-                        credentials.expectedType.value(),
+                        credentials.getExpectedType().value(),
                         credentials.getId(),
                         apiKeyDoc.type.value()
                     )
@@ -1665,55 +1664,15 @@ public class ApiKeyService implements Closeable {
         if (false == isEnabled()) {
             return null;
         }
-        return parseApiKey(apiKeyString, null, ApiKey.Type.REST);
+        return ApiKeyCredentials.parse(apiKeyString, null, ApiKey.Type.REST);
     }
 
     static ApiKeyCredentials getCredentialsFromHeader(final String header, @Nullable String certificateIdentity, ApiKey.Type expectedType) {
-        return parseApiKey(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"), certificateIdentity, expectedType);
+        return ApiKeyCredentials.parse(Authenticator.extractCredentialFromHeaderValue(header, "ApiKey"), certificateIdentity, expectedType);
     }
 
     public static String withApiKeyPrefix(final String encodedApiKey) {
         return "ApiKey " + encodedApiKey;
-    }
-
-    private static ApiKeyCredentials parseApiKey(
-        SecureString apiKeyString,
-        @Nullable String certificateIdentity,
-        ApiKey.Type expectedType
-    ) {
-        if (apiKeyString != null) {
-            final byte[] decodedApiKeyCredBytes = Base64.getDecoder().decode(CharArrays.toUtf8Bytes(apiKeyString.getChars()));
-            char[] apiKeyCredChars = null;
-            try {
-                apiKeyCredChars = CharArrays.utf8BytesToChars(decodedApiKeyCredBytes);
-                int colonIndex = -1;
-                for (int i = 0; i < apiKeyCredChars.length; i++) {
-                    if (apiKeyCredChars[i] == ':') {
-                        colonIndex = i;
-                        break;
-                    }
-                }
-
-                if (colonIndex < 1) {
-                    throw new IllegalArgumentException("invalid ApiKey value");
-                }
-                final int secretStartPos = colonIndex + 1;
-                if (ApiKey.Type.CROSS_CLUSTER == expectedType && API_KEY_SECRET_LENGTH != apiKeyCredChars.length - secretStartPos) {
-                    throw new IllegalArgumentException("invalid cross-cluster API key value");
-                }
-                return new ApiKeyCredentials(
-                    new String(Arrays.copyOfRange(apiKeyCredChars, 0, colonIndex)),
-                    new SecureString(Arrays.copyOfRange(apiKeyCredChars, secretStartPos, apiKeyCredChars.length)),
-                    expectedType,
-                    certificateIdentity
-                );
-            } finally {
-                if (apiKeyCredChars != null) {
-                    Arrays.fill(apiKeyCredChars, (char) 0);
-                }
-            }
-        }
-        return null;
     }
 
     void computeHashForApiKey(SecureString apiKey, ActionListener<char[]> listener) {
@@ -1815,66 +1774,6 @@ public class ApiKeyService implements Closeable {
                 logger.warn("metrics close() method should not throw Exception", e);
             }
         });
-    }
-
-    // public class for testing
-    public static final class ApiKeyCredentials implements AuthenticationToken, Closeable {
-        private final String id;
-        private final SecureString key;
-        private final ApiKey.Type expectedType;
-        private final String certificateIdentity;
-
-        public ApiKeyCredentials(String id, SecureString key, ApiKey.Type expectedType) {
-            this(id, key, expectedType, null);
-        }
-
-        public ApiKeyCredentials(String id, SecureString key, ApiKey.Type expectedType, @Nullable String certificateIdentity) {
-            this.id = id;
-            this.key = key;
-            this.expectedType = expectedType;
-            this.certificateIdentity = certificateIdentity;
-        }
-
-        String getId() {
-            return id;
-        }
-
-        SecureString getKey() {
-            return key;
-        }
-
-        @Override
-        public void close() {
-            key.close();
-        }
-
-        @Override
-        public String principal() {
-            return id;
-        }
-
-        @Override
-        public Object credentials() {
-            return key;
-        }
-
-        @Override
-        public void clearCredentials() {
-            close();
-        }
-
-        public ApiKey.Type getExpectedType() {
-            return expectedType;
-        }
-
-        /**
-         * The identity (Subject DistinguishedName) of the X.509 certificate that was provided by the client
-         * alongside the API during authenticate.
-         * <em>At the time of writing, the only place where this is used is for cross cluster request signing</em>
-         */
-        public String getCertificateIdentity() {
-            return certificateIdentity;
-        }
     }
 
     private static class ApiKeyLoggingDeprecationHandler implements DeprecationHandler {

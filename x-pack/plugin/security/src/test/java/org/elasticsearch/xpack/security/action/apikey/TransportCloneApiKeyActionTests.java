@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -73,7 +74,7 @@ public class TransportCloneApiKeyActionTests extends ESTestCase {
 
     public void testCloneSuccess() {
         CloneApiKeyRequest request = validRequest();
-        ApiKeyService.ApiKeyCredentials credentials = new ApiKeyService.ApiKeyCredentials(
+        ApiKeyCredentials credentials = new ApiKeyCredentials(
             "source-id",
             new SecureString("secret".toCharArray()),
             org.elasticsearch.xpack.core.security.action.apikey.ApiKey.Type.REST
@@ -89,18 +90,18 @@ public class TransportCloneApiKeyActionTests extends ESTestCase {
         doAnswer(inv -> {
             Object[] args = inv.getArguments();
             assertThat(args[0], sameInstance(request));
-            assertThat(args[1], instanceOf(ApiKeyService.ApiKeyCredentials.class));
+            assertThat(args[1], instanceOf(ApiKeyCredentials.class));
             @SuppressWarnings("unchecked")
             ActionListener<CreateApiKeyResponse> listener = (ActionListener<CreateApiKeyResponse>) args[2];
             listener.onResponse(response);
             return null;
-        }).when(apiKeyService).cloneApiKey(same(request), any(ApiKeyService.ApiKeyCredentials.class), any());
+        }).when(apiKeyService).cloneApiKey(same(request), any(ApiKeyCredentials.class), any());
 
         PlainActionFuture<CreateApiKeyResponse> future = new PlainActionFuture<>();
         action.execute(null, request, future);
 
         assertThat(future.actionGet(), sameInstance(response));
-        verify(apiKeyService).cloneApiKey(same(request), any(ApiKeyService.ApiKeyCredentials.class), any());
+        verify(apiKeyService).cloneApiKey(same(request), any(ApiKeyCredentials.class), any());
     }
 
     private static CloneApiKeyRequest validRequest() {

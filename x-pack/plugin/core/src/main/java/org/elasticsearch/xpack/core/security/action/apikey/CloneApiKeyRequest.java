@@ -80,6 +80,17 @@ public final class CloneApiKeyRequest extends LegacyActionRequest {
         this.apiKey = apiKey;
     }
 
+    /**
+     * Parses the source API key credential into an {@link ApiKeyCredentials} instance.
+     * The clone endpoint only supports REST API keys as the source.
+     *
+     * @return the parsed source API key credentials, or {@code null} if there is no API key
+     * @throws IllegalArgumentException if the api key is null, empty, or not valid (e.g. malformed Base64 or missing colon)
+     */
+    public ApiKeyCredentials getSourceApiKey() {
+        return ApiKeyCredentials.parse(apiKey, null, ApiKey.Type.REST);
+    }
+
     public String getId() {
         return id;
     }

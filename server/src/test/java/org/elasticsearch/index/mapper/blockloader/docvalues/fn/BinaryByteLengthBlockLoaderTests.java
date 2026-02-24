@@ -33,8 +33,8 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.nullValue;
 
 public class BinaryByteLengthBlockLoaderTests extends AbstractBlockLoaderTestCase {
-    public BinaryByteLengthBlockLoaderTests(boolean blockAtATime, boolean multiValues, boolean missingValues) {
-        super(blockAtATime, multiValues, missingValues);
+    public BinaryByteLengthBlockLoaderTests(boolean multiValues, boolean missingValues) {
+        super(multiValues, missingValues);
     }
 
     @Override
@@ -81,10 +81,7 @@ public class BinaryByteLengthBlockLoaderTests extends AbstractBlockLoaderTestCas
                     }
 
                     BlockLoader.Docs docs = TestBlock.docs(ctx);
-                    try (
-                        TestBlock strings = read(stringsLoader, stringsReader, docs);
-                        TestBlock codePoints = read(lengthLoader, lengthReader, docs);
-                    ) {
+                    try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(lengthReader, docs);) {
                         checkBlocks(strings, codePoints);
                     }
                     assertThat(warnings.warnings(), equalTo(expectedWarnings));
@@ -98,10 +95,7 @@ public class BinaryByteLengthBlockLoaderTests extends AbstractBlockLoaderTestCas
                             docsArray[d] = i + d;
                         }
                         BlockLoader.Docs docs = TestBlock.docs(docsArray);
-                        try (
-                            TestBlock strings = read(stringsLoader, stringsReader, docs);
-                            TestBlock codePoints = read(lengthLoader, lengthReader, docs);
-                        ) {
+                        try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(lengthReader, docs);) {
                             checkBlocks(strings, codePoints);
                         }
                     }
@@ -113,10 +107,7 @@ public class BinaryByteLengthBlockLoaderTests extends AbstractBlockLoaderTestCas
                 try (var stringsReader = stringsLoader.reader(breaker, ctx); var lengthReader = lengthLoader.reader(breaker, ctx)) {
                     for (int docId = 0; docId < ctx.reader().maxDoc(); docId++) {
                         BlockLoader.Docs docs = TestBlock.docs(docId);
-                        try (
-                            TestBlock strings = read(stringsLoader, stringsReader, docs);
-                            TestBlock codePoints = read(lengthLoader, lengthReader, docs);
-                        ) {
+                        try (TestBlock strings = read(stringsReader, docs); TestBlock codePoints = read(lengthReader, docs);) {
                             checkBlocks(strings, codePoints);
                         }
                     }
@@ -126,12 +117,8 @@ public class BinaryByteLengthBlockLoaderTests extends AbstractBlockLoaderTestCas
         }
     }
 
-    private TestBlock read(BlockLoader loader, BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
-        BlockLoader.AllReader toUse = blockAtATime
-            ? reader
-            : new ForceDocAtATime(() -> loader.builder(TestBlock.factory(), docs.count()), reader);
-
-        return (TestBlock) toUse.read(TestBlock.factory(), docs, 0, false);
+    private TestBlock read(BlockLoader.AllReader reader, BlockLoader.Docs docs) throws IOException {
+        return (TestBlock) reader.read(TestBlock.factory(), docs, 0, false);
     }
 
     private void checkBlocks(TestBlock strings, TestBlock lengths) {

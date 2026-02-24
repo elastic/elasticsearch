@@ -34,6 +34,8 @@ import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_QUERYLOG_THRES
 
 public final class EsqlQueryLog {
 
+    private static final Logger logger = LogManager.getLogger(EsqlQueryLog.class);
+
     public static final String ELASTICSEARCH_QUERYLOG_PREFIX = "elasticsearch.querylog";
     public static final String ELASTICSEARCH_QUERYLOG_ERROR_MESSAGE = ELASTICSEARCH_QUERYLOG_PREFIX + ".error.message";
     public static final String ELASTICSEARCH_QUERYLOG_ERROR_TYPE = ELASTICSEARCH_QUERYLOG_PREFIX + ".error.type";
@@ -143,6 +145,7 @@ public final class EsqlQueryLog {
             for (TimeSpanMarker timeSpanMarker : esqlQueryProfile.timeSpanMarkers()) {
                 TimeValue timeTook = timeSpanMarker.timeTook();
                 if (timeTook == null) {
+                    logger.error("TimeSpanMarker [{}] was not stopped", timeSpanMarker.name());
                     continue;
                 }
                 String namePrefix = ELASTICSEARCH_QUERYLOG_PREFIX + timeSpanMarker.name();

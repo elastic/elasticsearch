@@ -20,16 +20,11 @@ dependencies {
   implementation "io.opentelemetry:opentelemetry-api:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-context:${otelVersion}"
   implementation "io.opentelemetry:opentelemetry-semconv:${otelSemconvVersion}"
+  runtimeOnly    "io.opentelemetry:opentelemetry-common:${otelVersion}"
   runtimeOnly    "co.elastic.apm:elastic-apm-agent-java8:1.55.0"
 
   javaRestTestImplementation project(':modules:apm')
   javaRestTestImplementation project(':test:framework')
-}
-
-tasks.named("thirdPartyAudit").configure {
-  ignoreMissingClasses(
-    'io.opentelemetry.common.ComponentLoader'
-  )
 }
 
 tasks.named("dependencyLicenses").configure {

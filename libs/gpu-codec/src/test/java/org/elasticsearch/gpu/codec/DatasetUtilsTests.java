@@ -54,7 +54,12 @@ public class DatasetUtilsTests extends ESTestCase {
             }
             try (
                 var in = dir.openInput("vector.data", IOContext.DEFAULT);
-                var dataset = datasetUtils.fromInput((MemorySegmentAccessInput) in, numVecs, dims, CuVSMatrix.DataType.FLOAT)
+                var dataset = datasetUtils.fromInput(
+                    ((MemorySegmentAccessInput) in).segmentSliceOrNull(0L, in.length()),
+                    numVecs,
+                    dims,
+                    CuVSMatrix.DataType.FLOAT
+                )
             ) {
                 assertEquals(numVecs, dataset.size());
                 assertEquals(dims, dataset.columns());
@@ -65,7 +70,7 @@ public class DatasetUtilsTests extends ESTestCase {
     static final Class<IllegalArgumentException> IAE = IllegalArgumentException.class;
 
     public void testIllegal() {
-        MemorySegmentAccessInput in = null; // TODO: make this non-null
+        MemorySegment in = null; // TODO: make this non-null
         expectThrows(IAE, () -> datasetUtils.fromInput(in, -1, 1, CuVSMatrix.DataType.FLOAT));
         expectThrows(IAE, () -> datasetUtils.fromInput(in, 1, -1, CuVSMatrix.DataType.FLOAT));
     }

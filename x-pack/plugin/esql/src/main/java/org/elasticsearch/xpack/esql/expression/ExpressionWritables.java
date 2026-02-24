@@ -49,8 +49,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncode
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.UrlEncodeComponent;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cos;
@@ -181,8 +184,11 @@ public class ExpressionWritables {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(Abs.ENTRY);
         entries.add(Acos.ENTRY);
+        entries.add(Acosh.ENTRY);
+        entries.add(Asinh.ENTRY);
         entries.add(Asin.ENTRY);
         entries.add(Atan.ENTRY);
+        entries.add(Atanh.ENTRY);
         entries.add(ByteLength.ENTRY);
         entries.add(Cbrt.ENTRY);
         entries.add(Ceil.ENTRY);

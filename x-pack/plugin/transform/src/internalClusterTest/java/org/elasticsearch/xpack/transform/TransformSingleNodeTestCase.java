@@ -14,24 +14,39 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetF
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
+import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
+import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
+import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
+import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
+import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
+import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 import org.junit.After;
 
 import java.time.Instant;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -99,6 +114,19 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
         client().execute(PutTransformAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS);
     }
 
+    protected void createDiceTransform(String transformId, String transformSrc, String projectRouting) {
+        createTransform(
+            TransformConfig.builder()
+                .setId(transformId)
+                .setDest(new DestConfig(transformId, null, null))
+                .setSource(new SourceConfig(new String[] { transformSrc }, QueryConfig.matchAll(), Map.of(), projectRouting))
+                .setFrequency(TimeValue.ONE_MINUTE)
+                .setSyncConfig(new TimeSyncConfig("time", TimeValue.ONE_MINUTE))
+                .setLatestConfig(new LatestConfig(List.of("roll"), "time"))
+                .build()
+        );
+    }
+
     protected TransformConfig getTransform(String transformId) {
         var response = client().execute(
             GetTransformAction.INSTANCE,
@@ -107,6 +135,22 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
         var configs = response.getTransformConfigurations();
         assertThat(configs, hasSize(1));
         return configs.getFirst();
+    }
+
+    protected void updateTransform(String transformId, TransformConfigUpdate transformConfigUpdate) {
+        var request = new UpdateTransformAction.Request(transformConfigUpdate, transformId, false, TimeValue.THIRTY_SECONDS);
+        client().execute(UpdateTransformAction.INSTANCE, request).actionGet(TimeValue.THIRTY_SECONDS);
+    }
+
+    protected Set<String> getAuditMessages(String transformId) {
+        var searchRequest = new SearchRequest(TransformInternalIndexConstants.AUDIT_INDEX_PATTERN);
+        var searchResponse = client().search(searchRequest).actionGet(TimeValue.THIRTY_SECONDS);
+        return Arrays.stream(searchResponse.getHits().getHits())
+            .map(SearchHit::getSourceAsMap)
+            .filter(source -> Objects.equals(source.get("transform_id"), transformId))
+            .map(source -> source.get("message"))
+            .map(Object::toString)
+            .collect(Collectors.toSet());
     }
 
 }

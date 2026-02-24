@@ -107,6 +107,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                 for (Function f : Function.values()) {
                     String funcName = switch (f) {
+                        case COSINE -> "cos";
                         case DOT_PRODUCT -> "dot";
                         case SQUARE_DISTANCE -> "sqr";
                     };
@@ -119,6 +120,10 @@ public final class JdkVectorLibrary implements VectorLibrary {
                         };
 
                         for (DataType type : DataType.values()) {
+                            // Only byte vectors have cosine
+                            // as floats are normalized to unit length to use dot_product instead
+                            if (f == Function.COSINE && type != DataType.INT8) continue;
+
                             String typeName = switch (type) {
                                 case INT7U -> "i7u";
                                 case INT8 -> "i8";
@@ -127,8 +132,8 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                             FunctionDescriptor descriptor = switch (op) {
                                 case SINGLE -> switch (type) {
-                                    case INT7U, INT8 -> intSingle;
-                                    case FLOAT32 -> floatSingle;
+                                    case INT7U -> intSingle;
+                                    case INT8, FLOAT32 -> floatSingle;
                                 };
                                 case BULK -> bulk;
                                 case BULK_OFFSETS -> bulkOffsets;
@@ -140,11 +145,12 @@ public final class JdkVectorLibrary implements VectorLibrary {
 
                         for (BBQType type : BBQType.values()) {
                             // not implemented yet...
-                            if (f == Function.SQUARE_DISTANCE) continue;
+                            if (f == Function.COSINE || f == Function.SQUARE_DISTANCE) continue;
 
                             String typeName = switch (type) {
                                 case D1Q4 -> "d1q4";
                                 case D2Q4 -> "d2q4";
+                                case D4Q4 -> "d4q4";
                             };
 
                             FunctionDescriptor descriptor = switch (op) {
@@ -326,24 +332,34 @@ public final class JdkVectorLibrary implements VectorLibrary {
             return callSingleDistanceInt(squareI7uHandle, a, b, length);
         }
 
+        private static final MethodHandle cosI8Handle = HANDLES.get(
+            new OperationSignature<>(Function.COSINE, DataType.INT8, Operation.SINGLE)
+        );
+
+        static float cosineI8(MemorySegment a, MemorySegment b, int elementCount) {
+            checkByteSize(a, b);
+            Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize());
+            return callSingleDistanceFloat(cosI8Handle, a, b, elementCount);
+        }
+
         private static final MethodHandle dotI8Handle = HANDLES.get(
             new OperationSignature<>(Function.DOT_PRODUCT, DataType.INT8, Operation.SINGLE)
         );
 
-        static int dotProductI8(MemorySegment a, MemorySegment b, int elementCount) {
+        static float dotProductI8(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize());
-            return callSingleDistanceInt(dotI8Handle, a, b, elementCount);
+            return callSingleDistanceFloat(dotI8Handle, a, b, elementCount);
         }
 
         private static final MethodHandle squareI8Handle = HANDLES.get(
             new OperationSignature<>(Function.SQUARE_DISTANCE, DataType.INT8, Operation.SINGLE)
         );
 
-        static int squareDistanceI8(MemorySegment a, MemorySegment b, int elementCount) {
+        static float squareDistanceI8(MemorySegment a, MemorySegment b, int elementCount) {
             checkByteSize(a, b);
             Objects.checkFromIndexSize(0, elementCount, (int) a.byteSize());
-            return callSingleDistanceInt(squareI8Handle, a, b, elementCount);
+            return callSingleDistanceFloat(squareI8Handle, a, b, elementCount);
         }
 
         private static final MethodHandle dotF32Handle = HANDLES.get(
@@ -370,13 +386,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D1Q4, Operation.SINGLE)
         );
 
-        /**
-         * Computes the dot product of a given int4 vector with a give bit vector (1 bit per element).
-         *
-         * @param a      address of the bit vector
-         * @param query  address of the int4 vector
-         * @param length the vector dimensions
-         */
         static long dotProductD1Q4(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0, length * 4L, (int) query.byteSize());
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
@@ -387,17 +396,20 @@ public final class JdkVectorLibrary implements VectorLibrary {
             new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D2Q4, Operation.SINGLE)
         );
 
-        /**
-         * Computes the dot product of a given int4 vector with a give int2 vector (2 bits per element).
-         *
-         * @param a      address of the int2 vector
-         * @param query  address of the int4 vector
-         * @param length the vector dimensions
-         */
         static long dotProductD2Q4(MemorySegment a, MemorySegment query, int length) {
             Objects.checkFromIndexSize(0, length * 2, (int) query.byteSize());
             Objects.checkFromIndexSize(0, length, (int) a.byteSize());
             return callSingleDistanceLong(dotD2Q4Handle, a, query, length);
+        }
+
+        private static final MethodHandle dotD4Q4Handle = HANDLES.get(
+            new OperationSignature<>(Function.DOT_PRODUCT, BBQType.D4Q4, Operation.SINGLE)
+        );
+
+        static long dotProductD4Q4(MemorySegment a, MemorySegment query, int length) {
+            Objects.checkFromIndexSize(0, length, (int) query.byteSize());
+            Objects.checkFromIndexSize(0, length, (int) a.byteSize());
+            return callSingleDistanceLong(dotD4Q4Handle, a, query, length);
         }
 
         private static void checkByteSize(MemorySegment a, MemorySegment b) {
@@ -522,6 +534,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                             // So have specific hard-coded check methods rather than use guardWithTest
                             // to create the check-and-call methods dynamically
                             String checkMethod = switch (op.getKey().function()) {
+                                case COSINE -> "cosine";
                                 case DOT_PRODUCT -> "dotProduct";
                                 case SQUARE_DISTANCE -> "squareDistance";
                             };
@@ -536,7 +549,7 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                             checkMethod += "I7u";
                                             break;
                                         case INT8:
-                                            type = MethodType.methodType(int.class, MemorySegment.class, MemorySegment.class, int.class);
+                                            type = MethodType.methodType(float.class, MemorySegment.class, MemorySegment.class, int.class);
                                             checkMethod += "I8";
                                             break;
                                         case FLOAT32:
@@ -544,7 +557,6 @@ public final class JdkVectorLibrary implements VectorLibrary {
                                             checkMethod += "F32";
                                             break;
                                     }
-
                                     yield lookup.findStatic(JdkVectorSimilarityFunctions.class, checkMethod, type);
                                 }
                                 case BBQType bbq -> {

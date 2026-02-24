@@ -36,8 +36,8 @@ public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
     }
 
     @Override
-    protected BlockLoaderTestRunner.ResultMatcher getResultMatcher(Settings.Builder settings, Mapping mapping, String fullFieldName) {
-        return (expected, actual) -> {
+    protected BlockLoaderTestRunner configureRunner(BlockLoaderTestRunner runner, Settings.Builder settings, Mapping mapping) {
+        return runner.matcher((expected, actual) -> {
             try {
                 var mappingXContent = XContentBuilder.builder(XContentType.JSON.xContent()).map(mapping.raw());
                 var matcher = new FlattenedFieldMatcher(mappingXContent, settings, mappingXContent, settings);
@@ -45,14 +45,14 @@ public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
                 List<Object> expectedList = parseExpected(expected);
                 List<Object> actualList = parseActual(actual);
 
-                var fieldMapping = mapping.lookup().get(fullFieldName);
+                var fieldMapping = mapping.lookup().get(runner.fieldName());
 
                 var result = matcher.match(actualList, expectedList, fieldMapping, fieldMapping);
                 assertTrue(result.getMessage(), result.isMatch());
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        };
+        });
     }
 
     @SuppressWarnings("unchecked")
@@ -100,8 +100,7 @@ public class FlattenedFieldRootBlockLoaderTests extends BlockLoaderTestCase {
     }
 
     @Override
-    public void testBlockLoaderOfMultiField() {
-        assumeTrue("flattened fields do not support multi fields", false);
+    protected boolean supportsMultiField() {
+        return false;
     }
-
 }

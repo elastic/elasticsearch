@@ -24,7 +24,7 @@ public class ResultBuilderForAggregateMetricDouble implements ResultBuilder {
     }
 
     @Override
-    public void decodeKey(BytesRef keys) {
+    public void decodeKey(BytesRef keys, boolean asc) {
         throw new AssertionError("AggregateMetricDoubleBlock can't be a key");
     }
 

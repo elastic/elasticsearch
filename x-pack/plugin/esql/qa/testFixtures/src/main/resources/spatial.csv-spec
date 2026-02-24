@@ -282,6 +282,21 @@ POINT(-26.976065734634176 42.907839377294295) | 24         | 3
 POINT(1.2588642098541771 24.379140841774642)  | 63         | 2
 ;
 
+centroidFromAirportsCountWhereClause
+required_capability: st_centroid_agg
+required_capability: spatial_aggs_filtering
+
+FROM airports
+| STATS c9=ST_CENTROID_AGG(location) WHERE scalerank == 9,
+        c8=ST_CENTROID_AGG(location) WHERE scalerank == 8,
+        c7=ST_CENTROID_AGG(location) WHERE scalerank == 7,
+        c6=ST_CENTROID_AGG(location) WHERE scalerank == 6
+;
+
+c9:geo_point                                  | c8:geo_point                                  | c7:geo_point                                  | c6:geo_point
+POINT(83.27726172452623 28.99289782286029)    | POINT(-12.330427954750142 29.554613442537242) | POINT(19.934784222002094 13.864835376774234)  | POINT(-10.861430599274028 28.170889387807705)
+;
+
 centroidFromAirportsFiltered
 required_capability: st_centroid_agg
 
@@ -672,6 +687,23 @@ BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)  
 BBOX (-117.19751106575131, -86.87441730871797, 32.833958650007844, 14.791128113865852) | 45         | Mexico
 BBOX (76.01301474496722, 130.45620465651155, 46.84301500674337, 18.309095981530845)    | 41         | China
 BBOX (-135.07621010765433, -52.743333745747805, 63.751152316108346, 43.163360520266)   | 37         | Canada
+;
+
+stExtentMultipleGeoPointWhereClause
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+required_capability: spatial_aggs_filtering
+
+FROM airports
+| STATS e_us = ST_EXTENT_AGG(location) WHERE country == "United States",
+        e_in = ST_EXTENT_AGG(location) WHERE country == "India",
+        e_mx = ST_EXTENT_AGG(location) WHERE country == "Mexico",
+        e_cn = ST_EXTENT_AGG(location) WHERE country == "China",
+        e_ca = ST_EXTENT_AGG(location) WHERE country == "Canada"
+;
+
+e_us:geo_shape | e_in:geo_shape | e_mx:geo_shape | e_cn:geo_shape | e_ca:geo_shape
+BBOX (-159.34908430092037, -71.01640669628978, 64.81809809803963, 19.71479767933488) | BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405) | BBOX (-117.19751106575131, -86.87441730871797, 32.833958650007844, 14.791128113865852) | BBOX (76.01301474496722, 130.45620465651155, 46.84301500674337, 18.309095981530845) | BBOX (-135.07621010765433, -52.743333745747805, 63.751152316108346, 43.163360520266)
 ;
 
 stExtentGeoShapes
@@ -2362,6 +2394,21 @@ POINT(-3002961.9270833335 5451641.91796875)   | 24         | 3
 POINT(140136.12878224207 3081220.7881944445)  | 63         | 2
 ;
 
+cartesianCentroidFromAirportsCountWhereClause
+required_capability: st_centroid_agg
+required_capability: spatial_aggs_filtering
+
+FROM airports_web
+| STATS c9=ST_CENTROID_AGG(location) WHERE scalerank == 9,
+        c8=ST_CENTROID_AGG(location) WHERE scalerank == 8,
+        c7=ST_CENTROID_AGG(location) WHERE scalerank == 7,
+        c6=ST_CENTROID_AGG(location) WHERE scalerank == 6
+;
+
+c9:cartesian_point                            | c8:cartesian_point                            | c7:cartesian_point                            | c6:cartesian_point
+POINT(9289013.153846154 3615537.0533353365)   | POINT(-1729861.3231565242 3781377.2572642546) | POINT(2001203.8796622984 1588548.3963268648)  | POINT(-1417910.8585910928 3496034.7206865167)
+;
+
 cartesianCentroidFromAirportsFiltered
 required_capability: st_centroid_agg
 
@@ -2444,6 +2491,22 @@ BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)    | 9
 BBOX (-1.936604E7, 1.8695374E7, 1.4502138E7, -3943067.25) | 8
 BBOX (-1.891609E7, 1.9947946E7, 8455470.0, -7128878.5)    | 7
 ;
+
+stExtentMultipleCartesianPointWhereClause
+required_capability: st_extent_agg
+required_capability: st_extent_agg_docvalues
+required_capability: spatial_aggs_filtering
+
+FROM airports_web
+| STATS e9 = ST_EXTENT_AGG(location) WHERE scalerank == 9,
+        e8 = ST_EXTENT_AGG(location) WHERE scalerank == 8,
+        e7 = ST_EXTENT_AGG(location) WHERE scalerank == 7
+;
+
+e9:cartesian_shape                                    | e8:cartesian_shape                                    | e7:cartesian_shape
+BBOX (4783520.5, 1.6168486E7, 8704352.0, -584415.9375)    | BBOX (-1.936604E7, 1.8695374E7, 1.4502138E7, -3943067.25) | BBOX (-1.891609E7, 1.9947946E7, 8455470.0, -7128878.5)
+;
+
 
 stExtentCartesianShapes
 required_capability: st_extent_agg

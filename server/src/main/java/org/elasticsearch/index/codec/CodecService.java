@@ -16,7 +16,6 @@ import org.apache.lucene.codecs.lucene103.Lucene103Codec;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.tsdb.ES93TSDBDefaultCompressionLucene103Codec;
 import org.elasticsearch.index.codec.zstd.Zstd814StoredFieldsFormat;
 import org.elasticsearch.index.mapper.MapperService;
@@ -49,9 +48,7 @@ public class CodecService implements CodecProvider {
     public CodecService(@Nullable MapperService mapperService, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         final var codecs = new HashMap<String, Codec>();
 
-        boolean useSyntheticId = mapperService != null
-            && mapperService.getIndexSettings().useTimeSeriesSyntheticId()
-            && mapperService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_USE_SYNTHETIC_ID_94);
+        boolean useSyntheticId = mapperService != null && mapperService.getIndexSettings().useTimeSeriesSyntheticId();
 
         var legacyBestSpeedCodec = new LegacyPerFieldMapperCodec(Lucene103Codec.Mode.BEST_SPEED, mapperService, bigArrays, threadPool);
         if (useSyntheticId) {

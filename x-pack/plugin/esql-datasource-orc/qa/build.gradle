@@ -86,6 +86,10 @@ tasks.named('javaRestTest') {
   dependsOn 'generateOrcFixture'
 }
 
+tasks.named('filepermissions').configure {
+  dependsOn 'generateOrcFixture'
+}
+
 tasks.named('javaRestTest') {
   usesDefaultDistribution("to be triaged")
   maxParallelForks = 1

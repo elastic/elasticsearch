@@ -9,13 +9,13 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
 import java.io.IOException;
 
@@ -23,16 +23,11 @@ import static org.elasticsearch.index.mapper.blockloader.Warnings.registerSingle
 
 public abstract class MultiValuedBinaryWithSeparateCountsLengthReader extends BlockDocValuesReader {
     private final Warnings warnings;
-    private final NumericDocValues counts;
-    private final BinaryDocValues values;
+    private final TrackingNumericDocValues counts;
+    private final TrackingBinaryDocValues values;
 
-    MultiValuedBinaryWithSeparateCountsLengthReader(
-        CircuitBreaker breaker,
-        Warnings warnings,
-        NumericDocValues counts,
-        BinaryDocValues values
-    ) {
-        super(breaker);
+    MultiValuedBinaryWithSeparateCountsLengthReader(Warnings warnings, TrackingNumericDocValues counts, TrackingBinaryDocValues values) {
+        super(null);
         this.warnings = warnings;
         this.counts = counts;
         this.values = values;
@@ -66,19 +61,19 @@ public abstract class MultiValuedBinaryWithSeparateCountsLengthReader extends Bl
 
     @Override
     public int docId() {
-        return counts.docID();
+        return counts.docValues().docID();
     }
 
     private void appendLength(int docId, BlockLoader.IntBuilder builder) throws IOException {
-        if (counts.advanceExact(docId) == false) {
+        if (counts.docValues().advanceExact(docId) == false) {
             builder.appendNull();
         } else {
-            int valueCount = Math.toIntExact(counts.longValue());
+            int valueCount = Math.toIntExact(counts.docValues().longValue());
             if (valueCount == 1) {
-                boolean advanced = values.advanceExact(docId);
+                boolean advanced = values.docValues().advanceExact(docId);
                 assert advanced;
 
-                BytesRef bytes = values.binaryValue();
+                BytesRef bytes = values.docValues().binaryValue();
                 builder.appendInt(length(bytes));
             } else {
                 registerSingleValueWarning(warnings);
@@ -88,15 +83,15 @@ public abstract class MultiValuedBinaryWithSeparateCountsLengthReader extends Bl
     }
 
     private BlockLoader.Block blockForSingleDoc(BlockLoader.BlockFactory factory, int docId) throws IOException {
-        if (counts.advanceExact(docId) == false) {
+        if (counts.docValues().advanceExact(docId) == false) {
             return factory.constantNulls(1);
         } else {
-            int valueCount = Math.toIntExact(counts.longValue());
+            int valueCount = Math.toIntExact(counts.docValues().longValue());
             if (valueCount == 1) {
-                boolean advanced = values.advanceExact(docId);
+                boolean advanced = values.docValues().advanceExact(docId);
                 assert advanced;
 
-                BytesRef bytes = values.binaryValue();
+                BytesRef bytes = values.docValues().binaryValue();
                 int length = length(bytes);
                 return factory.constantInt(length, 1);
             } else {
@@ -106,4 +101,8 @@ public abstract class MultiValuedBinaryWithSeparateCountsLengthReader extends Bl
         }
     }
 
+    @Override
+    public final void close() {
+        Releasables.close(counts, values);
+    }
 }

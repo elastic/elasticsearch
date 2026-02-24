@@ -21,6 +21,7 @@ public class ClusterStatsFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
+        // TODO: think we can get away with just adding this to getTestFeatures
         return Set.of(MappingStats.SOURCE_MODES_FEATURE, AnalysisStats.MULTIPLE_SYNONYM_GRAPH_FILTERS_FEATURE);
     }
 }

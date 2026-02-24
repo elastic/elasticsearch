@@ -14,27 +14,27 @@ import org.elasticsearch.compute.operator.DriverContext;
  * Aggregator state for a single long.
  * This class is generated. Edit {@code X-State.java.st} instead.
  */
-final class LongState implements AggregatorState {
+public final class LongState implements AggregatorState {
     private long value;
     private boolean seen;
 
-    LongState(long init) {
+    public LongState(long init) {
         this.value = init;
     }
 
-    long longValue() {
+    public long longValue() {
         return value;
     }
 
-    void longValue(long value) {
+    public void longValue(long value) {
         this.value = value;
     }
 
-    boolean seen() {
+    public boolean seen() {
         return seen;
     }
 
-    void seen(boolean seen) {
+    public void seen(boolean seen) {
         this.seen = seen;
     }
 

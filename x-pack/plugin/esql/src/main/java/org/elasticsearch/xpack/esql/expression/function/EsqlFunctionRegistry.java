@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.expression.function;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -301,6 +303,8 @@ public class EsqlFunctionRegistry {
         }
     }
 
+    private static final Logger logger = LogManager.getLogger(EsqlFunctionRegistry.class);
+
     // Translation table for error messaging in the following function
     private static final String[] NUM_NAMES = { "zero", "one", "two", "three", "four", "five", "six" };
 
@@ -312,13 +316,28 @@ public class EsqlFunctionRegistry {
     private final Map<Class<? extends Function>, String> names = new HashMap<>();
     private final Map<Class<? extends Function>, List<DataType>> dataTypesForStringLiteralConversions = new LinkedHashMap<>();
 
+    // Track which functions are built-in vs external for conflict detection
+    private final Map<String, FunctionSource> functionSources = new HashMap<>();
+
     private SnapshotFunctionRegistry snapshotRegistry = null;
+
+    /**
+     * Enum to track the source of a function registration.
+     */
+    public enum FunctionSource {
+        BUILT_IN,
+        EXTERNAL
+    }
 
     @SuppressWarnings("this-escape")
     public EsqlFunctionRegistry() {
         register(functions());
         buildDataTypesForStringLiteralConversion(functions());
         nameSurrogates();
+        // Mark all initially registered functions as built-in
+        for (String functionName : defs.keySet()) {
+            functionSources.put(functionName, FunctionSource.BUILT_IN);
+        }
     }
 
     EsqlFunctionRegistry(FunctionDefinition... functions) {
@@ -607,9 +626,23 @@ public class EsqlFunctionRegistry {
         var snapshotRegistry = this.snapshotRegistry;
         if (snapshotRegistry == null) {
             snapshotRegistry = new SnapshotFunctionRegistry();
+            // Copy all functions from base registry (including external functions)
+            copyFunctionsTo(snapshotRegistry);
             this.snapshotRegistry = snapshotRegistry;
         }
         return snapshotRegistry;
+    }
+
+    /**
+     * Copy all functions from this registry to another registry.
+     * Used to propagate external functions to the snapshot registry.
+     */
+    private void copyFunctionsTo(EsqlFunctionRegistry target) {
+        target.defs.putAll(this.defs);
+        target.aliases.putAll(this.aliases);
+        target.names.putAll(this.names);
+        target.dataTypesForStringLiteralConversions.putAll(this.dataTypesForStringLiteralConversions);
+        target.functionSources.putAll(this.functionSources);
     }
 
     public static boolean isSnapshotOnly(String functionName) {
@@ -928,6 +961,193 @@ public class EsqlFunctionRegistry {
 
     }
 
+    /**
+     * Registers functions from external plugins with validation and conflict detection.
+     * <p>
+     * This method is called during plugin initialization to register functions
+     * provided by plugins implementing {@link org.elasticsearch.xpack.esql.plugin.EsqlFunctionProvider}.
+     * <p>
+     * Features:
+     * <ul>
+     *   <li>Validates function definitions (annotations, methods, constructor)</li>
+     *   <li>Detects name conflicts with built-in functions (built-ins always win)</li>
+     *   <li>Detects conflicts between external plugins (first-registered wins)</li>
+     *   <li>Logs warnings for conflicts and validation failures</li>
+     *   <li>Gracefully skips invalid registrations without crashing</li>
+     * </ul>
+     *
+     * @param externalFunctions collection of function definitions from external plugins
+     */
+    public void registerExternalFunctions(Collection<FunctionDefinition> externalFunctions) {
+        for (FunctionDefinition function : externalFunctions) {
+            registerExternalFunction(function);
+        }
+    }
+
+    /**
+     * Registers a single external function with validation and conflict detection.
+     */
+    private void registerExternalFunction(FunctionDefinition function) {
+        // Step 1: Validate the function
+        if (validateExternalFunction(function) == false) {
+            return; // Skip invalid functions (validation logs the error)
+        }
+
+        // Step 2: Check for conflicts with the primary name
+        String primaryName = function.name();
+        if (defs.containsKey(primaryName)) {
+            FunctionSource existingSource = functionSources.get(primaryName);
+            if (existingSource == FunctionSource.BUILT_IN) {
+                logger.warn("External function [{}] conflicts with built-in function - keeping built-in function", primaryName);
+                return; // Skip - built-ins always win
+            } else {
+                logger.warn(
+                    "External function [{}] from [{}] conflicts with already registered external function - keeping first registration",
+                    primaryName,
+                    function.clazz().getName()
+                );
+                return; // Skip - first external wins
+            }
+        }
+
+        // Step 3: Check for conflicts with aliases
+        for (String alias : function.aliases()) {
+            if (defs.containsKey(alias)) {
+                FunctionSource existingSource = functionSources.get(alias);
+                if (existingSource == FunctionSource.BUILT_IN) {
+                    logger.warn(
+                        "External function [{}] alias [{}] conflicts with built-in function - skipping this function",
+                        primaryName,
+                        alias
+                    );
+                    return; // Skip entire function if any alias conflicts with built-in
+                } else {
+                    logger.warn(
+                        "External function [{}] alias [{}] conflicts with already registered function - skipping this function",
+                        primaryName,
+                        alias
+                    );
+                    return; // Skip entire function if any alias conflicts
+                }
+            }
+        }
+
+        // Step 4: Register the function
+        try {
+            register(function);
+            // Mark as external
+            functionSources.put(primaryName, FunctionSource.EXTERNAL);
+            for (String alias : function.aliases()) {
+                functionSources.put(alias, FunctionSource.EXTERNAL);
+            }
+            logger.info("Registered external function [{}] from [{}]", primaryName, function.clazz().getName());
+        } catch (Exception e) {
+            logger.error(
+                "Failed to register external function [{}] from [{}]: {}",
+                primaryName,
+                function.clazz().getName(),
+                e.getMessage()
+            );
+        }
+    }
+
+    /**
+     * Validates an external function definition.
+     *
+     * @return true if valid, false if invalid (logs error message)
+     */
+    private boolean validateExternalFunction(FunctionDefinition function) {
+        Class<? extends Function> clazz = function.clazz();
+        String functionName = function.name();
+
+        // Validate @FunctionInfo annotation (required for external functions)
+        // Note: @FunctionInfo is on the constructor, not the class
+        // We check by annotation name because the annotation class might be loaded by
+        // a different classloader (plugin isolation), making direct class comparison fail
+        boolean hasFunctionInfo = false;
+        for (Constructor<?> ctor : clazz.getConstructors()) {
+            for (java.lang.annotation.Annotation a : ctor.getAnnotations()) {
+                if (a.annotationType().getName().equals(FunctionInfo.class.getName())) {
+                    hasFunctionInfo = true;
+                    break;
+                }
+            }
+            if (hasFunctionInfo) break;
+        }
+        if (hasFunctionInfo == false) {
+            logger.error("Function class [{}] is missing @FunctionInfo annotation on constructor - skipping registration", clazz.getName());
+            return false;
+        }
+
+        // Check for @RuntimeEvaluator methods (informational only)
+        // Functions can either use @RuntimeEvaluator for runtime generation
+        // or override toEvaluator() directly
+        try {
+            boolean hasRuntimeEvaluator = java.util.Arrays.stream(clazz.getMethods())
+                .anyMatch(m -> m.isAnnotationPresent(org.elasticsearch.compute.ann.RuntimeEvaluator.class));
+
+            if (hasRuntimeEvaluator == false) {
+                logger.debug("Function class [{}] has no @RuntimeEvaluator methods - will use toEvaluator() override", clazz.getName());
+            }
+        } catch (Exception e) {
+            // Annotation might not be accessible due to classloader isolation - that's OK
+            logger.debug("Could not check for @RuntimeEvaluator on [{}]: {}", clazz.getName(), e.getMessage());
+        }
+
+        // Validate constructor - look for any constructor that:
+        // 1. Starts with Source parameter
+        // 2. Followed by zero or more Expression parameters
+        // OR for variadic functions:
+        // 3. (Source, Expression, List<Expression>)
+        boolean hasValidConstructor = false;
+        for (Constructor<?> ctor : clazz.getConstructors()) {
+            Class<?>[] paramTypes = ctor.getParameterTypes();
+            if (paramTypes.length >= 1 && paramTypes[0] == Source.class) {
+                // Check for standard pattern: (Source, Expression...)
+                boolean allExpression = true;
+                for (int i = 1; i < paramTypes.length; i++) {
+                    if (Expression.class.isAssignableFrom(paramTypes[i]) == false) {
+                        allExpression = false;
+                        break;
+                    }
+                }
+                if (allExpression) {
+                    hasValidConstructor = true;
+                    break;
+                }
+
+                // Check for variadic pattern: (Source, Expression, List<Expression>)
+                if (paramTypes.length == 3
+                    && Expression.class.isAssignableFrom(paramTypes[1])
+                    && List.class.isAssignableFrom(paramTypes[2])) {
+                    hasValidConstructor = true;
+                    break;
+                }
+            }
+        }
+
+        if (hasValidConstructor == false) {
+            logger.error(
+                "Function class [{}] is missing required constructor (Source), (Source, Expression...), or "
+                    + "(Source, Expression, List) - skipping registration",
+                clazz.getName()
+            );
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Gets the source of a registered function (built-in or external).
+     *
+     * @param functionName the function name to query
+     * @return the source of the function, or null if not registered
+     */
+    public FunctionSource getFunctionSource(String functionName) {
+        return functionSources.get(functionName);
+    }
+
     void register(FunctionDefinition[]... groupFunctions) {
         for (FunctionDefinition[] group : groupFunctions) {
             register(group);
@@ -982,6 +1202,19 @@ public class EsqlFunctionRegistry {
                         )
                 )
         );
+    }
+
+    /**
+     * Register a function for testing purposes (e.g., documentation generation).
+     * <p>
+     * This method is NOT for production use - it's specifically for tests that need
+     * to generate documentation for external functions.
+     * </p>
+     *
+     * @param def the function definition to register
+     */
+    public void registerForTesting(FunctionDefinition def) {
+        register(new FunctionDefinition[] { def });
     }
 
     protected void buildDataTypesForStringLiteralConversion(FunctionDefinition[]... groupFunctions) {
@@ -1087,6 +1320,105 @@ public class EsqlFunctionRegistry {
 
     protected interface NaryBuilder<T> {
         T build(Source source, List<Expression> children);
+    }
+
+    /**
+     * Build a {@linkplain FunctionDefinition} for a runtime-generated unary function.
+     * <p>
+     * This method is intended for external plugins that provide functions using
+     * runtime bytecode generation via {@code @RuntimeEvaluator} annotations.
+     * </p>
+     *
+     * @param function the function class (must extend UnaryScalarFunction)
+     * @param ctorRef constructor reference for the function
+     * @param names function names (first is primary, rest are aliases)
+     * @param <T> the function type
+     * @return a function definition for the runtime-generated function
+     */
+    public static <T extends Function> FunctionDefinition createRuntimeDef(
+        Class<T> function,
+        BiFunction<Source, Expression, T> ctorRef,
+        String... names
+    ) {
+        // Use the same pattern as regular unary functions
+        return def(function, ctorRef, names);
+    }
+
+    /**
+     * Creates a function definition for a runtime-generated binary function.
+     * <p>
+     * This is used by external plugins to register binary functions that use
+     * runtime bytecode generation via {@code @RuntimeEvaluator}.
+     *
+     * @param function the function class
+     * @param ctorRef a constructor reference for the function (Source, Expression, Expression) -> T
+     * @param names function names (first is primary, rest are aliases)
+     * @param <T> the function type
+     * @return a function definition for the runtime-generated binary function
+     */
+    public static <T extends Function> FunctionDefinition createRuntimeDef(Class<T> function, BinaryBuilder<T> ctorRef, String... names) {
+        // Use the same pattern as regular binary functions
+        return def(function, ctorRef, names);
+    }
+
+    /**
+     * Creates a function definition for a runtime-generated zero-parameter function.
+     * <p>
+     * This is used by external plugins to register zero-parameter functions that use
+     * runtime bytecode generation via {@code @RuntimeEvaluator}.
+     *
+     * @param function the function class
+     * @param ctorRef a constructor reference for the function (Source) -> T
+     * @param names function names (first is primary, rest are aliases)
+     * @param <T> the function type
+     * @return a function definition for the runtime-generated zero-parameter function
+     */
+    public static <T extends Function> FunctionDefinition createRuntimeDef(
+        Class<T> function,
+        java.util.function.Function<Source, T> ctorRef,
+        String... names
+    ) {
+        // Use the same pattern as regular no-argument functions
+        return def(function, ctorRef, names);
+    }
+
+    /**
+     * Creates a function definition for a runtime-generated variadic function.
+     * <p>
+     * This is used by external plugins to register variadic functions (functions that take
+     * a variable number of arguments) that use runtime bytecode generation via
+     * {@code @RuntimeEvaluator}.
+     * <p>
+     * The constructor signature should be: {@code (Source, Expression, List<Expression>)}
+     * where the first Expression is the required first argument and the List contains
+     * any additional arguments.
+     *
+     * @param function the function class
+     * @param ctorRef a constructor reference for the function (Source, Expression, List) -> T
+     * @param names function names (first is primary, rest are aliases)
+     * @param <T> the function type
+     * @return a function definition for the runtime-generated variadic function
+     */
+    @SuppressWarnings("overloads")  // These are ambiguous if you aren't using ctor references but we always do
+    public static <T extends Function> FunctionDefinition createRuntimeDef(Class<T> function, VariadicBuilder<T> ctorRef, String... names) {
+        FunctionBuilder builder = (source, children, cfg) -> {
+            if (children.isEmpty()) {
+                throw new QlIllegalArgumentException(
+                    Strings.format("function %s expects at least one argument but received none", Arrays.toString(names))
+                );
+            }
+            Expression first = children.get(0);
+            List<Expression> rest = children.size() > 1 ? children.subList(1, children.size()) : List.of();
+            return ctorRef.build(source, first, rest);
+        };
+        return def(function, builder, names);
+    }
+
+    /**
+     * Builder interface for variadic functions that take (Source, Expression, List&lt;Expression&gt;).
+     */
+    public interface VariadicBuilder<T> {
+        T build(Source source, Expression first, List<Expression> rest);
     }
 
     /**

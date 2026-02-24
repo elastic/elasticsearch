@@ -31,13 +31,13 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-FallibleArrayState.java.st} instead.
  * </p>
  */
-final class BooleanFallibleArrayState extends AbstractFallibleArrayState implements GroupingAggregatorState {
+public final class BooleanFallibleArrayState extends AbstractFallibleArrayState implements GroupingAggregatorState {
     private final boolean init;
 
     private BitArray values;
     private int size;
 
-    BooleanFallibleArrayState(BigArrays bigArrays, boolean init) {
+    public BooleanFallibleArrayState(BigArrays bigArrays, boolean init) {
         super(bigArrays);
         this.values = new BitArray(1, bigArrays);
         this.size = 1;
@@ -45,21 +45,21 @@ final class BooleanFallibleArrayState extends AbstractFallibleArrayState impleme
         this.init = init;
     }
 
-    boolean get(int groupId) {
+    public boolean get(int groupId) {
         return values.get(groupId);
     }
 
-    boolean getOrDefault(int groupId) {
+    public boolean getOrDefault(int groupId) {
         return groupId < size ? values.get(groupId) : init;
     }
 
-    void set(int groupId, boolean value) {
+    public void set(int groupId, boolean value) {
         ensureCapacity(groupId);
         values.set(groupId, value);
         trackGroupId(groupId);
     }
 
-    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
+    public Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds() && false == anyFailure()) {
             try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {

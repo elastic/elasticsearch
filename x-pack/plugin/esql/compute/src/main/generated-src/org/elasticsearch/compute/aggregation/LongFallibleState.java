@@ -15,36 +15,36 @@ import org.elasticsearch.compute.operator.DriverContext;
  * It stores a third boolean to store if the aggregation failed.
  * This class is generated. Edit {@code X-FallibleState.java.st} instead.
  */
-final class LongFallibleState implements AggregatorState {
+public final class LongFallibleState implements AggregatorState {
     private long value;
     private boolean seen;
     private boolean failed;
 
-    LongFallibleState(long init) {
+    public LongFallibleState(long init) {
         this.value = init;
     }
 
-    long longValue() {
+    public long longValue() {
         return value;
     }
 
-    void longValue(long value) {
+    public void longValue(long value) {
         this.value = value;
     }
 
-    boolean seen() {
+    public boolean seen() {
         return seen;
     }
 
-    void seen(boolean seen) {
+    public void seen(boolean seen) {
         this.seen = seen;
     }
 
-    boolean failed() {
+    public boolean failed() {
         return failed;
     }
 
-    void failed(boolean failed) {
+    public void failed(boolean failed) {
         this.failed = failed;
     }
 

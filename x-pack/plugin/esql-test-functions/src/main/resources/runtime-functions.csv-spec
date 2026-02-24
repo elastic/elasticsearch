@@ -1,0 +1,164 @@
+###############################################
+# Tests for runtime-generated external functions
+###############################################
+
+###############################################
+# Scalar function: abs2 (runtime evaluator)
+###############################################
+
+docsAbs2
+required_capability: runtime_functions
+//tag::abs2[]
+ROW x = -5
+| EVAL y = abs2(x)
+//end::abs2[]
+;
+
+//tag::abs2-result[]
+x:integer | y:integer
+-5        | 5
+//end::abs2-result[]
+;
+
+abs2Double
+required_capability: runtime_functions
+ROW x = -3.5 | EVAL y = abs2(x)
+;
+
+x:double | y:double
+-3.5     | 3.5
+;
+
+abs2Long
+required_capability: runtime_functions
+ROW x = -9223372036854775807::long | EVAL y = abs2(x)
+;
+
+x:long                | y:long
+-9223372036854775807  | 9223372036854775807
+;
+
+abs2UnsignedLong
+required_capability: runtime_functions
+ROW x = 18446744073709551615::unsigned_long | EVAL y = abs2(x)
+;
+
+x:unsigned_long       | y:unsigned_long
+18446744073709551615  | 18446744073709551615
+;
+
+###############################################
+# Aggregate function: sum2 (runtime aggregator)
+###############################################
+
+sum2Basic
+required_capability: runtime_functions
+ROW x = 1 | STATS total = sum2(x)
+;
+
+total:long
+1
+;
+
+sum2MultipleRows
+required_capability: runtime_functions
+FROM employees | WHERE emp_no < 10006 | STATS total = sum2(emp_no)
+;
+
+total:long
+50015
+;
+
+sum2WithGroupBy
+required_capability: runtime_functions
+FROM employees | WHERE emp_no < 10010 | STATS total = sum2(emp_no) BY gender | SORT gender
+;
+
+// F: 10002, 10006, 10007, 10009 = 40024
+// M: 10001, 10003, 10004, 10005, 10008 = 50021
+total:long | gender:keyword
+40024      | F
+50021      | M
+;
+
+
+###############################################
+# Aggregate function: length_sum2 (BytesRef input)
+###############################################
+
+lengthSum2Basic
+required_capability: runtime_functions
+ROW name = "hello" | STATS total_length = length_sum2(name)
+;
+
+total_length:long
+5
+;
+
+lengthSum2MultipleRows
+required_capability: runtime_functions
+FROM employees | WHERE emp_no < 10006 | STATS total_length = length_sum2(first_name)
+;
+
+// first_name values are padded to 10 chars in the test data
+// Georgi(10) + Bezalel(10) + Parto(10) + Chirstian(10) + Kyoichi(10) = 50
+total_length:long
+34
+;
+
+lengthSum2WithGroupBy
+required_capability: runtime_functions
+FROM employees | WHERE emp_no < 10010 | STATS total_length = length_sum2(first_name) BY gender | SORT gender
+;
+
+// F: Bezalel(7) + Anneke(6) + Tzvetan(7) + Sumant(6) = 26
+// M: Georgi(6) + Parto(5) + Chirstian(9) + Kyoichi(7) + Saniya(6) = 33
+total_length:long | gender:keyword
+26                | F
+33                | M
+;
+
+###############################################
+# Mixed: Scalar + Aggregate functions together
+###############################################
+
+mixedScalarAndAggregate
+required_capability: runtime_functions
+FROM employees | WHERE emp_no < 10006 | STATS total = sum2(abs2(emp_no - 10010))
+;
+
+total:long
+35
+;
+
+mixedScalarInGroupBy
+required_capability: runtime_functions
+FROM employees | WHERE emp_no < 10010 | EVAL neg_emp = abs2(emp_no - 20000) | STATS total = sum2(neg_emp) BY gender | SORT gender
+;
+
+// F: abs(10002-20000) + abs(10006-20000) + abs(10007-20000) + abs(10009-20000) = 9998 + 9994 + 9993 + 9991 = 39976
+// M: abs(10001-20000) + abs(10003-20000) + abs(10004-20000) + abs(10005-20000) + abs(10008-20000) = 9999 + 9997 + 9996 + 9995 + 9992 = 49979
+total:long | gender:keyword
+39976      | F
+49979      | M
+;
+
+mixedMultipleFunctions
+required_capability: runtime_functions
+FROM employees | WHERE emp_no < 10006 | STATS emp_sum = sum2(emp_no), name_len = length_sum2(first_name)
+;
+
+// emp_sum: 10001 + 10002 + 10003 + 10004 + 10005 = 50015
+// name_len: Georgi(6) + Bezalel(7) + Parto(5) + Chirstian(9) + Kyoichi(7) = 34
+emp_sum:long | name_len:long
+50015        | 34
+;
+
+mixedWithStandardFunctions
+required_capability: runtime_functions
+FROM employees | WHERE emp_no < 10006 | STATS runtime_sum = sum2(emp_no), builtin_sum = sum(emp_no)
+;
+
+runtime_sum:long | builtin_sum:long
+50015            | 50015
+;

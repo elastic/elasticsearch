@@ -25,7 +25,7 @@ import org.elasticsearch.core.Releasables;
  * Aggregator state for a single {@code $v1_type$} and a single {@code $v2_type$}, with support for null v2 values.
  * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
-final class All$v1_Type$$v2_Type$State implements AggregatorState {
+public final class All$v1_Type$$v2_Type$State implements AggregatorState {
 
     private BigArrays bigArrays;
 
@@ -53,42 +53,42 @@ final class All$v1_Type$$v2_Type$State implements AggregatorState {
         this.bigArrays = bigArrays;
     }
 
-    BigArrays bigArrays() {
+    public BigArrays bigArrays() {
         return bigArrays;
     }
 
-    boolean observed() {
+    public boolean observed() {
         return observed;
     }
 
-    void observed(boolean observed) {
+    public void observed(boolean observed) {
         this.observed = observed;
     }
 
-    $v1_type$ v1() {
+    public $v1_type$ v1() {
         return v1;
     }
 
-    void v1($v1_type$ v1) {
+    public void v1($v1_type$ v1) {
         this.v1 = v1;
     }
 
-    boolean v1Seen() {
+    public boolean v1Seen() {
         return v1Seen;
     }
 
-    void v1Seen(boolean v1Seen) {
+    public void v1Seen(boolean v1Seen) {
         this.v1Seen = v1Seen;
     }
 
-    $if(v2_boolean)$ByteArray$else$$v2_Type$Array$endif$ v2() {
+    public $if(v2_boolean)$ByteArray$else$$v2_Type$Array$endif$ v2() {
         return v2;
     }
 
     $if(v2_boolean)$
-    void v2(ByteArray v2) {
+    public void v2(ByteArray v2) {
     $else$
-    void v2($v2_Type$Array v2) {
+    public void v2($v2_Type$Array v2) {
     $endif$
         this.v2 = v2;
     }

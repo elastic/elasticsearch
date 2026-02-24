@@ -160,7 +160,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 mockQueryLog(),
                 List.of(),
                 Settings.EMPTY,
-                dataSourceModule
+                dataSourceModule,
+                List.of()
             );
             var enrichResolver = mockEnrichResolver();
 
@@ -271,7 +272,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 mockQueryLog(),
                 List.of(),
                 Settings.EMPTY,
-                dataSourceModule
+                dataSourceModule,
+                List.of()
             );
 
             // Initial values should be 0
@@ -371,7 +373,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 mockQueryLog(),
                 List.of(),
                 Settings.EMPTY,
-                dataSourceModule
+                dataSourceModule,
+                List.of()
             );
 
             // Initial value should be 0
@@ -449,7 +452,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 mockQueryLog(),
                 List.of(),
                 Settings.EMPTY,
-                dataSourceModule
+                dataSourceModule,
+                List.of()
             );
 
             // Initial value should be 0
@@ -518,7 +522,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
                 mockQueryLog(),
                 List.of(),
                 Settings.EMPTY,
-                dataSourceModule
+                dataSourceModule,
+                List.of()
             );
 
             // In stateful mode, project_routing metric should not be registered at all

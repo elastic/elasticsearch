@@ -14,27 +14,27 @@ import org.elasticsearch.compute.operator.DriverContext;
  * Aggregator state for a single $type$.
  * This class is generated. Edit {@code X-State.java.st} instead.
  */
-final class $Type$State implements AggregatorState {
+public final class $Type$State implements AggregatorState {
     private $type$ value;
     private boolean seen;
 
-    $Type$State($type$ init) {
+    public $Type$State($type$ init) {
         this.value = init;
     }
 
-    $type$ $type$Value() {
+    public $type$ $type$Value() {
         return value;
     }
 
-    void $type$Value($type$ value) {
+    public void $type$Value($type$ value) {
         this.value = value;
     }
 
-    boolean seen() {
+    public boolean seen() {
         return seen;
     }
 
-    void seen(boolean seen) {
+    public void seen(boolean seen) {
         this.seen = seen;
     }
 

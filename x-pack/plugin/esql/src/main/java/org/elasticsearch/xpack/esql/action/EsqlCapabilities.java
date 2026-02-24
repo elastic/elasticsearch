@@ -2193,6 +2193,14 @@ public class EsqlCapabilities {
          */
         EXTERNAL_COMMAND(Build.current().isSnapshot()),
 
+        /**
+         * Runtime/external functions from plugins. These are not available in CSV unit tests
+         * because the functions aren't registered in the non-server test context.
+         * Tests requiring this capability will be skipped in CsvTests but can run in
+         * integration tests where the plugin is loaded.
+         */
+        RUNTIME_FUNCTIONS,
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

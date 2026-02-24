@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.plugin;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
@@ -191,7 +193,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         Setting.Property.Dynamic
     );
 
+    private static final Logger logger = LogManager.getLogger(EsqlPlugin.class);
+
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
+    private final List<EsqlFunctionProvider> functionProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
 
     @Override
@@ -244,7 +249,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                     new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
                     extraCheckers,
                     settings,
-                    dataSourceModule
+                    dataSourceModule,
+                    functionProviders
                 ),
                 new ExchangeService(
                     services.clusterService().getSettings(),
@@ -433,6 +439,12 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     public void loadExtensions(ExtensionLoader loader) {
         extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
         dataSourcePlugins.addAll(loader.loadExtensions(DataSourcePlugin.class));
+        var providers = loader.loadExtensions(EsqlFunctionProvider.class);
+        logger.info("loadExtensions: Found {} EsqlFunctionProvider extensions", providers.size());
+        for (var provider : providers) {
+            logger.info("  - Provider: {}", provider.getClass().getName());
+        }
+        functionProviders.addAll(providers);
     }
 
     @Override

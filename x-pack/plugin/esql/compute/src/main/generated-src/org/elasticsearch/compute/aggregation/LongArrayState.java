@@ -30,39 +30,39 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-ArrayState.java.st} instead.
  * </p>
  */
-final class LongArrayState extends AbstractArrayState implements GroupingAggregatorState {
+public final class LongArrayState extends AbstractArrayState implements GroupingAggregatorState {
     private final long init;
 
     private LongArray values;
 
-    LongArrayState(BigArrays bigArrays, long init) {
+    public LongArrayState(BigArrays bigArrays, long init) {
         super(bigArrays);
         this.values = bigArrays.newLongArray(1, false);
         this.values.set(0, init);
         this.init = init;
     }
 
-    long get(int groupId) {
+    public long get(int groupId) {
         return values.get(groupId);
     }
 
-    long getOrDefault(int groupId) {
+    public long getOrDefault(int groupId) {
         return groupId < values.size() ? values.get(groupId) : init;
     }
 
-    void set(int groupId, long value) {
+    public void set(int groupId, long value) {
         ensureCapacity(groupId);
         values.set(groupId, value);
         trackGroupId(groupId);
     }
 
-    void increment(int groupId, long value) {
+    public void increment(int groupId, long value) {
         ensureCapacity(groupId);
         values.increment(groupId, value);
         trackGroupId(groupId);
     }
 
-    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
+    public Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds()) {
             try (var builder = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {

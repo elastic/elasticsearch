@@ -35,6 +35,11 @@ dependencies {
   clusterPlugins project(xpackModule('esql-datasource-csv'))
   clusterPlugins project(xpackModule('esql-datasource-ndjson'))
   clusterPlugins project(xpackModule('esql-datasource-http'))
+
+  // Runtime test functions plugin
+  clusterPlugins project(':x-pack:plugin:esql-test-functions')
+  // Add to javaRestTestImplementation to get csv-spec files on classpath
+  javaRestTestImplementation project(':x-pack:plugin:esql-test-functions')
 }
 
 restResources {

@@ -1,0 +1,57 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
+description = 'Runtime bytecode generation for ES|QL evaluators'
+
+base {
+    archivesName = 'x-pack-esql-compute-runtime'
+}
+
+dependencies {
+    // Annotations module for @RuntimeEvaluator
+    api project(':x-pack:plugin:esql:compute:ann')
+    
+    // Compute module for ExpressionEvaluator, Block, Vector types
+    api project(':x-pack:plugin:esql:compute')
+    
+    // ES|QL core for Source class
+    api project(':x-pack:plugin:esql-core')
+    
+    // ByteBuddy for bytecode generation (replaces ASM)
+    api 'net.bytebuddy:byte-buddy:1.15.11'
+    
+    // ES core utilities
+    implementation project(':server')
+    implementation project(':libs:core')
+    
+    // Testing
+    testImplementation project(':test:framework')
+}
+
+tasks.named('forbiddenApisMain').configure {
+    replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named('thirdPartyAudit').configure {
+    ignoreMissingClasses(
+        // ByteBuddy has optional JNA support for class injection, not used
+        'com.sun.jna.FunctionMapper',
+        'com.sun.jna.JNIEnv',
+        'com.sun.jna.Library',
+        'com.sun.jna.Native',
+        'com.sun.jna.NativeLibrary',
+        'com.sun.jna.Platform'
+    )
+}
+
+// Suppress warnings from ByteBuddy's internal annotations
+tasks.withType(JavaCompile).configureEach {
+    options.compilerArgs += ['-Xlint:-classfile']
+}

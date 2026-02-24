@@ -21,7 +21,7 @@ import org.elasticsearch.core.Releasables;
  * Aggregator state for a single {@code long} and a single {@code float}, with support for null v2 values.
  * This class is generated. Edit {@code X-All2State.java.st} instead.
  */
-final class AllLongFloatState implements AggregatorState {
+public final class AllLongFloatState implements AggregatorState {
 
     private BigArrays bigArrays;
 
@@ -49,39 +49,39 @@ final class AllLongFloatState implements AggregatorState {
         this.bigArrays = bigArrays;
     }
 
-    BigArrays bigArrays() {
+    public BigArrays bigArrays() {
         return bigArrays;
     }
 
-    boolean observed() {
+    public boolean observed() {
         return observed;
     }
 
-    void observed(boolean observed) {
+    public void observed(boolean observed) {
         this.observed = observed;
     }
 
-    long v1() {
+    public long v1() {
         return v1;
     }
 
-    void v1(long v1) {
+    public void v1(long v1) {
         this.v1 = v1;
     }
 
-    boolean v1Seen() {
+    public boolean v1Seen() {
         return v1Seen;
     }
 
-    void v1Seen(boolean v1Seen) {
+    public void v1Seen(boolean v1Seen) {
         this.v1Seen = v1Seen;
     }
 
-    FloatArray v2() {
+    public FloatArray v2() {
         return v2;
     }
 
-    void v2(FloatArray v2) {
+    public void v2(FloatArray v2) {
         this.v2 = v2;
     }
 

@@ -47,6 +47,8 @@ dependencies {
   api(project(':x-pack:plugin:core'))
   api(project(':x-pack:plugin:esql'))
   api(project(':x-pack:plugin:esql:compute'))
+  api(project(':x-pack:plugin:esql:compute:runtime'))
+  api(project(':x-pack:plugin:esql-test-functions'))
   api(project(':x-pack:plugin:mapper-exponential-histogram'))
   api(project(':x-pack:plugin:logsdb'))
   implementation project(path: ':libs:native')

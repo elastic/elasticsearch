@@ -14,27 +14,27 @@ import org.elasticsearch.compute.operator.DriverContext;
  * Aggregator state for a single int.
  * This class is generated. Edit {@code X-State.java.st} instead.
  */
-final class IntState implements AggregatorState {
+public final class IntState implements AggregatorState {
     private int value;
     private boolean seen;
 
-    IntState(int init) {
+    public IntState(int init) {
         this.value = init;
     }
 
-    int intValue() {
+    public int intValue() {
         return value;
     }
 
-    void intValue(int value) {
+    public void intValue(int value) {
         this.value = value;
     }
 
-    boolean seen() {
+    public boolean seen() {
         return seen;
     }
 
-    void seen(boolean seen) {
+    public void seen(boolean seen) {
         this.seen = seen;
     }
 

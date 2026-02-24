@@ -20,7 +20,7 @@ import org.elasticsearch.core.Releasables;
  * Aggregator state for a single {@code $v1_type$} and a single {@code $v2_type$}.
  * This class is generated. Edit {@code X-2State.java.st} instead.
  */
-final class $v1_Type$$v2_Type$State implements AggregatorState {
+public final class $v1_Type$$v2_Type$State implements AggregatorState {
     private $v1_type$ v1;
     $if(v2_BytesRef)$
     private final BreakingBytesRefBuilder v2;
@@ -29,7 +29,7 @@ final class $v1_Type$$v2_Type$State implements AggregatorState {
     $endif$
     private boolean seen;
 
-    $v1_Type$$v2_Type$State($v1_type$ v1, $v2_type$ v2$if(v2_BytesRef)$, CircuitBreaker breaker, String label$endif$) {
+    public $v1_Type$$v2_Type$State($v1_type$ v1, $v2_type$ v2$if(v2_BytesRef)$, CircuitBreaker breaker, String label$endif$) {
         this.v1 = v1;
         $if(v2_BytesRef)$
         this.v2 = new BreakingBytesRefBuilder(breaker, label, v2.length);
@@ -39,19 +39,19 @@ final class $v1_Type$$v2_Type$State implements AggregatorState {
         $endif$
     }
 
-    $v1_type$ v1() {
+    public $v1_type$ v1() {
         return v1;
     }
 
-    void v1($v1_type$ v1) {
+    public void v1($v1_type$ v1) {
         this.v1 = v1;
     }
 
-    $v2_type$ v2() {
+    public $v2_type$ v2() {
         return v2$if(v2_BytesRef)$.bytesRefView()$endif$;
     }
 
-    void v2($v2_type$ v2) {
+    public void v2($v2_type$ v2) {
         $if(v2_BytesRef)$
         this.v2.copyBytes(v2);
         $else$
@@ -59,11 +59,11 @@ final class $v1_Type$$v2_Type$State implements AggregatorState {
         $endif$
     }
 
-    boolean seen() {
+    public boolean seen() {
         return seen;
     }
 
-    void seen(boolean seen) {
+    public void seen(boolean seen) {
         this.seen = seen;
     }
 

@@ -1,0 +1,51 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+
+description = 'Test plugin demonstrating ES|QL function registration from external module'
+
+esplugin {
+    name = 'esql-test-function'
+    description = 'ES|QL test function plugin for runtime evaluator generation'
+    classname = 'org.elasticsearch.xpack.esql.testfunction.TestFunctionPlugin'
+    extendedPlugins = ['x-pack-esql']
+}
+
+dependencies {
+    compileOnly project(':server')
+    compileOnly project(':x-pack:plugin:core')
+    compileOnly project(':x-pack:plugin:esql')
+    compileOnly project(':x-pack:plugin:esql:compute')
+    compileOnly project(':x-pack:plugin:esql:compute:ann')
+    implementation project(':x-pack:plugin:esql:compute:runtime')
+    compileOnly project(':x-pack:plugin:esql-core')
+    
+    // Test dependencies
+    testImplementation project(':test:framework')
+    testImplementation project(':server')
+    testImplementation project(':x-pack:plugin:esql')
+    testImplementation project(':x-pack:plugin:esql:compute')
+    testImplementation project(':x-pack:plugin:esql:compute:runtime')
+    testImplementation project(':x-pack:plugin:esql-core')
+    
+    // REST test dependencies
+    javaRestTestImplementation project(':test:framework')
+    
+    // Include this plugin in the test cluster
+    clusterPlugins project(':x-pack:plugin:esql:qa:test-function-plugin')
+}
+
+tasks.named("javadoc").configure {
+    enabled = false
+}
+
+// Configure the REST test cluster to include this plugin
+tasks.named('javaRestTest').configure {
+    usesDefaultDistribution("test-function-plugin requires ES|QL plugin which is part of default distribution")
+}

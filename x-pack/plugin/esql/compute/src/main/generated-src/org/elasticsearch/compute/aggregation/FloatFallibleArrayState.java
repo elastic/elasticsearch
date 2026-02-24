@@ -31,33 +31,33 @@ import org.elasticsearch.core.Releasables;
  * This class is generated. Edit {@code X-FallibleArrayState.java.st} instead.
  * </p>
  */
-final class FloatFallibleArrayState extends AbstractFallibleArrayState implements GroupingAggregatorState {
+public final class FloatFallibleArrayState extends AbstractFallibleArrayState implements GroupingAggregatorState {
     private final float init;
 
     private FloatArray values;
 
-    FloatFallibleArrayState(BigArrays bigArrays, float init) {
+    public FloatFallibleArrayState(BigArrays bigArrays, float init) {
         super(bigArrays);
         this.values = bigArrays.newFloatArray(1, false);
         this.values.set(0, init);
         this.init = init;
     }
 
-    float get(int groupId) {
+    public float get(int groupId) {
         return values.get(groupId);
     }
 
-    float getOrDefault(int groupId) {
+    public float getOrDefault(int groupId) {
         return groupId < values.size() ? values.get(groupId) : init;
     }
 
-    void set(int groupId, float value) {
+    public void set(int groupId, float value) {
         ensureCapacity(groupId);
         values.set(groupId, value);
         trackGroupId(groupId);
     }
 
-    Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
+    public Block toValuesBlock(org.elasticsearch.compute.data.IntVector selected, DriverContext driverContext) {
         if (false == trackingGroupIds() && false == anyFailure()) {
             try (var builder = driverContext.blockFactory().newFloatVectorFixedBuilder(selected.getPositionCount())) {
                 for (int i = 0; i < selected.getPositionCount(); i++) {

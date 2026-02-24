@@ -1,0 +1,5 @@
+Byte Buddy
+Copyright 2014 - Present Rafael Winterhalter
+https://bytebuddy.net
+
+Licensed under the Apache License, Version 2.0

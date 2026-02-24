@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.esql.execution;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
@@ -43,6 +45,7 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.action.ActionListener.wrap;
 
 public class PlanExecutor {
+    private static final Logger logger = LogManager.getLogger(PlanExecutor.class);
 
     private final IndexResolver indexResolver;
     private final PreAnalyzer preAnalyzer;
@@ -61,11 +64,25 @@ public class PlanExecutor {
         EsqlQueryLog queryLog,
         List<BiConsumer<LogicalPlan, Failures>> extraCheckers,
         Settings settings,
-        DataSourceModule dataSourceModule
+        DataSourceModule dataSourceModule,
+        List<org.elasticsearch.xpack.esql.plugin.EsqlFunctionProvider> functionProviders
     ) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
+
+        // Register functions from external plugins
+        logger.info("PlanExecutor: Registering functions from {} providers", functionProviders.size());
+        for (org.elasticsearch.xpack.esql.plugin.EsqlFunctionProvider provider : functionProviders) {
+            var functions = provider.getEsqlFunctions();
+            logger.info("  - Registering {} functions from {}", functions.size(), provider.getClass().getName());
+            for (var func : functions) {
+                logger.info("    - Function: {}", func.name());
+            }
+            functionRegistry.registerExternalFunctions(functions);
+        }
+        logger.info("PlanExecutor: Function registry has {} functions", functionRegistry.listFunctions().size());
+
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry, settings);
         this.verifier = new Verifier(metrics, licenseState, extraCheckers);

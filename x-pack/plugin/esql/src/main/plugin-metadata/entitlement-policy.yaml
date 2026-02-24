@@ -1,4 +1,5 @@
 ALL-UNNAMED:
+  - create_class_loader
   - manage_threads
   - outbound_network
   - set_https_connection_properties

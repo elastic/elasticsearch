@@ -16,12 +16,13 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.NIOFSDirectory;
-import org.apache.lucene.util.quantization.OptimizedScalarQuantizer;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.simdvec.ESNextOSQVectorsScorer;
 import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
+import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectoryFactory;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -41,6 +42,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQIndexData;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.createOSQQueryData;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.randomVector;
+import static org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils.writeBulkOSQVectorData;
 
 @BenchmarkMode(Mode.Throughput)
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
@@ -72,7 +78,7 @@ public class VectorScorerOSQBenchmark {
     public int dims;
 
     @Param({ "1", "2", "4" })
-    public int bits;
+    public byte bits;
 
     int bulkSize = ESNextOSQVectorsScorer.BULK_SIZE;
 
@@ -90,9 +96,7 @@ public class VectorScorerOSQBenchmark {
 
     int length;
 
-    byte[][] binaryVectors;
-    byte[][] binaryQueries;
-    OptimizedScalarQuantizer.QuantizationResult result;
+    VectorScorerTestUtils.OSQVectorData[] binaryQueries;
     float centroidDp;
 
     byte[] scratch;
@@ -111,17 +115,12 @@ public class VectorScorerOSQBenchmark {
     }
 
     void setup(Random random) throws IOException {
-        this.length = switch (bits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getDocPackedLength(dims);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getDocPackedLength(dims);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getDocPackedLength(dims);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
-        };
+        this.length = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getDocPackedLength(dims);
 
-        binaryVectors = new byte[numVectors][length];
-        for (byte[] binaryVector : binaryVectors) {
-            random.nextBytes(binaryVector);
-        }
+        final float[] centroid = new float[dims];
+        randomVector(random, centroid, similarityFunction);
+
+        var quantizer = new org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer(similarityFunction);
 
         directory = switch (directoryType) {
             case MMAP -> new MMapDirectory(createTempDirectory("vectorDataMmap"));
@@ -130,35 +129,27 @@ public class VectorScorerOSQBenchmark {
         };
 
         try (IndexOutput output = directory.createOutput("vectors", IOContext.DEFAULT)) {
-            byte[] correctionBytes = new byte[16 * bulkSize];
+            VectorScorerTestUtils.OSQVectorData[] vectors = new VectorScorerTestUtils.OSQVectorData[bulkSize];
             for (int i = 0; i < numVectors; i += bulkSize) {
                 for (int j = 0; j < bulkSize; j++) {
-                    output.writeBytes(binaryVectors[i + j], 0, binaryVectors[i + j].length);
+                    var vector = new float[dims];
+                    randomVector(random, vector, similarityFunction);
+                    vectors[j] = createOSQIndexData(vector, centroid, quantizer, dims, bits, length);
                 }
-                random.nextBytes(correctionBytes);
-                output.writeBytes(correctionBytes, 0, correctionBytes.length);
+                writeBulkOSQVectorData(bulkSize, output, vectors);
             }
             CodecUtil.writeFooter(output);
         }
         input = directory.openInput("vectors", IOContext.DEFAULT);
-        int binaryQueryLength = switch (bits) {
-            case 1 -> ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY.getQueryPackedLength(dims);
-            case 2 -> ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY.getQueryPackedLength(dims);
-            case 4 -> ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC.getQueryPackedLength(dims);
-            default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
-        };
+        int binaryQueryLength = ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits(bits).getQueryPackedLength(dims);
 
-        binaryQueries = new byte[numVectors][binaryQueryLength];
-        for (byte[] binaryQuery : binaryQueries) {
-            random.nextBytes(binaryQuery);
+        binaryQueries = new VectorScorerTestUtils.OSQVectorData[numVectors];
+        var query = new float[dims];
+        for (int i = 0; i < numVectors; ++i) {
+            randomVector(random, query, similarityFunction);
+            binaryQueries[i] = createOSQQueryData(query, centroid, quantizer, dims, (byte) 4, binaryQueryLength);
         }
-        result = new OptimizedScalarQuantizer.QuantizationResult(
-            random.nextFloat(),
-            random.nextFloat(),
-            random.nextFloat(),
-            Short.toUnsignedInt((short) random.nextInt())
-        );
-        centroidDp = random.nextFloat();
+        centroidDp = VectorUtil.dotProduct(centroid, centroid);
 
         scratch = new byte[length];
         final int docBits;
@@ -202,14 +193,14 @@ public class VectorScorerOSQBenchmark {
         for (int j = 0; j < numQueries; j++) {
             input.seek(0);
             for (int i = 0; i < numVectors; i++) {
-                float qDist = scorer.quantizeScore(binaryQueries[j]);
+                float qDist = scorer.quantizeScore(binaryQueries[j].quantizedVector());
                 input.readFloats(corrections, 0, corrections.length);
                 int addition = Short.toUnsignedInt(input.readShort());
                 float score = scorer.score(
-                    result.lowerInterval(),
-                    result.upperInterval(),
-                    result.quantizedComponentSum(),
-                    result.additionalCorrection(),
+                    binaryQueries[j].lowerInterval(),
+                    binaryQueries[j].upperInterval(),
+                    binaryQueries[j].quantizedComponentSum(),
+                    binaryQueries[j].additionalCorrection(),
                     similarityFunction,
                     centroidDp,
                     corrections[0],
@@ -231,11 +222,11 @@ public class VectorScorerOSQBenchmark {
             input.seek(0);
             for (int i = 0; i < numVectors; i += scratchScores.length) {
                 scorer.scoreBulk(
-                    binaryQueries[j],
-                    result.lowerInterval(),
-                    result.upperInterval(),
-                    result.quantizedComponentSum(),
-                    result.additionalCorrection(),
+                    binaryQueries[j].quantizedVector(),
+                    binaryQueries[j].lowerInterval(),
+                    binaryQueries[j].upperInterval(),
+                    binaryQueries[j].quantizedComponentSum(),
+                    binaryQueries[j].additionalCorrection(),
                     similarityFunction,
                     centroidDp,
                     scratchScores

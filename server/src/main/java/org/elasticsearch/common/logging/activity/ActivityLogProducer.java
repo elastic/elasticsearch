@@ -53,6 +53,9 @@ public interface ActivityLogProducer<Context extends ActivityLoggerContext> {
             fields.field("error.type", context.getErrorType());
             fields.field("error.message", context.getErrorMessage());
         }
+        if (context.isTimedOut()) {
+            fields.field(ES_FIELDS_PREFIX + "timed_out", true);
+        }
         return fields;
     }
 }

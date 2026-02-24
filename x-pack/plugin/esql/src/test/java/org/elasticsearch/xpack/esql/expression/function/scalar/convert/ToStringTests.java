@@ -41,12 +41,9 @@ import static org.elasticsearch.test.ReadableMatchers.matchesBytesRef;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
-<<<<<<< fix-histogram-appliesto
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.appliesTo;
-=======
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
->>>>>>> main
 
 public class ToStringTests extends AbstractConfigurationFunctionTestCase {
     public ToStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {

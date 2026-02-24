@@ -79,7 +79,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
         return Strings.toString(builder);
     }
 
-    public void testToXContent_WhenNull_OmitsField() {
+    public void testConstructor_WhenNull_ThrowsNullPointerException() {
         expectThrows(NullPointerException.class, () -> new Headers((Map<String, String>) null));
     }
 
@@ -165,7 +165,7 @@ public class HeadersTests extends AbstractBWCWireSerializationTestCase<Headers> 
         assertThat(
             exception.getCause().getCause().getMessage(),
             containsString(
-                "Map field [root.headers] has an entry that is not valid, [key => {}]. Value type of [LinkedHashMap] is not one of [String].;"
+                "Map field [root.headers] has an entry that is not valid, [key => {}]. Value type of [Map] is not one of [String].;"
             )
         );
     }

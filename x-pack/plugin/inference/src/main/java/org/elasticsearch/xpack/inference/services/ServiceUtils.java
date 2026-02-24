@@ -35,6 +35,7 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
@@ -641,7 +642,7 @@ public final class ServiceUtils {
                         settingName,
                         entry.getKey(),
                         entry.getValue(),
-                        entry.getValue().getClass().getSimpleName(),
+                        getTypeAsString(entry.getValue()),
                         String.join(", ", validTypesAsStrings)
                     );
                 }
@@ -654,6 +655,29 @@ public final class ServiceUtils {
                 validationException.addValidationError(errorMessage.apply(validTypesAsStrings));
                 throw validationException;
             }
+        }
+    }
+
+    private static String getTypeAsString(@Nullable Object value) {
+        if (value == null) {
+            return "null";
+        }
+
+        var simpleName = value.getClass().getSimpleName();
+        var lowerCaseSimpleName = simpleName.toLowerCase(Locale.ROOT);
+
+        // maps may be represented as HashMap, LinkedHashMap, Map1, etc. Lists may be ArrayList, LinkedList, etc.
+        // Sets may be HashSet, LinkedHashSet, etc. We want to simplify these to Map, List, and Set in the error messages.
+        if (lowerCaseSimpleName.contains("map")) {
+            return "Map";
+        } else if (lowerCaseSimpleName.contains("list")) {
+            return "Array";
+        } else if (lowerCaseSimpleName.contains("set")) {
+            return "Set";
+        } else if (lowerCaseSimpleName.contains("array")) {
+            return "Array";
+        } else {
+            return simpleName;
         }
     }
 

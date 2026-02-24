@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.inference.services.azureopenai;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
@@ -41,7 +39,6 @@ import static org.elasticsearch.xpack.inference.common.parser.ParseExceptionUtil
  */
 public abstract class AzureOpenAiTaskSettings<T extends AzureOpenAiTaskSettings<T>> implements TaskSettings {
 
-    private static final Logger logger = LogManager.getLogger(AzureOpenAiTaskSettings.class);
     private static final Settings EMPTY_SETTINGS = new Settings(null, null);
 
     protected static final TransportVersion INFERENCE_AZURE_OPENAI_TASK_SETTINGS_HEADERS = TransportVersion.fromName(

@@ -69,7 +69,7 @@ dependencies {
   clusterModules project(xpackModule('wildcard'))
   clusterModules project(xpackModule('mapper-version'))
 
-  def otelVersion = "1.53.0"
+  def otelVersion = "1.57.0"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-api:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-common:$otelVersion"
   javaRestTestImplementation "io.opentelemetry:opentelemetry-context:$otelVersion"

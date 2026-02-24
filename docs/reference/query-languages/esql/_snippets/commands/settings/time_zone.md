@@ -2,8 +2,8 @@
 
 ### `time_zone` [esql-time_zone]
 ```{applies_to}
-serverless: preview
-stack: preview 9.4+
+serverless: ga
+stack: ga 9.4+
 ```
 The default timezone to be used in the query. Defaults to UTC, and overrides the `time_zone` request parameter. See [timezones](/reference/query-languages/esql/esql-rest.md#esql-timezones).
 

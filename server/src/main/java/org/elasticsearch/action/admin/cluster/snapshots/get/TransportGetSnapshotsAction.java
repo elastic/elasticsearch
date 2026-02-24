@@ -716,13 +716,13 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
         private static final SnapshotPredicates MATCH_ALL = new SnapshotPredicates(null, null, null);
 
-        @Nullable // for sort orders that need no details (NAME, INDICES)
+        @Nullable // non-null for sort orders that need no details (NAME, INDICES)
         private final PreflightFilterResult.RepositoryDataFilter preflightPredicate;
 
-        @Nullable // for sort orders that need details (START_TIME, DURATION)
+        @Nullable // non-null for sort orders that need details (START_TIME, DURATION)
         private final PreflightFilterResult.SnapshotDetailsFilter detailsFilter;
 
-        @Nullable // if all snapshots match
+        @Nullable // null if all snapshots match or the pre-flight filters are guaranteed to be conclusive so no SnapshotInfo filter needed
         private final Predicate<SnapshotInfo> snapshotPredicate;
 
         private SnapshotPredicates(

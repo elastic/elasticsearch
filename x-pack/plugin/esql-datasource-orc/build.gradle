@@ -60,7 +60,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-tasks.named("dependencyLicenses").configure {
+tasks.withType(org.elasticsearch.gradle.internal.AbstractDependenciesTask).configureEach {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /orc-.*/, to: 'orc'
   mapping from: /hadoop-.*/, to: 'hadoop'

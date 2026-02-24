@@ -63,7 +63,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
             var scalar = new VectorScorerOSQBenchmark();
             var vectorized = new VectorScorerOSQBenchmark();
             try {
-                var data = VectorScorerOSQBenchmark.generateBenchmarkData(new Random(seed), dims, bits, NUM_VECTORS, similarityFunction);
+                var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, NUM_VECTORS, similarityFunction);
 
                 scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
                 scalar.dims = dims;
@@ -100,7 +100,7 @@ public class VectorScorerOSQBenchmarkTests extends ESTestCase {
             var scalar = new VectorScorerOSQBenchmark();
             var vectorized = new VectorScorerOSQBenchmark();
             try {
-                var data = VectorScorerOSQBenchmark.generateBenchmarkData(new Random(seed), dims, bits, NUM_VECTORS, similarityFunction);
+                var data = VectorScorerOSQBenchmark.generateRandomVectorData(new Random(seed), dims, bits, NUM_VECTORS, similarityFunction);
 
                 scalar.implementation = VectorScorerOSQBenchmark.VectorImplementation.SCALAR;
                 scalar.dims = dims;

@@ -106,14 +106,14 @@ public class VectorScorerOSQBenchmark {
     float[] scratchScores;
     float[] corrections;
 
-    record BenchmarkData(
+    record VectorData(
         VectorScorerTestUtils.OSQVectorData[] indexVectors,
         VectorScorerTestUtils.OSQVectorData[] queries,
         int binaryIndexLength,
         float centroidDp
     ) {}
 
-    static BenchmarkData generateBenchmarkData(
+    static VectorData generateRandomVectorData(
         Random random,
         int dims,
         byte bits,
@@ -142,15 +142,15 @@ public class VectorScorerOSQBenchmark {
             queryVectors[i] = createOSQQueryData(query, centroid, quantizer, dims, (byte) 4, binaryQueryLength);
         }
 
-        return new BenchmarkData(indexVectors, queryVectors, binaryIndexLength, VectorUtil.dotProduct(centroid, centroid));
+        return new VectorData(indexVectors, queryVectors, binaryIndexLength, VectorUtil.dotProduct(centroid, centroid));
     }
 
     @Setup
     public void setup() throws IOException {
-        setup(generateBenchmarkData(new Random(123), dims, bits, NUM_VECTORS, similarityFunction));
+        setup(generateRandomVectorData(new Random(123), dims, bits, NUM_VECTORS, similarityFunction));
     }
 
-    void setup(BenchmarkData data) throws IOException {
+    void setup(VectorData data) throws IOException {
         this.directory = switch (directoryType) {
             case MMAP -> new MMapDirectory(createTempDirectory("vectorDataMmap"));
             case NIO -> new NIOFSDirectory(createTempDirectory("vectorDataNFIOS"));

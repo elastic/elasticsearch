@@ -97,6 +97,95 @@ public class GlobExpanderTests extends ESTestCase {
         assertTrue(result.isEmpty());
     }
 
+    // -- partition-aware glob rewriting --
+
+    public void testRewriteGlobWithEqualsHint() {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
+            new PartitionFilterHintExtractor.PartitionFilterHint("year", "=", List.of(2024))
+        );
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);
+        assertEquals("s3://bucket/year=2024/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobWithInHint() {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
+            new PartitionFilterHintExtractor.PartitionFilterHint("year", "IN", List.of(2023, 2024))
+        );
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);
+        assertEquals("s3://bucket/year={2023,2024}/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobWithRangeHintNoRewrite() {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
+            new PartitionFilterHintExtractor.PartitionFilterHint("year", ">=", List.of(2020))
+        );
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", hints);
+        assertEquals("s3://bucket/year=*/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobMultipleHints() {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
+            new PartitionFilterHintExtractor.PartitionFilterHint("year", "=", List.of(2024)),
+            new PartitionFilterHintExtractor.PartitionFilterHint("month", "IN", List.of(1, 2, 3))
+        );
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/month=*/*.parquet", hints);
+        assertEquals("s3://bucket/year=2024/month={1,2,3}/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobNonWildcardNotRewritten() {
+        List<PartitionFilterHintExtractor.PartitionFilterHint> hints = List.of(
+            new PartitionFilterHintExtractor.PartitionFilterHint("year", "=", List.of(2024))
+        );
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=2023/*.parquet", hints);
+        assertEquals("s3://bucket/year=2023/*.parquet", rewritten);
+    }
+
+    public void testRewriteGlobNoHintsNoChange() {
+        String rewritten = GlobExpander.rewriteGlobWithHints("s3://bucket/year=*/*.parquet", List.of());
+        assertEquals("s3://bucket/year=*/*.parquet", rewritten);
+    }
+
+    public void testExpandGlobWithHivePartitionDetection() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/year=2024/file1.parquet", 100),
+            entry("s3://bucket/data/year=2023/file2.parquet", 200)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileSet result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, true);
+        assertTrue(result.isResolved());
+        assertEquals(2, result.size());
+        assertNotNull(result.partitionMetadata());
+        assertFalse(result.partitionMetadata().isEmpty());
+        assertTrue(result.partitionMetadata().partitionColumns().containsKey("year"));
+    }
+
+    public void testExpandGlobWithHivePartitioningDisabled() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/year=2024/file1.parquet", 100),
+            entry("s3://bucket/data/year=2023/file2.parquet", 200)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileSet result = GlobExpander.expandGlob("s3://bucket/data/year=*/*.parquet", provider, null, false);
+        assertTrue(result.isResolved());
+        assertEquals(2, result.size());
+        assertNull(result.partitionMetadata());
+    }
+
+    public void testExpandGlobNonHivePathsNoPartitionMetadata() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("s3://bucket/data/2024/file1.parquet", 100),
+            entry("s3://bucket/data/2023/file2.parquet", 200)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        @SuppressWarnings("RegexpMultiline")
+        FileSet result = GlobExpander.expandGlob("s3://bucket/data/**/*.parquet", provider, null, true);
+        assertTrue(result.isResolved());
+        assertNull(result.partitionMetadata());
+    }
+
     // -- helpers --
 
     private static StorageEntry entry(String path, long length) {

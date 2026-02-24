@@ -208,14 +208,16 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
          *                      |                                                                               |
          *                      +---------------------X  Skipped as also in-progress                            |
          *                      +---------------------X  snapshotNamePredicate (requested names/wildcards)      |
-         *                      +---------------------X  ?from_sort_value (when ?sort = name)                   |
+         *                      +---------------------X  ?from_sort_value (when ?sort = name/indices)           |
          *                      |                                                                               |
          *                      +-->  Look up SnapshotDetails                                                   |
          *                            |                                                                         |
          *                            | Preflight filtering (may be incomplete)                                 |
-         *                            +---------------X  ?from_sort_value (when ?sort = start/duration/indices) |
+         *                            +---------------X  ?from_sort_value (when ?sort = start/duration)         |
          *                            +---------------X  ?state                                                 |
          *                            +---------------X  ?slm_policy_filter                                     |
+         *                            |                                                                         |
+         *                            | (proceed if preflight result is INCLUDE or INCONCLUSIVE)                |
          *                            |                                                                         |
          *                            |                                                                         |
          *                            |                                                                         |

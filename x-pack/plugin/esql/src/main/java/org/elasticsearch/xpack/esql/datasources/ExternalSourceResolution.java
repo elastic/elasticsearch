@@ -25,7 +25,7 @@ public record ExternalSourceResolution(Map<String, ResolvedSource> resolved) {
         }
     }
 
-    public ResolvedSource get(String path) {
+    public ResolvedSource resolvedSource(String path) {
         return resolved.get(path);
     }
 

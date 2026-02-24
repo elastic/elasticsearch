@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.WriteAckDelay;
 import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingService;
 import org.elasticsearch.action.ingest.SimulatePipelineTransportAction;
 import org.elasticsearch.action.search.SearchLogProducer;
+import org.elasticsearch.action.search.SearchTaskWatchdog;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.AutoCreateIndex;
 import org.elasticsearch.action.support.DestructiveOperations;
@@ -460,6 +461,11 @@ public final class ClusterSettings extends AbstractScopedSettings {
         NetworkService.TCP_RECEIVE_BUFFER_SIZE,
         ThreadWatchdog.NETWORK_THREAD_WATCHDOG_INTERVAL,
         ThreadWatchdog.NETWORK_THREAD_WATCHDOG_QUIET_TIME,
+        SearchTaskWatchdog.ENABLED,
+        SearchTaskWatchdog.COORDINATOR_THRESHOLD,
+        SearchTaskWatchdog.DATA_NODE_THRESHOLD,
+        SearchTaskWatchdog.INTERVAL,
+        SearchTaskWatchdog.COOLDOWN_PERIOD,
         IndexSettings.QUERY_STRING_ANALYZE_WILDCARD,
         IndexSettings.QUERY_STRING_ALLOW_LEADING_WILDCARD,
         ScriptService.SCRIPT_CACHE_SIZE_SETTING,

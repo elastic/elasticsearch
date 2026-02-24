@@ -89,7 +89,12 @@ public abstract class IgnoreMalformedStoredValues {
 
     private static void saveToBinaryDocValues(DocumentParserContext context, String fieldPath, BytesRef encoded) {
         final String fieldName = name(fieldPath);
-        MultiValuedBinaryDocValuesField.SeparateCount.addToSeparateCountMultiBinaryFieldInDoc(context.doc(), fieldName, encoded, true);
+        MultiValuedBinaryDocValuesField field = (MultiValuedBinaryDocValuesField) context.doc().getByKey(fieldName);
+        if (field == null) {
+            field = new MultiValuedBinaryDocValuesField.IntegratedCount(fieldName, true);
+            context.doc().addWithKey(fieldName, field);
+        }
+        field.add(encoded);
     }
 
     /**

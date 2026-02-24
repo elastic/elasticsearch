@@ -45,7 +45,7 @@ public class MatchTests extends SingleFieldFullTextFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return build(new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null), args);
+        return new Match(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
     }
 
     protected static List<TestCaseSupplier> testCaseSuppliers() {

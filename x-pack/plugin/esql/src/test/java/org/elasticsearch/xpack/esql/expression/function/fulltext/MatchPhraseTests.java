@@ -50,6 +50,6 @@ public class MatchPhraseTests extends SingleFieldFullTextFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return build(new MatchPhrase(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null), args);
+        return new MatchPhrase(source, args.get(0), args.get(1), args.size() > 2 ? args.get(2) : null);
     }
 }

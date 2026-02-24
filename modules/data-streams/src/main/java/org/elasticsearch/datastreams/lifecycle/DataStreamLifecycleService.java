@@ -641,8 +641,8 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             DlmStep step = action.steps().get(i);
             try {
                 long checkStartTime = nowSupplier.getAsLong();
-                index = resolveIndexOutputFromPreviousStep(i, index, action, projectState);
-                if (step.stepCompleted(index, projectState) == false) {
+                Index indexInUse = resolveIndexOutputFromPreviousStep(i, index, action, projectState);
+                if (step.stepCompleted(indexInUse, projectState) == false) {
                     stepToExecute = i;
                     if (logger.isTraceEnabled()) {
                         logger.trace(
@@ -650,7 +650,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             step.stepName(),
                             action.name(),
                             dataStream.getName(),
-                            index.getName(),
+                            indexInUse.getName(),
                             formatExecutionTime(nowSupplier.getAsLong() - checkStartTime)
                         );
                     }
@@ -661,7 +661,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
                             step.stepName(),
                             action.name(),
                             dataStream.getName(),
-                            index.getName(),
+                            indexInUse.getName(),
                             formatExecutionTime(nowSupplier.getAsLong() - checkStartTime)
                         );
                     }

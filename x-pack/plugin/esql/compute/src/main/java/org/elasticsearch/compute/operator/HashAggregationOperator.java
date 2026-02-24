@@ -7,6 +7,7 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -19,9 +20,15 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorEvaluationContext
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.FloatBlock;
 import org.elasticsearch.compute.data.IntArrayBlock;
 import org.elasticsearch.compute.data.IntBigArrayBlock;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -29,6 +36,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -40,6 +48,15 @@ import static java.util.stream.Collectors.joining;
 
 public class HashAggregationOperator implements Operator {
 
+    /**
+     * Computes the number of FINAL-stage drivers (and partitions) for partitioned hash
+     * aggregation. Returns {@code availableProcessors - 2} (reserving threads for the
+     * router and output drivers), with a minimum of 1.
+     */
+    public static int computeFinalDriverCount() {
+        return Math.max(1, Runtime.getRuntime().availableProcessors() - 2);
+    }
+
     public record HashAggregationOperatorFactory(
         List<BlockHash.GroupSpec> groups,
         AggregatorMode aggregatorMode,
@@ -47,8 +64,33 @@ public class HashAggregationOperator implements Operator {
         int maxPageSize,
         int partialEmitKeysThreshold,
         double partialEmitUniquenessThreshold,
-        AnalysisRegistry analysisRegistry
+        AnalysisRegistry analysisRegistry,
+        int numPartitions
     ) implements OperatorFactory {
+        /**
+         * Backward-compatible constructor that defaults to {@link #computeFinalDriverCount()} partitions.
+         */
+        public HashAggregationOperatorFactory(
+            List<BlockHash.GroupSpec> groups,
+            AggregatorMode aggregatorMode,
+            List<GroupingAggregator.Factory> aggregators,
+            int maxPageSize,
+            int partialEmitKeysThreshold,
+            double partialEmitUniquenessThreshold,
+            AnalysisRegistry analysisRegistry
+        ) {
+            this(
+                groups,
+                aggregatorMode,
+                aggregators,
+                maxPageSize,
+                partialEmitKeysThreshold,
+                partialEmitUniquenessThreshold,
+                analysisRegistry,
+                computeFinalDriverCount()
+            );
+        }
+
         @Override
         public Operator get(DriverContext driverContext) {
             if (groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)) {
@@ -64,6 +106,7 @@ public class HashAggregationOperator implements Operator {
                     ),
                     Integer.MAX_VALUE, // disable the early partial emit for categorize
                     1.0,
+                    1, // disable partitioning for categorize
                     driverContext
                 );
             }
@@ -73,6 +116,7 @@ public class HashAggregationOperator implements Operator {
                 () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false),
                 partialEmitKeysThreshold,
                 partialEmitUniquenessThreshold,
+                numPartitions,
                 driverContext
             );
         }
@@ -88,7 +132,7 @@ public class HashAggregationOperator implements Operator {
     }
 
     private boolean finished;
-    private Page output;
+    private final ArrayDeque<Page> outputPages = new ArrayDeque<>();
 
     protected final Supplier<BlockHash> blockHashSupplier;
     protected final AggregatorMode aggregatorMode;
@@ -99,6 +143,13 @@ public class HashAggregationOperator implements Operator {
     // The blockHash and aggregators can be re-initialized when partial results are emitted periodically
     protected BlockHash blockHash;
     protected final List<GroupingAggregator> aggregators;
+
+    /**
+     * The number of partitions to split output into. When greater than 1, each emitted page
+     * contains only the groups whose key hash falls into that partition. This enables downstream
+     * parallel processing by shuffling partitioned pages to independent final-stage drivers.
+     */
+    protected final int numPartitions;
 
     /**
      * Nanoseconds this operator has spent hashing grouping keys.
@@ -132,7 +183,9 @@ public class HashAggregationOperator implements Operator {
     protected final int partialEmitKeysThreshold;
     protected final double partialEmitUniquenessThreshold;
 
-    @SuppressWarnings("this-escape")
+    /**
+     * Backward-compatible constructor that defaults to 1 partition (no partitioning).
+     */
     public HashAggregationOperator(
         AggregatorMode aggregatorMode,
         List<GroupingAggregator.Factory> aggregatorFactories,
@@ -141,12 +194,37 @@ public class HashAggregationOperator implements Operator {
         double partialEmitUniquenessThreshold,
         DriverContext driverContext
     ) {
+        this(
+            aggregatorMode,
+            aggregatorFactories,
+            blockHashSupplier,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            1,
+            driverContext
+        );
+    }
+
+    @SuppressWarnings("this-escape")
+    public HashAggregationOperator(
+        AggregatorMode aggregatorMode,
+        List<GroupingAggregator.Factory> aggregatorFactories,
+        Supplier<BlockHash> blockHashSupplier,
+        int partialEmitKeysThreshold,
+        double partialEmitUniquenessThreshold,
+        int numPartitions,
+        DriverContext driverContext
+    ) {
         if (partialEmitKeysThreshold <= 0) {
             throw new IllegalArgumentException("partialEmitKeysThreshold must be greater than 0; got " + partialEmitKeysThreshold);
+        }
+        if (numPartitions <= 0) {
+            throw new IllegalArgumentException("numPartitions must be greater than 0; got " + numPartitions);
         }
         this.aggregatorMode = aggregatorMode;
         this.partialEmitKeysThreshold = partialEmitKeysThreshold;
         this.partialEmitUniquenessThreshold = partialEmitUniquenessThreshold;
+        this.numPartitions = numPartitions;
         this.driverContext = driverContext;
         this.aggregatorFactories = aggregatorFactories;
         this.blockHashSupplier = blockHashSupplier;
@@ -169,7 +247,7 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public boolean needsInput() {
-        return output == null && finished == false;
+        return outputPages.isEmpty() && finished == false;
     }
 
     @Override
@@ -247,11 +325,10 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public Page getOutput() {
-        Page p = output;
+        Page p = outputPages.poll();
         if (p != null) {
             rowsEmitted += p.getPositionCount();
         }
-        output = null;
         return p;
     }
 
@@ -279,9 +356,22 @@ public class HashAggregationOperator implements Operator {
         if (rowsAddedInCurrentBatch == 0) {
             return;
         }
+        long startInNanos = System.nanoTime();
+        if (numPartitions == 1) {
+            emitSinglePartition();
+        } else {
+            emitPartitioned();
+        }
+        emitNanos += System.nanoTime() - startInNanos;
+        emitCount++;
+    }
+
+    /**
+     * Original single-partition emit: produces one page containing all groups.
+     */
+    private void emitSinglePartition() {
         Block[] blocks = null;
         IntVector selected = null;
-        long startInNanos = System.nanoTime();
         boolean success = false;
         try {
             selected = blockHash.nonEmpty();
@@ -296,18 +386,145 @@ public class HashAggregationOperator implements Operator {
                     evaluateAggregator(aggregator, blocks, offset, selected, evaluationContext);
                     offset += aggBlockCounts[i];
                 }
-                output = new Page(blocks);
+                outputPages.add(new Page(blocks));
                 success = true;
             }
         } finally {
             rowsAddedInCurrentBatch = 0;
-            // selected should always be closed
             Releasables.close(selected);
             if (success == false && blocks != null) {
                 Releasables.closeExpectNoException(blocks);
             }
-            emitNanos += System.nanoTime() - startInNanos;
-            emitCount++;
+        }
+    }
+
+    /**
+     * Partitioned emit: splits groups by key hash into {@link #numPartitions} separate pages.
+     * Each output page contains only the groups whose key values hash to that partition.
+     * This enables downstream parallel processing by shuffling partitioned pages to
+     * independent final-stage drivers.
+     */
+    private void emitPartitioned() {
+        IntVector allSelected = null;
+        Block[] allKeys = null;
+        boolean success = false;
+        try {
+            allSelected = blockHash.nonEmpty();
+            allKeys = blockHash.getKeys();
+
+            int numGroups = allSelected.getPositionCount();
+
+            // Step 1: Assign each group position to a partition based on key hash
+            int[] partitionOf = new int[numGroups];
+            int[] partitionSizes = new int[numPartitions];
+            for (int i = 0; i < numGroups; i++) {
+                partitionOf[i] = computePartition(allKeys, i, numPartitions);
+                partitionSizes[partitionOf[i]]++;
+            }
+
+            // Step 2: Build per-partition position arrays (positions into allKeys/allSelected)
+            int[][] partitionPositions = new int[numPartitions][];
+            int[] offsets = new int[numPartitions];
+            for (int p = 0; p < numPartitions; p++) {
+                partitionPositions[p] = new int[partitionSizes[p]];
+            }
+            for (int i = 0; i < numGroups; i++) {
+                int p = partitionOf[i];
+                partitionPositions[p][offsets[p]++] = i;
+            }
+
+            // Step 3: Emit one page per non-empty partition
+            int[] aggBlockCounts = aggregators.stream().mapToInt(GroupingAggregator::evaluateBlockCount).toArray();
+            int totalAggBlocks = Arrays.stream(aggBlockCounts).sum();
+
+            try (var evaluationContext = evaluationContext(blockHash, allKeys)) {
+                for (int p = 0; p < numPartitions; p++) {
+                    if (partitionPositions[p].length == 0) {
+                        continue;
+                    }
+                    emitOnePartition(p, allSelected, allKeys, partitionPositions[p], aggBlockCounts, totalAggBlocks, evaluationContext);
+                }
+            }
+            success = true;
+        } finally {
+            rowsAddedInCurrentBatch = 0;
+            Releasables.close(allSelected);
+            if (allKeys != null) {
+                Releasables.closeExpectNoException(allKeys);
+            }
+            if (success == false) {
+                // Clean up any pages that were already added before the failure
+                for (Page p : outputPages) {
+                    p.releaseBlocks();
+                }
+                outputPages.clear();
+            }
+        }
+    }
+
+    /**
+     * Emits a single partition's worth of data as one output page.
+     *
+     * @param partitionId   the partition index to tag the output page with
+     * @param allSelected   the full nonEmpty group ID vector from the block hash
+     * @param allKeys       the full key blocks from the block hash
+     * @param positions     the positions (into allSelected/allKeys) that belong to this partition
+     * @param aggBlockCounts the number of blocks each aggregator produces
+     * @param totalAggBlocks the total number of aggregation blocks
+     * @param evaluationContext shared evaluation context
+     */
+    private void emitOnePartition(
+        int partitionId,
+        IntVector allSelected,
+        Block[] allKeys,
+        int[] positions,
+        int[] aggBlockCounts,
+        int totalAggBlocks,
+        GroupingAggregatorEvaluationContext evaluationContext
+    ) {
+        // Track keyBlocks separately: if an exception occurs before they are copied
+        // into the output blocks array, we must release them to avoid memory leaks.
+        Block[] keyBlocks = new Block[allKeys.length];
+        Block[] blocks = null;
+        IntVector selected = null;
+        boolean success = false;
+        try {
+            // Filter key blocks to this partition's positions
+            for (int k = 0; k < allKeys.length; k++) {
+                keyBlocks[k] = allKeys[k].filter(false, positions);
+            }
+
+            // Build selected vector: map positions back to global group IDs
+            try (var builder = driverContext.blockFactory().newIntVectorFixedBuilder(positions.length)) {
+                for (int i = 0; i < positions.length; i++) {
+                    builder.appendInt(i, allSelected.getInt(positions[i]));
+                }
+                selected = builder.build();
+            }
+
+            // Assemble the output page: [key blocks..., agg blocks...]
+            int numKeyBlocks = keyBlocks.length;
+            blocks = new Block[numKeyBlocks + totalAggBlocks];
+            System.arraycopy(keyBlocks, 0, blocks, 0, numKeyBlocks);
+            keyBlocks = null; // ownership transferred to blocks array
+            int offset = numKeyBlocks;
+            for (int i = 0; i < aggregators.size(); i++) {
+                evaluateAggregator(aggregators.get(i), blocks, offset, selected, evaluationContext);
+                offset += aggBlockCounts[i];
+            }
+
+            outputPages.add(Page.withPartitionId(partitionId, blocks));
+            success = true;
+        } finally {
+            Releasables.close(selected);
+            if (success == false) {
+                // Release blocks or keyBlocks depending on how far we got
+                if (blocks != null) {
+                    Releasables.closeExpectNoException(blocks);
+                } else if (keyBlocks != null) {
+                    Releasables.closeExpectNoException(keyBlocks);
+                }
+            }
         }
     }
 
@@ -341,20 +558,22 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public boolean isFinished() {
-        return finished && output == null;
+        return finished && outputPages.isEmpty();
     }
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
-        return output != null;
+        return outputPages.isEmpty() == false;
     }
 
     @Override
     public void close() {
-        if (output != null) {
-            output.releaseBlocks();
-        }
-        Releasables.close(blockHash, () -> Releasables.close(aggregators));
+        Releasables.close(() -> {
+            for (Page p : outputPages) {
+                p.releaseBlocks();
+            }
+            outputPages.clear();
+        }, blockHash, () -> Releasables.close(aggregators));
     }
 
     @Override
@@ -370,6 +589,43 @@ public class HashAggregationOperator implements Operator {
 
     protected Page wrapPage(Page page) {
         return page;
+    }
+
+    /**
+     * Computes a partition number in [0, numPartitions) for the group at the given position
+     * in the key blocks. Uses the key values at that position, hashed and mixed for good
+     * distribution across partitions.
+     * <p>
+     *     Key blocks from {@link BlockHash#getKeys()} are single-valued per position (each
+     *     position represents one unique group), so we always read the first value index.
+     * </p>
+     */
+    static int computePartition(Block[] keys, int position, int numPartitions) {
+        long h = 0;
+        BytesRef scratch = new BytesRef();
+        for (Block key : keys) {
+            if (key.isNull(position)) {
+                h = h * 31;
+                continue;
+            }
+            int valueIndex = key.getFirstValueIndex(position);
+            h = 31 * h + switch (key.elementType()) {
+                case LONG -> Long.hashCode(((LongBlock) key).getLong(valueIndex));
+                case INT -> Integer.hashCode(((IntBlock) key).getInt(valueIndex));
+                case DOUBLE -> Double.hashCode(((DoubleBlock) key).getDouble(valueIndex));
+                case FLOAT -> Float.hashCode(((FloatBlock) key).getFloat(valueIndex));
+                case BOOLEAN -> Boolean.hashCode(((BooleanBlock) key).getBoolean(valueIndex));
+                case BYTES_REF -> ((BytesRefBlock) key).getBytesRef(valueIndex, scratch).hashCode();
+                default -> 0L;
+            };
+        }
+        // Murmur3-style finalizer for good bit distribution across partitions
+        h ^= (h >>> 33);
+        h *= 0xff51afd7ed558ccdL;
+        h ^= (h >>> 33);
+        h *= 0xc4ceb9fe1a85ec53L;
+        h ^= (h >>> 33);
+        return (int) ((h & 0x7fffffffffffffffL) % numPartitions);
     }
 
     @Override

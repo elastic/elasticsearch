@@ -2677,6 +2677,7 @@ required_capability: per_agg_filtering
 row x = null, a = 1, b = [2,3,4]
 | stats c=max(a) where x
   by b
+| sort b
 ;
 
 c:integer |b:integer

@@ -219,7 +219,9 @@ class ValuesDoubleAggregator {
             this.ids = new int[total];
             for (int id = 0; id < hashes.size(); id++) {
                 int group = (int) hashes.getKey1(id);
-                ids[selectedCounts[group]++] = id;
+                if (group < selectedCounts.length && selectedCounts[group] >= 0) {
+                    ids[selectedCounts[group]++] = id;
+                }
             }
         }
 

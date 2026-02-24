@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.RunOnce;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.lucene.EmptyIndexedByShardId;
@@ -25,11 +26,15 @@ import org.elasticsearch.compute.operator.Driver;
 import org.elasticsearch.compute.operator.DriverCompletionInfo;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.FailureCollector;
+import org.elasticsearch.compute.operator.HashAggregationOperator;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.compute.operator.exchange.ExchangeSink;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
+import org.elasticsearch.compute.operator.exchange.ExchangeSource;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.PartitionedExchangeSinkHandler;
+import org.elasticsearch.compute.operator.exchange.PartitionedExchangeSourceHandler;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -59,10 +64,13 @@ import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
+import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
@@ -474,25 +482,41 @@ public class ComputeService {
                         })
                     )
                 ) {
-                    runCompute(
-                        rootTask,
-                        new ComputeContext(
+                    if (hasGroupedFinalAgg(coordinatorPlan) && HashAggregationOperator.computeFinalDriverCount() > 1) {
+                        runPartitionedCoordinatorCompute(
+                            rootTask,
                             sessionId,
-                            profileDescription(profileQualifier, "final"),
-                            LOCAL_CLUSTER,
+                            profileQualifier,
                             flags,
-                            EmptyIndexedByShardId.instance(),
                             configuration,
                             foldContext,
+                            coordinatorPlan,
                             exchangeSource::createExchangeSource,
-                            exchangeSinkSupplier
-                        ),
-                        coordinatorPlan,
-                        plannerSettings.get(),
-                        LocalPhysicalOptimization.ENABLED,
-                        planTimeProfile,
-                        localListener.acquireCompute()
-                    );
+                            exchangeSinkSupplier,
+                            planTimeProfile,
+                            localListener.acquireCompute()
+                        );
+                    } else {
+                        runCompute(
+                            rootTask,
+                            new ComputeContext(
+                                sessionId,
+                                profileDescription(profileQualifier, "final"),
+                                LOCAL_CLUSTER,
+                                flags,
+                                EmptyIndexedByShardId.instance(),
+                                configuration,
+                                foldContext,
+                                exchangeSource::createExchangeSource,
+                                exchangeSinkSupplier
+                            ),
+                            coordinatorPlan,
+                            plannerSettings.get(),
+                            LocalPhysicalOptimization.ENABLED,
+                            planTimeProfile,
+                            localListener.acquireCompute()
+                        );
+                    }
                     // starts computes on data nodes on the main cluster
                     if (localConcreteIndices != null && localConcreteIndices.indices().length > 0) {
                         final var dataNodesListener = localListener.acquireCompute();
@@ -784,6 +808,377 @@ public class ComputeService {
 
             return DriverCompletionInfo.excludingProfiles(drivers);
         });
+    }
+
+    /**
+     * Returns true if the coordinator plan is a simple linear chain ending with a grouped
+     * FINAL hash aggregation whose only child is ExchangeSourceExec. Complex plans (with
+     * hash joins, merges, multiple exchanges, etc.) return false.
+     *
+     * <p>Expected pattern:
+     * <pre>
+     *   OutputExec/ExchangeSinkExec
+     *     └── [optional chain of TopNExec, EvalExec, LimitExec, etc.]
+     *           └── AggregateExec(FINAL, non-empty groupings)
+     *                 └── ExchangeSourceExec
+     * </pre>
+     */
+    public static boolean hasGroupedFinalAgg(PhysicalPlan coordinatorPlan) {
+        // Walk down the single-child chain looking for AggregateExec(FINAL) with groupings
+        PhysicalPlan current = coordinatorPlan;
+
+        // Skip the outermost wrapper (OutputExec or ExchangeSinkExec)
+        if (current instanceof OutputExec outputExec) {
+            current = outputExec.child();
+        } else if (current instanceof ExchangeSinkExec sinkExec) {
+            current = sinkExec.child();
+        } else {
+            return false;
+        }
+
+        // Walk down single-child (UnaryExec) nodes to find the AggregateExec
+        while (current != null) {
+            if (current instanceof AggregateExec agg) {
+                // Found the aggregate - check if it's a grouped FINAL agg with ExchangeSourceExec child
+                if (agg.getMode() == AggregatorMode.FINAL
+                    && agg.groupings().isEmpty() == false
+                    && agg.child() instanceof ExchangeSourceExec) {
+                    return true;
+                }
+                return false; // Found an agg that doesn't match our criteria
+            }
+            // Only follow single-child (UnaryExec) nodes
+            if (current.children().size() == 1) {
+                current = current.children().get(0);
+            } else {
+                return false; // Multi-child node (HashJoinExec, MergeExec, etc.)
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Splits the coordinator plan at the AggregateExec(FINAL) boundary into:
+     * <ul>
+     *   <li>A <b>final plan</b> that runs per-partition in each FINAL driver</li>
+     *   <li>An <b>output plan</b> that runs once, globally, after all partitions merge</li>
+     * </ul>
+     *
+     * <p>When a TopNExec is present above the AggregateExec, the split pushes the TopN
+     * (and any intermediate nodes like EvalExec between the AggregateExec and TopN) into
+     * the per-partition final plan. This allows each partition to independently compute
+     * the top-K rows, dramatically reducing the number of rows that flow to the output
+     * stage (from N rows to at most K * numPartitions). A duplicate TopN in the output
+     * plan performs the global merge on the much smaller result set.</p>
+     *
+     * <p>For example, given:
+     * <pre>
+     *   OutputExec
+     *     └── ProjectExec
+     *           └── TopNExec
+     *                 └── EvalExec
+     *                       └── AggregateExec(FINAL)
+     *                             └── ExchangeSourceExec
+     * </pre>
+     * The split produces:
+     * <ul>
+     *   <li>Final: {@code ExchangeSinkExec → TopNExec → EvalExec → AggregateExec(FINAL) → ExchangeSourceExec}</li>
+     *   <li>Output: {@code OutputExec → ProjectExec → TopNExec → ExchangeSourceExec}</li>
+     * </ul>
+     *
+     * <p>When no TopNExec is found, the split falls back to putting only the AggregateExec
+     * in the final plan:</p>
+     * <ul>
+     *   <li>Final: {@code ExchangeSinkExec → AggregateExec(FINAL) → ExchangeSourceExec}</li>
+     *   <li>Output: everything above the AggregateExec</li>
+     * </ul>
+     *
+     * @return a tuple of (finalPlan, outputPlan), or null if the plan doesn't match the expected pattern
+     */
+    public static Tuple<PhysicalPlan, PhysicalPlan> splitCoordinatorPlanForPartitioning(PhysicalPlan coordinatorPlan) {
+        // Step 1: Unwrap the outermost node (OutputExec or ExchangeSinkExec)
+        PhysicalPlan wrapper = coordinatorPlan;
+        PhysicalPlan child;
+        if (wrapper instanceof OutputExec outputExec) {
+            child = outputExec.child();
+        } else if (wrapper instanceof ExchangeSinkExec sinkExec) {
+            child = sinkExec.child();
+        } else {
+            return null;
+        }
+
+        // Step 2: Walk down single-child (UnaryExec) nodes to find the AggregateExec(FINAL).
+        // Collect the intermediate nodes (TopN, Eval, Project, etc.) that sit between the
+        // wrapper and the AggregateExec.
+        java.util.List<UnaryExec> aboveAgg = new java.util.ArrayList<>();
+        PhysicalPlan current = child;
+        AggregateExec aggExec = null;
+
+        while (current != null) {
+            if (current instanceof AggregateExec agg) {
+                aggExec = agg;
+                break;
+            }
+            if (current instanceof UnaryExec unary) {
+                aboveAgg.add(unary);
+                current = unary.child();
+            } else {
+                return null; // unexpected node type
+            }
+        }
+        if (aggExec == null) {
+            return null;
+        }
+
+        // Step 3: Look for a TopNExec in the chain. If found, we can push TopN and everything
+        // below it (down to AggregateExec) into the per-partition final plan. This lets each
+        // partition independently compute its top-K rows, so the output stage only processes
+        // K * numPartitions rows instead of the full result set.
+        int topNIndex = -1;
+        for (int i = 0; i < aboveAgg.size(); i++) {
+            if (aboveAgg.get(i) instanceof TopNExec) {
+                topNIndex = i;
+                break;
+            }
+        }
+
+        if (topNIndex >= 0) {
+            // Split at TopN: push TopN and everything between it and AggregateExec into the final plan.
+            TopNExec topN = (TopNExec) aboveAgg.get(topNIndex);
+            java.util.List<UnaryExec> nodesAboveTopN = aboveAgg.subList(0, topNIndex);
+            java.util.List<UnaryExec> nodesBelowTopN = aboveAgg.subList(topNIndex + 1, aboveAgg.size());
+
+            // Build final plan: TopN → [nodes between TopN and Agg] → AggregateExec → ExchangeSourceExec
+            PhysicalPlan finalChild = (PhysicalPlan) aggExec;
+            for (int i = nodesBelowTopN.size() - 1; i >= 0; i--) {
+                finalChild = nodesBelowTopN.get(i).replaceChild(finalChild);
+            }
+            finalChild = topN.replaceChild(finalChild);
+
+            PhysicalPlan finalPlan = new ExchangeSinkExec(topN.source(), finalChild.output(), false, finalChild);
+
+            // Build output plan: [nodes above TopN] → TopN (global merge) → ExchangeSourceExec
+            PhysicalPlan outputChild = new ExchangeSourceExec(topN.source(), finalChild.output(), false);
+            // Add a duplicate TopN for the global merge (now on K * numPartitions rows)
+            outputChild = topN.replaceChild(outputChild);
+            // Rebuild nodes above TopN from bottom to top
+            for (int i = nodesAboveTopN.size() - 1; i >= 0; i--) {
+                outputChild = nodesAboveTopN.get(i).replaceChild(outputChild);
+            }
+
+            return new Tuple<>(finalPlan, rewrap(wrapper, outputChild));
+        }
+
+        // No TopN found: fall back to putting only the AggregateExec in the final plan.
+        PhysicalPlan finalPlan = new ExchangeSinkExec(aggExec.source(), aggExec.output(), false, aggExec);
+
+        PhysicalPlan outputChild = new ExchangeSourceExec(aggExec.source(), aggExec.output(), false);
+        // Rebuild from bottom (closest to agg) to top
+        for (int i = aboveAgg.size() - 1; i >= 0; i--) {
+            outputChild = aboveAgg.get(i).replaceChild(outputChild);
+        }
+
+        return new Tuple<>(finalPlan, rewrap(wrapper, outputChild));
+    }
+
+    /**
+     * Re-wraps the output child plan with the original outermost node (OutputExec or ExchangeSinkExec).
+     */
+    private static PhysicalPlan rewrap(PhysicalPlan wrapper, PhysicalPlan outputChild) {
+        if (wrapper instanceof OutputExec outputExec) {
+            return new OutputExec(outputChild, outputExec.getPageConsumer());
+        } else if (wrapper instanceof ExchangeSinkExec sinkExec) {
+            return new ExchangeSinkExec(sinkExec.source(), sinkExec.output(), sinkExec.isIntermediateAgg(), outputChild);
+        }
+        return null;
+    }
+
+    /**
+     * Runs the coordinator compute with a partitioned exchange for grouped FINAL hash aggregation.
+     * Sets up 3 stages:
+     * <ol>
+     *   <li>Router: reads from data node exchange, routes pages by partitionId to per-driver buffers</li>
+     *   <li>FINAL: N drivers, each reads from its partition range, runs FINAL agg</li>
+     *   <li>Output: reads from shared exchange, delivers to output/sink</li>
+     * </ol>
+     */
+    void runPartitionedCoordinatorCompute(
+        CancellableTask rootTask,
+        String sessionId,
+        String profileQualifier,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldContext,
+        PhysicalPlan coordinatorPlan,
+        Supplier<ExchangeSource> dataNodeExchangeSource,
+        Supplier<ExchangeSink> outerExchangeSinkSupplier,
+        PlanTimeProfile planTimeProfile,
+        ActionListener<DriverCompletionInfo> listener
+    ) {
+        var split = splitCoordinatorPlanForPartitioning(coordinatorPlan);
+        if (split == null) {
+            // Fallback: run as single compute if plan doesn't match expected pattern
+            runCompute(
+                rootTask,
+                new ComputeContext(
+                    sessionId,
+                    profileDescription(profileQualifier, "final"),
+                    LOCAL_CLUSTER,
+                    flags,
+                    EmptyIndexedByShardId.instance(),
+                    configuration,
+                    foldContext,
+                    dataNodeExchangeSource,
+                    outerExchangeSinkSupplier
+                ),
+                coordinatorPlan,
+                plannerSettings.get(),
+                LocalPhysicalOptimization.ENABLED,
+                planTimeProfile,
+                listener
+            );
+            return;
+        }
+
+        PhysicalPlan finalPlan = split.v1();   // ExchangeSinkExec wrapping ProjectExec -> AggregateExec(FINAL) -> ExchangeSourceExec
+        PhysicalPlan outputPlan = split.v2();  // OutputExec/ExchangeSinkExec wrapping ExchangeSourceExec
+
+        int numFinalDrivers = HashAggregationOperator.computeFinalDriverCount();
+        int numPartitions = numFinalDrivers;
+        QueryPragmas pragmas = configuration.pragmas();
+        var searchExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
+
+        // Stage 1: PartitionedExchangeSinkHandler - routes pages by partitionId
+        var partitionedSinkHandler = new PartitionedExchangeSinkHandler(
+            blockFactory,
+            numPartitions,
+            numFinalDrivers,
+            pragmas.exchangeBufferSize(),
+            transportService.getThreadPool()::relativeTimeInMillis
+        );
+
+        // Stage 2 output: shared ExchangeSinkHandler collects FINAL results from all FINAL drivers
+        var sharedOutputSinkHandler = new ExchangeSinkHandler(
+            blockFactory,
+            pragmas.exchangeBufferSize(),
+            transportService.getThreadPool()::relativeTimeInMillis
+        );
+
+        // Stage 3: ExchangeSourceHandler reads from the shared output sink
+        var outputExchangeSource = new ExchangeSourceHandler(pragmas.exchangeBufferSize(), searchExecutor);
+        outputExchangeSource.addRemoteSink(sharedOutputSinkHandler::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
+
+        // Build the router plan: ExchangeSourceExec -> ExchangeSinkExec (into partitioned sink)
+        // The router just passes through pages from data nodes to the partitioned sink
+        var routerSource = coordinatorPlan.collectFirstChildren(p -> p instanceof ExchangeSourceExec);
+        if (routerSource.isEmpty()) {
+            // Fallback
+            runCompute(
+                rootTask,
+                new ComputeContext(
+                    sessionId,
+                    profileDescription(profileQualifier, "final"),
+                    LOCAL_CLUSTER,
+                    flags,
+                    EmptyIndexedByShardId.instance(),
+                    configuration,
+                    foldContext,
+                    dataNodeExchangeSource,
+                    outerExchangeSinkSupplier
+                ),
+                coordinatorPlan,
+                plannerSettings.get(),
+                LocalPhysicalOptimization.ENABLED,
+                planTimeProfile,
+                listener
+            );
+            return;
+        }
+
+        ExchangeSourceExec routerSourceExec = (ExchangeSourceExec) routerSource.getFirst();
+        PhysicalPlan routerPlan = new ExchangeSinkExec(
+            routerSourceExec.source(),
+            routerSourceExec.output(),
+            routerSourceExec.isIntermediateAgg(),
+            routerSourceExec
+        );
+
+        LOGGER.debug("Running partitioned coordinator compute with {} FINAL drivers", numFinalDrivers);
+
+        try (var computeListener = new ComputeListener(transportService.getThreadPool(), cancelQueryOnFailure(rootTask), listener)) {
+            // Stage 1: Router - reads from data node exchange, writes to partitioned sink
+            runCompute(
+                rootTask,
+                new ComputeContext(
+                    sessionId + "/router",
+                    profileDescription(profileQualifier, "router"),
+                    LOCAL_CLUSTER,
+                    flags,
+                    EmptyIndexedByShardId.instance(),
+                    configuration,
+                    foldContext,
+                    dataNodeExchangeSource,
+                    () -> partitionedSinkHandler.createExchangeSink(() -> {})
+                ),
+                routerPlan,
+                plannerSettings.get(),
+                LocalPhysicalOptimization.ENABLED,
+                planTimeProfile,
+                computeListener.acquireCompute()
+            );
+
+            // Stage 2: N FINAL drivers - each reads from its partition, writes to shared output
+            for (int d = 0; d < numFinalDrivers; d++) {
+                var partitionedSourceHandler = new PartitionedExchangeSourceHandler(
+                    partitionedSinkHandler,
+                    d,
+                    pragmas.exchangeBufferSize(),
+                    searchExecutor
+                );
+                partitionedSourceHandler.startFetching(1, ActionListener.noop());
+
+                runCompute(
+                    rootTask,
+                    new ComputeContext(
+                        sessionId + "/final-" + d,
+                        profileDescription(profileQualifier, "final-" + d),
+                        LOCAL_CLUSTER,
+                        flags,
+                        EmptyIndexedByShardId.instance(),
+                        configuration,
+                        foldContext,
+                        partitionedSourceHandler::createExchangeSource,
+                        () -> sharedOutputSinkHandler.createExchangeSink(() -> {})
+                    ),
+                    finalPlan,
+                    plannerSettings.get(),
+                    LocalPhysicalOptimization.ENABLED,
+                    planTimeProfile,
+                    computeListener.acquireCompute()
+                );
+            }
+
+            // Stage 3: Output - reads from shared exchange, writes to output/outer sink
+            runCompute(
+                rootTask,
+                new ComputeContext(
+                    sessionId + "/output",
+                    profileDescription(profileQualifier, "output"),
+                    LOCAL_CLUSTER,
+                    flags,
+                    EmptyIndexedByShardId.instance(),
+                    configuration,
+                    foldContext,
+                    outputExchangeSource::createExchangeSource,
+                    outerExchangeSinkSupplier
+                ),
+                outputPlan,
+                plannerSettings.get(),
+                LocalPhysicalOptimization.ENABLED,
+                planTimeProfile,
+                computeListener.acquireCompute()
+            );
+        }
     }
 
     // public for testing

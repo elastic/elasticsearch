@@ -21,20 +21,25 @@ import org.elasticsearch.compute.data.BlockUtils;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.test.BlockTestUtils;
 import org.elasticsearch.compute.test.operator.blocksource.TupleLongLongBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.LongStream;
 
 import static java.util.stream.IntStream.range;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
     @Override
@@ -88,20 +93,32 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
-        assertThat(results, hasSize(1));
-        assertThat(results.get(0).getBlockCount(), equalTo(3));
-        assertThat(results.get(0).getPositionCount(), equalTo(5));
+        // With partitioning, results may be spread across multiple pages
+        int totalPositions = results.stream().mapToInt(Page::getPositionCount).sum();
+        assertThat(totalPositions, equalTo(5));
+
+        // Verify each page has a valid and unique partition ID
+        Set<Integer> seenPartitionIds = new HashSet<>();
+        for (Page page : results) {
+            int partitionId = page.getPartitionId();
+            assertThat("partitionId should be in [0, 256)", partitionId, greaterThanOrEqualTo(0));
+            assertThat("partitionId should be in [0, 256)", partitionId, lessThan(256));
+            assertTrue("duplicate partitionId " + partitionId, seenPartitionIds.add(partitionId));
+        }
 
         SumLongGroupingAggregatorFunctionTests sum = new SumLongGroupingAggregatorFunctionTests();
         MaxLongGroupingAggregatorFunctionTests max = new MaxLongGroupingAggregatorFunctionTests();
 
-        LongBlock groups = results.get(0).getBlock(0);
-        Block sums = results.get(0).getBlock(1);
-        Block maxs = results.get(0).getBlock(2);
-        for (int i = 0; i < 5; i++) {
-            long group = groups.getLong(i);
-            sum.assertSimpleGroup(input, sums, i, group);
-            max.assertSimpleGroup(input, maxs, i, group);
+        for (Page page : results) {
+            assertThat(page.getBlockCount(), equalTo(3));
+            LongBlock groups = page.getBlock(0);
+            Block sums = page.getBlock(1);
+            Block maxs = page.getBlock(2);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                long group = groups.getLong(i);
+                sum.assertSimpleGroup(input, sums, i, group);
+                max.assertSimpleGroup(input, maxs, i, group);
+            }
         }
     }
 
@@ -159,28 +176,12 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
             operator.finish();
 
-            var outputPage = operator.getOutput();
+            Map<Long, long[]> collected = collectByRow(drainOutput(operator));
 
-            var groupsBlock = (LongBlock) outputPage.getBlock(0);
-            var sumBlock = (LongBlock) outputPage.getBlock(1);
-            var maxBlock = (LongBlock) outputPage.getBlock(2);
-
-            assertThat(groupsBlock.getPositionCount(), equalTo(3));
-            assertThat(sumBlock.getPositionCount(), equalTo(3));
-            assertThat(maxBlock.getPositionCount(), equalTo(3));
-
-            assertThat(groupsBlock.getTotalValueCount(), equalTo(3));
-            assertThat(sumBlock.getTotalValueCount(), equalTo(3));
-            assertThat(maxBlock.getTotalValueCount(), equalTo(3));
-
-            assertThat(
-                BlockTestUtils.valuesAtPositions(groupsBlock, 0, 3),
-                equalTo(List.of(List.of(groups[3]), List.of(groups[5]), List.of(groups[4])))
-            );
-            assertThat(BlockTestUtils.valuesAtPositions(sumBlock, 0, 3), equalTo(List.of(List.of(24L), List.of(192L), List.of(32L))));
-            assertThat(BlockTestUtils.valuesAtPositions(maxBlock, 0, 3), equalTo(List.of(List.of(16L), List.of(128L), List.of(32L))));
-
-            outputPage.releaseBlocks();
+            assertThat(collected.size(), equalTo(3));
+            assertThat(collected.get(groups[3]), equalTo(new long[] { 24L, 16L }));
+            assertThat(collected.get(groups[5]), equalTo(new long[] { 192L, 128L }));
+            assertThat(collected.get(groups[4]), equalTo(new long[] { 32L, 32L }));
         }
     }
 
@@ -238,29 +239,48 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
             operator.finish();
 
-            var outputPage = operator.getOutput();
+            // Use null key in the map for the null group
+            Map<Long, long[]> collected = collectByRow(drainOutput(operator));
 
-            var groupsBlock = (LongBlock) outputPage.getBlock(0);
-            var sumBlock = (LongBlock) outputPage.getBlock(1);
-            var maxBlock = (LongBlock) outputPage.getBlock(2);
-
-            assertThat(groupsBlock.getPositionCount(), equalTo(3));
-            assertThat(sumBlock.getPositionCount(), equalTo(3));
-            assertThat(maxBlock.getPositionCount(), equalTo(3));
-
-            assertThat(groupsBlock.getTotalValueCount(), equalTo(2));
-            assertThat(sumBlock.getTotalValueCount(), equalTo(3));
-            assertThat(maxBlock.getTotalValueCount(), equalTo(3));
-
-            assertThat(
-                BlockTestUtils.valuesAtPositions(groupsBlock, 0, 3),
-                equalTo(Arrays.asList(null, List.of(groups[5]), List.of(groups[4])))
-            );
-            assertThat(BlockTestUtils.valuesAtPositions(sumBlock, 0, 3), equalTo(List.of(List.of(513L), List.of(192L), List.of(32L))));
-            assertThat(BlockTestUtils.valuesAtPositions(maxBlock, 0, 3), equalTo(List.of(List.of(512L), List.of(128L), List.of(32L))));
-
-            outputPage.releaseBlocks();
+            assertThat(collected.size(), equalTo(3));
+            assertThat(collected.get(null), equalTo(new long[] { 513L, 512L }));
+            assertThat(collected.get(groups[5]), equalTo(new long[] { 192L, 128L }));
+            assertThat(collected.get(groups[4]), equalTo(new long[] { 32L, 32L }));
         }
+    }
+
+    /**
+     * Drains all available output pages from an operator, releasing them from the operator's internal queue.
+     */
+    private static List<Page> drainOutput(Operator operator) {
+        List<Page> pages = new ArrayList<>();
+        Page p;
+        while ((p = operator.getOutput()) != null) {
+            pages.add(p);
+        }
+        return pages;
+    }
+
+    /**
+     * Collects test results from (potentially multiple) output pages into a map from group key to [sum, max].
+     * Uses {@code null} as the map key for null group values.
+     * Pages are released after collection.
+     */
+    private static Map<Long, long[]> collectByRow(List<Page> pages) {
+        Map<Long, long[]> results = new HashMap<>();
+        for (Page page : pages) {
+            LongBlock groupsBlock = page.getBlock(0);
+            LongBlock sumBlock = page.getBlock(1);
+            LongBlock maxBlock = page.getBlock(2);
+            for (int i = 0; i < page.getPositionCount(); i++) {
+                Long group = groupsBlock.isNull(i) ? null : groupsBlock.getLong(groupsBlock.getFirstValueIndex(i));
+                long sum = sumBlock.getLong(sumBlock.getFirstValueIndex(i));
+                long max = maxBlock.getLong(maxBlock.getFirstValueIndex(i));
+                results.put(group, new long[] { sum, max });
+            }
+            page.releaseBlocks();
+        }
+        return results;
     }
 
     /**
@@ -307,8 +327,10 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 datanodeOperator.addInput(page);
                 datanodeOperator.finish();
 
-                var outputPage = datanodeOperator.getOutput();
-                collectingOperator.addInput(outputPage);
+                // Drain all partitioned output pages and feed to the collecting operator
+                for (Page outputPage : drainOutput(datanodeOperator)) {
+                    collectingOperator.addInput(outputPage);
+                }
             }
 
             // Second datanode, sending an outdated TopN, as the coordinator has better top values already
@@ -326,34 +348,20 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
                 datanodeOperator.addInput(page);
                 datanodeOperator.finish();
 
-                var outputPage = datanodeOperator.getOutput();
-                collectingOperator.addInput(outputPage);
+                // Drain all partitioned output pages and feed to the collecting operator
+                for (Page outputPage : drainOutput(datanodeOperator)) {
+                    collectingOperator.addInput(outputPage);
+                }
             }
 
             collectingOperator.finish();
 
-            var outputPage = collectingOperator.getOutput();
+            Map<Long, long[]> collected = collectByRow(drainOutput(collectingOperator));
 
-            var groupsBlock = (LongBlock) outputPage.getBlock(0);
-            var sumBlock = (LongBlock) outputPage.getBlock(1);
-            var maxBlock = (LongBlock) outputPage.getBlock(2);
-
-            assertThat(groupsBlock.getPositionCount(), equalTo(3));
-            assertThat(sumBlock.getPositionCount(), equalTo(3));
-            assertThat(maxBlock.getPositionCount(), equalTo(3));
-
-            assertThat(groupsBlock.getTotalValueCount(), equalTo(3));
-            assertThat(sumBlock.getTotalValueCount(), equalTo(3));
-            assertThat(maxBlock.getTotalValueCount(), equalTo(3));
-
-            assertThat(
-                BlockTestUtils.valuesAtPositions(groupsBlock, 0, 3),
-                equalTo(Arrays.asList(List.of(groups[4]), List.of(groups[3]), List.of(groups[5])))
-            );
-            assertThat(BlockTestUtils.valuesAtPositions(sumBlock, 0, 3), equalTo(List.of(List.of(1L), List.of(18L), List.of(8L))));
-            assertThat(BlockTestUtils.valuesAtPositions(maxBlock, 0, 3), equalTo(List.of(List.of(1L), List.of(16L), List.of(8L))));
-
-            outputPage.releaseBlocks();
+            assertThat(collected.size(), equalTo(3));
+            assertThat(collected.get(groups[4]), equalTo(new long[] { 1L, 1L }));
+            assertThat(collected.get(groups[3]), equalTo(new long[] { 18L, 16L }));
+            assertThat(collected.get(groups[5]), equalTo(new long[] { 8L, 8L }));
         }
     }
 }

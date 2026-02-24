@@ -337,7 +337,9 @@ $elseif(float||int||BytesRef)$
                 long both = hashes.get(id);
                 int group = (int) (both >>> Float.SIZE);
 $endif$
-                ids[selectedCounts[group]++] = id;
+                if (group < selectedCounts.length && selectedCounts[group] >= 0) {
+                    ids[selectedCounts[group]++] = id;
+                }
             }
         }
 

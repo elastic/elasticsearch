@@ -315,7 +315,10 @@ public class BlockTestUtils {
         for (int i = 0; i < blockCopies.length; i++) {
             blockCopies[i] = page.getBlock(i).deepCopy(blockFactory);
         }
-        return new Page(blockCopies);
+        if (page.getPartitionId() == Page.NO_PARTITION) {
+            return new Page(blockCopies);
+        }
+        return Page.withPartitionId(page.getPartitionId(), blockCopies);
     }
 
     public static List<Page> deepCopyOf(List<Page> pages, BlockFactory blockFactory) {

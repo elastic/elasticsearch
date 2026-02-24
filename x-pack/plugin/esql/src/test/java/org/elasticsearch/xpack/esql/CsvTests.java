@@ -36,6 +36,8 @@ import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.compute.operator.exchange.ExchangeSinkHandler;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceHandler;
+import org.elasticsearch.compute.operator.exchange.PartitionedExchangeSinkHandler;
+import org.elasticsearch.compute.operator.exchange.PartitionedExchangeSourceHandler;
 import org.elasticsearch.compute.querydsl.query.SingleValueMatchQuery;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -94,6 +96,8 @@ import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ChangePointExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
+import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MMRExec;
@@ -107,6 +111,7 @@ import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.planner.TestPhysicalOperationProviders;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -909,14 +914,122 @@ public class CsvTests extends ESTestCase {
 
         // replace fragment inside the coordinator plan
         List<Driver> drivers = new ArrayList<>();
-        LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(
-            "final",
-            foldCtx,
-            PlannerSettings.DEFAULTS,
-            new OutputExec(coordinatorPlan, collectedPages::add),
-            EmptyIndexedByShardId.instance()
-        );
-        drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
+        if (dataNodePlan != null && ComputeService.hasGroupedFinalAgg(coordinatorPlan)) {
+            // Use partitioned exchange for grouped FINAL hash aggregation
+            int numFinalDrivers = 2;
+            int numPartitions = numFinalDrivers;
+
+            // Partitioned sink handler routes pages by partitionId to per-driver buffers
+            var partitionedSinkHandler = new PartitionedExchangeSinkHandler(
+                blockFactory,
+                numPartitions,
+                numFinalDrivers,
+                between(1, 64),
+                threadPool::relativeTimeInMillis
+            );
+
+            // Shared output exchange collects FINAL results from all FINAL drivers
+            var sharedOutputSinkHandler = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
+            var outputExchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
+            outputExchangeSource.addRemoteSink(
+                sharedOutputSinkHandler::fetchPageAsync,
+                true,
+                () -> {},
+                1,
+                ActionListener.<Void>noop().delegateResponse((l, e) -> {
+                    throw new AssertionError("expected no failure", e);
+                })
+            );
+
+            // Stage 1: Router plan - reads from data node exchange, writes to partitioned sink
+            ExchangeSourceExec routerSourceExec = (ExchangeSourceExec) coordinatorPlan.collectFirstChildren(
+                p -> p instanceof ExchangeSourceExec
+            ).getFirst();
+            PhysicalPlan routerPlan = new ExchangeSinkExec(
+                routerSourceExec.source(),
+                routerSourceExec.output(),
+                routerSourceExec.isIntermediateAgg(),
+                routerSourceExec
+            );
+            LocalExecutionPlanner routerPlanner = new LocalExecutionPlanner(
+                getTestName(),
+                "",
+                new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
+                bigArrays,
+                blockFactory,
+                randomNodeSettings(),
+                configuration,
+                exchangeSource::createExchangeSource,
+                () -> partitionedSinkHandler.createExchangeSink(() -> {}),
+                mock(EnrichLookupService.class),
+                mock(LookupFromIndexService.class),
+                mock(InferenceService.class),
+                physicalOperationProviders
+            );
+            drivers.addAll(
+                routerPlanner.plan("router", foldCtx, PlannerSettings.DEFAULTS, routerPlan, EmptyIndexedByShardId.instance())
+                    .createDrivers(getTestName())
+            );
+
+            // Stage 2: N FINAL drivers - each reads from its partition, writes to shared output
+            var split = ComputeService.splitCoordinatorPlanForPartitioning(new OutputExec(coordinatorPlan, collectedPages::add));
+            PhysicalPlan finalPlan = split.v1();
+            for (int d = 0; d < numFinalDrivers; d++) {
+                var partitionedSourceHandler = new PartitionedExchangeSourceHandler(partitionedSinkHandler, d, between(1, 64), executor);
+                partitionedSourceHandler.startFetching(1, ActionListener.noop());
+
+                LocalExecutionPlanner finalPlanner = new LocalExecutionPlanner(
+                    getTestName(),
+                    "",
+                    new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
+                    bigArrays,
+                    blockFactory,
+                    randomNodeSettings(),
+                    configuration,
+                    partitionedSourceHandler::createExchangeSource,
+                    () -> sharedOutputSinkHandler.createExchangeSink(() -> {}),
+                    mock(EnrichLookupService.class),
+                    mock(LookupFromIndexService.class),
+                    mock(InferenceService.class),
+                    physicalOperationProviders
+                );
+                drivers.addAll(
+                    finalPlanner.plan("final-" + d, foldCtx, PlannerSettings.DEFAULTS, finalPlan, EmptyIndexedByShardId.instance())
+                        .createDrivers(getTestName())
+                );
+            }
+
+            // Stage 3: Output plan - reads from shared exchange, delivers to output
+            PhysicalPlan outputPlan = split.v2();
+            LocalExecutionPlanner outputPlanner = new LocalExecutionPlanner(
+                getTestName(),
+                "",
+                new CancellableTask(1, "transport", "esql", null, TaskId.EMPTY_TASK_ID, Map.of()),
+                bigArrays,
+                blockFactory,
+                randomNodeSettings(),
+                configuration,
+                outputExchangeSource::createExchangeSource,
+                null,
+                mock(EnrichLookupService.class),
+                mock(LookupFromIndexService.class),
+                mock(InferenceService.class),
+                physicalOperationProviders
+            );
+            drivers.addAll(
+                outputPlanner.plan("output", foldCtx, PlannerSettings.DEFAULTS, outputPlan, EmptyIndexedByShardId.instance())
+                    .createDrivers(getTestName())
+            );
+        } else {
+            LocalExecutionPlan coordinatorNodeExecutionPlan = executionPlanner.plan(
+                "final",
+                foldCtx,
+                PlannerSettings.DEFAULTS,
+                new OutputExec(coordinatorPlan, collectedPages::add),
+                EmptyIndexedByShardId.instance()
+            );
+            drivers.addAll(coordinatorNodeExecutionPlan.createDrivers(getTestName()));
+        }
         if (dataNodePlan != null) {
             var searchStats = new DisabledSearchStats();
             var logicalTestOptimizer = new LocalLogicalPlanOptimizer(new LocalLogicalOptimizerContext(configuration, foldCtx, searchStats));

@@ -257,14 +257,24 @@ public class WriteLoadConstraintMonitor {
     }
 
     private Collection<LongWithAttributes> getHotspottingNodeFlags() {
+        final ClusterState state = clusterStateSupplier.get();
         final Map<NodeIdName, Long> hotspotNodeStartTimesView = hotspotNodeStartTimes;
-        List<LongWithAttributes> hotspottingNodeFlags = new ArrayList<>(hotspotNodeStartTimesView.size());
-        for (NodeIdName nodeIdName : hotspotNodeStartTimesView.keySet()) {
-            hotspottingNodeFlags.add(
-                new LongWithAttributes(1L, Map.of("es_node_id", nodeIdName.nodeId(), "es_node_name", nodeIdName.nodeName()))
+
+        List<LongWithAttributes> nodeHotspotStatus = new ArrayList<>(state.nodes().size());
+
+        for (var node : state.nodes()) {
+            final var nodeRoles = node.getRoles();
+            if (nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE) || nodeRoles.contains(DiscoveryNodeRole.ML_ROLE)) {
+                // TODO (ES-13314): consider stateful data tiers
+                continue;
+            }
+            NodeIdName nodeIdName = NodeIdName.nodeIdName(node);
+            long flagValue = hotspotNodeStartTimesView.containsKey(nodeIdName) ? 1L : 0L;
+            nodeHotspotStatus.add(
+                new LongWithAttributes(flagValue, Map.of("es_node_id", nodeIdName.nodeId(), "es_node_name", nodeIdName.nodeName()))
             );
         }
-        return hotspottingNodeFlags;
+        return nodeHotspotStatus;
     }
 
     public record NodeIdName(String nodeId, String nodeName) {

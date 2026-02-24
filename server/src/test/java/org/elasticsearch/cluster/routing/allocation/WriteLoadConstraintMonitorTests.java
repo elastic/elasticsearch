@@ -352,7 +352,9 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         );
 
         recordingMeterRegistry.getRecorder().collect();
-        assertMetricsCollected(recordingMeterRegistry, List.of(), Map.of(), Map.of());
+        Map<String, List<Long>> flagCounts = new HashMap<>();
+        recordHotspotStatusFlags(flagCounts, Set.of(), clusterState);
+        assertMetricsCollected(recordingMeterRegistry, List.of(), Map.of(), flagCounts);
     }
 
     public void testZeroHotspotCount() {
@@ -372,14 +374,16 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
 
         recordingMeterRegistry.getRecorder().collect();
-        assertMetricsCollected(recordingMeterRegistry, List.of(0L), Map.of(), Map.of());
+        Map<String, List<Long>> flagCounts = new HashMap<>();
+        recordHotspotStatusFlags(flagCounts, Set.of(), clusterState);
+        assertMetricsCollected(recordingMeterRegistry, List.of(0L), Map.of(), flagCounts);
     }
 
     public void testHotspotCountTurnsOff() {
         /* Test that collecting metrics without calling WriteLoadConstraintMonitor::onNewInfo returns no new data,
         and that changing the term on cluster state clears the hotspot duration table */
         TestState testState = createTestStateWithNumberOfNodesAndHotSpots(10, 1, 1, 2, true);
-        Map<String, Long> hotspotFlagCounts = new HashMap<>();
+        Map<String, List<Long>> hotspotFlagCounts = new HashMap<>();
 
         final long nowMillis = System.currentTimeMillis();
         final AtomicLong currentTimeMillis = new AtomicLong(nowMillis);
@@ -397,7 +401,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
 
         recordingMeterRegistry.getRecorder().collect();
-        incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
+        recordHotspotStatusFlags(hotspotFlagCounts, testState.hotspotNodeIds, testState.clusterState);
         assertMetricsCollected(recordingMeterRegistry, List.of(2L), Map.of(), hotspotFlagCounts);
 
         // remove one of two nodes from the hotspot, to create one finished duration and one in-progress
@@ -409,13 +413,13 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
 
         recordingMeterRegistry.getRecorder().collect();
-        incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
+        recordHotspotStatusFlags(hotspotFlagCounts, testState.hotspotNodeIds, testState.clusterState);
         assertMetricsCollected(recordingMeterRegistry, List.of(2L, 1L), Map.of(removeId, List.of(duration / 1000.0)), hotspotFlagCounts);
 
         // no count is issued for this collection round, as onNewInfo hasn't been called
         // (but the async hotspot flags have been recollected)
         recordingMeterRegistry.getRecorder().collect();
-        incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
+        recordHotspotStatusFlags(hotspotFlagCounts, testState.hotspotNodeIds, testState.clusterState);
         assertMetricsCollected(recordingMeterRegistry, List.of(2L, 1L), Map.of(removeId, List.of(duration / 1000.0)), hotspotFlagCounts);
 
         // change cluster state term, and see that the hotspot table is reset
@@ -425,7 +429,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo);
         recordingMeterRegistry.getRecorder().collect();
-        incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
+        recordHotspotStatusFlags(hotspotFlagCounts, testState.hotspotNodeIds, testState.clusterState);
         assertMetricsCollected(
             recordingMeterRegistry,
             List.of(2L, 1L, 0L),
@@ -436,7 +440,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
     public void testHotspotDurationsAreRecorded() {
         TestState testState = createTestStateWithNumberOfNodesAndHotSpots(10, 1, 1, 5);
-        Map<String, Long> hotspotFlagCounts = new HashMap<>();
+        Map<String, List<Long>> hotspotFlagCounts = new HashMap<>();
 
         final long nowMillis = System.currentTimeMillis();
         final AtomicLong currentTimeMillis = new AtomicLong(nowMillis);
@@ -462,7 +466,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         // check hotspot currently is set up in the counter
         recordingMeterRegistry.getRecorder().collect();
-        incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
+        recordHotspotStatusFlags(hotspotFlagCounts, testState.hotspotNodeIds, testState.clusterState);
         assertMetricsCollected(recordingMeterRegistry, hotspotSizes, Map.of(), hotspotFlagCounts);
 
         // add a node, and see hotspot count go up
@@ -476,7 +480,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         reset(testState.mockRerouteService);
 
         recordingMeterRegistry.getRecorder().collect();
-        incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
+        recordHotspotStatusFlags(hotspotFlagCounts, testState.hotspotNodeIds, testState.clusterState);
         assertMetricsCollected(recordingMeterRegistry, hotspotSizes, Map.of(), hotspotFlagCounts);
 
         // remove a node, and see the count go down and a duration issued
@@ -487,7 +491,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         writeLoadConstraintMonitor.onNewInfo(testState.clusterInfo());
         recordingMeterRegistry.getRecorder().collect();
-        incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
+        recordHotspotStatusFlags(hotspotFlagCounts, testState.hotspotNodeIds, testState.clusterState);
         assertMetricsCollected(
             recordingMeterRegistry,
             hotspotSizes,
@@ -512,7 +516,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             hotspotDurations.put(nodeId, List.of((millisAddedFirst + millisAddedSecond + millisAddedThird) / 1000.0));
         }
         recordingMeterRegistry.getRecorder().collect();
-        incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
+        recordHotspotStatusFlags(hotspotFlagCounts, testState.hotspotNodeIds, testState.clusterState);
         assertMetricsCollected(recordingMeterRegistry, hotspotSizes, hotspotDurations, hotspotFlagCounts);
 
         // remove the last node from the series, and see the last duration issued
@@ -528,7 +532,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             List.of((millisAddedSecond + millisAddedThird + millisAddedFourth) / 1000.0)
         );
         recordingMeterRegistry.getRecorder().collect();
-        incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
+        recordHotspotStatusFlags(hotspotFlagCounts, testState.hotspotNodeIds, testState.clusterState);
         assertMetricsCollected(recordingMeterRegistry, hotspotSizes, hotspotDurations, hotspotFlagCounts);
     }
 
@@ -555,8 +559,8 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         // a NPE will crash out here...
         writeLoadConstraintMonitor.onNewInfo(testStateUpdated.clusterInfo);
 
-        Map<String, Long> hotspotFlagCounts = new HashMap<>();
-        incrementHotspotFlagCounts(hotspotFlagCounts, testStateUpdated.hotspotNodeIds());
+        Map<String, List<Long>> hotspotFlagCounts = new HashMap<>();
+        recordHotspotStatusFlags(hotspotFlagCounts, testStateUpdated.hotspotNodeIds(), testStateUpdated.clusterState);
         recordingMeterRegistry.getRecorder().collect();
         assertMetricsCollected(recordingMeterRegistry, List.of(4L), Map.of(), hotspotFlagCounts);
     }
@@ -583,8 +587,8 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         reset(testState.mockRerouteService);
 
         // check initial metrics set
-        Map<String, Long> hotspotFlagCounts = new HashMap<>();
-        incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds());
+        Map<String, List<Long>> hotspotFlagCounts = new HashMap<>();
+        recordHotspotStatusFlags(hotspotFlagCounts, testState.hotspotNodeIds(), testState.clusterState);
         recordingMeterRegistry.getRecorder().collect();
         assertMetricsCollected(recordingMeterRegistry, List.of(5L), Map.of(), hotspotFlagCounts);
 
@@ -606,7 +610,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         Set<String> incrementedHotspotSet = new HashSet<>(testStateUpdated.hotspotNodeIds());
         // manually remove, as it is in cluster info but won't be counted in the metrics
         incrementedHotspotSet.remove(removeHotspotId);
-        incrementHotspotFlagCounts(hotspotFlagCounts, incrementedHotspotSet);
+        recordHotspotStatusFlags(hotspotFlagCounts, incrementedHotspotSet, testStateUpdated.clusterState);
 
         recordingMeterRegistry.getRecorder().collect();
         assertMetricsCollected(
@@ -620,7 +624,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
     public void testClusterMembershipChanges() {
         /* test that a cluster membership change of a hotspot node records its duration */
         final TestState testState = createTestStateWithNumberOfNodesAndHotSpots(10, 1, 1, 5, true);
-        Map<String, Long> hotspotFlagCounts = new HashMap<>();
+        Map<String, List<Long>> hotspotFlagCounts = new HashMap<>();
 
         final AtomicLong currentTimeMillis = new AtomicLong(System.currentTimeMillis());
         final AtomicReference<ClusterState> clusterStateRef = new AtomicReference<>(testState.clusterState());
@@ -643,7 +647,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
 
         // check hotspot currently is set up in the counter
         recordingMeterRegistry.getRecorder().collect();
-        incrementHotspotFlagCounts(hotspotFlagCounts, testState.hotspotNodeIds);
+        recordHotspotStatusFlags(hotspotFlagCounts, testState.hotspotNodeIds, testState.clusterState);
         assertMetricsCollected(recordingMeterRegistry, hotspotSizes, Map.of(), hotspotFlagCounts);
 
         // remove a node from cluster info and cluster state that isn't the master
@@ -661,7 +665,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         writeLoadConstraintMonitor.onNewInfo(testStateUpdated.clusterInfo());
 
         recordingMeterRegistry.getRecorder().collect();
-        incrementHotspotFlagCounts(hotspotFlagCounts, testStateUpdated.hotspotNodeIds);
+        recordHotspotStatusFlags(hotspotFlagCounts, testStateUpdated.hotspotNodeIds, testStateUpdated.clusterState);
         assertMetricsCollected(
             recordingMeterRegistry,
             hotspotSizes,
@@ -1000,7 +1004,7 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
         RecordingMeterRegistry recordingMeterRegistry,
         List<Long> hotspotCounts,
         Map<String, List<Double>> hotspotDurations,
-        Map<String, Long> hotspotFlagCounts
+        Map<String, List<Long>> hotspotFlagCounts
     ) {
         MetricRecorder<Instrument> metricRecorder = recordingMeterRegistry.getRecorder();
 
@@ -1034,15 +1038,23 @@ public class WriteLoadConstraintMonitorTests extends ESTestCase {
             attrs -> (String) attrs.get("es_node_id"),
             measurement -> measurement.getLong()
         );
-        Map<String, Long> measuredHotspotFlagCounts = measuredHotspotFlags.entrySet()
-            .stream()
-            .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().stream().reduce(0L, Long::sum)));
-        assertEquals(hotspotFlagCounts, measuredHotspotFlagCounts);
+        assertEquals(hotspotFlagCounts, measuredHotspotFlags);
     }
 
-    private void incrementHotspotFlagCounts(Map<String, Long> hotspotFlagCounts, Set<String> hotspotFlags) {
-        for (String nodeId : hotspotFlags) {
-            hotspotFlagCounts.put(nodeId, hotspotFlagCounts.getOrDefault(nodeId, 0L) + 1L);
+    private void recordHotspotStatusFlags(Map<String, List<Long>> hotspotFlagCounts, Set<String> hotspotFlags, ClusterState state) {
+        for (var node : state.nodes()) {
+            final var nodeRoles = node.getRoles();
+            if (nodeRoles.contains(DiscoveryNodeRole.SEARCH_ROLE) || nodeRoles.contains(DiscoveryNodeRole.ML_ROLE)) {
+                // TODO (ES-13314): consider stateful data tiers
+                continue;
+            }
+            var nodeId = node.getId();
+            List<Long> nodeHotspotFlagCounts = hotspotFlagCounts.get(nodeId);
+            if (nodeHotspotFlagCounts == null) {
+                nodeHotspotFlagCounts = new ArrayList<>();
+                hotspotFlagCounts.put(nodeId, nodeHotspotFlagCounts);
+            }
+            nodeHotspotFlagCounts.add(hotspotFlags.contains(nodeId) ? 1L : 0L);
         }
     }
 }

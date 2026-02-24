@@ -43,7 +43,7 @@ public class JsonExtractSourceIT extends AbstractEsqlIntegTestCase {
     }
 
     private void doTestJsonExtractFromSource(XContentType xContentType) throws IOException {
-        String index = "test_json_extract_" + xContentType.name().toLowerCase();
+        String index = "test_json_extract_" + xContentType.name().toLowerCase(java.util.Locale.ROOT);
         createIndex(index, Settings.builder().put("index.number_of_shards", 1).build());
 
         // Index documents using the specified XContent encoding

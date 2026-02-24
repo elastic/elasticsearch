@@ -93,6 +93,8 @@ public class ReplicasLoadBalancingScaler {
         Setting.Property.OperatorDynamic
     );
 
+    static final String METRIC_INDICES_STATS_ERRORS = "es.autoscaling.search.indices_stats_errors.total";
+
     public static final SortedMap<String, Integer> EMPTY_DESIRED_REPLICAS_PER_INDEX = new TreeMap<>();
     public static final ReplicasLoadBalancingResult EMPTY_RESULT = new ReplicasLoadBalancingResult(
         Map.of(),
@@ -110,7 +112,7 @@ public class ReplicasLoadBalancingScaler {
         this.client = client;
         this.clusterService = clusterService;
         this.indicesStatsErrors = meterRegistry.registerLongCounter(
-            "es.autoscaling.search.indices_stats_errors.total",
+            METRIC_INDICES_STATS_ERRORS,
             "The number of times there was an error getting indices stats, which are required to scale replicas for load balancing.",
             "errors"
         );

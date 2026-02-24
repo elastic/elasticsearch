@@ -13,11 +13,15 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.blockloader.ConstantBytes;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
@@ -179,7 +183,7 @@ public interface BlockLoader {
         return new ConstantBytes(value);
     }
 
-    interface Reader {
+    interface Reader extends Releasable {
         /**
          * Checks if the reader can be used to read a range documents starting with the given docID by the current thread.
          */
@@ -248,7 +252,39 @@ public interface BlockLoader {
         @Nullable
         BlockLoader.Block tryReadLength(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException;
 
+        /**
+         * Converts the length of each binary value associated with documents into a {@link NumericDocValues} representation.
+         * The {@code NumericDocValues} returned provides access to the length of each binary value for each document and
+         * this can be accesed via {@link NumericDocValues#longValue()}.
+         *
+         * @return a {@link NumericDocValues} instance containing the length values, or {@code null} if
+         *         unable to load the values due to unsupported underlying data or other constraints.
+         */
         NumericDocValues toLengthValues();
+
+        /**
+         * Creates a {@link DocIdSetIterator} that matches documents based on the specified length value.
+         * The returned iterator will iterate over all documents whose length value equals the given length.
+         *
+         * @param length the length value to match against the documents.
+         * @return a {@link DocIdSetIterator} to iterate over documents matching the specified length value.
+         * @throws IOException if an I/O error occurs while reading the length values.
+         */
+        default DocIdSetIterator lengthIterator(int length) throws IOException {
+            NumericDocValues lengthReader = toLengthValues();
+            assert lengthReader != null;
+            return TwoPhaseIterator.asDocIdSetIterator(new TwoPhaseIterator(lengthReader) {
+                @Override
+                public boolean matches() throws IOException {
+                    return lengthReader.longValue() == length;
+                }
+
+                @Override
+                public float matchCost() {
+                    return 10;
+                }
+            });
+        }
     }
 
     interface RowStrideReader extends Reader {
@@ -306,7 +342,7 @@ public interface BlockLoader {
      * {@code null}. If this returns null then {@link #rowStrideReader} may not.
      */
     @Nullable
-    IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException;
+    IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException;
 
     /**
      * Build a row-by-row reader. <strong>May</strong> return {@code null} if the
@@ -315,7 +351,7 @@ public interface BlockLoader {
      * {@link #columnAtATimeReader} returns null. This may not return null if
      * {@link #columnAtATimeReader} does.
      */
-    RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException;
+    RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException;
 
     /**
      * What {@code stored} fields are needed by this reader.
@@ -382,7 +418,7 @@ public interface BlockLoader {
         protected abstract boolean canUsePreferLoaderForDoc(int docId) throws IOException;
 
         @Override
-        public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException {
+        public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) throws IOException {
             if (canUsePreferLoaderForLeaf(context)) {
                 return preferLoader.columnAtATimeReader(context);
             } else {
@@ -391,15 +427,15 @@ public interface BlockLoader {
         }
 
         @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
             if (preferLoader.rowStrideStoredFieldSpec().noRequirements() == false) {
-                return fallbackLoader.rowStrideReader(context);
+                return fallbackLoader.rowStrideReader(breaker, context);
             }
-            RowStrideReader preferReader = preferLoader.rowStrideReader(context);
+            RowStrideReader preferReader = preferLoader.rowStrideReader(breaker, context);
             if (canUsePreferLoaderForLeaf(context)) {
                 return preferReader;
             }
-            RowStrideReader fallbackReader = fallbackLoader.rowStrideReader(context);
+            RowStrideReader fallbackReader = fallbackLoader.rowStrideReader(breaker, context);
             return new RowStrideReader() {
                 @Override
                 public void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
@@ -413,6 +449,11 @@ public interface BlockLoader {
                 @Override
                 public boolean canReuse(int startingDocID) {
                     return fallbackReader.canReuse(startingDocID) && preferReader.canReuse(startingDocID);
+                }
+
+                @Override
+                public void close() {
+                    Releasables.close(preferReader, fallbackReader);
                 }
             };
         }

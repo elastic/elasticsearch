@@ -467,6 +467,12 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitFuseKeyByFields(EsqlBaseParser.FuseKeyByFieldsContext ctx);
   /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#metricsInfoCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitMetricsInfoCommand(EsqlBaseParser.MetricsInfoCommandContext ctx);
+  /**
    * Visit a parse tree produced by {@link EsqlBaseParser#lookupCommand}.
    * @param ctx the parse tree
    * @return the visitor result
@@ -478,6 +484,18 @@ public interface EsqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    * @return the visitor result
    */
   T visitInsistCommand(EsqlBaseParser.InsistCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#uriPartsCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitUriPartsCommand(EsqlBaseParser.UriPartsCommandContext ctx);
+  /**
+   * Visit a parse tree produced by {@link EsqlBaseParser#registeredDomainCommand}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitRegisteredDomainCommand(EsqlBaseParser.RegisteredDomainCommandContext ctx);
   /**
    * Visit a parse tree produced by {@link EsqlBaseParser#setCommand}.
    * @param ctx the parse tree

@@ -28,6 +28,16 @@ public final class PatternTextDocValues extends BinaryDocValues {
     }
 
     /**
+     * Creates a {@link PatternTextDocValues} by loading the template, args, and args_info doc values from the given leaf reader.
+     */
+    static PatternTextDocValues from(LeafReader leafReader, PatternTextFieldType fieldType) throws IOException {
+        SortedSetDocValues templateDocValues = DocValues.getSortedSet(leafReader, fieldType.templateFieldName());
+        BinaryDocValues argsDocValues = getArgsDocValues(leafReader, fieldType.argsFieldName(), fieldType.useBinaryDocValuesArgs());
+        SortedSetDocValues argsInfoDocValues = DocValues.getSortedSet(leafReader, fieldType.argsInfoFieldName());
+        return new PatternTextDocValues(templateDocValues, argsDocValues, argsInfoDocValues);
+    }
+
+    /**
      * Args columns was originally a SortedSetDocValues column and was replaced with BinaryDocValues.
      * To maintain backwards compatibility, if a BinaryDocValues column does not exist, use the old SortedSetDocValues.
      * Since pattern_text fields are not multivalued we can wrap the SortedSetDocValues in a BinaryDocValues interface.

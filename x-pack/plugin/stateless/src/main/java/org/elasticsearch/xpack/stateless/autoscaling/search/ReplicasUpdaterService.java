@@ -67,99 +67,106 @@ import static org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasLoadB
 
 /**
  * This service controls the 'number_of_replicas' setting for all project indices in the search tier.
- * It periodically runs on the master node with an interval defined by the
- * {@link org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasUpdaterService#REPLICA_UPDATER_INTERVAL}
- * setting, which defaults to 5 minutes. On a high level it polls index statistics and properties from
- * {@link org.elasticsearch.xpack.stateless.autoscaling.search.SearchMetricsService}, then decides which
- * indices should get one or two search tier replica and finally publishes the necessary updates of the
- * 'number_of_replicas' index setting.
+ * It serves as the integration point for two replica scaling systems:
+ * <ul>
+ *     <li><b>Replicas for instant failover</b> - scales replicas based on Search Power (SPmin) to ensure
+ *         important indices have redundancy for fast failover</li>
+ *     <li><b>Replicas for load balancing</b> - scales replicas based on per-index search load to distribute
+ *         query traffic across more shard copies (see {@link ReplicasLoadBalancingScaler})</li>
+ * </ul>
  *
- * <h2>ConfigurableSettings</h2>
+ * <p>The service runs periodically on the master node (default: every 5 minutes) and combines recommendations
+ * from both systems, taking the maximum replica count recommended for each index. It also enforces topology
+ * bounds (ensuring replicas don't exceed available search nodes) and applies cache budget constraints to
+ * load balancing scale-ups (see {@link ReplicasScalerCacheBudget}).
+ *
+ * <h2>Configurable Settings</h2>
  *
  * <ul>
  * <li>
  *     "serverless.autoscaling.replica_updater_sample_interval"
- *     ({@link org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasUpdaterService#REPLICA_UPDATER_INTERVAL})
+ *     ({@link ReplicasUpdaterService#REPLICA_UPDATER_INTERVAL})
  *     <p>
- *     Setting controlling the frequency in which this service pulls for new replica update suggestions.
- *     Defaults to 5 minutes.
+ *     Controls the frequency of replica update runs. Defaults to 5 minutes.
  * </li>
  * <li>
  *     "serverless.autoscaling.replica_updater_scaledown_repetitions"
- *     ({@link org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasUpdaterService#REPLICA_UPDATER_SCALEDOWN_REPETITIONS})
+ *     ({@link ReplicasUpdaterService#REPLICA_UPDATER_SCALEDOWN_REPETITIONS})
  *     <p>
- *     Controls how many repeated scale down signals we need to receive in order to perform a scale down to 1
- *     replica. Defaults to 6.
+ *     Number of consecutive scale-down signals required before actually scaling down. Defaults to 6.
  * </li>
  * <li>
  *     "serverless.search.enable_replicas_for_instant_failover"
- *     (({@link co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings#ENABLE_REPLICAS_FOR_INSTANT_FAILOVER}))
+ *     ({@link co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings#ENABLE_REPLICAS_FOR_INSTANT_FAILOVER})
  *     <p>
- *     If {@code true}, auto-adjustment of replicas is enabled.
+ *     Enables/disables the instant failover replica system.
+ * </li>
+ * <li>
+ *     "serverless.search.enable_replicas_load_balancing"
+ *     ({@link co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings#ENABLE_REPLICAS_LOAD_BALANCING})
+ *     <p>
+ *     Enables/disables the load balancing replica system.
  * </li>
  * </ul>
  *
- * <h2>Automatic replica adjustment</h2>
+ * <h2>Replicas for Instant Failover</h2>
  *
- * By default, every index already has one replica in the search tier. To speed up failover for important indices, the
- * ReplicasUpdaterService can increase the `number_of_replica` setting of indices to 2. This decision is controlled by
- * the projects current {@link co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings#SEARCH_POWER_MIN_SETTING}
- * (short <b>SPmin</b>).
+ * This system increases replicas (typically to 2) for important indices to enable fast failover when a search
+ * node fails. The decision is controlled by the project's
+ * {@link co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings#SEARCH_POWER_MIN_SETTING} (SPmin).
  * <p>
- * Another important factor is an index <b>interactive data size</b>, which is the joint size of all documents with
- * a {@code @timestamp} field value that lies in the projects boost window.
- * ({@link co.elastic.elasticsearch.serverless.constants.ServerlessSharedSettings#BOOST_WINDOW_SETTING}).
- * Regular indices that don't have an {@code @timestamp} field are considered to be completely interactive.
- * The <b>total interactive size</b> is the joint interactive data size of all indices in a project.
+ * An index's <b>interactive data size</b> is the size of documents with a {@code @timestamp} within the
+ * project's boost window. Indices without {@code @timestamp} are considered fully interactive.
  * <p>
- * There are three different scenarios:
- *
+ * Behavior based on SPmin:
  * <ul>
- *     <li>
- *         {@code SPmin <= 100} : all indices only receive one replica.
- *     </li>
- *     <li>
- *         {@code 100 < SPmin < 250} : indices are ranked based on some "importance" heuristics and only some of them
- *         get 2 replicas.
- *     </li>
- *     <li>
- *         {@code SPmin >= 250} : indices with interactive data receive two replica. Non-interactive indices remain at one replica.
- *     </li>
+ *     <li>{@code SPmin <= 100}: All indices get 1 replica (no additional replicas for failover)</li>
+ *     <li>{@code 100 < SPmin < 250}: Indices are ranked by importance; top indices get 2 replicas up to a
+ *         budget threshold</li>
+ *     <li>{@code SPmin >= 250}: All interactive indices get 2 replicas</li>
  * </ul>
  *
- * When SPmin is between 100 and 250, we determine a memory budget that we are willing to spend on a second set of
- * replicas for interactive indices. The formula for the threshold is:
+ * <p>For SPmin between 100 and 250, the budget threshold is:
+ * {@code threshold = ((SPmin - 100) / (250 - 100)) * total_interactive_size}
+ *
+ * <p>Index ranking for the budget (highest priority first):
+ * <ol>
+ *     <li>System indices (by size descending)</li>
+ *     <li>Regular indices (by size descending)</li>
+ *     <li>Data stream backing indices (write index first, then by recency, ties broken by size)</li>
+ * </ol>
+ *
+ * <h2>Replicas for Load Balancing</h2>
+ *
+ * This system (implemented in {@link ReplicasLoadBalancingScaler}) increases replicas for indices with high
+ * search load to distribute queries across more shard copies, reducing hot-spotting.
+ *
+ * <p>Load balancing scale-ups are subject to cache budget constraints (see {@link ReplicasScalerCacheBudget})
+ * to prevent excessive cache pressure from too many replicas.
+ *
+ * <h2>Combining Recommendations</h2>
+ *
+ * For each index, the service takes the <b>maximum</b> of the replica counts recommended by instant failover
+ * and load balancing. This ensures both failover redundancy and load distribution goals are met.
+ *
+ * <h2>Topology Bounds</h2>
+ *
+ * The service enforces that no index has more replicas than available search nodes. When nodes are shutting
+ * down, it immediately scales down indices that exceed the new topology bounds, regardless of the delayed
+ * scale-down setting.
+ *
+ * <h2>Delayed Scale-Down</h2>
+ *
+ * Scale-ups are applied immediately. Scale-downs (except for topology bounds) require
+ * {@link #REPLICA_UPDATER_SCALEDOWN_REPETITIONS} consecutive signals (default: 6 runs = 30 minutes)
+ * before being applied. This prevents oscillation when indices are near decision boundaries.
  * <p>
- * threshold =  ((SPmin - 100)/(250 - 150)) * total_interactive_size
- * </p>
- * which represents the portion of the "total interactive size" of the project that we are willing to spent on
- * additional replicas. This is proportional to the current SPmin settings value between 100 and 250, e.g.
- * with a setting of SPmin = 175 we are allowing for 1/2 * total_interactive_size to be spent on additional replica.
- * <p>
- * In order to determine which indices are eligible for a second replica we rank them according to the following rules:
+ * Immediate scale-downs occur for:
  * <ul>
- *     <li>system indices receive the highest rank, sorted by size in descending order.</li>
- *     <li>regular indices are ranked after that, ties are broken by size (highest first)</li>
- *     <li>data streams backing indices are ranked last. Current write indices are ranked before less recent backing
- *     indices. Again, ties are broken by size (highest first)</li>
+ *     <li>Topology bounds violations (more replicas than search nodes)</li>
+ *     <li>SPmin setting changes</li>
+ *     <li>Feature being disabled</li>
  * </ul>
- * Using this index ordering, the ReplicasUpdaterService proposes to add replicas to indices whose cumulative interactive
- * data size doesn't exceed the threshold, going from top to bottom. All remaining indices are receiving only one replica.
- *
- * <h2>Delayed replica scale-down</h2>
- *
- * Adding additional replicas to indices is performed immediately with the next run of the service task.
- * Also, we scale up or down immediately on changes to SPmin. For all other scale-down cases we delay publishing the
- * settings change in order to stabilize the decision until we have seen a repeated scale-down signal
- * for more repetitions than configured by
- * {@link org.elasticsearch.xpack.stateless.autoscaling.search.ReplicasUpdaterService#REPLICA_UPDATER_SCALEDOWN_REPETITIONS}.
- * (defaults to 6).
- * <p>
- * This stabilization period prevents premature removal of replicas when an index is frequently entering and leaving
- * the group of indices eligible for a second replica, i.e. because data falling out of the boost window or global changes
- * in "total interactive size" that can lead to an oscillating size threshold. This consequently can lead to indices that are
- * right on the edge of getting promoted to be scaled too frequently, which in turn involves avoidable cost search cache
- * population etc...
  */
 public class ReplicasUpdaterService extends AbstractLifecycleComponent implements LocalNodeMasterListener, DesiredTopologyListener {
     private static final Logger LOGGER = LogManager.getLogger(ReplicasUpdaterService.class);

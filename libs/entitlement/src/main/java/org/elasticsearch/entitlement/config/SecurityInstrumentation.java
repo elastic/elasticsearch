@@ -63,7 +63,7 @@ public class SecurityInstrumentation implements InstrumentationConfig {
             rule.callingStatic(KeyStore.Builder::newInstance, String.class, Provider.class, File.class, KeyStore.ProtectionParameter.class)
                 .enforce((_, _, file) -> Policies.fileRead(file))
                 .elseThrowNotEntitled();
-            rule.calling(KeyStore.Builder::getKeyStore).enforce(Policies::fileDescriptorRead).elseReturn(null);
+            rule.calling(KeyStore.Builder::getKeyStore).enforce(Policies::fileDescriptorRead).elseThrowNotEntitled();
         });
 
         builder.on(CertStore.class, rule -> {

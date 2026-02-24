@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
@@ -52,7 +53,7 @@ public class TransportEnrichReindexAction extends TransportReindexAction {
         TransportService transportService,
         Environment environment,
         ResourceWatcherService watcherService,
-        ReindexRelocationNodePicker relocationNodePicker
+        @Nullable ReindexRelocationNodePicker relocationNodePicker
     ) {
         super(
             EnrichReindexAction.NAME,

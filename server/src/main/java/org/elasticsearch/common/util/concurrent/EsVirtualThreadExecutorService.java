@@ -71,14 +71,28 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
      */
     private static volatile String[] knownExecutorNames = new String[0];
 
-    private static synchronized void registerVirtualExecutorName(String executorName) {
+    /**
+     * Subset of {@link #knownExecutorNames} that belong to system thread pools.
+     */
+    private static volatile String[] knownSystemExecutorNames = new String[0];
+
+    private static synchronized void registerVirtualExecutorName(String executorName, boolean isSystem) {
         String[] current = knownExecutorNames;
         for (String name : current) {
-            if (name.equals(executorName)) return;
+            if (name.equals(executorName)) {
+                return;
+            }
         }
         String[] updated = Arrays.copyOf(current, current.length + 1);
         updated[current.length] = executorName;
         knownExecutorNames = updated;
+
+        if (isSystem) {
+            String[] currentSystem = knownSystemExecutorNames;
+            String[] updatedSystem = Arrays.copyOf(currentSystem, currentSystem.length + 1);
+            updatedSystem[currentSystem.length] = executorName;
+            knownSystemExecutorNames = updatedSystem;
+        }
     }
 
     /**
@@ -100,6 +114,18 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
             }
         }
         return null;
+    }
+
+    /**
+     * Returns {@code true} if the given thread belongs to a system thread pool.
+     */
+    static boolean isSystemThread(Thread thread) {
+        String name = executorName(thread);
+        if (name == null) return false;
+        for (String known : knownSystemExecutorNames) {
+            if (known.equals(name)) return true;
+        }
+        return false;
     }
 
     static {
@@ -133,11 +159,21 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         int queueSize,
         boolean rejectAfterShutdown,
         ThreadContext contextHolder,
-        TaskTrackingConfig trackingConfig
+        TaskTrackingConfig trackingConfig,
+        ThreadFactory threadFactory
     ) {
+        boolean isSystem = EsExecutors.isSystemThreadFactory(threadFactory);
         return trackingConfig.trackExecutionTime()
-            ? new TaskTrackingEsVirtualThreadExecutorService(name, threads, queueSize, rejectAfterShutdown, contextHolder, trackingConfig)
-            : new EsVirtualThreadExecutorService(name, threads, queueSize, rejectAfterShutdown, contextHolder);
+            ? new TaskTrackingEsVirtualThreadExecutorService(
+                name,
+                threads,
+                queueSize,
+                rejectAfterShutdown,
+                contextHolder,
+                trackingConfig,
+                isSystem
+            )
+            : new EsVirtualThreadExecutorService(name, threads, queueSize, rejectAfterShutdown, contextHolder, isSystem);
     }
 
     @SuppressForbidden(reason = "internal implementation for EsExecutors")
@@ -146,10 +182,11 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         int maxThreads,
         int maxQueueSize,
         boolean rejectAfterShutdown,
-        ThreadContext contextHolder
+        ThreadContext contextHolder,
+        boolean isSystem
     ) {
         this.name = name;
-        this.virtualExecutor = Executors.newThreadPerTaskExecutor(virtualThreadFactory(name));
+        this.virtualExecutor = Executors.newThreadPerTaskExecutor(virtualThreadFactory(name, isSystem));
         this.maxThreads = maxThreads;
         this.maxQueueSize = maxQueueSize;
         this.rejectAfterShutdown = rejectAfterShutdown;
@@ -157,11 +194,11 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
     }
 
     // FIXME remove hack, should be pushed up
-    private static ThreadFactory virtualThreadFactory(String name) {
+    private static ThreadFactory virtualThreadFactory(String name, boolean isSystem) {
         String[] split = name.split("/", 2);
         String nodeName = split.length == 2 ? split[0] : "";
         String executorName = split.length == 2 ? split[1] : split[0];
-        registerVirtualExecutorName(executorName);
+        registerVirtualExecutorName(executorName, isSystem);
         String prefix = nodeName.isEmpty()
             ? "elasticsearch[" + executorName + "]"
             : "elasticsearch[" + nodeName + "][" + executorName + "]";
@@ -534,11 +571,11 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
             int maximumQueueSize,
             boolean rejectAfterShutdown,
             ThreadContext contextHolder,
-            TaskTrackingConfig trackingConfig
+            TaskTrackingConfig trackingConfig,
+            boolean isSystem
         ) {
-            super(name, maximumPoolSize, maximumQueueSize, rejectAfterShutdown, contextHolder);
+            super(name, maximumPoolSize, maximumQueueSize, rejectAfterShutdown, contextHolder, isSystem);
             this.taskTracker = new TaskTracker(trackingConfig, maximumPoolSize);
-
         }
 
         @Override
@@ -562,6 +599,11 @@ public class EsVirtualThreadExecutorService extends AbstractExecutorService impl
         @Override
         public double getTaskExecutionEWMA() {
             return taskTracker.getTaskExecutionEWMA();
+        }
+
+        @Override
+        public long getTotalTaskExecutionTime() {
+            return taskTracker.getTotalTaskExecutionTime();
         }
 
         @Override

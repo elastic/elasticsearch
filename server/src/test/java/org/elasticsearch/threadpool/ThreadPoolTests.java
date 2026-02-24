@@ -20,7 +20,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutorService.TaskTrackingEs
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.common.util.concurrent.TaskTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.telemetry.InstrumentType;
@@ -500,8 +499,8 @@ public class ThreadPoolTests extends ESTestCase {
             final String threadPoolName = ThreadPool.Names.WRITE;
             final MetricAsserter metricAsserter = new MetricAsserter(meterRegistry, threadPoolName);
             final ThreadPool.Info threadPoolInfo = threadPool.info(threadPoolName);
-            final TaskTimeTrackingEsThreadPoolExecutor executor = asInstanceOf(
-                TaskTimeTrackingEsThreadPoolExecutor.class,
+            final TaskTrackingEsExecutorService executor = asInstanceOf(
+                TaskTrackingEsExecutorService.class,
                 threadPool.executor(threadPoolName)
             );
 

@@ -44,6 +44,11 @@ public interface EsExecutorService extends ExecutorService {
          */
         double getTaskExecutionEWMA();
 
+        /**
+         * Returns the total time (in nanoseconds) spent executing tasks in this executor.
+         */
+        long getTotalTaskExecutionTime();
+
         long getMaxQueueLatencyMillisSinceLastPollAndReset();
 
         /**

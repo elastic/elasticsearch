@@ -125,8 +125,10 @@ public class EsExecutors {
         TaskTrackingConfig config,
         HotThreadsOnLargeQueueConfig hotThreadsOnLargeQueueConfig
     ) {
+
         if (USE_VIRTUAL_THREADS && name.contains(MASTER_UPDATE_THREAD_NAME) == false && name.contains("cluster_coordination") == false) {
-            return EsVirtualThreadExecutorService.create(name, max, -1, rejectAfterShutdown, contextHolder, config);
+            // FIXME this cannot use the thread factory. it would be better to inline the factory and only create when it makes sense
+            return EsVirtualThreadExecutorService.create(name, max, -1, rejectAfterShutdown, contextHolder, config, threadFactory);
         }
 
         LinkedTransferQueue<Runnable> queue = newUnboundedScalingLTQueue(min, max);
@@ -213,7 +215,7 @@ public class EsExecutors {
         TaskTrackingConfig config
     ) {
         if (USE_VIRTUAL_THREADS) {
-            return EsVirtualThreadExecutorService.create(name, size, queueCapacity, true, contextHolder, config);
+            return EsVirtualThreadExecutorService.create(name, size, queueCapacity, true, contextHolder, config, threadFactory);
         }
 
         final BlockingQueue<Runnable> queue;
@@ -398,6 +400,10 @@ public class EsExecutors {
                 ? "elasticsearch[" + nodeName + "][" + executorName + "]"
                 : "elasticsearch[" + executorName + "]";
         }
+    }
+
+    public static boolean isSystemThreadFactory(ThreadFactory threadFactory) {
+        return threadFactory instanceof EsThreadFactory esThreadFactory ? esThreadFactory.isSystem : false;
     }
 
     public static class EsThread extends Thread {

@@ -63,31 +63,27 @@ public final class ShardSearchPhaseAPMMetrics implements SearchOperationListener
 
     @Override
     public void onDfsPhase(SearchContext searchContext, long tookInNanos) {
-        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
-        Long timeRangeFilterFromMillis = searchExecutionContext.getTimeRangeFilterFromMillis();
-        recordPhaseLatency(dfsPhaseMetric, tookInNanos, searchContext.request(), timeRangeFilterFromMillis);
+        recordPhaseLatency(dfsPhaseMetric, searchContext.getSearchExecutionContext(), searchContext.request(), tookInNanos);
     }
 
     @Override
     public void onQueryPhase(SearchContext searchContext, long tookInNanos) {
-        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
-        Long timeRangeFilterFromMillis = searchExecutionContext.getTimeRangeFilterFromMillis();
-        recordPhaseLatency(queryPhaseMetric, tookInNanos, searchContext.request(), timeRangeFilterFromMillis);
+        recordPhaseLatency(queryPhaseMetric, searchContext.getSearchExecutionContext(), searchContext.request(), tookInNanos);
     }
 
     @Override
     public void onFetchPhase(SearchContext searchContext, long tookInNanos) {
-        SearchExecutionContext searchExecutionContext = searchContext.getSearchExecutionContext();
-        Long timeRangeFilterFromMillis = searchExecutionContext.getTimeRangeFilterFromMillis();
-        recordPhaseLatency(fetchPhaseMetric, tookInNanos, searchContext.request(), timeRangeFilterFromMillis);
+        recordPhaseLatency(fetchPhaseMetric, searchContext.getSearchExecutionContext(), searchContext.request(), tookInNanos);
     }
 
     private static void recordPhaseLatency(
         LongHistogram histogramMetric,
-        long tookInNanos,
+        SearchExecutionContext searchExecutionContext,
         ShardSearchRequest request,
-        Long timeRangeFilterFromMillis
+        long tookInNanos
     ) {
+        Long timeRangeFilterFromMillis = searchExecutionContext.getTimeRangeFilterFromMillis();
+
         Map<String, Object> attributes = SearchRequestAttributesExtractor.extractAttributes(
             request,
             timeRangeFilterFromMillis,

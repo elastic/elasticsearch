@@ -37,6 +37,7 @@ import org.elasticsearch.search.vectors.KnnVectorQueryBuilder;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Used to introspect a search request and extract metadata from it around the features it uses.
@@ -65,6 +66,21 @@ public final class SearchRequestAttributesExtractor {
         Long timeRangeFilterFromMillis,
         long nowInMillis
     ) {
+        return extractAttributes(
+            shardSearchRequest,
+            timeRangeFilterFromMillis,
+            nowInMillis,
+            // FIXME use the thread context here in case of virtual threads
+            () -> Thread.currentThread() instanceof EsExecutors.EsThread esThread ? esThread.isSystem() : false
+        );
+    }
+
+    public static Map<String, Object> extractAttributes(
+        ShardSearchRequest shardSearchRequest,
+        Long timeRangeFilterFromMillis,
+        long nowInMillis,
+        Supplier<Boolean> isSystemThreadSupplier
+    ) {
         Map<String, Object> attributes = extractAttributes(
             shardSearchRequest.source(),
             shardSearchRequest.scroll(),
@@ -72,14 +88,7 @@ public final class SearchRequestAttributesExtractor {
             nowInMillis,
             shardSearchRequest.shardId().getIndexName()
         );
-        boolean isSystem;
-        if (Thread.currentThread() instanceof EsExecutors.EsThread esThread) {
-            isSystem = esThread.isSystem();
-        } else {
-            // FIXME use thread context for virtual threads
-            isSystem = false;
-        }
-        attributes.put(SYSTEM_THREAD_ATTRIBUTE_NAME, isSystem);
+        attributes.put(SYSTEM_THREAD_ATTRIBUTE_NAME, isSystemThreadSupplier.get());
         return attributes;
     }
 

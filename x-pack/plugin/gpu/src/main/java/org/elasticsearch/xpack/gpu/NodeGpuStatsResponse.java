@@ -43,7 +43,7 @@ public class NodeGpuStatsResponse extends BaseNodeResponse {
         this.gpuSupported = in.readBoolean();
         this.gpuSettingEnabled = in.readBoolean();
         this.gpuUsageCount = in.readVLong();
-        this.totalGpuMemoryInBytes = in.readLong();
+        this.totalGpuMemoryInBytes = in.readVLong();
         this.gpuName = in.readOptionalString();
     }
 
@@ -53,7 +53,7 @@ public class NodeGpuStatsResponse extends BaseNodeResponse {
         out.writeBoolean(gpuSupported);
         out.writeBoolean(gpuSettingEnabled);
         out.writeVLong(gpuUsageCount);
-        out.writeLong(totalGpuMemoryInBytes);
+        out.writeVLong(totalGpuMemoryInBytes);
         out.writeOptionalString(gpuName);
     }
 

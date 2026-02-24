@@ -15,11 +15,11 @@ import java.io.IOException;
 
 public class NodeGpuStatsResponseTests extends ESTestCase {
 
-    // GPUSupport returns -1 for totalGpuMemoryInBytes when no GPU is present,
-    // and writeVLong does not support negative values, causing an IllegalStateException.
+    // Reproduces #142936: GPUSupport previously returned -1 for totalGpuMemoryInBytes when no GPU
+    // is present, and writeVLong does not support negative values, causing an IllegalStateException.
     public void testSerializationWithNoGpu() throws IOException {
         var node = DiscoveryNodeUtils.create("node1");
-        var response = new NodeGpuStatsResponse(node, false, false, 0, -1L, null);
+        var response = new NodeGpuStatsResponse(node, false, false, 0, 0L, null);
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             response.writeTo(out);
@@ -29,7 +29,7 @@ public class NodeGpuStatsResponseTests extends ESTestCase {
             assertFalse(deserialized.isGpuSupported());
             assertFalse(deserialized.isGpuSettingEnabled());
             assertEquals(0, deserialized.getGpuUsageCount());
-            assertEquals(-1L, deserialized.getTotalGpuMemoryInBytes());
+            assertEquals(0L, deserialized.getTotalGpuMemoryInBytes());
             assertNull(deserialized.getGpuName());
         }
     }

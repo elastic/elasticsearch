@@ -35,7 +35,6 @@ PUT semantic-embeddings
   }
 }
 ```
-% TEST[skip:Requires {{infer}} endpoint]
 
 ## Extended `semantic_text` mapping example
 

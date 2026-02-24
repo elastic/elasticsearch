@@ -1103,16 +1103,11 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         int globalDocCount = 0;
         long globalValueCount = 0;
         int maxDocId = -1;
-        int minDocId = -1;
         final List<SkipAccumulator> accumulators = new ArrayList<>();
         SkipAccumulator accumulator = null;
         final int maxAccumulators = 1 << (SKIP_INDEX_LEVEL_SHIFT * (SKIP_INDEX_MAX_LEVEL - 1));
         for (int doc = values.nextDoc(); doc != DocIdSetIterator.NO_MORE_DOCS; doc = values.nextDoc()) {
             final long firstValue = values.nextValue();
-            if (minDocId == -1) {
-                // doc Ids are increasing, so we never need to overwrite this, I think.
-                minDocId = doc;
-            }
             if (accumulator != null && accumulator.isDone(skipIndexIntervalSize, values.docValueCount(), firstValue, doc)) {
                 globalMaxValue = Math.max(globalMaxValue, accumulator.maxValue);
                 globalMinValue = Math.min(globalMinValue, accumulator.minValue);
@@ -1152,7 +1147,6 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         assert globalDocCount <= maxDocId + 1;
         meta.writeInt(globalDocCount);
         meta.writeInt(maxDocId);
-        meta.writeInt(minDocId);
         meta.writeLong(globalValueCount);
     }
 

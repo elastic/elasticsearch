@@ -19,6 +19,7 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -222,6 +223,7 @@ public final class SingleValueMatchQuery extends Query {
         if (fieldData instanceof ConstantIndexFieldData cfd && cfd.getValue() != null) {
             return Queries.ALL_DOCS_INSTANCE;
         }
+        boolean canUseMatchAll = true;
         for (LeafReaderContext context : indexSearcher.getIndexReader().leaves()) {
             final LeafReader reader = context.reader();
             final int maxDoc = reader.maxDoc();
@@ -229,7 +231,9 @@ public final class SingleValueMatchQuery extends Query {
             // TODO: check doc values skippers
             DocValuesSkipper s = reader.getDocValuesSkipper(fieldData.getFieldName());
             if (s instanceof EsDocValueSkipper skipper) {
-                if (skipper.valueCount() == skipper.docCount() && skipper.docCount() == skipper.maxDocId() - skipper.minDocId()) {
+                if (skipper.valueCount() == skipper.docCount()) {
+                    // we don't need to check every value, but we need to rewrite to an exists query, not a match all
+                    canUseMatchAll = false;
                     continue;
                 }
             }
@@ -268,7 +272,11 @@ public final class SingleValueMatchQuery extends Query {
                 return super.rewrite(indexSearcher);
             }
         }
-        return Queries.ALL_DOCS_INSTANCE;
+        if (canUseMatchAll) {
+            return Queries.ALL_DOCS_INSTANCE;
+        } else {
+            return new FieldExistsQuery(fieldData.getFieldName());
+        }
     }
 
     @Override

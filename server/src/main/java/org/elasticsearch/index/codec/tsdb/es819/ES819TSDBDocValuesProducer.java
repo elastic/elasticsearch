@@ -1695,10 +1695,9 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         long minValue = meta.readLong();
         int docCount = meta.readInt();
         int maxDocID = meta.readInt();
-        int minDocID = meta.readInt();
         long valueCount = meta.readLong();
 
-        return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID, minDocID, valueCount);
+        return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID, valueCount);
     }
 
     private static void readNumeric(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {
@@ -2448,7 +2447,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         long maxValue,
         int docCount,
         int maxDocId,
-        int minDocId,
         long valueCount
     ) {}
 
@@ -2820,11 +2818,6 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
         @Override
         public long valueCount() {
             return entry.valueCount;
-        }
-
-        @Override
-        public int minDocId() {
-            return entry.minDocId;
         }
 
         @Override

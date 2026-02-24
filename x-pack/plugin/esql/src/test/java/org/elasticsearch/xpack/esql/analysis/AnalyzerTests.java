@@ -111,10 +111,12 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.RegisteredDomain;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Rerank;
@@ -139,6 +141,16 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
+import static org.elasticsearch.web.UriParts.DOMAIN;
+import static org.elasticsearch.web.UriParts.EXTENSION;
+import static org.elasticsearch.web.UriParts.FRAGMENT;
+import static org.elasticsearch.web.UriParts.PASSWORD;
+import static org.elasticsearch.web.UriParts.PATH;
+import static org.elasticsearch.web.UriParts.PORT;
+import static org.elasticsearch.web.UriParts.QUERY;
+import static org.elasticsearch.web.UriParts.SCHEME;
+import static org.elasticsearch.web.UriParts.USERNAME;
+import static org.elasticsearch.web.UriParts.USER_INFO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.configuration;
@@ -1663,6 +1675,24 @@ public class AnalyzerTests extends ESTestCase {
             """, errorMsg);
     }
 
+    public void testUnsupportedFieldsInUriParts() {
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
+        verifyUnsupported("""
+            from test
+            | uri_parts p = unsupported
+            """, errorMsg);
+    }
+
+    public void testUnsupportedFieldsInRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        var errorMsg = "Cannot use field [unsupported] with unsupported type [ip_range]";
+        verifyUnsupported("""
+            from test
+            | registered_domain rd = unsupported
+            """, errorMsg);
+    }
+
     public void testRegexOnInt() {
         for (String op : new String[] { "like", "rlike" }) {
             var e = expectThrows(VerificationException.class, () -> analyze("""
@@ -2076,7 +2106,7 @@ public class AnalyzerTests extends ESTestCase {
              found value [x] type [unsigned_long]
             line 2:20: argument of [count_distinct(x)] must be [any exact type except unsigned_long, _source, or counter types],\
              found value [x] type [unsigned_long]
-            line 2:47: argument of [median(x)] must be [exponential_histogram or numeric except unsigned_long or counter types],\
+            line 2:47: argument of [median(x)] must be [exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
             line 2:58: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [unsigned_long]
@@ -2094,7 +2124,7 @@ public class AnalyzerTests extends ESTestCase {
             line 2:10: argument of [avg(x)] must be [aggregate_metric_double,\
              exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [version]
-            line 2:18: argument of [median(x)] must be [exponential_histogram or numeric except unsigned_long or counter types],\
+            line 2:18: argument of [median(x)] must be [exponential_histogram, tdigest or numeric except unsigned_long or counter types],\
              found value [x] type [version]
             line 2:29: argument of [median_absolute_deviation(x)] must be [numeric except unsigned_long or counter types],\
              found value [x] type [version]
@@ -6183,6 +6213,63 @@ public class AnalyzerTests extends ESTestCase {
         assertEquals(2, metadata.size());
         verifyNameAndType(metadata.get(0).name(), metadata.get(0).dataType(), "_index", DataType.KEYWORD);
         verifyNameAndType(metadata.get(1).name(), metadata.get(1).dataType(), "_index_mode", DataType.KEYWORD);
+    }
+
+    public void testUriParts() {
+        assumeTrue("requires uri_parts command capability", EsqlCapabilities.Cap.URI_PARTS_COMMAND.isEnabled());
+        LogicalPlan plan = analyze("ROW uri=\"http://user:pass@host.com:8080/path/file.ext?query=1#frag\" | uri_parts p = uri");
+
+        Limit limit = as(plan, Limit.class);
+        UriParts parts = as(limit.child(), UriParts.class);
+
+        final List<Attribute> attributes = parts.generatedAttributes();
+
+        // verify that the attributes list is unmodifiable
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+
+        // detect output schema changes by matching attributes explicitly to known fields
+        assertContainsAttribute(attributes, "p." + DOMAIN, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + FRAGMENT, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + PATH, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + EXTENSION, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + PORT, DataType.INTEGER);
+        assertContainsAttribute(attributes, "p." + QUERY, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + SCHEME, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + USER_INFO, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + USERNAME, DataType.KEYWORD);
+        assertContainsAttribute(attributes, "p." + PASSWORD, DataType.KEYWORD);
+        assertEquals(10, attributes.size());
+
+        // Test invalid input type
+        VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW uri=123 | uri_parts p = uri"));
+        assertThat(e.getMessage(), containsString("Input for URI_PARTS must be of type [string] but is [integer]"));
+    }
+
+    public void testRegisteredDomain() {
+        assumeTrue("requires registered_domain command capability", EsqlCapabilities.Cap.REGISTERED_DOMAIN_COMMAND.isEnabled());
+        LogicalPlan plan = analyze("ROW fqdn=\"www.example.co.uk\" | registered_domain rd = fqdn");
+
+        Limit limit = as(plan, Limit.class);
+        RegisteredDomain parts = as(limit.child(), RegisteredDomain.class);
+
+        final List<Attribute> attributes = parts.generatedAttributes();
+
+        assertThrows(UnsupportedOperationException.class, () -> attributes.add(new UnresolvedAttribute(EMPTY, "test")));
+
+        assertContainsAttribute(attributes, "rd.domain", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "rd.registered_domain", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "rd.top_level_domain", DataType.KEYWORD);
+        assertContainsAttribute(attributes, "rd.subdomain", DataType.KEYWORD);
+        assertEquals(4, attributes.size());
+
+        VerificationException e = expectThrows(VerificationException.class, () -> analyze("ROW fqdn=123 | registered_domain rd = fqdn"));
+        assertThat(e.getMessage(), containsString("Input for REGISTERED_DOMAIN must be of type [string] but is [integer]"));
+    }
+
+    private void assertContainsAttribute(List<Attribute> attributes, String expectedName, DataType expectedType) {
+        Attribute attr = attributes.stream().filter(a -> a.name().equals(expectedName)).findFirst().orElse(null);
+        assertNotNull("Expected attribute " + expectedName + " not found", attr);
+        assertEquals("Data type mismatch for attribute " + expectedName, expectedType, attr.dataType());
     }
 
     private void verifyNameAndTypeAndMultiTypeEsField(

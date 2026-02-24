@@ -203,6 +203,51 @@ public class HttpClientRequestTests extends ESTestCase {
         webServer.enqueue(new Response().setResponseCode(200).addHeader("Content-Type", "application/json").setBody("{\"rows\":[]}"));
     }
 
+    public void testApiKeyAuthentication() throws URISyntaxException {
+        String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
+        String apiKey = "test_api_key_encoded";
+        Properties props = new Properties();
+        props.setProperty(ConnectionConfiguration.AUTH_API_KEY, apiKey);
+
+        URI uri = new URI(url);
+        ConnectionConfiguration conCfg = new ConnectionConfiguration(uri, url, props);
+        HttpClient httpClient = new HttpClient(conCfg);
+
+        prepareMockResponse();
+        try {
+            httpClient.basicQuery("SELECT 1", 10, false, false);
+        } catch (SQLException e) {
+            logger.info("Ignored SQLException", e);
+        }
+        assertEquals(1, webServer.requests().size());
+        RawRequest recordedRequest = webServer.takeRequest();
+        assertEquals("ApiKey " + apiKey, recordedRequest.getHeader("Authorization"));
+    }
+
+    public void testBasicAuthentication() throws URISyntaxException {
+        String url = "http://" + webServer.getHostName() + ":" + webServer.getPort();
+        String user = "testuser";
+        String pass = "testpass";
+        Properties props = new Properties();
+        props.setProperty(ConnectionConfiguration.AUTH_USER, user);
+        props.setProperty(ConnectionConfiguration.AUTH_PASS, pass);
+
+        URI uri = new URI(url);
+        ConnectionConfiguration conCfg = new ConnectionConfiguration(uri, url, props);
+        HttpClient httpClient = new HttpClient(conCfg);
+
+        prepareMockResponse();
+        try {
+            httpClient.basicQuery("SELECT 1", 10, false, false);
+        } catch (SQLException e) {
+            logger.info("Ignored SQLException", e);
+        }
+        assertEquals(1, webServer.requests().size());
+        RawRequest recordedRequest = webServer.takeRequest();
+        String expectedAuth = "Basic " + java.util.Base64.getEncoder().encodeToString((user + ":" + pass).getBytes(StandardCharsets.UTF_8));
+        assertEquals(expectedAuth, recordedRequest.getHeader("Authorization"));
+    }
+
     @SuppressForbidden(reason = "use http server")
     private static class RawRequestMockWebServer implements Closeable {
         private HttpServer server;

@@ -137,6 +137,7 @@ public class EsqlCCSUtils {
     static void updateExecutionInfoToReturnEmptyResult(EsqlExecutionInfo executionInfo, Exception e) {
         // This applies even for subplans - if we had an error and have to skip a cluster, then it will remain skipped.
         executionInfo.markEndQuery();
+        executionInfo.queryProfile().stopAllStartedMarkers();
         Exception exceptionForResponse;
         if (e instanceof ConnectTransportException) {
             // when field-caps has no field info (since no clusters could be connected to or had matching indices)

@@ -51,6 +51,16 @@ public class TimeSpanMarker {
         timeSpan = timeSpanBuilder.stop();
     }
 
+    /**
+     * Safely stops the marker only if it was started but not yet stopped.
+     * This is useful in error paths where we don't know which markers were started.
+     */
+    public void stopIfStarted() {
+        if (timeSpanBuilder != null && timeSpan == null) {
+            timeSpan = timeSpanBuilder.stop();
+        }
+    }
+
     public TimeValue timeTook() {
         return timeSpan == null ? null : timeSpan.toTimeValue();
     }

@@ -142,6 +142,9 @@ public final class EsqlQueryLog {
             EsqlQueryProfile esqlQueryProfile = esqlResult.executionInfo().queryProfile();
             for (TimeSpanMarker timeSpanMarker : esqlQueryProfile.timeSpanMarkers()) {
                 TimeValue timeTook = timeSpanMarker.timeTook();
+                if (timeTook == null) {
+                    continue;
+                }
                 String namePrefix = ELASTICSEARCH_QUERYLOG_PREFIX + timeSpanMarker.name();
                 fieldMap.put(namePrefix + ELASTICSEARCH_QUERYLOG_TOOK_SUFFIX, timeTook.nanos());
                 fieldMap.put(namePrefix + ELASTICSEARCH_QUERYLOG_TOOK_MILLIS_SUFFIX, timeTook.millis());

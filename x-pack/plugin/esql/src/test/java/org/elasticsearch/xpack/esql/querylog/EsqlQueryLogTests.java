@@ -211,4 +211,45 @@ public class EsqlQueryLogTests extends ESTestCase {
         long stopNanos = startNanos + randomLongBetween(1, 100_000);
         return new TimeSpan(startNanos / 1_000_000, startNanos, stopNanos / 1_000_000, stopNanos);
     }
+
+    /**
+     * Tests that query logging does not throw NPE when some TimeSpanMarkers have null timeTook values.
+     * This can happen in scenarios like CCS queries where a remote cluster is unavailable.
+     * See <a href="https://github.com/elastic/elasticsearch/issues/142915">issue #142915</a>.
+     */
+    public void testQueryLoggingWithNullTimeSpanMarkers() {
+        EsqlQueryLog queryLog = new EsqlQueryLog(settings, mockLogFieldProvider());
+        String query = "from " + randomAlphaOfLength(10);
+
+        long tookNanos = randomLongBetween(40_000_000, 50_000_000);
+        EsqlExecutionInfo executionInfo = getEsqlExecutionInfoWithNullTimeSpans(tookNanos);
+        queryLog.onQueryPhase(
+            new Versioned<>(
+                new Result(List.of(), List.of(), EsqlTestUtils.TEST_CFG, DriverCompletionInfo.EMPTY, executionInfo),
+                TransportVersion.current()
+            ),
+            query
+        );
+
+        assertThat(appender.lastEvent(), is(not(nullValue())));
+        var msg = (ESLogMessage) appender.lastMessage();
+        long took = Long.valueOf(msg.get(ELASTICSEARCH_QUERYLOG_TOOK));
+        assertThat(took, is(tookNanos));
+        assertThat(msg.get(ELASTICSEARCH_QUERYLOG_QUERY), is(query));
+        assertThat(appender.getLastEventAndReset().getLevel(), equalTo(Level.WARN));
+    }
+
+    private static EsqlExecutionInfo getEsqlExecutionInfoWithNullTimeSpans(long tookNanos) {
+        return new EsqlExecutionInfo(Predicates.always(), EsqlExecutionInfo.IncludeExecutionMetadata.CCS_ONLY) {
+            @Override
+            public TimeValue overallTook() {
+                return new TimeValue(tookNanos, TimeUnit.NANOSECONDS);
+            }
+
+            @Override
+            public EsqlQueryProfile queryProfile() {
+                return new EsqlQueryProfile(null, null, null, null, null, null, 0);
+            }
+        };
+    }
 }

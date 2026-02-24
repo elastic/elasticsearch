@@ -57,6 +57,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -81,6 +82,10 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
 
     public static final ActionType<GetSnapshotsResponse> TYPE = new ActionType<>("cluster:admin/snapshot/get");
     private static final Logger logger = LogManager.getLogger(TransportGetSnapshotsAction.class);
+
+    private static final EnumSet<SnapshotState> COMPLETED_STATES = EnumSet.copyOf(
+        Arrays.stream(SnapshotState.values()).filter(SnapshotState::completed).toList()
+    );
 
     private final RepositoriesService repositoriesService;
     private final ProjectResolver projectResolver;
@@ -321,9 +326,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
             this.verbose = verbose;
             this.indices = indices;
             this.states = states;
-            this.matchAllCompletedStates = states.contains(SnapshotState.SUCCESS)
-                && states.contains(SnapshotState.FAILED)
-                && states.contains(SnapshotState.PARTIAL);
+            this.matchAllCompletedStates = states.containsAll(COMPLETED_STATES);
 
             this.snapshotNamePredicate = SnapshotNamePredicate.forSnapshots(ignoreUnavailable, snapshots);
             this.fromSortValuePredicates = SnapshotPredicates.forFromSortValue(fromSortValue, sortBy, order);

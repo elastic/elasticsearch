@@ -10,7 +10,6 @@
 package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.core.Strings;
-
 import org.elasticsearch.entitlement.instrumentation.EntitlementInstrumented;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;

@@ -206,7 +206,9 @@ public abstract class AzureOpenAiTaskSettingsTests<T extends AzureOpenAiTaskSett
 
         assertThat(
             exception.getMessage(),
-            containsString("Map field [task_settings.headers] has an entry that is not valid, [key => 1]. Value type of [Integer] is not one of [String].")
+            containsString(
+                "Map field [task_settings.headers] has an entry that is not valid, [key => 1]. Value type of [Integer] is not one of [String]."
+            )
         );
     }
 

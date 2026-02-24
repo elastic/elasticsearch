@@ -1,15 +1,15 @@
 ---
 "basic tsdb delete":
-  - skip:
+  - requires:
       cluster_features: "index.time_series_synthetic_id"
-      reason: when cluster has synthetic_id feature use 71_tsdb_synthetic_id_false or 72_tsdb_synthetic_id_true instead
+      reason: explicit synthetic_id false only applies when cluster has the feature
   - requires:
       cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
-        index: weather_sensors
+        index: weather_sensors_synthetic_id_false
         body:
           settings:
             index:
@@ -20,6 +20,8 @@
                 end_time: 2099-12-31T23:59:59.999Z
               number_of_replicas: 0
               number_of_shards: 1
+              mapping:
+                synthetic_id: false
           mappings:
             properties:
               "@timestamp":
@@ -39,7 +41,7 @@
 
   - do:
       index:
-        index: weather_sensors
+        index: weather_sensors_synthetic_id_false
         body:
           "@timestamp": 2023-05-31T08:41:15.000Z
           sensor_id: SYKENET-000001
@@ -52,7 +54,7 @@
 
   - do:
       delete:
-        index: weather_sensors
+        index: weather_sensors_synthetic_id_false
         id: crxuhAep5Npwt_etAAABiHD35_g
   - match:   { _id: crxuhAep5Npwt_etAAABiHD35_g }
   - match:   { result: deleted }
@@ -60,11 +62,11 @@
 
   - do:
       indices.flush:
-        index: weather_sensors
+        index: weather_sensors_synthetic_id_false
 
   - do:
       index:
-        index: weather_sensors
+        index: weather_sensors_synthetic_id_false
         body:
           "@timestamp": 2023-05-31T08:41:15.000Z
           sensor_id: SYKENET-000001

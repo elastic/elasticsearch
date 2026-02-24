@@ -1,15 +1,15 @@
 ---
 "basic tsdb delete":
-  - skip:
+  - requires:
       cluster_features: "index.time_series_synthetic_id"
-      reason: when cluster has synthetic_id feature use 71_tsdb_synthetic_id_false or 72_tsdb_synthetic_id_true instead
+      reason: explicit synthetic_id true requires the feature
   - requires:
       cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
       indices.create:
-        index: weather_sensors
+        index: weather_sensors_synthetic_id_true
         body:
           settings:
             index:
@@ -20,6 +20,8 @@
                 end_time: 2099-12-31T23:59:59.999Z
               number_of_replicas: 0
               number_of_shards: 1
+              mapping:
+                synthetic_id: true
           mappings:
             properties:
               "@timestamp":
@@ -39,38 +41,38 @@
 
   - do:
       index:
-        index: weather_sensors
+        index: weather_sensors_synthetic_id_true
         body:
           "@timestamp": 2023-05-31T08:41:15.000Z
           sensor_id: SYKENET-000001
           location: swamp
           temperature: 32.4
           humidity: 88.9
-  - match:   { _id: crxuhAep5Npwt_etAAABiHD35_g }
+  - match:   { _id: KBNikT0PtwhSVNrMwdFLUCCMxM33PPpaqsD0ZiHcNlFdRDOaemCHLb5___53jwgYB4RuvHI }
   - match:   { result: created }
   - match:   { _version: 1 }
 
   - do:
       delete:
-        index: weather_sensors
-        id: crxuhAep5Npwt_etAAABiHD35_g
-  - match:   { _id: crxuhAep5Npwt_etAAABiHD35_g }
+        index: weather_sensors_synthetic_id_true
+        id: KBNikT0PtwhSVNrMwdFLUCCMxM33PPpaqsD0ZiHcNlFdRDOaemCHLb5___53jwgYB4RuvHI
+  - match:   { _id: KBNikT0PtwhSVNrMwdFLUCCMxM33PPpaqsD0ZiHcNlFdRDOaemCHLb5___53jwgYB4RuvHI }
   - match:   { result: deleted }
   - match:   { _version: 2 }
 
   - do:
       indices.flush:
-        index: weather_sensors
+        index: weather_sensors_synthetic_id_true
 
   - do:
       index:
-        index: weather_sensors
+        index: weather_sensors_synthetic_id_true
         body:
           "@timestamp": 2023-05-31T08:41:15.000Z
           sensor_id: SYKENET-000001
           location: swamp
           temperature: 32.4
           humidity: 88.9
-  - match:   { _id: crxuhAep5Npwt_etAAABiHD35_g }
+  - match:   { _id: KBNikT0PtwhSVNrMwdFLUCCMxM33PPpaqsD0ZiHcNlFdRDOaemCHLb5___53jwgYB4RuvHI }
   - match:   { result: created }
   - match:   { _version: 3 }

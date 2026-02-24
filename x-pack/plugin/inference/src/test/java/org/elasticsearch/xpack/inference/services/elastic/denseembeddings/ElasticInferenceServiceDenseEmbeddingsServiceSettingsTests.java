@@ -246,7 +246,13 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettingsTests extends 
         var modelId = "my-dense-model";
         var maxBatchSize = 64;
 
-        var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(modelId, SimilarityMeasure.COSINE, 512, 128, maxBatchSize);
+        var serviceSettings = new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
+            modelId,
+            SimilarityMeasure.COSINE,
+            512,
+            128,
+            maxBatchSize
+        );
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         builder.startObject();
@@ -287,7 +293,9 @@ public class ElasticInferenceServiceDenseEmbeddingsServiceSettingsTests extends 
         ElasticInferenceServiceDenseEmbeddingsServiceSettings instance,
         TransportVersion version
     ) {
-        if (version.supports(ElasticInferenceServiceDenseEmbeddingsServiceSettings.INFERENCE_API_EIS_DENSE_EMBEDDINGS_MAX_BATCH_SIZE) == false) {
+        if (version.supports(
+            ElasticInferenceServiceDenseEmbeddingsServiceSettings.INFERENCE_API_EIS_DENSE_EMBEDDINGS_MAX_BATCH_SIZE
+        ) == false) {
             return new ElasticInferenceServiceDenseEmbeddingsServiceSettings(
                 instance.modelId(),
                 instance.similarity(),

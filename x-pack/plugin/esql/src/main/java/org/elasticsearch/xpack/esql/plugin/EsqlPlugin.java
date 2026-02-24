@@ -75,6 +75,7 @@ import org.elasticsearch.xpack.esql.action.RestEsqlStopAsyncAction;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
 import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
@@ -221,10 +222,14 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             }
         }
 
+        // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
+        DataSourceCapabilities capabilities = DataSourceCapabilities.build(allDataSourcePlugins);
+
         // Create DataSourceModule with all discovered plugins
         // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
         DataSourceModule dataSourceModule = new DataSourceModule(
             allDataSourcePlugins,
+            capabilities,
             settings,
             blockFactoryProvider.blockFactory(),
             services.threadPool().executor(ThreadPool.Names.GENERIC)
@@ -238,6 +243,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                     getLicenseState(),
                     new EsqlQueryLog(services.clusterService().getClusterSettings(), services.loggingFieldsProvider()),
                     extraCheckers,
+                    settings,
                     dataSourceModule
                 ),
                 new ExchangeService(

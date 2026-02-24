@@ -1,0 +1,6 @@
+area: Security
+issues:
+ - 142743
+pr: 142848
+summary: Disable CAE in microsoft-graph-authz plugin
+type: bug

@@ -257,7 +257,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         boolean binaryMultiValuedFormat
                     ) throws IOException {
                         if (docs.mayContainDuplicates()) {
-                            // isCompressed assumes there aren't duplicates
+                            // isDense assumes there aren't duplicates
                             return null;
                         }
 
@@ -326,6 +326,11 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                         boolean toInt,
                         boolean binaryMultiValuedFormat
                     ) throws IOException {
+                        if (docs.mayContainDuplicates()) {
+                            // isDense assumes there aren't duplicates
+                            return null;
+                        }
+
                         int count = docs.count() - offset;
                         int firstDocId = docs.get(offset);
                         int lastDocId = docs.get(docs.count() - 1);
@@ -469,7 +474,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                     boolean binaryMultiValuedFormat
                 ) throws IOException {
                     if (docs.mayContainDuplicates()) {
-                        // isCompressed assumes there aren't duplicates
+                        // isDense assumes there aren't duplicates
                         return null;
                     }
 
@@ -2218,7 +2223,7 @@ final class ES819TSDBDocValuesProducer extends DocValuesProducer {
                 @Override
                 BlockLoader.Block tryRead(BlockLoader.SingletonLongBuilder builder, BlockLoader.Docs docs, int offset) throws IOException {
                     if (docs.mayContainDuplicates()) {
-                        // isCompressed assumes there aren't duplicates
+                        // isDense assumes there aren't duplicates
                         return null;
                     }
                     final int docsCount = docs.count();

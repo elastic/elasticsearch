@@ -10,7 +10,7 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.cli.ProjectRoutingTestCase;
 import org.junit.ClassRule;
 
-public class CliProjectRoutingtIT extends ProjectRoutingTestCase {
+public class CliProjectRoutingIT extends ProjectRoutingTestCase {
     @ClassRule
     public static final ElasticsearchCluster cluster = SqlTestCluster.getCluster();
 

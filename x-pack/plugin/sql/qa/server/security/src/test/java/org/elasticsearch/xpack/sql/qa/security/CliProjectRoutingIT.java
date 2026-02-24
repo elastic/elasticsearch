@@ -7,10 +7,20 @@
 package org.elasticsearch.xpack.sql.qa.security;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.sql.qa.cli.EmbeddedCli.SecurityConfig;
 import org.elasticsearch.xpack.sql.qa.cli.ProjectRoutingTestCase;
+import org.junit.ClassRule;
 
-public class CliProjectRoutingtIT extends ProjectRoutingTestCase {
+public class CliProjectRoutingIT extends ProjectRoutingTestCase {
+    @ClassRule
+    public static ElasticsearchCluster cluster = SqlSecurityTestCluster.getCluster();
+
+    @Override
+    protected String getTestRestCluster() {
+        return cluster.getHttpAddresses();
+    }
+
     @Override
     protected Settings restClientSettings() {
         return RestSqlIT.securitySettings();

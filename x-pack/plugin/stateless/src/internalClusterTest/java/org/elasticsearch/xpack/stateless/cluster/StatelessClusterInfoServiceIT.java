@@ -22,8 +22,10 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.EstimatedHeapUsage;
 import org.elasticsearch.cluster.InternalClusterInfoService;
+import org.elasticsearch.cluster.ShardAndIndexHeapUsage;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -83,6 +85,8 @@ public class StatelessClusterInfoServiceIT extends AbstractStatelessPluginIntegT
         ClusterInfoServiceUtils.setUpdateFrequency(infoService, TimeValue.timeValueMillis(100));
         final ClusterInfo info = ClusterInfoServiceUtils.refresh(infoService);
         final Map<String, EstimatedHeapUsage> nodesHeapUsage = info.getEstimatedHeapUsages();
+        final Map<ShardId, ShardAndIndexHeapUsage> shardsHeapUsage = info.getEstimatedShardHeapUsages();
         assertThat(nodesHeapUsage.size(), greaterThan(0));
+        assertThat(shardsHeapUsage.size(), greaterThan(0));
     }
 }

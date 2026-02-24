@@ -46,7 +46,7 @@ public interface DlmStep {
     String stepName();
 
     /**
-     * A list of functions that can be used to generate possible output index name patterns for this step based input index name.
+     * A list of functions that can be used to generate possible output index name patterns for this step based on the input index name.
      * This is used when a step might change the index that is targeted for later steps in the action such as cloning.
      * <br>
      * The list is ordered and the first function that generates an index name that exists in the cluster will be used by later steps.

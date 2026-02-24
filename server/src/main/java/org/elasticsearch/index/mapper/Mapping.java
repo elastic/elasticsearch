@@ -38,6 +38,8 @@ public final class Mapping implements ToXContentFragment {
         null
     );
 
+    public static final CompressedXContent EMPTY_COMPRESSED = EMPTY.toCompressedXContent();
+
     private final RootObjectMapper root;
     private final Map<String, Object> meta;
     private final MetadataFieldMapper[] metadataMappers;

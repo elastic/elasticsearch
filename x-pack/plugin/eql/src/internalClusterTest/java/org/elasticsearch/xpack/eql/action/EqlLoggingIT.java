@@ -11,8 +11,10 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ActivityLoggingUtils;
@@ -33,6 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertNotNull;
 
 public class EqlLoggingIT extends AbstractEqlIntegTestCase {
     static AccumulatingMockAppender appender;
@@ -82,6 +85,8 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         assertMessageSuccess(message, "eql", query);
         assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo("test"));
         assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo(success ? "1" : "0"));
+        // EQL only logs shards.failed
+        assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("0"));
     }
 
     public void testEqlFailureLogging() throws Exception {
@@ -99,14 +104,51 @@ public class EqlLoggingIT extends AbstractEqlIntegTestCase {
         assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("0"));
     }
 
+    /**
+     * When the request succeeds with partial results (some shards fail), the activity log records
+     * shards.failed from EqlLogContext.shardInfo() (EQL only logs failed shard count).
+     */
+    public void testEqlLoggingPartialShardFailure() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        prepareIndex(2);
+
+        internalCluster().stopRandomDataNode();
+
+        EqlSearchRequest request = new EqlSearchRequest().indices("test")
+            .query("my_event where i >= 0")
+            .eventCategoryField("event_type")
+            .allowPartialSearchResults(true)
+            .waitForCompletionTimeout(TimeValue.THIRTY_SECONDS);
+        EqlSearchResponse response = client().execute(EqlSearchAction.INSTANCE, request).get();
+        assertThat(response.isRunning(), is(false));
+        assertThat(response.shardFailures().length, equalTo(1));
+
+        var event = appender.getLastEventAndReset();
+        assertNotNull(event);
+        var message = getMessageData(event);
+        assertMessageSuccess(message, "eql", "my_event where i >= 0");
+        assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo("test"));
+        assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("1"));
+    }
+
     private void prepareIndex() throws Exception {
-        assertAcked(
-            indicesAdmin().prepareCreate("test")
-                .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date", "i", "type=integer")
-        );
+        prepareIndex(1);
+    }
+
+    private void prepareIndex(int numberOfShards) throws Exception {
+        var createRequest = indicesAdmin().prepareCreate("test")
+            .setMapping("val", "type=integer", "event_type", "type=keyword", "@timestamp", "type=date", "i", "type=integer");
+        if (numberOfShards > 1) {
+            createRequest.setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numberOfShards)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build()
+            );
+        }
+        assertAcked(createRequest);
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
-
         for (int i = 0; i < 5; i++) {
             int fieldValue = randomIntBetween(0, 10);
             builders.add(

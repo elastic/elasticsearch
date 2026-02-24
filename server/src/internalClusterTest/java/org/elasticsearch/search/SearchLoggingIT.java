@@ -26,10 +26,13 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.search.TransportSearchAction;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.Template;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -134,6 +137,9 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertMessageSuccess(message, "search", "fox");
             assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("1"));
             assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(""));
+            assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThanOrEqualTo(1));
+            assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), greaterThanOrEqualTo(0));
+            assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("0"));
         }
 
         // Match
@@ -144,7 +150,38 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
             assertMessageSuccess(message, "search", "quick");
             assertThat(message.get(ES_FIELDS_PREFIX + "hits"), equalTo("3"));
             assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
+            assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThanOrEqualTo(1));
+            assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), greaterThanOrEqualTo(0));
+            assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("0"));
         }
+    }
+
+    /**
+     * Verifies that when the request succeeds with partial results (some shards fail), the activity log
+     * records shards.successful and shards.failed correctly from SearchLogContext.shardInfo().
+     * Uses the same index and data as setupIndex(), with 2 shards so one can fail.
+     */
+    public void testSearchLogShardInfoPartialFailure() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        setupIndex(2);
+        internalCluster().stopRandomDataNode();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
+        awaitClusterState(
+            state -> RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED).isEmpty() == false
+        );
+
+        assertResponse(prepareSearch(INDEX_NAME).setSize(0).setAllowPartialSearchResults(true), response -> {
+            assertThat(response.getFailedShards(), greaterThan(0));
+            assertThat(response.getSuccessfulShards(), greaterThan(0));
+        });
+        var event = appender.getLastEventAndReset();
+        assertNotNull(event);
+        Map<String, String> message = getMessageData(event);
+        assertMessageSuccess(message, "search", "size");
+        assertThat(message.get(ES_FIELDS_PREFIX + "indices"), equalTo(INDEX_NAME));
+        assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThan(0));
+        assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), equalTo(0));
+        assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.failed")), greaterThan(0));
     }
 
     public void testFailureLog() {
@@ -309,13 +346,26 @@ public class SearchLoggingIT extends AbstractSearchCancellationTestCase {
     }
 
     private void setupIndex() {
-        createIndex(INDEX_NAME);
+        setupIndex(1);
+    }
+
+    /**
+     * Creates the test index with the same mapping and documents as setupIndex(),
+     * with the given number of shards (and 0 replicas when > 1 for deterministic allocation).
+     */
+    private void setupIndex(int numberOfShards) {
+        if (numberOfShards > 1) {
+            createIndex(INDEX_NAME, numberOfShards, 0);
+        } else {
+            createIndex(INDEX_NAME);
+        }
         indexRandom(
             true,
             prepareIndex(INDEX_NAME).setId("1").setSource("field1", "the quick brown fox jumps"),
             prepareIndex(INDEX_NAME).setId("2").setSource("field1", "quick brown"),
             prepareIndex(INDEX_NAME).setId("3").setSource("field1", "quick")
         );
+        ensureGreen(INDEX_NAME);
     }
 
     /*

@@ -10,9 +10,13 @@ package org.elasticsearch.xpack.esql.action;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.logging.AccumulatingMockAppender;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ActivityLoggingUtils;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.querylog.EsqlLogProducer;
 import org.junit.After;
@@ -20,10 +24,15 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import static org.elasticsearch.common.logging.activity.ActivityLogProducer.ES_FIELDS_PREFIX;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageFailure;
 import static org.elasticsearch.test.ActivityLoggingUtils.assertMessageSuccess;
 import static org.elasticsearch.test.ActivityLoggingUtils.getMessageData;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.junit.Assert.assertNotNull;
 
 public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
     static AccumulatingMockAppender appender;
@@ -58,18 +67,8 @@ public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
     }
 
     public void testLogging() throws Exception {
-        int numDocs1 = randomIntBetween(1, 15);
-        assertAcked(client().admin().indices().prepareCreate("index-1").setMapping("host", "type=keyword"));
-        for (int i = 0; i < numDocs1; i++) {
-            client().prepareIndex("index-1").setSource("host", "192." + i).get();
-        }
-        int numDocs2 = randomIntBetween(1, 15);
-        assertAcked(client().admin().indices().prepareCreate("index-2").setMapping("host", "type=keyword"));
-        for (int i = 0; i < numDocs2; i++) {
-            client().prepareIndex("index-2").setSource("host", "10." + i).get();
-        }
-
-        client().admin().indices().prepareRefresh("index-1", "index-2").get();
+        setupIndex("index-1", "192.");
+        setupIndex("index-2", "10.");
 
         assertQuery("FROM index-* | EVAL ip = to_ip(host) | STATS s = COUNT(*) by ip | KEEP ip | LIMIT 100");
         assertFailedQuery(
@@ -83,6 +82,9 @@ public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             var message = getMessageData(appender.getLastEventAndReset());
             assertMessageSuccess(message, "esql", query);
+            assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThanOrEqualTo(1));
+            assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), greaterThanOrEqualTo(0));
+            assertThat(message.get(ES_FIELDS_PREFIX + "shards.failed"), equalTo("0"));
         }
     }
 
@@ -90,5 +92,46 @@ public class EsqlQueryLogingIT extends AbstractEsqlIntegTestCase {
         expectThrows(VerificationException.class, () -> run(query));
         var message = getMessageData(appender.getLastEventAndReset());
         assertMessageFailure(message, "esql", query, expectedException, expectedMessage);
+    }
+
+    private void setupIndex(String name, String prefix) {
+        int numDocs1 = randomIntBetween(1, 15);
+        int numShards = internalCluster().numDataNodes() + 2;
+        assertAcked(
+            client().admin().indices().prepareCreate(name).setMapping("host", "type=keyword").setSettings(indexSettings(numShards, 0))
+        );
+        for (int i = 0; i < numDocs1; i++) {
+            client().prepareIndex(name).setSource("host", prefix + i).get();
+        }
+        client().admin().indices().prepareRefresh(name).get();
+        ensureGreen(name);
+    }
+
+    /**
+     * When the request succeeds with partial results (some shards fail), the activity log records
+     * shards.successful and shards.failed from EsqlLogContext.shardInfo().
+     */
+    public void testLoggingPartialShardFailure() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
+        setupIndex("esql_partial_test", "1.");
+        internalCluster().stopRandomDataNode();
+        client().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForStatus(ClusterHealthStatus.RED).get();
+        awaitClusterState(
+            state -> RoutingNodesHelper.shardsWithState(state.getRoutingNodes(), ShardRoutingState.UNASSIGNED).isEmpty() == false
+        );
+
+        EsqlQueryRequest request = syncEsqlQueryRequest("FROM esql_partial_test | LIMIT 100").allowPartialResults(true);
+        try (var resp = run(request)) {
+            EsqlExecutionInfo.Cluster local = resp.getExecutionInfo().getCluster(RemoteClusterService.LOCAL_CLUSTER_GROUP_KEY);
+            assertThat(local.getFailedShards(), greaterThanOrEqualTo(1));
+            assertThat(local.getSuccessfulShards(), greaterThanOrEqualTo(1));
+        }
+        var event = appender.getLastEventAndReset();
+        assertNotNull(event);
+        var message = getMessageData(event);
+        assertMessageSuccess(message, "esql", "FROM esql_partial_test | LIMIT 100");
+        assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.successful")), greaterThanOrEqualTo(1));
+        assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.skipped")), equalTo(0));
+        assertThat(Integer.valueOf(message.get(ES_FIELDS_PREFIX + "shards.failed")), greaterThanOrEqualTo(1));
     }
 }

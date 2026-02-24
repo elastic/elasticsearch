@@ -121,9 +121,7 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
                     if (Regex.simpleMatch(expressionToExclude, iter.next())) {
                         iter.remove();
                     } else {
-                        expressions.add(
-                            new ResolvedIndexExpression(original, LocalExpressions.NONE, Set.of(original))
-                        );
+                        expressions.add(new ResolvedIndexExpression(original, LocalExpressions.NONE, Set.of(original)));
                         break outer;
                     }
                 }

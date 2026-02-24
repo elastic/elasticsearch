@@ -13,8 +13,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramBuilder;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogramCircuitBreaker;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.xpack.esql.WriteableExponentialHistogram;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -35,6 +39,8 @@ import static org.elasticsearch.test.ReadableMatchers.matchesBytesRef;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class ToStringTests extends AbstractConfigurationFunctionTestCase {
     public ToStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -187,12 +193,50 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             eh -> matchesBytesRef(EsqlDataTypeConverter.exponentialHistogramToString(eh)),
             List.of()
         );
+        ExponentialHistogram largeExponentialHistogram = buildDummyHistogram(100_001);
+        suppliers.add(
+            new TestCaseSupplier(
+                "<too many exponential histogram buckets>",
+                List.of(DataType.EXPONENTIAL_HISTOGRAM),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(
+                        new TestCaseSupplier.TypedData(
+                            new WriteableExponentialHistogram(largeExponentialHistogram),
+                            DataType.EXPONENTIAL_HISTOGRAM,
+                            "large exponential histogram"
+                        )
+                    ),
+                    "ToStringFromExponentialHistogramEvaluator[histogram=" + read + "]",
+                    DataType.KEYWORD,
+                    is(nullValue())
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning(
+                        "Line 1:1: java.lang.IllegalArgumentException: Exponential histogram is too big to be converted to a string"
+                    )
+            )
+        );
+
         TestCaseSupplier.forUnaryHistogram(
             suppliers,
             "ToStringFromHistogramEvaluator[histogram=" + read + "]",
             DataType.KEYWORD,
             h -> matchesBytesRef(EsqlDataTypeConverter.histogramToString(h)),
             List.of()
+        );
+        // doesn't matter if it's not an actual encoded histogram, as we should never get to the decoding step
+        BytesRef largeTDigest = new BytesRef(new byte[3 * 1024 * 1024]);
+        suppliers.add(
+            new TestCaseSupplier(
+                "<too large histograms>",
+                List.of(DataType.HISTOGRAM),
+                () -> new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(largeTDigest, DataType.HISTOGRAM, "large histogram")),
+                    "ToStringFromHistogramEvaluator[histogram=" + read + "]",
+                    DataType.KEYWORD,
+                    is(nullValue())
+                ).withWarning("Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded.")
+                    .withWarning("Line 1:1: java.lang.IllegalArgumentException: Histogram length is greater than 2MB")
+            )
         );
 
         List<TestCaseSupplier> fixedTimezoneSuppliers = new ArrayList<>();
@@ -287,6 +331,22 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         }
 
         return suppliers;
+    }
+
+    private static ExponentialHistogram buildDummyHistogram(int bucketCount) {
+        final ExponentialHistogram tooLarge;
+        try (ExponentialHistogramBuilder builder = ExponentialHistogram.builder((byte) 0, ExponentialHistogramCircuitBreaker.noop())) {
+            for (int i = 0; i < bucketCount; i++) {
+                // indices must be unique to count as distinct buckets
+                if (i % 2 == 0) {
+                    builder.setPositiveBucket(i, 1L);
+                } else {
+                    builder.setNegativeBucket(i, 1L);
+                }
+            }
+            tooLarge = builder.build();
+        }
+        return tooLarge;
     }
 
     @Override

@@ -26,6 +26,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.MetadataDeleteIndexService;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -61,6 +63,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
+import static org.elasticsearch.snapshots.SnapshotTestUtils.clearShutdownMetadata;
+import static org.elasticsearch.snapshots.SnapshotTestUtils.putShutdownForRemovalMetadata;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFileExists;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -2286,6 +2290,76 @@ public class ConcurrentSnapshotsIT extends AbstractSnapshotIntegTestCase {
             .prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotName)
             .setWaitForCompletion(true)
             .execute();
+    }
+
+    /**
+     * This test ensures that deleting a snapshot with paused shards works fine when there are shards queued behind it
+     * as well as creating new snapshots concurrently. The snapshot state machine should propagate correctly.
+     */
+    public void testConcurrentDeletePausedSnapshotAndCreateSnapshot() throws Exception {
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        final String dataNode = internalCluster().startDataOnlyNode();
+        ensureStableCluster(2);
+        final String repoName = randomRepoName();
+        createRepository(repoName, "mock");
+
+        final String indexName = randomIndexName();
+        createIndexWithContent(indexName, indexSettingsNoReplicas(1).build());
+
+        final var snap0 = randomSnapshotName();
+        final var snap1 = randomSnapshotName();
+        final var snap2 = randomSnapshotName();
+        final var snap3 = randomSnapshotName();
+
+        // snap0: block finalization on the master so that later deletion stays WAITING
+        blockMasterOnWriteIndexFile(repoName);
+        final var snap0Future = startFullSnapshot(repoName, snap0);
+        waitForBlock(masterNode, repoName);
+
+        // Add data so that snap1's shard snapshot has new segment files to write (allowing data node block)
+        indexDoc(indexName, "another_id", "foo", "bar");
+
+        // snap1: block on data node, then pause for node removal
+        final var snap1Future = startFullSnapshotBlockedOnDataNode(snap1, repoName, dataNode);
+
+        // Shutdown and unblock the data node so that the shard snapshot moves to PAUSED_FOR_NODE_REMOVAL
+        final var clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        putShutdownForRemovalMetadata(dataNode, clusterService);
+        unblockNode(repoName, dataNode);
+        awaitClusterState(state -> {
+            for (var entry : SnapshotsInProgress.get(state).forRepo(ProjectId.DEFAULT, repoName)) {
+                if (entry.snapshot().getSnapshotId().getName().equals(snap1)) {
+                    for (var shard : entry.shards().values()) {
+                        if (shard.state() == SnapshotsInProgress.ShardState.PAUSED_FOR_NODE_REMOVAL) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        });
+
+        // snap2: shard is QUEUED behind snap1's active PAUSED_FOR_NODE_REMOVAL shard
+        final var snap2Future = startFullSnapshot(repoName, snap2);
+        awaitNumberOfSnapshotsInProgress(3);
+
+        // Delete snap1: PAUSED_FOR_NODE_REMOVAL → ABORTED in abort(), deletion is WAITING because snap0 is still finalizing
+        final ActionFuture<AcknowledgedResponse> deleteFuture = startDeleteSnapshot(repoName, snap1);
+        awaitNDeletionsInProgress(1);
+
+        // snap3: start yet another snapshot and its shard correctly gets QUEUED
+        final var snap3Future = startFullSnapshot(repoName, snap3);
+
+        // Clean up: clear shutdown so shard snapshots can run, then unblock finalization
+        clearShutdownMetadata(clusterService);
+        unblockNode(repoName, masterNode);
+
+        // All snapshots except the deleted on should complete successfully
+        assertSuccessful(snap0Future);
+        assertThat(snap1Future.get().getSnapshotInfo().state(), is(SnapshotState.FAILED));
+        assertThat(deleteFuture.get().isAcknowledged(), is(true));
+        assertSuccessful(snap2Future);
+        assertSuccessful(snap3Future);
     }
 
     private void createIndexWithContent(String indexName, String nodeInclude, String nodeExclude) {

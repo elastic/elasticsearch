@@ -66,15 +66,7 @@ public class RangeWithinTests extends AbstractScalarFunctionTestCase {
         // (date_range, date): range contains point (same as point in range)
         suppliers.add(rangeContainsPoint("range contains point", 500L, 1500L, 1000L, true));
         suppliers.add(rangeContainsPoint("range does not contain point", 500L, 1500L, 2000L, false));
-        suppliers.add(
-            rangeContainsPointNanos(
-                "range contains point (date_nanos)",
-                500L,
-                1500L,
-                DateUtils.toNanoSeconds(1000L),
-                true
-            )
-        );
+        suppliers.add(rangeContainsPointNanos("range contains point (date_nanos)", 500L, 1500L, DateUtils.toNanoSeconds(1000L), true));
 
         // (date_range, date_range): first contains second
         suppliers.add(rangeContainsRange("first contains second", 100L, 2000L, 500L, 1500L, true));
@@ -165,13 +157,7 @@ public class RangeWithinTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    private static TestCaseSupplier rangeContainsPointNanos(
-        String name,
-        long rangeFrom,
-        long rangeTo,
-        long pointNanos,
-        boolean expected
-    ) {
+    private static TestCaseSupplier rangeContainsPointNanos(String name, long rangeFrom, long rangeTo, long pointNanos, boolean expected) {
         return new TestCaseSupplier(
             name,
             List.of(DataType.DATE_RANGE, DataType.DATE_NANOS),

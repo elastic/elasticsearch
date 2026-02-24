@@ -459,10 +459,6 @@ public class OTLPMetricsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         refreshMetricsIndices();
     }
 
-    private ObjectPath search(String target) throws IOException {
-        return ObjectPath.createFromResponse(client().performRequest(new Request("GET", target + "/_search")));
-    }
-
     private static void refreshMetricsIndices() throws IOException {
         assertOK(client().performRequest(new Request("GET", "metrics-*/_refresh")));
     }

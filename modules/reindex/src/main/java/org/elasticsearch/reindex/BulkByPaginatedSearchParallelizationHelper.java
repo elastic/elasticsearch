@@ -23,6 +23,8 @@ import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.LeaderBulkByScrollTaskState;
+import org.elasticsearch.index.reindex.ResumeInfo;
+import org.elasticsearch.index.reindex.ResumeInfo.WorkerResult;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.TaskId;
@@ -31,8 +33,11 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.AUTO_SLICES;
 
 /**
  * Helps parallelize reindex requests using slices. This is search agnostic, working for both scrolls and PITs (point-in-times)
@@ -114,8 +119,11 @@ class BulkByPaginatedSearchParallelizationHelper {
         Client client,
         ActionListener<Void> listener
     ) {
-        int configuredSlices = request.getSlices();
-        if (configuredSlices == AbstractBulkByScrollRequest.AUTO_SLICES) {
+        // If we are resuming a task, make sure we slice the same way as before. For example, if slicing was "auto", it's possible that the
+        // number of shards in the source has changed since the original run, so we have to use the original number of slices.
+        int configuredSlices = request.getResumeInfo().map(ResumeInfo::getTotalSlices).orElse(request.getSlices());
+        assert request.getResumeInfo().isEmpty() || configuredSlices != AUTO_SLICES : "Resumed tasks can't have auto slices";
+        if (configuredSlices == AUTO_SLICES) {
             client.execute(
                 TransportClusterSearchShardsAction.TYPE,
                 new ClusterSearchShardsRequest(request.getTimeout(), request.getSearchRequest().indices()),
@@ -160,16 +168,31 @@ class BulkByPaginatedSearchParallelizationHelper {
         Request request,
         ActionListener<BulkByScrollResponse> listener
     ) {
+        LeaderBulkByScrollTaskState leader = task.getLeaderState();
+        int totalSlices = leader.getSlices();
+        assert request.getResumeInfo().isEmpty() || totalSlices == request.getResumeInfo().get().getTotalSlices()
+            : "If resuming, the total slices in the resume info should match the total slices in the task state";
 
-        LeaderBulkByScrollTaskState worker = task.getLeaderState();
-        int totalSlices = worker.getSlices();
-        TaskId parentTaskId = new TaskId(localNodeId, task.getId());
-        for (final SearchRequest slice : sliceIntoSubRequests(request.getSearchRequest(), IdFieldMapper.NAME, totalSlices)) {
-            // TODO move the request to the correct node. maybe here or somehow do it as part of startup for reindex in general....
-            Request requestForSlice = request.forSlice(parentTaskId, slice, totalSlices);
+        SearchRequest[] searchRequests = sliceIntoSubRequests(request.getSearchRequest(), IdFieldMapper.NAME, totalSlices);
+        for (int sliceId = 0; sliceId < searchRequests.length; sliceId++) {
+            // If a resumed slice was already completed, skip sending the request and directly record the result
+            Optional<ResumeInfo> resumeInfo = request.getResumeInfo();
+            if (resumeInfo.isPresent() && resumeInfo.get().isSliceCompleted(sliceId)) {
+                WorkerResult sliceResult = resumeInfo.get().getSlice(sliceId).get().result();
+                if (sliceResult.getResponse().isPresent()) {
+                    leader.onSliceResponse(listener, sliceId, sliceResult.getResponse().get());
+                } else if (sliceResult.getFailure().isPresent()) {
+                    leader.onSliceFailure(listener, sliceId, sliceResult.getFailure().get());
+                }
+                continue;
+            }
+
+            TaskId parentTaskId = new TaskId(localNodeId, task.getId());
+            SearchRequest searchRequest = searchRequests[sliceId];
+            Request requestForSlice = request.forSlice(parentTaskId, searchRequest, totalSlices);
             ActionListener<BulkByScrollResponse> sliceListener = ActionListener.wrap(
-                r -> worker.onSliceResponse(listener, slice.source().slice().getId(), r),
-                e -> worker.onSliceFailure(listener, slice.source().slice().getId(), e)
+                r -> leader.onSliceResponse(listener, searchRequest.source().slice().getId(), r),
+                e -> leader.onSliceFailure(listener, searchRequest.source().slice().getId(), e)
             );
             client.execute(action, requestForSlice, sliceListener);
         }

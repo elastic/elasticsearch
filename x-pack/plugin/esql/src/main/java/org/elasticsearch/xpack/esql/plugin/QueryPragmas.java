@@ -94,6 +94,14 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Integer> ROUNDTO_PUSHDOWN_THRESHOLD = Setting.intSetting("roundto_pushdown_threshold", -1, -1);
 
+    /**
+     * Query-level override for the maximum number of keyword sort fields allowed when pushing TopN to Lucene.
+     * Defaults to {@code -1}, meaning the cluster-level setting {@link PlannerSettings#MAX_KEYWORD_SORT_FIELDS} is used.
+     * When set to a value {@code >= 0}, it overrides the cluster-level threshold for this query only.
+     * The resolution logic lives in {@code PushTopNToSource}.
+     */
+    public static final Setting<Integer> MAX_KEYWORD_SORT_FIELDS = Setting.intSetting("max_keyword_sort_fields", -1, -1);
+
     public static final Setting<Boolean> FORK_IMPLICIT_LIMIT = Setting.boolSetting("fork_implicit_limit", true);
 
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
@@ -222,6 +230,10 @@ public final class QueryPragmas implements Writeable {
      */
     public boolean forkImplicitLimit() {
         return FORK_IMPLICIT_LIMIT.get(settings);
+    }
+
+    public int maxKeywordSortFields() {
+        return MAX_KEYWORD_SORT_FIELDS.get(settings);
     }
 
     public int partialAggregationEmitKeysThreshold(int defaultThreshold) {

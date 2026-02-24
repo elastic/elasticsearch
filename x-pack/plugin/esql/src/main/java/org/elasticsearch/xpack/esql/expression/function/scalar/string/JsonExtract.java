@@ -116,13 +116,13 @@ public class JsonExtract extends EsqlScalarFunction {
             @Example(
                 file = "json_extract",
                 tag = "json_extract_bracket",
-                description = "When a key contains dots or special characters, use quoted bracket notation. "
-                    + "Here `user.name` is a single key, not a nested path:"
+                description = "Keys that contain dots (common in OpenTelemetry semantic conventions) "
+                    + "require quoted bracket notation — here `service.name` is a single key, not a nested path:"
             ),
             @Example(
                 file = "json_extract",
                 tag = "json_extract_array",
-                description = "This example extracts the second item from an array of objects using bracket notation:"
+                description = "Array indices can be combined with dot notation to navigate arrays of objects:"
             ),
             @Example(
                 file = "json_extract",
@@ -137,8 +137,8 @@ public class JsonExtract extends EsqlScalarFunction {
             @Example(
                 file = "json_extract",
                 tag = "json_extract_deep_nesting",
-                description = "This example navigates through nested objects and arrays to extract a specific value:"
-            ) }
+                description = "Dot notation, array indices, and object keys can be combined to navigate deeply nested structures:"
+            ), }
     )
     public JsonExtract(
         Source source,

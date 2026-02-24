@@ -5,6 +5,6 @@ Extracts a value from a JSON string using a subset of
 [JSONPath](https://datatracker.ietf.org/doc/rfc9535) syntax.
 
 ```esql
-ROW json = "{\\"name\\":\\"Alice\\",\\"age\\":30}"
-| EVAL name = JSON_EXTRACT(json, "name")
+ROW log = """{"severity":"ERROR","body":"Payment processing failed"}"""
+| EVAL severity = JSON_EXTRACT(log, "severity")
 ```

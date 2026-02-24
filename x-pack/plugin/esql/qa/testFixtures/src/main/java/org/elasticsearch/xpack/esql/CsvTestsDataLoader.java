@@ -206,7 +206,8 @@ public class CsvTestsDataLoader {
             "settings-histogram_time_series_index.json"
         ).withRequiredCapabilities(EsqlCapabilities.Cap.HISTOGRAM_RELEASE_VERSION),
         new TestDataset("many_numbers"),
-        new TestDataset("mmr_text_vector_keyword")
+        new TestDataset("mmr_text_vector_keyword"),
+        new TestDataset("json_logs").withRequiredCapabilities(EsqlCapabilities.Cap.FN_JSON_EXTRACT)
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
     public static final List<EnrichConfig> ENRICH_POLICIES = List.of(

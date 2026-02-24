@@ -3,73 +3,78 @@
 **Examples**
 
 ```esql
-ROW json = "{\\"name\\":\\"Alice\\",\\"age\\":30}"
-| EVAL name = JSON_EXTRACT(json, "name")
+ROW log = """{"severity":"ERROR","body":"Payment processing failed"}"""
+| EVAL severity = JSON_EXTRACT(log, "severity")
 ```
 
-| json:keyword | name:keyword |
+| log:keyword | severity:keyword |
 | --- | --- |
-| "{""name"":""Alice"",""age"":30}" | Alice |
+| "{""severity"":""ERROR"",""body"":""Payment processing failed""}" | ERROR |
 
 The `$` prefix is optional — this query produces the same result as the previous example:
 
 ```esql
-ROW json = "{\\"name\\":\\"Alice\\",\\"age\\":30}"
-| EVAL name = JSON_EXTRACT(json, "$.name")
+ROW log = """{"severity":"ERROR","body":"Payment processing failed"}"""
+| EVAL severity = JSON_EXTRACT(log, "$.severity")
 ```
 
-| json:keyword | name:keyword |
+| log:keyword | severity:keyword |
 | --- | --- |
-| "{""name"":""Alice"",""age"":30}" | Alice |
+| "{""severity"":""ERROR"",""body"":""Payment processing failed""}" | ERROR |
 
 To extract a deeply nested value, use dot-notation:
 
 ```esql
-ROW json = "{\\"user\\":{\\"address\\":{\\"city\\":\\"London\\"}}}"
-| EVAL city = JSON_EXTRACT(json, "user.address.city")
+ROW log = """{"resource":{"service":{"name":"order-service"}}}"""
+| EVAL svc = JSON_EXTRACT(log, "resource.service.name")
 ```
 
-| json:keyword | city:keyword |
+| log:keyword | svc:keyword |
 | --- | --- |
-| "{""user"":{""address"":{""city"":""London""}}}" | London |
+| "{""resource"":{""service"":{""name"":""order-service""}}}" | order-service |
 
-When a key contains dots or special characters, use quoted bracket notation. Here `user.name` is a single key, not a nested path:
+Keys that contain dots (common in OpenTelemetry semantic conventions) require quoted bracket notation — here `service.name` is a single key, not a nested path:
 
 ```esql
-ROW json = "{\\"user.name\\":{\\"first\\":\\"Alice\\"}}"
-| EVAL val = JSON_EXTRACT(json, "['user.name'].first")
+FROM json_logs
+| EVAL svc = JSON_EXTRACT(payload, "resource['service.name']")
+| KEEP @timestamp, source, svc
+| SORT @timestamp
+| LIMIT 3
 ```
 
-| json:keyword | val:keyword |
-| --- | --- |
-| "{""user.name"":{""first"":""Alice""}}" | Alice |
+| @timestamp:date | source:keyword | svc:keyword |
+| --- | --- | --- |
+| 2024-10-01T12:00:00.000Z | api-gateway | api-gateway |
+| 2024-10-01T12:01:00.000Z | user-service | user-service |
+| 2024-10-01T12:02:00.000Z | auth-service | auth-service |
 
-This example extracts the second item from an array of objects using bracket notation:
+Array indices can be combined with dot notation to navigate arrays of objects:
 
 ```esql
-ROW json = "{\\"orders\\":[{\\"id\\":1,\\"item\\":\\"book\\"},{\\"id\\":2,\\"item\\":\\"pen\\"}]}"
-| EVAL second_item = JSON_EXTRACT(json, "orders[1].item")
+ROW log = """{"spans":[{"name":"auth","duration":12},{"name":"db-query","duration":45}]}"""
+| EVAL span = JSON_EXTRACT(log, "spans[1].name")
 ```
 
-| json:keyword | second_item:keyword |
+| log:keyword | span:keyword |
 | --- | --- |
-| "{""orders"":[{""id"":1,""item"":""book""},{""id"":2,""item"":""pen""}]}" | pen |
+| "{""spans"":[{""name"":""auth"",""duration"":12},{""name"":""db-query"",""duration"":45}]}" | db-query |
 
 When the extracted value is an object or array, it is returned as a JSON string:
 
 ```esql
-ROW json = "{\\"user\\":{\\"name\\":\\"Alice\\",\\"age\\":30}}"
-| EVAL user = JSON_EXTRACT(json, "user")
+ROW log = """{"resource":{"service.name":"api-gateway","host.name":"api-server-03"},"severity":"INFO"}"""
+| EVAL resource = JSON_EXTRACT(log, "resource")
 ```
 
-| json:keyword | user:keyword |
+| log:keyword | resource:keyword |
 | --- | --- |
-| "{""user"":{""name"":""Alice"",""age"":30}}" | "{""name"":""Alice"",""age"":30}" |
+| "{""resource"":{""service.name"":""api-gateway"",""host.name"":""api-server-03""},""severity"":""INFO""}" | "{""service.name"":""api-gateway"",""host.name"":""api-server-03""}" |
 
 To extract from a top-level JSON array, use a bracket index on the root element:
 
 ```esql
-ROW json = "[\\"a\\",\\"b\\",\\"c\\"]"
+ROW json = """["a","b","c"]"""
 | EVAL val = JSON_EXTRACT(json, "$[1]")
 | KEEP val
 ```
@@ -78,16 +83,16 @@ ROW json = "[\\"a\\",\\"b\\",\\"c\\"]"
 | --- |
 | b |
 
-This example navigates through nested objects and arrays to extract a specific value:
+Dot notation, array indices, and object keys can be combined to navigate deeply nested structures:
 
 ```esql
-ROW json = "{\\"company\\":{\\"departments\\":[{\\"name\\":\\"eng\\",\\"leads\\":[{\\"name\\":\\"Alice\\"},{\\"name\\":\\"Bob\\"}]},{\\"name\\":\\"sales\\",\\"leads\\":[{\\"name\\":\\"Carol\\"}]}]}}"
-| EVAL lead = JSON_EXTRACT(json, "company.departments[0].leads[1].name")
-| KEEP lead
+ROW log = """{"trace":{"spans":[{"name":"auth","events":[{"type":"start"},{"type":"end"}]},{"name":"db","events":[{"type":"query"}]}]}}"""
+| EVAL event = JSON_EXTRACT(log, "trace.spans[0].events[1].type")
+| KEEP event
 ```
 
-| lead:keyword |
+| event:keyword |
 | --- |
-| Bob |
+| end |
 
 

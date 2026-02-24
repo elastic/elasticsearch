@@ -189,7 +189,7 @@ public class DynamicMapperBenchmark {
             }
             ParsedDocument doc = documentMapper.parse(randomFrom(sources));
             if (noMappings) {
-                doc.addDynamicMappingsUpdate(Mapping.EMPTY_COMPRESSED);
+                doc.addDynamicMappingsUpdate(Mapping.emptyCompressed());
             }
             if (doc.dynamicMappingsUpdate() != null) {
                 mapperService.merge("_doc", doc.dynamicMappingsUpdate(), MapperService.MergeReason.MAPPING_UPDATE);

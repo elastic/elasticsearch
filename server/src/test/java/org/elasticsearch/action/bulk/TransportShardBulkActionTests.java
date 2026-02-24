@@ -274,7 +274,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         items[0] = new BulkItemRequest(0, writeRequest);
         BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-        Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.EMPTY_COMPRESSED, "id");
+        Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.emptyCompressed(), "id");
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation, "id");
 
@@ -894,7 +894,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         Exception err = new VersionConflictEngineException(shardId, "id", "I'm conflicted <(;_;)>");
         Engine.IndexResult conflictedResult = new Engine.IndexResult(err, 0, "id");
-        Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.EMPTY_COMPRESSED, "id");
+        Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.emptyCompressed(), "id");
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult success = new FakeIndexResult(1, 1, 13, true, resultLocation, "id");
 
@@ -983,7 +983,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             items[1] = new BulkItemRequest(1, writeRequest2);
             BulkShardRequest bulkShardRequest = new BulkShardRequest(shardId, RefreshPolicy.NONE, items);
 
-            Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.EMPTY_COMPRESSED, "id");
+            Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.emptyCompressed(), "id");
             Translog.Location resultLocation1 = new Translog.Location(42, 36, 36);
             Translog.Location resultLocation2 = new Translog.Location(42, 42, 42);
             Engine.IndexResult success1 = new FakeIndexResult(1, 1, 10, true, resultLocation1, "id");
@@ -1108,7 +1108,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testNoopMappingUpdateInfiniteLoopPrevention() throws Exception {
-        Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.EMPTY_COMPRESSED, "id");
+        Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.emptyCompressed(), "id");
 
         MapperService mapperService = mock(MapperService.class);
         DocumentMapper documentMapper = mock(DocumentMapper.class);
@@ -1159,7 +1159,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
     }
 
     public void testNoopMappingUpdateSuccessOnRetry() throws Exception {
-        Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.EMPTY_COMPRESSED, "id");
+        Engine.IndexResult mappingUpdate = new Engine.IndexResult(Mapping.emptyCompressed(), "id");
         Translog.Location resultLocation = new Translog.Location(42, 42, 42);
         Engine.IndexResult successfulResult = new FakeIndexResult(1, 1, 10, true, resultLocation, "id");
 

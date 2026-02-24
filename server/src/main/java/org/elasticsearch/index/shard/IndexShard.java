@@ -1104,7 +1104,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             // some mappings do exist. It covers for the case of indexing an empty doc (`{}`).
             // TODO this can be removed if we eagerly create mappings as soon as a new index is created, regardless of
             // whether mappings were provided or not.
-            doc.addDynamicMappingsUpdate(Mapping.EMPTY_COMPRESSED);
+            doc.addDynamicMappingsUpdate(Mapping.emptyCompressed());
         }
         return new Engine.Index(
             Uid.encodeId(doc.id()),

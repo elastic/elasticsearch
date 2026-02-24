@@ -38,7 +38,18 @@ public final class Mapping implements ToXContentFragment {
         null
     );
 
-    public static final CompressedXContent EMPTY_COMPRESSED = EMPTY.toCompressedXContent();
+    /**
+     * Holder class for lazy initialization of EMPTY_COMPRESSED. Creating a CompressedXContent calls
+     * MessageDigests.sha256() which resets the thread-local SHA-256 digest, so we must not do this
+     * during Mapping class loading (which can happen at unpredictable times via XContentHelper.parseToType).
+     */
+    private static class EmptyCompressedHolder {
+        static final CompressedXContent INSTANCE = EMPTY.toCompressedXContent();
+    }
+
+    public static CompressedXContent emptyCompressed() {
+        return EmptyCompressedHolder.INSTANCE;
+    }
 
     private final RootObjectMapper root;
     private final Map<String, Object> meta;

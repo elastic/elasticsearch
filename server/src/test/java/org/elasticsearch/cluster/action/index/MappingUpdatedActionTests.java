@@ -141,7 +141,7 @@ public class MappingUpdatedActionTests extends ESTestCase {
         );
         mua.setClient(client);
 
-        mua.sendUpdateMapping(new Index("name", "uuid"), Mapping.EMPTY_COMPRESSED, ActionListener.noop());
+        mua.sendUpdateMapping(new Index("name", "uuid"), Mapping.emptyCompressed(), ActionListener.noop());
         verify(indicesAdminClient).execute(eq(TransportAutoPutMappingAction.TYPE), any(), any());
     }
 }

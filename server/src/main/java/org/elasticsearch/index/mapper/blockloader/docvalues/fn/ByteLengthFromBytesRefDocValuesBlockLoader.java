@@ -9,22 +9,18 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues.fn;
 
-import org.apache.lucene.index.BinaryDocValues;
-import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.Warnings;
-import org.elasticsearch.index.mapper.blockloader.docvalues.AbstractLongsFromDocValuesBlockLoader;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
-import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryBlockLoader;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.BinaryAndCounts;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingBinaryDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
 
 import java.io.IOException;
-
-import static org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
 
 /**
  * Loads byte length from BytesRef.
@@ -45,44 +41,27 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
 
     @Override
     public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-        breaker.addEstimateBytesAndMaybeBreak(BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE, "load blocks");
-        long release = BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE;
-        try {
-
-            BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
-            if (values == null) {
-                return ConstantNull.READER;
-            }
-
-            String countsFieldName = fieldName + COUNT_FIELD_SUFFIX;
-            DocValuesSkipper countsSkipper = context.reader().getDocValuesSkipper(countsFieldName);
-            assert countsSkipper != null : "no skipper for counts field [" + countsFieldName + "]";
-            if (countsSkipper.maxValue() == 1) {
-                release = 0;
-                return new SingleValued(breaker, values);
-            }
-
-            breaker.addEstimateBytesAndMaybeBreak(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE, "load blocks");
-            release += AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE;
-            NumericDocValues counts = context.reader().getNumericDocValues(countsFieldName);
-            release = 0;
-            return new MultiValuedBinaryWithSeparateCounts(breaker, warnings, counts, values);
-        } finally {
-            breaker.addWithoutBreaking(-release);
+        BinaryAndCounts bc = BinaryAndCounts.get(breaker, context, fieldName, true);
+        if (bc == null) {
+            return ConstantNull.READER;
         }
+        if (bc.counts() == null) {
+            return new SingleValued(bc.binary());
+        }
+        return new MultiValuedBinaryWithSeparateCounts(warnings, bc.counts(), bc.binary());
     }
 
     private static final class SingleValued extends BlockDocValuesReader {
-        private final BinaryDocValues docValues;
+        private final TrackingBinaryDocValues docValues;
 
-        SingleValued(CircuitBreaker breaker, BinaryDocValues docValues) {
-            super(breaker);
+        SingleValued(TrackingBinaryDocValues docValues) {
+            super(null);
             this.docValues = docValues;
         }
 
         @Override
         public int docId() {
-            return docValues.docID();
+            return docValues.docValues().docID();
         }
 
         @Override
@@ -92,13 +71,12 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            if (docValues instanceof BlockLoader.OptionalLengthReader direct) {
+            if (docValues.docValues() instanceof BlockLoader.OptionalLengthReader direct) {
                 BlockLoader.Block block = direct.tryReadLength(factory, docs, offset, nullsFiltered);
                 if (block != null) {
                     return block;
                 }
             }
-
             try (BlockLoader.IntBuilder builder = factory.ints(docs.count() - offset)) {
                 for (int i = offset; i < docs.count(); i++) {
                     int doc = docs.get(i);
@@ -109,17 +87,17 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
         }
 
         public void read(int doc, IntBuilder builder) throws IOException {
-            if (false == docValues.advanceExact(doc)) {
+            if (false == docValues.docValues().advanceExact(doc)) {
                 builder.appendNull();
                 return;
             }
-            BytesRef bytes = docValues.binaryValue();
+            BytesRef bytes = docValues.docValues().binaryValue();
             builder.appendInt(bytes.length);
         }
 
         @Override
         public void close() {
-            breaker.addWithoutBreaking(-BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE);
+            docValues.close();
         }
 
         @Override
@@ -130,20 +108,13 @@ public final class ByteLengthFromBytesRefDocValuesBlockLoader extends BlockDocVa
 
     private static final class MultiValuedBinaryWithSeparateCounts extends MultiValuedBinaryWithSeparateCountsLengthReader {
 
-        MultiValuedBinaryWithSeparateCounts(CircuitBreaker breaker, Warnings warnings, NumericDocValues counts, BinaryDocValues values) {
-            super(breaker, warnings, counts, values);
+        MultiValuedBinaryWithSeparateCounts(Warnings warnings, TrackingNumericDocValues counts, TrackingBinaryDocValues values) {
+            super(warnings, counts, values);
         }
 
         @Override
         int length(BytesRef bytesRef) {
             return bytesRef.length;
-        }
-
-        @Override
-        public void close() {
-            breaker.addWithoutBreaking(
-                -(AbstractLongsFromDocValuesBlockLoader.ESTIMATED_SIZE + BytesRefsFromBinaryBlockLoader.ESTIMATED_SIZE)
-            );
         }
 
         @Override

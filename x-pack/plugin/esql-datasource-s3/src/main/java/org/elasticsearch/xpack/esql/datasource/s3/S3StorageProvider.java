@@ -11,6 +11,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.profiles.ProfileFile;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.S3ClientBuilder;
@@ -48,6 +49,14 @@ public final class S3StorageProvider implements StorageProvider {
 
     private static S3Client buildS3Client(S3Configuration config) {
         S3ClientBuilder builder = S3Client.builder();
+
+        // Disable profile file loading to prevent the AWS SDK from reading ~/.aws/config
+        // or the path set via AWS_CONFIG_FILE, which would be blocked by the entitlement system.
+        ProfileFile emptyProfileFile = ProfileFile.aggregator().build();
+        builder.overrideConfiguration(c -> {
+            c.defaultProfileFile(emptyProfileFile);
+            c.defaultProfileFileSupplier(() -> emptyProfileFile);
+        });
 
         AwsCredentialsProvider credentialsProvider;
         if (config != null && config.hasCredentials()) {

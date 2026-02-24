@@ -9,9 +9,8 @@
 
 package org.elasticsearch.index.mapper.blockloader.docvalues;
 
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingNumericDocValues;
+import org.elasticsearch.index.mapper.blockloader.docvalues.tracking.TrackingSortedNumericDocValues;
 
 public class DoublesBlockLoader extends AbstractDoublesFromDocValuesBlockLoader {
     public DoublesBlockLoader(String fieldName, BlockDocValuesReader.ToDouble toDouble) {
@@ -19,13 +18,13 @@ public class DoublesBlockLoader extends AbstractDoublesFromDocValuesBlockLoader 
     }
 
     @Override
-    protected AllReader singletonReader(CircuitBreaker breaker, NumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new Singleton(breaker, docValues, toDouble);
+    protected AllReader singletonReader(TrackingNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
+        return new Singleton(docValues, toDouble);
     }
 
     @Override
-    protected AllReader sortedReader(CircuitBreaker breaker, SortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
-        return new Sorted(breaker, docValues, toDouble);
+    protected AllReader sortedReader(TrackingSortedNumericDocValues docValues, BlockDocValuesReader.ToDouble toDouble) {
+        return new Sorted(docValues, toDouble);
     }
 
     @Override

@@ -103,7 +103,6 @@ class KibanaOwnedReservedRoleDescriptors {
                 "cluster:admin/script/put",
                 "cluster:admin/script/get",
                 // To allow Kibana to get and delete project routing expressions.
-                "cluster:monitor/project_routing/get",
                 "cluster:admin/project_routing/delete",
                 // To facilitate using the file uploader functionality
                 "monitor_text_structure",

@@ -21,12 +21,13 @@ import java.io.IOException;
 /**
  * {@link BlockDocValuesReader} implementation for {@code boolean} scripts.
  */
-public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
-    public static class BooleanScriptBlockLoader extends DocValuesBlockLoader {
+public class BooleanScriptBlockDocValuesReader extends BlockScriptReader {
+    public static class BooleanScriptBlockLoader extends ScriptBlockLoader {
         private final BooleanFieldScript.LeafFactory factory;
         private final long byteSize;
 
         public BooleanScriptBlockLoader(BooleanFieldScript.LeafFactory factory, ByteSizeValue byteSize) {
+            super(byteSize);
             this.factory = factory;
             this.byteSize = byteSize.getBytes();
         }
@@ -37,28 +38,17 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
         }
 
         @Override
-        public AllReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
-            breaker.addEstimateBytesAndMaybeBreak(byteSize, "load blocks");
-            BooleanFieldScript script = null;
-            try {
-                script = factory.newInstance(context);
-                return new BooleanScriptBlockDocValuesReader(breaker, script, byteSize);
-            } finally {
-                if (script == null) {
-                    breaker.addWithoutBreaking(-byteSize);
-                }
-            }
+        public BlockScriptReader reader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            return new BooleanScriptBlockDocValuesReader(breaker, factory.newInstance(context), byteSize);
         }
     }
 
     private final BooleanFieldScript script;
-    private final long byteSize;
     private int docId;
 
     BooleanScriptBlockDocValuesReader(CircuitBreaker breaker, BooleanFieldScript script, long byteSize) {
-        super(breaker);
+        super(breaker, byteSize);
         this.script = script;
-        this.byteSize = byteSize;
     }
 
     @Override
@@ -67,24 +57,9 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
     }
 
     @Override
-    public BlockLoader.Block read(BlockLoader.BlockFactory factory, BlockLoader.Docs docs, int offset, boolean nullsFiltered)
-        throws IOException {
-        // Note that we don't emit falses before trues so we conform to the doc values contract and can use booleansFromDocValues
-        try (BlockLoader.BooleanBuilder builder = factory.booleans(docs.count() - offset)) {
-            for (int i = offset; i < docs.count(); i++) {
-                read(docs.get(i), builder);
-            }
-            return builder.build();
-        }
-    }
-
-    @Override
-    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {
+    public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder b) throws IOException {
+        BlockLoader.BooleanBuilder builder = (BlockLoader.BooleanBuilder) b;
         this.docId = docId;
-        read(docId, (BlockLoader.BooleanBuilder) builder);
-    }
-
-    private void read(int docId, BlockLoader.BooleanBuilder builder) {
         script.runForDoc(docId);
         int total = script.falses() + script.trues();
         switch (total) {
@@ -106,10 +81,5 @@ public class BooleanScriptBlockDocValuesReader extends BlockDocValuesReader {
     @Override
     public String toString() {
         return "ScriptBooleans";
-    }
-
-    @Override
-    public void close() {
-        breaker.addWithoutBreaking(-byteSize);
     }
 }

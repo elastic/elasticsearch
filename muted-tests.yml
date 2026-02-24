@@ -371,18 +371,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/40_tsdb/TS Command grouping on text field}
   issue: https://github.com/elastic/elasticsearch/issues/142544
-- class: org.elasticsearch.index.IndexSettingsTests
-  method: testSyntheticIdBadVersion
-  issue: https://github.com/elastic/elasticsearch/issues/142508
-- class: org.elasticsearch.index.IndexSettingsTests
-  method: testSyntheticIdBadCodec
-  issue: https://github.com/elastic/elasticsearch/issues/142509
-- class: org.elasticsearch.index.IndexSettingsTests
-  method: testSyntheticIdBadMode
-  issue: https://github.com/elastic/elasticsearch/issues/142510
-- class: org.elasticsearch.index.IndexSettingsTests
-  method: testSyntheticIdCorrectSettings
-  issue: https://github.com/elastic/elasticsearch/issues/142507
 - class: org.elasticsearch.xpack.esql.datasources.GlobDiscoveryLocalTests
   method: testRecursiveDoubleStarAllFiles
   issue: https://github.com/elastic/elasticsearch/issues/142576
@@ -431,18 +419,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:spatial.ConvertFromStringParseError}
   issue: https://github.com/elastic/elasticsearch/issues/142843
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testRemoveNodeDuringSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/142868
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testAbortSnapshotWhileRemovingNode
-  issue: https://github.com/elastic/elasticsearch/issues/142869
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testDeleteSnapshotWithPausedShardSnapshots
-  issue: https://github.com/elastic/elasticsearch/issues/142870
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testStartRemoveNodeButDoNotComplete
-  issue: https://github.com/elastic/elasticsearch/issues/142871
 - class: org.elasticsearch.benchmark.vector.scorer.VectorScorerOSQBenchmarkTests
   method: testSingleScalarVsVectorized {p0=1024 p1=1 p2=NIO p3=DOT_PRODUCT}
   issue: https://github.com/elastic/elasticsearch/issues/142881

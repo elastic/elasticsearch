@@ -1,0 +1,249 @@
+dateRange
+required_capability: date_range_field_type
+FROM date_ranges;
+
+date_range:date_range  | decade:integer | description:keyword
+1900-01-01..1910-01-01 | 1900           | Edwardian Era
+1910-01-01..1920-01-01 | 1910           | Ragtime Era
+1920-01-01..1930-01-01 | 1920           | Roaring Twenties
+1930-01-01..1940-01-01 | 1930           | Dirty Thirties
+1940-01-01..1950-01-01 | 1940           | Fabulous Forties
+1950-01-01..1960-01-01 | 1950           | Nifty Fifties
+1960-01-01..1970-01-01 | 1960           | Swinging Sixties
+1970-01-01..1980-01-01 | 1970           | Groovy Seventies
+1980-01-01..1990-01-01 | 1980           | Radical Eighties
+1990-01-01..2000-01-01 | 1990           | Nineties Nostalgia
+2000-01-01..2010-01-01 | 2000           | Innovation Explosion Decade
+2010-01-01..2020-01-01 | 2010           | Renaissance Decade
+2020-01-01..2030-01-01 | 2020           | Empowerment Era
+;
+
+dateRangeToString
+required_capability: date_range_field_type
+
+FROM date_ranges
+| WHERE decade == 1900
+| EVAL range = TO_STRING(date_range)
+;
+
+date_range:date_range  | decade:integer | description:keyword | range:keyword
+1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01T00:00:00.000Z..1909-12-31T23:59:59.999Z
+;
+
+toDateRangeFromString
+required_capability: date_range_field_type
+
+// tag::to_date_range-str[]
+ROW str = "2020-01-01T00:00:00.000Z..2020-12-31T23:59:59.999Z"
+| EVAL range = TO_DATE_RANGE(str)
+// end::to_date_range-str[]
+;
+
+// tag::to_date_range-str-result[]
+str:keyword                                          | range:date_range
+2020-01-01T00:00:00.000Z..2020-12-31T23:59:59.999Z   | 2020-01-01T00:00:00.000Z..2020-12-31T23:59:59.999Z
+// end::to_date_range-str-result[]
+;
+
+toDateRangeIdentity
+required_capability: date_range_field_type
+
+FROM date_ranges
+| WHERE decade == 1900
+| EVAL range = TO_DATE_RANGE(date_range)
+;
+
+date_range:date_range  | decade:integer | description:keyword | range:date_range
+1900-01-01..1910-01-01 | 1900           | Edwardian Era       | 1900-01-01..1910-01-01
+;
+
+toDateRangeFromShortFormat
+required_capability: date_range_field_type
+
+ROW str = "2024-06-01..2024-06-30"
+| EVAL range = TO_DATE_RANGE(str)
+;
+
+str:keyword            | range:date_range
+2024-06-01..2024-06-30 | 2024-06-01..2024-06-30
+;
+
+toDateRangeWithEval
+required_capability: date_range_field_type
+
+ROW start_date = "2023-01-01T00:00:00.000Z", end_date = "2023-12-31T23:59:59.999Z"
+| EVAL range_str = CONCAT(start_date, "..", end_date)
+| EVAL range = TO_DATE_RANGE(range_str)
+| KEEP start_date, end_date, range
+;
+
+start_date:keyword              | end_date:keyword                | range:date_range
+2023-01-01T00:00:00.000Z        | 2023-12-31T23:59:59.999Z        | 2023-01-01T00:00:00.000Z..2023-12-31T23:59:59.999Z
+;
+
+toDateRangeSingleDay
+required_capability: date_range_field_type
+
+ROW str = "2024-07-04T00:00:00.000Z..2024-07-04T23:59:59.999Z"
+| EVAL range = TO_DATE_RANGE(str)
+;
+
+str:keyword                                          | range:date_range
+2024-07-04T00:00:00.000Z..2024-07-04T23:59:59.999Z   | 2024-07-04T00:00:00.000Z..2024-07-04T23:59:59.999Z
+;
+
+###############################################
+# IN_RANGE tests
+###############################################
+
+inRangeWithEmployees
+required_capability: date_range_field_type
+
+// tag::inRange[]
+FROM employees
+| WHERE IN_RANGE(hire_date, TO_DATE_RANGE("1985-02-01..1985-03-01"))
+| KEEP emp_no, hire_date
+| SORT emp_no
+// end::inRange[]
+;
+
+// tag::inRange-result[]
+emp_no:integer | hire_date:date
+10009          | 1985-02-18T00:00:00.000Z
+10048          | 1985-02-24T00:00:00.000Z
+// end::inRange-result[]
+;
+
+inRangeWithDateRangesTable
+required_capability: date_range_field_type
+
+FROM date_ranges
+| WHERE IN_RANGE(TO_DATETIME("1955-06-15"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+1950           | Nifty Fifties
+;
+
+inRangeAtBoundaryStart
+required_capability: date_range_field_type
+
+FROM date_ranges
+| WHERE IN_RANGE(TO_DATETIME("1950-01-01"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+1950           | Nifty Fifties
+;
+
+inRangeAtBoundaryEnd
+required_capability: date_range_field_type
+
+FROM date_ranges
+| WHERE IN_RANGE(TO_DATETIME("1959-12-31T23:59:59.999Z"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+1950           | Nifty Fifties
+;
+
+inRangeOutsideRange
+required_capability: date_range_field_type
+
+FROM date_ranges
+| WHERE IN_RANGE(TO_DATETIME("2050-01-01"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+;
+
+inRangeWithEval
+required_capability: date_range_field_type
+
+FROM date_ranges
+| EVAL test_date = TO_DATETIME("1965-07-20")
+| EVAL in_range = IN_RANGE(test_date, date_range)
+| WHERE in_range
+| KEEP decade, description, in_range
+;
+
+decade:integer | description:keyword | in_range:boolean
+1960           | Swinging Sixties    | true
+;
+
+inRangeMultipleMatches#[skip:-9.4.0,reason:date_range_field_type capability added after 9.4.0]
+required_capability: date_range_field_type
+
+FROM employees
+| WHERE IN_RANGE(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
+| STATS count = COUNT(*)
+;
+
+count:long
+11
+;
+
+inRangeWithNull
+required_capability: date_range_field_type
+
+FROM employees
+| WHERE emp_no == 10040
+| EVAL in_range = IN_RANGE(birth_date, TO_DATE_RANGE("1960-01-01..1970-01-01"))
+| KEEP emp_no, birth_date, in_range
+;
+
+emp_no:integer | birth_date:date | in_range:boolean
+10040          | null            | null
+;
+
+inRangeWithStats
+required_capability: date_range_field_type
+
+FROM employees
+| EVAL in_1985 = IN_RANGE(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
+| STATS count_in_1985 = COUNT(*) WHERE in_1985, total = COUNT(*)
+;
+
+count_in_1985:long | total:long
+11                  | 100
+;
+
+inRangeBeforeStart
+required_capability: date_range_field_type
+
+FROM date_ranges
+| WHERE IN_RANGE(TO_DATETIME("1899-12-31T23:59:59.999Z"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+;
+
+inRangeAfterEnd
+required_capability: date_range_field_type
+
+FROM date_ranges
+| WHERE IN_RANGE(TO_DATETIME("2030-01-01T00:00:00.000Z"), date_range)
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+;
+
+inRangeWithLiteralRange
+required_capability: date_range_field_type
+
+ROW date = TO_DATETIME("2024-06-15T12:00:00.000Z")
+| EVAL in_june = IN_RANGE(date, TO_DATE_RANGE("2024-06-01..2024-07-01"))
+| EVAL in_july = IN_RANGE(date, TO_DATE_RANGE("2024-07-01..2024-08-01"))
+| KEEP date, in_june, in_july
+;
+
+date:date                     | in_june:boolean | in_july:boolean
+2024-06-15T12:00:00.000Z      | true            | false
+;
+

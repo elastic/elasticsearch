@@ -24,7 +24,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 
 @FunctionName("match_phrase")
-public class MatchPhraseTests extends AbstractFullTextFunctionTestCase {
+public class MatchPhraseTests extends SingleFieldFullTextFunctionTestCase {
 
     public MatchPhraseTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

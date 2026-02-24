@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.function.Supplier;
 
 @FunctionName("match")
-public class MatchTests extends AbstractFullTextFunctionTestCase {
+public class MatchTests extends SingleFieldFullTextFunctionTestCase {
 
     public MatchTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

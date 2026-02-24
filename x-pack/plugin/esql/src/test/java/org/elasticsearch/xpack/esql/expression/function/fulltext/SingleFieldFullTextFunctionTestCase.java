@@ -30,7 +30,7 @@ import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.
 import static org.elasticsearch.xpack.esql.planner.TranslatorHandler.TRANSLATOR_HANDLER;
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class AbstractFullTextFunctionTestCase extends AbstractFunctionTestCase {
+public abstract class SingleFieldFullTextFunctionTestCase extends AbstractFunctionTestCase {
 
     /**
      * Adds test cases with null field (first argument) to the provided list of suppliers.

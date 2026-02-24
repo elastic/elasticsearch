@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.esql.expression.function.fulltext.MatchTes
  * This class is only used to generates docs for the match operator - all testing is the same as {@link MatchTests}
  */
 @FunctionName("match_operator")
-public class MatchOperatorTests extends AbstractFullTextFunctionTestCase {
+public class MatchOperatorTests extends SingleFieldFullTextFunctionTestCase {
 
     public MatchOperatorTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

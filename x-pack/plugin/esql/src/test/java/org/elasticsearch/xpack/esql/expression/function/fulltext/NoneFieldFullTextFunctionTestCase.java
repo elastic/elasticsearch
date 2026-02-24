@@ -18,7 +18,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public abstract class NoneFieldFullTextFunctionTestCase extends AbstractFullTextFunctionTestCase {
+public abstract class NoneFieldFullTextFunctionTestCase extends SingleFieldFullTextFunctionTestCase {
 
     public NoneFieldFullTextFunctionTestCase(Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

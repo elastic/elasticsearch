@@ -26,7 +26,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.hamcrest.Matchers.equalTo;
 
-public class KnnTests extends AbstractFullTextFunctionTestCase {
+public class KnnTests extends SingleFieldFullTextFunctionTestCase {
 
     public KnnTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

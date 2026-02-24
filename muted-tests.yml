@@ -252,9 +252,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
   method: testGiantTextFieldInSubqueryIntermediateResultsWithSort
   issue: https://github.com/elastic/elasticsearch/issues/141034
-- class: org.elasticsearch.xpack.esql.heap_attack.HeapAttackSubqueryIT
-  method: testManyRandomKeywordFieldsInSubqueryIntermediateResultsWithSortManyFields
-  issue: https://github.com/elastic/elasticsearch/issues/141083
 - class: org.elasticsearch.xpack.transform.checkpoint.TransformCheckpointServiceNodeTests
   method: testGetCheckpointStats
   issue: https://github.com/elastic/elasticsearch/issues/141112
@@ -376,9 +373,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/142576
 - class: org.elasticsearch.xpack.search.AsyncSearchTaskTests
   methods:
-    - testFatalFailureDuringFetch
-    - testWithFetchFailures
-    - testAddCompletionListenerScheduleErrorWaitForInitListener
+  - testFatalFailureDuringFetch
+  - testWithFetchFailures
+  - testAddCompletionListenerScheduleErrorWaitForInitListener
   issue: https://github.com/elastic/elasticsearch/issues/142626
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/160_union_types/suggested_type}
@@ -434,6 +431,15 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsTSDBSyntheticIdIntegTests
   method: testSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/142918
+- class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlClientYamlIT
+  method: test {p0=esql/40_tsdb/to_aggregate_metric_double with multi_values}
+  issue: https://github.com/elastic/elasticsearch/issues/142964
+- class: org.elasticsearch.reindex.management.ReindexManagementClientYamlTestSuiteIT
+  method: test {yaml=reindex/30_cancel_reindex/Cancel running reindex returns response and GET confirms completed}
+  issue: https://github.com/elastic/elasticsearch/issues/142079
+- class: org.elasticsearch.compute.lucene.query.LuceneTopNSourceOperatorScoringTests
+  method: testAccumulateSearchLoad
+  issue: https://github.com/elastic/elasticsearch/issues/142986
 
 # Examples:
 #

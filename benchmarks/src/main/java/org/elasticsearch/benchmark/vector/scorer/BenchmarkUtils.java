@@ -21,7 +21,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
-import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
@@ -31,7 +30,6 @@ import org.elasticsearch.simdvec.VectorScorerFactory;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
 
 class BenchmarkUtils {

@@ -35,15 +35,30 @@ import java.util.stream.IntStream;
  */
 public final class PartitionedExchangeSinkHandler {
 
+    /**
+     * Per-driver buffers: pages for driver {@code d} are stored in {@code buffers[d]}.
+     * Partition ID {@code p} maps to driver {@code p / partitionsPerDriver}.
+     */
     private final ExchangeBuffer[] buffers;
     private final int numPartitions;
     private final int numDrivers;
+    /** Number of partition IDs that map to each driver ({@code numPartitions / numDrivers}). */
     private final int partitionsPerDriver;
 
+    /**
+     * Per-driver listener queues. When a consumer calls {@link #fetchPageAsync}, its listener
+     * is enqueued here. Listeners are notified when a page arrives in or the buffer finishes.
+     */
     private final List<Queue<ActionListener<ExchangeResponse>>> listeners;
+    /**
+     * Per-driver semaphores to ensure only one thread at a time dequeues a listener and
+     * polls a page from the buffer. Prevents race conditions in {@link #notifyListeners}.
+     */
     private final Semaphore[] promised;
 
+    /** Number of open sinks. When this reaches zero, all per-driver buffers are finished. */
     private final AtomicInteger outstandingSinks = new AtomicInteger();
+    /** Fires when all per-driver buffers are finished (all pages consumed, all sinks closed). */
     private final SubscribableListener<Void> completionFuture;
 
     private final LongSupplier nowInMillis;
@@ -117,6 +132,12 @@ public final class PartitionedExchangeSinkHandler {
         return partitionId / partitionsPerDriver;
     }
 
+    /**
+     * Each router driver gets its own sink instance. The sink reads the partitionId from each
+     * incoming page and routes it to the correct per-driver buffer. When the last sink finishes
+     * (outstandingSinks drops to 0), all per-driver buffers are marked finished so consumer
+     * drivers know no more data is coming.
+     */
     private class PartitionedExchangeSinkImpl implements ExchangeSink {
         boolean finished;
         private final Runnable onPageFetched;
@@ -125,6 +146,7 @@ public final class PartitionedExchangeSinkHandler {
         PartitionedExchangeSinkImpl(Runnable onPageFetched) {
             this.onPageFetched = onPageFetched;
             onChanged();
+            // This sink is considered finished when ALL buffers are done, not just one
             for (ExchangeBuffer buffer : buffers) {
                 buffer.addCompletionListener(onFinished);
             }
@@ -133,6 +155,7 @@ public final class PartitionedExchangeSinkHandler {
 
         @Override
         public void addPage(Page page) {
+            // The page must have been tagged with a valid partitionId by the HashAggregationOperator
             int partitionId = page.getPartitionId();
             if (partitionId < 0 || partitionId >= numPartitions) {
                 page.releaseBlocks();
@@ -140,9 +163,11 @@ public final class PartitionedExchangeSinkHandler {
                     "Page has invalid partitionId [" + partitionId + "]; expected [0, " + numPartitions + ")"
                 );
             }
+            // Route to the driver that owns this partition range
             int driverIndex = driverForPartition(partitionId);
             onPageFetched.run();
             buffers[driverIndex].addPage(page);
+            // Wake up any consumer waiting for data on this driver's buffer
             notifyListeners(driverIndex);
         }
 
@@ -152,6 +177,7 @@ public final class PartitionedExchangeSinkHandler {
                 finished = true;
                 onFinished.onResponse(null);
                 onChanged();
+                // When all sinks are closed, mark every buffer as finished and wake consumers
                 if (outstandingSinks.decrementAndGet() == 0) {
                     for (int i = 0; i < numDrivers; i++) {
                         buffers[i].finish(false);
@@ -201,6 +227,12 @@ public final class PartitionedExchangeSinkHandler {
         notifyListeners(driverIndex);
     }
 
+    /**
+     * Drains the listener queue for a specific driver, pairing each listener with a page
+     * (or a "finished" signal) from the driver's buffer. The semaphore ensures that only
+     * one thread at a time performs the poll-and-respond for a given driver, avoiding
+     * double-delivery or lost pages.
+     */
     private void notifyListeners(int driverIndex) {
         ExchangeBuffer buffer = buffers[driverIndex];
         Queue<ActionListener<ExchangeResponse>> driverListeners = listeners.get(driverIndex);

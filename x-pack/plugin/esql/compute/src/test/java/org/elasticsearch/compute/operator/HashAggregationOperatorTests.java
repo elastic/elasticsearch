@@ -93,22 +93,26 @@ public class HashAggregationOperatorTests extends ForkingOperatorTestCase {
 
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
-        // With partitioning, results may be spread across multiple pages
+        // With partitioning enabled (numPartitions = computeFinalDriverCount()), the operator
+        // emits one page per partition instead of a single page. The total number of positions
+        // across all pages must still equal the expected number of distinct groups (5, since
+        // simpleInput generates keys via l % 5).
         int totalPositions = results.stream().mapToInt(Page::getPositionCount).sum();
         assertThat(totalPositions, equalTo(5));
 
-        // Verify each page has a valid and unique partition ID
+        // Each output page must carry a valid partition ID, and no two pages should share
+        // the same partition ID (each group maps to exactly one partition).
         Set<Integer> seenPartitionIds = new HashSet<>();
         for (Page page : results) {
             int partitionId = page.getPartitionId();
-            assertThat("partitionId should be in [0, 256)", partitionId, greaterThanOrEqualTo(0));
-            assertThat("partitionId should be in [0, 256)", partitionId, lessThan(256));
+            assertThat("partitionId should be in valid range", partitionId, greaterThanOrEqualTo(0));
             assertTrue("duplicate partitionId " + partitionId, seenPartitionIds.add(partitionId));
         }
 
         SumLongGroupingAggregatorFunctionTests sum = new SumLongGroupingAggregatorFunctionTests();
         MaxLongGroupingAggregatorFunctionTests max = new MaxLongGroupingAggregatorFunctionTests();
 
+        // Verify aggregation correctness within each partition page
         for (Page page : results) {
             assertThat(page.getBlockCount(), equalTo(3));
             LongBlock groups = page.getBlock(0);

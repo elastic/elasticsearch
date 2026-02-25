@@ -482,6 +482,10 @@ public class ComputeService {
                         })
                     )
                 ) {
+                    // When the coordinator plan contains a grouped FINAL hash aggregation and we
+                    // have enough processors to benefit from parallelism, use the partitioned
+                    // 3-stage pipeline (router → N FINAL drivers → output) instead of a single
+                    // driver doing all the FINAL aggregation work.
                     if (hasGroupedFinalAgg(coordinatorPlan) && HashAggregationOperator.computeFinalDriverCount() > 1) {
                         runPartitionedCoordinatorCompute(
                             rootTask,
@@ -811,9 +815,12 @@ public class ComputeService {
     }
 
     /**
-     * Returns true if the coordinator plan is a simple linear chain ending with a grouped
-     * FINAL hash aggregation whose only child is ExchangeSourceExec. Complex plans (with
-     * hash joins, merges, multiple exchanges, etc.) return false.
+     * Checks whether the coordinator plan is eligible for partitioned parallel execution.
+     * Returns true only for the specific pattern where a grouped FINAL hash aggregation
+     * sits at the bottom of a simple linear chain (no hash joins, merges, or multi-child nodes).
+     * <p>
+     * Non-grouped aggregations (e.g. {@code STATS count(*)}) are excluded because they
+     * have only a single group and cannot benefit from partitioning.
      *
      * <p>Expected pattern:
      * <pre>
@@ -824,7 +831,6 @@ public class ComputeService {
      * </pre>
      */
     public static boolean hasGroupedFinalAgg(PhysicalPlan coordinatorPlan) {
-        // Walk down the single-child chain looking for AggregateExec(FINAL) with groupings
         PhysicalPlan current = coordinatorPlan;
 
         // Skip the outermost wrapper (OutputExec or ExchangeSinkExec)
@@ -1040,15 +1046,26 @@ public class ComputeService {
             return;
         }
 
-        PhysicalPlan finalPlan = split.v1();   // ExchangeSinkExec wrapping ProjectExec -> AggregateExec(FINAL) -> ExchangeSourceExec
-        PhysicalPlan outputPlan = split.v2();  // OutputExec/ExchangeSinkExec wrapping ExchangeSourceExec
+        // The split produces two sub-plans:
+        //   finalPlan:  runs in each of the N FINAL drivers (agg + optional partial TopN)
+        //   outputPlan: runs once after all partitions merge (global TopN/Limit, Project, Output)
+        PhysicalPlan finalPlan = split.v1();
+        PhysicalPlan outputPlan = split.v2();
 
+        // Use one partition per FINAL driver so each driver handles exactly one partition
         int numFinalDrivers = HashAggregationOperator.computeFinalDriverCount();
         int numPartitions = numFinalDrivers;
         QueryPragmas pragmas = configuration.pragmas();
         var searchExecutor = transportService.getThreadPool().executor(ThreadPool.Names.SEARCH);
 
-        // Stage 1: PartitionedExchangeSinkHandler - routes pages by partitionId
+        // --- Exchange plumbing for the 3-stage pipeline ---
+        //
+        // Data flow:
+        //   data nodes → [ExchangeSource] → Router driver → [PartitionedExchangeSink]
+        //     → per-partition buffers → [PartitionedExchangeSource] → FINAL drivers
+        //     → [shared ExchangeSink] → [ExchangeSource] → Output driver → results
+
+        // The partitioned sink routes each page (by partitionId) to the correct driver's buffer
         var partitionedSinkHandler = new PartitionedExchangeSinkHandler(
             blockFactory,
             numPartitions,
@@ -1057,22 +1074,26 @@ public class ComputeService {
             transportService.getThreadPool()::relativeTimeInMillis
         );
 
-        // Stage 2 output: shared ExchangeSinkHandler collects FINAL results from all FINAL drivers
+        // All FINAL drivers write their results into this shared sink, which the output
+        // driver reads from. This merges N independent partition results into a single stream.
         var sharedOutputSinkHandler = new ExchangeSinkHandler(
             blockFactory,
             pragmas.exchangeBufferSize(),
             transportService.getThreadPool()::relativeTimeInMillis
         );
 
-        // Stage 3: ExchangeSourceHandler reads from the shared output sink
+        // The output driver's exchange source reads from the shared output sink
         var outputExchangeSource = new ExchangeSourceHandler(pragmas.exchangeBufferSize(), searchExecutor);
         outputExchangeSource.addRemoteSink(sharedOutputSinkHandler::fetchPageAsync, true, () -> {}, 1, ActionListener.noop());
 
-        // Build the router plan: ExchangeSourceExec -> ExchangeSinkExec (into partitioned sink)
-        // The router just passes through pages from data nodes to the partitioned sink
+        // --- Build the router plan ---
+        // The router is a trivial pass-through: ExchangeSourceExec → ExchangeSinkExec.
+        // It reads pages from the data-node exchange (which carry partitionId tags set by
+        // the INITIAL/INTERMEDIATE HashAggregationOperator) and writes them into the
+        // partitioned sink, which dispatches each page to the correct driver's buffer.
         var routerSource = coordinatorPlan.collectFirstChildren(p -> p instanceof ExchangeSourceExec);
         if (routerSource.isEmpty()) {
-            // Fallback
+            // Defensive fallback: if the plan structure is unexpected, run as single compute
             runCompute(
                 rootTask,
                 new ComputeContext(
@@ -1127,14 +1148,19 @@ public class ComputeService {
                 computeListener.acquireCompute()
             );
 
-            // Stage 2: N FINAL drivers - each reads from its partition, writes to shared output
+            // Stage 2: N FINAL drivers. Each driver reads only its own partition's pages
+            // (a disjoint subset of groups) and performs the FINAL hash aggregation independently.
+            // This is the core parallelization: each driver processes ~1/N of the total groups.
             for (int d = 0; d < numFinalDrivers; d++) {
+                // Create a source handler that fetches pages from this driver's partition buffer
                 var partitionedSourceHandler = new PartitionedExchangeSourceHandler(
                     partitionedSinkHandler,
                     d,
                     pragmas.exchangeBufferSize(),
                     searchExecutor
                 );
+                // Start the async fetch loop that transfers pages from the partitioned sink
+                // handler's buffer into this source handler's local buffer
                 partitionedSourceHandler.startFetching(1, ActionListener.noop());
 
                 runCompute(
@@ -1148,6 +1174,7 @@ public class ComputeService {
                         configuration,
                         foldContext,
                         partitionedSourceHandler::createExchangeSource,
+                        // Each FINAL driver writes its results to the shared output sink
                         () -> sharedOutputSinkHandler.createExchangeSink(() -> {})
                     ),
                     finalPlan,
@@ -1158,7 +1185,9 @@ public class ComputeService {
                 );
             }
 
-            // Stage 3: Output - reads from shared exchange, writes to output/outer sink
+            // Stage 3: Output driver. Reads the merged results from all FINAL drivers
+            // (via the shared output exchange) and applies any global operators (TopN merge,
+            // Limit, Project) before delivering to the final output/outer exchange sink.
             runCompute(
                 rootTask,
                 new ComputeContext(

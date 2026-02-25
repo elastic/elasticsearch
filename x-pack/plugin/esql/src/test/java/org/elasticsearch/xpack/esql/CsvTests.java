@@ -912,14 +912,15 @@ public class CsvTests extends ESTestCase {
 
         List<Page> collectedPages = Collections.synchronizedList(new ArrayList<>());
 
-        // replace fragment inside the coordinator plan
         List<Driver> drivers = new ArrayList<>();
         if (dataNodePlan != null && ComputeService.hasGroupedFinalAgg(coordinatorPlan)) {
-            // Use partitioned exchange for grouped FINAL hash aggregation
+            // Exercise the partitioned coordinator pipeline in CSV tests. This mirrors what
+            // ComputeService.runPartitionedCoordinatorCompute() does in production, but with
+            // a fixed numFinalDrivers=2 to ensure the multi-driver path is always tested
+            // regardless of the test machine's processor count.
             int numFinalDrivers = 2;
             int numPartitions = numFinalDrivers;
 
-            // Partitioned sink handler routes pages by partitionId to per-driver buffers
             var partitionedSinkHandler = new PartitionedExchangeSinkHandler(
                 blockFactory,
                 numPartitions,
@@ -928,7 +929,8 @@ public class CsvTests extends ESTestCase {
                 threadPool::relativeTimeInMillis
             );
 
-            // Shared output exchange collects FINAL results from all FINAL drivers
+            // Shared output exchange: all FINAL drivers write their results here, and the
+            // output driver reads from it. Randomized buffer sizes stress back-pressure paths.
             var sharedOutputSinkHandler = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
             var outputExchangeSource = new ExchangeSourceHandler(between(1, 64), executor);
             outputExchangeSource.addRemoteSink(
@@ -941,7 +943,7 @@ public class CsvTests extends ESTestCase {
                 })
             );
 
-            // Stage 1: Router plan - reads from data node exchange, writes to partitioned sink
+            // Stage 1: Router - pass-through from data node exchange to partitioned sink
             ExchangeSourceExec routerSourceExec = (ExchangeSourceExec) coordinatorPlan.collectFirstChildren(
                 p -> p instanceof ExchangeSourceExec
             ).getFirst();
@@ -971,7 +973,8 @@ public class CsvTests extends ESTestCase {
                     .createDrivers(getTestName())
             );
 
-            // Stage 2: N FINAL drivers - each reads from its partition, writes to shared output
+            // Stage 2: N FINAL drivers. Split the coordinator plan at the AggregateExec(FINAL)
+            // boundary. The finalPlan runs in each FINAL driver; the outputPlan runs once globally.
             var split = ComputeService.splitCoordinatorPlanForPartitioning(new OutputExec(coordinatorPlan, collectedPages::add));
             PhysicalPlan finalPlan = split.v1();
             for (int d = 0; d < numFinalDrivers; d++) {

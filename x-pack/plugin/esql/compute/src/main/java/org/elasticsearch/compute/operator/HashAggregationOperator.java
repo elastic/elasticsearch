@@ -46,6 +46,19 @@ import java.util.function.Supplier;
 import static java.util.Objects.requireNonNull;
 import static java.util.stream.Collectors.joining;
 
+/**
+ * Groups input rows by key columns and applies aggregation functions to each group.
+ * <p>
+ * When {@code numPartitions > 1}, this operator supports <b>partitioned emission</b>: on
+ * {@link #finish()}, it splits accumulated groups into {@code numPartitions} disjoint subsets
+ * (using a hash of each group's key values) and emits one {@link Page} per partition, each tagged
+ * with a {@link Page#getPartitionId() partitionId}. Downstream infrastructure
+ * ({@link org.elasticsearch.compute.operator.exchange.PartitionedExchangeSinkHandler}) routes
+ * these pages to independent FINAL-stage drivers for parallel aggregation on the coordinator.
+ * <p>
+ * When {@code numPartitions == 1} (the default for most queries), the operator behaves as before:
+ * it emits a single unpartitioned page containing all groups.
+ */
 public class HashAggregationOperator implements Operator {
 
     /**
@@ -65,6 +78,7 @@ public class HashAggregationOperator implements Operator {
         int partialEmitKeysThreshold,
         double partialEmitUniquenessThreshold,
         AnalysisRegistry analysisRegistry,
+        /** Number of partitions to split output into for parallel final aggregation. */
         int numPartitions
     ) implements OperatorFactory {
         /**
@@ -93,6 +107,7 @@ public class HashAggregationOperator implements Operator {
 
         @Override
         public Operator get(DriverContext driverContext) {
+            // Categorize uses a special BlockHash and does not support partitioned emission
             if (groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)) {
                 return new HashAggregationOperator(
                     aggregatorMode,
@@ -106,7 +121,7 @@ public class HashAggregationOperator implements Operator {
                     ),
                     Integer.MAX_VALUE, // disable the early partial emit for categorize
                     1.0,
-                    1, // disable partitioning for categorize
+                    1, // single partition = no partitioning, since categorize can't be split
                     driverContext
                 );
             }
@@ -132,6 +147,12 @@ public class HashAggregationOperator implements Operator {
     }
 
     private boolean finished;
+
+    /**
+     * Queue of output pages ready to be consumed via {@link #getOutput()}.
+     * When partitioning is enabled, {@link #emitPartitioned()} enqueues one page per non-empty
+     * partition; otherwise {@link #emitSinglePartition()} enqueues a single page.
+     */
     private final ArrayDeque<Page> outputPages = new ArrayDeque<>();
 
     protected final Supplier<BlockHash> blockHashSupplier;
@@ -140,7 +161,11 @@ public class HashAggregationOperator implements Operator {
 
     protected final DriverContext driverContext;
 
-    // The blockHash and aggregators can be re-initialized when partial results are emitted periodically
+    /**
+     * The blockHash and aggregators can be re-initialized when partial results are emitted
+     * periodically (for INITIAL/INTERMEDIATE modes). After a periodic emit, the next
+     * {@link #addInput} call triggers {@link #maybeReinitializeAfterPeriodicallyEmitted()}.
+     */
     protected BlockHash blockHash;
     protected final List<GroupingAggregator> aggregators;
 
@@ -173,13 +198,25 @@ public class HashAggregationOperator implements Operator {
     private long rowsEmitted;
 
     /**
-     * Total nanos for emitting the output
+     * Total nanoseconds spent in {@link #emit()}, including partition assignment, key filtering,
+     * and aggregator evaluation. Useful for profiling the cost of partitioned vs. single emit.
      */
     protected long emitNanos;
 
+    /** Number of times {@link #emit()} has been called (once on finish, more if periodic). */
     protected long emitCount;
 
+    /**
+     * Rows added since the last emit. Used to decide whether to trigger a periodic partial emit
+     * (for INITIAL/INTERMEDIATE modes) and reset to 0 after each emit.
+     */
     protected long rowsAddedInCurrentBatch;
+
+    /**
+     * When the number of unique keys exceeds this threshold and the uniqueness ratio
+     * (keys / rows) exceeds {@link #partialEmitUniquenessThreshold}, the operator emits
+     * partial results early and re-initializes. Only applies to INITIAL/INTERMEDIATE modes.
+     */
     protected final int partialEmitKeysThreshold;
     protected final double partialEmitUniquenessThreshold;
 
@@ -247,6 +284,8 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public boolean needsInput() {
+        // Don't accept new input if we still have partitioned output pages queued up.
+        // The driver must drain outputPages via getOutput() before we accept more input.
         return outputPages.isEmpty() && finished == false;
     }
 
@@ -352,6 +391,14 @@ public class HashAggregationOperator implements Operator {
         }
     }
 
+    /**
+     * Emits accumulated aggregation results as output pages. Called on {@link #finish()} and
+     * potentially during periodic partial emission.
+     * <p>
+     * Dispatches to {@link #emitSinglePartition()} (one page, no partition tag) or
+     * {@link #emitPartitioned()} (one page per partition, tagged with partitionId) based
+     * on {@link #numPartitions}.
+     */
     protected void emit() {
         if (rowsAddedInCurrentBatch == 0) {
             return;
@@ -563,6 +610,8 @@ public class HashAggregationOperator implements Operator {
 
     @Override
     public boolean canProduceMoreDataWithoutExtraInput() {
+        // When partitioning, emit() produces multiple pages (one per partition), so we
+        // signal the driver to keep calling getOutput() until all are drained.
         return outputPages.isEmpty() == false;
     }
 
@@ -592,22 +641,25 @@ public class HashAggregationOperator implements Operator {
     }
 
     /**
-     * Computes a partition number in [0, numPartitions) for the group at the given position
-     * in the key blocks. Uses the key values at that position, hashed and mixed for good
-     * distribution across partitions.
+     * Deterministically assigns a group (identified by its position in the key blocks) to a
+     * partition in [0, numPartitions). The same key values always map to the same partition,
+     * which is critical for correctness: all partial aggregation results for a given group
+     * must be routed to the same FINAL-stage driver.
      * <p>
-     *     Key blocks from {@link BlockHash#getKeys()} are single-valued per position (each
-     *     position represents one unique group), so we always read the first value index.
-     * </p>
+     * The hash combines all key columns using a polynomial hash (factor 31), then applies a
+     * Murmur3-style finalizer to spread bits evenly. This avoids hot partitions when key
+     * distributions are skewed or when keys have low-entropy hash codes.
      */
     static int computePartition(Block[] keys, int position, int numPartitions) {
         long h = 0;
         BytesRef scratch = new BytesRef();
         for (Block key : keys) {
             if (key.isNull(position)) {
+                // Nulls contribute a multiply-only step to distinguish (null, X) from (Y, X)
                 h = h * 31;
                 continue;
             }
+            // Key blocks from BlockHash.getKeys() are single-valued per position
             int valueIndex = key.getFirstValueIndex(position);
             h = 31 * h + switch (key.elementType()) {
                 case LONG -> Long.hashCode(((LongBlock) key).getLong(valueIndex));
@@ -619,12 +671,13 @@ public class HashAggregationOperator implements Operator {
                 default -> 0L;
             };
         }
-        // Murmur3-style finalizer for good bit distribution across partitions
+        // Murmur3 finalizer: mix bits thoroughly so modular reduction distributes evenly
         h ^= (h >>> 33);
         h *= 0xff51afd7ed558ccdL;
         h ^= (h >>> 33);
         h *= 0xc4ceb9fe1a85ec53L;
         h ^= (h >>> 33);
+        // Mask off sign bit and reduce modulo numPartitions
         return (int) ((h & 0x7fffffffffffffffL) % numPartitions);
     }
 

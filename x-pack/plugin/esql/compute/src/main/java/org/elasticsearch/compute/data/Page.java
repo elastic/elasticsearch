@@ -35,6 +35,10 @@ import java.util.Objects;
  */
 public final class Page implements Writeable, Releasable {
 
+    /**
+     * Sentinel value indicating this page has no partition assignment. Used when the operator
+     * is not running in partitioned mode (i.e. {@code numPartitions == 1}).
+     */
     public static final int NO_PARTITION = -1;
 
     private static final TransportVersion ESQL_PAGE_PARTITION_ID = TransportVersion.fromName("esql_page_partition_id");
@@ -88,9 +92,12 @@ public final class Page implements Writeable, Releasable {
     }
 
     /**
-     * Creates a new page with the given partition ID and blocks.
+     * Creates a new page tagged with a partition ID for partitioned hash aggregation.
+     * The partition ID identifies which downstream FINAL-stage driver should process this page.
+     * Called by {@link org.elasticsearch.compute.operator.HashAggregationOperator#emitPartitioned()}
+     * when splitting groups across multiple output pages.
      *
-     * @param partitionId the partition this page belongs to, or {@link #NO_PARTITION}
+     * @param partitionId the partition this page belongs to (0 to numPartitions-1)
      * @param blocks the blocks
      * @return a new Page tagged with the given partition ID
      */

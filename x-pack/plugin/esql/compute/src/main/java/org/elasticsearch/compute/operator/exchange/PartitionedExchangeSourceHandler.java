@@ -26,13 +26,23 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 public final class PartitionedExchangeSourceHandler {
 
+    /** Local buffer that holds pages fetched from the sink handler, ready for the driver to poll. */
     private final ExchangeBuffer buffer;
+    /** The partitioned sink handler that holds per-driver buffers we fetch from. */
     private final PartitionedExchangeSinkHandler sinkHandler;
+    /** Which driver (and therefore which partition range) this source handler serves. */
     private final int driverIndex;
+    /** Executor used to run the asynchronous fetch loop. */
     private final Executor fetchExecutor;
 
+    /**
+     * Tracks outstanding sink-side fetchers. When all fetchers complete (because the sink handler's
+     * buffer for this driver is finished), the local buffer is marked as finished too.
+     */
     private final PendingInstances outstandingSinks;
+    /** Tracks outstanding source consumers (ExchangeSourceImpl instances). */
     private final PendingInstances outstandingSources;
+    /** Set to true on failure; causes all subsequent polls to throw. */
     private volatile boolean aborted = false;
 
     /**
@@ -141,8 +151,13 @@ public final class PartitionedExchangeSourceHandler {
     }
 
     /**
-     * Fetcher that pulls pages from the sink handler for this driver's buffer.
-     * Modeled after {@link ExchangeSourceHandler}'s RemoteSinkFetcher pattern.
+     * Continuously pulls pages from the partitioned sink handler's buffer for this driver
+     * and pushes them into the local buffer. The fetch loop runs asynchronously: it calls
+     * {@link PartitionedExchangeSinkHandler#fetchPageAsync} and, on response, either adds
+     * the page to the local buffer and fetches again, or waits if the local buffer is full.
+     * <p>
+     * Uses {@link LoopControl} to avoid unbounded stack growth when responses complete
+     * synchronously on the same thread (trampolining pattern).
      */
     private class SinkFetcher {
         private volatile boolean finished = false;
@@ -156,6 +171,7 @@ public final class PartitionedExchangeSourceHandler {
             final LoopControl loopControl = new LoopControl();
             while (loopControl.isRunning()) {
                 loopControl.exiting();
+                // Tell the sink handler to finish this driver's buffer if we're already done
                 boolean toFinish = buffer.noMoreInputs() || aborted;
                 sinkHandler.fetchPageAsync(driverIndex, toFinish, ActionListener.wrap(resp -> {
                     Page page = resp.takePage();
@@ -165,6 +181,7 @@ public final class PartitionedExchangeSourceHandler {
                     if (resp.finished()) {
                         onComplete();
                     } else {
+                        // If the local buffer is full, wait for space before fetching more
                         IsBlockedResult future = buffer.waitForWriting();
                         if (future.listener().isDone()) {
                             if (loopControl.tryResume() == false) {
@@ -201,7 +218,11 @@ public final class PartitionedExchangeSourceHandler {
     }
 
     /**
-     * Loop control to avoid StackOverflow when fetching pages on the same thread.
+     * Trampolining helper: when an async callback completes synchronously on the same thread
+     * (e.g. because the page was already available in the buffer), naive recursion would grow
+     * the stack unboundedly. LoopControl converts that recursion into a loop by detecting
+     * same-thread re-entry and resuming the outer while-loop instead.
+     * <p>
      * Duplicated from ExchangeSourceHandler since it is private there.
      */
     private static class LoopControl {
@@ -240,6 +261,12 @@ public final class PartitionedExchangeSourceHandler {
         }
     }
 
+    /**
+     * Reference-counting helper: tracks a set of outstanding instances (fetchers or sources)
+     * and fires a completion callback when the last one finishes. Used to know when all
+     * fetch loops are done (so the buffer can be marked finished) and when all sources are
+     * done (for lifecycle management).
+     */
     private static class PendingInstances {
         private final AtomicInteger instances = new AtomicInteger();
         private final SubscribableListener<Void> completion = new SubscribableListener<>();

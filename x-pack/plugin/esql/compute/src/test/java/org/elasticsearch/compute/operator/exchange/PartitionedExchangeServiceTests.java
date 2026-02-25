@@ -43,6 +43,11 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 
+/**
+ * Tests for the partitioned exchange infrastructure ({@link PartitionedExchangeSinkHandler}
+ * and {@link PartitionedExchangeSourceHandler}) that routes pages by partition ID to
+ * per-driver buffers for parallel final aggregation on the coordinator.
+ */
 public class PartitionedExchangeServiceTests extends ESTestCase {
 
     private TestThreadPool threadPool;
@@ -259,8 +264,11 @@ public class PartitionedExchangeServiceTests extends ESTestCase {
     }
 
     /**
-     * End-to-end test: multiple producer drivers produce partitioned pages,
-     * which flow through the partitioned exchange to multiple consumer drivers.
+     * End-to-end test with real {@link Driver}s: multiple producer drivers create pages
+     * tagged with partition IDs and write them to a partitioned sink. Multiple consumer
+     * drivers read from their respective partition buffers via
+     * {@link PartitionedExchangeSourceHandler}. Verifies that all values are delivered
+     * exactly once and none are lost or duplicated.
      */
     public void testEndToEndWithDrivers() throws Exception {
         int numPartitions = 256;
@@ -392,7 +400,10 @@ public class PartitionedExchangeServiceTests extends ESTestCase {
     }
 
     /**
-     * Tests multiple sinks writing concurrently to the partitioned exchange.
+     * Concurrency stress test: multiple sinks write to the partitioned exchange from
+     * different threads simultaneously. Verifies thread safety of
+     * {@link PartitionedExchangeSinkHandler#addPage} and that all values are received
+     * exactly once across all driver buffers.
      */
     public void testMultipleSinksConcurrent() throws Exception {
         int numPartitions = 16;

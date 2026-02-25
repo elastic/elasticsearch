@@ -28,8 +28,12 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import java.util.List;
 
 /**
- * Tests for {@link ComputeService#splitCoordinatorPlanForPartitioning} and
- * {@link ComputeService#hasGroupedFinalAgg}.
+ * Tests for the plan-splitting logic used by partitioned coordinator execution.
+ * <p>
+ * {@link ComputeService#hasGroupedFinalAgg} detects whether a plan is eligible for partitioning.
+ * {@link ComputeService#splitCoordinatorPlanForPartitioning} splits it into a per-partition
+ * "final plan" and a global "output plan". These tests verify the split produces the correct
+ * plan structure for different plan shapes (with and without TopN).
  */
 public class ComputeServiceTests extends ESTestCase {
 

@@ -275,13 +275,6 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         }
     }
 
-    /**
-     * CCS-specific exchange handler that validates the original query indices against the exchange sink's
-     * expected indices before returning pages. Index-level authorization is enforced by the security layer
-     * because {@link CcsExchangeRequest} implements {@link org.elasticsearch.action.IndicesRequest.Replaceable};
-     * this handler additionally verifies that the claimed indices match what the compute session was set up for,
-     * using {@link CcsExchangeRequest#originalQueryIndices()} which are not affected by security's index rewriting.
-     */
     private class CcsExchangeTransportAction implements TransportRequestHandler<CcsExchangeRequest> {
         @Override
         public void messageReceived(CcsExchangeRequest request, TransportChannel channel, Task exchangeTask) {

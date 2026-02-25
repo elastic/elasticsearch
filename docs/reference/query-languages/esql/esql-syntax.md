@@ -154,7 +154,7 @@ Timespan literals are not whitespace sensitive. These expressions are all valid:
 
 ### Function named parameters [esql-function-named-params]
 
-Some functions like [match](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match) use named parameters to provide additional options.
+Some functions like [match](/reference/query-languages/esql/functions-operators/search-functions/match.md) use named parameters to provide additional options.
 
 Named parameters allow specifying name value pairs, using the following syntax:
 
@@ -162,7 +162,7 @@ Named parameters allow specifying name value pairs, using the following syntax:
 
 Valid value types are strings, numbers and booleans.
 
-An example using [match](/reference/query-languages/esql/functions-operators/search-functions.md#esql-match):
+An example using [match](/reference/query-languages/esql/functions-operators/search-functions/match.md):
 
 ```console
 POST /_query

@@ -130,7 +130,8 @@ public class DeploymentManager {
                 stats.peakThroughput(),
                 recentStats.requestsProcessed(),
                 recentStats.avgInferenceTime(),
-                recentStats.cacheHitCount()
+                recentStats.cacheHitCount(),
+                Math.round(stats.inferenceProcessMemoryRssBytesStats().getAverage())
             );
         });
     }

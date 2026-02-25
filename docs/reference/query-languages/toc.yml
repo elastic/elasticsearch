@@ -135,18 +135,230 @@ toc:
           - file: esql/esql-functions-operators.md
             children:
               - file: esql/functions-operators/aggregation-functions.md
+                children:
+                  - file: esql/functions-operators/aggregation-functions/absent.md
+                  - file: esql/functions-operators/aggregation-functions/avg.md
+                  - file: esql/functions-operators/aggregation-functions/count.md
+                  - file: esql/functions-operators/aggregation-functions/count_distinct.md
+                  - file: esql/functions-operators/aggregation-functions/max.md
+                  - file: esql/functions-operators/aggregation-functions/median.md
+                  - file: esql/functions-operators/aggregation-functions/median_absolute_deviation.md
+                  - file: esql/functions-operators/aggregation-functions/min.md
+                  - file: esql/functions-operators/aggregation-functions/percentile.md
+                  - file: esql/functions-operators/aggregation-functions/present.md
+                  - file: esql/functions-operators/aggregation-functions/sample.md
+                  - file: esql/functions-operators/aggregation-functions/st_centroid_agg.md
+                  - file: esql/functions-operators/aggregation-functions/st_extent_agg.md
+                  - file: esql/functions-operators/aggregation-functions/std_dev.md
+                  - file: esql/functions-operators/aggregation-functions/sum.md
+                  - file: esql/functions-operators/aggregation-functions/top.md
+                  - file: esql/functions-operators/aggregation-functions/values.md
+                  - file: esql/functions-operators/aggregation-functions/variance.md
+                  - file: esql/functions-operators/aggregation-functions/weighted_avg.md
+                  - file: esql/functions-operators/aggregation-functions/first.md
+                  - file: esql/functions-operators/aggregation-functions/last.md
               - file: esql/functions-operators/time-series-aggregation-functions.md
+                children:
+                  - file: esql/functions-operators/time-series-aggregation-functions/absent_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/avg_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/count_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/count_distinct_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/delta.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/deriv.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/first_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/idelta.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/increase.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/irate.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/last_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/max_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/min_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/percentile_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/present_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/rate.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/stddev_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/variance_over_time.md
+                  - file: esql/functions-operators/time-series-aggregation-functions/sum_over_time.md
               - file: esql/functions-operators/grouping-functions.md
+                children:
+                  - file: esql/functions-operators/grouping-functions/bucket.md
+                  - file: esql/functions-operators/grouping-functions/tbucket.md
+                  - file: esql/functions-operators/grouping-functions/categorize.md
               - file: esql/functions-operators/conditional-functions-and-expressions.md
+                children:
+                  - file: esql/functions-operators/conditional-functions-and-expressions/case.md
+                  - file: esql/functions-operators/conditional-functions-and-expressions/coalesce.md
+                  - file: esql/functions-operators/conditional-functions-and-expressions/greatest.md
+                  - file: esql/functions-operators/conditional-functions-and-expressions/least.md
+                  - file: esql/functions-operators/conditional-functions-and-expressions/clamp.md
+                  - file: esql/functions-operators/conditional-functions-and-expressions/clamp_min.md
+                  - file: esql/functions-operators/conditional-functions-and-expressions/clamp_max.md
               - file: esql/functions-operators/date-time-functions.md
+                children:
+                  - file: esql/functions-operators/date-time-functions/date_diff.md
+                  - file: esql/functions-operators/date-time-functions/date_extract.md
+                  - file: esql/functions-operators/date-time-functions/date_format.md
+                  - file: esql/functions-operators/date-time-functions/date_parse.md
+                  - file: esql/functions-operators/date-time-functions/date_trunc.md
+                  - file: esql/functions-operators/date-time-functions/day_name.md
+                  - file: esql/functions-operators/date-time-functions/month_name.md
+                  - file: esql/functions-operators/date-time-functions/now.md
+                  - file: esql/functions-operators/date-time-functions/trange.md
               - file: esql/functions-operators/ip-functions.md
+                children:
+                  - file: esql/functions-operators/ip-functions/cidr_match.md
+                  - file: esql/functions-operators/ip-functions/ip_prefix.md
               - file: esql/functions-operators/math-functions.md
+                children:
+                  - file: esql/functions-operators/math-functions/abs.md
+                  - file: esql/functions-operators/math-functions/acos.md
+                  - file: esql/functions-operators/math-functions/acosh.md
+                  - file: esql/functions-operators/math-functions/asin.md
+                  - file: esql/functions-operators/math-functions/asinh.md
+                  - file: esql/functions-operators/math-functions/atan.md
+                  - file: esql/functions-operators/math-functions/atan2.md
+                  - file: esql/functions-operators/math-functions/atanh.md
+                  - file: esql/functions-operators/math-functions/cbrt.md
+                  - file: esql/functions-operators/math-functions/ceil.md
+                  - file: esql/functions-operators/math-functions/copy_sign.md
+                  - file: esql/functions-operators/math-functions/cos.md
+                  - file: esql/functions-operators/math-functions/cosh.md
+                  - file: esql/functions-operators/math-functions/e.md
+                  - file: esql/functions-operators/math-functions/exp.md
+                  - file: esql/functions-operators/math-functions/floor.md
+                  - file: esql/functions-operators/math-functions/hypot.md
+                  - file: esql/functions-operators/math-functions/log.md
+                  - file: esql/functions-operators/math-functions/log10.md
+                  - file: esql/functions-operators/math-functions/pi.md
+                  - file: esql/functions-operators/math-functions/pow.md
+                  - file: esql/functions-operators/math-functions/round.md
+                  - file: esql/functions-operators/math-functions/round_to.md
+                  - file: esql/functions-operators/math-functions/scalb.md
+                  - file: esql/functions-operators/math-functions/signum.md
+                  - file: esql/functions-operators/math-functions/sin.md
+                  - file: esql/functions-operators/math-functions/sinh.md
+                  - file: esql/functions-operators/math-functions/sqrt.md
+                  - file: esql/functions-operators/math-functions/tan.md
+                  - file: esql/functions-operators/math-functions/tanh.md
+                  - file: esql/functions-operators/math-functions/tau.md
               - file: esql/functions-operators/search-functions.md
+                children:
+                  - file: esql/functions-operators/search-functions/decay.md
+                  - file: esql/functions-operators/search-functions/kql.md
+                  - file: esql/functions-operators/search-functions/match.md
+                  - file: esql/functions-operators/search-functions/match_phrase.md
+                  - file: esql/functions-operators/search-functions/qstr.md
+                  - file: esql/functions-operators/search-functions/score.md
+                  - file: esql/functions-operators/search-functions/top-snippets.md
               - file: esql/functions-operators/spatial-functions.md
+                children:
+                  - file: esql/functions-operators/spatial-functions/st_distance.md
+                  - file: esql/functions-operators/spatial-functions/st_intersects.md
+                  - file: esql/functions-operators/spatial-functions/st_disjoint.md
+                  - file: esql/functions-operators/spatial-functions/st_contains.md
+                  - file: esql/functions-operators/spatial-functions/st_within.md
+                  - file: esql/functions-operators/spatial-functions/st_x.md
+                  - file: esql/functions-operators/spatial-functions/st_y.md
+                  - file: esql/functions-operators/spatial-functions/st_npoints.md
+                  - file: esql/functions-operators/spatial-functions/st_simplify.md
+                  - file: esql/functions-operators/spatial-functions/st_envelope.md
+                  - file: esql/functions-operators/spatial-functions/st_xmax.md
+                  - file: esql/functions-operators/spatial-functions/st_xmin.md
+                  - file: esql/functions-operators/spatial-functions/st_ymax.md
+                  - file: esql/functions-operators/spatial-functions/st_ymin.md
+                  - file: esql/functions-operators/spatial-functions/st_geotile.md
+                  - file: esql/functions-operators/spatial-functions/st_geohex.md
+                  - file: esql/functions-operators/spatial-functions/st_geohash.md
               - file: esql/functions-operators/string-functions.md
+                children:
+                  - file: esql/functions-operators/string-functions/bit_length.md
+                  - file: esql/functions-operators/string-functions/byte_length.md
+                  - file: esql/functions-operators/string-functions/chunk.md
+                  - file: esql/functions-operators/string-functions/concat.md
+                  - file: esql/functions-operators/string-functions/contains.md
+                  - file: esql/functions-operators/string-functions/ends_with.md
+                  - file: esql/functions-operators/string-functions/from_base64.md
+                  - file: esql/functions-operators/string-functions/hash.md
+                  - file: esql/functions-operators/string-functions/left.md
+                  - file: esql/functions-operators/string-functions/length.md
+                  - file: esql/functions-operators/string-functions/locate.md
+                  - file: esql/functions-operators/string-functions/ltrim.md
+                  - file: esql/functions-operators/string-functions/md5.md
+                  - file: esql/functions-operators/string-functions/repeat.md
+                  - file: esql/functions-operators/string-functions/replace.md
+                  - file: esql/functions-operators/string-functions/reverse.md
+                  - file: esql/functions-operators/string-functions/right.md
+                  - file: esql/functions-operators/string-functions/rtrim.md
+                  - file: esql/functions-operators/string-functions/sha1.md
+                  - file: esql/functions-operators/string-functions/sha256.md
+                  - file: esql/functions-operators/string-functions/space.md
+                  - file: esql/functions-operators/string-functions/split.md
+                  - file: esql/functions-operators/string-functions/starts_with.md
+                  - file: esql/functions-operators/string-functions/substring.md
+                  - file: esql/functions-operators/string-functions/to_base64.md
+                  - file: esql/functions-operators/string-functions/to_lower.md
+                  - file: esql/functions-operators/string-functions/to_upper.md
+                  - file: esql/functions-operators/string-functions/trim.md
+                  - file: esql/functions-operators/string-functions/url_encode.md
+                  - file: esql/functions-operators/string-functions/url_encode_component.md
+                  - file: esql/functions-operators/string-functions/url_decode.md
               - file: esql/functions-operators/dense-vector-functions.md
+                children:
+                  - file: esql/functions-operators/dense-vector-functions/knn.md
+                  - file: esql/functions-operators/dense-vector-functions/text_embedding.md
+                  - file: esql/functions-operators/dense-vector-functions/v_cosine.md
+                  - file: esql/functions-operators/dense-vector-functions/v_dot_product.md
+                  - file: esql/functions-operators/dense-vector-functions/v_hamming.md
+                  - file: esql/functions-operators/dense-vector-functions/v_l1_norm.md
+                  - file: esql/functions-operators/dense-vector-functions/v_l2_norm.md
               - file: esql/functions-operators/type-conversion-functions.md
+                children:
+                  - file: esql/functions-operators/type-conversion-functions/to_aggregate_metric_double.md
+                  - file: esql/functions-operators/type-conversion-functions/to_boolean.md
+                  - file: esql/functions-operators/type-conversion-functions/to_cartesianpoint.md
+                  - file: esql/functions-operators/type-conversion-functions/to_cartesianshape.md
+                  - file: esql/functions-operators/type-conversion-functions/to_dateperiod.md
+                  - file: esql/functions-operators/type-conversion-functions/to_datetime.md
+                  - file: esql/functions-operators/type-conversion-functions/to_date_nanos.md
+                  - file: esql/functions-operators/type-conversion-functions/to_degrees.md
+                  - file: esql/functions-operators/type-conversion-functions/to_dense_vector.md
+                  - file: esql/functions-operators/type-conversion-functions/to_double.md
+                  - file: esql/functions-operators/type-conversion-functions/to_geohash.md
+                  - file: esql/functions-operators/type-conversion-functions/to_geohex.md
+                  - file: esql/functions-operators/type-conversion-functions/to_geopoint.md
+                  - file: esql/functions-operators/type-conversion-functions/to_geoshape.md
+                  - file: esql/functions-operators/type-conversion-functions/to_geotile.md
+                  - file: esql/functions-operators/type-conversion-functions/to_integer.md
+                  - file: esql/functions-operators/type-conversion-functions/to_ip.md
+                  - file: esql/functions-operators/type-conversion-functions/to_long.md
+                  - file: esql/functions-operators/type-conversion-functions/to_radians.md
+                  - file: esql/functions-operators/type-conversion-functions/to_string.md
+                  - file: esql/functions-operators/type-conversion-functions/to_tdigest.md
+                  - file: esql/functions-operators/type-conversion-functions/to_timeduration.md
+                  - file: esql/functions-operators/type-conversion-functions/to_unsigned_long.md
+                  - file: esql/functions-operators/type-conversion-functions/to_version.md
               - file: esql/functions-operators/mv-functions.md
+                children:
+                  - file: esql/functions-operators/mv-functions/mv_append.md
+                  - file: esql/functions-operators/mv-functions/mv_avg.md
+                  - file: esql/functions-operators/mv-functions/mv_concat.md
+                  - file: esql/functions-operators/mv-functions/mv_contains.md
+                  - file: esql/functions-operators/mv-functions/mv_count.md
+                  - file: esql/functions-operators/mv-functions/mv_dedupe.md
+                  - file: esql/functions-operators/mv-functions/mv_first.md
+                  - file: esql/functions-operators/mv-functions/mv_intersection.md
+                  - file: esql/functions-operators/mv-functions/mv_intersects.md
+                  - file: esql/functions-operators/mv-functions/mv_last.md
+                  - file: esql/functions-operators/mv-functions/mv_max.md
+                  - file: esql/functions-operators/mv-functions/mv_median.md
+                  - file: esql/functions-operators/mv-functions/mv_median_absolute_deviation.md
+                  - file: esql/functions-operators/mv-functions/mv_min.md
+                  - file: esql/functions-operators/mv-functions/mv_percentile.md
+                  - file: esql/functions-operators/mv-functions/mv_pseries_weighted_sum.md
+                  - file: esql/functions-operators/mv-functions/mv_slice.md
+                  - file: esql/functions-operators/mv-functions/mv_sort.md
+                  - file: esql/functions-operators/mv-functions/mv_sum.md
+                  - file: esql/functions-operators/mv-functions/mv_union.md
+                  - file: esql/functions-operators/mv-functions/mv_zip.md
               - file: esql/functions-operators/operators.md
       - file: esql/esql-multi.md
         children:

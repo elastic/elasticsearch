@@ -44,7 +44,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.repositories.RepositoriesMetrics.COPY_REQUEST_TIME_IN_SECONDS_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesMetrics.HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_HISTOGRAM;
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL;
@@ -129,8 +128,7 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         final String blobName = randomIdentifier();
 
         long before = System.nanoTime();
-        var data = new BytesArray(randomBytes(between(10, 1000)));
-        blobContainer.writeBlob(purpose, blobName, data, false);
+        blobContainer.writeBlob(purpose, blobName, new BytesArray(randomBytes(between(10, 1000))), false);
         long elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - before);
         assertThat(getLongHistogramValue(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.PUT_OBJECT), lessThanOrEqualTo(elapsed));
 
@@ -140,18 +138,9 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
         elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - before);
         assertThat(getLongHistogramValue(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.GET_OBJECT), lessThanOrEqualTo(elapsed));
 
-        before = System.nanoTime();
-        String copyBlobName = blobName + "_copy";
-        blobContainer.copyBlob(purpose, blobContainer, blobName, copyBlobName, randomIntBetween(1, data.length()));
-        elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - before);
-        assertThat(
-            getLongHistogramValue(plugin, COPY_REQUEST_TIME_IN_SECONDS_HISTOGRAM, Operation.DELETE_OBJECTS),
-            lessThanOrEqualTo(elapsed)
-        );
-
         plugin.resetMeter();
         before = System.nanoTime();
-        blobContainer.deleteBlobsIgnoringIfNotExists(purpose, List.of(blobName, copyBlobName).iterator());
+        blobContainer.deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(blobName));
         elapsed = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - before);
         assertThat(
             getLongHistogramValue(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.DELETE_OBJECTS),

@@ -20,6 +20,21 @@ sum(avg_over_time(network.cost[5m])):double | step:date
 50.25                                       | 2024-05-10T00:20:00.000Z
 ;
 
+auto_step_buckets
+required_capability: promql_command_v0
+required_capability: promql_buckets_parameter
+PROMQL index=k8s start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" buckets=4 1
+| KEEP step
+| SORT step;
+
+step:datetime
+2024-05-10T00:00:00.000Z
+2024-05-10T00:05:00.000Z
+2024-05-10T00:10:00.000Z
+2024-05-10T00:15:00.000Z
+2024-05-10T00:20:00.000Z
+;
+
 not_equals_filter
 required_capability: promql_command_v0
 PROMQL index=k8s step=1h cost=(max by (cluster) (network.total_bytes_in{cluster!="prod"}))

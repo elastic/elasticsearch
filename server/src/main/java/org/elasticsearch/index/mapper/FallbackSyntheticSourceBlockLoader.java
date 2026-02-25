@@ -11,7 +11,8 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.util.IOSupplier;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -24,6 +25,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.Stack;
+
+import static org.elasticsearch.index.mapper.BlockSourceReader.ESTIMATED_SIZE;
 
 /**
  * Block loader for fields that use fallback synthetic source implementation.
@@ -55,13 +58,13 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
     }
 
     @Override
-    public IOSupplier<ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
+    public IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
         return null;
     }
 
     @Override
-    public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-        return new IgnoredSourceRowStrideReader<>(fieldName, fieldPaths, reader, ignoredSourceFormat);
+    public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+        return new IgnoredSourceRowStrideReader<>(breaker, fieldName, fieldPaths, reader, ignoredSourceFormat);
     }
 
     @Override
@@ -99,6 +102,7 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
     }
 
     private static class IgnoredSourceRowStrideReader<T> implements RowStrideReader {
+        private final CircuitBreaker breaker;
         private final String fieldName;
         // Contains name of the field and all its parents
         private final Set<String> fieldPaths;
@@ -106,11 +110,14 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
 
         IgnoredSourceRowStrideReader(
+            CircuitBreaker breaker,
             String fieldName,
             Set<String> fieldPaths,
             Reader<T> reader,
             IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat
         ) {
+            breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
+            this.breaker = breaker;
             this.fieldName = fieldName;
             this.fieldPaths = fieldPaths;
             this.reader = reader;
@@ -267,6 +274,11 @@ public abstract class FallbackSyntheticSourceBlockLoader implements BlockLoader 
         @Override
         public boolean canReuse(int startingDocID) {
             return true;
+        }
+
+        @Override
+        public void close() {
+            breaker.addWithoutBreaking(-ESTIMATED_SIZE);
         }
 
         @Override

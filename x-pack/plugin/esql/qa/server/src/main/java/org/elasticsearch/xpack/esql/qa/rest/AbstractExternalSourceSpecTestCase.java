@@ -6,6 +6,11 @@
  */
 package org.elasticsearch.xpack.esql.qa.rest;
 
+import fixture.gcs.GoogleCloudStorageHttpFixture;
+import fixture.gcs.TestUtils;
+
+import org.elasticsearch.Version;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
@@ -19,15 +24,23 @@ import org.junit.ClassRule;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.ACCESS_KEY;
 import static org.elasticsearch.xpack.esql.datasources.S3FixtureUtils.BUCKET;
@@ -65,10 +78,17 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         /** HTTP storage via S3HttpFixture (same endpoint, different protocol) */
         HTTP,
         /** Local file system storage (direct classpath resource access) */
-        LOCAL
+        LOCAL,
+        /** Google Cloud Storage via GoogleCloudStorageHttpFixture */
+        GCS
     }
 
-    private static final List<StorageBackend> BACKENDS = List.of(StorageBackend.S3, StorageBackend.HTTP, StorageBackend.LOCAL);
+    private static final List<StorageBackend> BACKENDS = List.of(
+        StorageBackend.S3,
+        StorageBackend.HTTP,
+        StorageBackend.LOCAL,
+        StorageBackend.GCS
+    );
 
     /**
      * Load csv-spec files matching the given patterns and cross-product each test with all storage backends.
@@ -101,17 +121,69 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     @ClassRule
     public static DataSourcesS3HttpFixture s3Fixture = new DataSourcesS3HttpFixture();
 
+    /** GCS bucket name used by the GCS fixture */
+    protected static final String GCS_BUCKET = "test-gcs-bucket";
+
+    /** GCS OAuth2 token path used by the GCS fixture */
+    protected static final String GCS_TOKEN = "o/oauth2/token";
+
+    @ClassRule
+    public static GoogleCloudStorageHttpFixture gcsFixture = new GoogleCloudStorageHttpFixture(true, GCS_BUCKET, GCS_TOKEN);
+
+    /** Cached service account JSON for GCS authentication against the fixture */
+    private static String gcsServiceAccountJson;
+
     /** Cached path to local fixtures directory */
     private static Path localFixturesPath;
 
     /**
-     * Load fixtures from src/test/resources/iceberg-fixtures/ into the S3 fixture.
+     * Load fixtures from src/test/resources/iceberg-fixtures/ into the S3 and GCS fixtures.
      * This runs once before all tests, making pre-built test data available automatically.
      */
     @BeforeClass
     public static void loadExternalSourceFixtures() {
         s3Fixture.loadFixturesFromResources();
+        loadGcsFixtures();
         resolveLocalFixturesPath();
+    }
+
+    /**
+     * Generate a fake service account JSON and load fixture files into the GCS fixture.
+     */
+    private static void loadGcsFixtures() {
+        try {
+            byte[] serviceAccountBytes = TestUtils.createServiceAccount(random());
+            gcsServiceAccountJson = new String(serviceAccountBytes, StandardCharsets.UTF_8);
+
+            URL resourceUrl = AbstractExternalSourceSpecTestCase.class.getResource("/iceberg-fixtures");
+            if (resourceUrl == null || "file".equals(resourceUrl.getProtocol()) == false) {
+                logger.warn("Could not resolve iceberg-fixtures for GCS fixture loading");
+                return;
+            }
+
+            Path fixturesPath = Paths.get(resourceUrl.toURI());
+            if (Files.exists(fixturesPath) == false) {
+                logger.warn("Fixtures path does not exist for GCS: {}", fixturesPath);
+                return;
+            }
+
+            Set<String> loadedFiles = new HashSet<>();
+            Files.walkFileTree(fixturesPath, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+                    String relativePath = fixturesPath.relativize(file).toString();
+                    String key = WAREHOUSE + "/" + relativePath;
+                    byte[] content = Files.readAllBytes(file);
+                    gcsFixture.getHandler().putBlob(key, new BytesArray(content));
+                    loadedFiles.add(key);
+                    return FileVisitResult.CONTINUE;
+                }
+            });
+
+            logger.info("Loaded {} fixture files into GCS fixture", loadedFiles.size());
+        } catch (Exception e) {
+            logger.error("Failed to load GCS fixtures", e);
+        }
     }
 
     /**
@@ -156,6 +228,7 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
     public static void verifySetup() {
         logger.info("=== External Source Test Setup Verification ===");
         logger.info("S3 Fixture endpoint: {}", s3Fixture.getAddress());
+        logger.info("GCS Fixture endpoint: {}", gcsFixture.getAddress());
         logger.info("Local fixtures path: {}", localFixturesPath);
     }
 
@@ -204,8 +277,8 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
-        // skip nothing
-        // super skips tests for the "regular" CsvTest/EsqlSpecIT suites
+        checkCapabilities(adminClient(), testFeatureService, testName, testCase);
+        assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }
 
     /**
@@ -229,6 +302,11 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         // Inject endpoint and credentials for S3 backend
         if (storageBackend == StorageBackend.S3 && isExternalQuery(query) && hasEndpointParam(query) == false) {
             query = injectS3Params(query);
+        }
+
+        // Inject endpoint and credentials for GCS backend
+        if (storageBackend == StorageBackend.GCS && isExternalQuery(query) && hasEndpointParam(query) == false) {
+            query = injectGcsParams(query);
         }
 
         logger.debug("Transformed query for {} backend: {}", storageBackend, query);
@@ -289,12 +367,16 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
                 // Local path: file:///absolute/path/to/iceberg-fixtures/standalone/employees.parquet
                 if (localFixturesPath != null) {
                     Path localFile = localFixturesPath.resolve(relativePath);
-                    return "file://" + localFile.toAbsolutePath().toString();
+                    return localFile.toUri().toString();
                 } else {
                     // Fallback to S3 if local path not available
                     logger.warn("Local fixtures path not available, falling back to S3");
                     return "s3://" + BUCKET + "/" + WAREHOUSE + "/" + relativePath;
                 }
+
+            case GCS:
+                // GCS path: gs://bucket/warehouse/standalone/employees.parquet
+                return "gs://" + GCS_BUCKET + "/" + WAREHOUSE + "/" + relativePath;
 
             default:
                 throw new IllegalArgumentException("Unknown storage backend: " + storageBackend);
@@ -324,6 +406,41 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
         params.append("\"endpoint\": \"").append(s3Fixture.getAddress()).append("\", ");
         params.append("\"access_key\": \"").append(ACCESS_KEY).append("\", ");
         params.append("\"secret_key\": \"").append(SECRET_KEY).append("\"");
+        params.append(" }");
+
+        return externalPart + params.toString() + restOfQuery;
+    }
+
+    /**
+     * Inject GCS endpoint, credentials, and project_id into the query.
+     */
+    private String injectGcsParams(String query) {
+        String trimmed = query.trim();
+        int pipeIndex = findFirstPipeAfterExternal(trimmed);
+
+        String externalPart;
+        String restOfQuery;
+
+        if (pipeIndex == -1) {
+            externalPart = trimmed;
+            restOfQuery = "";
+        } else {
+            externalPart = trimmed.substring(0, pipeIndex).trim();
+            restOfQuery = " " + trimmed.substring(pipeIndex);
+        }
+
+        // Escape the service account JSON for embedding inside the WITH clause.
+        // The JSON is embedded as a string value, so internal double-quotes must be escaped.
+        String escapedCredentials = gcsServiceAccountJson.replace("\\", "\\\\").replace("\"", "\\\"");
+
+        String tokenUri = gcsFixture.getAddress() + "/" + GCS_TOKEN;
+
+        StringBuilder params = new StringBuilder();
+        params.append(" WITH { ");
+        params.append("\"endpoint\": \"").append(gcsFixture.getAddress()).append("\", ");
+        params.append("\"credentials\": \"").append(escapedCredentials).append("\", ");
+        params.append("\"project_id\": \"test\", ");
+        params.append("\"token_uri\": \"").append(tokenUri).append("\"");
         params.append(" }");
 
         return externalPart + params.toString() + restOfQuery;
@@ -380,6 +497,10 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     protected static String getS3Endpoint() {
         return s3Fixture.getAddress();
+    }
+
+    protected static String getGcsEndpoint() {
+        return gcsFixture.getAddress();
     }
 
     protected static List<S3RequestLog> getRequestLogs() {

@@ -56,7 +56,6 @@ import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollRequest;
 import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
-import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
 import org.elasticsearch.reindex.remote.RemoteScrollablePaginatedHitSource;
@@ -103,7 +102,6 @@ public class Reindexer {
     private final ReindexSslConfig reindexSslConfig;
     private final ReindexMetrics reindexMetrics;
     private final TransportService transportService;
-    @Nullable // might be null for modules which use reindex but don't currently have relocations, as of writing: enrich module
     private final ReindexRelocationNodePicker relocationNodePicker;
 
     Reindexer(
@@ -115,7 +113,7 @@ public class Reindexer {
         ReindexSslConfig reindexSslConfig,
         @Nullable ReindexMetrics reindexMetrics,
         TransportService transportService,
-        @Nullable ReindexRelocationNodePicker relocationNodePicker
+        ReindexRelocationNodePicker relocationNodePicker
     ) {
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
@@ -125,7 +123,7 @@ public class Reindexer {
         this.reindexSslConfig = reindexSslConfig;
         this.reindexMetrics = reindexMetrics;
         this.transportService = Objects.requireNonNull(transportService);
-        this.relocationNodePicker = relocationNodePicker;
+        this.relocationNodePicker = Objects.requireNonNull(relocationNodePicker);
     }
 
     public void initTask(BulkByScrollTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -137,12 +135,9 @@ public class Reindexer {
     }
 
     public void execute(BulkByScrollTask task, ReindexRequest request, Client bulkClient, ActionListener<BulkByScrollResponse> listener) {
-        // todo(szy/sam): handle sliced
+        // todo(szy/sam): handle sliced and non-sliced
         // todo(szy/sam): bug, we send System::nanoTime across JVMs
-        final long startTime = request.getResumeInfo()
-            .flatMap(ResumeInfo::getWorker)
-            .map(ResumeInfo.WorkerResumeInfo::startTime)
-            .orElseGet(System::nanoTime);
+        final long startTime = System.nanoTime();
 
         // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
@@ -300,7 +295,7 @@ public class Reindexer {
     private void initTaskForRelocationIfEnabled(final BulkByScrollTask task) {
         // todo: move initialization to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
-        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false || relocationNodePicker == null) {
+        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false) {
             return;
         }
         final boolean nonSlicedThereforeSetupRelocation = task.isWorker() && task.getParentTaskId().isSet() == false;

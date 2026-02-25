@@ -84,11 +84,6 @@ public class OTLPMetricsTransportAction extends AbstractOTLPTransportAction {
     }
 
     @Override
-    protected ExportMetricsServiceResponse emptyResponse() {
-        return ExportMetricsServiceResponse.newBuilder().build();
-    }
-
-    @Override
     protected ExportMetricsServiceResponse responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
         ExportMetricsPartialSuccess partialSuccess = ExportMetricsPartialSuccess.newBuilder()
             .setRejectedDataPoints(rejectedDataPoints)

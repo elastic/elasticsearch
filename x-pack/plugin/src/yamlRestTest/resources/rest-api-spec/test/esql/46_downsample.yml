@@ -78,7 +78,7 @@ setup:
 ---
 "Query stats on downsampled index":
   - requires:
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, allowed_warnings]
       capabilities:
         - method: POST
           path: /_query
@@ -86,6 +86,8 @@ setup:
           capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for aggregate_metric_double"
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -120,7 +122,7 @@ setup:
 ---
 "Render stats from downsampled index":
   - requires:
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, allowed_warnings]
       capabilities:
         - method: POST
           path: /_query
@@ -128,6 +130,8 @@ setup:
           capabilities: [aggregate_metric_double_v0, dense_vector_agg_metric_double_if_version]
       reason: "Support for rendering aggregate_metric_doubles"
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -150,7 +154,7 @@ setup:
 ---
 "Stats from downsampled and non-downsampled index simultaneously":
   - requires:
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, allowed_warnings]
       capabilities:
         - method: POST
           path: /_query
@@ -159,6 +163,8 @@ setup:
       reason: "Support for to_aggregate_metric_double function"
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -255,7 +261,7 @@ setup:
 ---
 "Stats from downsampled and non-downsampled index simultaneously with implicit casting":
   - requires:
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, allowed_warnings]
       capabilities:
         - method: POST
           path: /_query
@@ -264,6 +270,8 @@ setup:
       reason: "Requires default metric to run TS ... | STATS max(agg_metric)"
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -372,7 +380,7 @@ setup:
 ---
 "Over time functions from downsampled and non-downsampled indices simultaneously, no grouping":
   - requires:
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, allowed_warnings]
       capabilities:
         - method: POST
           path: /_query
@@ -381,6 +389,8 @@ setup:
       reason: "Support for casting aggregate metric double implicitly when present in aggregations"
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -494,7 +504,7 @@ setup:
 ---
 "Over time functions from downsampled and non-downsampled indices simultaneously, with grouping":
   - requires:
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, allowed_warnings]
       capabilities:
         - method: POST
           path: /_query
@@ -503,6 +513,8 @@ setup:
       reason: "Support for casting aggregate metric double implicitly when present in aggregations"
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -633,7 +645,7 @@ setup:
 ---
 "Sort from multiple indices one with aggregate metric double":
   - requires:
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, allowed_warnings]
       capabilities:
         - method: POST
           path: /_query
@@ -642,6 +654,8 @@ setup:
       reason: "Fix sorting for rows comprised of docs from multiple indices where agg metric is missing from some"
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample
@@ -700,7 +714,7 @@ setup:
 ---
 "MV_EXPAND on non-MV aggregate metric double":
   - requires:
-      test_runner_features: [capabilities]
+      test_runner_features: [capabilities, allowed_warnings]
       capabilities:
         - method: POST
           path: /_query
@@ -709,6 +723,8 @@ setup:
       reason: "Have MV_EXPAND not error out when applied to aggregate_metric_doubles (is a no-op)"
 
   - do:
+      allowed_warnings:
+        - "Parameter [default_metric] is deprecated and will be removed in a future version"
       indices.downsample:
         index: test
         target_index: test-downsample

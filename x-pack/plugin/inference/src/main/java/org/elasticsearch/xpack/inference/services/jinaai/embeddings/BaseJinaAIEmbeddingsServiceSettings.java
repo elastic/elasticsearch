@@ -270,7 +270,7 @@ public abstract class BaseJinaAIEmbeddingsServiceSettings extends FilteredXConte
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         commonSettings.writeTo(out);
-        out.writeOptionalEnum(SimilarityMeasure.translateSimilarity(similarity, out.getTransportVersion()));
+        out.writeOptionalEnum(similarity);
         out.writeOptionalVInt(dimensions);
         out.writeOptionalVInt(maxInputTokens);
         if (out.getTransportVersion().supports(JINA_AI_EMBEDDING_TYPE_SUPPORT_ADDED)) {

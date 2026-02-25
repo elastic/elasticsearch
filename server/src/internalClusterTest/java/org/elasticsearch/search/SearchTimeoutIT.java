@@ -335,7 +335,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
             .setTimeout(new TimeValue(10, TimeUnit.SECONDS))
             .setKnnSearch(
                 List.of(
-                    new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, 100, null, null, null).addFilterQuery(
+                    new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, 100,null, null).addFilterQuery(
                         new DfsKnnTimeoutQuery()
                     )
                 )
@@ -356,7 +356,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
                 .setTimeout(new TimeValue(10, TimeUnit.SECONDS))
                 .setKnnSearch(
                     List.of(
-                        new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, 100, null, null, null).addFilterQuery(
+                        new KnnSearchBuilder("vector", new float[] { 0.1f, 0.2f, 0.3f }, 10, 100, null, null).addFilterQuery(
                             new DfsKnnTimeoutQuery()
                         )
                     )
@@ -364,7 +364,7 @@ public class SearchTimeoutIT extends ESIntegTestCase {
                 .setAllowPartialSearchResults(false)
         );
         assertTrue(ex.toString().contains("Time exceeded"));
-        assertEquals(RestStatus.TOO_MANY_REQUESTS.getStatus(), ex.status().getStatus());
+        assertEquals(RestStatus.GATEWAY_TIMEOUT.getStatus(), ex.status().getStatus());
     }
 
     public static final class SearchTimeoutPlugin extends Plugin implements SearchPlugin {
@@ -557,18 +557,8 @@ public class SearchTimeoutIT extends ESIntegTestCase {
                     }
                     return new ConstantScoreWeight(this, boost) {
                         @Override
-                        public ScorerSupplier scorerSupplier(LeafReaderContext ctx) {
-                            return new ScorerSupplier() {
-                                @Override
-                                public Scorer get(long leadCost) throws IOException {
-                                    return new ConstantScoreScorer(score(), scoreMode, DocIdSetIterator.empty());
-                                }
-
-                                @Override
-                                public long cost() {
-                                    return 0;
-                                }
-                            };
+                        public Scorer scorer(LeafReaderContext ctx) {
+                            return new ConstantScoreScorer(this, score(), scoreMode, DocIdSetIterator.empty());
                         }
 
                         @Override

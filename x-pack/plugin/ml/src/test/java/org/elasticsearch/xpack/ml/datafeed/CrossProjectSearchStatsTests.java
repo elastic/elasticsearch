@@ -18,6 +18,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.not;
@@ -564,5 +565,35 @@ public class CrossProjectSearchStatsTests extends ESTestCase {
 
         assertTrue(result.scopeChanged());
         assertThat(result.newlyStabilizedProjects(), equalTo(Set.of("P1")));
+    }
+
+    public void testBuildScopeChangeMessageLinkingOnly() {
+        CycleResult result = new CycleResult(Set.of("P3", "P4"), Set.of(), true, Instant.EPOCH);
+        String msg = CrossProjectSearchStats.buildScopeChangeMessage(result);
+        assertThat(msg, containsString("project(s) [P3, P4] linked"));
+        assertThat(msg, containsString("new data sources"));
+        assertThat(msg, not(containsString("unlinked")));
+    }
+
+    public void testBuildScopeChangeMessageUnlinkingOnly() {
+        CycleResult result = new CycleResult(Set.of(), Set.of("P2"), true, Instant.EPOCH);
+        String msg = CrossProjectSearchStats.buildScopeChangeMessage(result);
+        assertThat(msg, containsString("project(s) [P2] unlinked"));
+        assertThat(msg, containsString("removed data sources"));
+        assertThat(msg, not(containsString("linked,")));
+    }
+
+    public void testBuildScopeChangeMessageBothLinkingAndUnlinking() {
+        CycleResult result = new CycleResult(Set.of("P3"), Set.of("P2"), true, Instant.EPOCH);
+        String msg = CrossProjectSearchStats.buildScopeChangeMessage(result);
+        assertThat(msg, containsString("project(s) [P3] linked"));
+        assertThat(msg, containsString("project(s) [P2] unlinked"));
+        assertThat(msg, containsString("Data distribution may have changed"));
+    }
+
+    public void testBuildScopeChangeMessageSortsAliases() {
+        CycleResult result = new CycleResult(Set.of("Z1", "A1", "M1"), Set.of(), true, Instant.EPOCH);
+        String msg = CrossProjectSearchStats.buildScopeChangeMessage(result);
+        assertThat(msg, containsString("[A1, M1, Z1]"));
     }
 }

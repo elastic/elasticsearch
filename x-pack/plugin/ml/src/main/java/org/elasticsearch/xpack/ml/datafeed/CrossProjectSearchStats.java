@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.datafeed;
 
+import org.elasticsearch.xpack.core.ml.job.messages.Messages;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.util.HashMap;
@@ -15,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.function.Supplier;
 
 /**
@@ -182,6 +185,25 @@ public class CrossProjectSearchStats {
 
     public Map<String, Integer> getConsecutiveSkips() {
         return Map.copyOf(consecutiveSkips);
+    }
+
+    /**
+     * Builds the annotation message for a confirmed scope change, selecting the appropriate
+     * template based on whether projects were linked, unlinked, or both.
+     *
+     * @param result a {@link CycleResult} where {@code scopeChanged} is {@code true}
+     * @return the formatted annotation message
+     */
+    public static String buildScopeChangeMessage(CycleResult result) {
+        String linked = String.join(", ", new TreeSet<>(result.newlyStabilizedProjects()));
+        String unlinked = String.join(", ", new TreeSet<>(result.confirmedRemovals()));
+        if (linked.isEmpty() == false && unlinked.isEmpty() == false) {
+            return Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_SCOPE_CHANGED_BOTH, linked, unlinked);
+        } else if (linked.isEmpty() == false) {
+            return Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_SCOPE_CHANGED_LINKED, linked);
+        } else {
+            return Messages.getMessage(Messages.JOB_AUDIT_DATAFEED_SCOPE_CHANGED_UNLINKED, unlinked);
+        }
     }
 
     /**

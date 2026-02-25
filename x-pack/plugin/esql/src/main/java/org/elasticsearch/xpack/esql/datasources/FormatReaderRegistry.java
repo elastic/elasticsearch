@@ -94,12 +94,7 @@ public class FormatReaderRegistry {
             normalizedExt = "." + normalizedExt;
         }
         Supplier<FormatReader> supplier = byName.get(formatName.toLowerCase(Locale.ROOT));
-        Check.notNull(
-            supplier,
-            "Cannot register extension [{}] -- format [{}] not registered",
-            extension,
-            formatName
-        );
+        Check.notNull(supplier, "Cannot register extension [{}] -- format [{}] not registered", extension, formatName);
         byExtension.put(normalizedExt, supplier);
     }
 
@@ -128,12 +123,7 @@ public class FormatReaderRegistry {
         }
 
         Supplier<FormatReader> supplier = byExtension.get(extension);
-        Check.notNull(
-            supplier,
-            "No format reader registered for extension: {}. Supported: {}",
-            extension,
-            byExtension.keySet()
-        );
+        Check.notNull(supplier, "No format reader registered for extension: {}. Supported: {}", extension, byExtension.keySet());
         return supplier.get();
     }
 

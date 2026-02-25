@@ -443,6 +443,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/143023
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.S3RepositoryAnalysisRestIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/143091
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.MinioRepositoryAnalysisRestIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/143099
+- class: org.elasticsearch.repositories.blobstore.testkit.analyze.S3RepositoryAnalysisStrongMpusRestIT
+  method: testRepositoryAnalysis
+  issue: https://github.com/elastic/elasticsearch/issues/143100
 
 # Examples:
 #

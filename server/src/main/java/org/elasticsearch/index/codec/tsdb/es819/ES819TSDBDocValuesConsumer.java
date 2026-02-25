@@ -55,8 +55,6 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.elasticsearch.index.codec.tsdb.es819.DocValuesConsumerUtil.compatibleWithOptimizedMerge;
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_BYTES_THRESHOLD;
-import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.BLOCK_COUNT_THRESHOLD;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.DIRECT_MONOTONIC_BLOCK_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_LEVEL_SHIFT;
 import static org.elasticsearch.index.codec.tsdb.es819.ES819TSDBDocValuesFormat.SKIP_INDEX_MAX_LEVEL;
@@ -79,6 +77,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     final BinaryDVCompressionMode binaryDVCompressionMode;
     private final boolean enablePerBlockCompression; // only false for testing
     private final DocOffsetsCodec.Encoder docOffsetsEncoder;
+    private final int blockBytesThreshold;
+    private final int blockCountThreshold;
 
     ES819TSDBDocValuesConsumer(
         BinaryDVCompressionMode binaryDVCompressionMode,
@@ -89,6 +89,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         int minDocsPerOrdinalForOrdinalRangeEncoding,
         boolean enableOptimizedMerge,
         int numericBlockShift,
+        int blockBytesThreshold,
+        int blockCountThreshold,
         String dataCodec,
         String dataExtension,
         String metaCodec,
@@ -97,6 +99,8 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
         this.binaryDVCompressionMode = binaryDVCompressionMode;
         this.enablePerBlockCompression = enablePerBlockCompression;
         this.docOffsetsEncoder = docOffsetsEncoder;
+        this.blockBytesThreshold = blockBytesThreshold;
+        this.blockCountThreshold = blockCountThreshold;
         this.state = state;
         this.termsDictBuffer = new byte[1 << 14];
         this.dir = state.directory;
@@ -534,7 +538,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
     private final class CompressedBinaryBlockWriter implements BinaryWriter {
         final Compressor compressor;
 
-        final int[] docOffsets = new int[BLOCK_COUNT_THRESHOLD + 1]; // start for each doc plus start of doc that would be after last
+        final int[] docOffsets = new int[blockCountThreshold + 1];
 
         int uncompressedBlockLength = 0;
         int maxUncompressedBlockLength = 0;
@@ -561,7 +565,7 @@ final class ES819TSDBDocValuesConsumer extends XDocValuesConsumer {
             numDocsInCurrentBlock++;
             docOffsets[numDocsInCurrentBlock] = uncompressedBlockLength;
 
-            if (uncompressedBlockLength >= BLOCK_BYTES_THRESHOLD || numDocsInCurrentBlock >= BLOCK_COUNT_THRESHOLD) {
+            if (uncompressedBlockLength >= blockBytesThreshold || numDocsInCurrentBlock >= blockCountThreshold) {
                 flushData();
             }
         }

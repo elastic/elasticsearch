@@ -104,9 +104,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         "change point value \\[.*\\] must be numeric", // https://github.com/elastic/elasticsearch/issues/142858
         // https://github.com/elastic/elasticsearch/issues/142860
         "(Grok|Dissect) only supports KEYWORD or TEXT values, found expression \\[.*\\] type \\[NULL\\]",
-        // https://github.com/elastic/elasticsearch/issues/142543
-        "Column \\[.*\\] has conflicting data types in FORK branches: \\[NULL\\] and \\[.*\\]",
-        "Column \\[.*\\] has conflicting data types in FORK branches: \\[.*\\] and \\[NULL\\]",
 
         // Ts-command errors awaiting fixes
         "Output has changed from \\[.*\\] to \\[.*\\]" // https://github.com/elastic/elasticsearch/issues/134794
@@ -306,9 +303,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             if (isFirstLastSameFieldError(outputValidation.errorMessage(), result.query())) {
                 return outputValidation;
             }
-            if (isForkOptimizationBugWithUnmappedFields(outputValidation.errorMessage(), result.query())) {
-                return outputValidation;
-            }
             fail("query: " + result.query() + "\nerror: " + outputValidation.errorMessage());
         }
         return outputValidation;
@@ -325,9 +319,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return;
         }
         if (isFirstLastSameFieldError(query.exception().getMessage(), query.query())) {
-            return;
-        }
-        if (isForkOptimizationBugWithUnmappedFields(query.exception().getMessage(), query.query())) {
             return;
         }
         fail("query: " + query.query() + "\nexception: " + query.exception().getMessage());
@@ -420,20 +411,6 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             }
         }
         return false;
-    }
-
-    private static final Pattern FORK_OPTIMIZED_INCORRECTLY_PATTERN = Pattern.compile(
-        ".*Plan \\[.*\\] optimized incorrectly due to missing references \\[_fork.*",
-        Pattern.DOTALL
-    );
-
-    /**
-     * When {@code SET unmapped_fields="nullify"} is used, the _fork reference can go missing
-     * during plan optimization.
-     * See <a href="https://github.com/elastic/elasticsearch/issues/142762">#142762</a>
-     */
-    static boolean isForkOptimizationBugWithUnmappedFields(String errorMessage, String query) {
-        return query.startsWith(SET_UNMAPPED_FIELDS_PREFIX) && FORK_OPTIMIZED_INCORRECTLY_PATTERN.matcher(errorMessage).matches();
     }
 
     @Override

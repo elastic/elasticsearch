@@ -85,7 +85,16 @@ public interface ShardsAllocator {
     ShardAllocationDecision explainShardAllocation(ShardRouting shard, RoutingAllocation allocation);
 
     /**
-     * Bulk explain over a bunch of shards
+     * Similar to explainShardAllocation, but returns a Function that is more efficient for explaining many shards
+     * in a bulk circumstance.
+     *
+     * Internally, an allocator builds up internal data structures for simulating its balancing algorithm.
+     * In some implementations, such as the BalancedShardsAllocator (also used within the DesiredBalanceAllocator),
+     * this internal context is computationally expensive. When run over many shards, it can be Order(shards * nodes).
+     *
+     * Instead of taking a shard and explaining it, explainShardAllocationFunction returns a Function that can be
+     * called repeatedly to explain multiple shards while reusing the context in the Function's closure. This reduces
+     * the computational cost of explain.
      */
     default Function<ShardRouting, ShardAllocationDecision> explainShardAllocationFunction(final RoutingAllocation allocation) {
         return new Function<ShardRouting, ShardAllocationDecision>() {

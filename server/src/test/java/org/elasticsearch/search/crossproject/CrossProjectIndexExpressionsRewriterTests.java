@@ -368,6 +368,91 @@ public class CrossProjectIndexExpressionsRewriterTests extends ESTestCase {
         );
     }
 
+    public void testRewritingWithQualifiedSelectors() {
+        ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
+        final var selector = randomFrom(IndexComponentSelector.values()).getKey();
+
+        {
+            // qualified expression with selector targets only the specified project
+            var actual = rewriteIndexExpressions(origin, linked, "P1:logs-ds::" + selector);
+            assertThat(actual.keySet(), containsInAnyOrder("P1:logs-ds::" + selector));
+            assertIndexRewriteResultsContains(actual.get("P1:logs-ds::" + selector), containsInAnyOrder("P1:logs-ds::" + selector));
+        }
+        {
+            // _origin qualifier with selector
+            var actual = rewriteIndexExpressions(origin, linked, "_origin:logs-ds::" + selector);
+            assertThat(actual.keySet(), containsInAnyOrder("_origin:logs-ds::" + selector));
+            assertIndexRewriteResultsContains(actual.get("_origin:logs-ds::" + selector), containsInAnyOrder("logs-ds::" + selector));
+        }
+        {
+            // wildcard project with selector fans out to matching projects
+            var actual = rewriteIndexExpressions(origin, linked, "*:logs-ds::" + selector);
+            assertThat(actual.keySet(), containsInAnyOrder("*:logs-ds::" + selector));
+            assertIndexRewriteResultsContains(
+                actual.get("*:logs-ds::" + selector),
+                containsInAnyOrder("logs-ds::" + selector, "P1:logs-ds::" + selector, "P2:logs-ds::" + selector)
+            );
+        }
+    }
+
+    public void testRewritingWithWildcardIndexAndSelector() {
+        ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
+        final var selector = randomFrom(IndexComponentSelector.values()).getKey();
+        String[] requestedResources = new String[] { "logs-*::" + selector };
+
+        var actual = rewriteIndexExpressions(origin, linked, requestedResources);
+
+        assertThat(actual.keySet(), containsInAnyOrder("logs-*::" + selector));
+        assertIndexRewriteResultsContains(
+            actual.get("logs-*::" + selector),
+            containsInAnyOrder("logs-*::" + selector, "P1:logs-*::" + selector, "P2:logs-*::" + selector)
+        );
+    }
+
+    public void testRewritingWithDateMathAndSelector() {
+        ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
+        final var selector = randomFrom(IndexComponentSelector.values()).getKey();
+        String expression = "<logs-{now/d}>::" + selector;
+        String[] requestedResources = new String[] { expression };
+
+        var actual = rewriteIndexExpressions(origin, linked, requestedResources);
+
+        assertThat(actual.keySet(), containsInAnyOrder(expression));
+        assertIndexRewriteResultsContains(actual.get(expression), containsInAnyOrder(expression, "P1:" + expression, "P2:" + expression));
+    }
+
+    public void testRewritingWithExclusionAndSelector() {
+        ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"), createRandomProjectWithAlias("P2"));
+        final var selector = randomFrom(IndexComponentSelector.values()).getKey();
+        String include = "*::" + selector;
+        String exclude = "-P1:logs-ds::" + selector;
+
+        var actual = rewriteIndexExpressions(origin, linked, include, exclude);
+
+        assertThat(actual.keySet(), containsInAnyOrder(include, exclude));
+        assertIndexRewriteResultsContains(
+            actual.get(include),
+            containsInAnyOrder("*::" + selector, "P1:*::" + selector, "P2:*::" + selector)
+        );
+        assertIndexRewriteResultsContains(actual.get(exclude), containsInAnyOrder(exclude));
+    }
+
+    public void testRewritingWithMixedSelectorsAndFlatExpressions() {
+        ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
+        List<ProjectRoutingInfo> linked = List.of(createRandomProjectWithAlias("P1"));
+        String[] requestedResources = new String[] { "logs-ds::data", "metrics*" };
+
+        var actual = rewriteIndexExpressions(origin, linked, requestedResources);
+
+        assertThat(actual.keySet(), containsInAnyOrder("logs-ds::data", "metrics*"));
+        assertIndexRewriteResultsContains(actual.get("logs-ds::data"), containsInAnyOrder("logs-ds::data", "P1:logs-ds::data"));
+        assertIndexRewriteResultsContains(actual.get("metrics*"), containsInAnyOrder("metrics*", "P1:metrics*"));
+    }
+
     public void testWildcardOnlyProjectRewrite() {
         ProjectRoutingInfo origin = createRandomProjectWithAlias("P0");
         List<ProjectRoutingInfo> linked = List.of(
